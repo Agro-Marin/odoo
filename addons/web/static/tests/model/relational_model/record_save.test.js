@@ -26,8 +26,6 @@ import { save } from "@web/model/relational_model/record_save";
 import { computeChangeset } from "@web/model/relational_model/record_utils";
 import { UrgentSaveCoordinator } from "@web/model/relational_model/urgent_save_coordinator";
 
-// Mock factory
-
 /**
  * Builds the minimal record mock shape required by save().
  *
@@ -60,8 +58,6 @@ function makeRecord({
         resModel: "res.partner",
         context: {},
         dirty: true,
-        // Empty activeFields: the _abandonRecords loop and fieldNames loops are skipped,
-        // and getFieldsSpec({}, {}, …) returns {} immediately.
         activeFields: {},
         fields: {},
         fieldNames: [],
@@ -85,10 +81,6 @@ function makeRecord({
         _setEvalContext: () => {},
         model: {
             _closeUrgentSaveNotification: null,
-            // ``record_save.save`` reads ``model.urgentSave.isActive`` (see
-            // :model/relational_model/record_save.js:69) — the legacy
-            // ``_urgentSave: false`` shape was replaced by an observable
-            // object so the urgent-save UI can react to mode changes.
             urgentSave: { isActive: false },
             useSendBeaconToSaveUrgently: false,
             env: { inDialog: false },
@@ -111,8 +103,6 @@ function makeRecord({
     };
 }
 
-// nextId on new record — throws immediately
-
 describe("nextId on new record", () => {
     test("throws when nextId is supplied for a new (unsaved) record", async () => {
         const rec = makeRecord({ resId: false });
@@ -126,8 +116,6 @@ describe("nextId on new record", () => {
         expect(threw).toBe(true);
     });
 });
-
-// Validity guard — returns false without calling webSave
 
 describe("validity guard", () => {
     test("returns false when _checkValidity fails", async () => {
@@ -146,8 +134,6 @@ describe("validity guard", () => {
     });
 });
 
-// No-changes short-circuit — returns true without calling webSave
-
 describe("no-changes short-circuit", () => {
     test("returns true and skips webSave when an existing record has no changes", async () => {
         let webSaveCalled = false;
@@ -164,15 +150,10 @@ describe("no-changes short-circuit", () => {
         const result = await save(rec, { reload: false });
         expect(result).toBe(true);
         expect(webSaveCalled).toBe(false);
-        // Internal state must be reset
         expect(rec.dirty).toBe(false);
-        // ``data`` was rebuilt from ``_values``, so the eval contexts must
-        // follow — otherwise modifiers evaluate against the discarded values.
         expect(evalContextCalls).toBe(1);
     });
 });
-
-// Creation path — webSave is called with empty ids array
 
 describe("creation path", () => {
     test("calls webSave with [] ids for a new record and returns true", async () => {
@@ -188,12 +169,9 @@ describe("creation path", () => {
         });
         const result = await save(rec, { reload: false });
         expect(result).toBe(true);
-        // Creation must pass [] as the id list
         expect(savedIds).toEqual([]);
     });
 });
-
-// Update path — webSave is called with [resId]
 
 describe("update path", () => {
     test("calls webSave with [resId] for an existing record and returns true", async () => {
@@ -212,13 +190,6 @@ describe("update path", () => {
     });
 });
 
-// reload:false save-in-place — must refresh the eval context and the
-// char/text/html empty-vs-NULL baseline from the just-persisted state, exactly
-// like the sendBeacon-success branch. Without it, a record that survives (a
-// dialog-hosted or beforeLeave save on a page that stays open) keeps a stale
-// ``_initialTextValues`` snapshot, so a later no-savepoint Discard reverts
-// ``_textValues`` to a false-vs-"" state contradicting the saved value.
-
 describe("reload:false save-in-place text-value baseline", () => {
     test("refreshes _initialTextValues and eval context from persisted state", async () => {
         const rec = makeRecord({
@@ -226,8 +197,6 @@ describe("reload:false save-in-place text-value baseline", () => {
             changes: { name: "Typed value" },
             webSave: async () => [{ id: 7, name: "Typed value" }],
         });
-        // Char field originally NULL on the server: the pre-save baseline holds
-        // ``false`` while the freshly-typed value lives in ``_textValues``.
         rec._textValues = markRaw({ name: "Typed value" });
         rec._initialTextValues = markRaw({ name: false });
         let evalContextCalls = 0;
@@ -236,15 +205,10 @@ describe("reload:false save-in-place text-value baseline", () => {
         const result = await save(rec, { reload: false });
 
         expect(result).toBe(true);
-        // The empty-vs-NULL baseline now mirrors the just-persisted value, so a
-        // later no-savepoint Discard reverts to the saved state, not to ``false``.
         expect(rec._initialTextValues).toEqual({ name: "Typed value" });
-        // And the eval context was recomputed against the committed values.
         expect(evalContextCalls).toBe(1);
     });
 });
-
-// onError callback — called with error and action helpers
 
 describe("onError callback", () => {
     test("calls onError with the thrown error and discard/retry helpers", async () => {
@@ -269,7 +233,6 @@ describe("onError callback", () => {
             },
         });
 
-        // onError return value is propagated as the save result
         expect(result).toBe("handled");
         expect(capturedError).toBe(serverError);
         expect(typeof capturedActions.discard).toBe("function");
@@ -277,11 +240,8 @@ describe("onError callback", () => {
     });
 });
 
-// FetchRecordError — thrown when webSave returns empty with reload:true
-
 describe("FetchRecordError on empty reload response", () => {
     test("throws FetchRecordError when webSave returns [] and reload is true", async () => {
-        // FetchRecordError calls _t() in its constructor — requires mock env
         await makeMockEnv();
 
         const rec = makeRecord({
@@ -292,7 +252,6 @@ describe("FetchRecordError on empty reload response", () => {
 
         let caughtError = null;
         try {
-            // reload:true is the default — triggers the empty-records check
             await save(rec);
         } catch (e) {
             caughtError = e;
@@ -302,20 +261,6 @@ describe("FetchRecordError on empty reload response", () => {
         expect(caughtError.resIds).toEqual([1]);
     });
 });
-
-// Urgent save (sendBeacon path) — must mirror the normal-save path's
-// field-scoped optimistic locking so the server can reject a genuine
-// concurrent edit even when the save was initiated by sendBeacon on tab
-// close. Both paths send the originally-loaded baseline of the written
-// fields as kwargs.known_values (record_save.js:111-115 for the urgent
-// branch, :171-176 for the normal branch). Without it, two users editing
-// the same record could both close their tabs and the later beacon would
-// silently overwrite the earlier write.
-//
-// NB: the mechanism is field-scoped (known_values), NOT timestamp-based
-// (last_write_date). The latter was the pre-2026-06 design, replaced by
-// commits "field-scoped optimistic locking in web_save" and "exclude
-// jsonb-backed fields from web_save optimistic locking".
 
 describe("urgent save (sendBeacon path)", () => {
     test("sends comparable changed fields as kwargs.known_values baseline", async () => {
@@ -329,8 +274,6 @@ describe("urgent save (sendBeacon path)", () => {
             resId: 7,
             changes: { name: "Updated under urgent save" },
         });
-        // concurrencyBaseline reads record.fields[f].type and record._values[f]
-        // for each changed field, so the mock must supply both.
         rec.fields = { name: { type: "char" } };
         rec._values = markRaw({ name: "Original name" });
         rec.model.urgentSave.isActive = true;
@@ -342,10 +285,7 @@ describe("urgent save (sendBeacon path)", () => {
         expect(capturedBlob).not.toBe(null);
         const payload = JSON.parse(await capturedBlob.text());
         expect(payload.params.method).toBe("web_save");
-        // The baseline (pre-edit value) of the written scalar field is sent so
-        // the server can detect a genuine concurrent write to THIS field.
         expect(payload.params.kwargs.known_values).toEqual({ name: "Original name" });
-        // The obsolete timestamp-based contract must not reappear.
         expect(payload.params.kwargs.last_write_date).toBe(undefined);
     });
 
@@ -358,9 +298,6 @@ describe("urgent save (sendBeacon path)", () => {
 
         const rec = makeRecord({
             resId: 7,
-            // A comparable char field alongside types the baseline must skip:
-            // datetime (not safely comparable) and a translate-flagged char
-            // (jsonb-backed; server reads a per-lang dict, never the scalar).
             changes: { name: "X", deadline: "2026-05-01 12:00:00", note: "hi" },
         });
         rec.fields = {
@@ -379,20 +316,9 @@ describe("urgent save (sendBeacon path)", () => {
         await save(rec, { reload: false });
 
         const payload = JSON.parse(await capturedBlob.text());
-        // Only the plain scalar survives; datetime and translate-flagged
-        // fields are excluded so the server fails open on them.
         expect(payload.params.kwargs.known_values).toEqual({ name: "orig" });
     });
 
-    // HIGH regression: on tab close the 6 async preprocessors do NOT run, so
-    // `_changes` can still hold RAW values — a many2one still awaiting its
-    // name_create (`{display_name}`, no id) and a raw x2many command array
-    // (not a StaticList). Before the defensive normalization in
-    // computeChangeset, the m2o serialized to `undefined` (silently dropped by
-    // JSON.stringify → field lost) and the raw x2many array threw a TypeError
-    // inside `_getChanges` → the beacon NEVER fired and ALL pending fields were
-    // lost. The save must now still fire the beacon, dropping only the two
-    // un-preprocessed fields while every serializable field reaches the server.
     test("urgent beacon drops un-preprocessed m2o/x2many, keeps serializable fields", async () => {
         let capturedBlob = null;
         mockSendBeacon((_url, blob) => {
@@ -412,18 +338,15 @@ describe("urgent save (sendBeacon path)", () => {
         };
         const rawChanges = {
             name: "kept",
-            partner_id: { display_name: "New Co" }, // no id → name_create pending
-            line_ids: [[0, 0, { name: "child" }]], // raw command array, not a StaticList
+            partner_id: { display_name: "New Co" },
+            line_ids: [[0, 0, { name: "child" }]],
         };
 
         const rec = makeRecord({ resId: 7, changes: {} });
         rec.fields = fields;
         rec.activeFields = activeFields;
         rec._values = markRaw({ name: "orig", partner_id: false, line_ids: [] });
-        // The pre-save _abandonRecords loop touches x2many datapoints in data.
         rec.data = { line_ids: { _abandonRecords() {} } };
-        // Delegate to the REAL changeset builder over the raw (un-preprocessed)
-        // changes, exactly as record._getChanges does in production.
         rec._getChanges = () =>
             computeChangeset({
                 changes: rawChanges,
@@ -439,23 +362,15 @@ describe("urgent save (sendBeacon path)", () => {
 
         const result = await save(rec, { reload: false });
 
-        // The beacon fired instead of throwing on the raw x2many array.
         expect(result).toBe(true);
         expect(capturedBlob).not.toBe(null);
         const payload = JSON.parse(await capturedBlob.text());
         const sentChanges = payload.params.args[1];
         expect(sentChanges.name).toBe("kept");
-        // The un-preprocessed m2o (no id) and x2many (raw array) are dropped —
-        // NOT emitted as `undefined`, NOT the cause of a thrown beacon.
         expect("partner_id" in sentChanges).toBe(false);
         expect("line_ids" in sentChanges).toBe(false);
     });
 
-    // The beacon-success branch merges _changes into _values and clears the
-    // change bag, but — like the reload:false branch — must ALSO clear each
-    // x2many list's staged commands. Otherwise, if the page survives the beacon
-    // (bfcache Back after tab close), the stale CREATE/LINK commands remain and
-    // the next save re-serializes them, duplicating child rows.
     test("clears x2many list commands on beacon success", async () => {
         mockSendBeacon(() => true);
 
@@ -519,20 +434,10 @@ describe("urgent save (sendBeacon path)", () => {
         const result = await save(rec, { reload: false });
 
         expect(result).toBe(true);
-        // The x2many list's staged commands were cleared exactly once, before
-        // the change bag was emptied.
         expect(list.clearCommandsCalls).toBe(1);
         expect(rec.clearChangesCalls).toBe(1);
     });
 });
-
-// urgentSave duplicate-beacon guard — a save whose web_save RPC is still on
-// the wire keeps ``_changes`` fully populated (x2many CREATE commands
-// included, which are NOT idempotent) until the RPC settles. If the tab
-// closes in that window, urgentSave() must skip the beacon instead of
-// re-sending the same payload and duplicating child rows. The guard is the
-// ``_saveInFlight`` flag record_save.save holds from the RPC until the
-// change bag is cleared.
 
 describe("urgentSave in-flight guard", () => {
     /**
@@ -593,8 +498,6 @@ describe("urgentSave in-flight guard", () => {
         expect(webSaveCalls).toBe(1);
         expect(rec._saveInFlight).toBe(true);
 
-        // Tab closes while the RPC is pending: only ONE web_save may reach
-        // the server.
         const urgentResult = await rec.urgentSave();
         expect(urgentResult).toBe(true);
         expect(beaconCalls).toBe(0);
@@ -620,30 +523,20 @@ describe("urgentSave in-flight guard", () => {
                 return [{ id: 7 }];
             },
         });
-        // Enterprise controllers override this hook with dialogs/RPCs that
-        // can park a save for seconds before its RPC fires.
         rec.model.hooks.lifecycle.onWillSaveRecord = async () => {
             await hookDef;
         };
 
         const saveProm = save(rec, { reload: false });
         await animationFrame();
-        // Parked in the hook: no RPC yet, and the in-flight marker is NOT up
-        // — a parked webSave cannot land after a real unload, so the beacon
-        // must stay available here or the user's work is lost on tab close.
         expect(webSaveCalls).toBe(0);
         expect(rec._saveInFlight).toBe(false);
 
-        // Tab closes while the save is parked: the beacon fires and persists
-        // the change set.
         const urgentResult = await rec.urgentSave();
         expect(urgentResult).toBe(true);
         expect(beaconCalls).toBe(1);
         expect(webSaveCalls).toBe(0);
 
-        // The unload was canceled and the parked save resumes: it must NOT
-        // re-send the beacon-persisted changes (duplicate x2many CREATEs the
-        // server cannot reject).
         hookDef.resolve();
         expect(await saveProm).toBe(true);
         expect(rec._saveInFlight).toBe(false);
@@ -673,13 +566,6 @@ describe("urgentSave in-flight guard", () => {
     });
 
     test("a leaked _urgentBeaconFired does not short-circuit a later real save", async () => {
-        // Regression: the beacon raises _urgentBeaconFired, but when the page
-        // SURVIVES (bfcache Back after the tab-close beacon) no parked save
-        // consumes it, so the flag leaks true. A subsequent save with genuinely
-        // new edits must still reach web_save — it must NOT read the stale
-        // beaconFiredWhileParked and return "saved" without persisting (silent
-        // data loss). The reset now happens right after the _getChanges()
-        // snapshot, so the stale flag can't survive into this save.
         let beaconCalls = 0;
         mockSendBeacon(() => {
             beaconCalls++;
@@ -693,12 +579,10 @@ describe("urgentSave in-flight guard", () => {
             },
         });
 
-        // Tab close beacon fires with no save in flight; the page then survives.
         await rec.urgentSave();
         expect(beaconCalls).toBe(1);
-        expect(rec._urgentBeaconFired).toBe(true); // leaked: nothing consumed it
+        expect(rec._urgentBeaconFired).toBe(true);
 
-        // A later real save with new edits must persist, not no-op.
         const result = await save(rec, { reload: false });
         expect(result).toBe(true);
         expect(webSaveCalls).toBe(1);

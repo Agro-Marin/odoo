@@ -16,18 +16,10 @@ import { applyTags } from "./tag.js";
  * @typedef {import("./tag").Tag} Tag
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Object: { assign: $assign, entries: $entries },
     Symbol,
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {JobConfig} config
@@ -54,10 +46,6 @@ const CONFIG_TAG_SCHEMA = {
 
 const S_MINIMIZED = Symbol("minimized");
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export class Job {
     /** @type {JobConfig} */
     config = {};
@@ -81,7 +69,6 @@ export class Job {
         this.name = name;
 
         if (this.parent) {
-            // Assigns parent path and config (ignoring multi)
             const parentConfig = {
                 ...this.parent.config,
                 tags: this.parent.tags,
@@ -114,11 +101,9 @@ export class Job {
      * @param {JobConfig & { tags?: Iterable<Tag> }} config
      */
     configure({ tags, ...config }) {
-        // Assigns and validates job config
         $assign(this.config, config);
         validateConfig(this.config);
 
-        // Add tags
         applyTags(this, tags);
     }
 

@@ -29,7 +29,7 @@ class TestDatabaseMasterPassword(TransactionCase):
             "",
             None,
             "not-an-ip",
-            "localhost",  # a hostname, not an IP — must not slip through
+            "localhost",
         ):
             self.assertFalse(_is_loopback(addr), addr)
 
@@ -49,8 +49,6 @@ class TestDatabaseMasterPassword(TransactionCase):
                 side_effect=lambda *a, **k: calls.append(a),
             ),
         ):
-            # self is unused by the method; pass a sentinel to avoid any
-            # http.Controller instantiation concern.
             Database._handle_insecure_password(object(), master_pwd)
         return calls
 
@@ -65,20 +63,14 @@ class TestDatabaseMasterPassword(TransactionCase):
         self.assertEqual(len(calls), 1)
 
     def test_refuses_promotion_from_remote_address(self):
-        # Insecure default + a non-loopback caller: the operation may still
-        # proceed (its own check_super runs against 'admin'), but the master
-        # password must NOT be silently promoted to the submitted value.
         calls = self._promote_calls(insecure=True, remote_addr="203.0.113.7")
         self.assertEqual(calls, [])
 
     def test_refuses_promotion_when_remote_addr_unknown(self):
-        # Fail closed: an unparseable/absent client address is not loopback.
         calls = self._promote_calls(insecure=True, remote_addr=None)
         self.assertEqual(calls, [])
 
     def test_noop_when_password_already_secure(self):
-        # Password already changed away from the default: nothing to promote,
-        # even from loopback.
         calls = self._promote_calls(insecure=False, remote_addr="127.0.0.1")
         self.assertEqual(calls, [])
 

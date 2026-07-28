@@ -71,12 +71,6 @@ declare module "registries" {
 
     export type ParsersRegistryItemShape = (value: any, options?: any) => any;
 
-    // Transport conversion (client <-> server), distinct from format/parse.
-    // serialize: client value -> server value; deserialize: server value ->
-    // client value (the `field` arg carries the field definition for types
-    // like selection/reference). Registered by the model layer
-    // (`record_value_transforms.js` / `field_values.js`); read by both the
-    // model and `fields/field_codec.js` so the two can never diverge.
     export type SerializersRegistryItemShape = (value: any) => any;
     export type DeserializersRegistryItemShape = (value: any, field?: any) => any;
 
@@ -86,6 +80,7 @@ declare module "registries" {
 
     export interface SystrayRegistryItemShape {
         Component: ComponentConstructor;
+        props?: Record<string, any>;
         isDisplayed?: (env: OdooEnv) => boolean;
     }
 
@@ -93,42 +88,19 @@ declare module "registries" {
 
     export type InteractionRegistryItemShape = typeof Interaction;
 
-    // Color picker tab. `id` matches against `props.enabledTabs` on the
-    // ColorPicker component; `component` is rendered when the tab is active.
-    // Runtime schema lives at `components/color_picker/color_picker.js`.
     export interface ColorPickerTabsRegistryItemShape {
         id: string;
         name: string;
         component: ComponentConstructor;
     }
 
-    // Debug menu section header. Sections group debug-menu items;
-    // `sequence` orders the section blocks vertically (default 50 if absent).
-    // Runtime schema lives at `services/debug/debug_menu_basic.js`.
     export interface DebugSectionRegistryItemShape {
         label: string;
         sequence?: number;
     }
 
-    // Bag of utility helpers / component classes shared across view layers
-    // via registry indirection to break import cycles. Entries are
-    // typeof-function (covers both utility functions and Component classes,
-    // since class declarations are functions). Runtime schema is the
-    // predicate `(entry) => typeof entry === "function"` at
-    // `views/form/form_utils.js`. Callers read entries with `.get(key)` and
-    // invoke as-appropriate for the key.
     export type SharedComponentsRegistryItemShape = Function;
 
-    // Factory function for an entry in the user menu (top-right systray
-    // dropdown). Invoked with the env and returns the item descriptor.
-    // The `type` field discriminates "item" (clickable / link) from
-    // "separator" and similar. Runtime schema is the predicate
-    // `(entry) => typeof entry === "function"` at
-    // `webclient/user_menu/user_menu.js`. The returned object's full shape
-    // is consumer-defined (`webclient/user_menu/user_menu_items.js`) — the
-    // catch-all index signature allows additional fields like `show`,
-    // `hide`, `isDisplayed`, etc., without forcing every factory to declare
-    // them.
     export type UserMenuItemsRegistryItemShape = (env: OdooEnv) => {
         type: string;
         id?: string;

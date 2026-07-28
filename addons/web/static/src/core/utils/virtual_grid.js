@@ -45,6 +45,31 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 const BUFFER_COEFFICIENT = 1;
 
 /**
+ * Scroll movement, in px, below which the visible window is NOT recomputed.
+ *
+ * Windowing is inherently a fixpoint problem: the indexes are derived from the
+ * scroll position, and rendering them changes the scrollable height, which can
+ * move the scroll position back. The sizes fed to {@link getIndexes} are
+ * *assumed* per-item sizes, while the browser lays out real items at fractional
+ * heights and rounds spacer elements — so the assumed and actual extents differ
+ * by ~1px, and no exact fixpoint exists.
+ *
+ * At a scroll extremity the browser additionally clamps the scroll position to
+ * `scrollHeight - clientHeight`, which turns that 1px disagreement into a
+ * self-sustaining limit cycle: window A renders 1px shorter, the clamp moves
+ * the position, the new position selects window B, which renders 1px taller,
+ * the clamp moves back, and so on at animation-frame rate forever.
+ *
+ * A deadband makes the mapping stable under the jitter it causes. Movement is
+ * measured against the position the current indexes were computed AT, not the
+ * previous event, so many sub-threshold scrolls still accumulate past it. The
+ * value only has to exceed the layout rounding error, and is negligible next to
+ * the buffer (`bufferCoef` × viewport) that decides when a recompute actually
+ * matters.
+ */
+const SCROLL_DEADBAND_PX = 4;
+
+/**
  * @typedef GetIndexesParams
  * @property {number[]} sizes cumulative sizes of the items (each entry sums the previous sizes and the current item's size).
  * @property {number} start start of the visible area (scroll position).
@@ -70,7 +95,6 @@ function getIndexes({
         return [];
     }
     if (sizes.at(-1) < span) {
-        // all items could be displayed
         return [0, sizes.length - 1];
     }
     const bufferSize = Math.round(span * bufferCoef);
@@ -78,7 +102,6 @@ function getIndexes({
     const bufferEnd = start + span + bufferSize;
 
     let startIndex = prevStartIndex ?? 0;
-    // we search the first index such that sizes[index] > bufferStart
     while (startIndex > 0 && sizes[startIndex] > bufferStart) {
         startIndex--;
     }
@@ -87,7 +110,6 @@ function getIndexes({
     }
 
     let endIndex = startIndex;
-    // we search the last index such that (sizes[index - 1] ?? 0) < bufferEnd
     while (endIndex < sizes.length - 1 && (sizes[endIndex - 1] ?? 0) < bufferEnd) {
         endIndex++;
     }
@@ -113,13 +135,8 @@ export function useVirtualGrid({ scrollableRef, initialScroll, onChange, bufferC
     const comp = useComponent();
     onChange ||= () => comp.render();
 
-    /** @type {{ scroll: { left: number, top: number }, summedColumnsWidths?: number[], summedRowsHeights?: number[], columnsIndexes?: [number, number] | [], rowsIndexes?: [number, number] | [] }} */
+    /** @type {{ scroll: { left: number, top: number }, computedScroll?: { left: number, top: number }, summedColumnsWidths?: number[], summedRowsHeights?: number[], columnsIndexes?: [number, number] | [], rowsIndexes?: [number, number] | [] }} */
     const current = { scroll: { left: 0, top: 0, ...initialScroll } };
-    // The visible span is the scrollable's own client box, not the window:
-    // for a small pane (e.g. a grid in a dialog or side panel) the window
-    // span can be several times larger, rendering up to ~4x the needed DOM.
-    // Fall back to the window dimensions when the element has no layout yet
-    // (or the ref is not mounted).
     const computeColumnsIndexes = () =>
         getIndexes({
             sizes: current.summedColumnsWidths,
@@ -137,6 +154,7 @@ export function useVirtualGrid({ scrollableRef, initialScroll, onChange, bufferC
             bufferCoef,
         });
     const throttledCompute = useThrottleForAnimation(() => {
+        current.computedScroll = { ...current.scroll };
         const changed = [];
         const columnsVisibleIndexes = computeColumnsIndexes();
         if (!shallowEqual(columnsVisibleIndexes, current.columnsIndexes)) {
@@ -156,6 +174,14 @@ export function useVirtualGrid({ scrollableRef, initialScroll, onChange, bufferC
         const target = /** @type {Element} */ (ev.target);
         current.scroll.left = target.scrollLeft;
         current.scroll.top = target.scrollTop;
+        const computed = current.computedScroll;
+        if (
+            computed &&
+            Math.abs(current.scroll.top - computed.top) < SCROLL_DEADBAND_PX &&
+            Math.abs(current.scroll.left - computed.left) < SCROLL_DEADBAND_PX
+        ) {
+            return;
+        }
         throttledCompute();
     };
     useEffect(

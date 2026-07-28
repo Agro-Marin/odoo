@@ -85,6 +85,15 @@ export function computeGroupDomain(filter, searchViewFields) {
     const { fieldName, groups, enableCounters } = filter;
     const { type: fieldType } = searchViewFields[fieldName];
 
+    // Only relational filters can have a value checked in one group skew the
+    // counts of another. `search_panel_select_multi_range` also accepts
+    // selection fields, whose values are mutually exclusive, so there is
+    // nothing to compensate — say so explicitly instead of falling off the end
+    // of the lookup below and sending `undefined` to the server.
+    if (!["many2one", "many2many"].includes(fieldType)) {
+        return null;
+    }
+
     if (!enableCounters || !groups) {
         return { many2one: [], many2many: {} }[fieldType];
     }
@@ -149,8 +158,6 @@ export function computeGroupDomain(filter, searchViewFields) {
  * @returns {Domain}
  */
 export function computeFieldDomain(field, autocompleteValues) {
-    // Parse filterDomain once, not once per autocomplete value: only the
-    // toList(context) call below varies per value, and Domain.toList is pure.
     const filterDomain = field.filterDomain ? new Domain(field.filterDomain) : null;
     const domains = autocompleteValues.map(({ label, value, operator }) => {
         let domain;
@@ -298,7 +305,5 @@ export function computeDomain({
     if (raw) {
         return domain;
     }
-    // JSON round-trip serializes PyDate/PyDateTime via toJSON() so the
-    // returned domain contains plain strings instead of class instances.
     return JSON.parse(JSON.stringify(domain.toList(domainEvalContext)));
 }

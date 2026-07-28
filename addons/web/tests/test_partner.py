@@ -137,9 +137,6 @@ class TestPartnerVCard(HttpCase):
                     )
 
     def test_multi_vcard_entry_names_sanitized_and_unique(self):
-        # A partner name reaching a zip entry name unsanitized is a zip-slip
-        # vector, and two partners sharing a name silently collide into one
-        # entry (zipfile keeps the last). Names must be cleaned and de-duplicated.
         dupes = self.env["res.partner"].create(
             [
                 {"name": "../../../evil"},
@@ -154,10 +151,8 @@ class TestPartnerVCard(HttpCase):
         with io.BytesIO(res.content) as buffer:
             with zipfile.ZipFile(buffer, "r") as zipf:
                 names = zipf.namelist()
-        # One entry per partner (no silent collision).
         self.assertEqual(len(names), 4)
         self.assertEqual(len(set(names)), 4, "entry names must be unique")
-        # No path traversal survives into an entry name.
         for name in names:
             self.assertNotIn("..", name)
             self.assertNotIn("/", name)
@@ -173,7 +168,7 @@ class TestPartnerVCard(HttpCase):
             }
         )
         self.authenticate("testuser", "testuser")
-        with mute_logger("odoo.http"):  # mute 403 warning
+        with mute_logger("odoo.http"):
             res = self.url_open(
                 "/web/partner/vcard?partner_ids=%s,%s"
                 % (self.partners[0].id, self.partners[1].id)

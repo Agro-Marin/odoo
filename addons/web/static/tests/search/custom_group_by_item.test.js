@@ -119,7 +119,7 @@ test(`add a date field in "Custom Group" activate a groupby with global default 
 
     await toggleSearchBarMenu();
     expect(component.env.searchModel.groupBy).toEqual([]);
-    expect(`.o_add_custom_group_menu`).toHaveCount(1); // Custom Group
+    expect(`.o_add_custom_group_menu`).toHaveCount(1);
 
     await selectGroup("date");
     expect(component.env.searchModel.groupBy).toEqual(["date:month"]);
@@ -149,7 +149,6 @@ test(`click on add custom group toggle group selector`, async () => {
     await toggleSearchBarMenu();
     expect(`.o_add_custom_group_menu option[disabled]`).toHaveText("Custom Group");
 
-    // Single select node with a single option
     expect(`.o_add_custom_group_menu option:not([disabled])`).toHaveCount(1);
     expect(`.o_add_custom_group_menu option:not([disabled])`).toHaveText("Super Date");
 });

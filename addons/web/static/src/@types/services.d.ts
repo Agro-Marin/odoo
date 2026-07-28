@@ -1,10 +1,8 @@
 declare module "services" {
     import { ServicesRegistryShape } from "registries";
 
-    // Public services
     import { publicInteractionService } from "@web/public/interaction_service";
 
-    // Domain services
     import { commandService } from "@web/services/commands/command_service";
     import { errorService } from "@web/services/error_service";
     import { fieldService } from "@web/services/field_service";
@@ -28,7 +26,6 @@ declare module "services" {
     import { allowedQwebExpressionsService } from "@web/fields/dynamic_placeholder_popover";
     import { datetimePickerService } from "@web/components/datetime/datetime_picker_service";
 
-    // UI overlay services
     import { bottomSheetService } from "@web/ui/bottom_sheet/bottom_sheet_service";
     import { dialogService } from "@web/ui/dialog/dialog_service";
     import { effectService } from "@web/ui/effects/effect_service";
@@ -38,12 +35,10 @@ declare module "services" {
     import { tooltipService } from "@web/ui/tooltip/tooltip_service";
     import { uiService } from "@web/ui/block/ui_service";
 
-    // View services
     import { demoDataService } from "@web/views/settings/widgets/demo_data_service";
     import { userInviteService } from "@web/views/settings/widgets/user_invite_service";
     import { viewService } from "@web/views/view_service";
 
-    // Webclient services
     import { actionService } from "@web/webclient/actions/action_service";
     import { currencyService } from "@web/webclient/currency_service";
     import { densityService } from "@web/webclient/density/density_service";

@@ -5,6 +5,7 @@ import {
     click,
     edit,
     on,
+    press,
     queryAllProperties,
     queryAllTexts,
     queryFirst,
@@ -105,14 +106,10 @@ beforeEach(() => {
 });
 
 test("header setting without explicit string falls back to the field label", async () => {
-    // SettingHeader inherits labelString from Setting: with no string on the
-    // <setting> or its field, the label falls back to the field's own string.
-    // Regression: a former override read the nonexistent props.name (the
-    // compiler passes fieldName), rendering header settings label-less.
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <setting type="header">
@@ -131,7 +128,7 @@ test("change setting on nav bar click in base settings on desktop", async () => 
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <setting type="header" string="Foo">
@@ -302,7 +299,7 @@ test("change setting on nav bar click in base settings on mobile", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <setting type="header" string="Foo">
@@ -496,7 +493,7 @@ test("edit header field", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <setting type="header" string="Type">
@@ -514,14 +511,12 @@ test("edit header field", async () => {
     expect(queryAllProperties("[name='baz'] input", "checked")).toEqual([true, false]);
     expect(queryFirst("[name='foo_text'] input")).toHaveValue("First default value");
 
-    // edit a header field with no other changes
     await click("[name='baz'] input:eq(1)");
     await animationFrame();
     expect(".modal").toHaveCount(0);
     expect(queryAllProperties("[name='baz'] input", "checked")).toEqual([false, true]);
     expect("[name='foo_text'] input").toHaveValue("Second default value");
 
-    // edit a header field with other changes
     await click("[name='foo_text'] input");
     await edit("Hello");
     await animationFrame();
@@ -529,7 +524,6 @@ test("edit header field", async () => {
     await animationFrame();
     expect(".modal").toHaveCount(1);
 
-    // Stay here
     await click(".modal .btn-secondary");
     await animationFrame();
     expect(queryAllProperties("[name='baz'] input", "checked")).toEqual([false, true]);
@@ -539,7 +533,6 @@ test("edit header field", async () => {
     await animationFrame();
     expect(".modal").toHaveCount(1);
 
-    // Discard
     await click(".modal .btn-secondary:eq(1)");
     await animationFrame();
     expect(queryAllProperties("[name='baz'] input", "checked")).toEqual([true, false]);
@@ -552,7 +545,6 @@ test("edit header field", async () => {
     await animationFrame();
     expect(".modal").toHaveCount(1);
 
-    // Save
     await click(".modal .btn-primary");
     await animationFrame();
     expect(queryAllProperties("[name='baz'] input", "checked")).toEqual([true, false]);
@@ -563,7 +555,7 @@ test("don't show noContentHelper if no search is done", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Setting title" help="Settings will appear below">
@@ -579,7 +571,7 @@ test("unhighlight section not matching anymore", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Baz">
@@ -617,7 +609,7 @@ test("hide / show setting tips properly", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="Settings" name="settings">
                     <block title="Setting Header" help="Settings will appear below">
@@ -677,7 +669,7 @@ test("settings views does not read existing id when coming back in breadcrumbs",
         },
     ]);
 
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -689,7 +681,7 @@ test("settings views does not read existing id when coming back in breadcrumbs",
             </app>
         </form>
     `;
-    Task._views.list = /* xml */ `
+    Task._views.list = `
         <list>
             <field name="display_name"/>
         </list>
@@ -710,12 +702,12 @@ test("settings views does not read existing id when coming back in breadcrumbs",
     await animationFrame();
     expect(".o_field_boolean input").toHaveProperty("disabled", false);
     expect.verifySteps([
-        "get_views", // initial setting action
-        "onchange", // this is a setting view => new record transient record
-        "web_save", // create the record before doing the action
-        "get_views", // for other action in breadcrumb,
-        "web_search_read", // with a searchread
-        "onchange", // when we come back, we want to restart from scratch
+        "get_views",
+        "onchange",
+        "web_save",
+        "get_views",
+        "web_search_read",
+        "onchange",
     ]);
 });
 
@@ -758,7 +750,7 @@ test("resIds should contains only 1 id", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <div class="o_setting_container">
                     <div class="settings">
@@ -775,11 +767,11 @@ test("resIds should contains only 1 id", async () => {
         `,
     });
 
-    await click(".o_field_char .btn.o_field_translate"); // Translate
+    await click(".o_field_char .btn.o_field_translate");
     await animationFrame();
-    await click(".modal-footer .btn:eq(1)"); // Discard
+    await click(".modal-footer .btn:eq(1)");
     await animationFrame();
-    await clickSave(); // Save Settings
+    await clickSave();
 });
 
 test("settings views does not read existing id when reload", async () => {
@@ -798,7 +790,7 @@ test("settings views does not read existing id when reload", async () => {
             views: [["view_ref", "form"]],
         },
     ]);
-    ResConfigSettings._views["form,1"] = /* xml */ `
+    ResConfigSettings._views["form,1"] = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -810,7 +802,7 @@ test("settings views does not read existing id when reload", async () => {
             </app>
         </form>
     `;
-    Task._views["form,view_ref"] = /* xml */ `
+    Task._views["form,view_ref"] = `
         <form>
             <field name="display_name"/>
         </form>
@@ -824,27 +816,17 @@ test("settings views does not read existing id when reload", async () => {
 
     await getService("action").doAction(1);
 
-    expect.verifySteps([
-        "get_views", // initial setting action
-        "onchange", // this is a setting view => new record transient record
-    ]);
+    expect.verifySteps(["get_views", "onchange"]);
 
     await click("button[name='4']");
     await animationFrame();
 
-    expect.verifySteps([
-        "web_save", // settings: create the record before doing the action
-        "get_views", // dialog: get views
-        "onchange", // dialog: onchange
-    ]);
+    expect.verifySteps(["web_save", "get_views", "onchange"]);
 
     await click(".modal button.btn.btn-primary.o_form_button_save");
     await animationFrame();
 
-    expect.verifySteps([
-        "web_save", // dialog: create the record before doing back to the settings
-        "onchange", // settings: when we come back, we want to restart from scratch
-    ]);
+    expect.verifySteps(["web_save", "onchange"]);
 });
 
 test("settings views ask for confirmation when leaving if dirty", async () => {
@@ -862,7 +844,7 @@ test("settings views ask for confirmation when leaving if dirty", async () => {
             views: [[false, "form"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -873,7 +855,7 @@ test("settings views ask for confirmation when leaving if dirty", async () => {
             </app>
         </form>
     `;
-    Task._views.form = /* xml */ `
+    Task._views.form = `
         <form>
             <field name="display_name"/>
         </form>
@@ -913,7 +895,7 @@ test("settings views skip the confirmation dialog when leaving with forceLeave",
             views: [[false, "form"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -924,7 +906,7 @@ test("settings views skip the confirmation dialog when leaving with forceLeave",
             </app>
         </form>
     `;
-    Task._views.form = /* xml */ `
+    Task._views.form = `
         <form>
             <field name="display_name"/>
         </form>
@@ -936,8 +918,6 @@ test("settings views skip the confirmation dialog when leaving with forceLeave",
     await click(".o_field_boolean input");
     await animationFrame();
 
-    // forceLeave must bypass the unsaved-changes dialog: FormController.beforeLeave
-    // early-returns on it, and the settings override now honours it too.
     await getService("action").doAction(4, { forceLeave: true });
     await animationFrame();
 
@@ -950,8 +930,6 @@ test("settings views skip the confirmation dialog when leaving with forceLeave",
 });
 
 test("settings views settle beforeLeave even when the Discard save fails", async () => {
-    // Repro of the pending-forever hang: Discard with a server-side create failure
-    // must still settle _confirmSave (try/finally resolve) so beforeLeave resolves.
     expect.errors(1);
     defineActions([
         {
@@ -967,7 +945,7 @@ test("settings views settle beforeLeave even when the Discard save fails", async
             views: [[false, "form"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -978,7 +956,7 @@ test("settings views settle beforeLeave even when the Discard save fails", async
             </app>
         </form>
     `;
-    Task._views.form = /* xml */ `
+    Task._views.form = `
         <form>
             <field name="display_name"/>
         </form>
@@ -993,7 +971,6 @@ test("settings views settle beforeLeave even when the Discard save fails", async
     await click(".o_field_boolean input");
     await animationFrame();
 
-    // Start leaving: the dirty settings form opens the confirmation dialog.
     let settled = false;
     const leaving = getService("action")
         .doAction(4)
@@ -1004,8 +981,6 @@ test("settings views settle beforeLeave even when the Discard save fails", async
     await animationFrame();
     expect(".modal").toHaveCount(1);
 
-    // Discard -> discard-then-save, whose save throws server-side. Before the
-    // fix, resolve() was unreachable and this promise hung forever.
     await clickModalButton({ text: "Discard" });
     await animationFrame();
     await animationFrame();
@@ -1020,7 +995,7 @@ test("Auto save: don't save on closing tab/browser", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="Base Setting" name="base-setting">
                     <setting>
@@ -1053,7 +1028,7 @@ test("Auto save: don't save on visibility change", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="Base Setting" name="base-setting">
                     <setting>
@@ -1085,7 +1060,7 @@ test("correctly copy attributes to compiled labels", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block>
@@ -1115,7 +1090,7 @@ test("settings views does not write the id on the url", async () => {
             views: [[false, "form"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -1126,7 +1101,7 @@ test("settings views does not write the id on the url", async () => {
             </app>
         </form>
     `;
-    Task._views.list = /* xml */ `
+    Task._views.list = `
         <list>
             <field name="display_name"/>
         </list>
@@ -1167,7 +1142,7 @@ test("settings views can search when coming back in breadcrumbs", async () => {
             views: [[false, "list"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -1179,7 +1154,7 @@ test("settings views can search when coming back in breadcrumbs", async () => {
             </app>
         </form>
     `;
-    Task._views.list = /* xml */ `
+    Task._views.list = `
         <list>
             <field name="display_name"/>
         </list>
@@ -1214,7 +1189,7 @@ test("search for default label when label has empty string", async () => {
             views: [[false, "list"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -1226,7 +1201,7 @@ test("search for default label when label has empty string", async () => {
             </app>
         </form>
     `;
-    Task._views.list = /* xml */ `
+    Task._views.list = `
         <list>
             <field name="display_name"/>
         </list>
@@ -1261,7 +1236,7 @@ test("clicking on any button in setting should show discard warning if setting f
         },
     ]);
 
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -1273,7 +1248,7 @@ test("clicking on any button in setting should show discard warning if setting f
             </app>
         </form>
     `;
-    Task._views.list = /* xml */ `
+    Task._views.list = `
         <list>
             <field name="display_name"/>
         </list>
@@ -1321,11 +1296,11 @@ test("clicking on any button in setting should show discard warning if setting f
 
     await clickSave();
     expect(".modal").toHaveCount(0, { message: "should not open a warning dialog" });
-    expect(".o_field_boolean input").toHaveProperty("disabled", false); // Everything must stay in edit
+    expect(".o_field_boolean input").toHaveProperty("disabled", false);
 
     await click(".o_field_boolean input");
     await animationFrame();
-    await click(".o_control_panel .o_form_button_cancel"); // Form Discard button
+    await click(".o_control_panel .o_form_button_cancel");
     await animationFrame();
     expect(".modal").toHaveCount(0, { message: "should not open a warning dialog" });
 
@@ -1350,7 +1325,7 @@ test("header field don't dirty settings", async () => {
             views: [[false, "list"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <setting type="header" string="Foo">
@@ -1360,7 +1335,7 @@ test("header field don't dirty settings", async () => {
             </app>
         </form>
     `;
-    Task._views.list = /* xml */ `<list><field name="display_name"/></list>`;
+    Task._views.list = `<list><field name="display_name"/></list>`;
 
     onRpc("web_save", ({ args }) => {
         expect(args[1]).toEqual(
@@ -1403,7 +1378,7 @@ test("header without string or field", async () => {
             views: [[false, "form"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <setting type="header">
@@ -1432,7 +1407,7 @@ test("clicking a button with dirty settings -- save", async () => {
     });
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <field name="foo" />
@@ -1465,7 +1440,7 @@ test("click on save button which throws an error", async () => {
     });
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <field name="foo" />
@@ -1482,7 +1457,6 @@ test("click on save button which throws an error", async () => {
     await animationFrame();
     await click(".o_form_button_save");
     await animationFrame();
-    // errors are caught asynchronously; wait an extra frame for the error dialog to mount
     await animationFrame();
     expect.verifyErrors(["RPC_ERROR"]);
     expect(".o_error_dialog").toHaveCount(1);
@@ -1564,7 +1538,7 @@ test("clicking a button with dirty settings -- discard", async () => {
     });
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <field name="product_ids" widget="many2many_tags" options="{ 'color_field': 'color' }"/>
@@ -1578,7 +1552,6 @@ test("clicking a button with dirty settings -- discard", async () => {
     });
     expect.verifySteps(["get_views", "onchange"]);
 
-    // Initial state: "bar" checked, two tags (xphone, xpad) with onchange-applied colors 1 and 3
     expect(".o_field_boolean[name='bar'] input").toBeChecked();
     expect(queryAllTexts`.o_field_tags .o_tag`).toEqual(["xphone", "xpad"]);
     expect(".o_tag_color_1").toHaveCount(1);
@@ -1593,7 +1566,6 @@ test("clicking a button with dirty settings -- discard", async () => {
         'web_save - {"product_ids":[[4,37,false],[4,41,false],[1,41,{"color":3}]],"bar":true,"foo":false}',
         'action executed {"context":{"lang":"en","tz":"taht","uid":7,"allowed_company_ids":[1]},"type":"object","name":"mymethod","resModel":"res.config.settings","resId":1,"resIds":[1],"buttonContext":{}}',
     ]);
-    // We came back to the same initial state.
     expect(".o_field_boolean[name='bar'] input").toBeChecked();
     expect(queryAllTexts`.o_field_tags .o_tag`).toEqual(["xphone", "xpad"]);
     expect(".o_tag_color_1").toHaveCount(1);
@@ -1620,7 +1592,7 @@ test("clicking on a button with noSaveDialog will not show discard warning", asy
         },
     ]);
 
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -1632,7 +1604,7 @@ test("clicking on a button with noSaveDialog will not show discard warning", asy
             </app>
         </form>
     `;
-    Task._views.list = /* xml */ `<list><field name="display_name"/></list>`;
+    Task._views.list = `<list><field name="display_name"/></list>`;
 
     await mountWithCleanup(WebClient);
 
@@ -1658,7 +1630,7 @@ test("settings view does not display o_not_app settings", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="CRM">
@@ -1721,14 +1693,13 @@ test("settings view shows a message if there are changes even if the save failed
     onRpc(({ method }) => {
         if (method === "web_save" && !alreadySavedOnce) {
             alreadySavedOnce = true;
-            //fail on first create
             return Promise.reject({});
         }
     });
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="Base Setting" name="base-setting">
                     <setting>
@@ -1755,7 +1726,6 @@ test("settings view shows a message if there are changes even if the save failed
 test.tags("desktop");
 test("execute action from settings view with several actions in the breadcrumb", async () => {
     onRpc("has_group", () => true);
-    // Fixes a race condition: artificially slow down a read rpc
     expect.assertions(4);
 
     defineActions([
@@ -1779,8 +1749,8 @@ test("execute action from settings view with several actions in the breadcrumb",
         },
     ]);
 
-    Task._views[["list", 1]] = /* xml */ `<list><field name="display_name"/></list>`;
-    ResConfigSettings._views[["form", 2]] = /* xml */ `
+    Task._views[["list", 1]] = `<list><field name="display_name"/></list>`;
+    ResConfigSettings._views[["form", 2]] = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block title="Title of group">
@@ -1791,11 +1761,11 @@ test("execute action from settings view with several actions in the breadcrumb",
             </app>
         </form>
     `;
-    Task._views[["list", 3]] = /* xml */ `<list><field name="display_name"/></list>`;
+    Task._views[["list", 3]] = `<list><field name="display_name"/></list>`;
 
     let def;
     onRpc("web_save", async () => {
-        await def; // slow down reload of settings view
+        await def;
     });
 
     await mountWithCleanup(WebClient);
@@ -1820,7 +1790,7 @@ test("settings can contain one2many fields", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="Base Setting" name="base-setting">
                     <setting>
@@ -1865,7 +1835,7 @@ test('call "call_button/execute" when clicking on a button in dirty settings', a
         },
     ]);
 
-    ResConfigSettings._views[["form", 1]] = /* xml */ `
+    ResConfigSettings._views[["form", 1]] = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -1905,10 +1875,7 @@ test('call "call_button/execute" when clicking on a button in dirty settings', a
 
     await click(".modal-footer .btn-primary");
     await animationFrame();
-    expect.verifySteps([
-        "web_save", // saveRecord from modal
-        "execute", // execute_action
-    ]);
+    expect.verifySteps(["web_save", "execute"]);
 });
 
 test("Discard button clean the settings view", async () => {
@@ -1924,7 +1891,7 @@ test("Discard button clean the settings view", async () => {
         },
     ]);
 
-    ResConfigSettings._views[["form", 1]] = /* xml */ `
+    ResConfigSettings._views[["form", 1]] = `
         <form string="Settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <block>
@@ -1989,7 +1956,7 @@ test("Settings Radio widget: show and search", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block>
@@ -2035,7 +2002,7 @@ test("Settings with createLabelFromField", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Title of group Bar">
@@ -2082,7 +2049,7 @@ test("standalone field labels with string inside a settings page", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <setting id="setting_id">
@@ -2095,7 +2062,7 @@ test("standalone field labels with string inside a settings page", async () => {
     });
 
     expect("label.highhopes").toHaveText(`My" little ' Label`);
-    const expectedCompiled = /* xml */ `
+    const expectedCompiled = `
             <SettingsPage slots="{NoContentHelper:__comp__.props.slots.NoContentHelper}" initialTab="__comp__.props.initialApp" t-slot-scope="settings" modules="[{&quot;key&quot;:&quot;crm&quot;,&quot;string&quot;:&quot;CRM&quot;,&quot;imgurl&quot;:&quot;${MOCK_IMAGE}&quot;}]" anchors="[{&quot;app&quot;:&quot;crm&quot;,&quot;settingId&quot;:&quot;setting_id&quot;}]">
                 <SettingsApp key="\`crm\`" string="\`CRM\`" imgurl="\`${MOCK_IMAGE}\`" selectedTab="settings.selectedTab">
                     <SearchableSetting info="\`\`" title="\`\`"  help="\`\`" companyDependent="false" documentation="\`\`" record="__comp__.props.record" id="\`setting_id\`" string="\`\`" addLabel="true">
@@ -2112,7 +2079,7 @@ test("field and artificial label inside a settings page", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <setting id="setting_id">
@@ -2144,7 +2111,7 @@ test("highlight Element with inner html/fields", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Title of group Bar">
@@ -2161,7 +2128,7 @@ test("highlight Element with inner html/fields", async () => {
     expect(".o_setting_right_pane .text-muted").toHaveText(
         "this is Baz value: treads and this is the after text",
     );
-    const expectedCompiled = /* xml */ `
+    const expectedCompiled = `
             <HighlightText originalText="\`this is Baz value: \`"/>
             <Field id="'baz_0'" name="'baz'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['baz_0']" readonly="__comp__.props.readonly"/>
             <HighlightText originalText="\` and this is the after text\`"/>`;
@@ -2183,7 +2150,7 @@ test("settings form doesn't autofocus", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Title of group Bar">
@@ -2209,7 +2176,7 @@ test("settings form keeps scrolling by app", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Title of group Bar">
@@ -2234,7 +2201,6 @@ test("settings form keeps scrolling by app", async () => {
         `,
     });
 
-    // constrain o_content to have height for its children to be scrollable
     queryFirst(".o_content").style.setProperty("height", "200px");
 
     const scrollingEl = queryFirst(".settings");
@@ -2274,7 +2240,7 @@ test("server actions are called with the correct context", async () => {
         },
     ]);
 
-    ResConfigSettings._views[["form", 1]] = /* xml */ `
+    ResConfigSettings._views[["form", 1]] = `
         <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
             <app string="CRM" name="crm">
                 <button name="2" type="action"/>
@@ -2320,7 +2286,7 @@ test("BinaryField is correctly rendered in Settings form view", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="Sale" name="sale">
                     <block title="Title of group Bar">
@@ -2350,7 +2316,6 @@ test("BinaryField is correctly rendered in Settings form view", async () => {
         message: "the filename field should have the file name as value",
     });
 
-    // Intercept the download click to avoid an actual browser download
     const def = new Deferred();
     const onDownloadClick = (ev) => {
         if (ev.target.tagName === "A" && "download" in ev.target.attributes) {
@@ -2386,7 +2351,7 @@ test("Open settings from url, with app anchor", async () => {
             views: [[false, "form"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="Not CRM" name="not_crm">
                 <block>
@@ -2426,7 +2391,7 @@ test("Open settings from url, with setting id anchor", async () => {
             views: [[false, "form"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="Not CRM" name="not_crm">
                 <block>
@@ -2550,7 +2515,7 @@ test("Don't cache settings data", async () => {
             views: [[false, "form"]],
         },
     ]);
-    ResConfigSettings._views.form = /* xml */ `
+    ResConfigSettings._views.form = `
         <form string="Settings" js_class="base_settings">
             <app string="Not CRM" name="not_crm">
                 <block>
@@ -2571,11 +2536,9 @@ test("Don't cache settings data", async () => {
         "Bar",
     ]);
 
-    // The view is cached
     expect(
         Object.keys(cache.ramCache.ram.get_views)[0].includes("res.config.settings"),
     ).toBe(true);
-    // The onChange is not cached
     expect(
         Object.keys(cache.ramCache.ram.onchange || {})?.[0]?.includes(
             "res.config.settings",
@@ -2587,7 +2550,7 @@ test("settings search is accent-insensitive", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Title of group Bâr">
@@ -2616,7 +2579,7 @@ test("settings search matches block titles accent-insensitively", async () => {
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Gestion des Élèves">
@@ -2633,8 +2596,6 @@ test("settings search matches block titles accent-insensitively", async () => {
             </form>
         `,
     });
-    // Only the block TITLE matches (no setting text contains "eleve"): the
-    // block must behave as on an exact title match and show all its settings.
     await editSearch("eleve");
     await animationFrame();
     expect(queryAllTexts(".settings h2:not(.d-none)")).toEqual(["Gestion des Élèves"]);
@@ -2646,7 +2607,7 @@ test("settings search does not highlight escaped characters when highlighting th
     await mountView({
         type: "form",
         resModel: "res.config.settings",
-        arch: /* xml */ `
+        arch: `
             <form string="Settings" class="oe_form_configuration o_base_settings" js_class="base_settings">
                 <app string="CRM" name="crm">
                     <block title="Research &amp; Development">
@@ -2664,4 +2625,62 @@ test("settings search does not highlight escaped characters when highlighting th
     expect(queryAllTexts(".highlighter")).toEqual(["a", "a", "a", "a", "a"]);
     await editSearch("&");
     expect(queryAllTexts(".highlighter")).toEqual(["&", "&", "&"]);
+});
+
+test("escaping the unsaved-settings dialog keeps the changes and stays put", async () => {
+    // Dismissal (escape / the header X) must behave like "Stay Here", not like
+    // the Discard button that ConfirmationDialog's dismiss->cancel fallback
+    // would otherwise reach.
+    onRpc("has_group", () => true);
+    defineActions([
+        {
+            id: 1,
+            name: "Settings view",
+            res_model: "res.config.settings",
+            views: [[false, "form"]],
+        },
+        { id: 4, name: "Other action", res_model: "task", views: [[false, "list"]] },
+    ]);
+
+    ResConfigSettings._views.form = `
+        <form string="Settings" js_class="base_settings">
+            <app string="CRM" name="crm">
+                <block>
+                    <setting string="Foo" help="this is foo">
+                        <field name="foo"/>
+                    </setting>
+                </block>
+                <button name="4" string="Execute action" type="action"/>
+            </app>
+        </form>
+    `;
+    Task._views.list = `<list><field name="display_name"/></list>`;
+
+    onRpc("/web/dataset/call_button/*/<string:method>", async (request, { method }) => {
+        expect.step(method);
+    });
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction(1);
+
+    await click(".o_field_boolean input");
+    await animationFrame();
+    expect(".o_field_boolean input").toBeChecked();
+
+    await click("button[name='4']");
+    await animationFrame();
+    expect(".modal").toHaveCount(1);
+
+    await press("escape");
+    await animationFrame();
+    await animationFrame();
+
+    expect(".modal").toHaveCount(0);
+    expect(".o_form_view").toHaveCount(1, { message: "stays on the settings form" });
+    expect(".o_list_view").toHaveCount(0, { message: "does not navigate away" });
+    expect(".o_field_boolean input").toBeChecked({
+        message: "the unsaved change survives the dismissal",
+    });
+    // neither execute (save) nor cancel (discard) was run
+    expect.verifySteps([]);
 });

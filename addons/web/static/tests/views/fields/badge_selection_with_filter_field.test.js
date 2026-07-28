@@ -67,7 +67,7 @@ test("badge selection field with filter, empty list", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="allowed_colors" invisible="1"/>
                 <field name="color" widget="selection_badge_with_filter"
@@ -85,7 +85,7 @@ test("badge selection field with filter, single choice", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="allowed_colors" invisible="1"/>
                 <field name="color" widget="selection_badge_with_filter"
@@ -106,7 +106,7 @@ test("badge selection field with filter, all choices", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="allowed_colors" invisible="1"/>
                 <field name="color" widget="selection_badge_with_filter"
@@ -126,7 +126,7 @@ test("badge selection field with filter, synchronize with other field", async ()
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <group>
                     <field name="is_raining_outside"/>
@@ -137,7 +137,6 @@ test("badge selection field with filter, synchronize with other field", async ()
             </form>
         `,
     });
-    // not raining outside => sad should be invisible
     expect("[name='is_raining_outside'] input").not.toBeChecked();
     expect("div[name='mood'] .o_selection_badge").toHaveCount(1);
     expect(".o_selection_badge[value='\"happy\"']").toBeVisible();
@@ -146,7 +145,6 @@ test("badge selection field with filter, synchronize with other field", async ()
     await click("[name='is_raining_outside'] input");
     await animationFrame();
 
-    // raining outside => sad should be visible
     expect("[name='is_raining_outside'] input").toBeChecked();
     expect("div[name='mood'] .o_selection_badge").toHaveCount(2);
     expect(".o_selection_badge[value='\"happy\"']").toBeVisible();
@@ -155,7 +153,6 @@ test("badge selection field with filter, synchronize with other field", async ()
     await click("[name='is_raining_outside'] input");
     await animationFrame();
 
-    // not raining outside => sad should be invisible
     expect("[name='is_raining_outside'] input").not.toBeChecked();
     expect("div[name='mood'] .o_selection_badge").toHaveCount(1);
     expect(".o_selection_badge[value='\"happy\"']").toBeVisible();
@@ -167,7 +164,7 @@ test("badge selection field with filter, cross badge synchronization", async () 
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <group>
                     <field name="allowed_moods"/>
@@ -181,7 +178,6 @@ test("badge selection field with filter, cross badge synchronization", async () 
         `,
     });
 
-    // happy and white by default, sad and black should be invisible
     expect("div[name='mood'] .o_selection_badge").toHaveCount(1);
     expect("div[name='color'] .o_selection_badge").toHaveCount(2);
     expect(".o_selection_badge[value='\"happy\"']").toBeVisible();
@@ -193,7 +189,6 @@ test("badge selection field with filter, cross badge synchronization", async () 
     await click(".o_selection_badge[value='\"grey\"']");
     await animationFrame();
 
-    // happy and grey, sad should be revealed
     expect("div[name='mood'] .o_selection_badge").toHaveCount(2);
     expect("div[name='color'] .o_selection_badge").toHaveCount(2);
     expect(".o_selection_badge[value='\"happy\"']").toBeVisible();
@@ -205,7 +200,6 @@ test("badge selection field with filter, cross badge synchronization", async () 
     await click(".o_selection_badge[value='\"sad\"']");
     await animationFrame();
 
-    // sad and grey, white should disappear and black should appear
     expect("div[name='mood'] .o_selection_badge").toHaveCount(2);
     expect("div[name='color'] .o_selection_badge").toHaveCount(2);
     expect(".o_selection_badge[value='\"happy\"']").toBeVisible();
@@ -217,7 +211,6 @@ test("badge selection field with filter, cross badge synchronization", async () 
     await click(".o_selection_badge[value='\"black\"']");
     await animationFrame();
 
-    // sad and black, happy should disappear
     expect("div[name='mood'] .o_selection_badge").toHaveCount(1);
     expect("div[name='color'] .o_selection_badge").toHaveCount(2);
     expect(".o_selection_badge[value='\"happy\"']").toHaveCount(0);

@@ -74,8 +74,6 @@ export class Many2ManyBinaryField extends Component {
         const uploadedIds = [];
         for (const file of files) {
             if (file.error) {
-                // Notify but keep processing the batch — a single failed file
-                // must not abandon the other successfully-uploaded ones.
                 this.notification.add(file.error, {
                     title: _t("Uploading error"),
                     type: "danger",
@@ -85,8 +83,6 @@ export class Many2ManyBinaryField extends Component {
             uploadedIds.push(file.id);
         }
         if (uploadedIds.length) {
-            // Link all uploaded attachments in one operation (addAndRemove)
-            // instead of one RPC per file.
             await this.operations.linkRecords(uploadedIds);
         }
     }

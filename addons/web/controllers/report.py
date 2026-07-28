@@ -13,21 +13,8 @@ from odoo.tools.safe_eval import safe_eval, time
 
 _logger = logging.getLogger(__name__)
 
-# Upper bound for a single barcode dimension.  ``/report/barcode`` is public and
-# forwards ``width``/``height`` from the query string straight to reportlab,
-# which allocates an image of that size — an unbounded value (e.g.
-# ``?width=100000&height=100000``) is a cheap multi-GB memory-allocation DoS.
-# We clamp each dimension to a sane maximum before rendering; the model's
-# ``ir.actions.report.barcode`` keeps its own total-pixel guard as a backstop.
-# The cap matches the model's per-dimension ceiling, so no barcode the model
-# would otherwise draw is refused by this clamp.
 _MAX_BARCODE_DIM = 10_000
 
-# Cap the encoded value length on the public /report/barcode route. reportlab's
-# 1-D encoders (Code128, Code39, …) are pure-Python and superlinear in input
-# length, so an unbounded value is an unauthenticated CPU-DoS (40 KB ≈ 9.5 s of
-# CPU per GET). 4096 comfortably exceeds every real symbology (QR alphanumeric
-# tops out at 4296) while keeping the worst case sub-second.
 _MAX_BARCODE_VALUE_LEN = 4096
 
 
@@ -43,9 +30,6 @@ def _clamp_barcode_dimension(raw: Any, default: int) -> int:
 
 
 class ReportController(http.Controller):
-    # ------------------------------------------------------
-    # Report controllers
-    # ------------------------------------------------------
     @http.route(
         [
             "/report/<converter>/<reportname>",
@@ -101,9 +85,6 @@ class ReportController(http.Controller):
                 description=f"Converter {converter!r} not supported."
             )
 
-    # ------------------------------------------------------
-    # Misc. route utils
-    # ------------------------------------------------------
     @http.route(
         [
             "/report/barcode",
@@ -136,15 +117,8 @@ class ReportController(http.Controller):
         :param barLevel: QR code Error Correction Levels. Default is 'L'.
         ref: https://hg.reportlab.com/hg-public/reportlab/file/830157489e00/src/reportlab/graphics/barcode/qr.py#l101
         """
-        # Reject an oversized encoded value before it reaches reportlab's
-        # superlinear pure-Python encoders (unauthenticated CPU-DoS on this
-        # public route). No legitimate barcode needs more than _MAX_BARCODE_VALUE_LEN.
         if value is not None and len(value) > _MAX_BARCODE_VALUE_LEN:
             raise werkzeug.exceptions.BadRequest("Barcode value is too long.")
-        # Clamp caller-supplied dimensions before they reach reportlab's
-        # allocator (defense-in-depth against oversized-image DoS on this
-        # public route). Only override when the caller actually passed a value,
-        # so the model's own defaults (600x100) still apply otherwise.
         if "width" in kwargs:
             kwargs["width"] = _clamp_barcode_dimension(kwargs["width"], 600)
         if "height" in kwargs:
@@ -201,8 +175,6 @@ class ReportController(http.Controller):
                     reportname, docids = reportname.split("/", 1)
 
                 if docids:
-                    # docids were embedded in the URL path: report_routes can
-                    # render straight from them.
                     response = self.report_routes(
                         reportname,
                         docids=docids,
@@ -210,8 +182,6 @@ class ReportController(http.Controller):
                         context=context,
                     )
                 else:
-                    # No docids: rebuild the report data/context from the
-                    # URL's own query string instead.
                     data = {k: v[0] for k, v in parse_qs(urlsplit(url).query).items()}
                     if "context" in data:
                         context, data_context = (

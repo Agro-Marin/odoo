@@ -12,10 +12,6 @@ from .utils import clean_action
 
 class DataSet(http.Controller):
     def _call_kw_readonly(self, rule: Any, args: Any) -> bool:
-        # Guard the whole param extraction uniformly: a malformed body missing
-        # ``params``/``model``/``method`` (or naming an unknown model) should
-        # resolve to a clean 404 during routing, not a raw 500 from a
-        # half-guarded KeyError.
         try:
             params = request.get_json_data()["params"]
             model_class = request.registry[params["model"]]
@@ -63,8 +59,6 @@ class DataSet(http.Controller):
         if path != f"{model}.{method}":
             threading.current_thread().rpc_model_method = f"{model}.{method}"
         action = call_kw(request.env[model], method, args, kwargs)
-        # type="" is a sentinel meaning "no action"; a dict with no "type" key
-        # gets one defaulted to act_window_close by clean_action()
         if isinstance(action, dict) and action.get("type") != "":
             return clean_action(action, env=request.env)
         return False

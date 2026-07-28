@@ -26,7 +26,6 @@ test("constructTreeFromDomain: connectors, negation and distribution", () => {
     ).toEqual(
         connector("&", [condition("a", "=", 1, true), condition("b", "=", 2, true)]),
     );
-    // same-value children are flattened into the parent connector
     expect(
         constructTreeFromDomain(
             `["&", "&", ("a", "=", 1), ("b", "=", 2), ("c", "=", 3)]`,
@@ -44,8 +43,6 @@ test("constructTreeFromDomain: connectors, negation and distribution", () => {
 });
 
 test("constructTreeFromDomain: large domains do not overflow the stack", () => {
-    // The normalized prefix chain ["&", "&", ..., leaf, ...] used to be
-    // consumed recursively (depth O(N)) with an O(N²) tail spread.
     const N = 5000;
     const domain = [
         ...Array(N - 1).fill("&"),
@@ -60,8 +57,6 @@ test("constructTreeFromDomain: large domains do not overflow the stack", () => {
 });
 
 test("'any' with an Expression value is left untouched (not wrapped in a list)", () => {
-    // `[("partner_id", "any", uid)]` where the value is a free variable used to
-    // round-trip to `[("partner_id", "any", [uid])]` — a nested invalid domain.
     const tree = /** @type {any} */ (
         constructTreeFromDomain(`[("partner_id", "any", uid)]`)
     );

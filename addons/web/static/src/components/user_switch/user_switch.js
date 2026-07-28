@@ -21,16 +21,11 @@ export class UserSwitch extends Component {
         });
         /** @type {HTMLFormElement | null} */
         this.form = null;
-        // DOM side effects belong after mount, and the login form may be
-        // absent altogether (custom login themes): a missing form must not
-        // kill the whole public-components mount.
         onMounted(() => {
             this.form = document.querySelector("form.oe_login_form");
             if (!this.form) {
                 return;
             }
-            // Hide form only when we have multiple users to show in user-switch panel.
-            // Form is visible by default (progressive enhancement: works without JS).
             const hideForm = users.length > 1;
             this.form.classList.toggle("d-none", hideForm);
             if (!hideForm) {

@@ -33,9 +33,6 @@ export function convertRecordToEvent(record, forceAllDay = false) {
 
 const CSS_COLOR_REGEX =
     /^((#[A-F0-9]{3})|(#[A-F0-9]{6})|((hsl|rgb)a?\(\s*(?:(\s*\d{1,3}%?\s*),?){3}(\s*,[0-9.]{1,4})?\))|)$/i;
-// Module-global on purpose: a given key keeps the same color across every
-// calendar view visited during the session (renderers, popovers, filter
-// panels all resolve colors through this map).
 const colorMap = new Map();
 /**
  * Map a key to a stable calendar color index or CSS color string.
@@ -90,7 +87,6 @@ export function sortCalendarFilters(filters, typePriority) {
         if (a.type === b.type) {
             const va = a.value ? -1 : 0;
             const vb = b.value ? -1 : 0;
-            // Condition to put unvaluable item (eg: Open Shifts) at the end of the sorted list.
             if (a.type === "dynamic" && va !== vb) {
                 return va - vb;
             }
@@ -119,7 +115,6 @@ export function getFormattedDateSpan(start, end) {
     const isSameDay = start.hasSame(end, "days");
 
     if (!isSameDay && start.hasSame(end, "month")) {
-        // Simplify date-range if an event occurs into the same month (eg. "August 4-5, 2019")
         return `${start.toFormat("LLLL d")}-${end.toFormat("d, y")}`;
     } else {
         return isSameDay

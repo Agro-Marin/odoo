@@ -1,22 +1,7 @@
-// Type definitions for QUnit v2.9.2
 
 import { Component } from "@odoo/owl";
 
-// Project: http://qunitjs.com/
-// Definitions by: James Bracy <https://github.com/waratuman>
-//                 Mike North <https://github.com/mike-north>
-//                 Stefan Sechelmann <https://github.com/sechel>
-//                 Chris Krycho <https://github.com/chriskrycho>
-//                 Dan Freeman <https://github.com/dfreeman>
-//                 James C. Davis <https://github.com/jamescdavis>
-// Definitions: https://github.com/DefinitelyTyped/DefinitelyTyped
-
-// Updated for odoo.
-
 interface Assert {
-    // -----------------------------------------------------------------------------
-    // Start of Odoo added asserts
-    // -----------------------------------------------------------------------------
     /**
      * Checks that the target contains exactly n matches for the selector.
      *
@@ -86,10 +71,6 @@ interface Assert {
      */
     isNotVisible(el:HTMLElement , msg?: string): void;
 
-    // -----------------------------------------------------------------------------
-    // End of Odoo added asserts
-    // -----------------------------------------------------------------------------
-  
     /**
      * Instruct QUnit to wait for an asynchronous operation.
      *

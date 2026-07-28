@@ -9,17 +9,13 @@ class ProfilingHttpCase(HttpCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Trick: we patch db_connect() to make it return the registry; when the
-        # profiler calls cursor() on it, it gets a test cursor (with cls.cr as
-        # its actual cursor), which prevents the profiling data from being
-        # committed for real.
         cls.patcher = patch("odoo.db.db_connect", return_value=cls.registry)
         cls.startClassPatcher(cls.patcher)
 
     def profile_rpc(self, params=None):
         params = params or {}
         req = self.url_open(
-            "/web/dataset/call_kw/ir.profile/set_profiling",  # same call_kw shape the JS client uses
+            "/web/dataset/call_kw/ir.profile/set_profiling",
             headers={"Content-Type": "application/json"},
             data=json_dumps(
                 {
@@ -41,7 +37,6 @@ class TestProfilingWeb(ProfilingHttpCase):
     def test_profiling_enabled(self):
         self.authenticate("admin", "admin")
         last_profile = self.env["ir.profile"].search([], limit=1, order="id desc")
-        # Trying to start profiling when not enabled
         self.env["ir.config_parameter"].set_param("base.profiling_enabled_until", "")
         res = self.profile_rpc({"profile": 1})
         self.assertEqual(res["result"]["res_model"], "base.enable.profiling.wizard")
@@ -50,7 +45,6 @@ class TestProfilingWeb(ProfilingHttpCase):
             self.env["ir.profile"].search([], limit=1, order="id desc"),
         )
 
-        # Enable profiling and start blank profiling
         expiration = datetime.now() + timedelta(seconds=50)
         self.env["ir.config_parameter"].set_param(
             "base.profiling_enabled_until", expiration
@@ -62,7 +56,7 @@ class TestProfilingWeb(ProfilingHttpCase):
             self.env["ir.profile"].search([], limit=1, order="id desc"),
             "profiling route shouldn't have been profiled",
         )
-        res = self.url_open("/web/login")  # a lightweight route, cheap to profile
+        res = self.url_open("/web/login")
         new_profile = self.env["ir.profile"].search([], limit=1, order="id desc")
         self.assertNotEqual(
             last_profile, new_profile, "A new profile should have been created"
@@ -144,7 +138,7 @@ class TestProfilingPublic(ProfilingHttpCase):
 
         res = self.url_open(
             "/web/login"
-        )  # avoids the redirect chain that GET / would trigger
+        )
         new_profile = self.env["ir.profile"].search([], limit=1, order="id desc")
         self.assertNotEqual(
             last_profile, new_profile, "A route should have been profiled"

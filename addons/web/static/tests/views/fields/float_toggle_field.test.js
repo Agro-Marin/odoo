@@ -29,7 +29,6 @@ defineModels([Partner, User]);
 
 test("basic flow in form view", async () => {
     onRpc("partner", "web_save", ({ args }) => {
-        // 1.000 / 0.125 = 8
         expect.step(args[1].float_field.toString());
     });
     await mountView({
@@ -54,8 +53,6 @@ test("basic flow in form view", async () => {
     expect("button.o_field_float_toggle").toHaveText("0.000", {
         message: "The value should be rendered correctly on the button.",
     });
-
-    // 0 isn't written yet: it's still in the datapoint's _changes since save hasn't been clicked.
 
     await contains("button.o_field_float_toggle").click();
 
@@ -98,9 +95,6 @@ test("kanban view (readonly) with option force_button", async () => {
 });
 
 test("steps from the nearest range value despite float imprecision", async () => {
-    // 0.1 * 3 = 0.30000000000000004, which a strict `indexOf` over the range
-    // never matches, so the buggy code silently reset to range[0] (0.00). The
-    // nearest-match must pick 0.3 and advance to the next entry (0.6).
     Partner._records[0].float_field = 0.1;
     await mountView({
         type: "form",

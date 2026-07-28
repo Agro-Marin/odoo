@@ -22,7 +22,6 @@ class IrUiMenu(models.Model):
         web_menus = {}
         for menu in menus.values():
             if not menu["id"]:
-                # special root menu case
                 web_menus["root"] = {
                     "id": "root",
                     "name": menu["name"],
@@ -45,7 +44,6 @@ class IrUiMenu(models.Model):
                 web_icon_data = menu.get("web_icon_data")
 
                 if menu["id"] == menu["app_id"]:
-                    # App: use the action of the first (sub)child that defines one
                     child = menu
                     while child and not action_id:
                         action_id = child["action_id"]
@@ -67,7 +65,6 @@ class IrUiMenu(models.Model):
                     if menu.get("web_icon_data"):
                         web_icon_data = f"data:{menu['web_icon_data_mimetype']};base64,{menu['web_icon_data']}"
                     elif background_color is not None:
-                        # Icon defined as "class,color,background" — reconstruct
                         web_icon = ",".join(
                             [icon_class or "", color or "", background_color]
                         )

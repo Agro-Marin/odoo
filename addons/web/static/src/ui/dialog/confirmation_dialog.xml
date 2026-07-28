@@ -12,7 +12,7 @@
   </t>
 
   <t t-name="web.AlertDialog">
-    <Dialog size="'sm'" title="props.title" contentClass="props.contentClass">
+    <Dialog size="'sm'" title="props.title" contentClass="props.contentClass" modalRef="modalRef">
       <p t-out="props.body" class="text-prewrap"/>
       <t t-set-slot="footer">
         <button class="btn" t-att-class="props.confirmClass" t-on-click="_confirm" t-esc="props.confirmLabel"/>

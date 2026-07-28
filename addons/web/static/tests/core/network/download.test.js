@@ -20,8 +20,6 @@ test("handles connection error when behind a server", async () => {
 });
 
 test("maps 503 Service Unavailable to ConnectionLostError (like rpc.js)", async () => {
-    // 503/504 used to fall through to the HTML-error-parse path, surfacing the
-    // proxy's raw HTML page instead of a clean connection error.
     mockFetch(() => new Response("", { status: 503 }));
     const error = new ConnectionLostError("/some_url");
     await expect(download({ data: {}, url: "/some_url" })).rejects.toThrow(error);
@@ -67,12 +65,7 @@ test("handles business error from server", async () => {
 });
 
 test("classifies a 200 HTML page (session-expired login redirect) as InvalidResponseError", async () => {
-    // The XHR follows the session-expired redirect and lands on the HTML
-    // login page with a 200 whose body is NOT a serialized Python error.
-    // Pre-classification this popped a fake "Arbitrary Uncaught Python
-    // Exception" dialog; InvalidResponseError matches rpc.js and routes it
-    // to the session-expired flow.
-    const loginPage = /* xml */ `<html><body><div>HTML error message</div></body></html>`;
+    const loginPage = `<html><body><div>HTML error message</div></body></html>`;
 
     mockFetch(() => new Blob([JSON.stringify(loginPage)], { type: "text/html" }));
 
@@ -93,7 +86,6 @@ test("classifies a 200 HTML page (session-expired login redirect) as InvalidResp
 
 test("handles success download", async () => {
     allowTranslations();
-    // Relies on an implementation detail: download creates a link with the download attribute.
 
     mockFetch((_, { body }) => {
         expect(body).toBeInstanceOf(FormData);
@@ -122,7 +114,7 @@ test("handles success download", async () => {
     document.addEventListener("click", downloadOnClick);
     after(() => document.removeEventListener("click", downloadOnClick));
 
-    expect("a[download]").toHaveCount(0); // link will be added by download
+    expect("a[download]").toHaveCount(0);
     download({ data: { someKey: "someValue" }, url: "/some_url" });
     await deferred;
     expect.verifySteps(["fetching file", "file downloaded"]);

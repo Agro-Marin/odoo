@@ -35,11 +35,6 @@ export class DatetimePicker extends Interaction {
             },
         });
         const disableListeners = picker.enable();
-        // Full teardown, mirroring useDateTimePicker's onWillDestroy: the
-        // service keeps every created picker in a page-lifetime Set — without
-        // disable(), each interaction restart (website edit mode, dynamic
-        // content re-scan) leaks a registration retaining this.el, and an
-        // open popover would survive the interaction.
         this.registerCleanup(() => {
             disableListeners();
             picker.close();

@@ -89,7 +89,6 @@ test("default params", async () => {
 
 test("minDate: correct days/month/year/decades are disabled", async () => {
     serverState.lang = "en-US";
-    // necessary to configure the lang before minDate/maxDate are created
     await makeMockEnv();
 
     await mountWithCleanup(DateTimePicker, {
@@ -339,7 +338,6 @@ test("maxDate: correct days/month/year/decades are disabled", async () => {
 
 test("min+max date: correct days/month/year/decades are disabled", async () => {
     serverState.lang = "en-US";
-    // necessary to configure the lang before minDate/maxDate are created
     await makeMockEnv();
 
     await mountWithCleanup(DateTimePicker, {
@@ -462,7 +460,6 @@ test("min+max date: correct days/month/year/decades are disabled", async () => {
 });
 
 test("twelve-hour clock with non-null focus date index", async () => {
-    // Test the case when we have focusDateIndex != 0
     defineParams({
         lang_parameters: {
             time_format: "hh:mm:ss a",
@@ -838,10 +835,6 @@ test("days of week narrow format", async () => {
     });
 });
 
-//-------------------------------------------------------------------------
-// Props and interactions
-//-------------------------------------------------------------------------
-
 test("different rounding", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
@@ -869,7 +862,7 @@ test("no value, select date without handler", async () => {
     await click(getPickerCell("12"));
     await animationFrame();
 
-    expect.verifySteps([]); // No handler passed; nothing happens
+    expect.verifySteps([]);
 });
 
 test("no value, select date", async () => {
@@ -993,7 +986,6 @@ test("custom invalidity function", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
             type: "date",
-            // make weekends invalid
             isDateValid: (date) => date.weekday <= 5,
         },
     });
@@ -1019,7 +1011,6 @@ test("custom date cell class function", async () => {
     await mountWithCleanup(DateTimePicker, {
         props: {
             type: "date",
-            // give special class to weekends
             dayCellClass: (date) => (date.weekday >= 6 ? "o_weekend" : ""),
         },
     });
@@ -1092,7 +1083,6 @@ test("range value, select date for first value", async () => {
                 DateTime.fromObject({ day: 23, hour: 17, minute: 16 }),
             ],
             range: true,
-            // focusedDateIndex is implicitly 0
             onSelect: (value) => expect.step(formatForStep(value)),
         },
     });
@@ -1282,8 +1272,6 @@ test("disable show week numbers", async () => {
 });
 
 test("grid is reused on hover, rebuilt on focus change", async () => {
-    // Regression guard: hovering only mutates hoveredDate (range highlight) and
-    // must not rebuild the grid; changing the focused month must rebuild it.
     const picker = await mountWithCleanup(DateTimePicker, {
         props: { value: DateTime.fromObject({ day: 5 }) },
     });
@@ -1291,16 +1279,14 @@ test("grid is reused on hover, rebuilt on focus change", async () => {
     const titleBefore = picker.title;
     expect(Array.isArray(itemsBefore)).toBe(true);
 
-    // Simulate a hover (what pointerenter does on a day cell).
     picker.state.hoveredDate = DateTime.fromObject({ day: 20 });
     await animationFrame();
-    expect(picker.items).toBe(itemsBefore); // same reference => grid not rebuilt
+    expect(picker.items).toBe(itemsBefore);
     expect(picker.title).toBe(titleBefore);
 
-    // Navigating to another month must invalidate the cache and rebuild.
     picker.state.focusDate = picker.state.focusDate.plus({ month: 1 });
     await animationFrame();
-    expect(picker.items).not.toBe(itemsBefore); // grid rebuilt on focus change
+    expect(picker.items).not.toBe(itemsBefore);
 });
 
 test("dynamic date<->datetime switch recomputes min/max with the NEW type", async () => {
@@ -1319,9 +1305,6 @@ test("dynamic date<->datetime switch recomputes min/max with the NEW type", asyn
         setup() {
             this.state = useState({ type: "date" });
             this.value = DateTime.fromISO("2023-04-25T09:00:00.000");
-            // Latest allowed instant is 09:30 on the 25th. Under "datetime" this
-            // must forbid selecting 13:00; under "date" it is expanded to the
-            // end of the day.
             this.maxDate = DateTime.fromISO("2023-04-25T09:30:00.000");
         }
 
@@ -1331,22 +1314,44 @@ test("dynamic date<->datetime switch recomputes min/max with the NEW type", asyn
     }
 
     const parent = await mountWithCleanup(Parent);
-    // "date" type: no time picker.
     expect(".o_time_picker").toHaveCount(0);
 
     parent.state.type = "datetime";
     await animationFrame();
     expect(".o_time_picker").toHaveCount(1);
 
-    // 13:00 is past the 09:30 maxDate and must be rejected now that the type is
-    // "datetime". Regression: the stale "date" type kept an end-of-day maxDate,
-    // which wrongly accepted 13:00 for one update.
     await editTime("13:00");
     await animationFrame();
     expect.verifySteps([]);
 
-    // 09:15 is within [.., 09:30] and is accepted.
     await editTime("09:15");
     await animationFrame();
     expect.verifySteps(["2023-04-25T09:15:00"]);
+});
+
+test.tags("desktop");
+test("range with no end: end time defaults to start + 1h, not to the current time", async () => {
+    // `beforeEach` mocks the clock at 12:45, deliberately far from the start
+    // hour below, so a wall-clock-derived default is distinguishable.
+    await mountWithCleanup(DateTimePicker, {
+        props: {
+            value: [DateTime.fromObject({ day: 5, hour: 3, minute: 0 }), false],
+            range: true,
+        },
+    });
+
+    expect(".o_time_picker_input:eq(0)").toHaveValue("3:00");
+    expect(".o_time_picker_input:eq(1)").toHaveValue("4:00");
+});
+
+test.tags("desktop");
+test("range with no end: start at 23h clamps the end time instead of wrapping", async () => {
+    await mountWithCleanup(DateTimePicker, {
+        props: {
+            value: [DateTime.fromObject({ day: 5, hour: 23, minute: 0 }), false],
+            range: true,
+        },
+    });
+
+    expect(".o_time_picker_input:eq(1)").toHaveValue("23:00");
 });

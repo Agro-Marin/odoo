@@ -4,10 +4,6 @@ import { on } from "@odoo/hoot-dom";
 import { MockEventTarget } from "../hoot_utils.js";
 import { ensureTest } from "../main_runner.js";
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Array: { isArray: $isArray },
     Element,
@@ -18,10 +14,6 @@ const {
 } = globalThis;
 
 const { animate, scroll, scrollBy, scrollIntoView, scrollTo } = Element.prototype;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 function forceInstantScroll(args) {
     return !allowAnimations && args[0] && typeof args[0] === "object"
@@ -34,10 +26,6 @@ const animationChangeCleanups = [];
 
 let allowAnimations = true;
 let allowTransitions = false;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 export class MockAnimation extends MockEventTarget {
     static publicListeners = ["cancel", "finish", "remove"];
@@ -118,7 +106,6 @@ export function mockedAnimate(...args) {
         return animate.call(this, ...args);
     }
 
-    // Apply style properties immediatly
     const keyframesList = $isArray(args[0]) ? args[0] : [args[0]];
     const style = {};
     for (const kf of keyframesList) {
@@ -128,7 +115,6 @@ export function mockedAnimate(...args) {
     }
     $assign(this.style, style);
 
-    // Return mock animation
     return new MockAnimation();
 }
 

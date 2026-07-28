@@ -528,7 +528,6 @@ test("basic grouped rendering", async () => {
 
     await toggleKanbanColumnActions(0);
 
-    // check available actions in kanban header's config dropdown
     expect(".o-dropdown--menu .o_kanban_toggle_fold").toHaveCount(1);
     expect(".o_kanban_header:first-child .o_group_config .o_group_edit").toHaveCount(0);
     expect(".o_kanban_header:first-child .o_group_config .o_group_delete").toHaveCount(
@@ -541,10 +540,8 @@ test("basic grouped rendering", async () => {
         ".o_kanban_header:first-child .o_group_config .o_column_unarchive_records",
     ).toHaveCount(0);
 
-    // focuses the search bar and closes the dropdown
     await click(".o_searchview input");
 
-    // Looks useless, but tests that a grouped local record can be reloaded without changing its result.
     await validateSearch();
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(3);
     expect.verifySteps(["rendered"]);
@@ -599,9 +596,9 @@ test("empty group when grouped by date", async () => {
         "February 2017\n(3)",
     ]);
 
-    MockServer.env["partner"].shift(); // remove only record of the first group
+    MockServer.env["partner"].shift();
 
-    await press("Enter"); // reload
+    await press("Enter");
     await animationFrame();
 
     expect(queryAllTexts(".o_kanban_header")).toEqual([
@@ -614,7 +611,6 @@ test("empty group when grouped by date", async () => {
 });
 
 test("grouped rendering with active field (archivable false)", async () => {
-    // add active field on partner model and make all records active
     Partner._fields.active = fields.Boolean({ default: true });
 
     await mountView({
@@ -633,7 +629,6 @@ test("grouped rendering with active field (archivable false)", async () => {
 
     await toggleKanbanColumnActions(0);
 
-    // check archive/restore all actions in kanban header's config dropdown
     expect(".o_column_archive_records").toHaveCount(0, {
         root: getKanbanColumnDropdownMenu(0),
     });
@@ -644,10 +639,8 @@ test("grouped rendering with active field (archivable false)", async () => {
 
 test.tags("desktop");
 test("m2m grouped rendering with active field (archivable true)", async () => {
-    // add active field on partner model and make all records active
     Partner._fields.active = fields.Boolean({ default: true });
 
-    // more many2many data
     Partner._records[0].category_ids = [6, 7];
     Partner._records[3].foo = "blork";
 
@@ -679,9 +672,6 @@ test("m2m grouped rendering with active field (archivable true)", async () => {
     await animationFrame();
     await toggleKanbanColumnActions(0);
 
-    // check archive/restore all actions in kanban header's config dropdown
-    // despite the fact that the kanban view is configured to be archivable,
-    // the actions should not be there as it is grouped by an m2m field.
     expect(".o_column_archive_records").toHaveCount(0, {
         root: getKanbanColumnDropdownMenu(0),
     });
@@ -1046,7 +1036,6 @@ test("pager, ungrouped, with limit set on arch and given in options", async () =
         expect(kwargs.limit).toBe(3);
     });
 
-    // the limit given in the arch should take the priority over the one given in options
     await mountView({
         type: "kanban",
         resModel: "partner",
@@ -1064,7 +1053,6 @@ test("pager, ungrouped, with limit set on arch and given in options", async () =
 
 test.tags("desktop");
 test("pager, ungrouped, with limit set on arch and given in options on desktop", async () => {
-    // the limit given in the arch should take the priority over the one given in options
     await mountView({
         type: "kanban",
         resModel: "partner",
@@ -1348,8 +1336,6 @@ test("pager, ungrouped, with count limit reached, edit pager", async () => {
     ]);
 
     await contains("span.o_pager_value").click();
-    // FIXME: click out instead of confirming, because if web_search_read calls come back
-    // too fast when pressing "Enter", another RPC is triggered right after.
     await contains("input.o_pager_value").edit("2-4", { confirm: "blur" });
 
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(3);
@@ -1421,12 +1407,10 @@ test("pager, ungrouped, deleting all records from last page", async () => {
     expect(getPagerValue()).toEqual([1, 3]);
     expect(getPagerLimit()).toBe(4);
 
-    // move to next page
     await pagerNext();
 
     expect(getPagerValue()).toEqual([4, 4]);
 
-    // delete a record
     await contains(".o_kanban_record a").click();
 
     expect(".o_dialog").toHaveCount(1);
@@ -1576,8 +1560,6 @@ test.tags("desktop");
 test("kanban with an action id as on_create attrs", async () => {
     mockService("action", {
         doAction(action, options) {
-            // simplified flow in this test: simulate a target new action which
-            // creates a record and closes itself
             expect.step(`doAction ${action}`);
             MockServer.env["partner"].create({ foo: "new" });
             options.onClose();
@@ -1676,7 +1658,6 @@ test("Open new card in form view, without reloading the kanban view", async () =
     await contains(`.modal-footer button.btn-primary`).click();
     expect(`.modal`).toHaveCount(0);
     expect(".o_form_view").toHaveCount(1);
-    // should not reload the first kanban view
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
@@ -1843,7 +1824,6 @@ test("kanban grouped by many2one: false column is folded by default", async () =
         "xmo\n(2)",
     ]);
 
-    // reload -> None column should remain open
     await click(".o_searchview_input");
     await press("Enter");
     await animationFrame();
@@ -1885,14 +1865,13 @@ test("quick created records in grouped kanban are on displayed top", async () =>
 
     expect(".o_kanban_group:first .o_kanban_record").toHaveCount(3);
     expect(".o_kanban_group:first .o_kanban_quick_create").toHaveCount(1);
-    // the new record must be the first record of the column
     expect(queryAllTexts(" .o_kanban_group:first .o_kanban_record")).toEqual([
         "new record",
         "yop",
         "gnap",
     ]);
 
-    await click(".o_kanban_quick_create input"); // FIXME: should not be necessary
+    await click(".o_kanban_quick_create input");
     await edit("another record");
     await validateKanbanRecord();
 
@@ -1929,7 +1908,6 @@ test("quick create record without quick_create_view", async () => {
 
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(1);
 
-    // click on 'Create' -> should open the quick create in the first column
     await createKanbanRecord();
 
     expect(".o_kanban_group:first-child .o_kanban_quick_create").toHaveCount(1);
@@ -1939,7 +1917,6 @@ test("quick create record without quick_create_view", async () => {
         ".o_kanban_quick_create .o_field_widget.o_required_modifier input[placeholder=Title]",
     ).toHaveCount(1);
 
-    // fill the quick create and validate
     await editKanbanRecordQuickCreateInput("display_name", "new partner");
     await validateKanbanRecord();
 
@@ -1949,12 +1926,12 @@ test("quick create record without quick_create_view", async () => {
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "onchange", // quick create
-        "name_create", // should perform a name_create to create the record
-        "onchange", // reopen the quick create automatically
-        "web_read", // read the created record
+        "onchange",
+        "name_create",
+        "onchange",
+        "web_read",
     ]);
 });
 
@@ -1993,7 +1970,6 @@ test("quick create record with quick_create_view", async () => {
     expect(".o_control_panel").toHaveCount(1);
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(1);
 
-    // click on 'Create' -> should open the quick create in the first column
     await createKanbanRecord();
 
     expect(".o_kanban_group:first-child .o_kanban_quick_create").toHaveCount(1);
@@ -2004,7 +1980,6 @@ test("quick create record with quick_create_view", async () => {
     expect(".o_kanban_quick_create input").toHaveCount(2);
     expect(".o_kanban_quick_create .o_field_widget").toHaveCount(3);
 
-    // fill the quick create and validate
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     await editKanbanRecordQuickCreateInput("int_field", "4");
     await click(
@@ -2017,13 +1992,13 @@ test("quick create record with quick_create_view", async () => {
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "get_views", // form view in quick create
-        "onchange", // quick create
-        "web_save", // should perform a web_save to create the record
-        "onchange", // new quick create
-        "web_read", // read the created record
+        "get_views",
+        "onchange",
+        "web_save",
+        "onchange",
+        "web_read",
     ]);
 });
 
@@ -2060,7 +2035,6 @@ test("quick create record flickering", async () => {
         groupBy: ["bar"],
     });
 
-    // click on 'Create' -> should open the quick create in the first column
     await createKanbanRecord();
 
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(1);
@@ -2069,7 +2043,6 @@ test("quick create record flickering", async () => {
     expect(".o_kanban_quick_create input").toHaveCount(2);
     expect(".o_kanban_quick_create .o_field_widget").toHaveCount(3);
 
-    // fill the quick create and validate
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     await editKanbanRecordQuickCreateInput("int_field", "4");
 
@@ -2110,10 +2083,8 @@ test("quick create record flickering (load more)", async () => {
         groupBy: ["bar"],
     });
 
-    // click on 'Create' -> should open the quick create in the first column
     await createKanbanRecord();
 
-    // fill the quick create and validate
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     def = new Deferred();
     await validateKanbanRecord();
@@ -2206,12 +2177,10 @@ test("quick_create_view without quick_create option", async () => {
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group .o_kanban_quick_add").toHaveCount(2);
 
-    // click on 'Create' in control panel -> should not open the quick create
     await createKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(0);
     expect.verifySteps(["create record"]);
 
-    // click "+" icon in first column -> should open the quick create
     await contains(".o_kanban_quick_add").click();
     await animationFrame();
     expect(".o_kanban_group:first .o_kanban_quick_create").toHaveCount(1);
@@ -2247,7 +2216,6 @@ test("quick create record in grouped on m2o (no quick_create_view)", async () =>
 
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
 
-    // click on 'Create', fill the quick create and validate
     await createKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "new partner");
     await validateKanbanRecord();
@@ -2258,12 +2226,12 @@ test("quick create record in grouped on m2o (no quick_create_view)", async () =>
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "onchange", // quick create
-        "name_create", // should perform a name_create to create the record
-        "onchange", // reopen the quick create automatically
-        "web_read", // read the created record
+        "onchange",
+        "name_create",
+        "onchange",
+        "web_read",
     ]);
 });
 
@@ -2307,7 +2275,6 @@ test("quick create record in grouped on m2o (with quick_create_view)", async () 
 
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
 
-    // click on 'Create', fill the quick create and validate
     await createKanbanRecord();
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     await animationFrame();
@@ -2323,13 +2290,13 @@ test("quick create record in grouped on m2o (with quick_create_view)", async () 
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "get_views", // form view in quick create
-        "onchange", // quick create
-        "web_save", // should perform a web_save to create the record
-        "onchange", // reopen the quick create automatically
-        "web_read", // read the created record
+        "get_views",
+        "onchange",
+        "web_save",
+        "onchange",
+        "web_read",
     ]);
 });
 
@@ -2356,7 +2323,6 @@ test("quick create record in grouped on m2m (no quick_create_view)", async () =>
 
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(1);
 
-    // click on 'Create', fill the quick create and validate
     await quickCreateKanbanRecord(1);
     await editKanbanRecordQuickCreateInput("display_name", "new partner");
     await animationFrame();
@@ -2367,12 +2333,12 @@ test("quick create record in grouped on m2m (no quick_create_view)", async () =>
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "onchange", // quick create
-        "name_create", // should perform a name_create to create the record
-        "onchange", // reopen the quick create automatically
-        "web_read", // read the created record
+        "onchange",
+        "name_create",
+        "onchange",
+        "web_read",
     ]);
 });
 
@@ -2402,7 +2368,6 @@ test("quick create record in grouped on m2m in the None column", async () => {
 
     expect(".o_kanban_group:nth-child(1) .o_kanban_record").toHaveCount(2);
 
-    // click on 'Create', fill the quick create and validate
     await quickCreateKanbanRecord(0);
     await editKanbanRecordQuickCreateInput("display_name", "new partner");
     await animationFrame();
@@ -2413,13 +2378,13 @@ test("quick create record in grouped on m2m in the None column", async () => {
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "web_search_read", // read records when unfolding 'None'
-        "onchange", // quick create
-        "name_create", // should perform a name_create to create the record
-        "onchange", // reopen the quick create automatically
-        "web_read", // read the created record
+        "web_search_read",
+        "onchange",
+        "name_create",
+        "onchange",
+        "web_read",
     ]);
 });
 
@@ -2454,7 +2419,6 @@ test("quick create record in grouped on m2m (field not in template)", async () =
 
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(1);
 
-    // click on 'Create', fill the quick create and validate
     await quickCreateKanbanRecord(1);
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     await validateKanbanRecord();
@@ -2465,13 +2429,13 @@ test("quick create record in grouped on m2m (field not in template)", async () =
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "get_views", // get form view
-        "onchange", // quick create
-        "web_save", // should perform a web_save to create the record
-        "onchange", // reopen the quick create automatically
-        "web_read", // read the created record
+        "get_views",
+        "onchange",
+        "web_save",
+        "onchange",
+        "web_read",
     ]);
 });
 
@@ -2507,10 +2471,8 @@ test("quick create record in grouped on m2m (field in the form view)", async () 
 
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(1);
 
-    // click on 'Create', fill the quick create and validate
     await quickCreateKanbanRecord(1);
 
-    // verify that the quick create m2m field contains the column value
     expect(".o_tag_badge_text").toHaveCount(1);
     expect(".o_tag_badge_text").toHaveText("gold");
 
@@ -2523,11 +2485,11 @@ test("quick create record in grouped on m2m (field in the form view)", async () 
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "get_views", // get form view
-        "onchange", // quick create
-        "web_save", // should perform a web_save to create the record
+        "get_views",
+        "onchange",
+        "web_save",
         "onchange",
         "web_read",
     ]);
@@ -2562,7 +2524,6 @@ test("quick create record validation: stays open when invalid", async () => {
     await createKanbanRecord();
     expect.verifySteps(["onchange"]);
 
-    // do not fill anything and validate
     await validateKanbanRecord();
 
     expect.verifySteps([]);
@@ -2604,7 +2565,6 @@ test("quick create record with default values and onchanges", async () => {
         groupBy: ["bar"],
     });
 
-    // click on 'Create' -> should open the quick create in the first column
     await createKanbanRecord();
 
     expect(".o_kanban_group:first-child .o_kanban_quick_create").toHaveCount(1);
@@ -2612,8 +2572,6 @@ test("quick create record with default values and onchanges", async () => {
         message: "default value should be set",
     });
 
-    // fill the 'foo' field -> should trigger the onchange
-    // await fieldInput("foo").edit("new partner");
     await editKanbanRecordQuickCreateInput("foo", "new partner");
 
     expect(".o_field_widget[name=int_field] input").toHaveValue("8", {
@@ -2623,11 +2581,11 @@ test("quick create record with default values and onchanges", async () => {
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "get_views", // form view in quick create
-        "onchange", // quick create
-        "onchange", // onchange due to 'foo' field change
+        "get_views",
+        "onchange",
+        "onchange",
     ]);
 });
 
@@ -2652,7 +2610,6 @@ test("quick create record with quick_create_view: modifiers", async () => {
         groupBy: ["bar"],
     });
 
-    // create a new record
     await quickCreateKanbanRecord();
 
     expect(".o_kanban_quick_create .o_field_widget[name=foo]").toHaveClass(
@@ -2660,7 +2617,6 @@ test("quick create record with quick_create_view: modifiers", async () => {
     );
     expect(".o_kanban_quick_create .o_field_widget[name=int_field]").toHaveCount(0);
 
-    // fill 'foo' field
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     await animationFrame();
 
@@ -2703,15 +2659,13 @@ test("quick create record with onchange of field marked readonly", async () => {
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
     ]);
 
-    // click on 'Create' -> should open the quick create in the first column
     await quickCreateKanbanRecord();
     expect.verifySteps(["get_views", "onchange"]);
 
-    // fill the 'foo' field -> should trigger the onchange
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     expect.verifySteps(["onchange"]);
 
@@ -2745,12 +2699,10 @@ test("quick create record and change state in grouped mode", async () => {
         groupBy: ["foo"],
     });
 
-    // Quick create kanban record
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "Test");
     await validateKanbanRecord();
 
-    // Select state in kanban
     await click(".o_status", { root: getKanbanRecord({ index: 0 }) });
     await animationFrame();
     await contains(".dropdown-item:nth-child(2)").click();
@@ -2801,7 +2753,6 @@ test("quick create record: cancel and validate without using the buttons", async
 
     expect(".o_kanban_record:not(.o_kanban_ghost)").toHaveCount(4);
 
-    // click to add an element and cancel the quick creation by pressing ESC
     await quickCreateKanbanRecord();
 
     expect(".o_kanban_quick_create").toHaveCount(1);
@@ -2811,12 +2762,10 @@ test("quick create record: cancel and validate without using the buttons", async
 
     expect(".o_kanban_quick_create").toHaveCount(0);
 
-    // click to add and element and click outside, should cancel the quick creation
     await quickCreateKanbanRecord();
     await contains(".o_kanban_group:first-child .o_kanban_record:last-of-type").click();
     expect(".o_kanban_quick_create").toHaveCount(0);
 
-    // click to input and drag the mouse outside, should not cancel the quick creation
     await quickCreateKanbanRecord();
     await (
         await drag(".o_kanban_quick_create input")
@@ -2827,17 +2776,14 @@ test("quick create record: cancel and validate without using the buttons", async
             "the quick create should not have been destroyed after clicking outside",
     });
 
-    // click to really add an element
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("foo", "new partner");
 
-    // clicking outside should no longer destroy the quick create as it is dirty
     await contains(".o_kanban_group:first-child .o_kanban_record:last-of-type").click();
     expect(".o_kanban_quick_create").toHaveCount(1, {
         message: "the quick create should not have been destroyed",
     });
 
-    // confirm by pressing ENTER
     await press("Enter");
     await animationFrame();
 
@@ -2868,7 +2814,6 @@ test("quick create record: validate with ENTER", async () => {
 
     expect(".o_kanban_record").toHaveCount(4);
 
-    // add an element and confirm by pressing ENTER
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     await validateKanbanRecord();
@@ -2906,7 +2851,6 @@ test("quick create record: prevent multiple adds with ENTER", async () => {
 
     expect(".o_kanban_record").toHaveCount(4);
 
-    // add an element and press ENTER twice
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     await press("Enter");
@@ -2957,7 +2901,6 @@ test("quick create record: prevent multiple adds with Add clicked", async () => 
 
     expect(".o_kanban_record").toHaveCount(4);
 
-    // add an element and click 'Add' twice
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("foo", "new partner");
     await validateKanbanRecord();
@@ -3004,7 +2947,6 @@ test("save a quick create record and create a new one simultaneously", async () 
 
     expect(".o_kanban_record").toHaveCount(4);
 
-    // Create and save a record
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "new partner");
     await validateKanbanRecord();
@@ -3014,7 +2956,6 @@ test("save a quick create record and create a new one simultaneously", async () 
     );
     expect(".o_kanban_quick_create").toHaveClass("o_disabled");
 
-    // Create a new record during the save of the first one
     await createKanbanRecord();
     expect(".o_kanban_record").toHaveCount(4);
     expect(".o_kanban_quick_create [name=display_name] input").toHaveValue(
@@ -3075,7 +3016,6 @@ test("quick create record: prevent multiple adds with ENTER, with onchange", asy
         message: "should have 4 records at the beginning",
     });
 
-    // add an element and press ENTER twice
     await quickCreateKanbanRecord();
     shouldDelayOnchange = true;
     await editKanbanRecordQuickCreateInput("foo", "new partner");
@@ -3106,12 +3046,7 @@ test("quick create record: prevent multiple adds with ENTER, with onchange", asy
     });
     expect(".o_kanban_quick_create").not.toHaveClass("o_disabled");
 
-    expect.verifySteps([
-        "onchange", // default_get
-        "onchange", // new partner
-        "web_save",
-        "onchange", // default_get
-    ]);
+    expect.verifySteps(["onchange", "onchange", "web_save", "onchange"]);
 });
 
 test("quick create record: click Add to create, with delayed onchange", async () => {
@@ -3161,7 +3096,6 @@ test("quick create record: click Add to create, with delayed onchange", async ()
         message: "should have 4 records at the beginning",
     });
 
-    // add an element and click 'add'
     await quickCreateKanbanRecord();
     shouldDelayOnchange = true;
     await editKanbanRecordQuickCreateInput("foo", "new partner");
@@ -3178,7 +3112,7 @@ test("quick create record: click Add to create, with delayed onchange", async ()
     );
     expect(".o_kanban_quick_create").toHaveClass("o_disabled");
 
-    def.resolve(); // the onchange returns
+    def.resolve();
 
     await animationFrame();
     expect(".o_kanban_record").toHaveCount(5, {
@@ -3189,12 +3123,7 @@ test("quick create record: click Add to create, with delayed onchange", async ()
     });
     expect(".o_kanban_quick_create").not.toHaveClass("o_disabled");
 
-    expect.verifySteps([
-        "onchange", // default_get
-        "onchange", // new partner
-        "web_save",
-        "onchange", // default_get
-    ]);
+    expect.verifySteps(["onchange", "onchange", "web_save", "onchange"]);
 });
 
 test.tags("desktop");
@@ -3216,7 +3145,6 @@ test("quick create when first column is folded", async () => {
     expect(".o_kanban_group:first-child").not.toHaveClass("o_column_folded");
     expect(".o_kanban_group:nth-child(2)").not.toHaveClass("o_column_folded");
 
-    // fold the first column
     let clickColumnAction = await toggleKanbanColumnActions(0);
     await clickColumnAction("Fold");
 
@@ -3225,7 +3153,6 @@ test("quick create when first column is folded", async () => {
 
     expect(".o_kanban_quick_create").toHaveCount(0);
 
-    // click on 'Create' to open the quick create in the first non-folded column (second column)
     await createKanbanRecord();
 
     expect(".o_kanban_group:first-child").toHaveClass("o_column_folded");
@@ -3233,7 +3160,6 @@ test("quick create when first column is folded", async () => {
 
     expect(".o_kanban_group:nth-child(2) .o_kanban_quick_create").toHaveCount(1);
 
-    // fold again the second column
     clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Fold");
 
@@ -3242,7 +3168,6 @@ test("quick create when first column is folded", async () => {
 
     expect(".o_kanban_quick_create").toHaveCount(0);
 
-    // click on 'Create' to open the quick create in the first column since all columns are folded
     await createKanbanRecord();
 
     expect(".o_kanban_group:first-child").not.toHaveClass("o_column_folded");
@@ -3270,31 +3195,26 @@ test("quick create record: cancel when not dirty", async () => {
         message: "first column should contain one record",
     });
 
-    // click to add an element
     await quickCreateKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(1, {
         message: "should have open the quick create widget",
     });
 
-    // click again to add an element -> should have kept the quick create open
     await quickCreateKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(1, {
         message: "should have kept the quick create open",
     });
 
-    // click outside: should remove the quick create
     await contains(".o_kanban_group:first-child .o_kanban_record:last-of-type").click();
     expect(".o_kanban_quick_create").toHaveCount(0, {
         message: "the quick create should not have been destroyed",
     });
 
-    // click to reopen the quick create
     await quickCreateKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(1, {
         message: "should have open the quick create widget",
     });
 
-    // press ESC: should remove the quick create
     await press("Escape");
     await animationFrame();
 
@@ -3302,13 +3222,11 @@ test("quick create record: cancel when not dirty", async () => {
         message: "quick create widget should have been removed",
     });
 
-    // click to reopen the quick create
     await quickCreateKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(1, {
         message: "should have open the quick create widget",
     });
 
-    // click on 'Discard': should remove the quick create
     await quickCreateKanbanRecord();
     await discardKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(0, {
@@ -3319,13 +3237,11 @@ test("quick create record: cancel when not dirty", async () => {
         message: "first column should still contain one record",
     });
 
-    // click to reopen the quick create
     await quickCreateKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(1, {
         message: "should have open the quick create widget",
     });
 
-    // clicking on the quick create itself should keep it open
     await contains(".o_kanban_quick_create").click();
     expect(".o_kanban_quick_create").toHaveCount(1, {
         message:
@@ -3357,7 +3273,6 @@ test("quick create record: cancel when modal is opened", async () => {
             </kanban>`,
     });
 
-    // click to add an element
     await quickCreateKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(1);
 
@@ -3366,12 +3281,9 @@ test("quick create record: cancel when modal is opened", async () => {
     await press("s");
     await press("t");
     await runAllTimers();
-    await click(".o_m2o_dropdown_option_create_edit"); // open create and edit dialog
+    await click(".o_m2o_dropdown_option_create_edit");
     await animationFrame();
 
-    // Focusing out of the many2one opens a modal to add a 'product'; clicking the resulting
-    // 'modal-open' body must NOT close the quick create (race between the m2o focusout and
-    // the quick create's global click handler). See odoo/odoo#61981.
     expect(".o_dialog").toHaveCount(1, {
         message: "modal should be opening after m2o focusout",
     });
@@ -3402,7 +3314,6 @@ test("quick create record: cancel when dirty", async () => {
         message: "first column should contain one record",
     });
 
-    // click to add an element and edit it
     await quickCreateKanbanRecord();
 
     expect(".o_kanban_quick_create").toHaveCount(1, {
@@ -3411,14 +3322,12 @@ test("quick create record: cancel when dirty", async () => {
 
     await editKanbanRecordQuickCreateInput("display_name", "some value");
 
-    // click outside: should not remove the quick create
     await contains(".o_kanban_group:first-child .o_kanban_record").click();
 
     expect(".o_kanban_quick_create").toHaveCount(1, {
         message: "the quick create should not have been destroyed",
     });
 
-    // press ESC: should remove the quick create
     await press("Escape");
     await animationFrame();
 
@@ -3426,7 +3335,6 @@ test("quick create record: cancel when dirty", async () => {
         message: "quick create widget should have been removed",
     });
 
-    // click to reopen quick create and edit it
     await quickCreateKanbanRecord();
 
     expect(".o_kanban_quick_create").toHaveCount(1, {
@@ -3435,7 +3343,6 @@ test("quick create record: cancel when dirty", async () => {
 
     await editKanbanRecordQuickCreateInput("display_name", "some value");
 
-    // click on 'Discard': should remove the quick create
     await discardKanbanRecord();
 
     expect(".o_kanban_quick_create").toHaveCount(0, {
@@ -3476,7 +3383,6 @@ test("quick create record and edit in grouped mode", async () => {
         message: "first column should contain one record",
     });
 
-    // click to add and edit a record
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "new partner");
     await editKanbanRecord();
@@ -3510,7 +3416,6 @@ test("quick create several records in a row", async () => {
         message: "first column should contain one record",
     });
 
-    // click to add an element, fill the input and press ENTER
     await quickCreateKanbanRecord();
 
     expect(".o_kanban_quick_create").toHaveCount(1, {
@@ -3527,7 +3432,6 @@ test("quick create several records in a row", async () => {
         message: "the quick create should still be open",
     });
 
-    // create a second element in a row
     await createKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "new partner 2");
     await validateKanbanRecord();
@@ -3564,7 +3468,6 @@ test("quick create is re-enabled directly after the validation", async () => {
         message: "first column should contain one record",
     });
 
-    // click to add a record, and add two in a row (first one will be delayed)
     await quickCreateKanbanRecord();
 
     expect(".o_kanban_quick_create").toHaveCount(1, {
@@ -3606,7 +3509,6 @@ test("quick create is re-enabled directly after the validation", async () => {
 
 test.tags("desktop");
 test("kanban grouped by stage_id: move record from to the None column", async () => {
-    // Fake model: partner.stage (only for group headers)
     const Stage = class extends models.Model {
         _name = "partner.stage";
         name = fields.Char();
@@ -3614,7 +3516,6 @@ test("kanban grouped by stage_id: move record from to the None column", async ()
     };
     defineModels([Stage]);
 
-    // Set up a record with no stage initially
     Partner._records = [
         { id: 1, foo: "Task A", stage_id: false },
         { id: 2, foo: "Task B", stage_id: 10 },
@@ -3635,19 +3536,16 @@ test("kanban grouped by stage_id: move record from to the None column", async ()
         groupBy: ["stage_id"],
     });
 
-    expect(queryAll(".o_kanban_group")).toHaveCount(2); // None and New
+    expect(queryAll(".o_kanban_group")).toHaveCount(2);
 
     await click(".o_kanban_group:first .o_kanban_header");
 
-    // Drag a record to the "None" column
     const dragActions = await contains(".o_kanban_record:contains(Task B)").drag();
     await dragActions.moveTo(".o_kanban_group:nth-child(1) .o_kanban_header");
     await dragActions.drop();
 
-    // Reload
     await validateSearch();
 
-    // Assert it's back in "None"
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(0) })).toHaveCount(2);
     expect(queryAllTexts(".o_kanban_record", { root: getKanbanColumn(0) })[1]).toBe(
         "Task B",
@@ -3690,7 +3588,6 @@ test("quick create record fail in grouped by many2one", async () => {
     expect(".modal .o_form_view .o_form_editable").toHaveCount(1);
     expect(".modal .o_field_many2one input:first").toHaveValue("hello");
 
-    // specify a name and save
     await contains(".modal .o_field_widget[name=foo] input").edit("test");
     await contains(".modal .o_form_button_save").click();
     expect(".modal").toHaveCount(0);
@@ -3742,7 +3639,6 @@ test("quick create record and click Edit, name_create fails", async () => {
     expect(".modal .o_form_view .o_form_editable").toHaveCount(1);
     expect(".modal .o_field_many2one input:first").toHaveValue("hello");
 
-    // specify a name and save
     await contains(".modal .o_field_widget[name=foo] input").edit("test");
     await contains(".modal .o_form_button_save").click();
     expect(".modal").toHaveCount(0);
@@ -3891,26 +3787,21 @@ test("quick create record fails in grouped by selection", async () => {
 
 test.tags("desktop");
 test("quick create record in empty grouped kanban", async () => {
-    onRpc("web_read_group", () =>
-        // override web_read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
-        ({
-            groups: [
-                {
-                    __extra_domain: [["product_id", "=", 3]],
-                    __count: 0,
-                    product_id: [3, "xplone"],
-                },
-                {
-                    __extra_domain: [["product_id", "=", 5]],
-                    __count: 0,
-                    product_id: [5, "xplan"],
-                },
-            ],
-            length: 2,
-        }),
-    );
+    onRpc("web_read_group", () => ({
+        groups: [
+            {
+                __extra_domain: [["product_id", "=", 3]],
+                __count: 0,
+                product_id: [3, "xplone"],
+            },
+            {
+                __extra_domain: [["product_id", "=", 5]],
+                __count: 0,
+                product_id: [5, "xplan"],
+            },
+        ],
+        length: 2,
+    }));
 
     await mountView({
         type: "kanban",
@@ -3965,7 +3856,6 @@ test("quick create record in grouped on date(time) field", async () => {
         message: "quick create should be disabled when grouped on a date field",
     });
 
-    // clicking on CREATE in control panel should not open a quick create
     await createKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(0, {
         message: "should not have opened the quick create widget",
@@ -3978,7 +3868,6 @@ test("quick create record in grouped on date(time) field", async () => {
         message: "quick create should be disabled when grouped on a datetime field",
     });
 
-    // clicking on CREATE in control panel should not open a quick create
     await createKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(0, {
         message: "should not have opened the quick create widget",
@@ -4263,7 +4152,6 @@ test("quick create record while adding a new column", async () => {
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
 
-    // add a new column
     expect(".o_column_quick_create.o_quick_create_folded").toHaveCount(1);
 
     await quickCreateKanbanColumn();
@@ -4278,19 +4166,16 @@ test("quick create record while adding a new column", async () => {
     expect(".o_column_quick_create input:first").toHaveValue("");
     expect(".o_kanban_group").toHaveCount(2);
 
-    // click to add a new record
     await createKanbanRecord();
 
     expect(".o_kanban_quick_create").toHaveCount(1);
 
-    // unlock column creation
     def.resolve();
     await animationFrame();
 
     expect(".o_kanban_group").toHaveCount(3);
     expect(".o_kanban_quick_create").toHaveCount(1);
 
-    // quick create record in first column
     await editKanbanRecordQuickCreateInput("display_name", "new record");
     await validateKanbanRecord();
 
@@ -4328,13 +4213,11 @@ test("close a column while quick creating a record", async () => {
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_column_folded").toHaveCount(0);
 
-    // click to quick create a new record in the first column (this operation is delayed)
     await quickCreateKanbanRecord();
 
     expect.verifySteps(["get_views"]);
     expect(".o_form_view").toHaveCount(0);
 
-    // click to fold the first column
     const clickColumnAction = await toggleKanbanColumnActions(0);
     await clickColumnAction("Fold");
 
@@ -4349,7 +4232,7 @@ test("close a column while quick creating a record", async () => {
 
     await createKanbanRecord();
 
-    expect.verifySteps([]); // "get_views" should have already be done
+    expect.verifySteps([]);
     expect(".o_form_view").toHaveCount(1);
     expect(".o_column_folded").toHaveCount(1);
 });
@@ -4369,21 +4252,18 @@ test("quick create record: open on a column while another column has already one
         groupBy: ["product_id"],
     });
 
-    // Click on quick create in first column
     await quickCreateKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(1);
     expect(
         queryAll(".o_kanban_quick_create", { root: getKanbanColumn(0) }),
     ).toHaveCount(1);
 
-    // Click on quick create in second column
     await quickCreateKanbanRecord(1);
     expect(".o_kanban_quick_create").toHaveCount(1);
     expect(
         queryAll(".o_kanban_quick_create", { root: getKanbanColumn(2) }),
     ).toHaveCount(1);
 
-    // Click on quick create in first column once again
     await quickCreateKanbanRecord();
     expect(".o_kanban_quick_create").toHaveCount(1);
     expect(
@@ -4443,13 +4323,11 @@ test("many2many_tags in kanban views", async () => {
         "has_group",
     ]);
 
-    // Checks that second records has only one tag as one should be hidden (color 0)
     expect(".o_kanban_record:nth-child(2) .o_tag").toHaveCount(1, {
         message: "there should be only one tag in second record",
     });
     expect(".o_kanban_record:nth-child(2) .o_tag:first").toHaveText("silver");
 
-    // Write on the record using the priority widget to trigger a re-render in readonly
     await contains(".o_kanban_record:first-child .o_priority_star:first-child").click();
 
     expect.verifySteps(["web_save"]);
@@ -4463,7 +4341,6 @@ test("many2many_tags in kanban views", async () => {
     expect(tags[0]).toHaveText("gold");
     expect(tags[1]).toHaveText("silver");
 
-    // click on a tag (should trigger switch_view)
     await contains(".o_kanban_record:first-child .o_tag:first-child").click();
 });
 
@@ -4481,7 +4358,6 @@ test("priority field should not be editable when missing access rights", async (
                 </templates>
             </kanban>`,
     });
-    // Try to fill one star in the priority field of the first record
     await contains(".o_kanban_record:first-child .o_priority_star:first-child").click();
     expect(".o_kanban_record:first-child .o_priority .fa-regular.fa-star").toHaveCount(
         2,
@@ -4498,8 +4374,6 @@ test("Do not open record when clicking on `a` with `href`", async () => {
 
     mockService("action", {
         async switchView() {
-            // when clicking on a record in kanban view,
-            // it switches to form view.
             expect.step("switchView");
         },
     });
@@ -4525,9 +4399,6 @@ test("Do not open record when clicking on `a` with `href`", async () => {
         message: "link inside kanban record should have non-empty href",
     });
 
-    // Prevent the default browser behaviour for any click, including on a `<a href>` (so the
-    // address bar URL doesn't change). Don't add a click listener on 'a' itself, or it may
-    // interfere with the kanban record's global click handler and keep the record from opening.
     const testLink = queryFirst(".o_kanban_record a");
     testLink.addEventListener("click", (ev) => {
         expect(ev.defaultPrevented).toBe(false, {
@@ -4634,7 +4505,7 @@ test("kanban with many2many, load and reload", async () => {
         groupBy: ["product_id"],
     });
 
-    await press("Enter"); // reload
+    await press("Enter");
     await animationFrame();
 
     expect.verifySteps([
@@ -4671,7 +4542,7 @@ test("kanban with reference field", async () => {
             </kanban>`,
     });
 
-    await press("Enter"); // reload
+    await press("Enter");
     await animationFrame();
 
     expect.verifySteps([
@@ -4739,7 +4610,6 @@ test("can drag and drop a record from one column to the next", async () => {
 
     expect.verifySteps([]);
 
-    // first record of first column moved to the bottom of second column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
@@ -4756,7 +4626,7 @@ test("user without permission cannot drag and drop a column thus sequence remain
     expect.errors(1);
 
     onRpc("web_resequence", () => {
-        throw makeServerError({ message: "No Permission" }); // Simulate user without permission
+        throw makeServerError({ message: "No Permission" });
     });
 
     await mountView({
@@ -4788,7 +4658,7 @@ test("user without permission cannot drag and drop a record thus sequence remain
     expect.errors(1);
 
     onRpc("partner", "web_save", () => {
-        throw makeServerError({ message: "No Permission" }); // Simulate user without permission
+        throw makeServerError({ message: "No Permission" });
     });
 
     await mountView({
@@ -4842,13 +4712,12 @@ test("drag and drop highlight on hover and has visible placeholder", async () =>
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(2);
 
-    // first record of first column moved to the bottom of second column
     const { drop, moveTo } = await contains(
         ".o_kanban_group:first-child .o_kanban_record",
     ).drag();
     await moveTo(".o_kanban_group:nth-child(2)");
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
-    expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(3); // includes the placeholder
+    expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(3);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record:eq(2)").toBeVisible();
 
     expect(getKanbanColumn(1)).toHaveClass("o_kanban_hover");
@@ -4876,7 +4745,6 @@ test("drag and drop outside of a column", async () => {
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(2);
 
-    // first record of first column moved to the right of a column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_column_quick_create",
     );
@@ -4909,7 +4777,6 @@ test("drag and drop a record, grouped by selection", async () => {
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(1);
     expect.verifySteps([]);
 
-    // first record of second column moved to the bottom of first column
     await contains(".o_kanban_group:nth-child(2) .o_kanban_record").dragAndDrop(
         ".o_kanban_group:first-child",
     );
@@ -4921,10 +4788,6 @@ test("drag and drop a record, grouped by selection", async () => {
 
 test.tags("desktop");
 test("prevent drag and drop of record if grouped by readonly", async () => {
-    // Grouping by state, foo, bar or product_id must all disable drag & drop, each via
-    // a different readonly source: state via arch readonly="1"; foo via a readonly model
-    // field with no arch override; bar via a readonly model field absent from the arch;
-    // product_id via a readonly model field overriding the arch's readonly="0".
     Partner._fields.foo = fields.Char({ readonly: true });
     Partner._fields.bar = fields.Boolean({ readonly: true });
     Partner._fields.product_id = fields.Many2one({
@@ -4964,12 +4827,10 @@ test("prevent drag and drop of record if grouped by readonly", async () => {
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(1);
     expect(".o_kanban_group:nth-child(3) .o_kanban_record").toHaveCount(2);
 
-    // first record of first column moved to the bottom of second column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // should not be draggable
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(1);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(1);
     expect(".o_kanban_group:nth-child(3) .o_kanban_record").toHaveCount(2);
@@ -4981,24 +4842,20 @@ test("prevent drag and drop of record if grouped by readonly", async () => {
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(1);
     expect(".o_kanban_group:nth-child(3) .o_kanban_record").toHaveCount(1);
 
-    // first record of first column moved to the bottom of second column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // should not be draggable
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(1);
     expect(".o_kanban_group:nth-child(3) .o_kanban_record").toHaveCount(1);
 
     expect(getKanbanRecordTexts(0)).toEqual(["blipDEF", "blipGHI"]);
 
-    // second record of first column moved at first place
     await contains(
         ".o_kanban_group:first-child .o_kanban_record:last-of-type",
     ).dragAndDrop(".o_kanban_group:first-child .o_kanban_record");
 
-    // should still be able to resequence
     expect(getKanbanRecordTexts(0)).toEqual(["blipGHI", "blipDEF"]);
 
     await toggleSearchBarMenu();
@@ -5011,12 +4868,10 @@ test("prevent drag and drop of record if grouped by readonly", async () => {
 
     expect(getKanbanRecordTexts(0)).toEqual(["blipGHI"]);
 
-    // first record of first column moved to the bottom of second column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // should not be draggable
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(1);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(3);
     expect(".o_kanban_group:nth-child(3) .o_kanban_record").toHaveCount(0);
@@ -5033,12 +4888,10 @@ test("prevent drag and drop of record if grouped by readonly", async () => {
 
     expect(getKanbanRecordTexts(0)).toEqual(["yopABC", "gnapGHI"]);
 
-    // first record of first column moved to the bottom of second column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // should not be draggable
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:nth-child(3) .o_kanban_record").toHaveCount(0);
@@ -5083,12 +4936,10 @@ test("prevent drag and drop if grouped by date/datetime field", async () => {
         message: "2nd column should contain 2 records of February month",
     });
 
-    // drag&drop a record in another column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // should not drag&drop record
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2, {
         message: "Should remain same records in first column (2 records)",
     });
@@ -5108,12 +4959,10 @@ test("prevent drag and drop if grouped by date/datetime field", async () => {
         message: "2nd column should contain 2 records of February month",
     });
 
-    // drag&drop a record in another column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // should not drag&drop record
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2, {
         message: "Should remain same records in first column(2 records)",
     });
@@ -5161,7 +5010,6 @@ test("prevent drag and drop if grouped by many2many field", async () => {
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:last-child .o_kanban_record").toHaveCount(3);
 
-    // drag&drop a record in another column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
@@ -5169,7 +5017,6 @@ test("prevent drag and drop if grouped by many2many field", async () => {
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:last-child .o_kanban_record").toHaveCount(3);
 
-    // Sanity check: groupby a non m2m field and check dragdrop is working
     await toggleSearchBarMenu();
     await toggleMenuItem("GroupBy State");
 
@@ -5258,18 +5105,15 @@ test("completely prevent drag and drop if records_draggable set to false", async
         groupBy: ["product_id"],
     });
 
-    // testing initial state
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(2);
     expect(getKanbanRecordTexts()).toEqual(["yop", "gnap", "blip", "blip"]);
     expect(".o_draggable").toHaveCount(0);
 
-    // attempt to drag&drop a record in another column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // should not drag&drop record
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2, {
         message: "First column should still contain 2 records",
     });
@@ -5280,7 +5124,6 @@ test("completely prevent drag and drop if records_draggable set to false", async
         message: "Records should not have moved",
     });
 
-    // attempt to drag&drop a record in the same column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:first-child .o_kanban_record:last-of-type",
     );
@@ -5315,12 +5158,10 @@ test("prevent drag and drop of record if save fails", async () => {
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(2);
 
-    // drag&drop a record in another column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // should not be dropped, card should reset back to first column
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(2);
 
@@ -5370,20 +5211,17 @@ test("kanban view with default_group_by", async () => {
 
     expect(".o_kanban_renderer").toHaveClass("o_kanban_grouped");
     expect(".o_kanban_group").toHaveCount(2);
-    // open search bar in mobile
     if (queryAll(".o_control_panel_navigation > button").length) {
         await contains(".o_control_panel_navigation > button").click();
     }
     expect(`.o_searchview_facet`).toHaveCount(0);
 
-    // simulate an update coming from the searchview, with another groupby given
     await toggleSearchBarMenu();
     await toggleMenuItem("GroupBy Product");
     expect(".o_kanban_group").toHaveCount(3);
     expect(`.o_searchview_facet`).toHaveCount(1);
     expect(`.o_searchview_facet`).toHaveText("GroupBy Product");
 
-    // simulate an update coming from the searchview, removing the previously set groupby
     await contains(".o_searchview_facet .o_facet_remove").click();
     expect(".o_kanban_group").toHaveCount(2);
     expect(`.o_searchview_facet`).toHaveCount(0);
@@ -5506,7 +5344,6 @@ test("kanban view not groupable", async () => {
     expect(".o_control_panel div.o_search_options div.o_group_by_menu").toHaveCount(0);
     expect(getFacetTexts()).toEqual([]);
 
-    // validate presence of the search arch info
     await toggleSearchBarMenu();
     expect(".o_filter_menu .o_menu_item").toHaveCount(2);
     expect.verifySteps([]);
@@ -5586,15 +5423,11 @@ test("environment is updated when (un)folding groups", async () => {
 
     expect(getKanbanRecordTexts()).toEqual(["1", "3", "2", "4"]);
 
-    // fold the second group and check that the res_ids it contains are no
-    // longer in the environment
     const clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Fold");
 
     expect(getKanbanRecordTexts()).toEqual(["1", "3"]);
 
-    // re-open the second group and check that the res_ids it contains are
-    // back in the environment
     await contains(getKanbanColumn(1)).click();
 
     expect(getKanbanRecordTexts()).toEqual(["1", "3", "2", "4"]);
@@ -5636,7 +5469,6 @@ test("create a column in default grouped on m2o", async () => {
         message: "the input should be visible",
     });
 
-    // discard the column creation and click it again
     await press("Escape");
     await animationFrame();
 
@@ -5667,7 +5499,6 @@ test("create a column in default grouped on m2o", async () => {
     });
     expect.verifySteps(["name_create", ["web_resequence", [3, 5, 6]]]);
 
-    // fold and unfold the created column, and check that no RPCs are done (as there are no records)
     const clickColumnAction = await toggleKanbanColumnActions(2);
     await clickColumnAction("Fold");
 
@@ -5677,10 +5508,8 @@ test("create a column in default grouped on m2o", async () => {
     await animationFrame();
 
     expect(getKanbanColumn(1)).not.toHaveClass("o_column_folded");
-    // no rpc should have been done when folding/unfolding
     expect.verifySteps([]);
 
-    // quick create a record
     await createKanbanRecord();
 
     expect(
@@ -5751,7 +5580,6 @@ test("delete a column in grouped on m2o", async () => {
             </kanban>`,
     });
 
-    // check the initial rendering
     expect(".o_kanban_group").toHaveCount(2, { message: "should have two columns" });
     expect(queryText(".o_column_title", { root: getKanbanColumn(0) })).toBe(
         "hello\n(2)",
@@ -5761,7 +5589,6 @@ test("delete a column in grouped on m2o", async () => {
         message: "second column should have two records",
     });
 
-    // check available actions in kanban header's config dropdown
     await toggleKanbanColumnActions(0);
     expect(
         queryAll(".o_kanban_toggle_fold", { root: getKanbanColumnDropdownMenu(0) }),
@@ -5787,7 +5614,6 @@ test("delete a column in grouped on m2o", async () => {
         message: "should not be able to restore all the records",
     });
 
-    // delete second column (first cancel the confirm request, then confirm)
     let clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Delete");
 
@@ -5815,7 +5641,6 @@ test("delete a column in grouped on m2o", async () => {
         },
     );
 
-    // check available actions on 'Undefined' column
     await click(getKanbanColumn(0));
     await animationFrame();
     await toggleKanbanColumnActions(0);
@@ -5857,7 +5682,6 @@ test("delete a column in grouped on m2o", async () => {
         message: "the old groups should have been correctly deleted",
     });
 
-    // test column drag and drop having an 'Undefined' column
     expect(getKanbanColumn(0)).not.toHaveClass("o_group_draggable");
     await contains(".o_kanban_group:first-child .o_column_title").dragAndDrop(
         queryAll(".o_kanban_group")[1],
@@ -5938,7 +5762,6 @@ test("delete an empty column, then a column with records.", async () => {
     let firstLoad = true;
 
     onRpc("web_read_group", function ({ parent }) {
-        // override web_read_group to return an extra empty groups
         const result = parent();
         if (firstLoad) {
             result.groups.unshift({
@@ -5971,21 +5794,18 @@ test("delete an empty column, then a column with records.", async () => {
     expect(".o_kanban_header .o_column_title:contains('hello')").toHaveCount(1);
     expect(".o_kanban_header .o_column_title:contains('None')").toHaveCount(0);
 
-    // Delete the empty group
     let clickColumnAction = await toggleKanbanColumnActions();
     await clickColumnAction("Delete");
 
     expect(".o_dialog").toHaveCount(1);
     await contains(".o_dialog footer .btn-primary").click();
 
-    // Delete the group 'hello'
     clickColumnAction = await toggleKanbanColumnActions();
     await clickColumnAction("Delete");
 
     expect(".o_dialog").toHaveCount(1);
     await contains(".o_dialog footer .btn-primary").click();
 
-    // None of the previous groups should be present inside the view. Instead, a 'none' column should be displayed.
     expect(".o_kanban_header span:contains('empty group')").toHaveCount(0);
     expect(".o_kanban_header span:contains('hello')").toHaveCount(0);
     expect(".o_kanban_header .o_column_title:contains('None')").toHaveCount(1);
@@ -6019,7 +5839,6 @@ test("edit a column in grouped on m2o", async () => {
 
     expect(queryText(".o_column_title", { root: getKanbanColumn(1) })).toBe("xmo\n(2)");
 
-    // edit the title of column [5, 'xmo'] and close without saving
     let clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Edit");
 
@@ -6034,7 +5853,6 @@ test("edit a column in grouped on m2o", async () => {
     expect(queryText(".o_column_title", { root: getKanbanColumn(1) })).toBe("xmo\n(2)");
     expect(nbRPCs).toBe(0, { message: "no RPC should have been done" });
 
-    // edit the title of column [5, 'xmo'] and discard
     clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Edit");
     await contains(".modal .o_form_editable input").edit("ged");
@@ -6045,12 +5863,11 @@ test("edit a column in grouped on m2o", async () => {
     expect(queryText(".o_column_title", { root: getKanbanColumn(1) })).toBe("xmo\n(2)");
     expect(nbRPCs).toBe(0, { message: "no RPC should have been done" });
 
-    // edit the title of column [5, 'xmo'] and save
     clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Edit");
     await contains(".modal .o_form_editable input").edit("ged");
     nbRPCs = 0;
-    await click(".modal .o_form_button_save"); // click on save
+    await click(".modal .o_form_button_save");
     await animationFrame();
 
     expect(".modal").toHaveCount(0, { message: "the modal should be closed" });
@@ -6142,7 +5959,6 @@ test("quick create column should close on window click if there is no column", a
     expect(".o_column_quick_create input").toHaveCount(1, {
         message: "the quick create should be opened",
     });
-    // click outside should discard quick create column
     await contains(getFixture()).click();
     expect(".o_column_quick_create input").toHaveCount(0, {
         message: "the quick create should be closed",
@@ -6174,7 +5990,6 @@ test("quick create several columns in a row", async () => {
         message: "the ColumnQuickCreate should be folded",
     });
 
-    // add a new column
     await quickCreateKanbanColumn();
     expect(".o_column_quick_create.o_quick_create_folded:visible").toHaveCount(0, {
         message: "the ColumnQuickCreate should be unfolded",
@@ -6188,7 +6003,6 @@ test("quick create several columns in a row", async () => {
         message: "should now have three columns",
     });
 
-    // add another column
     expect(".o_column_quick_create.o_quick_create_folded:visible").toHaveCount(0, {
         message: "the ColumnQuickCreate should still be unfolded",
     });
@@ -6266,7 +6080,6 @@ test("empty stages kanban examples", async () => {
         message: "should have a link to see examples",
     });
 
-    // click to see the examples
     await contains(".o_kanban_stages_nocontent .o_kanban_examples").click();
 
     expect(".modal .o_kanban_examples_dialog").toHaveCount(1, {
@@ -6300,8 +6113,12 @@ test("empty stages kanban examples", async () => {
     });
 
     await contains(".nav-item:nth-child(2) .nav-link").click();
-    const secondPane = queryFirst(".o_notebook_content");
-    expect(queryAll(".o_kanban_examples_group", { root: firstPane })).toHaveCount(2);
+    // Re-query the pane: the notebook keys it on the active page, so a real
+    // switch mounts a fresh element and `firstPane` is now detached — still
+    // holding the first example's three columns, which is what this assertion
+    // used to read while claiming to check the second example's two.
+    const secondPane = queryFirst(".modal .o_notebook_content .tab-pane");
+    expect(queryAll(".o_kanban_examples_group", { root: secondPane })).toHaveCount(2);
     expect(queryAllTexts("h6", { root: secondPane })).toEqual(["Col 1", "Col 2"], {
         message: "column titles should be correct",
     });
@@ -6418,10 +6235,8 @@ test("empty stages kanban examples: with folded columns", async () => {
             </kanban>`,
     });
 
-    // click to see the examples
     await contains(".o_kanban_stages_nocontent .o_kanban_examples").click();
 
-    // apply the examples
     expect.verifySteps([]);
     await contains(".modal .modal-footer .btn.btn-primary").click();
     expect.verifySteps([
@@ -6430,7 +6245,6 @@ test("empty stages kanban examples: with folded columns", async () => {
         'write (model: product):[[7],{"folded":true}]',
     ]);
 
-    // the applied examples should be visible
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group:not(.o_column_folded)").toHaveCount(1);
     expect(".o_kanban_group.o_column_folded").toHaveCount(1);
@@ -6470,7 +6284,6 @@ test("empty stages kanban examples: apply button's display text", async () => {
             </kanban>`,
     });
 
-    // click to see the examples
     await contains(".o_kanban_stages_nocontent .o_kanban_examples").click();
 
     expect(".modal footer.modal-footer button.btn-primary").toHaveText(
@@ -6515,7 +6328,6 @@ test("nocontent helper after adding a record (kanban with progressbar)", async (
         message: "the nocontent helper is displayed",
     });
 
-    // add a record
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "twilight sparkle");
     await validateKanbanRecord();
@@ -6524,7 +6336,6 @@ test("nocontent helper after adding a record (kanban with progressbar)", async (
         message: "the nocontent helper is not displayed after quick create",
     });
 
-    // cancel quick create
     await discardKanbanRecord();
     expect(".o_view_nocontent").toHaveCount(0, {
         message:
@@ -6617,9 +6428,6 @@ test("no content helper when no data", async () => {
 
 test("no nocontent helper for grouped kanban with empty groups", async () => {
     onRpc("web_read_group", function ({ kwargs, parent }) {
-        // override web_read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
         const result = parent();
         for (const group of result.groups) {
             group.__count = 0;
@@ -6698,7 +6506,6 @@ test("basic nocontent helper is shown when no longer creating column", async () 
             "there should be no nocontent helper (we are in 'column creation mode')",
     });
 
-    // creating a new column
     await editKanbanColumnName("applejack");
     await validateKanbanColumn();
 
@@ -6707,7 +6514,6 @@ test("basic nocontent helper is shown when no longer creating column", async () 
             "there should be no nocontent helper (still in 'column creation mode')",
     });
 
-    // leaving column creation mode
     await press("Escape");
     await animationFrame();
 
@@ -6955,24 +6761,21 @@ test("empty grouped kanban with sample data and no columns", async () => {
 test("empty kanban with sample data grouped by date range (fill temporal)", async () => {
     Partner._records = [];
 
-    onRpc("web_read_group", () =>
-        // Simulate fill temporal
-        ({
-            groups: [
-                {
-                    __count: 0,
-                    state: false,
-                    "date:month": ["2022-12-01", "December 2022"],
-                    __extra_domain: [
-                        ["date", ">=", "2022-12-01"],
-                        ["date", "<", "2023-01-01"],
-                    ],
-                    __records: [],
-                },
-            ],
-            length: 1,
-        }),
-    );
+    onRpc("web_read_group", () => ({
+        groups: [
+            {
+                __count: 0,
+                state: false,
+                "date:month": ["2022-12-01", "December 2022"],
+                __extra_domain: [
+                    ["date", ">=", "2022-12-01"],
+                    ["date", "<", "2023-01-01"],
+                ],
+                __records: [],
+            },
+        ],
+        length: 1,
+    }));
     await mountView({
         arch: `
             <kanban sample="1">
@@ -6998,9 +6801,6 @@ test("empty kanban with sample data grouped by date range (fill temporal)", asyn
 
 test("empty grouped kanban with sample data and click quick create", async () => {
     onRpc("web_read_group", function ({ kwargs, parent }) {
-        // override web_read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
         const result = parent();
         result.groups.forEach((group) => {
             group.__count = 0;
@@ -7054,9 +6854,6 @@ test("empty grouped kanban with sample data and click quick create", async () =>
 test.tags("desktop");
 test("quick create record in grouped kanban with sample data", async () => {
     onRpc("web_read_group", function ({ kwargs, parent }) {
-        // override web_read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
         const result = parent();
         result.groups.forEach((group) => {
             group.__count = 0;
@@ -7100,9 +6897,6 @@ test("quick create record in grouped kanban with sample data", async () => {
 
 test("empty grouped kanban with sample data and cancel quick create", async () => {
     onRpc("web_read_group", function ({ kwargs, parent }) {
-        // override web_read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
         const result = parent();
         result.groups.forEach((group) => {
             group.__count = 0;
@@ -7219,9 +7013,6 @@ test("empty kanban with sample data", async () => {
 test("empty grouped kanban with sample data and many2many_tags", async () => {
     onRpc("web_read_group", function ({ kwargs, parent }) {
         const result = parent();
-        // override web_read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
         result.groups.forEach((group) => {
             group.__count = 0;
         });
@@ -7254,7 +7045,6 @@ test("empty grouped kanban with sample data and many2many_tags", async () => {
     expect(queryAll(".o_field_many2many_tags .o_tag").length >= 1).toBe(true, {
         message: "there should be tags",
     });
-    // should not read the tags
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
@@ -7274,14 +7064,10 @@ test("sample data does not change after reload with sample data", async () => {
                 </t>
             </templates>
         </kanban>`;
-    // list-view so that there is a view switcher, unused
     Partner._views["list"] = '<list><field name="foo"/></list>';
 
     onRpc("web_read_group", function ({ kwargs, parent }) {
         const result = parent();
-        // override web_read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
         result.groups.forEach((group) => {
             group.__count = 0;
         });
@@ -7349,7 +7135,7 @@ test("empty grouped kanban with sample data: add a column", async () => {
         result.groups = this.env["product"].map((r) => ({
             product_id: [r.id, r.display_name],
             __count: 0,
-            __records: [], // Open group by default
+            __records: [],
             __extra_domain: [["product_id", "=", r.id]],
         }));
         result.length = result.groups.length;
@@ -7388,10 +7174,8 @@ test("empty grouped kanban with sample data: add a column", async () => {
 
 test.tags("desktop");
 test("empty grouped kanban with sample data: cannot fold a column", async () => {
-    // folding a column in grouped kanban with sample data is disabled, for the sake of simplicity
     onRpc("web_read_group", function ({ kwargs, parent }) {
         const result = parent();
-        // override web_read_group to return a single, empty group
         result.groups = result.groups.slice(0, 1);
         result.groups[0]["__count"] = 0;
         result.length = 1;
@@ -7437,13 +7221,10 @@ test("empty grouped kanban with sample data: delete a column", async () => {
         },
     ];
 
-    onRpc("web_read_group", () =>
-        // override read_group to return a single, empty group
-        ({
-            groups,
-            length: groups.length,
-        }),
-    );
+    onRpc("web_read_group", () => ({
+        groups,
+        length: groups.length,
+    }));
 
     await mountView({
         resModel: "partner",
@@ -7464,7 +7245,6 @@ test("empty grouped kanban with sample data: delete a column", async () => {
         message: "should contain sample records",
     });
 
-    // Delete the first column
     groups = [];
     const clickColumnAction = await toggleKanbanColumnActions(0);
     await clickColumnAction("Delete");
@@ -7480,7 +7260,7 @@ test("empty grouped kanban with sample data: add a column and delete it right aw
         result.groups = this.env["product"].map((r) => ({
             product_id: [r.id, r.display_name],
             __count: 0,
-            __records: [], // Open group by default
+            __records: [],
             __extra_domain: [["product_id", "=", r.id]],
         }));
         result.length = result.groups.length;
@@ -7506,7 +7286,6 @@ test("empty grouped kanban with sample data: add a column and delete it right aw
         message: "should contain sample records",
     });
 
-    // add a new column
     await quickCreateKanbanColumn();
     await editKanbanColumnName("Yoohoo");
     await validateKanbanColumn();
@@ -7517,7 +7296,6 @@ test("empty grouped kanban with sample data: add a column and delete it right aw
         message: "should contain sample records",
     });
 
-    // delete the column we just created
     const clickColumnAction = await toggleKanbanColumnActions(2);
     await clickColumnAction("Delete");
     await contains(".o_dialog footer .btn-primary").click();
@@ -7610,7 +7388,6 @@ test("kanban with sample data grouped by m2o and existing groups", async () => {
 test(`kanban grouped by m2o with sample data with more than 5 real groups`, async () => {
     Partner._records = [];
     onRpc("web_read_group", () => ({
-        // simulate 6, empty, real groups
         groups: [1, 2, 3, 4, 5, 6].map((id) => ({
             __count: 0,
             __records: [],
@@ -7675,7 +7452,7 @@ test("bounce create button when no data and click on empty area", async () => {
 });
 
 test("buttons with modifiers", async () => {
-    Partner._records[1].bar = false; // so that test is more complete
+    Partner._records[1].bar = false;
 
     await mountView({
         type: "kanban",
@@ -7778,7 +7555,6 @@ test("button executes action and reloads", async () => {
     expect(count).toBe(1, {
         message: "should have triggered an execute action only once",
     });
-    // the records should be reloaded after executing a button action
     expect.verifySteps(["web_search_read"]);
 });
 
@@ -8007,7 +7783,6 @@ test("resequence columns in grouped by m2o", async () => {
         ".o_kanban_group:nth-child(2)",
     );
 
-    // Drag & drop on column (not title) should not work
     expect(getKanbanColumn(0).querySelector(".o_column_title")).toHaveText(
         "hello\n(2)",
     );
@@ -8065,9 +7840,6 @@ test("resequence all when creating new record + partial resequencing", async () 
     await validateKanbanColumn();
     expect.verifySteps([{ ids: [3, 5, 6, 7, 8, 9] }]);
 
-    // When rearranging, only resequence the affected records. In this example,
-    // dragging column 2 to column 4 should only resequence [5, 6, 7] to [6, 7, 5]
-    // with offset 1.
     await contains(".o_kanban_group:nth-child(2) .o_column_title").dragAndDrop(
         ".o_kanban_group:nth-child(4)",
     );
@@ -8101,7 +7873,6 @@ test("prevent resequence columns if groups_draggable=false", async () => {
         ".o_kanban_group:nth-child(2)",
     );
 
-    // Drag & drop on column (not title) should not work
     expect(getKanbanColumn(0).querySelector(".o_column_title")).toHaveText(
         "hello\n(2)",
     );
@@ -8226,7 +7997,6 @@ test("edit the kanban color with the colorpicker", async () => {
 
     await contains(".o_kanban_colorpicker .o_colorlist_item_color_9").click();
 
-    // should write on the color field
     expect.verifySteps(["write-color-9"]);
     expect(getKanbanRecord({ index: 0 })).toHaveClass("o_kanban_color_9");
 });
@@ -8259,7 +8029,6 @@ test("kanban with colorpicker and node with color attribute", async () => {
     await contains(
         `.o_kanban_colorpicker .o_colorlist_item_color_9[title="Raspberry"]`,
     ).click();
-    // should write on the color field
     expect.verifySteps(["write-color-9"]);
     expect(getKanbanRecord({ index: 0 })).toHaveClass("o_kanban_color_9");
 });
@@ -8339,24 +8108,21 @@ test("load more records in column", async () => {
     });
     expect(getKanbanRecordTexts(1)).toEqual(["1", "2"]);
 
-    // load more
     await clickKanbanLoadMore(1);
 
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(1) })).toHaveCount(3, {
         message: "there should now be 3 records in the column",
     });
-    // the records should be correctly fetched
     expect(getKanbanRecordTexts(1)).toEqual(["1", "2", "3"]);
     expect.verifySteps(["web_search_read 4 - 0"]);
 
-    // reload
     await validateSearch();
 
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(1) })).toHaveCount(3, {
         message: "there should still be 3 records in the column after reload",
     });
     expect(getKanbanRecordTexts(1)).toEqual(["1", "2", "3"]);
-    expect.verifySteps([]); // managed by web_read_group
+    expect.verifySteps([]);
 });
 
 test("load more records in column with x2many", async () => {
@@ -8364,7 +8130,6 @@ test("load more records in column with x2many", async () => {
     Partner._records[1].category_ids = [];
     Partner._records[2].category_ids = [6];
     Partner._records[3].category_ids = [];
-    // record [2] will be loaded after
 
     onRpc("web_search_read", ({ kwargs }) => {
         expect.step(`web_search_read ${kwargs.limit} - ${kwargs.offset}`);
@@ -8390,7 +8155,6 @@ test("load more records in column with x2many", async () => {
         queryAllTexts("[name='category_ids']", { root: getKanbanColumn(1) }),
     ).toEqual(["silver", ""]);
 
-    // load more
     await clickKanbanLoadMore(1);
 
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(1) })).toHaveCount(3);
@@ -8455,7 +8219,6 @@ test("group_by_tooltip option when grouping on a many2one", async () => {
     expect(".o_kanban_renderer").toHaveClass("o_kanban_grouped");
     expect(".o_kanban_group").toHaveCount(2, { message: "should have 2 columns" });
 
-    // simulate an update coming from the searchview, with another groupby given
     await toggleSearchBarMenu();
     await toggleMenuItem("GroupBy Product");
 
@@ -8482,7 +8245,6 @@ test("group_by_tooltip option when grouping on a many2one", async () => {
         message:
             "tooltip of first column should not defined, since group_by_tooltip title and the many2one field has no value",
     });
-    // should not have done any read on product because no value
     expect.verifySteps([]);
 
     await hover(".o_column_title:eq(1)");
@@ -8495,7 +8257,6 @@ test("group_by_tooltip option when grouping on a many2one", async () => {
     expect(".o_kanban_group:nth-child(2) .o_column_title").toHaveText("hello\n(2)", {
         message: "second column should have a title with a value from the many2one",
     });
-    // should have done one read on product for the second column tooltip
     expect.verifySteps(["read: product"]);
 });
 
@@ -8657,7 +8418,7 @@ test("resequence a record twice", async () => {
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "record2");
     await validateKanbanRecord();
-    await discardKanbanRecord(); // close quick create
+    await discardKanbanRecord();
 
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(2);
     expect(getKanbanRecordTexts()).toEqual(["record2", "record1"], {
@@ -8683,7 +8444,6 @@ test("resequence a record twice", async () => {
     expect(getKanbanRecordTexts()).toEqual(["record2", "record1"], {
         message: "records should be correctly ordered",
     });
-    // should have resequenced twice
     expect.verifySteps(["resequence", "resequence"]);
 });
 
@@ -8968,7 +8728,6 @@ test("column progressbars should not crash in non grouped views", async () => {
     });
 
     expect(getKanbanRecordTexts()).toEqual(["yop", "blip", "gnap", "blip"]);
-    // no read on progress bar data is done
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
@@ -8997,7 +8756,6 @@ test("column progressbars: creating a new column should create a new progressbar
 
     expect(".o_kanban_counter").toHaveCount(2);
 
-    // Create a new column: this should create an empty progressbar
     await quickCreateKanbanColumn();
     await editKanbanColumnName("test");
     await validateKanbanColumn();
@@ -9147,7 +8905,6 @@ test("column progressbars with an active filter are working with load more", asy
 });
 
 test("column progressbars on archiving records update counter", async () => {
-    // add active field on partner model and make all records active
     Partner._fields.active = fields.Boolean({ default: true });
 
     stepAllNetworkCalls();
@@ -9173,7 +8930,6 @@ test("column progressbars on archiving records update counter", async () => {
         message: "the counter progressbars should be correctly displayed",
     });
 
-    // archive all records of the second columns
     await keyDown("alt");
     await animationFrame();
     await contains(
@@ -9208,7 +8964,6 @@ test("column progressbars on archiving records update counter", async () => {
 });
 
 test("kanban with progressbars: correctly update env when archiving records", async () => {
-    // add active field on partner model and make all records active
     Partner._fields.active = fields.Boolean({ default: true });
 
     stepAllNetworkCalls();
@@ -9231,7 +8986,6 @@ test("kanban with progressbars: correctly update env when archiving records", as
 
     expect(getKanbanRecordTexts()).toEqual(["4", "1", "2", "3"]);
 
-    // archive all records of the first column
     await keyDown("alt");
     await animationFrame();
     await contains(
@@ -9317,12 +9071,10 @@ test("RPCs when (re)loading kanban view progressbars", async () => {
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
-        // initial load
         "get_views",
         "read_progress_bar",
         "web_read_group",
         "has_group",
-        // reload
         "read_progress_bar",
         "web_read_group",
     ]);
@@ -9352,40 +9104,34 @@ test("RPCs when (de)activating kanban view progressbar filters", async () => {
         groupBy: ["bar"],
     });
 
-    // Activate "yop" on second column
     await contains(".progress-bar.bg-success", { root: getKanbanColumn(1) }).click();
-    // Activate "gnap" on second column
     await contains(".progress-bar.bg-warning", { root: getKanbanColumn(1) }).click();
-    // Deactivate "gnap" on second column
     await contains(".progress-bar.bg-warning", { root: getKanbanColumn(1) }).click();
 
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
-        // initial load
         "get_views",
         "read_progress_bar",
         "web_read_group",
         "has_group",
         "web_read_group domain []",
-        "formatted_read_group", // recomputes aggregates
+        "formatted_read_group",
         "web_search_read",
-        'formatted_read_group domain ["&",["bar","=",true],["foo","=","yop"]]', // perform formatted_read_group only on second column (bar=true)
+        'formatted_read_group domain ["&",["bar","=",true],["foo","=","yop"]]',
         "read_progress_bar",
         "formatted_read_group",
         "formatted_read_group",
         "formatted_read_group domain []",
         'formatted_read_group domain ["&",["bar","=",true],["foo","=","yop"]]',
-        // activate filter
-        "formatted_read_group", // recomputes aggregates
+        "formatted_read_group",
         "web_search_read",
-        'formatted_read_group domain ["&",["bar","=",true],["foo","=","gnap"]]', // perform formatted_read_group only on second column (bar=true)
+        'formatted_read_group domain ["&",["bar","=",true],["foo","=","gnap"]]',
         "read_progress_bar",
         "formatted_read_group",
         "formatted_read_group",
         "formatted_read_group domain []",
         'formatted_read_group domain ["&",["bar","=",true],["foo","=","gnap"]]',
-        // activate another filter (switching)
         "web_search_read",
     ]);
 });
@@ -9411,7 +9157,6 @@ test("drag & drop records grouped by m2o with progressbar", async () => {
         groupBy: ["product_id"],
     });
 
-    // Unfold first column
     await contains(getKanbanColumn(0)).click();
 
     expect(getKanbanCounters()).toEqual(["1", "1", "2"]);
@@ -9441,9 +9186,6 @@ test("drag & drop records grouped by m2o with progressbar", async () => {
         "web_read_group",
         "has_group",
         "web_search_read",
-        // The progress field ("foo") is not part of the fetched fields here,
-        // so the local per-move reconcile is impossible and each drag & drop
-        // falls back to a full read_progress_bar refresh.
         "web_save",
         "read_progress_bar",
         "web_resequence",
@@ -9463,8 +9205,6 @@ test("d&d records grouped by date with progressbar with aggregates", async () =>
     Partner._records[2].date = "2010-10-30";
     Partner._records[3].date = "2010-10-30";
 
-    // Kanban views grouped by date normally can't drag & drop; simulate an override that
-    // allows it (e.g. CRM forecast).
     patchWithCleanup(KanbanRenderer.prototype, {
         isMovableField() {
             return true;
@@ -9503,8 +9243,6 @@ test("d&d records grouped by date with progressbar with aggregates", async () =>
         "read_progress_bar",
         "web_read_group",
         "has_group",
-        // The progress field ("foo") is not part of the fetched fields here,
-        // so the drag & drop falls back to a full progress bar refresh.
         "web_save",
         "read_progress_bar",
         "formatted_read_group",
@@ -9569,7 +9307,6 @@ test("progress bar recompute after d&d to and from other column", async () => {
     expect(getKanbanColumnTooltips()).toEqual(["1 blip", "1 yop", "1 gnap", "1 blip"]);
     expect(getKanbanCounters()).toEqual(["1", "3"]);
 
-    // Drag the last kanban record to the first column
     await contains(
         ".o_kanban_group:last-child .o_kanban_record:nth-child(4)",
     ).dragAndDrop(".o_kanban_group:first-child");
@@ -9583,8 +9320,6 @@ test("progress bar recompute after d&d to and from other column", async () => {
         "read_progress_bar",
         "web_read_group",
         "has_group",
-        // The drag & drop between columns reconciles both columns' bars
-        // locally: no full-domain read_progress_bar refetch.
         "web_save",
         "web_resequence",
     ]);
@@ -9619,14 +9354,10 @@ test("d&d between columns updates both progressbars without a full-domain read_p
     expect(getKanbanCounters()).toEqual(["-4", "36"]);
     expect.verifySteps(["read_progress_bar []"]);
 
-    // Drag the "yop" record from the second column to the first one
     await contains(".o_kanban_group:nth-child(2) .o_kanban_record").dragAndDrop(
         ".o_kanban_group:first-child",
     );
 
-    // Both columns' bar counts and totals are reconciled locally; the only
-    // refetch is the aggregate read, scoped to the two affected groups
-    // instead of the full domain, and no read_progress_bar is fired.
     expect(getKanbanColumnTooltips(0)).toEqual(["1 yop", "1 blip"]);
     expect(getKanbanColumnTooltips(1)).toEqual(["1 gnap", "1 blip"]);
     expect(getKanbanCounters()).toEqual(["6", "26"]);
@@ -9645,10 +9376,6 @@ test("d&d between columns updates both progressbars without a full-domain read_p
 
 test.tags("desktop");
 test("d&d between two bar-filtered columns updates both aggregates", async () => {
-    // Regression: the three aggregate fetchers used to share one epoch
-    // counter, so in _reconcileMove the source group's filtered aggregate
-    // fetch was discarded by the target group's (and both by the two-group
-    // refetch), leaving the source column header stale indefinitely.
     Partner._records.push({
         id: 5,
         foo: "blip",
@@ -9671,26 +9398,19 @@ test("d&d between two bar-filtered columns updates both aggregates", async () =>
         groupBy: ["bar"],
     });
 
-    // Column 1 (bar=false): records 4 (blip, -4) and 5 (blip, 100).
-    // Column 2 (bar=true): records 1 (yop, 10), 2 (blip, 9), 3 (gnap, 17).
     expect(getKanbanCounters()).toEqual(["96", "36"]);
 
-    // Activate the "blip" (danger) bar on both columns.
     await contains(".o_kanban_group:first-child .progress-bar.bg-danger").click();
     expect(getKanbanCounters()).toEqual(["96", "36"]);
     await contains(".o_kanban_group:nth-child(2) .progress-bar.bg-danger").click();
     expect(getKanbanCounters()).toEqual(["96", "9"]);
 
-    // Drag record 4 (blip, -4) from the first column to the second one.
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
 
-    // Both filtered headers must be correct right after the local reconcile:
-    // source blip sum: 96 - (-4) = 100, target blip sum: 9 + (-4) = 5.
     expect(getKanbanCounters()).toEqual(["100", "5"]);
 
-    // And they must survive the trailing authoritative refresh.
     await runAllTimers();
     await animationFrame();
     expect(getKanbanCounters()).toEqual(["100", "5"]);
@@ -9739,7 +9459,6 @@ test("progress bar recompute after filter selection", async () => {
     expect(getKanbanCounters()).toEqual(["1", "4"]);
     expect.verifySteps(["web_search_read", "read_progress_bar"]);
 
-    // Add search domain to something restricting progressbars' values (records still in filtered group)
     await toggleSearchBarMenu();
     await toggleMenuItem("My filter");
 
@@ -9790,14 +9509,13 @@ test("progress bar recompute after filter selection (aggregates)", async () => {
     expect(getKanbanColumnTooltips()).toEqual(["1 blip", "4 yop", "1 gnap", "1 blip"]);
     expect(getKanbanCounters()).toEqual(["-4", "610"]);
     expect.verifySteps([
-        "formatted_read_group", // recomputes aggregates
+        "formatted_read_group",
         "web_search_read",
         "read_progress_bar",
         "formatted_read_group",
         "formatted_read_group",
     ]);
 
-    // Add searchdomain to something restricting progressbars' values (records still in filtered group)
     await toggleSearchBarMenu();
     await toggleMenuItem("My filter");
 
@@ -9807,13 +9525,6 @@ test("progress bar recompute after filter selection (aggregates)", async () => {
 });
 
 test("progress bar aggregates stay filtered on reload (mixed group)", async () => {
-    // DISCRIMINATING fixture: after the search filter, the group still mixes
-    // active-bar records (yop: 15 + 20 = 35) with other records (blip: 100),
-    // so the filtered sum (35) differs from the unfiltered group sum (135).
-    // The reload reseeds the counter from the web_read_group aggregates, which
-    // the server computes under group-domain AND progressbar_domain for groups
-    // with an active bar (only __count stays unfiltered) — with equal sums
-    // (previous fixtures), a counter fed unfiltered aggregates went unnoticed.
     Partner._records.push({ foo: "yop", bar: true, float_field: 100, int_field: 15 });
     Partner._records.push({ foo: "yop", bar: true, float_field: 100, int_field: 20 });
     Partner._records.push({ foo: "blip", bar: true, float_field: 100, int_field: 100 });
@@ -9850,20 +9561,17 @@ test("progress bar aggregates stay filtered on reload (mixed group)", async () =
         "has_group",
     ]);
 
-    // Select the "yop" bar: the counter shows the filtered sum.
     await contains(".progress-bar.bg-success", { root: getKanbanColumn(1) }).click();
 
     expect(getKanbanCounters()).toEqual(["-4", "45"]);
     expect.verifySteps([
-        "formatted_read_group", // recomputes aggregates
+        "formatted_read_group",
         "web_search_read",
         "read_progress_bar",
         "formatted_read_group",
         "formatted_read_group",
     ]);
 
-    // Trigger a search-filter reload: the counter must STILL show the sum of
-    // the active bar's records only (35), not the unfiltered group sum (135).
     await toggleSearchBarMenu();
     await toggleMenuItem("My filter");
 
@@ -9923,7 +9631,7 @@ test("progress bar with monetary aggregate and multi currencies: quick create re
             <field name="salary"/>
             <field name="currency_id"/>
         </form>`;
-    Partner._fields.currency_id.default = 1; // create new records in dollars by default
+    Partner._fields.currency_id.default = 1;
     Partner._records = [
         { id: 99, foo: "bar", salary: 300, currency_id: 2, product_id: 3 },
     ];
@@ -10019,7 +9727,6 @@ test("progress bar with aggregates: activate bars (grouped by many2one)", async 
     });
 
     onRpc("partner", "web_read_group", ({ kwargs }) => {
-        // float_field is not in the progressbar, then never ask his aggregation
         expect(kwargs.aggregates).not.toInclude("float_field:sum");
     });
 
@@ -10151,16 +9858,13 @@ test("load more should load correct records after drag&drop event", async () => 
     expect(getKanbanRecordTexts(0)).toEqual(["4"]);
     expect(getKanbanRecordTexts(1)).toEqual(["1"]);
 
-    // Drag the first kanban record on top of the last
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:last-child .o_kanban_record",
     );
 
-    // load more twice to load all records of second column
     await clickKanbanLoadMore(1);
     await clickKanbanLoadMore(1);
 
-    // Check records of the second column
     expect(getKanbanRecordTexts(1)).toEqual(["4", "1", "2", "3"]);
 });
 
@@ -10244,16 +9948,13 @@ test("progressbars and active filter with quick_create_view", async () => {
     ).toHaveCount(1);
     expect(getKanbanCounters()).toEqual(["-4", "36"]);
 
-    // open the quick create
     createKanbanRecord();
     await animationFrame();
 
-    // fill it with a record that satisfies the active filter
     await editKanbanRecordQuickCreateInput("int_field", 44);
     await editKanbanRecordQuickCreateInput("foo", "blip");
     await contains(".o_kanban_quick_create .o_kanban_add").click();
 
-    // fill it again with another record that DOES NOT satisfy the active filter
     await editKanbanRecordQuickCreateInput("int_field", 1000);
     await editKanbanRecordQuickCreateInput("foo", "yop");
     await contains(".o_kanban_quick_create .o_kanban_add").click();
@@ -10332,9 +10033,6 @@ test("quickcreate in first column after moving a record from it", async () => {
 
 test.tags("desktop");
 test("grouped kanban: clear groupby when reloading", async () => {
-    // in this test, we simulate that clearing the domain is slow, so that
-    // clearing the groupby does not corrupt the data handled while
-    // reloading the kanban view.
     const def = new Deferred();
     onRpc("web_read_group", async function ({ kwargs, parent }) {
         const result = parent();
@@ -10343,7 +10041,7 @@ test("grouped kanban: clear groupby when reloading", async () => {
             kwargs.groupby &&
             kwargs.groupby[0] === "bar"
         ) {
-            await def; // delay 1st update
+            await def;
         }
         return result;
     });
@@ -10376,7 +10074,7 @@ test("grouped kanban: clear groupby when reloading", async () => {
 
     await contains(".o_facet_remove:first").click();
     await contains(".o_facet_remove:only").click();
-    def.resolve(); // simulate slow 1st update of kanban view
+    def.resolve();
     await animationFrame();
 
     expect(".o_kanban_renderer").not.toHaveClass("o_kanban_grouped");
@@ -10390,7 +10088,6 @@ test("quick_create on grouped kanban without column", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        // force group_create to false, otherwise the CREATE button in control panel is hidden
         arch: `
             <kanban group_create="0" on_create="quick_create">
                 <templates>
@@ -10478,25 +10175,21 @@ test("keynav: grouped kanban", async () => {
     const secondColumnFirstCard = cardsByColumn[1][0];
     const secondColumnSecondCard = cardsByColumn[1][1];
 
-    // DOWN should focus the first card
     await press("ArrowDown");
     expect(firstColumnFirstCard).toBeFocused({
         message: "LEFT should select the first card of the first column",
     });
 
-    // RIGHT should select the next column
     await press("ArrowRight");
     expect(secondColumnFirstCard).toBeFocused({
         message: "RIGHT should select the first card of the next column",
     });
 
-    // DOWN should move up one card
     await press("ArrowDown");
     expect(secondColumnSecondCard).toBeFocused({
         message: "DOWN should select the second card of the current column",
     });
 
-    // LEFT should go back to the first column
     await press("ArrowLeft");
     expect(firstColumnFirstCard).toBeFocused({
         message: "LEFT should select the first card of the first column",
@@ -10505,9 +10198,6 @@ test("keynav: grouped kanban", async () => {
 
 test.tags("desktop");
 test("keynav: ArrowUp works in x2many kanban without a search model", async () => {
-    // An x2many kanban embedded in a form has no searchModel in its env.
-    // ArrowUp card navigation must still work there (regression: it used
-    // to be registered only when a searchModel was present).
     class Subtask extends models.Model {
         _name = "subtask";
 
@@ -10540,7 +10230,6 @@ test("keynav: ArrowUp works in x2many kanban without a search model", async () =
             </form>`,
     });
 
-    // Focus the second card, then ArrowUp should move focus to the first.
     await pointerDown(getKanbanRecord({ index: 1 }));
     expect(getKanbanRecord({ index: 1 })).toBeFocused();
 
@@ -10555,11 +10244,7 @@ test("keynav: grouped kanban with empty columns", async () => {
     Partner._records[1].state = "abc";
 
     onRpc("web_read_group", function ({ parent }) {
-        // override web_read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
         const result = parent();
-        // add 2 empty columns in the middle
         result.groups.splice(1, 0, {
             __count: 0,
             state: "md1",
@@ -10570,7 +10255,6 @@ test("keynav: grouped kanban with empty columns", async () => {
             state: "md2",
             __extra_domain: [["state", "=", "md2"]],
         });
-        // add 1 empty column in the beginning and the end
         result.groups.unshift({
             __count: 0,
             state: "beg",
@@ -10612,21 +10296,18 @@ test("keynav: grouped kanban with empty columns", async () => {
     const yop = cardsByColumn[1][0];
     const gnap = cardsByColumn[4][0];
 
-    // DOWN should focus yop (first card)
     await press("ArrowDown");
     expect(yop).toBeFocused({
         message:
             "LEFT should select the first card of the first column that has a card",
     });
 
-    // RIGHT should select the next column that has a card
     await press("ArrowRight");
     expect(gnap).toBeFocused({
         message:
             "RIGHT should select the first card of the next column that has a card",
     });
 
-    // LEFT should go back to the first column that has a card
     await press("ArrowLeft");
     expect(yop).toBeFocused({
         message:
@@ -10661,7 +10342,7 @@ test("keynav: no global_click, press ENTER on card with a link", async () => {
     expect(".o_dialog main").toHaveText(
         "Are you sure that you want to archive this record?",
     );
-    expect.verifySteps([]); // should not try to open the record
+    expect.verifySteps([]);
 });
 
 test.tags("desktop");
@@ -10694,7 +10375,6 @@ test("keynav: kanban with global_click", async () => {
 
 test.tags("desktop");
 test(`kanban should ask to scroll to top on page changes`, async () => {
-    // add records to be able to scroll
     for (let i = 5; i < 200; i++) {
         Partner._records.push({ id: i, foo: "foo" });
     }
@@ -10717,34 +10397,26 @@ test(`kanban should ask to scroll to top on page changes`, async () => {
                 </templates>
             </kanban>`,
     });
-    // switch pages (should ask to scroll)
     await pagerNext();
     await pagerPrevious();
-    // should ask to scroll when switching pages
     expect.verifySteps(["scroll", "scroll"]);
 
-    // change the limit (should not ask to scroll)
     await contains(`.o_pager_value`).click();
     await contains(`.o_pager_value`).edit("1-100");
     await animationFrame();
     expect(getPagerValue()).toEqual([1, 100]);
-    // should not ask to scroll when changing the limit
     expect.verifySteps([]);
 
     await contains(".o_content").scroll({ top: 250 });
     expect(".o_content").toHaveProperty("scrollTop", 250);
 
-    // switch pages again (should still ask to scroll)
     await pagerNext();
-    // this is still working after a limit change
     expect.verifySteps(["scroll"]);
-    // Should effectively reset the scroll position
     expect(".o_content").toHaveProperty("scrollTop", 0);
 });
 
 test.tags("mobile");
 test(`kanban should ask to scroll to top on page changes (mobile)`, async () => {
-    // add records to be able to scroll
     for (let i = 5; i < 200; i++) {
         Partner._records.push({ id: i, foo: "foo" });
     }
@@ -10767,19 +10439,15 @@ test(`kanban should ask to scroll to top on page changes (mobile)`, async () => 
                 </templates>
             </kanban>`,
     });
-    // switch pages (should ask to scroll)
     await pagerNext();
     await pagerPrevious();
-    // should ask to scroll when switching pages
     expect.verifySteps(["scroll", "scroll"]);
 
     await contains(".o_kanban_view").scroll({ top: 250 });
     expect(".o_kanban_view").toHaveProperty("scrollTop", 250);
 
-    // switch pages again (should still ask to scroll)
     await pagerNext();
     expect.verifySteps(["scroll"]);
-    // Should effectively reset the scroll position
     expect(".o_kanban_view").toHaveProperty("scrollTop", 0);
 });
 
@@ -10868,14 +10536,13 @@ test("set cover image", async () => {
     expect(".modal .btn:contains(Discard)").toHaveCount(1);
     expect(".modal .btn:contains(Remove Cover Image)").toHaveCount(0);
 
-    await dblclick(".modal .o_kanban_cover_image img"); // doesn't work
+    await dblclick(".modal .o_kanban_cover_image img");
     await animationFrame();
 
     expect('img[data-src*="/web/image/2"]').toHaveCount(1);
 
-    await contains(".o_kanban_record:first-child .o_attachment_image").click(); //Not sure, to discuss
+    await contains(".o_kanban_record:first-child .o_attachment_image").click();
 
-    // should writes on both kanban records
     expect.verifySteps([1, 2]);
 });
 
@@ -11004,7 +10671,7 @@ test("unset cover image", async () => {
     expect(".modal .btn:contains(Discard)").toHaveCount(1);
     expect(".modal .btn:contains(Remove Cover Image)").toHaveCount(1);
 
-    await contains(".modal .btn-secondary").click(); // click on "Remove Cover Image" button
+    await contains(".modal .btn-secondary").click();
 
     expect(queryAll("img", { root: getKanbanRecord({ index: 0 }) })).toHaveCount(0, {
         message: "The cover image should be removed.",
@@ -11017,13 +10684,12 @@ test("unset cover image", async () => {
     expect(queryText(coverButton)).toBe("Set Cover Image");
     await contains(coverButton).click();
 
-    await dblclick(".modal .o_kanban_cover_image img"); // doesn't work
+    await dblclick(".modal .o_kanban_cover_image img");
     await animationFrame();
 
     expect(queryAll("img", { root: getKanbanRecord({ index: 1 }) })).toHaveCount(0, {
         message: "The cover image should be removed.",
     });
-    // should writes on both kanban records
     expect.verifySteps([1, 2]);
 });
 
@@ -11239,12 +10905,10 @@ test("quick create: keyboard navigation to buttons", async () => {
         type: "kanban",
     });
 
-    // Open quick create
     await createKanbanRecord();
     expect(".o_kanban_group:first-child .o_kanban_quick_create").toHaveCount(1);
 
-    // Fill in mandatory field
-    await editKanbanRecordQuickCreateInput("display_name", "aaa"); // pressed Tab to trigger "change"
+    await editKanbanRecordQuickCreateInput("display_name", "aaa");
     expect(".o_kanban_add").toBeFocused();
 
     await press("Tab");
@@ -11273,33 +10937,27 @@ test("progressbar filter state is kept unchanged when domain is updated (records
             </search>`,
     });
 
-    // Check that we have 2 columns and check their progressbar's state
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(0);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
     expect(getKanbanColumnTooltips(0)).toEqual(["1 blip"]);
     expect(getKanbanColumnTooltips(1)).toEqual(["1 yop", "1 blip", "1 Other"]);
 
-    // Apply an active filter
     await contains(".o_kanban_group:nth-child(2) .progress-bar.bg-success").click();
 
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(1);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
 
-    // Add searchdomain to something restricting progressbars' values (records still in filtered group)
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
 
-    // Check that we have now 1 column only and check its progressbar's state
     expect(".o_kanban_group").toHaveCount(1);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(1);
     expect(queryAllTexts(".o_column_title")).toEqual(["Yes"]);
     expect(getKanbanColumnTooltips()).toEqual(["1 yop"]);
 
-    // Undo searchdomain
     await toggleMenuItem("My Filter");
 
-    // Check that we have 2 columns back and check their progressbar's state
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(1);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
@@ -11345,7 +11003,6 @@ test("progressbar filter state is kept unchanged when domain is updated (emptyin
             </search>`,
     });
 
-    // Check that we have 2 columns, check their progressbar's state and check records
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(0);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
@@ -11354,7 +11011,6 @@ test("progressbar filter state is kept unchanged when domain is updated (emptyin
     expect(getKanbanColumnTooltips(1)).toEqual(["1 yop", "1 blip", "1 Other"]);
     expect(getKanbanRecordTexts(1)).toEqual(["1yop", "2blip", "3gnap"]);
 
-    // Apply an active filter
     await contains(".o_kanban_group:nth-child(2) .progress-bar.bg-success").click();
 
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(1);
@@ -11362,11 +11018,9 @@ test("progressbar filter state is kept unchanged when domain is updated (emptyin
     expect(getKanbanColumnTooltips(1)).toEqual(["1 yop", "1 blip", "1 Other"]);
     expect(getKanbanRecordTexts(1)).toEqual(["1yop"]);
 
-    // Add searchdomain to something restricting progressbars' values + emptying the filtered group
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
 
-    // Check that we still have 2 columns, check their progressbar's state and check records
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(0);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
@@ -11375,10 +11029,8 @@ test("progressbar filter state is kept unchanged when domain is updated (emptyin
     expect(getKanbanColumnTooltips(1)).toEqual(["1 blip"]);
     expect(getKanbanRecordTexts(1)).toEqual(["2blip"]);
 
-    // Undo searchdomain
     await toggleMenuItem("My Filter");
 
-    // Check that we still have 2 columns and check their progressbar's state
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(0);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
@@ -11424,7 +11076,6 @@ test("filtered column counters when dropping in non-matching record", async () =
             </kanban>`,
     });
 
-    // Check that we have 2 columns, check their progressbar's state, and check records
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(0);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
@@ -11433,7 +11084,6 @@ test("filtered column counters when dropping in non-matching record", async () =
     expect(getKanbanColumnTooltips(1)).toEqual(["1 yop", "1 blip", "1 Other"]);
     expect(getKanbanRecordTexts(1)).toEqual(["1yop", "2blip", "3gnap"]);
 
-    // Apply an active filter
     await contains(".o_kanban_group:nth-child(2) .progress-bar.bg-success").click();
 
     expect(getKanbanColumn(1)).toHaveClass("o_kanban_group_show");
@@ -11442,12 +11092,10 @@ test("filtered column counters when dropping in non-matching record", async () =
     expect(".o_kanban_group.o_kanban_group_show .o_kanban_record").toHaveCount(1);
     expect(getKanbanRecordTexts(1)).toEqual(["1yop"]);
 
-    // Drop in the non-matching record from first column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         queryFirst(".o_kanban_group.o_kanban_group_show"),
     );
 
-    // Check that we have 2 columns, check their progressbar's state, and check records
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(1);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
@@ -11464,8 +11112,6 @@ test("filtered column counters when dropping in non-matching record", async () =
         "has_group",
         "web_search_read",
         "read_progress_bar",
-        // The drop from the other column reconciles both columns' bars
-        // locally: no full-domain read_progress_bar refetch.
         "web_save",
         "web_resequence",
     ]);
@@ -11492,7 +11138,6 @@ test("filtered column is reloaded when dragging out its last record", async () =
             </kanban>`,
     });
 
-    // Check that we have 2 columns, check their progressbar's state, and check records
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(0);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
@@ -11509,7 +11154,6 @@ test("filtered column is reloaded when dragging out its last record", async () =
         "has_group",
     ]);
 
-    // Apply an active filter
     await contains(".o_kanban_group:nth-child(2) .progress-bar.bg-success").click();
 
     expect(getKanbanColumn(1)).toHaveClass("o_kanban_group_show");
@@ -11519,12 +11163,10 @@ test("filtered column is reloaded when dragging out its last record", async () =
     expect(getKanbanRecordTexts(1)).toEqual(["1yop"]);
     expect.verifySteps(["web_search_read", "read_progress_bar"]);
 
-    // Drag out its only record onto the first column
     await contains(".o_kanban_group.o_kanban_group_show .o_kanban_record").dragAndDrop(
         queryFirst(".o_kanban_group:first-child"),
     );
 
-    // Check that we have 2 columns, check their progressbar's state, and check records
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(0);
     expect(queryAllTexts(".o_column_title")).toEqual(["No", "Yes"]);
@@ -11532,28 +11174,15 @@ test("filtered column is reloaded when dragging out its last record", async () =
     expect(getKanbanRecordTexts(0)).toEqual(["4blip", "1yop"]);
     expect(getKanbanColumnTooltips(1)).toEqual(["1 blip", "1 Other"]);
     expect(getKanbanRecordTexts(1)).toEqual(["2blip", "3gnap"]);
-    expect.verifySteps([
-        // The drag out of the filtered column reconciles both columns' bars
-        // locally (no full-domain read_progress_bar refetch); emptying the
-        // filtered column then deselects its bar and reloads it.
-        "web_save",
-        "web_search_read",
-        "web_resequence",
-    ]);
+    expect.verifySteps(["web_save", "web_search_read", "web_resequence"]);
 });
 
 test.tags("desktop");
 test("empty-bar deselection reload failure does not raise an unhandled rejection", async () => {
-    // Regression: emptying a bar-filtered column makes updateCounts' trailing sweep
-    // deselect the now-empty bar via selectBar(group.id, { value: null }), which
-    // awaits an applyFilter reload RPC. That fire-and-forget call must be caught,
-    // otherwise a failing reload becomes an unhandled promise rejection -- which the
-    // hoot error harness reports as an unverified error, failing the test.
     let searchReadCount = 0;
     onRpc("web_search_read", () => {
         searchReadCount++;
         if (searchReadCount === 2) {
-            // The reload fired by deselecting the just-emptied column's bar.
             throw makeServerError({ message: "deselect reload boom" });
         }
     });
@@ -11575,14 +11204,10 @@ test("empty-bar deselection reload failure does not raise an unhandled rejection
             </kanban>`,
     });
 
-    // Apply an active filter on the "Yes" column (isolates its single "yop" record).
     await contains(".o_kanban_group:nth-child(2) .progress-bar.bg-success").click();
     expect(".o_kanban_group.o_kanban_group_show").toHaveCount(1);
     expect(getKanbanRecordTexts(1)).toEqual(["1yop"]);
 
-    // Drag its only record out: the filtered column empties, its bar is deselected,
-    // and the deselection reload (2nd web_search_read) rejects. With the fix that
-    // rejection is caught, so no unhandled rejection surfaces.
     await contains(".o_kanban_group.o_kanban_group_show .o_kanban_record").dragAndDrop(
         queryFirst(".o_kanban_group:first-child"),
     );
@@ -11591,23 +11216,14 @@ test("empty-bar deselection reload failure does not raise an unhandled rejection
 });
 
 test("stale in-flight _updateProgressBar does not clobber a reloaded domain's counts", async () => {
-    // Regression for the _pbEpoch protocol. A quick-create fires a fire-and-forget
-    // _updateProgressBar (read_progress_bar) that we hold in flight; a search-domain
-    // reload then completes with fresh counts (loadProgressBar). When the stale
-    // _updateProgressBar finally resolves it must NOT overwrite the reloaded counts.
-    // loadProgressBar bumping/stamping _pbEpoch makes the stale response fail the
-    // epoch check, so the group-datapoint-id comparison is defense-in-depth rather
-    // than the only fence.
     let pbCall = 0;
     let staleDef;
     onRpc("read_progress_bar", async () => {
         pbCall++;
         if (pbCall === 2) {
-            // The quick-create's _updateProgressBar (previous domain): hold it.
             staleDef = new Deferred();
             await staleDef;
         }
-        // Fall through to the real (domain-accurate) computation.
     });
 
     await mountView({
@@ -11631,24 +11247,17 @@ test("stale in-flight _updateProgressBar does not clobber a reloaded domain's co
             </search>`,
     });
 
-    // Initial state: the "Yes" column has yop + blip + Other (gnap).
     expect(getKanbanColumnTooltips(1)).toEqual(["1 yop", "1 blip", "1 Other"]);
 
-    // Quick-create a record in the "No" column: this fires a fire-and-forget
-    // _updateProgressBar whose read_progress_bar (2nd call) we hold in flight.
     await quickCreateKanbanRecord(0);
     await editKanbanRecordQuickCreateInput("display_name", "New");
     await validateKanbanRecord();
 
-    // Reload on a new domain (foo = blip): its own read_progress_bar resolves
-    // normally and applies fresh counts. Both columns now show only blip.
     await toggleSearchBarMenu();
     await toggleMenuItem("Only blip");
     expect(getKanbanColumnTooltips(0)).toEqual(["1 blip"]);
     expect(getKanbanColumnTooltips(1)).toEqual(["1 blip"]);
 
-    // The stale _updateProgressBar (previous domain) resolves late: it must be
-    // discarded, leaving the reloaded counts untouched (no reappearing "yop").
     staleDef.resolve();
     await animationFrame();
     expect(getKanbanColumnTooltips(0)).toEqual(["1 blip"]);
@@ -11872,13 +11481,11 @@ test("folded groups kept when leaving/coming back", async () => {
     expect(".o_column_folded").toHaveCount(0);
     expect(".o_kanban_record").toHaveCount(4);
 
-    // fold the first group
     const clickColumnAction = await toggleKanbanColumnActions(0);
     await clickColumnAction("Fold");
     expect(".o_column_folded").toHaveCount(1);
     expect(".o_kanban_record").toHaveCount(2);
 
-    // open a record and go back
     await contains(".o_kanban_record").click();
     expect(".o_form_view").toHaveCount(1);
 
@@ -11919,27 +11526,21 @@ test("filter groups kept when leaving/coming back", async () => {
         },
     });
 
-    // Filter on state "abc" => matches 2 records
     await contains(getKanbanProgressBars(1)[0]).click();
     expect(getKanbanRecordTexts(0)).toEqual(["4"]);
     expect(getKanbanRecordTexts(1)).toEqual(["1", "2"]);
 
-    // open a record
     await contains(getKanbanRecord({ index: 1 })).click();
     expect(".o_form_view").toHaveCount(1);
 
-    // go back to kanban view
     await contains(".breadcrumb-item a").click();
     expect(getKanbanRecordTexts(0)).toEqual(["4"]);
     expect(getKanbanRecordTexts(1)).toEqual(["1", "2"]);
 
-    // open a record
     await contains(getKanbanRecord({ index: 1 })).click();
     expect(".o_form_view").toHaveCount(1);
 
-    // select another state
     await contains(queryAll("input.o_radio_input")[1]).click();
-    // go back to kanban view
     await contains(".breadcrumb-item a").click();
     expect(getKanbanRecordTexts(0)).toEqual(["4"]);
     expect(getKanbanRecordTexts(1)).toEqual(["2"]);
@@ -11978,13 +11579,11 @@ test("folded groups kept when leaving/coming back (grouped by date)", async () =
     expect(".o_column_folded").toHaveCount(0);
     expect(".o_kanban_record").toHaveCount(4);
 
-    // fold the second column
     const clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Fold");
     expect(".o_column_folded").toHaveCount(1);
     expect(".o_kanban_record").toHaveCount(1);
 
-    // open a record and go back
     await contains(".o_kanban_record").click();
     expect(".o_form_view").toHaveCount(1);
 
@@ -12023,11 +11622,9 @@ test("loaded records kept when leaving/coming back", async () => {
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_record").toHaveCount(2);
 
-    // load more records in second group
     await clickKanbanLoadMore(1);
     expect(".o_kanban_record").toHaveCount(3);
 
-    // open a record and go back
     await contains(".o_kanban_record").click();
     expect(".o_form_view").toHaveCount(1);
 
@@ -12254,7 +11851,7 @@ test("quick create record and click on 'Load more'", async () => {
 });
 
 test("dropdown is closed on item click", async () => {
-    Partner._records.splice(1, 3); // keep one record only
+    Partner._records.splice(1, 3);
 
     await mountView({
         type: "kanban",
@@ -12395,17 +11992,15 @@ test("update field on which progress bars are computed", async () => {
         groupBy: ["bar"],
     });
 
-    // Initial state: 2 columns, the "Yes" column contains 2 records "abc", 1 "def" and 1 "ghi"
     expect(getKanbanCounters()).toEqual(["1", "4"]);
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(1) })).toHaveCount(4);
     expect(
         queryAll(".o_column_progress .progress-bar", { root: getKanbanColumn(1) }),
     ).toHaveCount(3);
-    expect(getKanbanProgressBars(1)[0].style.width).toBe("50%"); // abc: 2
-    expect(getKanbanProgressBars(1)[1].style.width).toBe("25%"); // def: 1
-    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%"); // ghi: 1
+    expect(getKanbanProgressBars(1)[0].style.width).toBe("50%");
+    expect(getKanbanProgressBars(1)[1].style.width).toBe("25%");
+    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%");
 
-    // Filter on state "abc" => matches 2 records
     await contains(getKanbanProgressBars(1)[0]).click();
 
     expect(getKanbanCounters()).toEqual(["1", "2"]);
@@ -12413,12 +12008,10 @@ test("update field on which progress bars are computed", async () => {
     expect(
         queryAll(".o_column_progress .progress-bar", { root: getKanbanColumn(1) }),
     ).toHaveCount(3);
-    expect(getKanbanProgressBars(1)[0].style.width).toBe("50%"); // abc: 2
-    expect(getKanbanProgressBars(1)[1].style.width).toBe("25%"); // def: 1
-    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%"); // ghi: 1
+    expect(getKanbanProgressBars(1)[0].style.width).toBe("50%");
+    expect(getKanbanProgressBars(1)[1].style.width).toBe("25%");
+    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%");
 
-    // Changes the state of the first record of the "Yes" column to "def"
-    // The updated record should remain visible
     await contains(".o_status", { root: getKanbanRecord({ index: 2 }) }).click();
     await contains(".o-dropdown-item:nth-child(2)", {
         root: getDropdownMenu(getKanbanRecord({ index: 2 })),
@@ -12429,27 +12022,25 @@ test("update field on which progress bars are computed", async () => {
     expect(
         queryAll(".o_column_progress .progress-bar", { root: getKanbanColumn(1) }),
     ).toHaveCount(3);
-    expect(getKanbanProgressBars(1)[0].style.width).toBe("25%"); // abc: 1
-    expect(getKanbanProgressBars(1)[1].style.width).toBe("50%"); // def: 2
-    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%"); // ghi: 1
+    expect(getKanbanProgressBars(1)[0].style.width).toBe("25%");
+    expect(getKanbanProgressBars(1)[1].style.width).toBe("50%");
+    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%");
 
-    // Filter on state "def" => matches 2 records (including the one we just changed)
     await contains(getKanbanProgressBars(1)[1]).click();
 
     expect(getKanbanCounters()).toEqual(["1", "2"]);
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(1) })).toHaveCount(2);
-    expect(getKanbanProgressBars(1)[0].style.width).toBe("25%"); // abc: 1
-    expect(getKanbanProgressBars(1)[1].style.width).toBe("50%"); // def: 2
-    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%"); // ghi: 1
+    expect(getKanbanProgressBars(1)[0].style.width).toBe("25%");
+    expect(getKanbanProgressBars(1)[1].style.width).toBe("50%");
+    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%");
 
-    // Filter back on state "abc" => matches only 1 record
     await contains(getKanbanProgressBars(1)[0]).click();
 
     expect(getKanbanCounters()).toEqual(["1", "1"]);
     expect(queryAll(".o_kanban_record", { root: getKanbanColumn(1) })).toHaveCount(1);
-    expect(getKanbanProgressBars(1)[0].style.width).toBe("25%"); // abc: 1
-    expect(getKanbanProgressBars(1)[1].style.width).toBe("50%"); // def: 2
-    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%"); // ghi: 1
+    expect(getKanbanProgressBars(1)[0].style.width).toBe("25%");
+    expect(getKanbanProgressBars(1)[1].style.width).toBe("50%");
+    expect(getKanbanProgressBars(1)[2].style.width).toBe("25%");
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
@@ -12490,17 +12081,13 @@ test("load more button shouldn't be visible when unfiltering column", async () =
         groupBy: ["bar"],
     });
 
-    // Initial state: 2 columns, the "No" column contains 1 record, The "Yes" column contains 4 records
     expect(getKanbanCounters()).toEqual(["1", "4"]);
 
-    // Filter on state "abc" => matches 2 records
     await contains(getKanbanProgressBars(1)[0]).click();
 
-    // Filtered state: 2 columns, the "No" column contains 1 record, The "Yes" column contains 2 records
     expect(getKanbanCounters()).toEqual(["1", "2"]);
 
     def = new Deferred();
-    // UnFiltered the "Yes" column
     await contains(getKanbanProgressBars(1)[0]).click();
     expect(".o_kanban_load_more").toHaveCount(0, {
         message: "The load more button should not be visible",
@@ -12509,7 +12096,6 @@ test("load more button shouldn't be visible when unfiltering column", async () =
     def.resolve();
     await animationFrame();
 
-    // Return to initial state
     expect(getKanbanCounters()).toEqual(["1", "4"]);
     expect(".o_kanban_load_more").toHaveCount(0, {
         message: "The load more button should not be visible",
@@ -12547,18 +12133,15 @@ test("click on the progressBar of a new column", async () => {
         domain: [["id", ">", 0]],
     });
 
-    // Create a new column
     await editKanbanColumnName("new column");
     await validateKanbanColumn();
 
-    // Crete a record in the new column
     await quickCreateKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "new product");
     await validateKanbanRecord();
 
     expect(".o_kanban_record").toHaveCount(1);
 
-    // Togggle the progressBar
     await contains(getKanbanProgressBars(0)[0]).click();
 
     expect(".o_kanban_record").toHaveCount(1);
@@ -12582,32 +12165,24 @@ test("keep focus in cp when pressing arrowdown and no kanban card", async () => 
             </kanban>`,
     });
 
-    // Check that there is a column quick create
     expect(".o_column_quick_create").toHaveCount(1);
     await editKanbanColumnName("new col");
     await validateKanbanColumn();
 
-    // Check that there is only one group and no kanban card
     expect(".o_kanban_group").toHaveCount(1);
     expect(".o_kanban_group.o_kanban_no_records").toHaveCount(1);
     expect(".o_kanban_record").toHaveCount(0);
 
-    // Check that the focus is on the searchview input
     await quickCreateKanbanRecord();
     expect(".o_kanban_group.o_kanban_no_records").toHaveCount(1);
     expect(".o_kanban_quick_create").toHaveCount(1);
     expect(".o_kanban_record").toHaveCount(0);
 
-    // Give focus to the search input directly: a plain click there would normally close the
-    // quick create, and reaching it without one requires browser-handled behaviors (e.g.
-    // right-click then escape) that we can't simulate, hence the direct focus() call.
     queryFirst(".o_searchview_input").focus();
 
-    // Make sure no async code will have a side effect on the focused element
     await animationFrame();
     expect(".o_searchview_input").toBeFocused();
 
-    // Trigger the ArrowDown hotkey
     await press("ArrowDown");
     await animationFrame();
     expect(".o_searchview_input").toBeFocused();
@@ -12643,7 +12218,6 @@ test("no leak of TransactionInProgress (grouped case)", async () => {
 
     expect.verifySteps([]);
 
-    // move "yop" from first to second column
     await contains(".o_kanban_group:nth-child(1) .o_kanban_record").dragAndDrop(
         queryFirst(".o_kanban_group:nth-child(2)"),
     );
@@ -12657,7 +12231,6 @@ test("no leak of TransactionInProgress (grouped case)", async () => {
     expect(".o_kanban_group:nth-child(3) .o_kanban_record").toHaveCount(2);
     expect.verifySteps(["resequence"]);
 
-    // try to move "yop" from second to third column
     await contains(
         ".o_kanban_group:nth-child(2) .o_kanban_record:nth-child(3)",
     ).dragAndDrop(".o_kanban_group:nth-child(3)");
@@ -12674,7 +12247,6 @@ test("no leak of TransactionInProgress (grouped case)", async () => {
     def.resolve();
     await animationFrame();
 
-    // try again to move "yop" from second to third column
     await contains(
         ".o_kanban_group:nth-child(2) .o_kanban_record:nth-child(3)",
     ).dragAndDrop(".o_kanban_group:nth-child(3)");
@@ -12721,7 +12293,6 @@ test("no leak of TransactionInProgress (not grouped case)", async () => {
     ]);
     expect.verifySteps([]);
 
-    // move second "blip" to third place
     await contains(".o_kanban_record:nth-child(2)").dragAndDrop(
         ".o_kanban_record:nth-child(3)",
     );
@@ -12734,7 +12305,6 @@ test("no leak of TransactionInProgress (not grouped case)", async () => {
     ]);
     expect.verifySteps(["resequence"]);
 
-    // try again
     await contains(".o_kanban_record:nth-child(2)").dragAndDrop(
         ".o_kanban_record:nth-child(3)",
     );
@@ -12979,8 +12549,6 @@ test("drag record to folded column, with progressbars", async () => {
         "read_progress_bar",
         "web_read_group",
         "has_group",
-        // The progress field ("foo") is not part of the fetched fields here,
-        // so the drag & drop falls back to a full progress bar refresh.
         "web_save",
         "read_progress_bar",
         "formatted_read_group",
@@ -13021,7 +12589,6 @@ test("quick create record in grouped kanban in a form view dialog", async () => 
     ]);
     expect(".modal").toHaveCount(0);
 
-    // click on 'Create', fill the quick create and validate
     await createKanbanRecord();
     await editKanbanRecordQuickCreateInput("display_name", "new partner");
     await validateKanbanRecord();
@@ -13042,15 +12609,15 @@ test("quick create record in grouped kanban in a form view dialog", async () => 
         "/web/webclient/translations",
         "/web/webclient/load_menus",
         "get_views",
-        "web_read_group", // initial web_read_group
+        "web_read_group",
         "has_group",
-        "onchange", // quick create
-        "name_create", // should perform a name_create to create the record
-        "get_views", // load views for form view dialog
-        "onchange", // load of a virtual record in form view dialog
-        "web_save", // save virtual record
-        "web_read", // read the created record to get foo value
-        "onchange", // reopen the quick create automatically
+        "onchange",
+        "name_create",
+        "get_views",
+        "onchange",
+        "web_save",
+        "web_read",
+        "onchange",
     ]);
 });
 
@@ -13129,14 +12696,12 @@ test("Move multiple records in different columns simultaneously", async () => {
 
     expect(getKanbanRecordTexts()).toEqual(["1", "2", "3", "4"]);
 
-    // Move 3 at end of 1st column
     await contains(".o_kanban_group:last-of-type .o_kanban_record").dragAndDrop(
         ".o_kanban_group:first",
     );
 
     expect(getKanbanRecordTexts()).toEqual(["1", "3", "2", "4"]);
 
-    // Move 4 at end of 1st column
     await contains(".o_kanban_group:last-of-type .o_kanban_record").dragAndDrop(
         ".o_kanban_group:first",
     );
@@ -13173,25 +12738,20 @@ test("drag & drop: content scrolls when reaching the edges", async () => {
     expect(content.getBoundingClientRect().width).toBe(600);
     expect(".o_kanban_record.o_dragged").toHaveCount(0);
 
-    // Drag first record of first group to the right
     let dragActions = await contains(".o_kanban_record").drag();
     await dragActions.moveTo(".o_kanban_group:nth-child(3) .o_kanban_record:first");
 
     expect(".o_kanban_record.o_dragged").toHaveCount(1);
 
-    // wait 30 frames, should be enough (default kanban speed is 20px per tick)
     await advanceFrame(30);
 
-    // Should be at the end of the content
     expect(content.scrollLeft + width).toBe(content.scrollWidth);
 
-    // Cancel drag: press "Escape"
     await press("Escape");
     await animationFrame();
 
     expect(".o_kanban_record.o_dragged").toHaveCount(0);
 
-    // Drag first record of last group to the left
     dragActions = await contains(
         ".o_kanban_group:nth-child(3) .o_kanban_record",
     ).drag();
@@ -13203,7 +12763,6 @@ test("drag & drop: content scrolls when reaching the edges", async () => {
 
     expect(content.scrollLeft).toBe(0);
 
-    // Cancel drag: click outside
     await contains(".o_kanban_renderer").click();
 
     expect(".o_kanban_record.o_dragged").toHaveCount(0);
@@ -13320,9 +12879,6 @@ test("Can't use KanbanRecord implementation details in arch", async () => {
 
 test.tags("desktop");
 test("rerenders only once after resequencing records", async () => {
-    // Despite the name, it renders 3 times: right after drag&drop so the record stays where
-    // dropped, again after save/reload rebuilds record.data, and again after resequence
-    // re-enables the record's canResequence prop.
     let saveDef = new Deferred();
     let resequenceDef = new Deferred();
     const renderCounts = {};
@@ -13357,7 +12913,6 @@ test("rerenders only once after resequencing records", async () => {
 
     expect(renderCounts).toEqual({ 1: 1, 2: 1, 3: 1, 4: 1 });
 
-    // drag yop to the second column
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
         ".o_kanban_group:nth-child(2)",
     );
@@ -13374,7 +12929,6 @@ test("rerenders only once after resequencing records", async () => {
 
     expect(renderCounts).toEqual({ 1: 4, 2: 1, 3: 1, 4: 1 });
 
-    // drag gnap to the second column
     saveDef = new Deferred();
     resequenceDef = new Deferred();
     await contains(".o_kanban_group:first-child .o_kanban_record").dragAndDrop(
@@ -13484,7 +13038,7 @@ test("scroll on group unfold and progressbar click", async () => {
     queryOne(".o_content").style.maxHeight = "80px";
     on(".o_content", "scroll", () => expect.step("scrolled"));
 
-    await scroll(".o_content", { top: 50 }); // scroll down to allow auto-scroll to top
+    await scroll(".o_content", { top: 50 });
     await contains(getKanbanProgressBars(0)[0]).click();
 
     expect.verifySteps([
@@ -13497,7 +13051,7 @@ test("scroll on group unfold and progressbar click", async () => {
     ]);
     expect(getKanbanColumn(1)).toHaveClass("o_column_folded");
 
-    await scroll(".o_content", { top: 50 }); // scroll down to allow auto-scroll to top
+    await scroll(".o_content", { top: 50 });
     await contains(getKanbanColumn(1)).click();
 
     expect.verifySteps(["scrolled", "web_search_read"]);
@@ -13542,11 +13096,9 @@ test("action button in controlPanel with display='always'", async () => {
         async doActionButton(params) {
             const { buttonContext, context, name, resModel, resIds, type } = params;
             expect.step("execute_action");
-            // Action's own properties
             expect(name).toBe("display");
             expect(type).toBe("object");
 
-            // The action's execution context
             expect(buttonContext).toEqual({
                 active_domain: domain,
                 active_ids: [],
@@ -13644,16 +13196,12 @@ test("Kanban: no reset of the groupby when a non-empty column is deleted", async
             </search>`,
     });
 
-    // validate presence of the search arch info
     await toggleSearchBarMenu();
     expect(".o_group_by_menu span.o_menu_item").toHaveCount(1);
 
-    // select the groupby:category_ids filter
     await contains(".o_group_by_menu span.o_menu_item").click();
-    // check the initial rendering
     expect(".o_kanban_group").toHaveCount(3, { message: "should have three columns" });
 
-    // check availability of delete action in kanban header's config dropdown
     await toggleKanbanColumnActions(2);
     expect(
         queryAll(".o_group_delete", { root: getKanbanColumnDropdownMenu(2) }),
@@ -13661,7 +13209,6 @@ test("Kanban: no reset of the groupby when a non-empty column is deleted", async
         message: "should be able to delete the column",
     });
 
-    // delete second column (first cancel the confirm request, then confirm)
     let clickColumnAction = await toggleKanbanColumnActions(1);
     await clickColumnAction("Delete");
     await contains(".o_dialog footer .btn-secondary").click();
@@ -13709,7 +13256,6 @@ test("searchbar filters are displayed directly", async () => {
 
     expect(getFacetTexts()).toEqual([]);
 
-    // toggle a filter, and slow down the web_search_read rpc
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("Some Filter");
@@ -13745,7 +13291,6 @@ test("searchbar filters are displayed directly (with progressbar)", async () => 
 
     expect(getFacetTexts()).toEqual([]);
 
-    // toggle a filter, and slow down the read_progress_bar rpc
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("Some Filter");
@@ -13905,8 +13450,6 @@ test("group by properties and drag and drop", async () => {
 });
 
 test("kanbans with basic and custom compiler, same arch", async () => {
-    // The same arch is rendered by 2 different kanban renderers (basic and a custom one with
-    // a custom compiler), to ensure it gets compiled once by each despite being identical.
     class MyKanbanCompiler extends KanbanCompiler {
         setup() {
             super.setup();
@@ -13947,18 +13490,15 @@ test("kanbans with basic and custom compiler, same arch", async () => {
         ],
     });
 
-    // main kanban, custom view
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_my_kanban_view").toHaveCount(1);
     expect(".my_kanban_compiler").toHaveCount(4);
 
-    // switch to form
     await contains(".o_kanban_record").click();
     await animationFrame();
     expect(".o_form_view").toHaveCount(1);
     expect(".o_form_view .o_field_widget[name=one2many]").toHaveCount(1);
 
-    // x2many kanban, basic renderer
     expect(
         ".o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new)",
     ).toHaveCount(1);
@@ -13994,9 +13534,6 @@ test("grouped on field with readonly expression depending on context", async () 
 
 test.tags("desktop");
 test("grouped on field with readonly expression depending on fields", async () => {
-    // Fields aren't available in this context since drag & drop is enabled globally for the
-    // view, not per record: a readonly expression referencing fields resolves to false, so
-    // drag & drop stays enabled.
     await mountView({
         type: "kanban",
         resModel: "partner",
@@ -14043,8 +13580,6 @@ test("quick create a column by pressing enter when input is focused", async () =
 
     await quickCreateKanbanColumn();
 
-    // We don't use the editInput helper as it would trigger a change event automatically.
-    // We need to wait for the enter key to trigger the event.
     await press("N");
     await press("e");
     await press("w");
@@ -14078,17 +13613,14 @@ test("Correct values for progress bar with toggling filter and slow RPC", async 
     });
 
     expect(".o_kanban_record").toHaveCount(4);
-    // abc: 1, ghi: 1
     expect(getKanbanProgressBars(1).map((pb) => pb.style.width)).toEqual([
         "50%",
         "50%",
     ]);
 
-    // toggle a filter, and slow down the read_progress_bar rpc
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("Some Filter");
-    // abc: 1, ghi: 1
     expect(getKanbanProgressBars(1).map((pb) => pb.style.width)).toEqual([
         "50%",
         "50%",
@@ -14096,16 +13628,14 @@ test("Correct values for progress bar with toggling filter and slow RPC", async 
 
     def.resolve();
     await animationFrame();
-    // After the call to read_progress_bar has resolved, the values should be updated correctly
     expect(".o_kanban_record").toHaveCount(2);
-    // abc: 1
     expect(getKanbanProgressBars(1).map((pb) => pb.style.width)).toEqual(["100%"]);
 });
 
 test("group by numeric field (with aggregator)", async () => {
     onRpc("web_read_group", ({ kwargs }) => {
         expect(kwargs.groupby).toEqual(["int_field"]);
-        expect(kwargs.aggregates).toEqual([]); // No progressbar - no aggregate needed
+        expect(kwargs.aggregates).toEqual([]);
         expect.step("web_read_group");
     });
     await mountView({
@@ -14130,26 +13660,21 @@ test("group by numeric field (with aggregator)", async () => {
 
 test.tags("desktop");
 test("click on empty kanban must shake the NEW button", async () => {
-    onRpc("web_read_group", () =>
-        // override read_group to return empty groups, as this is
-        // the case for several models (e.g. project.task grouped
-        // by stage_id)
-        ({
-            groups: [
-                {
-                    __extra_domain: [["product_id", "=", 3]],
-                    __count: 0,
-                    product_id: [3, "xplone"],
-                },
-                {
-                    __extra_domain: [["product_id", "=", 5]],
-                    __count: 0,
-                    product_id: [5, "xplan"],
-                },
-            ],
-            length: 2,
-        }),
-    );
+    onRpc("web_read_group", () => ({
+        groups: [
+            {
+                __extra_domain: [["product_id", "=", 3]],
+                __count: 0,
+                product_id: [3, "xplone"],
+            },
+            {
+                __extra_domain: [["product_id", "=", 5]],
+                __count: 0,
+                product_id: [5, "xplan"],
+            },
+        ],
+        length: 2,
+    }));
 
     await mountView({
         type: "kanban",
@@ -14230,7 +13755,7 @@ test("kanban records are middle clickable by default", async () => {
             return res;
         },
     });
-    Partner._views.kanban = /* xml */ `
+    Partner._views.kanban = `
         <kanban>
             <templates>
                 <t t-name="card">
@@ -14238,7 +13763,7 @@ test("kanban records are middle clickable by default", async () => {
                 </t>
             </templates>
         </kanban>`;
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form>
             <field name="product_id"/>
             <field name="foo"/>
@@ -14456,11 +13981,6 @@ test("selection can be enabled by long touch with drag & drop enabled", async ()
 });
 
 test("pending long-touch timer is cleared when the card is destroyed", async () => {
-    // Regression: onTouchStart schedules a long-press timer that calls
-    // record.toggleSelection(true). If the card is unmounted (here: paging to
-    // another page) before the threshold elapses and before any touchend, the
-    // timer must be cancelled by the component's onWillDestroy - otherwise it
-    // fires against a destroyed component and mutates selection out of band.
     mockTouch(true);
     patchWithCleanup(RelationalRecord.prototype, {
         toggleSelection(selected) {
@@ -14481,17 +14001,12 @@ test("pending long-touch timer is cleared when the card is destroyed", async () 
                 </kanban>`,
         limit: 1,
     });
-    // Start a long press on the only visible card (schedules the timer) without
-    // releasing it, then destroy that card by paging to the next record.
-    // Exclude the layout-only ghost cards (.o_kanban_ghost) so we target the
-    // single real record that the limit=1 kept on the first page.
     await manuallyDispatchProgrammaticEvent(
         queryOne(".o_kanban_record:not(.o_kanban_ghost)"),
         "touchstart",
     );
     await pagerNext();
     await runAllTimers();
-    // The orphaned timer must not have fired: no toggleSelection, no selection.
     expect.verifySteps([]);
     expect(".o_selection_box").toHaveCount(0);
     expect(".o_record_selected").toHaveCount(0);
@@ -14560,12 +14075,6 @@ test("selection can be enabled by pressing 'shift + space' key", async () => {
 
 test.tags("desktop");
 test("range selection follows the clicked record's state at click time", async () => {
-    // Force toggleSelection to apply synchronously: the mutex-deferred
-    // implementation masks any order dependence inside the range loop. The
-    // loop must snapshot the clicked record's target state up front (as the
-    // list view twin does in list_selection.js) — re-reading record.selected
-    // after the loop toggled the clicked record would flip the state applied
-    // to the rest of the range.
     patchWithCleanup(RelationalRecord.prototype, {
         toggleSelection(selected) {
             this._toggleSelection(selected);
@@ -14583,7 +14092,6 @@ test("range selection follows the clicked record's state at click time", async (
                     </templates>
                 </kanban>`,
     });
-    // Anchor the range on the LAST record…
     await press("ArrowDown");
     await press("ArrowDown");
     await press("ArrowDown");
@@ -14591,9 +14099,6 @@ test("range selection follows the clicked record's state at click time", async (
     await press("Space");
     await animationFrame();
     expect(".o_record_selected").toHaveCount(1);
-    // …then shift+space the FIRST (unselected) record: the whole range —
-    // including the records after the clicked one in iteration order — must
-    // take the clicked record's click-time target state (selected).
     await press("ArrowUp");
     await press("ArrowUp");
     await press("ArrowUp");
@@ -14605,10 +14110,6 @@ test("range selection follows the clicked record's state at click time", async (
 });
 
 test("progress bars: fetch discarded on a group-set change is retried", async () => {
-    // A read_progress_bar result is discarded when the set of groups changed
-    // while the RPC was in flight (the counts describe a stale group set).
-    // Discarding alone left the bars stale until the next data event — a
-    // debounced retry must re-fetch against the new set.
     let capturedState = null;
     patchWithCleanup(KanbanController.prototype, {
         setup() {
@@ -14639,23 +14140,20 @@ test("progress bars: fetch discarded on a group-set change is retried", async ()
     });
     expect.verifySteps(["read_progress_bar"]);
 
-    // Hold a refresh RPC and change the group set while it is in flight.
     hold = new Deferred();
     const refresh = capturedState._updateProgressBar();
     await capturedState.model.root.createGroup("new column");
     hold.resolve();
     hold = null;
     await refresh;
-    // The held fetch was discarded (stale group set)…
     expect.verifySteps(["read_progress_bar"]);
-    // …and the debounced retry re-fetches once the debounce delay elapses.
     await runAllTimers();
     expect.verifySteps(["read_progress_bar"]);
 });
 
 test.tags("desktop");
 test("drag and drop records and quickly open a record", async () => {
-    Partner._views.kanban = /* xml */ `
+    Partner._views.kanban = `
         <kanban>
             <templates>
                 <t t-name="card">
@@ -14663,7 +14161,7 @@ test("drag and drop records and quickly open a record", async () => {
                 </t>
             </templates>
         </kanban>`;
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form>
             <field name="foo"/>
         </form>`;
@@ -14705,8 +14203,6 @@ test("drag and drop records and quickly open a record", async () => {
 
     defs[0].resolve();
     await animationFrame();
-    // because of the mutex in the model, the second web_save is done only once the first one
-    // returned, but that rpc can't be done if the component has already been destroyed.
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_kanban_group:first-child .o_kanban_record").toHaveCount(0);
     expect(".o_kanban_group:nth-child(2) .o_kanban_record").toHaveCount(4);
@@ -14743,15 +14239,11 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
     expect(".o_content").toHaveProperty("scrollLeft", 0);
     await contains(".o_column_folded:eq(0)").click();
     await animationFrame();
-    // Group completely inside the viewport after unfold, no scroll
     expect(".o_content").toHaveProperty("scrollLeft", 0);
     await contains(".o_content").scroll({ left: 1500 });
     await contains(".o_column_folded:eq(0)").click();
-    // Group is followed by a folded group which is outside the viewport
-    // after unfold, scroll to that group
     expect(".o_content").toHaveProperty("scrollLeft", 1869);
     let { x, width } = queryRect(".o_column_folded:eq(0)");
-    // TODO JUM: change digits option
     expect(x + width).toBeCloseTo(window.innerWidth - 1, {
         digits: 0,
         message:
@@ -14761,19 +14253,16 @@ test("groups will be scrolled to on unfold if outside of viewport", async () => 
     await contains('.o_kanban_group:contains("column 7 (1)")').click();
     expect(".o_content").toHaveProperty("scrollLeft", 2154);
     ({ x, width } = queryRect('.o_kanban_group:contains("column 7 (1)")'));
-    // TODO JUM: change digits option
     expect(x + width).toBeCloseTo(window.innerWidth, {
         digits: 0,
         message:
             "this group was not followed by a folded group so it will be the one to stick to the right of the screen after the scroll",
     });
-    // scroll to the end
     await contains(".o_content").scroll({ left: 5000 });
     expect(".o_content").toHaveProperty("scrollLeft", 3336);
     await contains(".o_kanban_group:last").click();
     expect(".o_content").toHaveProperty("scrollLeft", 3562);
     ({ x, width } = queryRect('.o_kanban_group:contains("column 11 (1)")'));
-    // TODO JUM: change digits option
     expect(x + width).toBeCloseTo(window.innerWidth, {
         digits: 0,
         message: "same as above",
@@ -14910,8 +14399,6 @@ test("click on New while kanban is loading (with quick create)", async () => {
     expect.verifySteps(["create record"]);
 });
 
-// desktop-only: drives the `.o_cp_action_menus` control-panel cog menu; mobile
-// renders toolbar actions differently, so the RPC flow diverges.
 test.tags("desktop");
 test(`kanban with custom cog action that has a confirmation target="new" action`, async () => {
     const contextualAction = {
@@ -14977,7 +14464,6 @@ test(`kanban with custom cog action that has a confirmation target="new" action`
     expect(".o_dialog").toHaveCount(0);
     expect(".o_form_view").toHaveCount(1);
 
-    // should not reload the list view when confirming with Do it
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
@@ -15035,18 +14521,15 @@ test(`cache web_read_group (no change)`, async () => {
     expect(`.o_kanban_group`).toHaveCount(2);
     expect(queryAllTexts(`.o_kanban_header`)).toEqual(["No\n(1)", "Yes\n(3)"]);
 
-    // execute another action to remove the kanban from the DOM
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1);
 
-    // execute again action 1, but web_read_group is delayed
     def = new Deferred();
     await getService("action").doAction(1);
     expect(`.o_kanban_view`).toHaveCount(1);
     expect(`.o_kanban_group`).toHaveCount(2);
     expect(queryAllTexts(`.o_kanban_header`)).toEqual(["No\n(1)", "Yes\n(3)"]);
 
-    // simulate the return of web_read_group => nothing should have changed
     def.resolve();
     await animationFrame();
     expect(`.o_kanban_view`).toHaveCount(1);
@@ -15099,14 +14582,11 @@ test(`cache web_read_group (change)`, async () => {
         "17\n(1)",
     ]);
 
-    // simulate the create of new records by someone else
     MockServer.env.partner.create([{ int_field: 44 }, { int_field: -4 }]);
 
-    // execute another action to remove the kanban from the DOM
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1);
 
-    // execute again action 1, but web_read_group is delayed
     def = new Deferred();
     await getService("action").doAction(1);
     expect(`.o_kanban_view`).toHaveCount(1);
@@ -15118,7 +14598,6 @@ test(`cache web_read_group (change)`, async () => {
         "17\n(1)",
     ]);
 
-    // simulate the return of web_read_group => the data should have been updated
     def.resolve();
     await animationFrame();
     expect(`.o_kanban_view`).toHaveCount(1);
@@ -15172,17 +14651,14 @@ test(`cache web_read_group (no data, no change)`, async () => {
     expect(`.o_kanban_view .o_column_quick_create`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_stages_nocontent`).toHaveCount(1);
 
-    // execute another action to remove the kanban from the DOM
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1);
 
-    // execute again action 1, but web_read_group is delayed
     def = new Deferred();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_column_quick_create`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_stages_nocontent`).toHaveCount(1);
 
-    // simulate the return of web_read_group => the sample data should still be displayed
     def.resolve();
     await animationFrame();
     expect(`.o_kanban_view .o_column_quick_create`).toHaveCount(1);
@@ -15229,20 +14705,16 @@ test(`cache web_read_group (no data, change)`, async () => {
     expect(`.o_kanban_view .o_column_quick_create`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_stages_nocontent`).toHaveCount(1);
 
-    // simulate the create of new records by someone else
     MockServer.env.partner.create([{ product_id: 3 }, { product_id: 5 }]);
 
-    // execute another action to remove the kanban from the DOM
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1);
 
-    // execute again action 1, but web_read_group is delayed
     def = new Deferred();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_column_quick_create`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_stages_nocontent`).toHaveCount(1);
 
-    // simulate the return of web_read_group => the data should have been updated
     def.resolve();
     await animationFrame();
     expect(`.o_kanban_view`).toHaveCount(1);
@@ -15254,8 +14726,6 @@ test(`cache web_read_group (no data, change)`, async () => {
 });
 
 test(`cache web_read_group (group_expand: groups, then no group)`, async () => {
-    // Grouped kanban with group_expand: first visit has empty groups so sample data shows;
-    // coming back serves the cache, but the rpc now returns no group, so the view must update.
     let def;
     let withGroups = true;
     onRpc("web_read_group", async () => {
@@ -15313,20 +14783,16 @@ test(`cache web_read_group (group_expand: groups, then no group)`, async () => {
     expect(`.o_kanban_view .o_view_sample_data`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(1);
 
-    // execute another action to remove the kanban from the DOM
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1);
 
-    // simulate the removal of the (only) empty group
     withGroups = false;
 
-    // execute again action 1, but web_read_group is delayed
     def = new Deferred();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_view_sample_data`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(1);
 
-    // simulate the return of web_read_group => the data should have been updated
     def.resolve();
     await animationFrame();
     expect(`.o_kanban_view`).toHaveCount(1);
@@ -15336,10 +14802,6 @@ test(`cache web_read_group (group_expand: groups, then no group)`, async () => {
 });
 
 test(`cache web_read_group (group_expand: groups, then more groups)`, async () => {
-    // Grouped kanban with group_expand: first visit has empty groups so sample data shows;
-    // coming back serves the cache, but the rpc now returns a different (still non-empty) set
-    // of groups. Ideally we'd stay in sample mode; instead we leave it, since handling that
-    // case isn't worth the complexity. This test just encodes the current behavior.
     let def;
     const groups = [
         {
@@ -15393,11 +14855,9 @@ test(`cache web_read_group (group_expand: groups, then more groups)`, async () =
     expect(`.o_kanban_view .o_view_sample_data`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(1);
 
-    // execute another action to remove the kanban from the DOM
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1);
 
-    // simulate the addition of another empty group
     groups.push({
         __extra_domain: [["product_id", "=", 5]],
         __records: [],
@@ -15405,22 +14865,18 @@ test(`cache web_read_group (group_expand: groups, then more groups)`, async () =
         product_id: [5, "xpad"],
     });
 
-    // execute again action 1, but web_read_group is delayed
     def = new Deferred();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_view_sample_data`).toHaveCount(1);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(1);
 
-    // simulate the return of web_read_group => the data should have been updated
     def.resolve();
     await animationFrame();
-    expect(`.o_kanban_view .o_view_sample_data`).toHaveCount(0); // would be ok to remain in sample
+    expect(`.o_kanban_view .o_view_sample_data`).toHaveCount(0);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(2);
 });
 
 test(`cache web_read_group: less groups than in cache`, async () => {
-    // this test simulates that we are on a grouped kanban and the rpc returns less groups than we
-    // got from the cache. Those missing groups should be properly removed from the UI on update.
     let def;
     onRpc("web_read_group", () => def);
 
@@ -15462,14 +14918,11 @@ test(`cache web_read_group: less groups than in cache`, async () => {
         "xmo\n(2)",
     ]);
 
-    // execute another action to remove the kanban from the DOM
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1);
 
-    // simulate a move of records from first group to the second one
     MockServer.env.partner.write([1, 3], { product_id: 5 });
 
-    // execute again action 1, but web_read_group is delayed
     def = new Deferred();
     await getService("action").doAction(1);
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(2);
@@ -15478,7 +14931,6 @@ test(`cache web_read_group: less groups than in cache`, async () => {
         "xmo\n(2)",
     ]);
 
-    // simulate the return of web_read_group => the data should have been updated
     def.resolve();
     await animationFrame();
     expect(`.o_kanban_view .o_kanban_group`).toHaveCount(1);
@@ -15566,8 +15018,6 @@ test("Cache: unfolded is now folded", async () => {
 
 test.tags("desktop");
 test("Cache: kanban view progressbar, filter, open a record, edit, come back", async () => {
-    // Regression: a progressbar filter was lost when coming back, because the cache callback
-    // removed the groups information.
     Product._records[1].fold = false;
 
     let def;
@@ -15605,33 +15055,27 @@ test("Cache: kanban view progressbar, filter, open a record, edit, come back", a
     expect(".o_kanban_group").toHaveCount(2);
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(2);
 
-    // Filter the first column with the progressbar
     await contains(".o_column_progress .progress-bar", {
         root: getKanbanColumn(0),
     }).click();
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(1);
 
-    // Open a record, then go back, s.t. we populate the cache with the current params of the kanban
     await contains(".o_kanban_group:eq(1) .o_kanban_record").click();
     expect(".o_form_view").toHaveCount(1);
     await contains(".o_back_button").click();
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(1);
 
-    // Open again and make a change which will have an impact on the kanban, then go back
     await contains(".o_kanban_group:eq(1) .o_kanban_record").click();
     expect(".o_form_view").toHaveCount(1);
     await contains(".o_field_widget[name=product_id] button[data-value='3']").click();
-    // Slow down the rpc s.t. we first use data from the cache, and then we update
     def = new Deferred();
     await contains(".o_back_button").click();
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(1);
 
-    // Resolve the promise
     def.resolve();
     await animationFrame();
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(1);
 
-    // Open a last time and come back => the filter should still be applied correctly
     await contains(".o_kanban_group:eq(1) .o_kanban_record").click();
     await contains(".o_back_button").click();
     expect(".o_kanban_group:eq(0) .o_kanban_record").toHaveCount(1);
@@ -15680,15 +15124,12 @@ test("scroll position is restored when coming back to kanban view", async () => 
     });
 
     expect(".o_kanban_view").toHaveCount(1);
-    // simulate scrolls in the kanban view
     queryOne(".o_content").scrollTop = 100;
     queryOne(".o_content").scrollLeft = 400;
 
     await getService("action").switchView("list");
     expect(".o_list_view").toHaveCount(1);
 
-    // the kanban is "lazy", so it displays the control panel directly, and the renderer later with
-    // the data => simulate this and check that the scroll position is correctly restored
     def = new Deferred();
     await getService("action").switchView("kanban");
     expect(".o_kanban_view").toHaveCount(1);
@@ -15735,14 +15176,11 @@ test("scroll position is restored when coming back to kanban view (mobile)", asy
     });
 
     expect(".o_kanban_view").toHaveCount(1);
-    // simulate a scroll in the kanban view
     queryOne(".o_kanban_view").scrollTop = 100;
 
     await getService("action").switchView("list");
     expect(".o_list_view").toHaveCount(1);
 
-    // the kanban is "lazy", so it displays the control panel directly, and the renderer later with
-    // the data => simulate this and check that the scroll position is correctly restored
     def = new Deferred();
     await getService("action").switchView("kanban");
     expect(".o_kanban_view").toHaveCount(1);
@@ -15782,7 +15220,7 @@ test("scroll position is restored when coming back to kanban view (grouped, mobi
 
     let def;
     onRpc("web_read_group", () => def);
-    await resize({ width: 375, height: 667 }); // iphone se
+    await resize({ width: 375, height: 667 });
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         res_model: "partner",
@@ -15797,15 +15235,12 @@ test("scroll position is restored when coming back to kanban view (grouped, mobi
     });
 
     expect(".o_kanban_view").toHaveCount(1);
-    // simulate scrolls in the kanban view
-    queryOne(".o_kanban_renderer").scrollLeft = 656; // scroll to the third column
+    queryOne(".o_kanban_renderer").scrollLeft = 656;
     queryAll(".o_kanban_group")[2].scrollTop = 200;
 
     await getService("action").switchView("list");
     expect(".o_list_view").toHaveCount(1);
 
-    // the kanban is "lazy", so it displays the control panel directly, and the renderer later with
-    // the data => simulate this and check that the scroll position is correctly restored
     def = new Deferred();
     await getService("action").switchView("kanban");
     expect(".o_kanban_view").toHaveCount(1);
@@ -15872,7 +15307,7 @@ test("limit is reset when restoring a view after ungrouping", async () => {
 
 test.tags("desktop");
 test("add o-navigable to buttons with dropdown-item class and view buttons", async () => {
-    Partner._records.splice(1, 3); // keep one record only
+    Partner._records.splice(1, 3);
 
     await mountView({
         type: "kanban",
@@ -15897,7 +15332,6 @@ test("add o-navigable to buttons with dropdown-item class and view buttons", asy
     expect(".o-dropdown--menu .dropdown-item.o-navigable").toHaveCount(3);
     expect(".o-dropdown--menu .dropdown-item.o-navigable.focus").toHaveCount(0);
 
-    // Check that navigation is working
     await hover(".o-dropdown--menu .dropdown-item.o-navigable");
     expect(".o-dropdown--menu .dropdown-item.o-navigable.focus").toHaveCount(1);
 
@@ -15913,10 +15347,6 @@ test("add o-navigable to buttons with dropdown-item class and view buttons", asy
 });
 
 test(`focusNextCard does not crash when the focused card is in no rendered group`, async () => {
-    // The focused ``.o_kanban_record`` is not part of any group inside ``area``
-    // (e.g. it was filtered out or the DOM changed underneath): the lookup loop
-    // leaves ``iCard === -1`` and ``iGroup === cards.length``. Reading
-    // ``cards[iGroup].length`` in the down/up branches would then throw.
     const fixture = getFixture();
 
     const area = document.createElement("div");
@@ -15928,7 +15358,6 @@ test(`focusNextCard does not crash when the focused card is in no rendered group
     area.appendChild(group);
     fixture.appendChild(area);
 
-    // The focused card lives OUTSIDE ``area``, so it is never found in ``cards``.
     const orphanCard = document.createElement("div");
     orphanCard.classList.add("o_kanban_record");
     orphanCard.tabIndex = -1;
@@ -15942,15 +15371,10 @@ test(`focusNextCard does not crash when the focused card is in no rendered group
             KanbanRenderer.prototype.focusNextCard.call(mockRenderer, area, direction),
         ).toBe(undefined);
     }
-    // Focus never moved onto a card inside the area.
     expect(document.activeElement).toBe(orphanCard);
 });
 
 test("archiving a single card removes it and refreshes counters", async () => {
-    // Regression: a single-card archive must remove the card from its column and
-    // refresh the counter/progressbar. The default single-datapoint reload
-    // re-reads the archived record by id and leaves a stale card, so the kanban
-    // renderer passes a list-level reload (like the bulk "archive all" path).
     Partner._fields.active = fields.Boolean({ default: true });
     await mountView({
         type: "kanban",

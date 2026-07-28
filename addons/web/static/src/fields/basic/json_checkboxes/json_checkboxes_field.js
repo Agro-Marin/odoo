@@ -23,22 +23,12 @@ export class JsonCheckboxes extends Component {
     };
 
     setup() {
-        // Deep-copied local state: mutating the record's own data object in
-        // place would corrupt the discard/rollback baseline (both would share
-        // the same reference), and an unset json field reads `false`, which
-        // `useState` rejects (reactive() needs an object).
         this.checkboxes = useState(
             deepCopy(this.props.record.data[this.props.name] || {}),
         );
         this.debouncedCommitChanges = useDebounced(this.commitChanges, 100, {
             execBeforeUnmount: true,
         });
-        // True while a toggle has been made but its debounced commit hasn't run
-        // yet. The model asks every field to flush local changes (via these two
-        // buses) before running an onchange or a save; without flushing, an
-        // onchange that recomputes this JSON field would be built from the stale
-        // record value and the returning server value would silently revert the
-        // user's not-yet-committed toggle (see `commitChanges`/observer below).
         this.pendingCommit = false;
         useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, (ev) => {
             this.flushPendingCommit(ev);

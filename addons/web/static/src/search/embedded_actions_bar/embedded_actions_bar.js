@@ -68,19 +68,9 @@ export class EmbeddedActionsConfigHandler {
         this.currentActiveId = currentActiveId;
         this.parentResModel = parentResModel;
         this.embeddedActionsKey = `${this.parentActionId}+${this.currentActiveId || ""}`;
-        // Read-only: `user.settings` is a shared (often deep-frozen) session
-        // object, so assigning back to it (`??=`) throws. A fresh `|| {}` means
-        // config mutations made before the server first returns this key don't
-        // survive a remount, but that edge case isn't worth writing to a frozen
-        // object; a session-shared store would be the way to fix it if needed.
         this.embeddedActionsConfig = user.settings.embedded_actions_config_ids || {};
         this.orm = ormService;
         this.notification = notificationService;
-        // Serializes the write RPCs: two quick mutations (toggle + toggle, or
-        // drag + toggle) fired independent res.users.settings writes whose
-        // responses could resolve out of order, leaving the server on the
-        // FIRST request's state while the UI shows the second. Chaining them
-        // makes the last write win server-side too.
         this._writeQueue = Promise.resolve();
     }
 
@@ -92,18 +82,8 @@ export class EmbeddedActionsConfigHandler {
      *  is reverted, a notification is shown and `false` is returned
      */
     async setEmbeddedActionsConfig(config) {
-        // Deep-copy both the incoming config and the revert snapshot: a
-        // shallow copy would alias caller-owned arrays (the main payload), so
-        // the cache would track later caller mutations and the failure revert
-        // would restore the already-mutated array.
         config = structuredClone(config);
         const run = async () => {
-            // Snapshot + apply the optimistic cache merge here, inside the
-            // queued unit, NOT at call time: overlapping writes must each
-            // read/snapshot/mutate the shared cache in commit order. Capturing
-            // the revert snapshot at call time let an EARLIER write's deferred
-            // failure revert restore a stale snapshot and wipe a LATER (already
-            // applied) write's changes — breaking the documented last-write-wins.
             const hadConfig = this.embeddedActionsKey in this.embeddedActionsConfig;
             const previousConfig = hadConfig
                 ? structuredClone(this.embeddedActionsConfig[this.embeddedActionsKey])
@@ -129,7 +109,6 @@ export class EmbeddedActionsConfigHandler {
                 );
                 return true;
             } catch {
-                // Revert the local cache so it stays in sync with the server.
                 if (hadConfig) {
                     this.embeddedActionsConfig[this.embeddedActionsKey] =
                         previousConfig;
@@ -143,9 +122,6 @@ export class EmbeddedActionsConfigHandler {
                 return false;
             }
         };
-        // Run after any in-flight write (the queue never rejects, so a prior
-        // failure doesn't stall the chain). Lazily initialized so the handler
-        // works regardless of how it was constructed.
         this._writeQueue = this._writeQueue || Promise.resolve();
         const result = this._writeQueue.then(run, run);
         this._writeQueue = result.catch(() => {});
@@ -252,9 +228,6 @@ export class EmbeddedActions {
             embeddedActions: this.defaultEmbeddedActions || [],
             newActionIsShared: false,
             newActionName: this.defaultNewActionName,
-            // Copy: the reactive state must not alias the cached settings
-            // array, or in-place toggles would mutate the cache before its
-            // revert snapshot is taken.
             visibleEmbeddedActions: [
                 ...(this.configHandler.getEmbeddedActionsConfig(
                     "embedded_actions_visibility",
@@ -309,10 +282,6 @@ export class EmbeddedActions {
      * the database (it may have been changed from another browser session).
      */
     async toggleBar() {
-        // Re-entrancy guard + capture the target once: with the target read
-        // before the awaits and the flip after them, a double-click would
-        // persist `true` twice then flip the local flag twice — hiding the
-        // bar locally while the server says visible.
         if (this._togglingBar) {
             return;
         }
@@ -329,8 +298,6 @@ export class EmbeddedActions {
     /** @param {boolean} showEmbedded target visibility being persisted */
     async _applyBarVisibility(showEmbedded) {
         if (showEmbedded && !this.configHandler.hasEmbeddedActionsConfig()) {
-            // No local config yet: fetch from DB (it may have changed from
-            // another browser session) and sync the browser cache with it.
             const embeddedSettings =
                 await this.configHandler.fetchEmbeddedActionsConfig();
             if (this.configHandler.embeddedActionsKey in embeddedSettings) {
@@ -350,7 +317,6 @@ export class EmbeddedActions {
                     embedded_visibility: true,
                 });
             } else {
-                // Store a new embedded actions config if still not found in the settings
                 const config = {
                     res_model:
                         this.embeddedInfos.currentEmbeddedAction.parent_res_model,
@@ -358,7 +324,6 @@ export class EmbeddedActions {
                     embedded_visibility: true,
                     embedded_actions_order: [],
                 };
-                // If no embedded action is visible yet, default to the current action (if any)
                 if (this.embeddedInfos.embeddedActions?.length > 0) {
                     const embeddedActionKey =
                         this.embeddedInfos.currentEmbeddedAction?.id || false;
@@ -367,9 +332,10 @@ export class EmbeddedActions {
                             embeddedActionKey,
                         )
                     ) {
-                        this.embeddedInfos.visibleEmbeddedActions.push(
+                        this.embeddedInfos.visibleEmbeddedActions = [
+                            ...this.embeddedInfos.visibleEmbeddedActions,
                             embeddedActionKey,
-                        );
+                        ];
                         config.embedded_actions_visibility = [
                             ...this.embeddedInfos.visibleEmbeddedActions,
                         ];
@@ -393,14 +359,11 @@ export class EmbeddedActions {
      * @returns {Promise<void>}
      */
     async toggleActionVisibility(actionId) {
-        const previousVisible = [...this.embeddedInfos.visibleEmbeddedActions];
-        const embeddedActionIndex =
-            this.embeddedInfos.visibleEmbeddedActions.indexOf(actionId);
-        if (embeddedActionIndex !== -1) {
-            this.embeddedInfos.visibleEmbeddedActions.splice(embeddedActionIndex, 1);
-        } else {
-            this.embeddedInfos.visibleEmbeddedActions.push(actionId);
-        }
+        const previousVisible = this.embeddedInfos.visibleEmbeddedActions;
+        const isVisible = previousVisible.includes(actionId);
+        this.embeddedInfos.visibleEmbeddedActions = isVisible
+            ? previousVisible.filter((id) => id !== actionId)
+            : [...previousVisible, actionId];
         const saved = await this.configHandler.setEmbeddedActionsConfig({
             embedded_actions_visibility: [...this.embeddedInfos.visibleEmbeddedActions],
         });
@@ -457,9 +420,6 @@ export class EmbeddedActions {
             group_ids,
         } = currentEmbeddedAction;
         const values = {
-            // May be an [id, name] tuple (server rows) or a bare numeric id
-            // (the synthetic parent entry built by executeActionButton) —
-            // same normalization as openAction/deleteAction.
             parent_action_id: parent_action_id[0] || parent_action_id,
             parent_res_model,
             parent_res_id: this.env.searchModel.globalContext.active_id,
@@ -496,20 +456,20 @@ export class EmbeddedActions {
             action_id,
             id: embeddedActionId,
         });
-        this.embeddedInfos.embeddedActions.push(enrichedNewEmbeddedAction);
-        visibleEmbeddedActions.push(embeddedActionId);
+        this.embeddedInfos.embeddedActions = [
+            ...this.embeddedInfos.embeddedActions,
+            enrichedNewEmbeddedAction,
+        ];
+        this.embeddedInfos.visibleEmbeddedActions = [
+            ...visibleEmbeddedActions,
+            embeddedActionId,
+        ];
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
         const saved = await this.configHandler.setEmbeddedActionsConfig({
-            embedded_actions_visibility: [...visibleEmbeddedActions],
+            embedded_actions_visibility: [...this.embeddedInfos.visibleEmbeddedActions],
             embedded_actions_order: order,
         });
         if (!saved) {
-            // The action itself was created server-side (orm.create +
-            // createNewFavorite above), so we do NOT revert the local push the
-            // way toggleActionVisibility does — that would hide a record that
-            // now exists and would reappear on reload. Persisting its
-            // visibility/order failed, though, so surface it instead of
-            // silently reporting success.
             this.notificationService.add(
                 _t("The action was created, but saving its position failed."),
                 { type: "warning" },
@@ -546,20 +506,16 @@ export class EmbeddedActions {
     async deleteAction(action) {
         const { visibleEmbeddedActions, embeddedActions, currentEmbeddedAction } =
             this.embeddedInfos;
-        // Delete on the server first: if unlink is refused (e.g. ACL), it throws
-        // before we mutate local state or persist visibility/order, so the tab
-        // stays and res.users.settings keeps referencing the still-existing action.
         await this.orm.unlink("ir.embedded.actions", [action.id]);
-        const embeddedActionIndex = visibleEmbeddedActions.indexOf(action.id);
-        if (embeddedActionIndex !== -1) {
-            visibleEmbeddedActions.splice(embeddedActionIndex, 1);
-        }
+        this.embeddedInfos.visibleEmbeddedActions = visibleEmbeddedActions.filter(
+            (id) => id !== action.id,
+        );
         this.embeddedInfos.embeddedActions = embeddedActions.filter(
             ({ id }) => id !== action.id,
         );
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
         await this.configHandler.setEmbeddedActionsConfig({
-            embedded_actions_visibility: [...visibleEmbeddedActions],
+            embedded_actions_visibility: [...this.embeddedInfos.visibleEmbeddedActions],
             embedded_actions_order: order,
         });
         if (action.id === currentEmbeddedAction?.id) {
@@ -614,25 +570,22 @@ export class EmbeddedActions {
      * @param {(number|false)[]} order
      */
     sortActions(order) {
-        this.embeddedInfos.embeddedActions = this.embeddedInfos.embeddedActions.sort(
-            (a, b) => {
-                const indexA = order.indexOf(a.id);
-                const indexB = order.indexOf(b.id);
-                // Both missing from the persisted order: treat as equal.
-                // Returning 1 for both (a,b) and (b,a) — as before — is an
-                // inconsistent comparator (undefined sort behaviour).
-                if (indexA === -1 && indexB === -1) {
-                    return 0;
-                }
-                if (indexA === -1) {
-                    return 1;
-                }
-                if (indexB === -1) {
-                    return -1;
-                }
-                return indexA - indexB;
-            },
-        );
+        this.embeddedInfos.embeddedActions = [
+            ...this.embeddedInfos.embeddedActions,
+        ].sort((a, b) => {
+            const indexA = order.indexOf(a.id);
+            const indexB = order.indexOf(b.id);
+            if (indexA === -1 && indexB === -1) {
+                return 0;
+            }
+            if (indexA === -1) {
+                return 1;
+            }
+            if (indexB === -1) {
+                return -1;
+            }
+            return indexA - indexB;
+        });
     }
 
     /**
@@ -643,10 +596,6 @@ export class EmbeddedActions {
      * @param {HTMLElement} [params.previous]
      */
     async reorderFromDrop({ element, previous }) {
-        // Snapshot the pre-drop order so a persistence failure reverts the
-        // dragged tab back (mirrors toggleActionVisibility, which awaits +
-        // restores); a fire-and-forget write would leave the UI reordered
-        // while the server kept the old order.
         const previousActions = [...this.embeddedInfos.embeddedActions];
         const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
         const elementId = Number(element.dataset.id) || false;
@@ -716,7 +665,6 @@ export class EmbeddedActionsBar extends Component {
     };
 
     // Class fields declared with @type so strictNullChecks treats them as
-    // initialized. Real assignment happens in setup().
     /** @type {{el: HTMLElement | null}} */
     root;
     /** @type {{el: HTMLElement | null}} */
@@ -734,9 +682,6 @@ export class EmbeddedActionsBar extends Component {
             embeddedInfos: this.props.embeddedActions.embeddedInfos,
         });
 
-        // Automatically open the embedded actions dropdown when there is only
-        // one visible embedded action. The timer delays the display of the
-        // dropdown menu to avoid flicker issues.
         useEffect(
             (showEmbedded) => {
                 const timer = browser.setTimeout(() => {
@@ -768,20 +713,21 @@ export class EmbeddedActionsBar extends Component {
     }
 
     /**
+     * Whether `action` gets a tab.
+     *
+     * Reading `visibleEmbeddedActions` is what subscribes THIS component to it:
+     * the answer comes from the prop so a ControlPanel subclass can override the
+     * rule, but the prop closes over the ControlPanel's reactive copy, a
+     * subscription the bar does not share. Every writer REPLACES the array
+     * rather than mutating it, which is what makes this plain key read enough —
+     * an in-place splice would notify nobody here.
+     *
      * @param {EmbeddedAction} action
      * @returns {boolean}
      */
     _isEmbeddedActionVisible(action) {
-        // Read visibleEmbeddedActions from the bar's OWN reactive state so that
-        // a visibility toggle re-renders the tab bar directly, in the same
-        // frame as the toggle. Delegating the decision solely to the prop
-        // (which reads the parent ControlPanel's reactive) subscribed only the
-        // ControlPanel, so the bar refreshed one frame late via the parent's
-        // render cascade — after hoot's click settled (embedded_action
-        // visibility tests saw the stale tab count). The result is still routed
-        // through the prop so a ControlPanel subclass can override visibility.
-        void this.state.embeddedInfos.visibleEmbeddedActions.includes(action.id);
-        return this.props.isActionVisible(action);
+        const { visibleEmbeddedActions } = this.state.embeddedInfos;
+        return visibleEmbeddedActions && this.props.isActionVisible(action);
     }
 
     /**

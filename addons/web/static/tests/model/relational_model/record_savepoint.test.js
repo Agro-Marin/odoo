@@ -21,8 +21,6 @@ import {
     restoreFromSavePoint,
 } from "@web/model/relational_model/record_savepoint";
 
-// Mock factory
-
 /**
  * Builds the minimal record mock shape required by addSavePoint() and
  * restoreFromSavePoint().
@@ -42,11 +40,6 @@ function makeRecord({
     dirty = false,
     fields = null,
 } = {}) {
-    // ``addSavePoint`` recurses into x2many children by reading
-    // ``record.fields[fieldName].type`` for every key in ``_changes``.
-    // Auto-derive a default ``char`` type for change keys not explicitly
-    // typed by the test; tests that need x2many or m2o behavior pass
-    // ``fields`` explicitly.
     if (fields === null) {
         fields = {};
         for (const key of Object.keys(changes)) {
@@ -62,8 +55,6 @@ function makeRecord({
         fields,
     };
 }
-
-// addSavePoint
 
 describe("addSavePoint", () => {
     test("snapshots _changes, _textValues, _invalidFields", () => {
@@ -85,7 +76,6 @@ describe("addSavePoint", () => {
         const rec = makeRecord({ changes: { name: "A" } });
         addSavePoint(rec);
 
-        // Mutate live state after snapshot
         rec._changes.name = "B";
         rec._invalidFields.add("late_invalid");
 
@@ -96,9 +86,6 @@ describe("addSavePoint", () => {
     test("does NOT store ``dirty`` independently — it's derived at restore", () => {
         const rec = makeRecord({ dirty: true });
         addSavePoint(rec);
-        // Explicit absence: the field used to be on the snapshot and was
-        // the load-bearing carrier for the Invariant-2 case.  The fix
-        // moved the source of truth to _invalidFields.
         expect("dirty" in rec._savePoint).toBe(false);
     });
 
@@ -142,8 +129,6 @@ describe("addSavePoint", () => {
     });
 });
 
-// restoreFromSavePoint — Invariant 1 (committed changes)
-
 describe("restoreFromSavePoint — Invariant 1 (committed _changes)", () => {
     test("round-trips _changes and derives dirty=true", () => {
         const rec = makeRecord({
@@ -152,7 +137,6 @@ describe("restoreFromSavePoint — Invariant 1 (committed _changes)", () => {
         });
         addSavePoint(rec);
 
-        // Simulate work in a sub-flow that gets discarded
         rec._changes = markRaw({ name: "Mid-flow" });
         rec.dirty = true;
 
@@ -163,14 +147,8 @@ describe("restoreFromSavePoint — Invariant 1 (committed _changes)", () => {
     });
 });
 
-// restoreFromSavePoint — Invariant 2 (invalid input only)
-
 describe("restoreFromSavePoint — Invariant 2 (invalid input only)", () => {
     test("round-trips _invalidFields and derives dirty=true with empty _changes", () => {
-        // Previously the snapshot stored ``dirty: true`` independently, and
-        // post-discard ``_invalidFields.clear()`` wiped the source of truth,
-        // leaving dirty=true with no actual issues. Now dirty derives from
-        // ``_changes`` ∪ ``_invalidFields``, which this restores correctly.
         const rec = makeRecord({
             invalidFields: ["age"],
             dirty: true,
@@ -195,15 +173,10 @@ describe("restoreFromSavePoint — Invariant 2 (invalid input only)", () => {
         rec._invalidFields = new Set();
         restoreFromSavePoint(rec);
 
-        // Mutating the restored set must not corrupt the (already-consumed)
-        // snapshot's array — defensive isolation matters because some
-        // callers retain the snapshot reference for diagnostics.
         rec._invalidFields.add("late");
         expect(snapshotArray).toEqual(["age"]);
     });
 });
-
-// restoreFromSavePoint — mixed and clean
 
 describe("restoreFromSavePoint — mixed state", () => {
     test("both _changes and _invalidFields populated → dirty=true", () => {
@@ -228,13 +201,9 @@ describe("restoreFromSavePoint — mixed state", () => {
 
 describe("restoreFromSavePoint — clean state", () => {
     test("no _changes and no _invalidFields → dirty=false (no ghost dirty)", () => {
-        // Pre-fix regression target: a clean snapshot must ALWAYS restore to
-        // clean now that dirty derives from _changes ∪ _invalidFields.
         const rec = makeRecord({ dirty: false });
         addSavePoint(rec);
 
-        // Force live state into a falsely-dirty configuration to ensure
-        // the restore path overrides, not merges.
         rec.dirty = true;
 
         restoreFromSavePoint(rec);
@@ -245,8 +214,6 @@ describe("restoreFromSavePoint — clean state", () => {
     });
 });
 
-// restoreFromSavePoint — _savePoint single-use semantics
-
 describe("restoreFromSavePoint — single-use semantics", () => {
     test("consumes the savepoint after restore", () => {
         const rec = makeRecord({ changes: { name: "x" }, dirty: true });
@@ -256,14 +223,8 @@ describe("restoreFromSavePoint — single-use semantics", () => {
     });
 });
 
-// restoreFromSavePoint — _textValues
-
 describe("restoreFromSavePoint — _textValues", () => {
     test("round-trips _textValues independently of _changes", () => {
-        // _textValues tracks server-side empty-string-vs-NULL for char/
-        // text/html fields.  It can be populated even when _changes is
-        // empty (e.g. user typed then backspaced — _changes drops the
-        // entry but _textValues keeps the empty-string history).
         const rec = makeRecord({
             textValues: { description: "" },
             changes: {},
@@ -277,22 +238,6 @@ describe("restoreFromSavePoint — _textValues", () => {
         expect(rec._textValues).toEqual({ description: "" });
     });
 });
-
-// discard — added in Phase 5 of the model-layer decomposition
-// (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
-//
-// Invariants under test:
-//   - I3 (atomic _changes + dirty clear) — the no-savepoint branch must
-//     route through record._clearChanges() so _changes and dirty reset on
-//     the same step. Test asserts both are reset post-discard.
-//   - I8 (savepoint restoration) — the savepoint branch must NOT wipe
-//     _invalidFields (the snapshot already carries them); only the
-//     no-savepoint branch performs the .clear().
-//   - Validity re-check skipped when isNew (new draft); runs otherwise.
-//   - x2many child._discard() is invoked BEFORE the parent's main logic
-//     so the rebuild reads consistent child state.
-//   - Closes the invalid-fields notification and resets the closer.
-//   - Calls _restoreActiveFields at the end of the discard sequence.
 
 /**
  * Build a record mock for discard tests. Provides the wider surface
@@ -318,11 +263,6 @@ function makeDiscardRecord({
     savePoint = null,
     fields = null,
 } = {}) {
-    // Auto-populate fields with a "char" default for every key in ``changes``/
-    // ``values``, mirroring RelationalRecord's guarantee that
-    // ``record.fields[fieldName]`` is always defined — the x2many cascade
-    // reads ``.type`` and would throw on ``undefined.type`` otherwise. Tests
-    // needing x2many/m2o types pass an explicit ``fields``.
     /** @type {any} */
     const autoFields = fields ?? {};
     if (!fields) {
@@ -346,7 +286,6 @@ function makeDiscardRecord({
         _checkValidity: () => true,
         _restoreActiveFields: () => {},
         _clearChanges() {
-            // Invariant I3 — atomic pair
             this._changes = markRaw({});
             this.dirty = false;
         },
@@ -361,8 +300,6 @@ function makeDiscardRecord({
     };
     return rec;
 }
-
-// discard — no savepoint path (I3 + invalidFields wipe + textValues reset)
 
 describe("discard — no savepoint (clear to server truth)", () => {
     test("calls _clearChanges so _changes={} and dirty=false (Invariant I3)", () => {
@@ -400,12 +337,9 @@ describe("discard — no savepoint (clear to server truth)", () => {
             changes: { name: "edit", age: 99 },
         });
         discard(rec);
-        // _changes was cleared; rebuild reads only _values.
         expect(rec.data).toEqual({ name: "server", age: 30 });
     });
 });
-
-// discard — savepoint path (I8 — restored state survives)
 
 describe("discard — savepoint path (restore snapshot)", () => {
     test("calls restoreFromSavePoint: _changes/_textValues/_invalidFields back to snapshot", () => {
@@ -418,7 +352,6 @@ describe("discard — savepoint path (restore snapshot)", () => {
                 invalidFields: ["email"],
             }),
         });
-        // Pre-discard state: different from the snapshot.
         rec._changes = markRaw({ name: "post-snapshot edit" });
         rec._textValues = markRaw({ description: "post-snapshot text" });
         rec._invalidFields = new Set(["other"]);
@@ -439,7 +372,6 @@ describe("discard — savepoint path (restore snapshot)", () => {
             }),
         });
         discard(rec);
-        // Snapshot had changes → dirty=true.
         expect(rec.dirty).toBe(true);
     });
 
@@ -452,11 +384,8 @@ describe("discard — savepoint path (restore snapshot)", () => {
                 invalidFields: ["email"],
             }),
         });
-        // Pre-discard, some non-snapshot invalid field also present.
         rec._invalidFields = new Set(["email", "noise"]);
         discard(rec);
-        // After restore: ONLY the snapshot's invalidFields survive; the
-        // no-savepoint branch's _invalidFields.clear() does NOT run here.
         expect([...rec._invalidFields]).toEqual(["email"]);
     });
 
@@ -474,8 +403,6 @@ describe("discard — savepoint path (restore snapshot)", () => {
         expect(rec.data).toEqual({ name: "from-snapshot", age: 30 });
     });
 });
-
-// discard — common post-branch behavior
 
 describe("discard — common post-branch behavior", () => {
     test("re-runs _checkValidity when !isNew", () => {
@@ -509,9 +436,7 @@ describe("discard — common post-branch behavior", () => {
         rec._closeInvalidFieldsNotification = originalCloser;
         discard(rec);
         expect(closeCalled).toBe(true);
-        // Closer reset to a NEW no-op function (not the original closer).
         expect(rec._closeInvalidFieldsNotification).not.toBe(originalCloser);
-        // Calling the reset closer is safe — no-op, doesn't throw.
         rec._closeInvalidFieldsNotification();
     });
 
@@ -536,8 +461,6 @@ describe("discard — common post-branch behavior", () => {
     });
 });
 
-// discard — x2many child cascade
-
 describe("discard — x2many child._discard() cascade", () => {
     test("calls _discard on each x2many StaticList in _changes BEFORE the parent's main logic", () => {
         const order = [];
@@ -550,14 +473,12 @@ describe("discard — x2many child._discard() cascade", () => {
             changes: { line_ids: childList },
         });
         rec.fields = { line_ids: { type: "one2many" } };
-        // Wrap _clearChanges so we can observe relative order.
         const origClear = rec._clearChanges.bind(rec);
         rec._clearChanges = () => {
             order.push("_clearChanges");
             origClear();
         };
         discard(rec);
-        // child._discard runs first; the parent's _clearChanges runs after.
         expect(order).toEqual(["child._discard", "_clearChanges"]);
     });
 

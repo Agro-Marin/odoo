@@ -3,7 +3,6 @@
 
     <t t-name="web.SkeletonView">
         <div class="o_skeleton_view d-flex flex-column h-100">
-            <!-- Control Panel skeleton -->
             <div class="o_skeleton_cp d-flex align-items-center px-3 py-2 border-bottom bg-view"
                  t-if="props.withControlPanel">
                 <div class="d-flex gap-2 align-items-center">
@@ -17,7 +16,6 @@
                 </div>
             </div>
 
-            <!-- View content skeleton -->
             <div class="o_skeleton_content flex-grow-1 overflow-hidden">
                 <t t-if="viewType === 'list'">
                     <table class="o_skeleton_list table table-sm mb-0">
@@ -82,17 +80,14 @@
                 <t t-if="viewType === 'form'">
                     <div class="o_skeleton_form p-4">
                         <div class="o_skeleton_sheet bg-view rounded shadow-sm p-4 mx-auto" style="max-width: 960px;">
-                            <!-- Title area -->
                             <div class="mb-4">
                                 <span class="o_skeleton rounded" style="width: 280px; height: 24px;"/>
                             </div>
-                            <!-- Button bar -->
                             <div class="d-flex gap-2 mb-4">
                                 <span class="o_skeleton rounded" style="width: 80px; height: 28px;"/>
                                 <span class="o_skeleton rounded" style="width: 100px; height: 28px;"/>
                                 <span class="o_skeleton rounded" style="width: 70px; height: 28px;"/>
                             </div>
-                            <!-- Two-column field grid -->
                             <div class="row g-3">
                                 <t t-foreach="formFields" t-as="field" t-key="field">
                                     <div class="col-6 d-flex flex-column gap-1"
@@ -103,13 +98,11 @@
                                     </div>
                                 </t>
                             </div>
-                            <!-- Notebook tabs -->
                             <div class="d-flex gap-3 mt-4 mb-3 border-bottom pb-2">
                                 <span class="o_skeleton rounded" style="width: 70px; height: 14px;"/>
                                 <span class="o_skeleton rounded" style="width: 90px; height: 14px;"/>
                                 <span class="o_skeleton rounded" style="width: 60px; height: 14px;"/>
                             </div>
-                            <!-- Tab content lines -->
                             <div class="d-flex flex-column gap-2">
                                 <span class="o_skeleton rounded" style="width: 100%; height: 12px;"/>
                                 <span class="o_skeleton rounded" style="width: 85%; height: 12px;"/>

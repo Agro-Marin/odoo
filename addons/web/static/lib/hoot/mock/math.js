@@ -2,20 +2,12 @@
 
 import { isNil, stringToNumber } from "../hoot_utils.js";
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Math,
     Number: { isNaN: $isNaN, parseFloat: $parseFloat },
     Object: { defineProperties: $defineProperties },
 } = globalThis;
 const { floor: $floor, random: $random } = Math;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {unknown} [seed]
@@ -29,10 +21,6 @@ function toValidSeed(seed) {
 }
 
 const DEFAULT_SEED = 1e16;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * Generates a random 16-digit number.
@@ -64,7 +52,7 @@ export function makeSeededRandom(seed) {
         state ^= (state >>> 17) >>> 0;
         state ^= (state << 5) >>> 0;
 
-        return ((state >>> 0) & 0x7fffffff) / 0x7fffffff; // Normalize to [0, 1)
+        return ((state >>> 0) & 0x7fffffff) / 0x7fffffff;
     }
 
     let state = seed;

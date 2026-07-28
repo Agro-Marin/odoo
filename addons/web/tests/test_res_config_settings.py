@@ -35,7 +35,6 @@ class TestResConfigSettings(TransactionCase):
         ResConfig = self.env["res.config.settings"]
         default_values = ResConfig.default_get(list(ResConfig.fields_get()))
 
-        # Case 1: Enable a group
         default_values.update({"group_multi_currency": True})
         ResConfig.create(default_values).execute()
         self.assertIn(
@@ -56,7 +55,6 @@ class TestResConfigSettings(TransactionCase):
             self.env.ref("base.group_multi_currency").sudo().all_user_ids,
         )
 
-        # Case 2: Disable a group
         default_values.update({"group_multi_currency": False})
         ResConfig.create(default_values).execute()
         self.assertNotIn(

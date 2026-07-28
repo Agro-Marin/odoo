@@ -83,7 +83,7 @@ test("basic interactions on mobile", async () => {
 
     await click(".o_pager button.o_pager_next");
     await animationFrame();
-    await animationFrame(); // transition
+    await animationFrame();
 
     expect(".o_pager_indicator").toHaveCount(1);
     expect(".o_pager_indicator .o_pager_value").toHaveText("5-8");
@@ -94,7 +94,7 @@ test("basic interactions on mobile", async () => {
 
     await click(".o_pager button.o_pager_previous");
     await animationFrame();
-    await animationFrame(); // transition
+    await animationFrame();
 
     expect(".o_pager_indicator").toHaveCount(1);
     expect(".o_pager_indicator .o_pager_value").toHaveText("1-4");
@@ -201,8 +201,6 @@ test("pager disabling", async () => {
             offset: 0,
             limit: 4,
             total: 10,
-            // Verifies the pager disables itself after a page switch, so a double
-            // click can't re-trigger the action while the first update is pending.
             async onUpdate(data) {
                 await reloadPromise;
                 await pager.updateProps(data);
@@ -227,8 +225,6 @@ test("pager disabling on desktop", async () => {
             offset: 0,
             limit: 4,
             total: 10,
-            // Verifies the pager disables itself after a page switch, so a double
-            // click can't re-trigger the action while the first update is pending.
             async onUpdate(data) {
                 await reloadPromise;
                 await pager.updateProps(data);
@@ -434,8 +430,6 @@ test("updateTotal props: can use next even if single page", async () => {
 
 test.tags("desktop");
 test("updateTotal props: a rejected count re-enables the pager", async () => {
-    // A rejected count RPC used to leave the pager permanently disabled because
-    // updateTotal() lacked the try/finally that update() has.
     expect.errors(1);
     const def = new Deferred();
     await mountWithCleanup(PagerController, {
@@ -453,17 +447,14 @@ test("updateTotal props: a rejected count re-enables the pager", async () => {
 
     expect(".o_pager_limit").toHaveText("10+");
 
-    // Trigger the count fetch: the pager disables itself while pending.
     await click(".o_pager_limit_fetch");
     await animationFrame();
     expect(".o_pager button.o_pager_next").toHaveAttribute("disabled");
 
-    // The count RPC rejects...
     def.resolve();
     await animationFrame();
     await animationFrame();
 
-    // ...but navigation must be usable again, not stuck disabled.
     expect(".o_pager button.o_pager_next").not.toHaveAttribute("disabled");
     expect.verifyErrors(["count failed"]);
 });
@@ -492,7 +483,7 @@ test("updateTotal props: click previous", async () => {
 
     await click(".o_pager_previous");
     await animationFrame();
-    await animationFrame(); // double call to updateProps
+    await animationFrame();
 
     expect(".o_pager_value").toHaveText("21-23");
     expect(".o_pager_limit").toHaveText("23");

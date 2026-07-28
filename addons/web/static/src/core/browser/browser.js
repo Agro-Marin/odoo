@@ -10,7 +10,6 @@ let localStorage;
 try {
     sessionStorage = window.sessionStorage;
     localStorage = window.localStorage;
-    // Safari crashes in Private Browsing
     localStorage.setItem("__localStorage__", "true");
     localStorage.removeItem("__localStorage__");
 } catch {
@@ -26,10 +25,11 @@ const browserImpl = {
     AudioBufferSourceNode: window.AudioBufferSourceNode,
     AudioContext: window.AudioContext,
     AudioWorkletNode: window.AudioWorkletNode,
-    // NB: a constructor — see the note on ``PerformanceObserver`` below.
     BeforeInstallPromptEvent: /** @type {any} */ (window).BeforeInstallPromptEvent,
     GainNode: window.GainNode,
+    MediaStream: window.MediaStream,
     MediaStreamAudioSourceNode: window.MediaStreamAudioSourceNode,
+    RTCPeerConnection: window.RTCPeerConnection,
     removeEventListener: window.removeEventListener.bind(window),
     setTimeout: window.setTimeout.bind(window),
     clearTimeout: window.clearTimeout.bind(window),
@@ -37,10 +37,6 @@ const browserImpl = {
     clearInterval: window.clearInterval.bind(window),
     performance: window.performance,
     crypto: window.crypto,
-    // NB: a constructor — must NOT be ``.bind()``-ed. A bound constructor
-    // still supports ``new`` and ``instanceof``, but binding hides statics
-    // and ``.prototype`` (e.g. ``PerformanceObserver.supportedEntryTypes``,
-    // ``X.prototype`` patching), and constructors don't need a ``this``.
     PerformanceObserver: window.PerformanceObserver,
     requestAnimationFrame: window.requestAnimationFrame.bind(window),
     cancelAnimationFrame: window.cancelAnimationFrame.bind(window),
@@ -105,8 +101,6 @@ const locationFacade = {
     set hash(value) {
         window.location.hash = value;
     },
-    // The legacy ``reload(true)`` force-reload signature is dead surface
-    // (Firefox dropped it in 2019; Chrome never standardised it). No args.
     reload() {
         return window.location.reload();
     },
@@ -122,8 +116,6 @@ const locationFacade = {
 };
 
 Object.defineProperty(browserImpl, "location", {
-    // Delegates to the real ``window.location`` so assigning a string still
-    // triggers navigation, matching ``window.location = "..."`` semantics.
     set(val) {
         window.location = val;
     },
@@ -153,19 +145,12 @@ export const browser =
         browserImpl
     );
 
-// memory localStorage
-
 /**
  * @returns {typeof window["localStorage"]}
  */
 export function makeRAMLocalStorage() {
     /** @type {{[key: string]: string}} */
     let store = Object.create(null);
-    // Real Storage fires ``storage`` events only in OTHER same-origin documents,
-    // never the writing window. This single-window in-memory fallback (used when
-    // window.localStorage is unavailable, e.g. Safari Private Browsing) must
-    // dispatch none at all — doing so on set/remove previously gave same-window
-    // listeners phantom cross-tab notifications the native API never produces.
     return {
         setItem(key, value) {
             store[key] = String(value);

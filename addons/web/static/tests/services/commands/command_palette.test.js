@@ -152,8 +152,6 @@ test("custom debounce delay", async () => {
     expect(".o_command").toHaveCount(2);
 });
 
-// desktop-only: fills the command-palette search input, which is not editable
-// the same way in the mobile palette layout.
 test.tags("desktop");
 test("concurrency with custom debounce delay", async () => {
     await mountWithCleanup(MainComponentsContainer);
@@ -509,15 +507,10 @@ test("check the concurrency during a research", async () => {
 });
 
 test("Enter still executes after an in-flight search is superseded by a reconfigure", async () => {
-    // Regression: a typed search left in-flight and then superseded (here by a
-    // SET_CONFIG, as a nested/reconfiguring command does) used to leave its
-    // awaiter (`searchValuePromise`) pending forever with the default KeepLast,
-    // wedging Enter/click. rejectSuperseded makes the superseded search settle.
     await mountWithCleanup(MainComponentsContainer);
     const bus = new EventBus();
     const searchDef = new Deferred();
     const provide = async (env, options) => {
-        // Block only the typed search so it is still in-flight when superseded.
         if (options.searchValue) {
             await searchDef;
         }
@@ -535,24 +528,18 @@ test("Enter still executes after an in-flight search is superseded by a reconfig
 
     await click(".o_command_palette_search input");
     await edit("a");
-    await runAllTimers(); // fire the debounce → search("a") is in-flight on searchDef
+    await runAllTimers();
 
-    // Reconfigure while search("a") is still pending: this starts a fresh
-    // search that supersedes it without ever touching searchValuePromise.
     bus.trigger(CommandPaletteEvent.SET_CONFIG, config);
     await animationFrame();
 
-    // The superseded search resolves its providers; its awaiter must now settle
-    // (reject → swallowed) rather than hang.
     searchDef.resolve();
     await animationFrame();
     await runAllTimers();
 
-    // Enter must reach the (reconfigured) selected command — no wedge.
     await press("enter");
     await animationFrame();
     expect.verifySteps(["executed"]);
-    // The winning search owns the final loading state.
     expect(".o_command_palette .fa-spin").toHaveCount(0);
 });
 
@@ -600,8 +587,6 @@ test("open the command palette with a searchValue already in the searchbar", asy
     expect(queryAllTexts(".o_command")).toEqual(["Command1"]);
 });
 
-// desktop-only: asserts a fixed pixel top position of the palette modal, which
-// the mobile (full-screen) palette layout does not use.
 test.tags("desktop");
 test("command palette keeps the same top position when its content changes", async () => {
     await mountWithCleanup(MainComponentsContainer);
@@ -1063,8 +1048,6 @@ test("keyboard navigation scroll", async () => {
     };
 
     await animationFrame();
-    // Listbox height is set below the full list height so the palette is
-    // scrollable but still shows exactly one row out of bounds.
     queryAll(".o_command").forEach((e) => (e.style.height = "50px"));
     queryOne(".o_command_palette_listbox").style.maxHeight = "150px";
     queryOne(".o_command_category").style.padding = "0";
@@ -1222,7 +1205,6 @@ test("multi level command", async () => {
     expect(".o_command").toHaveCount(1);
     expect(queryAllTexts(".o_command")).toEqual(["Command lvl2"]);
 
-    // check that the configuration has been correctly cleaned
     await edit("empty");
     await runAllTimers();
     expect(".o_command_palette_listbox_empty").toHaveText("No result found");
@@ -1491,7 +1473,6 @@ test("remove namespace with backspace", async () => {
     await runAllTimers();
     expect(".o_command_palette .o_namespace").toHaveText("@");
 
-    // remove namespace "@" because the input is empty
     await press("backspace");
     await animationFrame();
     expect(".o_command_palette .o_namespace").toHaveCount(0);
@@ -1502,7 +1483,6 @@ test("remove namespace with backspace", async () => {
     expect(".o_command_palette .o_namespace").toHaveText("@");
     expect(".o_command_palette_search input").toHaveValue("NotEmpty");
 
-    // Do not remove the namespace "@" because the input is not empty
     await press("backspace");
     await animationFrame();
     expect(".o_command_palette .o_namespace").toHaveText("@");
@@ -1511,7 +1491,6 @@ test("remove namespace with backspace", async () => {
     await runAllTimers();
     expect(".o_command_palette .o_namespace").toHaveText("@");
 
-    // Repeated backspace should not remove the namespace.
     await press("backspace", { repeat: true });
     expect(".o_command_palette .o_namespace").toHaveText("@");
 });
@@ -1593,12 +1572,10 @@ test("checks that href is correctly used", async () => {
         "href",
         "https://www.odoo.com",
     );
-    // ctrl+enter on a linked command opens its href
     await press("control+enter");
     await animationFrame();
     expect.verifySteps(["https://www.odoo.com"]);
     expect(".o_command_palette .o_command:eq(1) a").not.toHaveAttribute("href");
-    // Clicking a linked command triggers its action, not the href (last: closes the palette)
     await contains(".o_command_palette .o_command:eq(0)").click();
     expect.verifySteps(["command_with_link_clicked"]);
 });
@@ -1702,18 +1679,11 @@ test("a throwing command action closes the palette and surfaces the error", asyn
 
     await press("enter");
     await animationFrame();
-    // The palette must not stay open with no feedback; the error then goes
-    // through the standard uncaught-error pipeline.
     expect(".o_command_palette").toHaveCount(0);
     expect.verifyErrors(["Error: action boom"]);
 });
 
 test("category grouping is preserved while an async provider reloads", async () => {
-    // Regression: setCommands used to reset categoryKeys to ["default"]
-    // synchronously (before awaiting the providers), while state.commands still
-    // held the previous results. A render fired during loading then collapsed
-    // every command into a single "default" group, dropping the <hr> category
-    // separators until the new results landed.
     let provideDef = new Deferred();
     const action = () => {};
     await mountWithCleanup(MainComponentsContainer);
@@ -1741,7 +1711,6 @@ test("category grouping is preserved while an async provider reloads", async () 
     });
 
     await animationFrame();
-    // Switch to the "?" namespace and let the first (async) search resolve.
     await click(".o_command_palette_search input");
     await edit("?");
     await runAllTimers();
@@ -1750,8 +1719,6 @@ test("category grouping is preserved while an async provider reloads", async () 
     expect(".o_command_category").toHaveCount(3);
     expect(queryAllTexts(".o_command")).toEqual(["Command1", "Command2", "Command3"]);
 
-    // Trigger a second search whose provider stays pending. While loading, the
-    // still-displayed previous results must keep their category grouping.
     provideDef = new Deferred();
     await edit("? a");
     await runAllTimers();
@@ -1759,7 +1726,6 @@ test("category grouping is preserved while an async provider reloads", async () 
     expect(".o_command_category").toHaveCount(3);
     expect(queryAllTexts(".o_command")).toEqual(["Command1", "Command2", "Command3"]);
 
-    // New results land and replace the list, still grouped by category.
     provideDef.resolve();
     await animationFrame();
     expect(".o_command_category").toHaveCount(3);

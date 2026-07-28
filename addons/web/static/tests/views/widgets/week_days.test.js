@@ -57,7 +57,7 @@ test("simple week recurrence widget", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><sheet><group><widget name="week_days" /></group></sheet></form>`,
+        arch: `<form><sheet><group><widget name="week_days" /></group></sheet></form>`,
     });
 
     expect(queryAllTexts(".o_recurrent_weekday_label")).toEqual(
@@ -109,7 +109,7 @@ test("week recurrence widget readonly modifiers", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><sheet><group><widget name="week_days" readonly="1"/></group></sheet></form>`,
+        arch: `<form><sheet><group><widget name="week_days" readonly="1"/></group></sheet></form>`,
     });
 
     expect(queryAllTexts(".o_recurrent_weekday_label")).toEqual(
@@ -127,7 +127,7 @@ test("week recurrence widget show week start as per language configuration", asy
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><sheet><group><widget name="week_days"/></group></sheet></form>`,
+        arch: `<form><sheet><group><widget name="week_days"/></group></sheet></form>`,
     });
 
     expect(queryAllTexts(".o_recurrent_weekday_label")).toEqual(

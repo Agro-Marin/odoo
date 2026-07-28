@@ -46,7 +46,6 @@ class Event extends models.Model {
     user_id = fields.Many2one({ relation: "calendar.user" });
     user_ids = fields.Many2many({ relation: "calendar.user" });
 
-    // FIXME: needed for the filter to work
     filter_user_id = fields.Many2one({ relation: "calendar.user" });
 
     _records = [
@@ -215,8 +214,6 @@ beforeEach(() => {
     disableAnimations();
 });
 
-// Utils function
-
 async function multiCreateClickAddButton() {
     await click(".o_multi_selection_buttons .btn:contains(Add)");
     await animationFrame();
@@ -291,11 +288,6 @@ test("multi_create: render and basic creation (simple use case)", async () => {
 
 test.tags("desktop");
 test("multi_create: dynamic-only filter section creates bare records", async () => {
-    // Regression: multiCreateRecords only fanned out over record/user filters
-    // of the first section; a dynamic-only section (filters="1", no
-    // write_model) produced NO record and a misleading "activate at least one
-    // record" warning. Dynamic filters mirror displayed values (they are not
-    // assignment targets), so it must fall back to one bare record per date.
     onRpc("event", "create", ({ args: [records] }) => {
         for (const record of records) {
             expect.step(`${record.name}_${record.date_start}_${record.user_id}`);
@@ -328,7 +320,6 @@ test("multi_create: dynamic-only filter section creates bare records", async () 
     await edit("Time off");
     await multiCreatePopoverClickAddButton();
 
-    // One bare record per date, no warning notification.
     expect(".o_notification").toHaveCount(0);
     expect.verifySteps([
         "Time off_2019-03-04_undefined",
@@ -578,7 +569,6 @@ test("multi_create: input validation (datetime field)", async () => {
 
     await multiCreateClickAddButton();
 
-    // No time range
     await click(".o_time_picker_input:eq(1)");
     await edit("", { confirm: "enter" });
 
@@ -587,7 +577,6 @@ test("multi_create: input validation (datetime field)", async () => {
     expect.verifySteps(["Invalid time range"]);
 
     await multiCreateClickAddButton();
-    // Start time before end time
     await click(".o_time_picker_input:eq(0)");
     await animationFrame();
     await click(".o_time_picker_option:contains(11:30)");
@@ -602,7 +591,6 @@ test("multi_create: input validation (datetime field)", async () => {
 
     expect.verifySteps(["Start time should be before end time"]);
 
-    // Valid input
     await click(".o_time_picker_input:eq(1)");
     await animationFrame();
     await click(".o_time_picker_option:contains(12:00)");
@@ -667,12 +655,10 @@ test("multi_create: use state to keep values of inputs", async () => {
     ).click();
     await contains(".o-autocomplete--dropdown-item:contains('user 3')").click();
 
-    // Navigate to the many2one record
     await click(".o_form_view [name='type'] .o_external_button");
     await animationFrame();
     await animationFrame();
 
-    // Go back to the calendar view
     await click(".breadcrumb-item");
     await animationFrame();
 
@@ -710,7 +696,7 @@ test("multi_create: delete", async () => {
     await animationFrame();
     await expect(".o_popover").toHaveCount(1);
 
-    await click(".o_calendar_header"); // Hide the popover
+    await click(".o_calendar_header");
     await animationFrame();
 
     const { drop } = await contains(".fc-day[data-date='2019-02-26']").drag();
@@ -867,16 +853,11 @@ test("multi_create: avoid trigger add/del event on specific element", async () =
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 
-    // v7 dropped the ``.fc-more-cell`` wrapper: the link is now ``.fc-more-link``
-    // directly, and its popover is ``.fc-popover`` (``.fc-more-popover`` was v6 only).
     await click(".fc-more-link");
     await animationFrame();
     expect(".fc-popover").toHaveCount(1);
     expect(".o_multi_selection_buttons").toHaveCount(0);
 
-    // v7 dropped ``.fc-popover-title``; the title is now a ``<div>`` whose id
-    // ends in ``-title`` (built as ``popoverId + '-title'``, see
-    // fullcalendar.esm.js:9573-9579). Match by id-suffix to stay v7-correct.
     await click(`.fc-popover [id$="-title"]`);
     await animationFrame();
     expect(".fc-popover").toHaveCount(1);
@@ -1144,14 +1125,9 @@ test("multi_create: click uses the event's ctrl state, not stale window state", 
         context: { default_name: "Sick" },
     });
 
-    // Seed a multi-cell selection with a drag (a proven interaction).
     await selectDateRange("2019-03-04", "2019-03-06");
     expect(".fc-day.o-highlight").toHaveCount(3);
 
-    // Ctrl's keyup was swallowed during a blur, so window state is stale; this raw
-    // dispatch bypasses hoot's modifier tracking, so ev.ctrlKey is false below.
-    // Old code trusted the stale window flag and toggled; reading ev.ctrlKey
-    // instead makes the click replace, collapsing the selection to one day.
     await manuallyDispatchProgrammaticEvent(window, "keydown", { key: "Control" });
     await contains(".fc-day[data-date='2019-03-13']").click();
     await manuallyDispatchProgrammaticEvent(window, "keyup", { key: "Control" });
@@ -1174,17 +1150,12 @@ test("multi_create: toolbar re-centers when its width changes (Delete button app
         return parseFloat(queryAll(".o_multi_selection_buttons")[0].style.left);
     }
 
-    // Select an empty day: toolbar is visible, 0 records selected, no Delete button.
     await click(".fc-day[data-date='2019-03-04']");
     await animationFrame();
     expect(".o_multi_selection_buttons").toHaveCount(1);
     expect(".o_multi_selection_buttons .btn .fa-trash-can").toHaveCount(0);
     const leftWithoutDelete = toolbarLeft();
 
-    // Extend the selection over existing records without hiding the toolbar: the
-    // same persistent root node stays mounted while nbSelected grows and the
-    // Delete button appears, widening the toolbar (~40px). The centering effect
-    // must re-run so `left` shrinks; the bug froze it at the mount-time value.
     const { drop } = await contains(".fc-day[data-date='2019-02-26']").drag();
     await drop(".fc-day[data-date='2019-04-03']");
     await animationFrame();
@@ -1192,8 +1163,6 @@ test("multi_create: toolbar re-centers when its width changes (Delete button app
     expect(".o_multi_selection_buttons .btn .fa-trash-can").toHaveCount(1);
     const leftWithDelete = toolbarLeft();
 
-    // Wider toolbar => smaller centering offset. Equality means the effect never
-    // re-ran (the frozen-`left` regression).
     expect(leftWithDelete < leftWithoutDelete).toBe(true);
 });
 
@@ -1208,9 +1177,6 @@ test("multi_create: window blur clears a stuck ctrl for drag selection", async (
     await selectDateRange("2019-03-04", "2019-03-06");
     expect(".fc-day.o-highlight").toHaveCount(3);
 
-    // Hold Ctrl, then lose focus: the keyup never arrives, but the blur must
-    // reset the tracked modifier (read by the drag path) so the next drag
-    // replaces instead of adding.
     await keyDown("Control");
     await manuallyDispatchProgrammaticEvent(window, "blur");
 

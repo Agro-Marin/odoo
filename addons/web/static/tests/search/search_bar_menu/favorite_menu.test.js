@@ -188,7 +188,6 @@ test(`toggle favorite correctly clears filter, groupbys and field "options"`, as
         "Date Field Groupby: Month",
     ]);
 
-    // activate the unique existing favorite
     await toggleSearchBarMenu();
     const favorite = queryFirst`.o_favorite_menu .dropdown-item`;
     expect(favorite).toHaveText("My favorite");
@@ -218,7 +217,7 @@ test("edit a favorite with a groupby", async () => {
     onRpc("/web/domain/validate", () => true);
     await mountWithSearch(SearchBar, {
         resModel: "foo",
-        searchMenuTypes: ["groupBy"], // we need it to have facet (see facets getter in search_model)
+        searchMenuTypes: ["groupBy"],
         searchViewId: false,
         searchViewArch: `<search/>`,
         irFilters,

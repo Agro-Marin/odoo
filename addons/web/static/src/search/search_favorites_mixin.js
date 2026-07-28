@@ -107,11 +107,6 @@ export const SearchFavoritesMixin = (Base) =>
                 localContext,
                 localOrderBy,
                 getContext: () => this._getContext(),
-                // withSearchPanel:false — do NOT bake the live search-panel
-                // category/filter selections into the saved favorite's domain.
-                // Activating a favorite only resets `query` (not panel state), so a
-                // baked-in panel domain would be AND-ed on top of whatever panel
-                // selection is live at activation time (stale/contradictory).
                 getDomain: () =>
                     this._getDomain({
                         raw: true,
@@ -146,9 +141,6 @@ export const SearchFavoritesMixin = (Base) =>
 
         /** Convert an ir.filter record into a favorite search item. */
         _irFilterToFavorite(irFilter) {
-            // Passing the field metadata screens out group_by entries naming
-            // removed fields (see irFilterToFavorite) — favorites only; arch-
-            // defined groupbys don't go through this path.
             return irFilterToFavorite(irFilter, this.searchViewFields);
         }
 
@@ -157,13 +149,6 @@ export const SearchFavoritesMixin = (Base) =>
          * @private
          */
         _reconciliateFavorites() {
-            // Only reconcile when ir.filters were actually (re)loaded for this
-            // import. `this.irFilters` is set solely when the config carried them
-            // (undefined otherwise); reconciling against undefined treated every
-            // imported favorite as server-deleted and removed it — plus its active
-            // query entry. Distinguish "not loaded" (undefined) from "loaded,
-            // empty" ([]). (enterprise/knowledge overrides this to a no-op purely
-            // to dodge that data loss; this guard makes the base path safe.)
             if (this.irFilters === undefined) {
                 return;
             }

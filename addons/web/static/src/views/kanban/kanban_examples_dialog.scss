@@ -1,4 +1,3 @@
-// container ghost card in modal
 .o_kanban_examples_dialog {
     .modal-body {
         padding: 0;
@@ -10,7 +9,6 @@
         --Notebook__link-border-color--hover: #{$border-color};
         --Notebook__link-border-top-color--active: #{$o-brand-primary};
 
-        // sidebar
         .nav-link.active {
             $o-btn-primary-theme-colors: map-get($o-btns-bs-override, "primary");
             background-color: map-get($o-btn-primary-theme-colors, "background");
@@ -23,7 +21,6 @@
             }
         }
 
-        // content
         .o_notebook_content {
             flex: 1 1 100%;
             min-height: 300px;
@@ -36,7 +33,6 @@
     }
 }
 
-// kanban ghost card
 .o_kanban_examples .o_kanban_examples_group .o_kanban_examples_ghost {
     &.o_collapse {
         margin-top: -1px;

@@ -9,8 +9,6 @@
     --hoot-spacing: 0.25rem;
 }
 
-/* Scrollbar */
-
 ::-webkit-scrollbar {
     width: 0.625rem;
     height: 0.625rem;
@@ -31,10 +29,6 @@
 :host(.dark) ::-webkit-scrollbar-track {
     background: var(--gray-700);
 }
-
-/*---------------------------------------------------------------------------*/
-/* CSS reset                                                                 */
-/*---------------------------------------------------------------------------*/
 
 *,
 *::before,
@@ -97,10 +91,6 @@ ul {
     padding: 0;
 }
 
-/*---------------------------------------------------------------------------*/
-/* Font awesome default size                                                 */
-/*---------------------------------------------------------------------------*/
-
 .fa {
     display: flex;
     justify-content: center;
@@ -108,12 +98,6 @@ ul {
     width: 0.75rem;
     height: 0.75rem;
 }
-
-/*---------------------------------------------------------------------------*/
-/* Components                                                                */
-/*---------------------------------------------------------------------------*/
-
-/* Panel */
 
 .hoot-controls {
     align-items: center;
@@ -164,8 +148,6 @@ ul {
     animation: animation-logo 1.2s ease-in-out;
 }
 
-/* Include widget */
-
 .hoot-include-widget input[type="radio"]:last-child::after {
     background-color: var(--_background, var(--gray));
     border-radius: 9999px;
@@ -190,8 +172,6 @@ ul {
     transform: translateX(200%);
 }
 
-/* "incentives" */
-
 .incentive {
     animation: animation-incentive-travel calc(var(--_fly-duration, 2000) * 1ms) linear;
     font-size: calc(var(--_size, 16) * 1px);
@@ -207,8 +187,6 @@ ul {
     display: inline-block;
 }
 
-/* Checkboxes & links */
-
 input[type="checkbox"]:checked {
     background-color: var(--primary);
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3e%3cpath fill='none' stroke='%23FFF' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M6 10l3 3l6-6'/%3e%3c/svg%3e");
@@ -220,10 +198,6 @@ input[type="checkbox"]:checked {
     background: var(--btn-bg-hover);
     color: var(--btn-text);
 }
-
-/*---------------------------------------------------------------------------*/
-/* Reporting                                                                 */
-/*---------------------------------------------------------------------------*/
 
 .hoot-result-detail {
     background: var(--bg-result);
@@ -289,12 +263,6 @@ input[type="checkbox"]:checked {
     color: var(--text-report-key);
 }
 
-/*---------------------------------------------------------------------------*/
-/* Utilities                                                                 */
-/*---------------------------------------------------------------------------*/
-
-/* Animations */
-
 .animate-slide-down {
     animation: animation-slide-down 0.1s ease-in-out;
 }
@@ -307,13 +275,9 @@ input[type="checkbox"]:checked {
     animation: animation-spin 1s linear infinite;
 }
 
-/* Appearance */
-
 .appearance-none {
     appearance: none;
 }
-
-/* Background: color */
 
 .bg-base {
     background-color: var(--bg);
@@ -465,8 +429,6 @@ input[type="checkbox"]:checked {
     background-color: var(--rose-900);
 }
 
-/* Border: color */
-
 .border-amber {
     border-color: var(--amber);
 }
@@ -513,8 +475,6 @@ input[type="checkbox"]:checked {
     border-color: var(--gray-600);
 }
 
-/* Border radius */
-
 .rounded-sm {
     border-radius: 0.125rem;
 }
@@ -524,8 +484,6 @@ input[type="checkbox"]:checked {
 .rounded-full {
     border-radius: 9999px;
 }
-
-/* Border width */
 
 .border-0 {
     border-width: 0;
@@ -603,16 +561,12 @@ input[type="checkbox"]:checked {
     border-bottom-width: 2px;
 }
 
-/* Cursor */
-
 .cursor-move {
     cursor: move;
 }
 .cursor-pointer {
     cursor: pointer;
 }
-
-/* Display */
 
 .block {
     display: block;
@@ -635,8 +589,6 @@ input[type="checkbox"]:checked {
 .inline-flex {
     display: inline-flex;
 }
-
-/* Flex */
 
 .flex-0 {
     flex: 0;
@@ -677,8 +629,6 @@ input[type="checkbox"]:checked {
     justify-content: center;
 }
 
-/* Font */
-
 .font-normal {
     font-weight: 400;
 }
@@ -692,8 +642,6 @@ input[type="checkbox"]:checked {
     font-style: italic;
 }
 
-/* Grid */
-
 .col-span-2 {
     grid-column: span 2 / span 2;
 }
@@ -703,8 +651,6 @@ input[type="checkbox"]:checked {
 .grid-rows-3 {
     grid-template-rows: repeat(3, minmax(0, 1fr));
 }
-
-/* Opacity */
 
 .opacity-0 {
     opacity: 0;
@@ -721,8 +667,6 @@ input[type="checkbox"]:checked {
 .opacity-100 {
     opacity: 1;
 }
-
-/* Overflow */
 
 .truncate {
     overflow: hidden;
@@ -760,14 +704,10 @@ input[type="checkbox"]:checked {
     overflow-y: scroll;
 }
 
-/* Outline */
-
 .outline-none {
     outline: 2px solid transparent;
     outline-offset: 2px;
 }
-
-/* Position: coordinates */
 
 .start-0 {
     inset-inline-start: 0;
@@ -791,8 +731,6 @@ input[type="checkbox"]:checked {
     bottom: 0;
 }
 
-/* Position: mode */
-
 .absolute {
     position: absolute;
 }
@@ -802,8 +740,6 @@ input[type="checkbox"]:checked {
 .relative {
     position: relative;
 }
-
-/* Resize */
 
 .resize-none {
     resize: none;
@@ -815,14 +751,10 @@ input[type="checkbox"]:checked {
     resize: vertical;
 }
 
-/* Shadow */
-
 .shadow {
     box-shadow: 2px 1px 5px 0 rgba(0, 0, 0, var(--shadow-opacity)),
         0 1px 2px -1px rgba(0, 0, 0, var(--shadow-opacity));
 }
-
-/* Sizing */
 
 .w-0 {
     width: 0;
@@ -977,8 +909,6 @@ input[type="checkbox"]:checked {
     max-height: 100%;
 }
 
-/* Spacing: gap */
-
 .gap-0 {
     gap: 0;
 }
@@ -1029,8 +959,6 @@ input[type="checkbox"]:checked {
 .gap-y-4 {
     row-gap: calc(var(--hoot-spacing) * 4);
 }
-
-/* Spacing: margin */
 
 .m-0 {
     margin: 0;
@@ -1160,8 +1088,6 @@ input[type="checkbox"]:checked {
     margin-bottom: calc(var(--hoot-spacing) * 4);
 }
 
-/* Spacing: padding */
-
 .p-0 {
     padding: 0;
 }
@@ -1290,13 +1216,9 @@ input[type="checkbox"]:checked {
     padding-bottom: calc(var(--hoot-spacing) * 4);
 }
 
-/* Text: alignment */
-
 .text-center {
     text-align: center;
 }
-
-/* Text: color */
 
 .text-base {
     color: var(--text);
@@ -1456,8 +1378,6 @@ input[type="checkbox"]:checked {
     color: var(--rose);
 }
 
-/* Text: decoration */
-
 .underline {
     text-decoration: underline;
 }
@@ -1470,8 +1390,6 @@ input[type="checkbox"]:checked {
 .hover\:underline:hover {
     text-decoration: underline;
 }
-
-/* Text: size */
 
 .text-xs {
     font-size: 0.625rem;
@@ -1486,16 +1404,12 @@ input[type="checkbox"]:checked {
     line-height: calc(var(--hoot-spacing) * 7);
 }
 
-/* Transform: rotate */
-
 .rotate-90 {
     transform: rotate(90deg);
 }
 .rotate-180 {
     transform: rotate(180deg);
 }
-
-/* Transitions */
 
 .transition {
     transition: 0.15s;
@@ -1504,19 +1418,13 @@ input[type="checkbox"]:checked {
     transition: color 0.15s, background-color 0.15s, border-color 0.15s;
 }
 
-/* User select */
-
 .select-none {
     user-select: none;
 }
 
-/* Whitespace */
-
 .whitespace-nowrap {
     white-space: nowrap;
 }
-
-/* Z-index */
 
 .z-1 {
     z-index: 1;
@@ -1530,8 +1438,6 @@ input[type="checkbox"]:checked {
 .z-4 {
     z-index: 4;
 }
-
-/* Media query modifiers */
 
 @media (min-width: 640px) {
     .sm\:block {
@@ -1595,7 +1501,6 @@ input[type="checkbox"]:checked {
     }
 }
 
-/* Other custom media queries */
 @media (max-width: 640px) {
     .hoot-controls {
         display: grid;
@@ -1616,10 +1521,6 @@ input[type="checkbox"]:checked {
         order: 99;
     }
 }
-
-/*---------------------------------------------------------------------------*/
-/* Keyframes                                                                 */
-/*---------------------------------------------------------------------------*/
 
 @keyframes animation-logo {
     10% {

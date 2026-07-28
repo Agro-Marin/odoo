@@ -33,7 +33,6 @@ test("PWA service fetches the manifest found in the page", async () => {
     expect.verifySteps(["/web/manifest.webmanifest"]);
     appManifest = await pwaService.getManifest();
     expect(appManifest).toEqual({ name: "Odoo PWA" });
-    // manifest is only fetched once to get the app name
     expect.verifySteps([]);
 });
 
@@ -80,8 +79,6 @@ test("PWA installation process", async () => {
 });
 
 test("Safari install prompt: dismissal persists on every dialog close path", async () => {
-    // Not mockUserAgent(): it appends the running browser's engine tokens
-    // ("Chrome/..."), which defeats the Safari detection.
     patchWithCleanup(browser, {
         navigator: {
             language: browser.navigator.language,
@@ -92,9 +89,6 @@ test("Safari install prompt: dismissal persists on every dialog close path", asy
     mockService("dialog", {
         add(_component, _props, options) {
             expect.step("dialog opened");
-            // Simulate a dismissal that bypasses the explicit close button
-            // (ESC, closeAll): the dialog service fires the onClose OPTION on
-            // every removal path — the pwa service must wire it there.
             options.onClose();
             return () => {};
         },
@@ -116,11 +110,8 @@ test("Safari install prompt: dismissal persists on every dialog close path", asy
 
 test("PWA service boots despite a corrupted installationState in localStorage", async () => {
     await makeMockEnv();
-    // A corrupted persisted value must not throw when parsed at service start,
-    // otherwise pwa (and every service depending on it) fails on every boot.
     browser.localStorage.setItem("pwaService.installationState", "{ not json");
     const pwaService = await getService("pwa");
-    // Service booted (start() ran to completion) despite the corrupted value.
     expect(typeof pwaService.getManifest).toBe("function");
     expect(pwaService.isAvailable).toBe(false);
 });

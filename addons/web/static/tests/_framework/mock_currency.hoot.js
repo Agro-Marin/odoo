@@ -1,7 +1,5 @@
 // @ts-check
 
-// ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
-
 import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
 
 /**
@@ -40,7 +38,5 @@ export function setupMockCurrencies(loader) {
         return;
     }
     onServerStateChange(currencyModule.currencies, makeCurrencies);
-    // Apply once at setup so eagerly-imported format helpers see populated
-    // currencies before the first beforeEach fires.
     Object.assign(currencyModule.currencies, makeCurrencies(serverState));
 }

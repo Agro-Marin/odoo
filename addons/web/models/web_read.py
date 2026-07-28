@@ -42,13 +42,6 @@ class Base(models.AbstractModel):
         """Search by name and return records formatted per *specification*."""
         id_name_pairs = self.name_search(name, domain, operator, limit)
         if len(specification) == 1 and "display_name" in specification:
-            # Batch-browse all IDs so singletons share one prefetch group,
-            # reducing N isolated field reads to 1 batched SQL query.
-            # ``.exists()`` so a record unlinked between name_search and this
-            # browse is dropped here rather than raising MissingError on the
-            # ``rec.display_name`` read below — which would 500 the whole RPC
-            # before the graceful ``formatted_map.get(id, name)`` fallback could
-            # apply.
             records = (
                 self.with_context(formatted_display_name=True)
                 .browse([id for id, _ in id_name_pairs])
@@ -59,10 +52,6 @@ class Base(models.AbstractModel):
                 {
                     "id": id,
                     "display_name": name,
-                    # Fall back to the name_search name if the record vanished
-                    # between name_search and this browse (concurrent unlink),
-                    # or display_name iteration skipped it — a missing key would
-                    # 500 the whole RPC instead of degrading gracefully.
                     "__formatted_display_name": formatted_map.get(id, name),
                 }
                 for id, name in id_name_pairs
@@ -83,16 +72,7 @@ class Base(models.AbstractModel):
         count_limit: int | None = None,
     ) -> dict[str, int | list]:
         """Search records and return them formatted per *specification*."""
-        # Unknown-field policy at the web boundary: screen the specification
-        # the same way ``web_read`` effectively tolerates stale names —
-        # ``read()`` drops unknown fields with a warning and web_read's
-        # relational loop skips them — so the response simply lacks that key.
-        # Without screening, ``_determine_fields_to_fetch`` below is strict
-        # and a single stale name in a cached view's spec 500s the whole call.
         specification = self._screen_fields_spec(specification)
-        # Build the search query once — domain processing + access rules.
-        # We retain the query to reuse its FROM/WHERE for the count,
-        # avoiding the overhead of a second _search() call.
         query = self._search(
             domain, offset=offset, limit=limit, order=order or self._order
         )
@@ -125,13 +105,7 @@ class Base(models.AbstractModel):
         """Wrap *records* with a length estimate for pager support."""
         if not records:
             if not offset:
-                # Genuinely empty result set.
                 return {"length": 0, "records": []}
-            # Empty page PAST the end of the result set — e.g. records were
-            # deleted under a user paged to offset > 0. Records still exist on
-            # earlier pages, so returning length 0 would collapse the pager and
-            # hide them. Compute the real count instead (reusing the data
-            # query's FROM/WHERE when available).
             if _query is not None:
                 length = _query.count_matching(count_limit)
             else:
@@ -145,8 +119,6 @@ class Base(models.AbstractModel):
             (limit_reached and not count_limit_reached) or force_search_count
         ):
             if _query is not None:
-                # Reuse the data query's FROM/WHERE — same joins, same
-                # filters — instead of rebuilding via search_count().
                 length = _query.count_matching(count_limit)
             else:
                 length = self.search_count(domain, limit=count_limit)
@@ -190,30 +162,7 @@ class Base(models.AbstractModel):
         """
         self._validate_web_save_vals(vals)
         if self:
-            # web_save supports a multi-record set: the list view mass-edit calls
-            # it with several ids (dynamic_list._multiSave -> webSave, non-x2many
-            # branch). Only the concurrency-checked paths below require a singleton.
             if known_values is not None:
-                # Disambiguate by SHAPE, not record count. The flat singleton
-                # form ``{field: baseline}`` has field names as keys; the
-                # per-record mass-edit form ``{id: {field: baseline}}`` has
-                # record ids. Keying off ``len(self) == 1`` misrouted a
-                # single-SELECTED-row list mass-edit — which always sends the
-                # per-record shape, even for one row (dynamic_list._multiSave) —
-                # into the singleton check, where the record-id key matches no
-                # field name so the guard silently no-opped and a concurrent
-                # edit was lost. Field names are identifiers and record ids are
-                # numeric, so key numericness separates the two shapes.
-                #
-                # Disambiguate on that numericness, NOT on ``k in self._fields``:
-                # the latter misroutes a *singleton* whose keys include a stale
-                # field name (an outdated cached form view still referencing a
-                # removed field) into the multi branch, where every field-name
-                # key fails ``int()`` coercion -> empty baselines -> the
-                # lost-update check silently no-ops and a concurrent edit is
-                # lost. Record ids are always numeric; field names never are, so
-                # this tolerates unknown field names, which the singleton check
-                # already skips (see ``_concurrency_checkable_fields``).
                 is_multi = known_values and all(
                     str(k).lstrip("-").isdigit() for k in known_values
                 )
@@ -222,42 +171,21 @@ class Base(models.AbstractModel):
                 else:
                     self._check_concurrent_field_changes_multi(vals, known_values)
             elif last_write_date and "write_date" in self._fields:
-                # Row-level write_date check reads ``self.id`` directly: this is a
-                # single-record (urgent sendBeacon) path, so enforce the singleton.
                 self.ensure_one()
-                # Read directly from DB to avoid ORM cache (which may be stale
-                # if another user's write happened in a different transaction).
                 self.env.cr.execute(
                     'SELECT write_date FROM "%s" WHERE id = %%s' % self._table,
                     (self.id,),
                 )
                 row = self.env.cr.fetchone()
                 server_write_date = row[0] if row else None
-                # to_datetime handles ISO strings with timezone offsets
-                # (e.g., "2026-03-19T16:09:18.000-06:00" from the JS
-                # client), converting to naive UTC automatically.
                 client_dt = FieldsDatetime.to_datetime(last_write_date)
-                # Normalize server side to naive UTC as well.
                 if server_write_date and getattr(server_write_date, "tzinfo", None):
                     server_write_date = server_write_date.replace(tzinfo=None)
-                # Truncate to seconds — the JS client sends write_date
-                # with .000 milliseconds, losing the microsecond precision
-                # that PostgreSQL stores.  Without this, the server value
-                # is always ~0-1s "newer" and every save triggers a false
-                # concurrency error.
                 if server_write_date:
                     server_write_date = server_write_date.replace(microsecond=0)
                 if client_dt:
                     client_dt = client_dt.replace(microsecond=0)
                 if server_write_date and client_dt and server_write_date > client_dt:
-                    # A stale read is deterministic, not a transient DB
-                    # conflict: retrying re-runs the request with the SAME
-                    # client write_date against a server write_date that only
-                    # moves forward, so it can never succeed. Raise UserError
-                    # (which retrying() does not catch) to fail fast and tell
-                    # the user to reload — NOT ConcurrencyError, whose upstream
-                    # contract marks it retryable, so retrying() would burn its
-                    # ~5x exponential backoff (~10-30s) before failing anyway.
                     raise UserError(
                         "This record was modified by another user.\n"
                         "Please reload and re-apply your changes."
@@ -270,10 +198,6 @@ class Base(models.AbstractModel):
             record = self.browse(next_id)
         return record.with_context(bin_size=True).web_read(specification)
 
-    # x2many commands whose second element is the id of an EXISTING database
-    # row (UPDATE/DELETE/UNLINK/LINK); SET carries its id list in the third
-    # element. CREATE's second element is a client-side placeholder (0 /
-    # virtual ref) that never reaches SQL, so it is exempt.
     _X2M_ROW_ID_COMMANDS = (
         Command.UPDATE,
         Command.DELETE,
@@ -328,7 +252,6 @@ class Base(models.AbstractModel):
                 else:
                     continue
                 for row_id in row_ids:
-                    # bool is an int subclass; True/False are not valid row ids.
                     if not isinstance(row_id, int) or isinstance(row_id, bool):
                         raise UserError(
                             self.env._(
@@ -340,13 +263,6 @@ class Base(models.AbstractModel):
                             )
                         )
 
-    # Only unambiguous primitives + many2one (compared by id) are concurrency-
-    # checkable. date/datetime are deliberately excluded: their client
-    # serialization (Luxon, tz/ms) vs the raw DB value risks a timezone-boundary
-    # mismatch — a *false* conflict, the very thing this check exists to avoid.
-    # jsonb-backed columns (translated / company-dependent fields) are excluded
-    # for the same reason: the raw DB value is a per-lang / per-company dict, not
-    # the scalar the client read. Excluded types fall through unchecked (fail open).
     _CONCURRENCY_SAFE_TYPES = frozenset(
         (
             "integer",
@@ -390,8 +306,6 @@ class Base(models.AbstractModel):
             new = self._coerce_concurrency_value(field, new_raw)
             return current not in (baseline, new)
         except Exception:
-            # Fail OPEN: any value we cannot safely coerce is treated as
-            # non-conflicting rather than risk a false positive.
             return False
 
     def _check_concurrent_field_changes(self, vals, known_values):
@@ -408,9 +322,6 @@ class Base(models.AbstractModel):
         ]
         if not names:
             return
-        # Read current values straight from the DB, bypassing the ORM cache
-        # (which may be stale w.r.t. a write committed by another transaction)
-        # — same rationale as the legacy write_date check.
         cols = ", ".join('"%s"' % n for n in names)
         self.env.cr.execute(
             'SELECT %s FROM "%s" WHERE id = %%s' % (cols, self._table),
@@ -442,7 +353,6 @@ class Base(models.AbstractModel):
         record, each carrying its OWN baseline). *known_values* is
         ``{id: {field: baseline}}``.
         """
-        # Same vals written to every record: map each id to that shared dict.
         self._check_concurrent_field_changes_records(
             dict.fromkeys(self.ids, vals), known_values
         )
@@ -473,17 +383,10 @@ class Base(models.AbstractModel):
         """
         if not vals_by_id:
             return
-        # Checkable fields are model-level (depend on the field TYPE, not the
-        # value), so the union of written keys covers a per-record vals that
-        # writes a field the others don't.
         all_keys = set().union(*(v.keys() for v in vals_by_id.values()))
         checkable = self._concurrency_checkable_fields(dict.fromkeys(all_keys))
         if not checkable:
             return
-        # JSON serializes integer dict keys as strings; normalize back to ints.
-        # ``known_values`` is client-supplied: skip any key that cannot be
-        # int-coerced rather than raise (a 500) — consistent with this check's
-        # documented fail-open contract.
         baselines = {}
         for rec_id, base in known_values.items():
             try:
@@ -491,8 +394,6 @@ class Base(models.AbstractModel):
             except TypeError, ValueError:
                 continue
         cols = ", ".join('"%s"' % n for n in checkable)
-        # ``= ANY(%s)`` with a list (psycopg3 adapts it to a Postgres array) —
-        # one bulk read for the whole set, no N+1.
         self.env.cr.execute(
             'SELECT id, %s FROM "%s" WHERE id = ANY(%%s)' % (cols, self._table),
             (list(self.ids),),
@@ -507,7 +408,7 @@ class Base(models.AbstractModel):
             baseline = baselines.get(rec_id)
             vals = vals_by_id.get(rec_id)
             if not baseline or not vals:
-                continue  # fail open: no baseline (or no vals) for this record
+                continue
             for name in checkable:
                 if name not in baseline or name not in vals:
                     continue
@@ -556,7 +457,6 @@ class Base(models.AbstractModel):
             return round(float(value), 6)
         if ftype == "boolean":
             return bool(value)
-        # char, text, selection
         return str(value)
 
     def web_save_multi(
@@ -589,16 +489,12 @@ class Base(models.AbstractModel):
         if known_values is not None:
             self._check_concurrent_field_changes_multi_list(vals_list, known_values)
 
-        # Group records sharing identical vals — one write() per group
-        # instead of one per record.  Preserves prefetch set via
-        # with_prefetch() so reads inside write() stay batched.
         groups: dict[frozenset, list[int]] = {}
         vals_by_key: dict[frozenset, dict] = {}
         for record, vals in zip(self, vals_list, strict=True):
             try:
                 key = frozenset(vals.items())
             except TypeError:
-                # Unhashable values (x2many commands) — write individually
                 record.write(vals)
                 continue
             if key not in groups:
@@ -625,11 +521,6 @@ class Base(models.AbstractModel):
         fields_to_read = list(specification) or ["id"]
 
         if set(fields_to_read) == {"id"}:
-            # id-only spec: ids are already known, so skip self.read()
-            # entirely — this also sidesteps the co-model's access rules,
-            # which may differ from self's. Normalize NewId → origin/False here
-            # too (as ``cleanup`` does for the read() path), so a recursive
-            # id-only sub-spec on unsaved records never leaks a raw NewId.
             values_list = [
                 {"id": (id_.origin or False) if isinstance(id_, NewId) else id_}
                 for id_ in self._ids
@@ -658,15 +549,10 @@ class Base(models.AbstractModel):
                             values[field_name] = values[field_name].origin or False
                     continue
 
-                # Normalize NewId → origin before sub-spec processing;
-                # NewId.__bool__ is False so they'd be excluded from co_ids
-                # but the `is False` guard below wouldn't catch them → KeyError.
                 for values in values_list:
                     if isinstance(values[field_name], NewId):
                         values[field_name] = values[field_name].origin or False
 
-                # Extract co-record IDs directly from already-fetched values
-                # instead of re-traversing the cache via self[field_name].
                 co_ids = OrderedSet(
                     vals[field_name] for vals in values_list if vals[field_name]
                 )
@@ -677,26 +563,7 @@ class Base(models.AbstractModel):
                 extra_fields = dict(field_spec["fields"])
                 extra_fields.pop("display_name", None)
 
-                # Drop co-records the user cannot read (record rules) *before*
-                # web_read, so a single restricted many2one target does not
-                # raise AccessError and abort the WHOLE parent read — the
-                # x2many branch below already does this; the many2one branch
-                # used to abort instead of degrading to a name-only fallback.
-                #
-                # display_name is read from this SAME accessible subset, NOT
-                # from ``co_records.sudo()``: reading the name of a target the
-                # user cannot see leaks record-rule-restricted data (e.g. a
-                # partner hidden by a multi-company rule is directly
-                # AccessError, yet its name would still surface here). A
-                # restricted target instead degrades to an empty value (the
-                # ``or False`` below), the same as any other unreadable m2o.
                 if co_records:
-                    # _filtered_access already returns an order-preserving
-                    # accessible subset, so no manual browse rebuild is needed.
-                    # active_test=False widens _filtered_access to also vet
-                    # archived targets; restore the original context before the
-                    # recursive read so the sub-spec never runs under a leaked
-                    # active_test=False (mirrors the x2many branch below).
                     readable_records = (
                         co_records.with_context(active_test=False)
                         ._filtered_access("read")
@@ -720,26 +587,18 @@ class Base(models.AbstractModel):
                     if values[field_name] is False:
                         continue
                     vals = many2one_data.get(values[field_name])
-                    # A target with no sub-field data (inaccessible, sub-fields
-                    # dropped) still resolves to at least its id/display_name.
-                    # ``or False`` so an inaccessible target with no display_name
-                    # yields False (empty m2o), matching every other empty path,
-                    # rather than None (JSON null).
                     values[field_name] = (vals and vals["id"] and vals) or False
 
             elif field.type in ("one2many", "many2many"):
                 if not field_spec:
                     continue
 
-                # Extract co-record IDs directly from already-fetched values
-                # instead of re-traversing the cache via self[field_name].
                 co_ids = OrderedSet(
                     id_ for vals in values_list for id_ in vals[field_name]
                 )
                 co_records = self.env[field.comodel_name].browse(co_ids)
 
                 if field_spec.get("order"):
-                    # Include the field's context when reapplying to preserve settings like active_test=False
                     field_context = field.context or {}
                     if not (
                         co_records
@@ -747,7 +606,6 @@ class Base(models.AbstractModel):
                             co_records._name, "read", raise_exception=False
                         )
                     ):
-                        # If the comodel is not readable, keep the x2many empty.
                         co_records = co_records.browse()
                     else:
                         try:
@@ -757,23 +615,8 @@ class Base(models.AbstractModel):
                                     [("id", "in", co_records.ids)],
                                     order=field_spec["order"],
                                 )
-                                # Reapply the original RPC context (dropping the
-                                # active_test=False used only for the search),
-                                # then layer the field's own context on top.
-                                # Positional dict + kwargs so a key present in
-                                # BOTH (e.g. active_test on res.partner.child_ids)
-                                # is OVERRIDDEN by field_context, not passed twice
-                                # — the **env.context/**field_context double-splat
-                                # raised TypeError on any shared key.
                                 .with_context(co_records.env.context, **field_context)
                             )
-                        # Degrade to an empty list on any failure the ordered
-                        # search can raise: AccessError/UserError (model rejects
-                        # the search, e.g. account.code.mapping) OR ValueError (a
-                        # client ``order`` spec on a non-stored field — "Cannot
-                        # convert to SQL because it is not stored"). Letting the
-                        # ValueError escape would 500 the whole parent read,
-                        # while the sibling failure modes here already degrade.
                         except AccessError, UserError, ValueError:
                             co_records = co_records.browse()
                     order_key = {
@@ -781,9 +624,6 @@ class Base(models.AbstractModel):
                         for index, co_record in enumerate(co_records)
                     }
                     for values in values_list:
-                        # Keep only ids present in order_key: drops both
-                        # inaccessible co-records and any stale ids left over
-                        # from cache reuse across records.
                         values[field_name] = [
                             id_ for id_ in values[field_name] if id_ in order_key
                         ]
@@ -791,14 +631,6 @@ class Base(models.AbstractModel):
                             values[field_name], key=order_key.__getitem__
                         )
                 elif "fields" in field_spec:
-                    # Drop co-records the user cannot read (record rules) *before*
-                    # web_read, so a single restricted co-record does not raise
-                    # AccessError and abort the whole read. The ``order`` branch
-                    # above gets this filtering for free via ``search``; this
-                    # branch must do it explicitly. Only filter when the comodel
-                    # is readable at all; otherwise keep the relation ids
-                    # unchanged (e.g. hr.employee referenced from hr.appraisal for
-                    # a base.group_user).
                     if co_records and co_records.env["ir.model.access"].check(
                         co_records._name, "read", raise_exception=False
                     ):
@@ -844,31 +676,20 @@ class Base(models.AbstractModel):
 
                 values_by_id = {vals["id"]: vals for vals in values_list}
                 has_sub_fields = "fields" in field_spec
-                # Non-trivial sub-fields let us infer existence from
-                # web_read results (id-only spec short-circuits without
-                # hitting the DB, so it cannot detect deleted records).
                 can_infer_existence = has_sub_fields and any(
                     fname != "id" for fname in field_spec["fields"]
                 )
 
-                # --- First pass: collect co-records grouped by model ---
-                # Field values are already in cache from the earlier
-                # self.read(), so record[field_name] is free.
-                co_by_model = defaultdict(list)  # model → [(record_id, co_id)]
+                co_by_model = defaultdict(list)
                 for record in self:
                     if record.id not in values_by_id:
-                        # Concurrently unlinked between self.read() and here: it
-                        # never entered values_list, so there is no row to
-                        # annotate. Every downstream ``values_by_id[record.id]``
-                        # (including the many2one_reference reset below and the
-                        # second pass) would otherwise KeyError.
                         continue
                     if not record[field_name]:
                         continue
                     if field.type == "reference":
                         co_rec = record[field_name]
                         co_by_model[co_rec._name].append((record.id, co_rec.id))
-                    else:  # many2one_reference
+                    else:
                         if not record[field.model_field]:
                             values_by_id[record.id][field_name] = False
                             continue
@@ -876,7 +697,6 @@ class Base(models.AbstractModel):
                             (record.id, record[field_name])
                         )
 
-                # --- Batch web_read / exists() per model ---
                 for model_name, pairs in co_by_model.items():
                     co_ids = list({co_id for _, co_id in pairs})
                     CoModel = self.env[model_name]
@@ -892,7 +712,6 @@ class Base(models.AbstractModel):
                                 for d in co_recordset.web_read(field_spec["fields"])
                             }
                         except AccessError:
-                            # Per-record fallback: some records may be accessible
                             for co_id in co_ids:
                                 try:
                                     result = CoModel.browse(co_id).web_read(
@@ -935,10 +754,8 @@ class Base(models.AbstractModel):
 
                 prop_ctx = field_spec.get("context")
 
-                # --- Collect all property co-record IDs for batching ---
-                # Key: (comodel, property_name) → set of co-record IDs
                 batch_ids: dict[tuple[str, str], set[int]] = defaultdict(set)
-                batch_specs: dict[str, dict] = {}  # property_name → spec['fields']
+                batch_specs: dict[str, dict] = {}
 
                 for values in values_list:
                     for property_name, spec in field_spec["fields"].items():
@@ -963,7 +780,6 @@ class Base(models.AbstractModel):
                                 r[0] for r in prop["value"]
                             )
 
-                # --- Batch web_read per (comodel, property_name) ---
                 co_data: dict[tuple[str, str], dict[int, dict]] = {}
                 for (comodel, prop_name), ids in batch_ids.items():
                     co_records = (
@@ -973,7 +789,6 @@ class Base(models.AbstractModel):
                         d["id"]: d for d in co_records.web_read(batch_specs[prop_name])
                     }
 
-                # --- Distribute results ---
                 for values in values_list:
                     old_values = values[field_name]
                     next_values = []
@@ -991,9 +806,6 @@ class Base(models.AbstractModel):
                             if prop.get("type") == "many2one":
                                 co_id = prop["value"][0]
                                 if co_id in data:
-                                    # prop["value"] must stay a list; replace its
-                                    # plain [id, display_name] with the full
-                                    # web_read dict, still wrapped in a list.
                                     prop["value"] = [data[co_id]]
                             elif prop.get("type") == "many2many":
                                 prop["value"] = [
@@ -1036,15 +848,6 @@ class Base(models.AbstractModel):
 
         field = self._fields[field_name]
 
-        # Fast path eligibility. The cache-dirty path below skips ``write()``
-        # entirely, so it is only correct when nothing observes the write:
-        #   - the model must not override ``write`` (guards, tracking, cache
-        #     invalidation all live inside it);
-        #   - the field must be a plain stored Integer with no ``inverse``
-        #     (an inverse must run) and no ``compute`` (computed fields are not
-        #     written this way).
-        # Otherwise fall back to per-record ``write()`` so overrides, inverses
-        # and mail tracking all fire — same semantics as a manual edit.
         fast_path = (
             type(self).write is models.BaseModel.write
             and field.store
@@ -1058,23 +861,18 @@ class Base(models.AbstractModel):
                 record.write({field_name: i})
             return self.web_read(specification)
 
-        # Access checks — once for all records instead of once per write()
         self.check_access("write")
         self._check_field_access(field, "write")
 
-        # Set log-access fields once on the full recordset
         if self._log_access:
             self._fields["write_uid"].mark_dirty(self, self.env.uid)
             self._fields["write_date"].mark_dirty(self, self.env.cr.now())
 
-        # Mark each record's sequence value as dirty (cache-only, no SQL yet)
         for i, record in enumerate(self, start=offset):
             field.mark_dirty(record, i)
 
-        # Trigger recomputation of dependent fields — once for all records
         self.modified([field_name])
 
-        # Validate constraints — once for all records
         self._validate_fields([field_name])
 
         if self._check_company_auto:

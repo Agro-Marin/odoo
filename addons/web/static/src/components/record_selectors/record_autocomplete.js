@@ -61,9 +61,6 @@ export class RecordAutocomplete extends Component {
             label ? label.split("\n")[0] : _t("Unnamed"),
         ]);
         this.addNames(nameGets);
-        // One extra record is fetched only to know whether more results exist:
-        // never display it, else exactly SEARCH_LIMIT + 1 matches would show a
-        // false "Search More...".
         const options = nameGets.slice(0, SEARCH_LIMIT).map(([id, label]) => ({
             data: {
                 record: { id, display_name: label },
@@ -105,7 +102,6 @@ export class RecordAutocomplete extends Component {
                   },
               ]
             : undefined;
-        // fine for now but we don't like this kind of dependence of core to views
         const SelectCreateDialog = registry.category("dialogs").get("select_create");
         let title = _t("Search");
         if (fieldString && fieldString.trim()) {

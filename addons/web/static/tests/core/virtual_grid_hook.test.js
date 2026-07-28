@@ -25,18 +25,12 @@ const ITEM_STYLE = objectToStyle({
     position: "absolute",
     "background-color": "white",
 });
-const CONTAINER_HEIGHT = 5 * ITEM_HEIGHT; // 5 rows
-const CONTAINER_WIDTH = 10 * ITEM_WIDTH; // 10 columns
+const CONTAINER_HEIGHT = 5 * ITEM_HEIGHT;
+const CONTAINER_WIDTH = 10 * ITEM_WIDTH;
 const CONTAINER_STYLE = objectToStyle({
-    // Track the fixture size, which hoot's `resize()` drives: the hook now
-    // measures the scrollable's OWN client box (not the window), so resizing
-    // the mocked window must genuinely resize the scrollable for the resize
-    // tests to exercise the recompute.
     height: "100%",
     width: "100%",
     overflow: "auto",
-    // Keep clientWidth/Height exactly equal to the configured size (classic
-    // scrollbars would otherwise subtract an environment-dependent gutter).
     "scrollbar-width": "none",
     position: "relative",
     "background-color": "lightblue",
@@ -114,8 +108,6 @@ function getTestComponent(virtualGridParams) {
 beforeEach(async () => {
     patchWithCleanup(localization, { direction: "ltr" });
 
-    // Set the window size to the scrollable's, so it has a measurable size
-    // regardless of the actual test window size.
     await resize({ height: CONTAINER_HEIGHT, width: CONTAINER_WIDTH });
 });
 
@@ -124,13 +116,11 @@ test("basic usage", async () => {
     expect(comp.virtualGrid.rowsIndexes).toEqual([0, 9]);
     expect(comp.virtualGrid.columnsIndexes).toEqual([0, 19]);
 
-    // scroll to the middle
     await scroll(".scrollable", { top: MAX_SCROLL_TOP / 2, left: MAX_SCROLL_LEFT / 2 });
     await animationFrame();
     expect(comp.virtualGrid.rowsIndexes).toEqual([92, 107]);
     expect(comp.virtualGrid.columnsIndexes).toEqual([85, 114]);
 
-    // // scroll to bottom right
     await scroll(".scrollable", { top: MAX_SCROLL_TOP, left: MAX_SCROLL_LEFT });
     await animationFrame();
     expect(comp.virtualGrid.rowsIndexes).toEqual([190, 199]);
@@ -138,9 +128,6 @@ test("basic usage", async () => {
 });
 
 test("visible span derives from the scrollable pane, not the window", async () => {
-    // Window 4x larger than the pane: the rendered window must be sized by
-    // the pane's client box. The old window-based span would return
-    // [0, 39] / [0, 79] here (~4x the needed DOM).
     await resize({ height: CONTAINER_HEIGHT * 4, width: CONTAINER_WIDTH * 4 });
     class C extends Component {
         static template = xml`
@@ -171,13 +158,11 @@ test("updates on resize", async () => {
     expect(comp.virtualGrid.rowsIndexes).toEqual([0, 9]);
     expect(comp.virtualGrid.columnsIndexes).toEqual([0, 19]);
 
-    // resize the window
     await resize({ height: CONTAINER_HEIGHT / 2, width: CONTAINER_WIDTH / 2 });
     await runAllTimers();
     expect(comp.virtualGrid.rowsIndexes).toEqual([0, 4]);
     expect(comp.virtualGrid.columnsIndexes).toEqual([0, 9]);
 
-    // resize the window
     await resize({ height: CONTAINER_HEIGHT * 2, width: CONTAINER_WIDTH * 2 });
     await runAllTimers();
     expect(comp.virtualGrid.rowsIndexes).toEqual([0, 19]);
@@ -291,39 +276,32 @@ test("onChange", async () => {
     const comp = await mountWithCleanup(C);
     expect.verifySteps([]);
 
-    // onChange is called on scroll
     await scroll(".scrollable", { top: MAX_SCROLL_TOP / 2, left: MAX_SCROLL_LEFT / 2 });
     await animationFrame();
     expect.verifySteps([{ columnsIndexes: [85, 114], rowsIndexes: [92, 107] }]);
-    // but it is not if the scroll is too small
     await scroll(".scrollable", {
         top: MAX_SCROLL_TOP / 2 + Number.EPSILON,
         left: MAX_SCROLL_LEFT / 2 + Number.EPSILON,
     });
     await animationFrame();
     expect.verifySteps([]);
-    // it can also receive the changed indexes of a single direction
     await scroll(".scrollable", { top: MAX_SCROLL_TOP });
     await animationFrame();
     expect.verifySteps([{ rowsIndexes: [190, 199] }]);
 
-    // onChange is called on resize
     await resize({ height: CONTAINER_HEIGHT / 2, width: CONTAINER_WIDTH / 2 });
     await runAllTimers();
     expect.verifySteps([{ columnsIndexes: [90, 104], rowsIndexes: [192, 199] }]);
-    // but it is not if the resize is too small
     await resize({
         height: CONTAINER_HEIGHT / 2 + Number.EPSILON,
         width: CONTAINER_WIDTH / 2 + Number.EPSILON,
     });
     await runAllTimers();
     expect.verifySteps([]);
-    // it can also receive the changed indexes of a single direction
     await resize({ width: CONTAINER_WIDTH * 2 });
     await runAllTimers();
     expect.verifySteps([{ columnsIndexes: [75, 134] }]);
 
-    // onChange is not called when setting rows or columns sizes
     const actualGrid = [comp.virtualGrid.rowsIndexes, comp.virtualGrid.columnsIndexes];
     comp.virtualGrid.setRowsHeights([1, 2, 3]);
     comp.virtualGrid.setColumnsWidths([1, 2, 3]);
@@ -347,19 +325,67 @@ test("when scrolling to the bottom right then updating to smaller rows and colum
 });
 
 test("horizontal scroll in RTL", async () => {
-    // Applied styles aren't adapted to RTL when debugging — still valid since
-    // we only assert the returned indexes, not layout.
     patchWithCleanup(localization, { direction: "rtl" });
     const comp = await mountWithCleanup(getTestComponent());
     expect(comp.virtualGrid.columnsIndexes).toEqual([0, 19]);
 
-    // scroll to the middle
     await scroll(".scrollable", { left: -MAX_SCROLL_LEFT / 2 });
     await animationFrame();
     expect(comp.virtualGrid.columnsIndexes).toEqual([85, 114]);
 
-    // scroll to left
     await scroll(".scrollable", { left: -MAX_SCROLL_LEFT });
     await animationFrame();
     expect(comp.virtualGrid.columnsIndexes).toEqual([180, 199]);
+});
+
+/**
+ * Windowing has no exact fixpoint: the indexes come from the scroll position,
+ * rendering them changes the scrollable height, and at a scroll extremity the
+ * browser clamps the position back — so a ~1px disagreement between assumed and
+ * laid-out sizes becomes a permanent, animation-frame-rate limit cycle. Measured
+ * in a real 260-row list view: 118 renders per idle second, alternating between
+ * two windows one row apart. The deadband is what makes the mapping stable under
+ * the jitter it causes.
+ */
+test("sub-deadband scroll jitter does not recompute the window", async () => {
+    let changes = 0;
+    const comp = await mountWithCleanup(
+        getTestComponent({ onChange: () => changes++ }),
+    );
+
+    await scroll(".scrollable", { top: MAX_SCROLL_TOP });
+    await animationFrame();
+    const settled = comp.virtualGrid.rowsIndexes;
+    changes = 0;
+
+    // The clamp oscillation: the position bounces by 1px, forever.
+    for (let i = 0; i < 10; i++) {
+        await scroll(".scrollable", { top: MAX_SCROLL_TOP - (i % 2) });
+        await animationFrame();
+    }
+
+    expect(changes).toBe(0);
+    expect(comp.virtualGrid.rowsIndexes).toEqual(settled);
+});
+
+test("scroll accumulating past the deadband still recomputes", async () => {
+    let changes = 0;
+    const comp = await mountWithCleanup(
+        getTestComponent({ onChange: () => changes++ }),
+    );
+
+    await scroll(".scrollable", { top: 0 });
+    await animationFrame();
+    const before = comp.virtualGrid.rowsIndexes;
+    changes = 0;
+
+    // Each step is under the deadband, but they accumulate away from the
+    // position the window was computed at, so the window must follow.
+    for (let top = 3; top <= 120; top += 3) {
+        await scroll(".scrollable", { top });
+        await animationFrame();
+    }
+
+    expect(changes).toBeGreaterThan(0);
+    expect(comp.virtualGrid.rowsIndexes).not.toEqual(before);
 });

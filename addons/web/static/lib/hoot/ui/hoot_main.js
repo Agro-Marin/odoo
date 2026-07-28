@@ -17,17 +17,8 @@ import { HootStatusPanel } from "./hoot_status_panel.js";
  * }} HootMainProps
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const { setTimeout } = globalThis;
 
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
-
-// Indenpendant from Hoot style classes since it is not loaded in headless
 const HEADLESS_CONTAINER_STYLE = [
     "position: absolute",
     "bottom: 0",
@@ -47,10 +38,6 @@ const HEADLESS_CONTAINER_STYLE = [
     "background-color: #e2e8f0",
 ].join(";");
 const HEADLESS_LINK_STYLE = ["color: #a855f7", "text-decoration: underline"].join(";");
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /** @extends {Component<HootMainProps, import("../hoot").Environment>} */
 export class HootMain extends Component {

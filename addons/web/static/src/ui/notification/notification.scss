@@ -1,7 +1,3 @@
-// Colors of the notification are not managed by this file.
-// It is handled by the other classes defining a background. (like danger, warning, etc.)
-// The notification just add overlays.
-
 .o_notification_manager {
     position: fixed;
     inset: ($o-navbar-height * 1.15) $o-notification-margin auto $o-notification-margin;
@@ -36,16 +32,18 @@
     bottom: 0;
     left: 0;
     height: 3px;
-    width: 0;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left;
 }
 
-// Auto-close progress: driven by CSS instead of per-frame JS width writes;
-// duration is set inline by Notification.startNotificationTimer().
+// Scaled rather than resized: the bar animates for the whole autoclose delay,
+// and a width animation relayouts the notification on every frame.
 @keyframes o-notification-progress {
     from {
-        width: 100%;
+        transform: scaleX(1);
     }
     to {
-        width: 0;
+        transform: scaleX(0);
     }
 }

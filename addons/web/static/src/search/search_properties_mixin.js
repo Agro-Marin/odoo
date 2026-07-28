@@ -59,8 +59,6 @@ export const SearchPropertiesMixin = (Base) =>
                     }
                     const existingSearchItem = existingFieldProperties[definition.name];
                     if (existingSearchItem) {
-                        // Already in the list (e.g. unfold properties, edit in a form,
-                        // come back): the label may have changed, so refresh it.
                         existingSearchItem.description = `${definition.string} (${definitionRecordName})`;
                         searchItemIds.add(existingSearchItem.id);
                         continue;
@@ -86,9 +84,27 @@ export const SearchPropertiesMixin = (Base) =>
                 }
             }
 
-            // Items were created/updated outside a query cycle: invalidate the
-            // enriched search items memo before reading it back.
+            // A definition deleted on the parent record leaves its search item
+            // behind, and an active one keeps contributing its clause to the
+            // effective domain — the user goes on searching a property that no
+            // longer exists. `_fillPropertyFieldSearchItems` already retires
+            // vanished group-bys; do the same for the field_property items.
+            const staleIds = Object.values(existingFieldProperties)
+                .filter((item) => !searchItemIds.has(item.id))
+                .map((item) => item.id);
+            for (const id of staleIds) {
+                delete this.searchItems[id];
+            }
             this._enrichedSearchItems = null;
+            if (staleIds.length) {
+                const queryLength = this.query.length;
+                this.query = this.query.filter(
+                    (queryElem) => !staleIds.includes(queryElem.searchItemId),
+                );
+                if (this.query.length !== queryLength) {
+                    this._notify();
+                }
+            }
             return this.getSearchItems((searchItem) =>
                 searchItemIds.has(searchItem.id),
             );
@@ -97,6 +113,14 @@ export const SearchPropertiesMixin = (Base) =>
         /**
          * Lazily populate search view items for properties fields: fetch definitions
          * via RPC, create group-by items for each, register them in searchViewFields.
+         *
+         * Concurrent calls for one field share a single fetch, but the entry is
+         * dropped once it settles rather than memoised for the model's lifetime:
+         * definitions live on the parent record and change under us (a property
+         * added, renamed or deleted), and `_fillPropertyFieldSearchItems` is
+         * idempotent, so re-running it is how those changes reach the Group By
+         * menu. The only call site is one dropdown open, so this costs at most
+         * one RPC per open.
          */
         async fillSearchViewItemsProperty() {
             if (!this.searchViewFields) {
@@ -105,33 +129,23 @@ export const SearchPropertiesMixin = (Base) =>
 
             const fields = Object.values(this.searchViewFields);
 
-            // One PropertiesGroupByItem component exists per properties field, and
-            // each calls this (unscoped) routine once on first open. Without a
-            // cross-call guard, N components x N fields => N^2 property-definition
-            // RPCs. Memoize the in-flight/settled fill promise per properties field
-            // on the SearchModel instance so each field is fetched and turned into
-            // search items at most once, regardless of how many components trigger
-            // the fill — and so a caller that arrives while a fill is still in flight
-            // awaits the SAME load instead of returning early with zero items (which
-            // would latch an empty Properties group-by for the session). A failed
-            // fill is evicted from the memo so a later open can retry.
             /** @type {Map<string, Promise<void>>} */
-            const filledPropertyFields = (this._filledPropertyFields ??= new Map());
+            const inFlight = (this._filledPropertyFields ??= new Map());
 
             const proms = [];
             for (const field of fields) {
                 if (field.type !== "properties") {
                     continue;
                 }
-                let prom = filledPropertyFields.get(field.name);
+                let prom = inFlight.get(field.name);
                 if (!prom) {
                     prom = this._fillPropertyFieldSearchItems(field);
-                    prom.catch(() => {
-                        if (filledPropertyFields.get(field.name) === prom) {
-                            filledPropertyFields.delete(field.name);
+                    prom.catch(() => {}).finally(() => {
+                        if (inFlight.get(field.name) === prom) {
+                            inFlight.delete(field.name);
                         }
                     });
-                    filledPropertyFields.set(field.name, prom);
+                    inFlight.set(field.name, prom);
                 }
                 proms.push(prom);
             }
@@ -163,7 +177,6 @@ export const SearchPropertiesMixin = (Base) =>
                 definitionRecordName,
                 definitions,
             } of result) {
-                // some properties might have been deleted
                 const groupNames = definitions.map(
                     (definition) => `group_by_${field.name}.${definition.name}`,
                 );
@@ -174,15 +187,11 @@ export const SearchPropertiesMixin = (Base) =>
                         ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
                         !groupNames.includes(searchItem.name)
                     ) {
-                        // Can't just remove the element (index doubles as id); retype
-                        // it instead so it's hidden everywhere until the user refreshes.
                         searchItem.type = "group_by_property_deleted";
                     }
                 });
 
                 for (const definition of definitions) {
-                    // Register a fake "field" definition in searchViewFields (type,
-                    // string, etc.) keyed as "<properties field name>.<property name>".
                     const fullName = `${field.name}.${definition.name}`;
                     this.searchViewFields[fullName] = {
                         name: fullName,
@@ -220,9 +229,6 @@ export const SearchPropertiesMixin = (Base) =>
                 }
             }
 
-            // Items may have been soft-deleted (retyped to "group_by_property_deleted")
-            // above without going through _createGroupOfSearchItems: invalidate the
-            // memo so the Group By menu doesn't list them from a stale snapshot.
             this._enrichedSearchItems = null;
         }
 
@@ -235,11 +241,8 @@ export const SearchPropertiesMixin = (Base) =>
          */
         async _fetchPropertiesDefinition(resModel, fieldName) {
             const domain = [];
-            // Read the raw memoized context (the public `context` getter deep-copies
-            // on every access); only `active_id` is read here.
             const activeId = this._rawContext.active_id;
             if (activeId) {
-                // Assume the active id is the definition record; show only its properties.
                 domain.push(["id", "=", activeId]);
             }
 

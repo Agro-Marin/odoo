@@ -54,8 +54,6 @@ export function makeEditHandlers(nav, tableRef, options) {
             if (index === -1 && !forward) {
                 orderedColumns = columns.toReversed();
             } else {
-                // No requested column and forward: start the search at the
-                // first column (index -1 would otherwise start at the last).
                 const startIndex = index === -1 ? 0 : index;
                 orderedColumns = [
                     ...columns.slice(startIndex, columns.length),
@@ -245,9 +243,6 @@ export function makeEditHandlers(nav, tableRef, options) {
                                 list.leaveEditMode();
                                 return false;
                             }
-                            // `controls` merges create, delete and button
-                            // controls in arch order: resolve the create
-                            // control explicitly instead of assuming index 0.
                             const create = getControls().find(
                                 (control) => control.type === "create",
                             );
@@ -312,14 +307,6 @@ export function makeEditHandlers(nav, tableRef, options) {
                 }
                 case "escape": {
                     list.leaveEditMode({ discard: true });
-                    // Discarding a NEW row detaches its <tr> (and ``cell``) on the
-                    // next render; focus then falls to <body>, breaking keyboard
-                    // navigation (nav.focus on the doomed cell is a no-op — the
-                    // removal is async, so it is still connected right now). Focus
-                    // a SURVIVING data row's cell instead — one that is not the
-                    // row being discarded — so focus stays in the grid after the
-                    // render. An existing-record discard keeps its row, so ``cell``
-                    // survives and is used as-is.
                     const focusCellOrFallback = () => {
                         if (!record.isNew) {
                             nav.focus(cell);

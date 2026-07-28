@@ -32,9 +32,6 @@ test(`mount a CalendarYearRenderer`, async () => {
     await start();
     expect(`.fc-month-container`).toHaveCount(12);
 
-    // v7 emits a single chunk per configured section (center: "title"); v6
-    // also emitted placeholder start/end chunks, making the title chunk
-    // ``:nth-child(2)``.
     expect(`.fc-toolbar-chunk .fc-toolbar-title`).toHaveCount(12);
     expect(queryAllTexts`.fc-toolbar-chunk .fc-toolbar-title`).toEqual([
         "January 2021",
@@ -62,7 +59,6 @@ test(`mount a CalendarYearRenderer`, async () => {
         "S",
     ]);
 
-    // check showNonCurrentDates
     expect(`:not(.fc-day-disabled) > * > * > .fc-daygrid-day-number`).toHaveCount(365);
 });
 
@@ -128,9 +124,6 @@ test(`select a range of date`, async () => {
 });
 
 test(`display correct column header for days, independent of the timezone`, async () => {
-    // Regression test: when the system tz is somewhere in a negative GMT (in our example Alaska)
-    // the day headers of a months were incorrectly set. (S S M T W T F) instead of (S M T W T F S)
-    // if the first day of the week is Sunday.
     mockTimeZone(-9);
     await start();
     expect(queryAllTexts`.fc-month:eq(0) .fc-col-header-cell`).toEqual([
@@ -150,16 +143,10 @@ test("remove row when no day of current month", async () => {
 });
 
 test("per-month anchor is offset-less so it doesn't drift in a fixed-offset zone", async () => {
-    // In a fixed-offset ("marker") zone, an offset-bearing anchor ISO would be
-    // re-derived by FullCalendar and land on the previous day, mis-anchoring the
-    // mini month (the year view previously used ``date.toISO()``). The anchor
-    // must be emitted as bare wall-clock time, exactly like CalendarCommonRenderer.
     mockTimeZone(2);
     const renderer = await start();
-    // FAKE_MODEL.date is 2021-07-16T08:00:00.
     expect(renderer.getDateWithMonth("July")).toBe("2021-07-16T08:00:00");
     expect(renderer.getDateWithMonth("January")).toBe("2021-01-16T08:00:00");
-    // No trailing offset or Z suffix on the base initialDate either.
     expect(renderer.options.initialDate).toBe("2021-07-16T08:00:00");
 });
 
@@ -171,12 +158,9 @@ test("a window resize updates the view height with a single layout pass", async 
         },
     });
     const renderer = await start();
-    // Mount: one sizing pass from the render effect.
     expect.verifySteps(["updateSize"]);
     await resize({ height: 500 });
     await runAllTimers();
-    // One resize event = one layout update (the root height is shared by all
-    // 12 mini calendars; there used to be a 12x fan-out of identical calls).
     expect.verifySteps(["updateSize"]);
     expect(renderer.rootRef.el.style.height).toBe(
         `${window.innerHeight - renderer.rootRef.el.getBoundingClientRect().top}px`,

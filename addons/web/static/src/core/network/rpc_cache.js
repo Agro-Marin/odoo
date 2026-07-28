@@ -16,11 +16,17 @@ import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
  * update?: "once" | "always";
  * immutable?: boolean;
  * model?: string;
+ * silent?: boolean;
  * }} RPCCacheSettings
  *
  * ``model`` (e.g. ``"res.partner"``) joins the entry to a per-table
  * model→keys reverse index, making ``invalidateByModel`` O(1) instead of
  * scanning + parsing every key.
+ *
+ * ``silent`` applies only to a BACKGROUND refresh that fails while a cached
+ * value was already served (``update: "always"``): the stale value stands, and
+ * the connection error is reported on ``rpcBus`` only, instead of also being
+ * re-thrown for the global unhandled-rejection handler to surface.
  */
 
 /**
@@ -107,9 +113,6 @@ function validateSettings(
  */
 function deepFreeze(value) {
     if (value && typeof value === "object" && !Object.isFrozen(value)) {
-        // TS narrows ``value`` to ``object``, which isn't string-indexable;
-        // cast to a string-indexed record so the recursion typechecks
-        // (runtime behavior is unchanged).
         const indexable = /** @type {Record<string, unknown>} */ (value);
         for (const key of Object.keys(indexable)) {
             deepFreeze(indexable[key]);
@@ -120,7 +123,7 @@ function deepFreeze(value) {
 }
 
 const CRYPTO_ALGO = "AES-GCM";
-const MAX_STORAGE_SIZE = 2 * 1024 * 1024 * 1024; // 2Gb
+const MAX_STORAGE_SIZE = 2 * 1024 * 1024 * 1024;
 
 /**
  * Max number of live entries in the in-memory RAM cache before the
@@ -161,7 +164,6 @@ class Crypto {
      */
     async encrypt(value) {
         await this._ready;
-        // The iv must never be reused with a given key.
         const iv = window.crypto.getRandomValues(new Uint8Array(12));
         const ciphertext = await window.crypto.subtle.encrypt(
             {
@@ -169,7 +171,7 @@ class Crypto {
                 iv,
             },
             this._cryptoKey,
-            new TextEncoder().encode(JSON.stringify(value)), // encoded Data
+            new TextEncoder().encode(JSON.stringify(value)),
         );
         return { ciphertext, iv };
     }
@@ -196,20 +198,9 @@ class Crypto {
 class RamCache {
     constructor() {
         this.ram = Object.create(null);
-        // Per-table reverse index: model → Set<key>, kept in sync by
-        // write/delete/invalidate so invalidateByModel is O(1) lookup +
-        // O(matched) delete instead of O(table size) (~2,000× faster on a
-        // 1000-entry table).
         this.modelIndex = Object.create(null);
-        // Per-table key → model map, so delete(table, key) finds which Set
-        // to remove from without the caller re-supplying the model. Kept
-        // off the hot read() path to avoid a property-access tax.
         this.keyModel = Object.create(null);
         // Global LRU order across ALL (table, key) pairs: a Map keyed by the
-        // composite ``table\x00key`` whose insertion order IS the recency
-        // order (first = coldest), value ``[table, key]`` for O(1) eviction.
-        // ``\x00`` can't appear in a method-name/URL table nor in a
-        // JSON-serialised key (control chars are ``\uXXXX``-escaped).
         /** @type {Map<string, [string, string]>} */
         this.lru = new Map();
     }
@@ -252,9 +243,6 @@ class RamCache {
             this.modelIndex[table] = new Map();
             this.keyModel[table] = Object.create(null);
         }
-        // Track previous model so overwriting the same key with a different
-        // model (rare, but possible) cleans up the old index entry, pruning
-        // the model→Set when it becomes empty.
         const prevModel = this.keyModel[table][key];
         if (prevModel && prevModel !== model) {
             const prevSet = this.modelIndex[table].get(prevModel);
@@ -275,8 +263,6 @@ class RamCache {
         } else if (prevModel) {
             delete this.keyModel[table][key];
         }
-        // LRU bookkeeping last, so a fresh write is the warmest and eviction
-        // targets the cold end (never the entry just written).
         this._touchLru(table, key);
         this._evictIfNeeded();
     }
@@ -287,9 +273,6 @@ class RamCache {
      */
     read(table, key) {
         const value = this.ram[table]?.[key];
-        // A hit is the canonical LRU touch (values are always promises, so a
-        // miss is the only ``undefined``). The touch cost is dwarfed by the
-        // deepCopy/deepFreeze the caller then runs on the payload.
         if (value !== undefined) {
             this._touchLru(table, key);
         }
@@ -391,22 +374,18 @@ export class RPCCache {
          * shape (deep-frozen shared reference vs. deep copy) — not the first
          * caller's.
          *
-         * @type {Record<string, { callbacks: { callback: Function, shape: Function }[], invalidated: boolean }>}
+         * ``model`` is the model the entry is scoped to, recorded here at
+         * ``read`` time so {@link invalidateByModel} can match in-flight
+         * requests in O(1) — see the note there.
+         *
+         * @type {Record<string, { callbacks: { callback: Function, shape: Function }[], invalidated: boolean, model?: string }>}
          */
         this.pendingRequests = {};
-        // Monotonic invalidation generations guard the async disk-write
-        // chain (see ``read``): once a request leaves ``pendingRequests``,
-        // invalidation can no longer flag it, yet its encrypt→IDB-write may
-        // still land after an IDB clear and persist stale data. The write
-        // snapshots the generation on arrival and skips persisting if it
-        // bumped meanwhile. Per-table, plus a global counter for full
-        // nukes, so invalidating one table doesn't discard another's
-        // concurrent write.
         /** @type {Record<string, number>} */
         this.diskGenerations = Object.create(null);
         this.globalDiskGeneration = 0;
         if (this.diskEnabled) {
-            this.checkSize(); // we want to control the disk space used by Odoo
+            this.checkSize();
         }
     }
 
@@ -436,9 +415,6 @@ export class RPCCache {
             return;
         }
         if (typeof tables !== "string" && !Array.isArray(tables)) {
-            // Fail loudly rather than let a bad shape (e.g. a raw CLEAR-CACHES
-            // detail object) reach the for-of below as a non-iterable and throw
-            // an opaque "is not iterable" TypeError.
             throw new TypeError(
                 "bumpDiskGeneration expects a table name, an array of names, or nullish",
             );
@@ -453,16 +429,8 @@ export class RPCCache {
         try {
             estimate = await navigator.storage.estimate();
         } catch {
-            // StorageManager may be unavailable in insecure contexts
             return;
         }
-        // Prefer the IndexedDB-specific figure where available (Chromium's
-        // non-standard ``usageDetails``): ``usage`` alone is ORIGIN-WIDE and
-        // includes the service worker's static cache (asset bundles, images),
-        // which on a media-heavy database can exceed the cap on its own —
-        // deleting the RPC database then frees (almost) nothing while
-        // permanently disabling the disk cache, since this runs on every
-        // boot.
         const idbUsage = /** @type {any} */ (estimate).usageDetails?.indexedDB;
         if (idbUsage !== undefined) {
             if (idbUsage > MAX_STORAGE_SIZE) {
@@ -474,9 +442,6 @@ export class RPCCache {
             return;
         }
         if (estimate.usage > MAX_STORAGE_SIZE) {
-            // No per-storage breakdown: the RPC database may not be the
-            // consumer, so deleting it would be both lossy and ineffective.
-            // Degrade to a warning.
             console.warn(
                 "Origin storage usage exceeds the configured maximum " +
                     "(no per-storage breakdown available); keeping the RPC " +
@@ -505,36 +470,18 @@ export class RPCCache {
         } = {},
     ) {
         validateSettings({ type, update });
-        // Disk layer disabled (no secret / no SubtleCrypto): serve
-        // ``type: "disk"`` callers from RAM only instead of failing.
         const useDisk = type === "disk" && this.diskEnabled;
 
         let ramValue = this.ramCache.read(table, key);
 
-        // Immutable callers get the shared cached reference (deep-frozen on
-        // first delivery; later ``deepFreeze`` calls are O(1)) so a caller
-        // mutation throws synchronously. Default ``deepCopy`` clones via
-        // ``structuredClone``, 100×+ slower per call for typical payloads.
         const shape = immutable ? deepFreeze : deepCopy;
 
         const requestKey = `${table}/${key}`;
-        // ``&& ramValue``: LRU eviction can drop a still-pending entry's RAM
-        // promise while its ``pendingRequests`` slot survives (the fetch
-        // hasn't settled). Joining that slot would crash on
-        // ``ramValue.then`` — fall through to the miss path instead, which
-        // replaces the slot; the orphaned request's identity guards keep its
-        // late settlement from clobbering the new one.
         const hasPendingRequest =
             requestKey in this.pendingRequests && ramValue !== undefined;
         if (hasPendingRequest) {
-            // never do the same call multiple times in parallel => return the same value for all
-            // those calls, but store their callback to call them when/if the real value is obtained
             const pending = this.pendingRequests[requestKey];
             pending.callbacks.push({ callback, shape });
-            // Fall back to the request's own promise: the RAM entry it wrote can
-            // be LRU-evicted while the fetch is still in flight, leaving
-            // ramValue undefined here even though the request is live — a bare
-            // ``ramValue.then`` would then throw for the joiner.
             return (ramValue || pending.promise).then(shape);
         }
 
@@ -542,6 +489,7 @@ export class RPCCache {
             const request = {
                 callbacks: [{ callback, shape }],
                 invalidated: false,
+                model,
             };
             this.pendingRequests[requestKey] = request;
 
@@ -549,50 +497,20 @@ export class RPCCache {
                 const fromCache = new Deferred();
                 /** @type {any} */
                 let fromCacheValue;
-                // Distinguishes "no cached value" from a cached falsy payload
-                // (e.g. false, 0, ""): fromCacheValue alone can't tell them apart.
                 let hasCacheValue = false;
                 const onFulfilled = (/** @type {any} */ result) => {
                     resolve(result);
                     const hasChanged =
                         hasCacheValue && payloadChanged(fromCacheValue, result);
-                    // Cache bookkeeping runs BEFORE subscriber callbacks so a
-                    // throwing callback can't wedge the key (leave a dead
-                    // ``pendingRequests`` entry that swallows future refreshes).
                     if (
                         !request.invalidated &&
                         this.pendingRequests[requestKey] === request
                     ) {
-                        // If invalidated mid-flight, invalidate()/
-                        // invalidateByModel() already cleared the caches.
-                        // Identity guard (mirrors the dedup layer in rpc.js):
-                        // only evict/overwrite while WE still own the slot — a
-                        // silent abort (abortPending) may already have dropped
-                        // this entry and a newer read replaced it, and our
-                        // stale result must not clobber that newer request.
                         delete this.pendingRequests[requestKey];
                         this.ramCache.write(table, key, Promise.resolve(result), model);
                         if (useDisk) {
-                            // Local aliases: ``useDisk`` implies the disk
-                            // layer was constructed (non-null).
                             const { crypto, indexedDB } = this;
-                            // Snapshot the generation NOW: the request just
-                            // left ``pendingRequests``, so a concurrent
-                            // invalidation can't flag it — comparing
-                            // generations keeps stale payloads out of
-                            // IndexedDB (the clear is queued first, so an
-                            // unguarded write would land after it).
                             const generation = this.diskGenerationOf(table);
-                            // ``__version`` on ARRAY payloads (versioned
-                            // envelope + list return, e.g. web_read) is an
-                            // expando property that ``JSON.stringify``
-                            // (inside ``encrypt``) silently drops. Persist
-                            // it out-of-band, plaintext next to the
-                            // ciphertext (it is a content hash, not payload
-                            // data), and re-attach it after decrypt so
-                            // disk-warm ``update: "always"`` reads keep the
-                            // O(1) version compare instead of falling back
-                            // to a full deepEqual.
                             const version = result?.[VERSION_FIELD];
                             crypto
                                 .encrypt(result)
@@ -601,16 +519,8 @@ export class RPCCache {
                                         request.invalidated ||
                                         generation !== this.diskGenerationOf(table)
                                     ) {
-                                        // Invalidated between RPC resolution and
-                                        // encryption end: skip the persist.  RAM
-                                        // was already cleared synchronously.
                                         return;
                                     }
-                                    // Store model in plaintext alongside the
-                                    // ciphertext so ``invalidateByModel`` can
-                                    // filter without decrypting every entry —
-                                    // model names aren't secret (they're
-                                    // already in the URL).
                                     /** @type {Record<string, any>} */
                                     const stored = { ...encryptedResult };
                                     if (model) {
@@ -623,11 +533,6 @@ export class RPCCache {
                                         if (e instanceof IDBQuotaExceededError) {
                                             indexedDB.deleteDatabase();
                                         } else {
-                                            // Disk persistence is best-effort:
-                                            // rethrowing here surfaced one
-                                            // unhandled-rejection error dialog
-                                            // per cached call when storage is
-                                            // denied.
                                             console.warn(
                                                 "RPC cache: disk write failed",
                                                 e,
@@ -641,13 +546,6 @@ export class RPCCache {
                                 });
                         }
                     }
-                    // Always notify pending callbacks: they explicitly asked
-                    // for fresh data via `update: "always"`, regardless of
-                    // cache invalidation. Each callback is guarded so one
-                    // throwing subscriber can't starve the others, and gets
-                    // the result through its OWN shape (a joiner that asked
-                    // `immutable: false` must not receive the first caller's
-                    // frozen shared reference, and vice-versa).
                     for (const subscriber of request.callbacks) {
                         try {
                             subscriber.callback(subscriber.shape(result), hasChanged);
@@ -663,35 +561,17 @@ export class RPCCache {
                         !request.invalidated &&
                         this.pendingRequests[requestKey] === request
                     ) {
-                        // Identity guard (see onFulfilled): only evict while
-                        // WE still own the slot, so a settled rejection can't
-                        // tear down a newer request that replaced this one
-                        // after a silent abort.
                         delete this.pendingRequests[requestKey];
                         if (!hasCacheValue) {
                             this.ramCache.delete(table, key);
                         }
                     }
                     if (hasCacheValue) {
-                        // Caller already got cached data, so don't reject —
-                        // except a ConnectionLostError, which must still
-                        // surface via "unhandledrejection" so the global
-                        // error service can notify the user.
                         if (error instanceof ConnectionLostError) {
-                            // Route the failure through rpcBus as an explicit,
-                            // subscribable channel (embeddings/tests without a
                             // global "unhandledrejection" listener can observe
-                            // it here instead of as an "Uncaught (in promise)").
                             rpcBus.trigger(RpcEvent.BACKGROUND_REFRESH_FAILED, {
                                 error,
                             });
-                            // Float the rejection to surface the connection-lost
-                            // UX (the web client's error service only listens on
-                            // "unhandledrejection") — but ONLY for a non-silent
-                            // read. A ``silent`` caller opted out of connection
-                            // UX (loading indicator, slow-rpc toast, and this
-                            // background-refresh dialog); the bus event above
-                            // still lets explicit subscribers observe it.
                             if (!silent) {
                                 Promise.reject(error);
                             }
@@ -702,16 +582,7 @@ export class RPCCache {
                     }
                     reject(error);
                 };
-                // Attach the cache-read .then BEFORE the fallback handler so
-                // `fromCacheValue` is set before `onFulfilled` runs.
-                // Otherwise, when both promises are pre-resolved (mocked-RPC
-                // tests, fast cache hits), `onFulfilled` would see
-                // `hasCacheValue === false` and mask real refreshes by
-                // short-circuiting `hasChanged` to false.
                 if (ramValue) {
-                    // ramValue is always resolved here (pending would have
-                    // early-returned via `pendingRequests`; a rejection
-                    // would have removed it) — no `catch` needed.
                     ramValue.then((/** @type {any} */ value) => {
                         resolve(value);
                         fromCacheValue = value;
@@ -719,7 +590,6 @@ export class RPCCache {
                         fromCache.resolve();
                     });
                 } else if (useDisk) {
-                    // Local aliases: ``useDisk`` implies non-null disk layer.
                     const { crypto, indexedDB } = this;
                     indexedDB
                         .read(table, key)
@@ -730,15 +600,8 @@ export class RPCCache {
                                     try {
                                         decrypted = await crypto.decrypt(result);
                                     } catch {
-                                        // Do nothing ! The cryptoKey is probably different.
-                                        // The data will be updated with the new cryptoKey.
                                         return;
                                     }
-                                    // Re-attach the out-of-band ``__version``
-                                    // (see the persist side): a dict payload
-                                    // carries it inside the JSON already, but
-                                    // on an array payload it was an expando
-                                    // dropped by JSON.stringify.
                                     if (
                                         result.version !== undefined &&
                                         decrypted &&
@@ -762,19 +625,13 @@ export class RPCCache {
                         )
                         .finally(() => fromCache.resolve());
                 } else {
-                    fromCache.resolve(); // fromCacheValue will remain undefined
+                    fromCache.resolve();
                 }
 
-                // Pass ``request`` so the initiator (rpc.js) can hand it back to
-                // ``abortPending`` for an identity-guarded eviction: a silent
-                // ``abort(false)`` must only drop the slot while WE still own it,
-                // never a newer request that replaced us after an invalidation.
                 fallback(request).then(onFulfilled, onRejected);
             });
             this.ramCache.write(table, key, prom, model);
             ramValue = prom;
-            // Keep a direct handle to the promise so a concurrent joiner can
-            // await it even if this key is evicted from RAM before it resolves.
             request.promise = prom;
         }
 
@@ -796,14 +653,6 @@ export class RPCCache {
      */
     abortPending(table, key, request) {
         const requestKey = `${table}/${key}`;
-        // Identity guard (mirrors ``onFulfilled``/``onRejected``): only evict
-        // while the slot still belongs to the aborting initiator. Without it, a
-        // stale initiator's ``abort(false)`` — fired after ``invalidate()``
-        // cleared its slot and a newer read (``request``′) repopulated it — would
-        // delete the NEWER request's ``pendingRequests`` entry and RAM promise,
-        // forcing a redundant re-fetch and dropping its SWR bookkeeping. When no
-        // ``request`` is supplied (legacy callers), fall back to the prior
-        // unconditional behavior.
         if (
             requestKey in this.pendingRequests &&
             (request === undefined || this.pendingRequests[requestKey] === request)
@@ -817,24 +666,16 @@ export class RPCCache {
      * @param {string | string[] | null} [tables]
      */
     invalidate(tables) {
-        // Drop in-flight disk writes that resolved before this invalidation
-        // but have not persisted yet (their pendingRequests entry is already
-        // gone, so the `invalidated` flag below can't reach them).
         this.bumpDiskGeneration(tables);
         this.indexedDB?.invalidate(tables);
         this.ramCache.invalidate(tables);
-        // flag the pending requests as invalidated s.t. we don't write their results in caches
         if (tables == null) {
-            // full-cache nuke: every pending request is affected
             for (const key of Object.keys(this.pendingRequests)) {
                 this.pendingRequests[key].invalidated = true;
             }
             this.pendingRequests = {};
             return;
         }
-        // Table-scoped invalidation: only flag pending requests belonging to
-        // the invalidated tables (requestKey format is "${table}/${key}"),
-        // like invalidateByModel already does for model-scoped signals.
         const tableList = typeof tables === "string" ? [tables] : tables;
         for (const requestKey of Object.keys(this.pendingRequests)) {
             if (tableList.some((table) => requestKey.startsWith(`${table}/`))) {
@@ -853,32 +694,30 @@ export class RPCCache {
      * - IndexedDB: ``openCursor`` + check ``cursor.value.model``, stored
      *   plaintext alongside the ciphertext (model names already appear in
      *   the request URL, so this exposes nothing new).
-     * - In-flight requests: the handful of pending RPCs are scanned; parse
-     *   cost is negligible (typically 0–3 entries).
+     * - In-flight requests: matched on the ``model`` each one recorded at
+     *   ``read`` time. Requests registered without a ``model`` are invisible
+     *   here, exactly like the RAM entries they will become.
+     *
+     * The model used to be recovered by splitting the request key on its first
+     * ``/`` and JSON-parsing the remainder. The key is ``table/jsonKey`` and
+     * the table is ``params.method || url`` (rpc.js), so every URL-keyed entry
+     * — ``/web/action/load``, ``/web/webclient/load_menus``, any call with no
+     * ``method`` — split at index 0 and failed to parse, and the ``catch``
+     * dropped it silently: those in-flight requests were never invalidated and
+     * went on to write a stale value into the RAM cache that had just been
+     * cleared.
      *
      * @param {string[]} tables
      * @param {string} model - Odoo model name, e.g. "res.partner"
      */
     invalidateByModel(tables, model) {
-        // Conservative: bumps the whole table's generation even though the
-        // signal is model-scoped, so an unrelated concurrent write may be
-        // skipped too — costing a cache miss next reload, never stale data.
         this.bumpDiskGeneration(tables);
         this.ramCache.invalidateByModel(tables, model);
         this.indexedDB?.invalidateByModel(tables, model);
-        // Cancel in-flight requests whose key includes this model.
-        // requestKey is "${table}/${JSON.stringify({url, params})}"; slice
-        // past the first "/" to recover the JSON. The set is tiny in
-        // practice, so per-key parsing here is acceptable.
         for (const requestKey of Object.keys(this.pendingRequests)) {
-            const jsonPart = requestKey.slice(requestKey.indexOf("/") + 1);
-            try {
-                if (JSON.parse(jsonPart)?.params?.model === model) {
-                    this.pendingRequests[requestKey].invalidated = true;
-                    delete this.pendingRequests[requestKey];
-                }
-            } catch {
-                // malformed key — skip
+            if (this.pendingRequests[requestKey].model === model) {
+                this.pendingRequests[requestKey].invalidated = true;
+                delete this.pendingRequests[requestKey];
             }
         }
     }

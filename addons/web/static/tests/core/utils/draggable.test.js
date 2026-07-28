@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryRect } from "@odoo/hoot-dom";
+import { pointerDown, pointerUp, queryRect } from "@odoo/hoot-dom";
 import { animationFrame, mockTouch } from "@odoo/hoot-mock";
 import { Component, reactive, useRef, useState, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
@@ -26,7 +26,6 @@ test("Parameters error handling", async () => {
         await mountWithCleanup(List);
     };
 
-    // Incorrect params
     await mountList(() => {
         expect(() => useDraggable({})).toThrow(
             `Error in hook useDraggable: missing required property "ref" in parameter`,
@@ -42,7 +41,6 @@ test("Parameters error handling", async () => {
         );
     });
 
-    // Correct params
     await mountList(() => {
         useDraggable({
             ref: useRef("root"),
@@ -140,7 +138,6 @@ test("Dynamically disable draggable feature", async () => {
 
     await contains(".item:first-child").dragAndDrop(".item:last-child");
 
-    // Drag should have occurred
     expect.verifySteps(["start"]);
 
     state.enableDrag = false;
@@ -148,7 +145,6 @@ test("Dynamically disable draggable feature", async () => {
 
     await contains(".item:first-child").dragAndDrop(".item:last-child");
 
-    // Drag shouldn't have occurred
     expect.verifySteps([]);
 });
 
@@ -182,17 +178,14 @@ test("Ignore specified elements", async () => {
 
     expect.verifySteps([]);
 
-    // Drag root item element
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
 
     expect.verifySteps(["start"]);
 
-    // Drag ignored element
     await contains(".item:first-child .not-ignored").dragAndDrop(".item:nth-child(2)");
 
     expect.verifySteps(["start"]);
 
-    // Drag non-ignored element
     await contains(".item:first-child .ignored").dragAndDrop(".item:nth-child(2)");
 
     expect.verifySteps([]);
@@ -235,25 +228,21 @@ test("Ignore specific elements in a nested draggable", async () => {
 
     expect.verifySteps([]);
 
-    // Drag ignored under non-ignored -> block
     await contains(".not-ignored.parent .ignored.child").dragAndDrop(
         ".not-ignored.parent .not-ignored.child",
     );
     expect.verifySteps([]);
 
-    // Drag not-ignored-under not-ignored -> succeed
     await contains(".not-ignored.parent .not-ignored.child").dragAndDrop(
         ".not-ignored.parent .ignored.child",
     );
     expect.verifySteps(["start"]);
 
-    // Drag ignored under ignored -> block
     await contains(".ignored.parent .ignored.child").dragAndDrop(
         ".ignored.parent .not-ignored.child",
     );
     expect.verifySteps([]);
 
-    // Drag not-ignored under ignored -> succeed
     await contains(".ignored.parent .not-ignored.child").dragAndDrop(
         ".ignored.parent .ignored.child",
     );
@@ -293,7 +282,6 @@ test("Dragging element with touch event", async () => {
 
     expect.verifySteps([]);
 
-    // Should DnD, if the timing value is higher then the default delay value (300ms)
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
 
     expect(".item.o_touch_bounce").toHaveCount(0, {
@@ -329,21 +317,16 @@ test("Dragging element with touch event: initiation delay can be overrided", asy
         pointerDownDuration: 700,
     });
 
-    // Shouldn't DnD, if the timing value is below then the delay value (1000ms)
     expect.verifySteps([]);
 
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)", {
         pointerDownDuration: 1200,
     });
 
-    // Should DnD, if the timing value is higher then the delay value (1000ms)
     expect.verifySteps(["start"]);
 });
 
 test("Dragging element with touch event: explicit touchDelay wins over delay", async () => {
-    // Documented contract: `touchDelay` is "same as delay, but specific to
-    // touch environments" — so when BOTH are given, touch must honor
-    // `touchDelay`, not be overridden by the (longer) generic `delay`.
     mockTouch(true);
     class List extends Component {
         static template = xml`
@@ -368,8 +351,6 @@ test("Dragging element with touch event: explicit touchDelay wins over delay", a
 
     await mountWithCleanup(List);
 
-    // 500ms sits between touchDelay (300) and delay (1000): the drag must
-    // initiate, proving touch uses touchDelay.
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)", {
         pointerDownDuration: 500,
     });
@@ -491,7 +472,7 @@ test("allowDisconnected option", async () => {
                     this.state.hasHandle = false;
                 },
                 onDragEnd: () => expect.step("end"),
-                onDrop: () => expect.step("drop"), // should be called as allowDisconnected
+                onDrop: () => expect.step("drop"),
             });
         }
     }
@@ -504,4 +485,32 @@ test("allowDisconnected option", async () => {
     await moveTo(".item:nth-child(2)");
     await drop();
     expect.verifySteps(["drop", "end"]);
+});
+
+test("willDrag is lowered again when the press never becomes a drag", async () => {
+    /** @type {any} */
+    let dragState;
+    class List extends Component {
+        static template = xml`
+            <div t-ref="root" class="root">
+                <ul class="list">
+                    <li t-foreach="[1, 2, 3]" t-as="i" t-key="i" t-esc="i" class="item" />
+                </ul>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            dragState = useDraggable({ ref: useRef("root"), elements: ".item" });
+        }
+    }
+    await mountWithCleanup(List);
+    expect(dragState.willDrag).toBe(false);
+
+    // press and release without any movement: no drag sequence ever starts, so
+    // `dragStart` — the only other place that lowers the flag — never runs.
+    await pointerDown(".item:first-child");
+    expect(dragState.willDrag).toBe(true);
+    await pointerUp(".item:first-child");
+
+    expect(dragState.dragging).toBe(false);
+    expect(dragState.willDrag).toBe(false);
 });

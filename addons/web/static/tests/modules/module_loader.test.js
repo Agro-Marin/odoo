@@ -69,8 +69,6 @@ test("rebind: re-binding a specifier to a DIFFERENT namespace fires the event", 
     loader.registerNativeModules({ "@web/x": { v: "first" } });
     loader.registerNativeModules({ "@web/x": { v: "second" } });
 
-    // Exactly one rebind, naming only the colliding specifier; the
-    // Map still reflects last-write-wins.
     expect(seen).toEqual([["@web/x"]]);
     expect(loader.modules.get("@web/x")).toEqual({ v: "second" });
 });
@@ -81,8 +79,6 @@ test("rebind: re-registering the SAME namespace object is silent", () => {
     let fired = 0;
     loader.bus.addEventListener("rebind", () => fired++);
 
-    // Repeat dynamic import / cross-doc bridge returns the cached
-    // namespace — identity-equal, so no rebind.
     loader.registerNativeModules({ "@web/x": ns });
     loader.registerNativeModules({ "@web/x": ns });
 
@@ -99,7 +95,6 @@ test("rebind: a mixed batch reports only the specifiers that changed", () => {
     );
 
     loader.registerNativeModules({ "@web/a": stable, "@web/b": { b: 1 } });
-    // @web/a unchanged (same object), @web/b rebound, @web/c is new.
     loader.registerNativeModules({
         "@web/a": stable,
         "@web/b": { b: 2 },
@@ -122,10 +117,6 @@ test("registerNativeModules: subsequent calls accumulate entries", () => {
 });
 
 test("ambient odoo.loader exposes the full loader contract", () => {
-    // Guard idempotent install: parallel bundle inlining must not replace the
-    // loader with something lacking its surface. Assert the structural shape
-    // rather than `instanceof ModuleLoader` (tautological here), which also
-    // covers a hypothetical subclass.
     expect(odoo.loader.modules).toBeInstanceOf(Map);
     expect(odoo.loader.bus).toBeInstanceOf(EventTarget);
     expect(typeof odoo.loader.registerNativeModules).toBe("function");
@@ -171,7 +162,6 @@ describe("asset load self-heal", () => {
         });
         expect(loader.handleAssetLoadError(script)).toBe(true);
         expect(reloads).toHaveLength(1);
-        // Second failure inside the guard window: no second reload.
         expect(loader.handleAssetLoadError(script)).toBe(false);
         expect(reloads).toHaveLength(1);
     });
@@ -196,16 +186,12 @@ describe("asset load self-heal", () => {
             loader.handleAssetLoadError(makeScript({ src: "/some/other/app.js" })),
         ).toBe(false);
         expect(loader.handleAssetLoadError(makeScript())).toBe(false);
-        // A LINK without an href (or with a non-bundle href) is ignored too.
         expect(loader.handleAssetLoadError(document.createElement("link"))).toBe(false);
         expect(loader.handleAssetLoadError(null)).toBe(false);
         expect.verifySteps([]);
     });
 
     test("failing bundle stylesheet (LINK) triggers one reload", () => {
-        // A GC-swept content-addressed stylesheet URL can never succeed by
-        // re-request: the self-heal must cover LINK elements like SCRIPTs,
-        // instead of leaving the page unstyled.
         withGuard(null);
         const loader = new ModuleLoader();
         const reloads = [];

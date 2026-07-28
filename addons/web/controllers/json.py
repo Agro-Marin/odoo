@@ -31,7 +31,6 @@ _logger = logging.getLogger(__name__)
 
 
 class WebJsonController(http.Controller):
-    # for /json, the route should work in a browser, therefore type=http
     @http.route("/json/<path:subpath>", auth="user", type="http", readonly=True)
     def web_json(self, subpath, **kwargs):
         self._check_json_route_active()
@@ -72,14 +71,11 @@ class WebJsonController(http.Controller):
                 request.env._("You need export permissions to use the /json route")
             )
 
-        # kwargs below may gain resolved defaults (domain, dates, groupby...);
-        # redirect once at the end to a canonical URL with everything explicit.
         param_list = set(kwargs)
 
         def check_redirect():
             if param_list == set(kwargs):
                 return None
-            # for domains, make chars as safe
             encoded_kwargs = urlencode(kwargs, safe="()[], '\"")
             return request.redirect(
                 f"/json/1/{subpath}?{encoded_kwargs}",
@@ -103,9 +99,6 @@ class WebJsonController(http.Controller):
             if not record_id:
                 raise BadRequest(env._("Missing record id"))
             record = model.browse(int(record_id))
-            # ``record_id`` is attacker-controlled from the URL path: a
-            # well-formed but non-existent/inaccessible id makes ``web_read``
-            # return ``[]``. Surface a 404 instead of an IndexError-driven 500.
             res = record.web_read(spec)
             if not res:
                 raise NotFound
@@ -113,10 +106,6 @@ class WebJsonController(http.Controller):
 
         domains = [safe_eval(action.domain or "[]", eval_context)]
         if "domain" in kwargs:
-            # User-supplied domain: literal_eval only, never safe_eval, since
-            # it comes from the URL and must not be able to run arbitrary code.
-            # A malformed value is a client error (400), not a 500 — mirror the
-            # BadRequest raised for bad limit/offset below.
             try:
                 user_domain = ast.literal_eval(kwargs.get("domain") or "[]")
             except (ValueError, SyntaxError) as exc:
@@ -183,11 +172,6 @@ class WebJsonController(http.Controller):
                         fields=", ".join(invalid),
                     )
                 )
-            # A bare field name is expanded to ``field:<aggregator>`` below.
-            # Non-aggregatable fields (``aggregator is None`` -- e.g. char/text)
-            # would expand to the invalid token ``"name:None"``, which the ORM
-            # rejects with a raw ``ValueError`` -> 500. Surface a 400 instead,
-            # mirroring the ``invalid``/limit/offset/domain client-error paths.
             not_aggregatable = [
                 f
                 for f in fields
@@ -231,8 +215,6 @@ class WebJsonController(http.Controller):
                 limit=limit,
                 offset=offset,
             )
-            # __extra_domain is for the JS client's own subgroup queries, not
-            # for /json API consumers — drop it from each group.
             for value in res["groups"]:
                 del value["__extra_domain"]
         else:
@@ -242,16 +224,11 @@ class WebJsonController(http.Controller):
                 limit=limit,
                 offset=offset,
             )
-        # web_read_group/web_search_read are @versioned (odoo.tools.cache_version):
-        # they stamp an internal __version sha256 hash for the web client's JS
-        # rpc cache. Not part of the public /json contract — strip it here too.
         res.pop("__version", None)
         return request.make_json_response(res)
 
     def _check_json_route_active(self):
         """Verify the /json route is enabled (demo mode or config param)."""
-        # su=True: reading base.module_base (ir.module.module) may be denied
-        # to the current user, but this check must run regardless.
         sudo_env = request.env(su=True)
         if not (
             sudo_env.ref("base.module_base").demo
@@ -272,7 +249,6 @@ class WebJsonController(http.Controller):
         active_id, action, record_id = list(get_action_triples_())[-1]
         action = action.sudo()
         if action.usage == "ir_actions_server" and action.path:
-            # force read-only evaluation of action_data
             try:
                 with action.pool.cursor(readonly=True) as ro_cr:
                     if not ro_cr.readonly:
@@ -282,14 +258,8 @@ class WebJsonController(http.Controller):
                         raise RuntimeError(msg)
                     action_data = action.with_env(action.env(cr=ro_cr, su=False)).run()
             except psycopg.errors.ReadOnlySqlTransaction as e:
-                # The server action tried to write. Reject instead of letting
-                # this escape: since /json is a readonly=True route, an
-                # uncaught ReadOnlySqlTransaction here would trigger the
-                # dispatcher's normal RO->RW retry and let the action write.
                 raise AccessError(action.env._("Unsupported server action")) from e
             except ValueError as e:
-                # safe_eval wraps any non-bubbled exception (ReadOnlySqlTransaction
-                # included) into a ValueError whose message embeds repr(exc).
                 if "ReadOnlySqlTransaction" not in e.args[0]:
                     raise
                 raise AccessError(action.env._("Unsupported server action")) from e

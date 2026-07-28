@@ -30,7 +30,6 @@ export function objectToUrlEncodedString(obj) {
  */
 export function getOrigin(origin) {
     if (origin) {
-        // remove trailing slashes
         origin = origin.replace(/\/+$/, "");
     } else {
         const { host, protocol } = browser.location;
@@ -55,7 +54,6 @@ export function url(route, queryParams, options = {}) {
     let queryString = objectToUrlEncodedString(queryParams || {});
     queryString = queryString.length ? `?${queryString}` : queryString;
 
-    // Compare the wanted url against the current origin
     const isAbsolute = ["http://", "https://", "//"].some((el) => route.startsWith(el));
     const prefix = isAbsolute ? "" : origin;
     return `${prefix}${route}${queryString}`;
@@ -97,11 +95,8 @@ export function imageUrl(
     }
     if (unique) {
         if (DateTime && unique instanceof DateTime) {
-            // `.ts` is luxon's internal epoch-ms, not in @types/luxon's public surface.
             urlParams.unique = /** @type {any} */ (unique).ts;
         } else if (DateTime && typeof unique === "string") {
-            // Only a string can be parsed as an SQL datetime; DateTime.fromSQL
-            // throws on any non-string input, so it must be guarded.
             const dateTimeFromUnique = DateTime.fromSQL(unique);
             if (dateTimeFromUnique.isValid) {
                 urlParams.unique = /** @type {any} */ (dateTimeFromUnique).ts;
@@ -113,8 +108,6 @@ export function imageUrl(
                 urlParams.unique = unique;
             }
         } else {
-            // Truthy but neither a DateTime nor a string (e.g. a numeric
-            // timestamp): use it directly as a cache-busting token.
             urlParams.unique = unique;
         }
     }
@@ -136,15 +129,12 @@ export function getDataURLFromFile(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.addEventListener("load", () => {
-            // Handle Chrome bug that creates invalid data URLs for empty files
             if (reader.result === "data:") {
                 resolve(`data:${file.type};base64,`);
             } else {
                 resolve(/** @type {string} */ (reader.result));
             }
         });
-        // Reject with a real Error, not the raw ProgressEvent (which stringifies
-        // to "[object ProgressEvent]" and carries no message).
         reader.addEventListener("abort", () =>
             reject(new Error("File reading was aborted")),
         );
@@ -179,13 +169,6 @@ export function isSafeUrlScheme(href) {
     if (typeof href !== "string") {
         return false;
     }
-    // Normalize `href` to the SAME string the WHATWG URL/HTML parser will
-    // resolve: it removes ASCII tab/newline (U+0009/A/D) from ANYWHERE, and
-    // strips leading C0 controls (U+0000-U+001F) and space. Skipping this
-    // lets a scheme hide from the checks below yet still execute on
-    // navigation -- via an interior tab ("java<TAB>script:") or a leading
-    // control before "javascript:" / "//evil". Strip leading controls by
-    // code point, not a control-char regex (which trips `no-control-regex`).
     let cleaned = href.replace(/[\t\n\r]/g, "");
     let start = 0;
     while (start < cleaned.length && cleaned.charCodeAt(start) <= 0x20) {
@@ -228,9 +211,6 @@ export function redirect(url) {
 export function compareUrls(_url1, _url2) {
     const url1 = new URL(_url1);
     const url2 = new URL(_url2);
-    // Sort search params to compare order-independently. Using the serialized
-    // sorted string preserves duplicate keys (e.g. ?a=1&a=2) which would be
-    // collapsed by Object.fromEntries.
     url1.searchParams.sort();
     url2.searchParams.sort();
     return (

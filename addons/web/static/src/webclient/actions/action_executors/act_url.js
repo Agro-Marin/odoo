@@ -9,12 +9,6 @@ import { isSafeUrlScheme } from "@web/core/utils/urls";
 
 import { actionStorage } from "../action_storage.js";
 
-// One specifier for one module: tsc gives `@web/webclient/actions/action_service`
-// and `../action_service.js` DISTINCT module identities, so importing
-// `ActionManager` through the relative path and `ActionOptions` through the
-// alias made two structurally identical `ActionOptions` types mutually
-// unassignable — surfacing as a bogus error on the dispatch map that passes one
-// to the other. Keep every type import from this module on the relative form.
 /** @import { ActionManager, ActionOptions, ActURLAction } from "../action_service.js" */
 
 /**
@@ -52,9 +46,6 @@ export function openURL(url, am) {
  * @param {ActionManager} am
  */
 export function openActionInNewWindow(action, state, am) {
-    // The swap must stay synchronous around ``openURL``: sessionStorage is
-    // copied into the new browsing context at the moment it is opened, so the
-    // destination window reads exactly what is set during this call.
     actionStorage.withTemporaryEntry(
         { serializedAction: action._originalAction, state },
         () => openURL(am.router.stateToUrl(state), am),
@@ -81,15 +72,11 @@ export function openActionInNewWindow(action, state, am) {
 export function executeActURLAction(action, options, am) {
     let url = action.url;
     if (!url) {
-        // Hand-built descriptors sometimes carry an empty url; navigating
-        // would land on the literal "/undefined" page.
         return;
     }
     if (!(url.startsWith("http") || url.startsWith("/"))) {
         url = "/" + url;
     }
-    // Block protocol-relative (//host) and script-bearing schemes before
-    // navigating; legitimate relative/http(s) targets are unaffected.
     if (!isSafeUrlScheme(url)) {
         am.env.services.notification.add(
             _t("This action tried to open an unsafe URL and was blocked."),

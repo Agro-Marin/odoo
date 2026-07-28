@@ -11,8 +11,6 @@ import { ActionMenus } from "@web/search/action_menus/action_menus";
 
 const cogMenuRegistry = registry.category("cogMenu");
 
-// Cog-menu items appear in the controller's gear menu.
-// Same shape as favoriteMenu: a Component plus optional grouping/visibility.
 cogMenuRegistry.addValidation({
     Component: Function,
     groupNumber: { type: Number, optional: true },

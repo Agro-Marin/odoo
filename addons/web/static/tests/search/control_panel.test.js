@@ -25,8 +25,6 @@ class Foo extends models.Model {
 defineModels([Foo]);
 
 test("default embedded infos arrays are per-instance, not shared globally", async () => {
-    // Default embedded infos must be a fresh instance per panel — a shared
-    // module constant would let a single push leak into every panel.
     const cp1 = await mountWithSearch(ControlPanel, { resModel: "foo" });
     const cp2 = await mountWithSearch(ControlPanel, { resModel: "foo" });
 
@@ -318,9 +316,6 @@ test("Control panel is shown/hide on top when scrolling", async () => {
 
 test.tags("mobile");
 test("sticky scroll effect is not rebuilt on re-render", async () => {
-    // The scroll useEffect must have explicit deps: a re-render must not re-run
-    // its setup and reset root.el.style.top to "0px" while the panel is in its
-    // translated-up sticky state.
     const cp = await mountWithSearch(ControlPanel, { resModel: "foo" });
     const contentHeight = 200;
     const sampleContent = document.createElement("div");
@@ -336,8 +331,6 @@ test("sticky scroll effect is not rebuilt on re-render", async () => {
     const stickyTop = panel.style.top;
     expect(stickyTop).not.toBe("0px");
 
-    // Force a re-render (as a pager/breadcrumb/count update would): the effect
-    // must not re-run, so the sticky top offset survives.
     cp.render();
     await animationFrame();
     expect(panel.style.top).toBe(stickyTop);

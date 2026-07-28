@@ -51,11 +51,9 @@ export function computeExportedTableWidth(leafCount, measureCount) {
 export function formatPivotForExport(table, metaData) {
     const { headers } = table;
 
-    // Process column group header rows (all rows except the last, which is measures)
     let colGroupHeaderRows = headers.slice(0, -1);
     const measureRow = headers.at(-1).map(processHeader);
 
-    // Remove the empty header on left side of first row
     colGroupHeaderRows[0].splice(0, 1);
 
     colGroupHeaderRows = colGroupHeaderRows.map((headerRow) =>

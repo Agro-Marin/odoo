@@ -90,13 +90,6 @@ class Action(Controller):
                             act = (
                                 request.env["ir.actions.server"].browse(act["id"]).run()
                             )
-                            # ``run()`` returns ``dict | bool``: a server action
-                            # whose python/code branch performs work without
-                            # returning a follow-up action yields ``False`` (or a
-                            # non-window dict lacking the keys read below). Guard
-                            # before dereferencing so one such entry degrades to an
-                            # error breadcrumb instead of raising an uncaught
-                            # AttributeError/KeyError for the whole batch.
                             if not isinstance(act, dict):
                                 results.append(
                                     {
@@ -113,8 +106,6 @@ class Action(Controller):
                             continue
                     if not act.get("display_name"):
                         act["display_name"] = act["name"]
-                    # client actions have no multi-record view, so the same action
-                    # can't legitimately reappear for the next breadcrumb entry
                     if (
                         act["type"] == "ir.actions.client"
                         and idx + 1 < len(actions)
@@ -125,7 +116,6 @@ class Action(Controller):
                         )
                         continue
                     if record_id:
-                        # some actions may not have a res_model (e.g. a client action)
                         if record_id == "new":
                             results.append({"display_name": _("New")})
                         elif act["res_model"]:
@@ -141,7 +131,6 @@ class Action(Controller):
                     else:
                         if act.get("res_model") and act["type"] != "ir.actions.client":
                             request.env[act["res_model"]].check_access("read")
-                            # action shouldn't be available on its own if it doesn't have multi-record views
                             name = (
                                 act["display_name"]
                                 if any(
@@ -163,7 +152,6 @@ class Action(Controller):
                                 {"display_name": Model.browse(record_id).display_name}
                             )
                     else:
-                        # This case cannot be produced by the web client
                         msg = "Actions with a model should also have a resId"
                         raise BadRequest(msg)
                 else:

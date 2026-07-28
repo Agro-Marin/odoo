@@ -1,6 +1,10 @@
 <t>
     <t t-set="set_master_pwd" t-value="set_master_pwd or False" />
     <t t-set="input_class" t-value="'form-control'" />
+    <!-- this partial is included once per form of the page: without a caller
+         supplied prefix every copy would claim the same id, and the labels of
+         all but the first would point at another form's field -->
+    <t t-set="master_pwd_id" t-value="(form_prefix or '') + 'master_pwd'" />
 
     <t t-if="insecure">
         <t t-if="set_master_pwd">
@@ -17,16 +21,17 @@
     </t>
     <t t-if="not insecure or not set_master_pwd">
         <div class="row mb-3">
-            <label for="master_pwd" class="col-md-4 col-form-label">Master Password</label>
+            <label t-att-for="master_pwd_id" class="col-md-4 col-form-label">Master Password</label>
             <div class="col-md-8">
                 <div class="input-group">
-                    <input name="master_pwd"
+                    <input t-att-id="master_pwd_id"
+                        name="master_pwd"
                         t-att-class="input_class"
                         required
                         autofocus
                         type="password"
                         autocomplete="current-password" />
-                    <span class="o_little_eye input-group-text" style="cursor: pointer;"><i class="fa-regular fa-eye" aria-hidden="true"></i></span>
+                    <button type="button" class="o_little_eye input-group-text" style="cursor: pointer;" aria-label="Show password" aria-pressed="false"><i class="fa-regular fa-eye" aria-hidden="true"></i></button>
                 </div>
             </div>
         </div>

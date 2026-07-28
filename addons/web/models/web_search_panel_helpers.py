@@ -107,16 +107,10 @@ class Base(models.AbstractModel):
                 return value
 
         else:
-            # selection field: values are (raw value, label) pairs
             desc = self.fields_get([field_name], ["selection"])[field_name]
             field_name_selection = dict(desc["selection"])
 
             def group_id_name(value):
-                # ``.get(value, value)``: ``fields_get`` only returns
-                # currently-defined options, so a stored record still holding a
-                # since-removed selection value would else KeyError here and 500
-                # the whole search panel. Mirrors ``web_search_panel.py`` and the
-                # many2one / default branches, which already fall back.
                 return value, field_name_selection.get(value, value)
 
         domain = AND(
@@ -168,10 +162,6 @@ class Base(models.AbstractModel):
                 parent_id = values[parent_name]
                 while parent_id:
                     values = values_range[parent_id]
-                    # Snapshot the parent's original count into the lazy cache
-                    # *before* mutating values["__count"] below.  Without this,
-                    # a later iteration that walks the same ancestor chain would
-                    # read the already-incremented count and double-count.
                     local_counters[parent_id]
                     values["__count"] += count
                     parent_id = values[parent_name]
@@ -216,7 +206,6 @@ class Base(models.AbstractModel):
             while chain_is_fully_included and record_id:
                 known_status = records_to_keep.get(record_id)
                 if known_status is not None:
-                    # record_id's status (and its ancestors') is already known
                     chain_is_fully_included = known_status
                     break
                 record = allowed_records.get(record_id)
@@ -229,7 +218,6 @@ class Base(models.AbstractModel):
             for r_id in ancestor_chain:
                 records_to_keep[r_id] = chain_is_fully_included
 
-        # Preserve the original order of records.
         return [rec for rec in records if records_to_keep.get(rec["id"])]
 
     @api.model

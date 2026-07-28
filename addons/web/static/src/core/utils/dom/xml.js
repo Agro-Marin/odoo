@@ -113,10 +113,8 @@ export function createElement(tagName, ...args) {
             continue;
         }
         if (isIterable(arg)) {
-            // Children list
             el.append(...arg);
         } else if (typeof arg === "object") {
-            // Attributes
             for (const name of Object.keys(arg)) {
                 el.setAttribute(name, arg[name]);
             }
@@ -182,8 +180,6 @@ export function setAttributes(node, attributes) {
  */
 export function formatXML(xml, indent = 4) {
     const pad = " ".repeat(indent);
-    // Collapse inter-tag whitespace, then split so each tag becomes a
-    // separate token while preserving text content between tags.
     const tokens = xml
         .replace(/>\s+</g, "><")
         .replace(/</g, "~::~<")
@@ -199,7 +195,6 @@ export function formatXML(xml, indent = 4) {
     for (let ix = 0; ix < tokens.length; ix++) {
         const token = tokens[ix];
 
-        // Comment / CDATA / DOCTYPE start
         if (/^<!/.test(token)) {
             lines.push(pad.repeat(depth) + token);
             inComment = true;
@@ -208,7 +203,6 @@ export function formatXML(xml, indent = 4) {
             }
             continue;
         }
-        // Comment / CDATA end
         if (/-->|]>/.test(token)) {
             lines.push(token);
             inComment = false;
@@ -218,45 +212,28 @@ export function formatXML(xml, indent = 4) {
             lines.push(token);
             continue;
         }
-        // Closing tag that directly follows its matching opening tag
-        // (e.g. <field name="x">Text</field> → keep on one line).
         if (/^<\//.test(token)) {
             const prev = ix > 0 ? tokens[ix - 1] : "";
             const openTag = /^<([\w:.,-]+)/.exec(prev);
             const closeTag = /^<\/([\w:.,-]+)/.exec(token);
             if (openTag && closeTag && openTag[1] === closeTag[1]) {
-                // Append to previous line instead of adding a new one.
                 lines[lines.length - 1] += token;
                 if (!inComment) {
                     depth = Math.max(0, depth - 1);
                 }
             } else {
-                // Clamp at 0: an unbalanced document (a stray closing tag)
-                // would otherwise drive depth negative and crash
-                // `" ".repeat(-1)` with a RangeError.
                 depth = Math.max(0, depth - 1);
                 lines.push(pad.repeat(depth) + token);
             }
-        }
-        // Self-closing tag (check anywhere in token, not just end —
-        // the token may be "<tag/>text" when text follows a self-closer).
-        else if (/^<\w/.test(token) && /\/>/.test(token) && !/<\//.test(token)) {
+        } else if (/^<\w/.test(token) && /\/>/.test(token) && !/<\//.test(token)) {
             lines.push(pad.repeat(depth) + token);
-        }
-        // Processing instruction <?...?>
-        else if (/^<\?/.test(token)) {
+        } else if (/^<\?/.test(token)) {
             lines.push(pad.repeat(depth) + token);
-        }
-        // Opening tag (no self-close or closing tag anywhere in token)
-        else if (/^<\w/.test(token) && !/<\//.test(token) && !/\/>/.test(token)) {
+        } else if (/^<\w/.test(token) && !/<\//.test(token) && !/\/>/.test(token)) {
             lines.push(pad.repeat(depth++) + token);
-        }
-        // Opening + closing on same token: <el>text</el>
-        else if (/^<\w/.test(token)) {
+        } else if (/^<\w/.test(token)) {
             lines.push(pad.repeat(depth) + token);
-        }
-        // xmlns continuation or bare text content
-        else {
+        } else {
             lines.push(pad.repeat(depth) + token);
         }
     }

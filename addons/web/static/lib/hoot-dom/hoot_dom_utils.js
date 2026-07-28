@@ -32,10 +32,6 @@
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Array: { isArray: $isArray },
     matchMedia,
@@ -45,10 +41,6 @@ const {
     SyntaxError,
 } = globalThis;
 const $toString = Object.prototype.toString;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @template {(...args: any[]) => any} T
@@ -65,7 +57,6 @@ function makeInteractorFn(type, fn, name, alias) {
             if (isInstanceOf(result, Promise)) {
                 for (let i = 0; i < args.length; i++) {
                     if (isInstanceOf(args[i], Promise)) {
-                        // Get promise result for async arguments if possible
                         args[i].then((result) => (args[i] = result));
                     }
                 }
@@ -97,11 +88,9 @@ const GRAYS = {
 
 const COLORS = {
     default: {
-        // Generic colors
         black: "#000000",
         white: "#ffffff",
 
-        // Grays
         "gray-100": GRAYS[100],
         "gray-200": GRAYS[200],
         "gray-300": GRAYS[300],
@@ -113,7 +102,6 @@ const COLORS = {
         "gray-900": GRAYS[900],
     },
     light: {
-        // Generic colors
         primary: "#a855f7",
         secondary: "#74b4b9",
         amber: "#f59e0b",
@@ -134,7 +122,6 @@ const COLORS = {
         rose: "#9f1239",
         "rose-900": "#fecdd3",
 
-        // App colors
         bg: GRAYS[100],
         text: GRAYS[900],
         "status-bg": GRAYS[300],
@@ -147,7 +134,6 @@ const COLORS = {
         "border-search": "#d8dadd",
         "shadow-opacity": 0.1,
 
-        // HootReporting colors
         "bg-report": "#ffffff",
         "text-report": "#202124",
         "border-report": "#f0f0f0",
@@ -162,7 +148,6 @@ const COLORS = {
         "text-report-html-class": "#994500",
     },
     dark: {
-        // Generic colors
         primary: "#14b8a6",
         amber: "#fbbf24",
         "amber-900": "#422006",
@@ -182,7 +167,6 @@ const COLORS = {
         rose: "#fb7185",
         "rose-900": "#4c0519",
 
-        // App colors
         bg: GRAYS[900],
         text: GRAYS[100],
         "status-bg": GRAYS[700],
@@ -194,7 +178,6 @@ const COLORS = {
         "border-search": "#3c3f4c",
         "shadow-opacity": 0.4,
 
-        // HootReporting colors
         "bg-report": "#202124",
         "text-report": "#e8eaed",
         "border-report": "#3a3a3a",
@@ -214,10 +197,6 @@ const DEBUG_NAMESPACE = "hoot";
 const isError = typeof Error.isError === "function" ? Error.isError : polyfillIsError;
 const interactionBus = new EventTarget();
 const preferredColorScheme = matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * @param {Iterable<InteractionType>} types
@@ -329,7 +308,6 @@ export function isInstanceOf(instance, ...classes) {
         return instance instanceof classes[0];
     }
     if (!instance || Object(instance) !== instance) {
-        // Object is falsy or a primitive (null, undefined and primitives cannot be the instance of anything)
         return false;
     }
     for (const cls of classes) {
@@ -423,6 +401,5 @@ export class HootDebugHelpers {
 
 export const REGEX_MARKER = "/";
 
-// Common regular expressions
 export const R_REGEX = new RegExp(`^${REGEX_MARKER}(.*)${REGEX_MARKER}([dgimsuvy]+)?$`);
 export const R_WHITE_SPACE = /\s+/g;

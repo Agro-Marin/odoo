@@ -42,15 +42,11 @@ export function buildZXingBarcodeDetector(ZXing) {
                         ZXing.DecodeHintType.POSSIBLE_FORMATS,
                         formats.map((format) => ZXingFormats.get(format)),
                     ],
-                    // Enable Scanning at 90 degrees rotation
-                    // https://github.com/zxing-js/library/issues/291
                     [ZXing.DecodeHintType.TRY_HARDER, true],
                 ]),
             );
             this.reader = new ZXing.MultiFormatReader();
             this.reader.setHints(hints);
-            // Reused across detect() calls (~10/s) to avoid allocating a new
-            // canvas per scan tick; resized only when dimensions change.
             this.canvas = document.createElement("canvas");
             this.ctx = this.canvas.getContext("2d");
         }
@@ -125,10 +121,6 @@ export function buildZXingBarcodeDetector(ZXing) {
                     width: Math.max(1, Math.abs(resultPoints[1].x - resultPoints[0].x)),
                 });
                 const cornerPoints = resultPoints;
-                // The BarcodeDetector spec exposes `format` as a string. The
-                // Map lookup yields a `[key, enumValue]` entry (or undefined);
-                // take the key, defaulting to "" so a consumer never receives
-                // a two-element array where a format string is expected.
                 const format =
                     Array.from(ZXingFormats).find(
                         ([k, val]) => val === result.getBarcodeFormat(),

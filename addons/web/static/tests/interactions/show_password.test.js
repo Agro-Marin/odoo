@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { click, queryOne } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
     setupInteractionWhiteList,
     startInteractions,
@@ -33,4 +34,19 @@ test("input type changes on clicking the eye icon", async () => {
     expect("input").toHaveAttribute("type", "text");
     await click(showEl);
     expect("input").toHaveAttribute("type", "password");
+});
+
+test("only the group's own control is revealed", async () => {
+    await startInteractions(`
+        <div class="input-group">
+            <input type="password" class="outer"/>
+            <div class="input-group">
+                <input type="password" class="inner"/>
+            </div>
+            <button class="o_show_password"><i class="fa fa-eye"/></button>
+        </div>`);
+    await click(".o_show_password");
+    await animationFrame();
+    expect(".outer").toHaveAttribute("type", "text");
+    expect(".inner").toHaveAttribute("type", "password");
 });

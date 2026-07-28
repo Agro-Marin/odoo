@@ -29,11 +29,8 @@ test(`filter element ids are stable across re-renders`, async () => {
     });
     const idsBefore = queryAll(`.o_calendar_filter_item input`).map((el) => el.id);
     expect(idsBefore).toHaveLength(3);
-    // Ids are unique within a render (each label/input pair must match).
     expect(new Set(idsBefore).size).toBe(3);
 
-    // Force a re-render without changing the data: ids must not churn (the
-    // getter used to bump a module-global on every template eval).
     section.render();
     await animationFrame();
     const idsAfter = queryAll(`.o_calendar_filter_item input`).map((el) => el.id);

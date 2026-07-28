@@ -8,7 +8,9 @@ import {
     fields,
     models,
     mountWithSearch,
+    onRpc,
 } from "@web/../tests/web_test_helpers";
+import { SearchModelEvent } from "@web/core/events";
 
 describe.current.tags("headless");
 
@@ -31,8 +33,6 @@ async function createSearchModel(searchProps = {}, config = {}) {
 }
 
 function sanitizeSearchItems(model) {
-    // We should not access searchItems but there is a problem with getSearchItems:
-    // comparisons are not sent back in some cases
     const searchItems = Object.values(model.searchItems);
     return searchItems.map((searchItem) => {
         const copy = Object.assign({}, searchItem);
@@ -740,11 +740,6 @@ test("process favorite filters", async () => {
 });
 
 test("favorite group_bys naming removed fields are screened at import", async () => {
-    // A shared default favorite can carry a group_by on a field that was
-    // since removed — web_read_group is strict server-side, so applying it
-    // 500s the whole view on load. Unknown fields are dropped (with a
-    // console warning) when the favorite is materialized; valid group-bys —
-    // including date granularities — survive.
     const warnings = [];
     const originalWarn = console.warn;
     console.warn = (...args) => warnings.push(args.join(" "));
@@ -775,8 +770,6 @@ test("favorite group_bys naming removed fields are screened at import", async ()
         (item) => item.type === "favorite",
     );
     expect(favorite.groupBys).toEqual(["name", "date_field:month"]);
-    // The default favorite is active: the model group-by must only contain
-    // the surviving fields (this is what reaches web_read_group).
     expect(model.groupBy).toEqual(["name", "date_field:month"]);
 });
 
@@ -1164,9 +1157,6 @@ test("exportState returns a snapshot decoupled from the live model", async () =>
 
     const state = model.exportState();
 
-    // The exported query/searchItems must be independent copies, not aliases of
-    // the still-mutating live model state (previously safe only because the
-    // caller JSON-stringified the result immediately).
     expect(state.query).not.toBe(model.query);
     const queryLength = state.query.length;
     expect(queryLength).toBeGreaterThan(0);
@@ -1179,7 +1169,10 @@ test("exportState returns a snapshot decoupled from the live model", async () =>
     expect(state.searchItems[someId].__probe).toBe(undefined);
 });
 
-test("fillSearchViewItemsProperty fetches each properties field's definitions at most once", async () => {
+test("fillSearchViewItemsProperty refetches definitions on each sequential call", async () => {
+    // Deliberately NOT memoised across calls: definitions live on the parent
+    // record and change under us, and the only caller is one dropdown open.
+    // Concurrent calls still share one fetch — see the next test.
     const model = await createSearchModel({
         searchViewArch: `
             <search>
@@ -1188,9 +1181,6 @@ test("fillSearchViewItemsProperty fetches each properties field's definitions at
         `,
     });
 
-    // One PropertiesGroupByItem component exists per properties field and each
-    // calls fillSearchViewItemsProperty once, so the routine is invoked N times.
-    // It must not re-fetch (RPC) definitions for a field it already materialized.
     const fetchedFields = [];
     model._fetchPropertiesDefinition = (resModel, fieldName) => {
         fetchedFields.push(fieldName);
@@ -1201,7 +1191,34 @@ test("fillSearchViewItemsProperty fetches each properties field's definitions at
     await model.fillSearchViewItemsProperty();
     await model.fillSearchViewItemsProperty();
 
-    expect(fetchedFields).toEqual(["properties"]);
+    expect(fetchedFields).toEqual(["properties", "properties", "properties"]);
+});
+
+test("a property added on the parent record reaches the group-by items", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+    });
+
+    let definitions = [{ name: "my_char", string: "My Char", type: "char" }];
+    model._fetchPropertiesDefinition = async () => [
+        { definitionRecordId: 1, definitionRecordName: "Parent", definitions },
+    ];
+    const isPropertyGroupBy = (item) =>
+        item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type);
+
+    await model.fillSearchViewItemsProperty();
+    expect(model.getSearchItems(isPropertyGroupBy)).toHaveLength(1);
+
+    definitions = [
+        ...definitions,
+        { name: "my_int", string: "My Int", type: "integer" },
+    ];
+    await model.fillSearchViewItemsProperty();
+    expect(model.getSearchItems(isPropertyGroupBy)).toHaveLength(2);
 });
 
 test("concurrent fillSearchViewItemsProperty calls both see the loaded items", async () => {
@@ -1233,8 +1250,6 @@ test("concurrent fillSearchViewItemsProperty calls both see the loaded items", a
     const firstFill = model.fillSearchViewItemsProperty();
     const secondFill = model.fillSearchViewItemsProperty();
 
-    // The second caller must await the in-flight load, not resolve early with
-    // zero items (which used to latch an empty Properties group-by menu).
     let secondSettled = false;
     secondFill.then(() => {
         secondSettled = true;
@@ -1249,4 +1264,153 @@ test("concurrent fillSearchViewItemsProperty calls both see the loaded items", a
 
     await firstFill;
     expect(fetchCount).toBe(1);
+});
+
+test("a query mutation racing an in-flight reload still notifies", async () => {
+    // `reload` opens a notification-blocking window around `_reloadSections`;
+    // a toggle landing inside it used to set `_pendingNotification` with no
+    // consumer left to drain it, so the view kept the pre-toggle domain.
+    const def = new Deferred();
+    onRpc("search_panel_select_range", async () => {
+        await def;
+        return { parent_field: false, values: [] };
+    });
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <filter name="filter" string="Filter" domain="[('foo', '=', 'a')]"/>
+                <searchpanel>
+                    <field name="bar" enable_counters="1"/>
+                </searchpanel>
+            </search>`,
+    });
+
+    let updates = 0;
+    model.addEventListener(SearchModelEvent.UPDATE, () => updates++);
+
+    const reloadProm = model.reload({ domain: [["id", "=", 1]] });
+    // `_reloadSections` runs its body in a Mutex microtask: wait for the
+    // blocking window to actually be open before mutating the query.
+    await tick();
+    expect(model.blockNotification).toBe(true);
+
+    const filterId = Object.values(model.searchItems).find(
+        (item) => item.type === "filter",
+    ).id;
+    model.toggleSearchItem(filterId);
+    def.resolve();
+    await reloadProm;
+    await tick();
+
+    expect(updates).toBe(1);
+    expect(model.domain).toEqual(["&", ["id", "=", 1], ["foo", "=", "a"]]);
+});
+
+test("a scalar searchpanel default on a multi-select field is accepted", async () => {
+    onRpc("search_panel_select_multi_range", () => ({
+        values: [{ id: 3, display_name: "asustek", count: 1 }],
+    }));
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <searchpanel>
+                    <field name="bar" select="multi"/>
+                </searchpanel>
+            </search>`,
+        context: { searchpanel_default_bar: 3 },
+    });
+    expect(model.domain).toEqual([["bar", "in", [3]]]);
+});
+
+describe("memoized getter contracts", () => {
+    test("groupBy hands out a fresh array on every access", async () => {
+        const model = await createSearchModel({ groupBy: ["foo"] });
+        const first = model.groupBy;
+        const second = model.groupBy;
+        // Consumers park this on reactive models; Owl keys its reactive caches
+        // by raw target, so a shared array entangles their subscriptions.
+        expect(first).toEqual(second);
+        expect(first === second).toBe(false);
+    });
+
+    test("orderBy neither aliases nor freezes the caller's array", async () => {
+        const callerOrderBy = [{ name: "foo", asc: true }];
+        const model = await createSearchModel({ orderBy: callerOrderBy });
+        expect(model.orderBy).toEqual(callerOrderBy);
+        expect(model.orderBy === callerOrderBy).toBe(false);
+        expect(Object.isFrozen(callerOrderBy)).toBe(false);
+    });
+
+    test("categories/filters are stable while the sections map is", async () => {
+        const model = await createSearchModel({
+            searchViewArch: `<search><searchpanel><field name="bar"/></searchpanel></search>`,
+        });
+        await model.sectionsPromise;
+        expect(model.categories === model.categories).toBe(true);
+        expect(model.filters === model.filters).toBe(true);
+        expect(model.categories.length).toBe(1);
+        expect(model.filters.length).toBe(0);
+    });
+});
+
+test("a property deleted on the parent record stops contributing to the domain", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+    });
+
+    let definitions = [
+        { name: "kept", string: "Kept", type: "char" },
+        { name: "gone", string: "Gone", type: "char" },
+    ];
+    model._fetchPropertiesDefinition = async () => [
+        { definitionRecordId: 1, definitionRecordName: "Parent", definitions },
+    ];
+    const propertiesItem = Object.values(model.searchItems).find(
+        (item) => item.fieldType === "properties",
+    );
+    const isFieldProperty = (item) => item.type === "field_property";
+
+    const created = await model.getSearchItemsProperties(propertiesItem);
+    expect(created).toHaveLength(2);
+
+    const gone = created.find((i) => i.propertyFieldDefinition.name === "gone");
+    model.addAutoCompletionValues(gone.id, {
+        label: "x",
+        operator: "=",
+        value: "x",
+    });
+    expect(JSON.stringify(model.domain)).toInclude("properties.gone");
+
+    definitions = [definitions[0]];
+    await model.getSearchItemsProperties(propertiesItem);
+
+    expect(model.getSearchItems(isFieldProperty)).toHaveLength(1);
+    expect(JSON.stringify(model.domain)).not.toInclude("properties.gone");
+    expect(model.query.some((q) => q.searchItemId === gone.id)).toBe(false);
+});
+
+test("search() invalidates the memos consumers detect changes by", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `<search><filter name="filt" string="Filt" domain="[('foo','=','a')]"/></search>`,
+        groupBy: ["foo"],
+    });
+    const before = {
+        context: model.context,
+        domain: model.domain,
+        orderBy: model.orderBy,
+    };
+
+    model.search();
+
+    // WithSearch passes these down as slot props and Owl skips a child whose
+    // props are all strictly identical, so re-running the search has to hand
+    // out new references or it never reaches the view.
+    expect(model.context === before.context).toBe(false);
+    expect(model.domain === before.domain).toBe(false);
+    expect(model.orderBy === before.orderBy).toBe(false);
+    expect(model.domain).toEqual(before.domain);
 });

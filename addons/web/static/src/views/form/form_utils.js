@@ -41,13 +41,13 @@ export async function loadSubViews(
         const fieldName = fieldInfo.name;
         const field = fields[fieldName];
         if (!isX2Many(field)) {
-            continue; // what follows only concerns x2many fields
+            continue;
         }
         if (fieldInfo.invisible === "True" || fieldInfo.invisible === "1") {
-            continue; // no need to fetch the sub view if the field is always invisible
+            continue;
         }
         if (!fieldInfo.field.useSubView) {
-            continue; // the FieldComponent used to render the field doesn't need a sub view
+            continue;
         }
 
         fieldInfo.views = fieldInfo.views || {};
@@ -57,21 +57,17 @@ export async function loadSubViews(
         }
         fieldInfo.viewMode = viewType;
         if (fieldInfo.views[viewType]) {
-            continue; // the sub view is inline in the main form view
+            continue;
         }
         fieldInfosToLoad.push(fieldInfo);
     }
 
-    // Fetch all sub-view archs in parallel: each iteration only mutates its own
-    // fieldInfo, so there is no need to serialize the round-trips.
     await Promise.all(
         fieldInfosToLoad.map(async (fieldInfo) => {
             const field = fields[fieldInfo.name];
             const viewType = fieldInfo.viewMode;
 
             const fieldContext = {};
-            // Matches both quote styles; any *_view_ref key spelling missed here is
-            // silently dropped by the filter below instead of forwarded.
             const regex = /['"](\w+_view_ref)['"] *: *['"](.*?)['"]/g;
             let matches;
             while ((matches = regex.exec(fieldInfo.context)) !== null) {
@@ -113,22 +109,11 @@ export async function loadSubViews(
  */
 export function useFormViewInDialog() {
     const formDialogStack = useService("form_dialog_stack");
-    // Push synchronously in setup, NOT in onMounted: the dialog form spends
-    // its whole willStart (loadViews / loadSubViews / initial record load)
-    // unmounted, and during that window the parent FormController's tab-hide
-    // auto-save (``beforeVisibilityChange``) would see an empty stack and
-    // silently web_save the parent — staged x2many rows included.
     formDialogStack.push();
-    // Pop in onWillDestroy, NOT onWillUnmount: a component destroyed before
-    // it ever mounts (e.g. the dialog is closed while still loading) never
-    // unmounts, which would leak the counter and permanently disable the
-    // parent's auto-save. willDestroy runs in both cases.
     onWillDestroy(() => formDialogStack.pop());
 }
 
 const sharedComponents = registry.category("shared_components");
-// Despite the name, entries are utility functions used to break import cycles
-// between view layers, not Component classes — hence the typeof-function check.
 sharedComponents.addValidation((entry) => typeof entry === "function");
 sharedComponents.add("loadSubViews", loadSubViews);
 sharedComponents.add("useFormViewInDialog", useFormViewInDialog);

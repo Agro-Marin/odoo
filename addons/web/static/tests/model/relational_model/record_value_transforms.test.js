@@ -18,8 +18,6 @@ import {
 
 const { DateTime } = luxon;
 
-// formatServerValue
-
 describe("formatServerValue — char / text", () => {
     test("passes through a non-empty char value", () => {
         expect(formatServerValue("char", "hello")).toBe("hello");
@@ -144,7 +142,6 @@ describe("formatServerValue — properties", () => {
     test("converts falsy many2one property value to null", () => {
         const input = [{ type: "many2one", name: "partner", value: null }];
         const result = formatServerValue("properties", input);
-        // null && [...] evaluates to null
         expect(result[0].value).toBe(null);
     });
 
@@ -164,7 +161,7 @@ describe("formatServerValue — properties", () => {
         const prop = { type: "char", name: "notes", value: "test" };
         const input = [prop];
         formatServerValue("properties", input);
-        expect(prop.value).toBe("test"); // original untouched
+        expect(prop.value).toBe("test");
     });
 });
 
@@ -181,8 +178,6 @@ describe("formatServerValue — default passthrough", () => {
         expect(formatServerValue("selection", false)).toBe(false);
     });
 });
-
-// getDefaultValues
 
 describe("getDefaultValues", () => {
     const fields = {
@@ -238,8 +233,6 @@ describe("getDefaultValues", () => {
     });
 });
 
-// getTextValues
-
 describe("getTextValues", () => {
     const fields = {
         name: { type: "char" },
@@ -268,7 +261,7 @@ describe("getTextValues", () => {
     });
 
     test("excludes fields not in activeFields", () => {
-        const activeFields = { name: {} }; // notes not active
+        const activeFields = { name: {} };
         const values = { name: "Alice", notes: "note" };
         const result = getTextValues(values, activeFields, fields);
         expect("notes" in result).toBe(false);
@@ -283,8 +276,6 @@ describe("getTextValues", () => {
         expect(result.notes).toBe("");
     });
 });
-
-// computeDataContext
 
 describe("computeDataContext", () => {
     const fields = {
@@ -326,7 +317,6 @@ describe("computeDataContext", () => {
     test("falsy many2one is passed as-is", () => {
         const data = { partner_id: false };
         const { withVirtualIds } = computeDataContext(data, fields, {}, 1);
-        // false is falsy so passes through default branch
         expect(withVirtualIds.partner_id).toBe(false);
     });
 
@@ -394,14 +384,6 @@ describe("computeDataContext", () => {
     });
 });
 
-// parseServerValues — added in Phase 3 of the model-layer decomposition.
-//
-// Tests dispatch by field type (scalar, m2o, x2many record/id/command list,
-// properties) using a hand-rolled record mock. The helper depends on
-// record._createStaticListDatapoint and record._processProperties as
-// instance-level callbacks (per the established Phase 1 convention); the
-// mock supplies stubs that capture their arguments for assertion.
-
 /**
  * Builds the minimum record shape consumed by parseServerValues.
  *
@@ -448,8 +430,6 @@ function makeParseRecord({
     return record;
 }
 
-// parseServerValues — empty input and active-field filtering
-
 describe("parseServerValues — empty input and filtering", () => {
     test("returns empty object when serverValues is undefined", () => {
         const rec = makeParseRecord();
@@ -481,13 +461,9 @@ describe("parseServerValues — empty input and filtering", () => {
             name: "hello",
             definition_record: { id: 1, display_name: "Parent" },
         });
-        // ``definition_record`` is silently dropped — only fields the view
-        // subscribes to land in the parsed bag.
         expect(Object.keys(result)).toEqual(["name"]);
     });
 });
-
-// parseServerValues — scalar / m2o delegation
 
 describe("parseServerValues — scalar / m2o", () => {
     test("char value passes through parseServerValue unchanged", () => {
@@ -518,8 +494,6 @@ describe("parseServerValues — scalar / m2o", () => {
     });
 });
 
-// parseServerValues — x2many: list-of-records path
-
 describe("parseServerValues — x2many record list", () => {
     test("forwards a list of records to _createStaticListDatapoint as-is", () => {
         const rec = makeParseRecord({
@@ -533,7 +507,6 @@ describe("parseServerValues — x2many record list", () => {
         const result = parseServerValues(rec, { line_ids: records });
         expect(result.line_ids.data).toEqual(records);
         expect(result.line_ids.fieldName).toBe("line_ids");
-        // No commands applied for a plain record list.
         expect(result.line_ids._appliedInitialCommands).toBe(null);
     });
 
@@ -557,8 +530,6 @@ describe("parseServerValues — x2many record list", () => {
     });
 });
 
-// parseServerValues — x2many: command-list paths
-
 describe("parseServerValues — x2many command list", () => {
     test("new datapoint + command list: creates empty list then applies INITIAL commands", () => {
         const rec = makeParseRecord({
@@ -570,10 +541,8 @@ describe("parseServerValues — x2many command list", () => {
             [4, 5, 0],
         ];
         const result = parseServerValues(rec, { line_ids: commands });
-        // The constructor receives an empty data list — the commands carry the data.
         expect(result.line_ids.data).toEqual([]);
         expect(result.line_ids._appliedInitialCommands).toBe(commands);
-        // The "apply on existing" path must NOT fire.
         expect(result.line_ids._appliedCommands).toBe(null);
     });
 
@@ -589,8 +558,6 @@ describe("parseServerValues — x2many command list", () => {
             _applyCommands(commands) {
                 this._appliedCommands = commands;
             },
-            // the possibly-async result is tracked on the list (see
-            // StaticList._trackCommandsPromise)
             _trackCommandsPromise(result) {
                 this._trackedResults.push(result);
             },
@@ -605,9 +572,7 @@ describe("parseServerValues — x2many command list", () => {
             { line_ids: commands },
             { currentValues: { line_ids: existingList } },
         );
-        // The existing list is reused (same reference).
         expect(result.line_ids).toBe(existingList);
-        // Incremental commands applied; initial-commands path did NOT fire.
         expect(result.line_ids._appliedCommands).toBe(commands);
         expect(result.line_ids._appliedInitialCommands).toBe(null);
     });
@@ -624,21 +589,16 @@ describe("parseServerValues — x2many command list", () => {
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "many2many" } },
         });
-        // Plain record list (element 0 is an object, not an array)
         const result = parseServerValues(
             rec,
             { line_ids: [{ id: 1, name: "A" }] },
             { currentValues: { line_ids: existingList } },
         );
         expect(result.line_ids).toBe(existingList);
-        // Neither command-application path should fire — the static list is
-        // reused as-is and the caller is responsible for any re-sync.
         expect(result.line_ids._appliedInitialCommands).toBe(null);
         expect(result.line_ids._appliedCommands).toBe(null);
     });
 });
-
-// parseServerValues — properties dispatch
 
 describe("parseServerValues — properties", () => {
     test("delegates to _processProperties and merges its return into the parsed bag", () => {
@@ -651,8 +611,6 @@ describe("parseServerValues — properties", () => {
             },
             processProperties: (value, fieldName, parent, currentValues) => {
                 capturedArgs = { value, fieldName, parent, currentValues };
-                // Simulate the splice: each property becomes a top-level
-                // ``${fieldName}.${propertyName}`` key on the parsed bag.
                 return { "props.color": "red", "props.size": 42 };
             },
         });
@@ -662,16 +620,9 @@ describe("parseServerValues — properties", () => {
         ];
         const result = parseServerValues(rec, {
             props: propsValue,
-            // parent_id is in fields but NOT in activeFields → skipped by the
-            // top-level loop, but still accessible via serverValues[definition_record].
         });
-        // The _processProperties stub was called with the parsed value, the
-        // field name, the parent m2o value, and the (undefined) currentValues.
-        // Use toEqual (deep) not toBe (reference) — parseServerValue may
-        // return a transformed copy of the input array for "properties".
         expect(capturedArgs.fieldName).toBe("props");
         expect(capturedArgs.value).toEqual(propsValue);
-        // Its return was merged into the parsed bag.
         expect(result["props.color"]).toBe("red");
         expect(result["props.size"]).toBe(42);
     });
@@ -694,9 +645,6 @@ describe("parseServerValues — properties", () => {
             props: [],
             parent_id: parent,
         });
-        // The helper passes the raw value at the definition_record key, not
-        // the parsed value (parent_id is not in activeFields, so it is never
-        // dispatched through parseServerValue).
         expect(capturedParent).toBe(parent);
     });
 });

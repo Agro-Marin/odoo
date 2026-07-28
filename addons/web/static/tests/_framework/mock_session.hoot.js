@@ -1,12 +1,6 @@
 // @ts-check
 
-// ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
-
 import { onServerStateChange, serverState } from "./mock_server_state.hoot.js";
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {typeof serverState} serverState
@@ -29,9 +23,6 @@ export const makeSession = ({
         debug: new URLSearchParams(location.search).get("debug"),
         lang,
     },
-    // Defaults to False as in production (see ``core/spreadsheet/models/ir_http.py``);
-    // ``true`` breaks every core/web list/search test expecting no "Insert in
-    // spreadsheet" menu entry. Spreadsheet's own tests opt in via ``patchWithCleanup(session,…)``.
     can_insert_in_spreadsheet: false,
     db,
     registry_hash: "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0",
@@ -50,17 +41,11 @@ export const makeSession = ({
     server_version_info: serverVersion,
     show_effect: true,
     uid: userId,
-    // Commit: 3e847fc8f499c96b8f2d072ab19f35e105fd7749
-    // to see what user_companies is
     user_companies: {
         allowed_companies: Object.fromEntries(
             companies.map((company) => [company.id, company]),
         ),
         current_company: companies[0]?.id,
-        // Was hardcoded ``{}``, so ``allowedCompaniesWithAncestors`` always
-        // equalled ``allowedCompanies`` and the switcher's whole hierarchy
-        // branch (disabled rows, select-all filtering, cascading through a
-        // disallowed node) had no JS coverage anywhere in web or enterprise.
         disallowed_ancestor_companies: Object.fromEntries(
             (disallowedAncestorCompanies || []).map((company) => [company.id, company]),
         ),
@@ -76,10 +61,6 @@ export const makeSession = ({
     ["web.base.url"]: "http://localhost:8069",
     view_info,
 });
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 export function mockSessionFactory() {
     return () => {

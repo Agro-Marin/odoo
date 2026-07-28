@@ -43,7 +43,7 @@ function camelToPascal(name) {
  *  requiredKeys?: R[];
  * }} params
  */
-function makeFieldGenerator(type, { aggregator, requiredKeys = [] } = {}) {
+function makeFieldGenerator(type, { aggregator, defaults, requiredKeys = [] } = {}) {
     const constructorFnName = camelToPascal(type);
     /** @type {any} */
     const defaultDef = { ...DEFAULT_FIELD_PROPERTIES };
@@ -53,8 +53,8 @@ function makeFieldGenerator(type, { aggregator, requiredKeys = [] } = {}) {
     if (type !== "generic") {
         defaultDef.type = type;
     }
+    Object.assign(defaultDef, defaults);
 
-    // 2nd level: returns the "constructor" function
     return {
         /**
          * @param {Partial<FieldDefinitionsByType[T] & MockFieldProperties>} [properties]
@@ -74,9 +74,7 @@ function makeFieldGenerator(type, { aggregator, requiredKeys = [] } = {}) {
                 }
             }
 
-            // Fill default values in definition based on given properties
             if (isComputed(field)) {
-                // By default: computed fields are readonly and not stored
                 field.readonly = properties.readonly ?? true;
                 field.store = properties.store ?? false;
             }
@@ -125,7 +123,6 @@ export function getFieldDisplayName(value) {
     return str[0].toUpperCase() + str.slice(1);
 }
 
-// Default field values
 export const DEFAULT_MONEY_FIELD_VALUES = {
     monetary: () => 0,
 };
@@ -178,7 +175,7 @@ export const Binary = makeFieldGenerator("binary");
 
 export const Boolean = makeFieldGenerator("boolean");
 
-export const Char = makeFieldGenerator("char");
+export const Char = makeFieldGenerator("char", { defaults: { trim: true } });
 
 export const Date = makeFieldGenerator("date");
 

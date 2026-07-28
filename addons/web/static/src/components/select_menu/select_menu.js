@@ -147,19 +147,18 @@ export class SelectMenu extends Component {
         this.dropdownState = useDropdownState();
 
         this.selectedChoice = this.getSelectedChoice(this.props);
-        // WeakMap cache of sorted choices keyed on each source array's
-        // identity (props.choices AND per-group arrays); filterOptions re-sorts
-        // on every open, and for stable arrays this recomputes an identical
-        // result each time. Lazily created in getSortedChoices; entries drop
-        // automatically when an array is no longer referenced.
         /** @type {WeakMap<any[], any[]> | null} */
         this._sortedChoicesCache = null;
+        // Deliberately does NOT assign `state.choices`: that field holds the
+        // list `filterOptions` builds (filtered, sorted, group headers folded
+        // in), and seeding it with the raw prop let "No results" -- which reads
+        // `state.choices` -- render on top of the options still listed from
+        // `state.displayedOptions`. The effect below rebuilds both together.
         onWillUpdateProps((nextProps) => {
-            const choicesChanged = this.props.choices !== nextProps.choices;
-            if (choicesChanged) {
-                this.state.choices = nextProps.choices;
-            }
-            if (choicesChanged || this.props.value !== nextProps.value) {
+            if (
+                this.props.choices !== nextProps.choices ||
+                this.props.value !== nextProps.value
+            ) {
                 this.selectedChoice = this.getSelectedChoice(nextProps);
             }
         });
@@ -206,6 +205,17 @@ export class SelectMenu extends Component {
         };
     }
 
+    /**
+     * The selected values, in multi-select mode. `value` is an optional prop,
+     * so a multi-select consumer that has not supplied one yet must read as
+     * "nothing selected" instead of throwing on `undefined.includes`.
+     *
+     * @returns {any[]}
+     */
+    get selectedValues() {
+        return this.props.value ?? [];
+    }
+
     get displayValue() {
         return this.state.searchValue === null
             ? this.selectedChoice?.label || ""
@@ -241,9 +251,7 @@ export class SelectMenu extends Component {
             id: c.value,
             text: c.label,
             onDelete: () => {
-                const values = [...this.props.value];
-                // Guard against indexOf === -1: splice(-1, 1) would remove the
-                // LAST (wrong) tag if the value were somehow already absent.
+                const values = [...this.selectedValues];
                 const index = values.indexOf(c.value);
                 if (index !== -1) {
                     values.splice(index, 1);
@@ -287,14 +295,6 @@ export class SelectMenu extends Component {
 
     onInputBlur(ev) {
         this.state.isFocused = false;
-        // A blur caused by an interaction inside the open menu (e.g. a
-        // mousedown on an option that takes focus) must NOT auto-clear the
-        // selection: the click about to land is (re)selecting an option.
-        // Clearing here commits a spurious null — and when the SAME option is
-        // re-picked, onItemSelected would then see the value unchanged and
-        // swallow the re-select, leaving the committed null as data loss.
-        // AutoComplete latches this with ignoreBlur; here we detect the
-        // in-menu relatedTarget directly.
         const menuEl = /** @type {any} */ (this.menuRef).el;
         const related = /** @type {Node | null} */ (ev.relatedTarget);
         if (this.dropdownState.isOpen && related && menuEl?.contains(related)) {
@@ -321,7 +321,6 @@ export class SelectMenu extends Component {
     }
 
     onInputClear() {
-        // multiSelect consumers expect an array value, single-select a scalar.
         this.props.onSelect(this.props.multiSelect ? [] : null);
         this.dropdownState.close();
     }
@@ -329,7 +328,6 @@ export class SelectMenu extends Component {
     onStateChanged(open) {
         if (open) {
             if (this.isBottomSheet) {
-                // the toggler input must not be focused
                 /** @type {HTMLElement} */ (document.activeElement).blur();
             }
             if (this.displayInputInDropdown && !this.isBottomSheet) {
@@ -345,9 +343,6 @@ export class SelectMenu extends Component {
             }
             this.props.onOpened();
         } else {
-            // A keystroke may have scheduled a debounced onInput that would
-            // force the dropdown back open after a deliberate close (Escape,
-            // selection): drop it.
             this.debouncedOnInput.cancel();
             this.scrollListenerEl?.removeEventListener("scroll", this.onScrollListener);
             this.scrollListenerEl = null;
@@ -357,8 +352,14 @@ export class SelectMenu extends Component {
     }
 
     isOptionSelected(choice) {
+        // Group and section headers carry no `value`, so an unset `props.value`
+        // would match them via `undefined === undefined` and report a header as
+        // the selected option.
+        if (choice.isGroup) {
+            return false;
+        }
         if (this.props.multiSelect) {
-            return this.props.value.includes(choice.value);
+            return this.selectedValues.includes(choice.value);
         }
         return this.props.value === choice.value;
     }
@@ -385,14 +386,11 @@ export class SelectMenu extends Component {
             ...props.choices,
             ...props.groups.flatMap((g) => g.choices || []),
         ];
-        if (!this.props.multiSelect) {
+        if (!props.multiSelect) {
             return choices.find((c) => c.value === props.value);
         }
 
-        const valueSet = new Set(props.value);
-        // Combine previously selected choices + newly selected choice from
-        // the searched choices, keep only the first occurrence of each value
-        // and filter the choices based on props.value i.e. valueSet.
+        const valueSet = new Set(props.value ?? []);
         const choiceByValue = new Map();
         for (const choice of [...(this.selectedChoice || []), ...choices]) {
             if (valueSet.has(choice.value) && !choiceByValue.has(choice.value)) {
@@ -404,30 +402,20 @@ export class SelectMenu extends Component {
 
     onItemSelected(value) {
         if (this.props.multiSelect) {
-            const values = [...this.props.value];
+            const values = [...this.selectedValues];
             const valueIndex = values.indexOf(value);
 
             if (valueIndex !== -1) {
                 values.splice(valueIndex, 1);
                 this.props.onSelect(values);
             } else {
-                this.props.onSelect([...this.props.value, value]);
+                this.props.onSelect([...this.selectedValues, value]);
             }
         } else if (this.props.value !== value) {
-            // Compare against the committed prop value, not the (possibly
-            // stale) selectedChoice: after a spurious blur-clear committed a
-            // null, selectedChoice may still hold the old choice and would
-            // swallow a re-select of the same option. props.value is the source
-            // of truth and also skips a redundant onSelect + RPC on a no-op
-            // re-pick.
             this.props.onSelect(value);
         }
         this.state.searchValue = null;
     }
-
-    // ==========================================================================================
-    // #                                         Search                                         #
-    // ==========================================================================================
 
     /**
      * Filters choices by ``searchString``, slicing the result to a
@@ -506,10 +494,6 @@ export class SelectMenu extends Component {
         }
         return sorted;
     }
-
-    // ==========================================================================================
-    // #                                         Scroll                                         #
-    // ==========================================================================================
 
     /**
      * Loads more choices as the user scrolls to the end of the dropdown.

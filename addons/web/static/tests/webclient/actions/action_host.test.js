@@ -77,10 +77,6 @@ test("doAction resolves and commits the stack with only the action container", a
 });
 
 test("the dispatch promise is settled by the mount, not by doAction itself", async () => {
-    // Pins WHY a renderer is required: the outer promise is resolved from
-    // ``ControllerComponent.onMounted``. If that ever moves, a bare
-    // ``makeMockEnv()`` would start resolving doAction and this test — which
-    // asserts the controller is mounted at resolution time — is the tripwire.
     await mountActionHost();
     const action = getService("action");
     let mountedAtResolution = null;
@@ -91,8 +87,6 @@ test("the dispatch promise is settled by the mount, not by doAction itself", asy
 });
 
 test("target='new' renders a dialog and commits the slot without a WebClient", async () => {
-    // mountWithCleanup adds a MainComponentsContainer, so the dialog/overlay
-    // services work here exactly as they do under the full shell.
     await mountActionHost();
     const action = getService("action");
 
@@ -102,7 +96,6 @@ test("target='new' renders a dialog and commits the slot without a WebClient", a
     expect(".o_technical_modal").toHaveCount(1);
     expect(action.dialog).not.toBe(null);
     expect(action.nextDialog).toBe(null);
-    // A dialog action does not enter the breadcrumb stack.
     expect(action.controllerStack).toHaveLength(0);
 });
 
@@ -135,10 +128,5 @@ test("switchView works against a container-only host", async () => {
     await animationFrame();
 
     expect(".o_form_view").toHaveCount(1);
-    // Two, not one: switching to a MONO-record view pushes a breadcrumb level
-    // rather than replacing the current one ("Partners > First record"). The
-    // index lookup in ``switchView`` only matches a non-virtual mono-record
-    // controller of the same action, finds none on the first switch, and falls
-    // through to ``controllerStack.length`` — i.e. append.
     expect(action.controllerStack).toHaveLength(2);
 });

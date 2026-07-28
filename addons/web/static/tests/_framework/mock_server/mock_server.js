@@ -119,10 +119,6 @@ const { DateTime } = luxon;
  * @typedef {(this: MockServer, request: Request, params: Record<string, string>) => any} RouteCallback
  */
 
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
-
 /**
  * @param {import("./mock_model").ModelRecord} user
  */
@@ -145,13 +141,10 @@ function deepCopy(object) {
     }
     if (typeof object === "object") {
         if (object?.nodeType) {
-            // Nodes
             return object.cloneNode(true);
         } else if (object instanceof Date || object instanceof DateTime) {
-            // Dates
             return new /** @type {any} */ (object).constructor(object);
         } else if (isIterable(object)) {
-            // Iterables
             const copy = [...object].map(deepCopy);
             if (object instanceof Set || object instanceof Map) {
                 return new /** @type {any} */ (object).constructor(copy);
@@ -159,7 +152,6 @@ function deepCopy(object) {
                 return copy;
             }
         } else {
-            // Other objects
             return Object.fromEntries(
                 Object.entries(object).map(([key, object]) => [key, deepCopy(object)]),
             );
@@ -175,14 +167,12 @@ function getAssignAction(options) {
     const shouldAdd = options?.mode === "add";
     return function assign(target, key, value) {
         if (shouldAdd && target[key] === Object(target[key])) {
-            // Add value
             if (Array.isArray(target[key])) {
                 target[key].push(...value);
             } else {
                 Object.assign(target[key], value);
             }
         } else {
-            // Replace value
             target[key] = value;
         }
     };
@@ -295,18 +285,13 @@ const getCurrentParams = createJobScopedGetter(
      * @param {ServerParams} previous
      */
     function getCurrentParams(previous) {
-        // Seed routing-infrastructure models (IrHttp, IrAttachment) into the
-        // runner-level snapshot. They must never include models with
-        // user-visible records — see setDefaultMockModels for the reasoning.
         const previousModels = previous?.models || _defaultMockModels;
-        // Same shape for routes — seed runner-level defaults registered
-        // via ``setDefaultMockRoute`` so every test inherits them.
         const previousRoutes = previous?.routes || _defaultMockRoutes;
         return {
             ...previous,
             actions: deepCopy(previous?.actions || []),
             menus: deepCopy(previous?.menus || [DEFAULT_MENU]),
-            models: [...previousModels], // own instance getters, no need to deep copy
+            models: [...previousModels],
             routes: [...previousRoutes],
         };
     },
@@ -389,24 +374,6 @@ const ROOT_MENU = {
 
 /** Providing handlers for internal URLs (blob and data) is **optional** */
 const INTERNAL_URL_PROTOCOLS = ["blob:", "data:"];
-
-// ---------------------------------------------------------------------------
-// Heavy static-DATA bundle stubs
-// ---------------------------------------------------------------------------
-// A few asset bundles ship nothing but a giant static data table (no behaviour
-// worth exercising in a unit test). ``web.assets_emoji`` is the worst offender:
-// its only file, ``emoji_picker/emoji_data.js``, is ~36k lines (~530 KB) of
-// Unicode CLDR data. Letting ``loadBundle`` fetch + esbuild the real thing on
-// the server routinely blew the 15s test timeout and contended on the build
-// lock across concurrent runs. Instead we serve a lightweight stub bundle whose
-// only module re-exports a handful of emojis in the exact shape the picker
-// consumes (``getCategories()`` / ``getEmojis()``), so the picker mounts
-// instantly. Only bundles listed here are stubbed; everything else keeps the
-// real fetch (see ``loadBundle``). The stub module is delivered as a ``data:``
-// ESM URL through the descriptor's import map, mirroring the real ESM bundle
-// flow (``@web/core/assets``: ``loadESMBundle`` injects the map, then
-// ``import()``s the specifier), so no runtime patching of ``odoo.loader`` is
-// needed.
 
 /** Category shape mirrors ``emoji_data.js`` ``getCategories()``. */
 const EMOJI_STUB_CATEGORIES = [
@@ -498,15 +465,6 @@ const EMOJI_STUB_EMOJIS = [
     },
 ];
 
-// Self-contained ESM module source re-exporting the stub data in the exact
-// surface ``loadEmoji()`` imports from ``@web/components/emoji_picker/emoji_data``.
-//
-// The module is a DELEGATING shim: import-map entries are first-injection-wins
-// for the whole browser session, so once this stub claims the specifier, a
-// suite that ``preloadBundle``s the REAL ``web.assets_emoji`` could never see
-// the real data. ``loadESMBundle`` (@web/core/assets) calls ``__setImplUrl``
-// with the real module's URL when it detects the specifier is already mapped
-// elsewhere, and the shim then transparently delegates to the real module.
 const EMOJI_STUB_MODULE_SOURCE = `
 const categories = ${JSON.stringify(EMOJI_STUB_CATEGORIES)};
 const emojis = ${JSON.stringify(EMOJI_STUB_EMOJIS)};
@@ -617,10 +575,6 @@ export function setDefaultMockRoute(...args) {
 
 let nextJsonRpcId = 1e9;
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export class MockServer {
     /** @type {MockServer | null} */
     static get current() {
@@ -640,8 +594,6 @@ export class MockServer {
     actions = [];
     /** @type {MenuDefinition[]} */
     menus = [];
-
-    // Server parameters (private)
 
     /**
      * @private
@@ -697,7 +649,6 @@ export class MockServer {
      */
     _websockets = [];
 
-    // Server environment (needs '_models' to be initialized first)
     env = makeServerEnv(this._models);
 
     /**
@@ -713,7 +664,6 @@ export class MockServer {
             assign(serverState, "lang", params.lang);
         }
         if (params.lang_parameters) {
-            // Never fully replace "lang_parameters"
             Object.assign(this._lang_parameters, params.lang_parameters);
         }
         if (params.menus) {
@@ -781,10 +731,6 @@ export class MockServer {
 
         registerDebugInfo("mock server", this);
 
-        // RPC cache: IndexedDB (``dbName=mockRpc``) persists across tests in
-        // the same browser session, so stale reads would bleed into later
-        // tests and bypass ``onRpc`` mocks using ``Deferred()`` for loading
-        // state — invalidate it after each test so the next one starts cold.
         const rpcCache = new RPCCache("mockRpc", 1, "23aeb0ff5d46cfa8aa44163720d871ac");
         rpc.setCache(rpcCache);
         after(async () => {
@@ -792,11 +738,9 @@ export class MockServer {
             await rpcCache.indexedDB.deleteDatabase();
         });
 
-        // Intercept all server calls
         mockFetch(/** @type {any} */ (this._handleRequest.bind(this)));
         mockWebSocket(this._handleWebSocket.bind(this));
 
-        // Set default routes
         this._onRoute(["/web/action/load"], this.loadAction);
         this._onRoute(["/web/action/load_breadcrumbs"], this.loadActionBreadcrumbs);
         this._onRoute(["/web/bundle/<string:bundle_name>"], this.loadBundle);
@@ -818,15 +762,10 @@ export class MockServer {
         this._onRoute(["/web/webclient/load_menus"], this.loadMenus);
         this._onRoute(["/web/webclient/translations"], this.loadTranslations);
 
-        // Register ambiant parameters
         await this.configure(/** @type {any} */ (getCurrentParams()));
 
         return this;
     }
-
-    //-------------------------------------------------------------------------
-    // Private methods
-    //-------------------------------------------------------------------------
 
     /**
      * @private
@@ -835,7 +774,6 @@ export class MockServer {
     _callOrm(params) {
         const { args, method, model: modelName, kwargs } = params;
 
-        // Try to find a model method
         if (modelName) {
             const model = this.env[modelName];
             if (typeof model[method] === "function") {
@@ -846,7 +784,6 @@ export class MockServer {
                 return model[method](...args, kwargs);
             }
 
-            // Try to find a parent model method
             for (const parentName of safeSplit(model._inherit)) {
                 const parentModel = this.env[parentName];
                 if (typeof parentModel[method] === "function") {
@@ -903,7 +840,6 @@ export class MockServer {
      * @param {URL} url
      */
     _findRouteListeners(url) {
-        // "blob:" and "data:" URLs do not have 'search' and 'hash' parameters
         const fullRoute = INTERNAL_URL_PROTOCOLS.includes(url.protocol)
             ? url.href
             : url.origin + url.pathname;
@@ -946,7 +882,6 @@ export class MockServer {
                 break;
             }
             case ACTION_TYPES.embedded: {
-                // Embedded actions are treated as regular actions for simplicity's sake
                 action.context ||= {};
                 action.domain ||= [];
                 action.filter_ids ||= [];
@@ -1023,7 +958,6 @@ export class MockServer {
     _getModelDefinition(ModelClass) {
         const model = ModelClass.definition;
 
-        // Server model
         if (/** @type {any} */ (ModelClass)._fetch) {
             this._modelNamesToFetch.add(model._name);
         }
@@ -1079,8 +1013,6 @@ export class MockServer {
             }
         }
 
-        // If the request is JSON-RPC, format the response as { error, result };
-        // otherwise return/throw it as-is.
         if (jsonRpcParams) {
             if (error) {
                 if (error instanceof RPCError) {
@@ -1133,9 +1065,7 @@ export class MockServer {
             this._modelNamesToFetch.clear();
         }
 
-        // First iteration: set own properties and fields for each model
         for (const model of models) {
-            // Server model properties
             if (model._name in serverModels) {
                 const {
                     description,
@@ -1147,7 +1077,6 @@ export class MockServer {
                     ...otherProperties
                 } = serverModels[model._name];
 
-                // Server properties
                 if (description) {
                     model._description = description;
                 }
@@ -1161,7 +1090,6 @@ export class MockServer {
                     model._rec_name = rec_name;
                 }
 
-                // '_inherit' property
                 if (inherit?.length) {
                     const inheritList = new Set(safeSplit(model._inherit));
                     for (const inherittedModelName of inherit) {
@@ -1173,7 +1101,6 @@ export class MockServer {
                     model._inherit = [...inheritList].join(",");
                 }
 
-                // Fields (lowest priority): server fields definitions
                 for (const [fieldName, serverField] of Object.entries(fields)) {
                     model._fields[fieldName] = {
                         ...DEFAULT_FIELD_PROPERTIES,
@@ -1186,7 +1113,6 @@ export class MockServer {
                 Object.assign(model, otherProperties);
             }
 
-            // Validate _rec_name
             if (model._rec_name) {
                 if (!(model._rec_name in model._fields)) {
                     throw new MockServerError(
@@ -1199,19 +1125,11 @@ export class MockServer {
                 /** @type {any} */ (model)._rec_name = "x_name";
             }
 
-            // Find duplicate models
             if (model._name in this._models) {
                 const existingModel = this._models[model._name];
-                // Add fields added from parent, since public class instance fields
-                // are not included in the prototype.
                 for (const fieldName in existingModel._fields) {
                     model._fields[fieldName] ??= existingModel._fields[fieldName];
                 }
-                // Chain registrations via the prototype graph so methods on the
-                // earlier registration stay reachable from the later one. Guard
-                // against cycles: ``Object.setPrototypeOf`` throws "Cyclic
-                // __proto__ value" if the two are already linked (e.g. a
-                // previous configure pass reused the same class).
                 const modelProto = Object.getPrototypeOf(model);
                 let wouldCycle =
                     modelProto === existingModel || existingModel === model;
@@ -1232,13 +1150,10 @@ export class MockServer {
                 );
             }
 
-            // Register models on mock server
             this._models[model._name] = model;
         }
 
-        // Second iteration: model inheritance +
         for (const model of models) {
-            // Apply inherited fields
             for (const modelName of safeSplit(model._inherit)) {
                 if (!modelName) {
                     continue;
@@ -1251,9 +1166,6 @@ export class MockServer {
                 } else if (
                     serverModelInheritances.has([model._name, modelName].join(","))
                 ) {
-                    // Inheritance comes from the server, so we can safely remove it:
-                    // it means that the inherited model has not been fetched in this
-                    // context.
                     model._inherit = model._inherit.replace(
                         new RegExp(`${modelName},?`),
                         "",
@@ -1263,9 +1175,7 @@ export class MockServer {
                 }
             }
 
-            // Re-iterate over fields after inheritances have been applied
             for (const [fieldName, field] of Object.entries(model._fields)) {
-                // Check missing models
                 if (field.relation && !this._models[field.relation]) {
                     if (field[S_SERVER_FIELD]) {
                         delete model._fields[fieldName];
@@ -1278,32 +1188,21 @@ export class MockServer {
                     }
                 }
 
-                // Finalize field definitions
                 field.name = fieldName;
                 field.string ||= getFieldDisplayName(fieldName);
 
-                // onChange
                 const onChange = field.onChange;
                 if (typeof onChange === "function") {
                     model._onChanges[fieldName] ||= onChange.bind(model);
                 }
 
-                // Computed & related fields
                 if (field.compute) {
-                    // Computed field
                     /** @type {any} */
                     let computeFn = field.compute;
                     if (typeof computeFn !== "function") {
                         const computeName = computeFn;
                         computeFn = /** @type {any} */ (model)[computeName];
                         if (typeof computeFn !== "function") {
-                            // The compute may live on another test's model class,
-                            // merged in via ``_fields[x] ??= existingModel._fields[x]``,
-                            // and be unreachable from this instance's prototype
-                            // chain. Rather than aborting test setup, fall back to
-                            // a plain stored field and emit a one-shot debug log
-                            // per (model, field) so cross-test leakage stays
-                            // visible without spamming the console.
                             this._missingComputes ??= new Set();
                             const key = `${model._name}.${fieldName}:${computeName}`;
                             if (!this._missingComputes.has(key)) {
@@ -1321,16 +1220,13 @@ export class MockServer {
 
                     model._computes[fieldName] = computeFn;
                 } else if (field.related) {
-                    // Related field
                     model._related.add(fieldName);
                 }
             }
 
-            // Generate initial records
             const recordsWithoutId = [];
             const seenIds = new Set();
             for (const record of model._records) {
-                // Check for unknown fields
                 for (const fieldName in record) {
                     if (!(fieldName in model._fields)) {
                         throw new MockServerError(
@@ -1354,16 +1250,11 @@ export class MockServer {
             }
             model._records = [];
 
-            // Records without ID are assigned later to avoid collisions
             for (const record of recordsWithoutId) {
                 record.id = /** @type {any} */ (model)._getNextId();
             }
         }
 
-        // Third iteration: apply default values for each record. Can only be done
-        // after each record has been created since some 'default' handlers should
-        // return actual record IDs. Afterwards, the values for each record can be
-        // validated.
         for (const model of models) {
             for (const record of model) {
                 /** @type {any} */ (model)._applyDefaults(record);
@@ -1371,7 +1262,6 @@ export class MockServer {
             /** @type {any} */ (model)._applyComputesAndValidate();
         }
 
-        // creation of the ir.model.fields records, required for tracked fields
         const IrModelFields = this._models["ir.model.fields"];
         if (IrModelFields) {
             for (const model of models) {
@@ -1432,15 +1322,11 @@ export class MockServer {
     _onRoute(routes, callback, options) {
         const routeRegexes = routes.map((route) => {
             const regexString = route
-                // Only replace special RegExp character that can also be included
-                // in valid URLs
                 .replaceAll(R_URL_SPECIAL_CHARACTERS, "\\$&")
-                // Replace parameters by regex notation and store their names
                 .replaceAll(R_ROUTE_PARAM, (...args) => {
                     const { name, type } = args.pop();
                     return `(?<${name}>${ALLOWED_CHARS[type] || ALLOWED_CHARS.default}+)`;
                 })
-                // Replace glob wildcards by regex wildcard
                 .replaceAll(R_WILDCARD, ".*");
             return [new RegExp(`^${regexString}$`, "i"), route.startsWith("/")];
         });
@@ -1488,10 +1374,6 @@ export class MockServer {
         }
         return this;
     }
-
-    //-------------------------------------------------------------------------
-    // Route methods
-    //-------------------------------------------------------------------------
 
     async callKw(request) {
         const callNextOrmCallback = () => {
@@ -1554,20 +1436,12 @@ export class MockServer {
     }
 
     async loadBundle(request, { bundle_name } = {}) {
-        // Heavy static-DATA bundles (e.g. web.assets_emoji) are served from a
-        // lightweight stub so the consuming component mounts instantly instead
-        // of fetching + esbuilding the real ~530 KB payload (which blew the 15s
-        // timeout and contended on the server build lock). Only gated bundles
-        // are stubbed; everything else keeps the real fetch below.
         const stubFactory = HEAVY_STATIC_BUNDLE_STUBS[bundle_name];
         if (stubFactory) {
             return new Response(JSON.stringify(stubFactory()), {
                 headers: { "Content-Type": "application/json" },
             });
         }
-        // No mock here: we want to fetch the actual bundle (and cache it between suites),
-        // although there is a protection to ensure a bundle doesn't leak to the
-        // next test.
         const initiatorTestId = getCurrent().test?.id;
         if (initiatorTestId) {
             const result = await globalCachedFetch(request.url);
@@ -1575,12 +1449,6 @@ export class MockServer {
                 return result;
             }
         }
-        // The initiating test ended before its bundle finished loading. Rejecting
-        // (rather than the old never-settling `new Promise(() => {})`) lets the
-        // superseded caller unwind AND makes `@web/core/assets`::`getBundle`
-        // evict its poisoned cache entry (its `.catch` deletes the bundle key),
-        // so the next test re-fetches cleanly instead of cache-hitting a promise
-        // that never resolves — the root of the recurring 15s hang.
         throw new MockServerError(
             `loadBundle("${bundle_name}") was superseded: the initiating test ended before the bundle finished loading`,
         );
@@ -1720,7 +1588,6 @@ export function defineModels(ModelClasses, options) {
             continue;
         }
         seenModels.add(ModelClass);
-        // we cannot get the `definition` as this will trigger the model creation
         if (/** @type {any} */ (ModelClass)._fetch) {
             registerModelToFetch(/** @type {any} */ (ModelClass).getModelName());
         }

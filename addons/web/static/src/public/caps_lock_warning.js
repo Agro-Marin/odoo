@@ -12,8 +12,9 @@ export class CapsLockWarning extends Interaction {
         ".o_caps_lock_warning_text": {
             "t-att-class": () => ({ "d-none": this.isWarningHidden }),
         },
-        ".o_caps_lock_warning input[type='password']": {
-            "t-on-keydown": this._onInputKeyDown,
+        "input[type='password']": {
+            "t-on-keydown": this._onInputKey,
+            "t-on-keyup": this._onInputKey,
         },
     };
 
@@ -23,17 +24,25 @@ export class CapsLockWarning extends Interaction {
     }
 
     /**
-     * Detects Caps Lock state on keydown and toggles the warning.
+     * Reads the Caps Lock state off any key event in the field and toggles the
+     * warning.
      *
      * @private
      * @param {KeyboardEvent} ev
      */
-    _onInputKeyDown(ev) {
-        // FALSE on the keydown that first turns CAPS-LOCK on (state hasn't flipped yet).
+    _onInputKey(ev) {
         const state = ev.getModifierState?.("CapsLock");
-
-        // FALSE removes the `invisible` class, TRUE adds it.
-        this.isWarningHidden = ev.key === "CapsLock" ? state : !state;
+        if (state === undefined) {
+            return;
+        }
+        if (ev.type === "keydown" && ev.key === "CapsLock") {
+            // browsers disagree on whether the Caps Lock key's own keydown
+            // reports the state from before or after the toggle; its keyup is
+            // unambiguous everywhere, so wait for that one reading instead of
+            // guessing which convention this browser follows
+            return;
+        }
+        this.isWarningHidden = !state;
     }
 }
 

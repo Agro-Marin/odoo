@@ -42,7 +42,7 @@ test("readonly", async () => {
         type: "form",
         resModel: "update.record.action",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="update_path" widget="field_selector" readonly="1"/>
             </form>
@@ -59,7 +59,7 @@ test("no specified options", async () => {
     await mountView({
         type: "form",
         resModel: "update.record.action",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="update_path" widget="field_selector"/>
             </form>
@@ -84,7 +84,7 @@ test("only_searchable option", async () => {
     await mountView({
         type: "form",
         resModel: "update.record.action",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="update_path" widget="field_selector" options="{'only_searchable': true}"/>
             </form>
@@ -108,7 +108,7 @@ test("model option", async () => {
     await mountView({
         type: "form",
         resModel: "update.record.action",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="model"/>
                 <field name="update_path" widget="field_selector" options="{'model': 'model'}"/>
@@ -154,13 +154,10 @@ test("model option", async () => {
 });
 
 test("model option as a literal model name", async () => {
-    // ``model`` is a literal model name here, not a field on the record. The
-    // widget must resolve it directly instead of silently falling back to the
-    // current record's model (update.record.action).
     await mountView({
         type: "form",
         resModel: "update.record.action",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="update_path" widget="field_selector" options="{'model': 'lead'}"/>
             </form>
@@ -185,7 +182,7 @@ test("follow_relations option", async () => {
     await mountView({
         type: "form",
         resModel: "update.record.action",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="model"/>
                 <field name="update_path" widget="field_selector" options="{

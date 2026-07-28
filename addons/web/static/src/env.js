@@ -19,8 +19,6 @@ import { session } from "@web/session";
 
 const log = makeAssetLog("env");
 
-// Types
-
 /**
  * @typedef {{
  *  bus: EventBus;
@@ -31,8 +29,6 @@ const log = makeAssetLog("env");
  *  [key: string]: any;
  * }} OdooEnv
  */
-
-// makeEnv
 
 /**
  * Return a value Odoo Env object
@@ -78,8 +74,6 @@ export function makeEnv() {
     });
 }
 
-// Service Launcher
-
 const serviceRegistry = registry.category("services");
 
 serviceRegistry.addValidation({
@@ -92,11 +86,6 @@ serviceRegistry.addValidation({
     "*": true,
 });
 
-// Debug-mode early-detection of missing service dependencies: catches typos
-// at registration time instead of waiting for the cascade-skip in
-// ``_startServices``. Silent in production (third-party addons may register
-// deps that load later). Defers one microtask so sibling sync registrations
-// land before we declare a dep missing.
 serviceRegistry.addEventListener("UPDATE", (ev) => {
     if (!odoo.debug) {
         return;
@@ -123,12 +112,6 @@ serviceRegistry.addEventListener("UPDATE", (ev) => {
         }
     });
 });
-
-// Startup-pass serialization is stored PER-ENV (``env._startServicesPromise``),
-// not in a module global: independent envs (test suites, embedded sub-apps)
-// must not serialize behind one another, and a rejection in one env's pass must
-// not cross-contaminate another env's. Within a single env, concurrent
-// ``_startServices`` passes still serialize via that env's own slot.
 
 /**
  * Dedup state for the cascade-skip warning below: without it, a single
@@ -166,48 +149,23 @@ export function _resetCascadeWarningCache() {
  */
 export async function startServices(env) {
     log("startServices: registry size=", serviceRegistry.getEntries().length);
-    // Wait for all synchronous code so that if new services that depend on
-    // one another are added to the registry, they're all present before we
-    // start them regardless of the order they're added to the registry.
     await Promise.resolve();
 
     const onRegistryUpdate = async (ev) => {
-        // Wait for all synchronous code so that if new services that depend on
-        // one another are added to the registry, they're all present before we
-        // start them regardless of the order they're added to the registry.
         await Promise.resolve();
         const { operation } = ev.detail;
         if (operation === "delete") {
-            // We hardly see why it would be useful to remove a service.
-            // Furthermore we could encounter problems with dependencies.
-            // Keep it simple!
             return;
         }
-        // Always schedule a FRESH pass with its own Map: ``_startServices``
-        // repopulates it from the registry (every registered service not yet
-        // in ``env.services``), and serializes behind any in-flight pass via
-        // ``startServicesPromise``. Sharing a Map with an in-flight pass
-        // could inject an already-startable service into ``toStart`` in the
-        // microtask window between the pass's last wave settling and its
-        // post-await checks — a leftover the old code misreported as a
-        // circular dependency.
         try {
             await _startServices(env, new Map());
         } catch (error) {
-            // This runs as an event-listener callback: a rejection here is
-            // awaited by nobody and would surface only as a context-free
-            // unhandled rejection. Log which async startup pass failed so a
-            // late-registered service that throws on start is diagnosable.
             console.error(
                 "[env] service startup pass (registry UPDATE) failed:",
                 error,
             );
         }
     };
-    // If startServices is called more than once on the same env (test patterns
-    // that re-run startup after an expected throw, for instance), drop the
-    // listener installed by the previous call before installing a new one —
-    // otherwise both stay attached and double-fire on every UPDATE.
     env.disposeServiceRegistryListener?.();
     serviceRegistry.addEventListener("UPDATE", onRegistryUpdate);
     env.disposeServiceRegistryListener = () => {
@@ -234,8 +192,6 @@ export async function startServices(env) {
  * @returns {Promise<void>}
  */
 export async function ensureServicesStarted(env) {
-    // Let any pending synchronous registrations land first, matching the
-    // microtask convention used by startServices / onRegistryUpdate.
     await Promise.resolve();
     await _startServices(env, new Map());
 }
@@ -251,14 +207,6 @@ export async function ensureServicesStarted(env) {
  */
 async function _startServices(env, toStart) {
     if (env._startServicesPromise) {
-        // Serialize behind the in-flight pass FOR THIS ENV, but run this
-        // independent pass regardless of that pass's outcome. A rejecting
-        // service.start() in the earlier pass (propagated through the
-        // `start().finally(...)` below, which does not catch) must not cancel
-        // this caller's pass nor surface as this caller's unrelated rejection.
-        // `.catch(() => {})` swallows only the *previous* pass's result — the
-        // original caller of that pass still sees its own rejection via its own
-        // `await`, and this pass's own errors still propagate normally.
         return env._startServicesPromise
             .catch(() => {})
             .then(() => _startServices(env, toStart));
@@ -273,9 +221,6 @@ async function _startServices(env, toStart) {
         }
     }
 
-    // O(N+E) dependency resolution — shared impl in
-    // ``@web/core/utils/dependency_graph`` (pending-count/reverse-edge
-    // bookkeeping); this file drives waves and calls service.start().
     const resolver = createWaveResolver({
         isLoaded: (dep) => dep in services,
     });
@@ -293,16 +238,12 @@ async function _startServices(env, toStart) {
         resolver.track(name, service.dependencies || []);
     }
 
-    // Initial tracking
     for (const name of toStart.keys()) {
         _trackService(name);
     }
 
-    // Start services in waves: ready services run in parallel, then
-    // propagate to unlock dependents.
     let _wave = 0;
     async function start() {
-        // Track any new services added via registry UPDATE listener
         for (const name of toStart.keys()) {
             _trackService(name);
         }
@@ -310,7 +251,6 @@ async function _startServices(env, toStart) {
         const proms = [];
         const waveStarted = [];
         while (resolver.hasReady()) {
-            // `hasReady()` guarantees `shift()` returns a value here.
             const name = /** @type {string} */ (resolver.shift());
             if (name in services) {
                 continue;
@@ -330,17 +270,6 @@ async function _startServices(env, toStart) {
             try {
                 value = service.start(env, dependencies);
             } catch (error) {
-                // A single throwing service.start() must NOT abort the whole
-                // boot wave. Left unguarded it rejects Promise.all(proms) →
-                // rejects startServicesPromise → fails mountComponent → the
-                // boot-failure overlay blanks the ENTIRE app (100+ services, one
-                // broken third-party service takes down everything). Log with the
-                // service name and skip it: the service was already removed from
-                // ``toStart`` and untracked above and its result is never stored,
-                // so the post-wave cascade-skip sees it as absent from both
-                // ``services`` and ``toStart`` and drops its dependents — they
-                // then fail at their own use site, the same contract as an
-                // unreachable dependency.
                 console.error(`[env] service "${name}" failed to start (sync):`, error);
                 continue;
             }
@@ -351,18 +280,10 @@ async function _startServices(env, toStart) {
             proms.push(
                 Promise.resolve(value).then(
                     (val) => {
-                        // Use ?? (not ||): a service resolving to a falsy-but-valid
-                        // value (0, "", false) must be preserved; only null/undefined
-                        // collapse to null.
                         services[name] = val ?? null;
                         resolver.propagate(name);
                     },
                     (error) => {
-                        // Same rationale as the sync catch above: a rejected
-                        // service promise must not reject the wave. Skip it (no
-                        // propagate, so dependents stay pending and cascade-skip
-                        // after the wave); the app degrades at the use site
-                        // instead of failing globally.
                         console.error(
                             `[env] service "${name}" failed to start (async):`,
                             error,
@@ -396,22 +317,6 @@ async function _startServices(env, toStart) {
             }
         }
         if (missingDeps.size) {
-            // Cascade-skip services whose deps aren't in the registry. A dep
-            // can legitimately be absent because of a lazy-loaded TEST bundle
-            // (provider never imported) or a lazy-loaded PRODUCTION bundle
-            // (e.g. ``spreadsheet.o_spreadsheet``) where ESM import order lets
-            // a consumer register before its provider — self-healing on the
-            // next registry UPDATE. A caller that lazy-loads such a bundle
-            // and synchronously reads one of its services in ``setup`` must
-            // await ``ensureServicesStarted(env)`` after ``loadBundle`` —
-            // see ``addSpreadsheetActionLazyLoader``.
-            //
-            // Skipping (not throwing) is correct: a dep that never arrives
-            // just leaves its consumer unstarted (fails at the use site, not
-            // globally); a dep that arrives later is recovered by the next
-            // startServices/ensureServicesStarted pass; genuine circular
-            // deps still throw below since the cascade only removes services
-            // with truly missing deps.
             const skipped = [];
             let changed = true;
             while (changed) {
@@ -428,9 +333,6 @@ async function _startServices(env, toStart) {
                 }
             }
             if (skipped.length) {
-                // Dedup by (skipped-set, missing-set) so a misconfiguration
-                // repeated across tests only warns once (see
-                // `_seenCascadeWarnings` declaration above).
                 const dedupKey =
                     [...skipped].sort().join(",") +
                     "|" +
@@ -457,15 +359,6 @@ async function _startServices(env, toStart) {
             }
         }
         if (toStart.size) {
-            // After the cascade-skip (and wave-resolver fixpoint earlier),
-            // anything still pending has all its deps registered but the
-            // resolver couldn't progress on it — normally a circular
-            // dependency, which remains a hard error (genuine programming
-            // bug). Only throw when a cycle is actually FOUND: leftovers
-            // without one mean a startable service slipped in after the wave
-            // loop finished (a registry UPDATE racing the post-await checks)
-            // — the same documented lazy-bundle state as the cascade-skip;
-            // the next startServices/ensureServicesStarted pass recovers it.
             const depGraph = new Map();
             for (const [name, service] of toStart) {
                 depGraph.set(name, service.dependencies || []);
@@ -494,10 +387,6 @@ async function _startServices(env, toStart) {
 }
 
 export const customDirectives = {
-    // t-custom-click="handler": adds "click"/"auxclick" listeners that call
-    // the global "click" handler with (ev, isMiddleClick). "stop"/"prevent"
-    // modifiers are resolved at compile time into boolean flags, avoiding
-    // runtime JSON.parse + array iteration on every click.
     click: (node, value, modifiers) => {
         let mods = "";
         if (modifiers.includes("synthetic")) {

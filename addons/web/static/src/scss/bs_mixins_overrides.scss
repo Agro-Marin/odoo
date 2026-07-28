@@ -1,13 +1,6 @@
-//------------------------------------------------------------------------------
-// Bootstrap Mixins and Functions Extensions
-// Those will affect the way bootstrap is generated wherever bootstrap is used
-//------------------------------------------------------------------------------
 
-// This variable must be defined here instead of bootstrap overridden files
-// otherwise we will have deprecation messages during assets generation
 $enable-deprecation-messages: false !default;
 
-// Override color-contrast function to handle the alpha component of colors
 @function color-contrast(
     $background,
     $color-contrast-dark: $color-contrast-dark,
@@ -31,9 +24,6 @@ $enable-deprecation-messages: false !default;
         }
     }
 
-    // No foreground color met the #{$min-contrast-ratio}:1 ratio against #{$real-color}.
-    // Falls back to the highest-contrast candidate below.
-
     @return $max-ratio-color;
 }
 
@@ -41,9 +31,6 @@ $enable-deprecation-messages: false !default;
     @return scale-color($color, $alpha: -30%);
 }
 
-// This placeholder regroups the rules that will apply on all elements with a
-// bg-* class (see o-bg-color, bg-variant). The optimized-css way would be to
-// have a common class for them all.
 %o-bg-color-component-color-reset {
     h1,
     h2,
@@ -80,20 +67,17 @@ $o-color-extras-nesting-selector: "&" !default;
             )
         );
 
-        // Generate a pair of CSS variables for bg-* classes to then use them
-        // within the .badge design definition (see website.scss)
         --background-color: #{$color};
         --color: #{$-yiq-color};
 
         background-color: $color#{if($important, " !important", "")};
-        color: $-yiq-color; // not important so that text utilities still work
+        color: $-yiq-color;
 
         @if $with-extras and $-yiq-threshold-met {
             #{$nesting-selector} {
                 @extend %o-bg-color-component-color-reset;
 
                 .text-muted {
-                    // Always important since the basic BS rule is important
                     color: mute-color($-yiq-color) !important;
                 }
             }
@@ -101,9 +85,6 @@ $o-color-extras-nesting-selector: "&" !default;
     }
 }
 
-// Override background utilities so that they come with a default contrasted
-// color (especially useful in the frontend editor for example). Also modifies
-// the way .text-muted elements are rendered in those environments.
 @mixin bg-variant($parent, $color, $text-color: null) {
     #{$parent} {
         @include o-bg-color($color, $text-color);

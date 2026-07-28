@@ -14,10 +14,6 @@ export class ColorField extends Component {
         ...standardFieldProps,
         autosave: { type: Boolean, optional: true },
     };
-    // Unlike the other autosave widgets (default true), ColorField's default is
-    // view-dependent — autosave only in list/kanban, see extractProps. The
-    // props-only fallback therefore mirrors the form case (no autosave) so a
-    // direct instantiation never silently persists.
     static defaultProps = {
         autosave: false,
     };
@@ -26,12 +22,6 @@ export class ColorField extends Component {
     state;
 
     setup() {
-        // Transient override so the swatch can live-preview while the user
-        // drags inside the native color picker ("input" fires on every move,
-        // the record is only updated on "change"). Kept null the rest of the
-        // time so the swatch reads the record directly — external updates
-        // (e.g. another field's onchange) then reflect synchronously instead
-        // of lagging a frame behind a mirrored copy.
         this.state = useState({ livePreview: null });
     }
 
@@ -50,8 +40,6 @@ export class ColorField extends Component {
 
     /** @param {Event} ev */
     onChange(ev) {
-        // Stop previewing and commit: the swatch falls back to the record,
-        // which now carries the chosen color.
         this.state.livePreview = null;
         this.props.record.update(
             { [this.props.name]: /** @type {HTMLInputElement} */ (ev.target).value },

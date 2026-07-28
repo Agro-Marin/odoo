@@ -45,8 +45,6 @@ test("warn on every contains(@class, ...) — not just alternating calls", async
         },
     });
     const arch = `<t t-name="web.B"><div class="c1" /><div class="c2" /></t>`;
-    // Two successive contains(@class) operations — before the /g fix, only the
-    // first would warn (the second was missed due to stale lastIndex).
     const operations = `<t t-inherit="web.B">
         <xpath expr="*[contains(@class, 'c1')]" position="inside"><span/></xpath>
         <xpath expr="*[contains(@class, 'c2')]" position="inside"><span/></xpath>
@@ -71,7 +69,6 @@ test("single operation: replace", async () => {
                     <xpath expr="./div/h2" position="replace"><h3>Other title</h3></xpath>
                 </t>`,
             result: `<t t-name="web.A" t-translation-context="from_target"> <div><h3 t-translation-context="from_op">Other title</h3>text</div> </t>`,
-            // TODO check if text should be there? (I think there is a bug in python code)
         },
     ];
     for (const { arch, operations, result } of toTest) {
@@ -105,7 +102,6 @@ test("single operation: replace root (and use a $0)", async () => {
                     <xpath expr="." position="replace"><div>At first I was afraid</div>$0</xpath>
                 </t>`,
             result: `<div t-translation-context="from_op" t-name="web.A">At first I was afraid</div>`,
-            // in outer mode with no parent only first child of operation is kept
         },
         {
             arch: `<t t-name="web.A"> <div>I was petrified</div> </t>`,

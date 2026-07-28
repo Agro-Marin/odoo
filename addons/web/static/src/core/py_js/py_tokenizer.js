@@ -5,10 +5,6 @@
 
 import { TokenType } from "./token_type.js";
 
-// -----------------------------------------------------------------------------
-// Types
-// -----------------------------------------------------------------------------
-
 /**
  * The {@link Token} typedefs and the {@link TokenType} discriminant legend live
  * in ``./token_type.js`` (single source of truth shared with the parser).
@@ -17,10 +13,6 @@ import { TokenType } from "./token_type.js";
  */
 
 export class TokenizerError extends Error {}
-
-// -----------------------------------------------------------------------------
-// Helpers and Constants
-// -----------------------------------------------------------------------------
 
 /**
  * Directly maps a single escape code to an output character
@@ -63,11 +55,9 @@ function decodeStringLiteral(str) {
             continue;
         }
         switch (escape) {
-            // Ignored
             case "\n":
                 ++i;
                 continue;
-            // Character named name in the Unicode database
             case "N":
                 throw new TokenizerError("SyntaxError: \\N{} escape not implemented");
             case "u": {
@@ -86,12 +76,10 @@ function decodeStringLiteral(str) {
                 }
                 code = Number.parseInt(uni, 16);
                 out.push(String.fromCodePoint(code));
-                // escape + 4 hex digits
                 i += 5;
                 continue;
             }
             case "U": {
-                // \UXXXXXXXX — 8-digit Unicode code point escape
                 const codePointHex = str.slice(i + 2, i + 10);
                 if (!/[0-9a-f]{8}/i.test(codePointHex)) {
                     throw new TokenizerError(
@@ -105,11 +93,10 @@ function decodeStringLiteral(str) {
                     );
                 }
                 out.push(String.fromCodePoint(codePoint));
-                i += 9; // escape + 8 hex digits
+                i += 9;
                 continue;
             }
             case "x": {
-                // get 2 hex digits
                 const hex = str.slice(i + 2, i + 4);
                 if (!/[0-9a-f]{2}/i.test(hex)) {
                     throw new TokenizerError(
@@ -125,23 +112,19 @@ function decodeStringLiteral(str) {
                 }
                 code = Number.parseInt(hex, 16);
                 out.push(String.fromCharCode(code));
-                // skip escape + 2 hex digits
                 i += 3;
                 continue;
             }
             default: {
-                // Check if octal
                 if (!/[0-7]/.test(escape)) {
                     break;
                 }
                 const r = /[0-7]{1,3}/g;
                 r.lastIndex = i + 1;
-                // Guaranteed to match: `escape` already passed the octal test above.
                 const m = /** @type {RegExpExecArray} */ (r.exec(str));
                 const oct = m[0];
                 code = Number.parseInt(oct, 8);
                 out.push(String.fromCharCode(code));
-                // skip matchlength
                 i += oct.length;
                 continue;
             }
@@ -197,7 +180,6 @@ const symbols = new Set([
     ...unaryOperators,
 ]);
 
-// Regexps
 /** @param {...string} args */
 function group(...args) {
     return "(" + args.join("|") + ")";
@@ -218,12 +200,8 @@ function parseNumberLiteral(token) {
 
 const Name = "[a-zA-Z_]\\w*";
 const Whitespace = "[ \\f\\t]*";
-// A run of digits with optional single underscores between them (PEP 515:
-// every "_" must sit between two digits).
 const Digitpart = "\\d(?:_?\\d)*";
 const DecNumber = `${Digitpart}(L|l)?`;
-// Base-prefixed integer literals (Python 3). These must precede DecNumber in
-// the alternation below so e.g. "0x10" is not consumed as the decimal "0".
 const HexNumber = "0[xX](?:_?[0-9a-fA-F])+";
 const OctNumber = "0[oO](?:_?[0-7])+";
 const BinNumber = "0[bB](?:_?[01])+";
@@ -234,7 +212,6 @@ const PointFloat = group(
     `${Digitpart}\\.(?:${Digitpart})?(${Exponent})?`,
     `\\.${Digitpart}(${Exponent})?`,
 );
-// Exponent not optional when no decimal point
 const FloatNumber = group(PointFloat, `${Digitpart}${Exponent}`);
 
 const NumberToken = group(FloatNumber, IntNumber);
@@ -263,10 +240,6 @@ const StringPattern = new RegExp("^" + ContStr + "$");
 const NamePattern = new RegExp("^" + Name + "$");
 const strip = new RegExp("^" + Whitespace);
 
-// -----------------------------------------------------------------------------
-// Tokenize function
-// -----------------------------------------------------------------------------
-
 /**
  * Transform a string into a list of tokens
  *
@@ -278,12 +251,10 @@ export function tokenize(str) {
     const tokens = [];
     const max = str.length;
     let end = 0;
-    // /g flag makes repeated exec() have memory — reuse module-level regex
     pseudoprog.lastIndex = 0;
     while (pseudoprog.lastIndex < max) {
         const pseudomatch = pseudoprog.exec(str);
         if (!pseudomatch) {
-            // if match failed on trailing whitespace, end tokenizing
             if (/^\s+$/.test(str.slice(end))) {
                 break;
             }
@@ -310,7 +281,6 @@ export function tokenize(str) {
                 value: parseNumberLiteral(token),
             });
         } else if (StringPattern.test(token)) {
-            // Guaranteed to match: the `StringPattern.test(token)` branch above.
             const m = /** @type {RegExpExecArray} */ (StringPattern.exec(token));
             tokens.push({
                 type: TokenType.String,
@@ -318,18 +288,8 @@ export function tokenize(str) {
             });
         } else if (symbols.has(token)) {
             if (token === "<>") {
-                // Normalize the legacy Python 2 inequality to `!=`, mirroring
-                // the server (orm/domain/optimizations.py: `a <> b => a != b`,
-                // deprecated since 19.0). Downstream consumers (tree
-                // comparators, formatAST) then only ever see `!=`.
                 token = "!=";
             }
-            // transform 'not in' and 'is not' in a single token. Require the
-            // previous token to be the *operator* not/is (TokenType.Symbol), not
-            // merely to carry that value: a string literal `'not'`/`'is'` is a
-            // String token with the same value, and fusing it would pop the
-            // operand and leave a leading `not in`/`is not` that parsePrefix
-            // can't handle — so `'not' in tags` crashed instead of evaluating.
             const prev = tokens.at(-1);
             if (
                 token === "in" &&

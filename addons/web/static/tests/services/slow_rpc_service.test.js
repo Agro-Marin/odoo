@@ -69,6 +69,26 @@ test("notifies when RPC exceeds threshold", async () => {
     await advanceTime(150);
 
     expect.verifySteps(["add:This is taking longer than usual…|sticky=true"]);
+
+    // Settle it: an in-flight slow request left behind is now cleaned up by the
+    // service's destroy() at env teardown, which would emit an unverified step.
+    fireResponse(1);
+    expect.verifySteps(["close:This is taking longer than usual…"]);
+});
+
+test("env teardown closes a toast still open for an in-flight request", async () => {
+    // `env.destroy()` reaches the service disposers, so a sticky toast whose
+    // request never got a response does not outlive the env that created it.
+    patchWithCleanup(SLOW_RPC_CONFIG, { thresholdMs: 100 });
+    const env = await makeMockEnv();
+    patchNotification();
+
+    fireRequest(1);
+    await advanceTime(150);
+    expect.verifySteps(["add:This is taking longer than usual…|sticky=true"]);
+
+    env.destroy();
+    expect.verifySteps(["close:This is taking longer than usual…"]);
 });
 
 test("dismisses notification on response after threshold", async () => {
@@ -106,14 +126,11 @@ test("concurrent slow requests share a single toast", async () => {
     fireRequest(1);
     fireRequest(2);
     await advanceTime(150);
-    // One toast for N concurrent slow RPCs, not N stacked ones.
     expect.verifySteps(["add:This is taking longer than usual…|sticky=true"]);
 
-    // Still one slow request pending: the toast stays.
     fireResponse(1);
     expect.verifySteps([]);
 
-    // Last slow request settles: the toast closes.
     fireResponse(2);
     expect.verifySteps(["close:This is taking longer than usual…"]);
 });
@@ -145,8 +162,6 @@ test("response without matching request is a no-op", async () => {
     await makeMockEnv();
     patchNotification();
 
-    // RESPONSE for an id that was never REQUESTed (e.g. retry chain
-    // completing after an outer abort).  Must not throw or notify.
     fireResponse(999);
     await advanceTime(200);
 

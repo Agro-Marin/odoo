@@ -14,8 +14,6 @@ import { session } from "@web/session";
 
 describe.current.tags("headless");
 
-// Stable bag of LS keys we own, so tests don't leak fakes into the shared
-// storage backend across cases.
 const TEST_LS_KEYS = [
     "feature.test_bool",
     "feature.test_str",
@@ -25,8 +23,6 @@ const TEST_LS_KEYS = [
 ];
 
 beforeEach(() => {
-    // Force the URL cache to be re-read on the next featureFlag() call;
-    // each test stubs window.location.href independently.
     _resetFeatureFlagsCache();
     for (const k of TEST_LS_KEYS) {
         try {
@@ -35,9 +31,6 @@ beforeEach(() => {
             // ignore
         }
     }
-    // Wipe any server flags planted by a previous test. We intentionally
-    // mutate session here — the snapshot is held by reference in the
-    // module under test and is otherwise read-only at runtime.
     delete session.feature_flags;
 });
 
@@ -143,4 +136,25 @@ test("URL entry overrides matching LS and server in the snapshot", () => {
     const entry = snap.find((e) => e.name === "test_bool");
     expect(entry.source).toBe("url");
     expect(entry.value).toBe(true);
+});
+
+test("whitespace around a URL value does not flip the literal", () => {
+    // `?features=x: false` used to yield the STRING " false" (truthy),
+    // silently enabling the very flag the URL was disabling.
+    _stubLocation(
+        "https://example.com/odoo?features=a:false,b: false,c: true,d: null,e: 42",
+    );
+    expect(featureFlag("a")).toBe(false);
+    expect(featureFlag("b")).toBe(false);
+    expect(featureFlag("c")).toBe(true);
+    expect(featureFlag("d")).toBe(null);
+    expect(featureFlag("e")).toBe(42);
+});
+
+test("an explicit null default is not coerced to false", () => {
+    // `??` swallowed it; `null` is a legal FeatureFlagValue and the only way
+    // to express "unset" as a value.
+    expect(featureFlag("missing_flag", { default: null })).toBe(null);
+    expect(featureFlag("missing_flag", { default: false })).toBe(false);
+    expect(featureFlag("missing_flag")).toBe(false);
 });

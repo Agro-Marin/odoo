@@ -94,13 +94,10 @@ test("basic operations: +, -, *, //", () => {
     expectEquality("td(0, 0, 60*1000000)", "b", ctx);
     expectEquality("a*10", "td(70)", ctx);
     expectEquality("a*10", "10*a", ctx);
-    // expectEquality('a*10L', '10*a', ctx);
     expectEquality("b*10", "td(0, 600)", ctx);
     expectEquality("10*b", "td(0, 600)", ctx);
-    // expectEquality('b*10L', 'td(0, 600)', ctx);
     expectEquality("c*10", "td(0, 0, 10000)", ctx);
     expectEquality("10*c", "td(0, 0, 10000)", ctx);
-    // expectEquality('c*10L', 'td(0, 0, 10000)', ctx);
     expectEquality("a*-1", "-a", ctx);
     expectEquality("b*-2", "-b-b", ctx);
     expectEquality("c*-2", "-c+-c", ctx);

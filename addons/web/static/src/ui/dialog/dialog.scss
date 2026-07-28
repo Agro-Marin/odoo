@@ -4,7 +4,6 @@
     animation: o-scaleIn $o-duration-normal $o-easing-spring;
 }
 
-// Odoo hides .modal-backdrop (display:none) and uses .modal itself as backdrop
 .modal:not([data-bs-backdrop="false"]) {
     backdrop-filter: blur(4px);
     background-color: rgba($modal-backdrop-bg, 0.4);
@@ -35,7 +34,7 @@
         text-align: left;
 
         button {
-            margin: 0; // Reset boostrap.
+            margin: 0;
         }
 
         button.o-default-button:not(:only-child) {
@@ -97,7 +96,7 @@
 
             .modal-footer {
                 @include o-webclient-padding($top: 1rem, $bottom: 0.5rem);
-                box-shadow: 0 1rem 2rem black;
+                box-shadow: $o-shadow-lg;
                 z-index: 0;
             }
         }

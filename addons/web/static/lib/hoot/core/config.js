@@ -7,18 +7,10 @@ import { generateSeed } from "../mock/math.js";
  * @typedef {keyof typeof FILTER_SCHEMA} SearchFilter
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Number: { parseFloat: $parseFloat },
     Object: { entries: $entries, fromEntries: $fromEntries, keys: $keys },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @template {Record<string, any>} T
@@ -57,10 +49,6 @@ const parseShowDetail = makeParser(([value]) => (value === "false" ? false : val
 const parseString = makeParser(([value]) => value);
 
 const parseStringArray = makeParser((values) => values);
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 export const CONFIG_SCHEMA = {
     /**

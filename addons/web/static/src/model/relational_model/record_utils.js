@@ -15,8 +15,6 @@ import { evaluateBooleanExpr, getExprFreeVariables } from "@web/core/py_js/py";
 
 import { formatServerValue } from "./record_value_transforms.js";
 
-// Field attribute evaluation
-
 /**
  * Evaluate a field attribute expression (invisible, readonly, required).
  * Pure core of Record._isInvisible, _isReadonly, _isRequired.
@@ -62,8 +60,6 @@ export function isFieldRequired(activeField, evalContext) {
     return evaluateFieldAttr(activeField.required, evalContext);
 }
 
-// Modifier dependency analysis (scoped per-commit re-validation)
-
 /**
  * Sentinel returned by {@link extractFieldNamesFromExpr} when the expression
  * cannot be statically analysed (parse failure). Callers must treat it as
@@ -86,7 +82,6 @@ const UNKNOWN_DEPENDENCIES = null;
  */
 export function extractFieldNamesFromExpr(expr) {
     if (!expr || typeof expr !== "string") {
-        // No modifier (or a boolean literal already normalised away).
         return new Set();
     }
     if (expr === "True" || expr === "False" || expr === "1" || expr === "0") {
@@ -95,7 +90,6 @@ export function extractFieldNamesFromExpr(expr) {
     try {
         return getExprFreeVariables(expr);
     } catch {
-        // Unparseable — cannot prove independence, so caller always re-validates.
         return UNKNOWN_DEPENDENCIES;
     }
 }
@@ -172,7 +166,6 @@ export function getModifierDependencies(activeFields) {
         }
         for (const name of refs) {
             if (name === fieldB || !fieldNameSet.has(name)) {
-                // Self-refs and non-field names never trigger a re-check here.
                 continue;
             }
             let set = dependents.get(name);
@@ -216,8 +209,6 @@ export function computeRevalidationScope(changedFieldNames, activeFields) {
     return scope;
 }
 
-// Changeset computation
-
 /**
  * Compute the minimal changeset to send to the server from pending changes.
  * Pure core of Record._getChanges. Skips readonly fields (unless forceSave)
@@ -256,12 +247,10 @@ export function computeChangeset({
     for (const [fieldName, value] of Object.entries(effectiveChanges)) {
         const field = fields[fieldName];
 
-        // Skip the id pseudo-field
         if (fieldName === "id") {
             continue;
         }
 
-        // Skip readonly fields unless explicitly requested or forceSave is set
         if (
             !withReadonly &&
             fieldName in activeFields &&
@@ -271,23 +260,11 @@ export function computeChangeset({
             continue;
         }
 
-        // Skip computed property fields (handled by their parent)
         if (field.relatedPropertyField) {
             continue;
         }
 
-        // x2many fields: delegate to command builder
         if (field.type === "one2many" || field.type === "many2many") {
-            // Defensive (urgent/tab-close path): x2many preprocessing may not
-            // have run, so ``value`` can still be the RAW command array the
-            // field dispatched (``[[0, 0, {...}]]``) instead of the StaticList
-            // ``_applyCommands`` installs. A raw array has no ``_getCommands``,
-            // so ``getCommands`` would throw a TypeError and abort the WHOLE
-            // save — on the sendBeacon path that means the beacon never fires
-            // and every pending field is silently lost. Treat a non-StaticList
-            // as "no commands": best-effort drop of this one x2many edit so
-            // every serializable field still reaches the server. On the normal
-            // path ``value`` is always a StaticList, so this never trips.
             if (typeof value?._getCommands !== "function") {
                 if (isNew) {
                     result[fieldName] = [];
@@ -301,15 +278,6 @@ export function computeChangeset({
             result[fieldName] = commands;
         } else {
             const serverValue = formatServerValue(field.type, value);
-            // Defensive (urgent/tab-close path): a many2one still awaiting its
-            // ``name_create`` is a truthy ``{display_name}`` with no numeric id,
-            // which ``formatServerValue`` maps to ``undefined``. Emitting it
-            // would place an ``undefined`` on the payload that ``JSON.stringify``
-            // silently drops — the field is lost either way, but keeping it here
-            // lets it masquerade as a real write. Drop it explicitly so the
-            // changeset never carries an ``undefined`` and every OTHER field
-            // still saves. On the normal path m2o values always carry an id, so
-            // ``serverValue`` is never ``undefined`` here.
             if (serverValue === undefined) {
                 continue;
             }

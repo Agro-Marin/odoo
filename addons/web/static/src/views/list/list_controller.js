@@ -25,8 +25,6 @@ import { buildMultiRecordModelParams, handleBeforeUnload } from "@web/views/view
 import { ListCogMenu } from "./list_cog_menu.js";
 import { ListConfirmationDialog } from "./list_confirmation_dialog.js";
 
-// -----------------------------------------------------------------------------
-
 /**
  * Controller for the list (tree) view.
  *
@@ -77,7 +75,7 @@ export class ListController extends MultiRecordController {
      * `… | undefined`: TypeScript only credits the CONSTRUCTOR for definite
      * assignment, and this is assigned in `setup()`. Safe for an OWL component
      * because OWL constructs first and calls `setup()` afterwards
-     * (`owl.js`: `new C(...)` then `component.setup()`), so the field
+     * (`owl.es.js`: `new C(...)` then `component.setup()`), so the field
      * initialiser cannot clobber the value `setup()` assigns. That ordering is
      * the OPPOSITE for `Model` subclasses, whose base constructor calls
      * `this.setup(...)` itself — never use this pattern there.
@@ -94,13 +92,11 @@ export class ListController extends MultiRecordController {
     setup() {
         super.setup();
 
-        // --- List-specific state ---
         this.activeActions = this.archInfo.activeActions;
         this.onOpenFormView = this.openRecord.bind(this);
         this.editable = (!this.props.readonly && this.archInfo.editable) || false;
         this.hasOpenFormViewButton = this.editable ? this.archInfo.openFormView : false;
 
-        // --- Model ---
         this.model = useState(
             useModelWithSampleData(
                 this.props.Model,
@@ -109,23 +105,9 @@ export class ListController extends MultiRecordController {
             ),
         );
 
-        // Multi-edit save/invalidity checks fire on field change, which also fires on
-        // mousedown — including a mousedown on "Discard". Track that with a flag to
-        // suppress the save, and replay it via `nextActionsAfterMouseup` if the mouseup
-        // lands elsewhere (i.e. "Discard" wasn't actually clicked).
-        // A LIST, not a single slot: one mousedown gesture can defer more than one
-        // action (e.g. two fields marked invalid, or a save plus an invalid-field
-        // marking). A single slot kept only the LAST, silently dropping the rest and
-        // leaving the selection in an inconsistent validated/unsaved state.
         this.hasMousedownDiscard = false;
         this.nextActionsAfterMouseup = [];
 
-        // Optional-column visibility, OWNED by the controller: the renderer
-        // receives this reactive object as a prop and reads/writes it in
-        // place (localStorage sync, toggle handlers), so controller-side
-        // consumers (getExportableFields) see the renderer's updates. Keep
-        // passing this same object — handing the renderer a copy would
-        // silently break export field filtering.
         this.optionalActiveFields = useState({});
 
         this.editedRecord = null;
@@ -133,10 +115,8 @@ export class ListController extends MultiRecordController {
             this.editedRecord = this.model.root.editedRecord;
         });
 
-        // --- Common post-model behavior ---
         this.initMultiRecordBehavior();
 
-        // --- List-specific hooks ---
         const { setScrollFromState } = useSetupAction({
             rootRef: this.rootRef,
             beforeLeave: this.beforeLeave.bind(this),
@@ -203,10 +183,6 @@ export class ListController extends MultiRecordController {
         });
     }
 
-    // -------------------------------------------------------------------------
-    // Getters
-    // -------------------------------------------------------------------------
-
     /**
      * Build the params object passed to the relational model constructor.
      *
@@ -259,13 +235,6 @@ export class ListController extends MultiRecordController {
                 limit: this.archInfo.limit || this.props.limit,
                 groupsLimit: this.archInfo.groupsLimit,
                 multiEdit: !this.props.readonly && this.archInfo.multiEdit,
-                // Opt the editable-list model into sendBeacon urgent saves, like
-                // FormController does: ``beforeUnload`` gates its beacon path on
-                // this flag (``canBeacon``), and only that path fires
-                // ``WILL_SAVE_URGENTLY`` to flush a still-pending inline cell edit
-                // (uncommitted input / in-flight onchange) into ``_changes``
-                // before the tab-close web_save. Without it the flag defaulted to
-                // false and pending edits were silently dropped on tab close.
                 useSendBeaconToSaveUrgently: true,
             },
         });
@@ -274,10 +243,6 @@ export class ListController extends MultiRecordController {
     get className() {
         return this.props.className;
     }
-
-    // -------------------------------------------------------------------------
-    // Methods
-    // -------------------------------------------------------------------------
 
     /**
      * Return the list of exportable field definitions for the current columns.
@@ -289,15 +254,11 @@ export class ListController extends MultiRecordController {
      */
     getExportableFields() {
         const { activeFields, fields } = this.model.root;
-        // Columns currently visible in the list (not invisible and, if optional, toggled on).
         const visibleColumns = new Set(
             this.props.archInfo.columns
                 .filter((col) => col.type === "field")
                 .filter(
                     (col) =>
-                        // Same eval context as the renderer's
-                        // evalColumnInvisible, so the exportable set matches
-                        // the columns actually displayed.
                         !evaluateBooleanExpr(
                             col.column_invisible,
                             this.model.root.evalContext,
@@ -310,7 +271,6 @@ export class ListController extends MultiRecordController {
             .map((fieldName) => fields[fieldName])
             .filter(Boolean)
             .filter((field) => {
-                // Export a sub-property only when its own optional column is shown.
                 if (field.relatedPropertyField) {
                     return this.optionalActiveFields[field.name];
                 }
@@ -369,8 +329,6 @@ export class ListController extends MultiRecordController {
      */
     async createRecord({ group } = /** @type {any} */ ({})) {
         if (!this.model.isReady && !this.model.config.groupBy.length && this.editable) {
-            // If the view isn't grouped and the list is editable, a new record row will be
-            // added in edition, so wait for the model to be ready first.
             await this.model.whenReady;
         }
         const list = group?.list || this.model.root;
@@ -380,12 +338,6 @@ export class ListController extends MultiRecordController {
             }
             await list.leaveEditMode();
             if (!list.editedRecord) {
-                // ``Group.addNewRecord(_unused, atFirstPosition)`` takes the
-                // position flag as its SECOND arg (its first is unused), whereas
-                // ``DynamicRecordList.addNewRecord(atFirstPosition)`` takes it
-                // first. Pass through the correct slot for each so an
-                // ``editable="top"`` grouped list inserts at the top (matching
-                // the "Add a line" button at ``list_group_rendering.js``).
                 if (group) {
                     await group.addNewRecord({}, this.editable === "top");
                 } else {
@@ -413,8 +365,6 @@ export class ListController extends MultiRecordController {
     ) {
         const dirty = await record.isDirty();
         if (dirty && !(await record.save())) {
-            // Save failed (e.g. invalid required field): stay on the row
-            // rather than navigating away with an invalid unsaved record.
             return;
         }
         if (this.props.allowOpenAction && this.archInfo.openAction) {
@@ -489,14 +439,10 @@ export class ListController extends MultiRecordController {
             (mouseUpEvent) => {
                 this.hasMousedownDiscard = false;
                 if (status(this) === "destroyed") {
-                    // Action switch mid-press: never replay the deferred
-                    // actions against a torn-down model.
                     this.nextActionsAfterMouseup = [];
                     return;
                 }
                 if (mouseUpEvent.target !== mouseDownEvent.target) {
-                    // Replay every deferred action, in the order they were
-                    // deferred — not just the last one.
                     for (const action of this.nextActionsAfterMouseup) {
                         action();
                     }
@@ -584,10 +530,6 @@ export class ListController extends MultiRecordController {
                 );
                 this.dialogService.add(ListConfirmationDialog, dialogProps, {
                     onClose: () => {
-                        // Only restore if the captured cell is still in the DOM:
-                        // the list may have re-rendered while the dialog was open,
-                        // detaching it — focusing a detached node drops focus to
-                        // <body>.
                         if (focusedCellBeforeDialog?.isConnected) {
                             focusedCellBeforeDialog.focus();
                         }

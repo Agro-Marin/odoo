@@ -119,7 +119,6 @@ class TestPivotExport(HttpCase):
         zip_file = ZipFile(io.BytesIO(response.content))
         with zip_file.open("xl/sharedStrings.xml") as file:
             shared = file.read().decode()
-        # The written title must not exceed Excel's 32767-char cell limit.
         self.assertNotIn("A" * 32_768, shared)
         self.assertIn("A" * 32_767, shared)
 
@@ -156,7 +155,6 @@ class TestPivotExport(HttpCase):
             "model": "sale.report",
             "measure_count": 1,
             "origin_count": 1,
-            # one header row, one header of width 50 => 50 cells >> 5 cap
             "col_group_headers": [
                 [{"title": "x", "width": 50, "height": 1}],
             ],

@@ -21,13 +21,7 @@ export class FileUploader extends Component {
         acceptedFileExtensions: { type: String, optional: true },
         slots: { type: Object, optional: true },
         showUploadingText: { type: Boolean, optional: true },
-        // See https://www.iana.org/assignments/media-types/media-types.xhtml
         allowedMIMETypes: { type: String, optional: true },
-        // Opt-in: mint a blob object URL for each uploaded PDF and pass it
-        // as `objectUrl` to `onUploaded`. Ownership transfers to the
-        // consumer, which MUST revoke it (see PdfViewerField). Kept opt-in
-        // because a URL handed to a consumer that ignores it pins the whole
-        // file in memory until page unload.
         createObjectUrl: { type: Boolean, optional: true },
     };
     static defaultProps = {
@@ -51,7 +45,6 @@ export class FileUploader extends Component {
         const inputEl = /** @type {HTMLInputElement} */ (ev.target);
         const files = [...inputEl.files].filter((file) => this.validFileType(file));
         if (!files.length) {
-            // Reset so re-selecting the same file still fires a "change" event.
             inputEl.value = "";
             return;
         }
@@ -61,7 +54,6 @@ export class FileUploader extends Component {
                     this.props.checkSize &&
                     !checkFileSize(file.size, this.notification)
                 ) {
-                    // Skip this file but keep processing the rest of a multi-upload.
                     continue;
                 }
                 this.state.isUploading = true;
@@ -93,8 +85,6 @@ export class FileUploader extends Component {
                 }
             }
         } finally {
-            // Always reset, even on failure, so re-selecting the same file
-            // still fires a "change" event.
             inputEl.value = "";
         }
         if (this.props.multiUpload && this.props.onUploadComplete) {
@@ -115,8 +105,6 @@ export class FileUploader extends Component {
                 .split(",")
                 .map((type) => type.trim())
                 .filter(Boolean);
-            // Exact match against the whitelist; an empty `file.type` (MIME
-            // undetected) is rejected rather than slipping through.
             if (!file.type || !allowed.includes(file.type)) {
                 this.notification.add(
                     _t(

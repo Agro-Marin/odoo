@@ -82,22 +82,11 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-# Path math: /home/marin/Odoo/addons/odoo/addons/web/tooling/scripts/<this>
-#   parents[0] = scripts/, [1] = tooling/, [2] = web/,
-#   parents[3] = addons/ (inner), [4] = core/, [5] = addons/ (outer),
-#   parents[6] = Odoo/        ← the workspace root.
 REPO_ROOT = Path(__file__).resolve().parents[6]
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "addons/odoo/addons/web/static/src/@types/models"
 
-# Selection literal-union cap — past this, fall back to ``string``.
-# Calibrated against ``res.partner.tz`` (~400 IANA zones, was producing
-# ~10 KB unions on a single line).  Common state-machine selections
-# (draft/sent/sale/done style) stay well under the cap and keep their
-# literal types.
 _SELECTION_KEY_CAP = 32
 
-# Map ttype → emitter producing a TS type expression for the field's value.
-# Emitters take the raw fields_get entry and return a string.
 SCALAR_TYPE_MAP = {
     "char": "string",
     "text": "string",
@@ -145,22 +134,10 @@ def _render_field_type(field: dict[str, Any]) -> str:
     if ttype == "selection":
         sel = field.get("selection") or []
         if not sel or not isinstance(sel, list):
-            # Defensive fallback only: fields_get() always resolves the
-            # selection (including callable/dynamic definitions) to a
-            # list of pairs, so this guards an empty/malformed value,
-            # not "the selection was a lambda."
             return "string"
         keys = [k for k, _ in sel if isinstance(k, str)]
         if not keys:
             return "string"
-        # Large selections (e.g. ``res.partner.tz`` with ~400 IANA zones)
-        # produce 10 KB+ unions that hurt IDE performance and are
-        # unreadable.  TS compiles them fine, but the cost/benefit
-        # inverts past ~32 options — at that point the field is
-        # de-facto an open enum and ``string`` carries the same value.
-        # Threshold chosen so common selections (state machines,
-        # category enums) keep their literal types while pathological
-        # ones don't bloat output.
         if len(keys) > _SELECTION_KEY_CAP:
             return "string"
         return " | ".join(f'"{k}"' for k in keys)
@@ -178,11 +155,8 @@ def _render_field_type(field: dict[str, Any]) -> str:
         return "Reference"
 
     if ttype == "many2one_reference":
-        # Stored as integer; the target model is recorded in a sibling field.
         return "number | false"
 
-    # Unknown type — emit ``unknown`` rather than crashing.  Codegen
-    # tolerates new field types; the typecheck baseline catches surprises.
     return "unknown"
 
 
@@ -249,29 +223,20 @@ def _model_to_dts(model_name: str, fields: dict[str, dict], module: str) -> str:
 
     for fname in sorted(fields):
         field = fields[fname]
-        # Skip user-custom fields (per-deployment, not per-codebase).
         if fname.startswith("x_"):
             continue
         ts_type = _render_field_type(field)
         marker = "" if _is_required(field) else "?"
-        # Server help/string isn't carried into the type — too noisy and
-        # rots faster than the field shape.
         lines.append(f"        {fname}{marker}: {ts_type};\n")
 
     lines.append("    }\n")
 
-    # Register the interface into the global ``Models`` map.  Module
-    # boundaries are preserved via declaration merging — each module's
-    # output file declares the same interface; TS unions them.
     lines.append("\n    interface Models {\n")
     lines.append(f'        "{model_name}": {iface};\n')
     lines.append("    }\n")
 
     lines.append("}\n")
 
-    # The export keeps the file picked up by ``import type`` paths,
-    # though declaration merging makes the explicit re-export
-    # unnecessary.  Provided for IDE go-to-definition navigation.
     lines.append(f'\nexport type {{ {iface} }} from "@web/@types/models/_runtime";\n')
 
     return "".join(lines)
@@ -302,7 +267,6 @@ def generate(
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Collect (module, model_name) pairs to emit.
     targets: list[tuple[str, str]] = []
     if models:
         for model_name in models:
@@ -310,7 +274,6 @@ def generate(
                 if not quiet:
                     print(f"  skip (not in registry): {model_name}")
                 continue
-            # Attribute to the module that defined the model class.
             ModelCls = env[model_name]
             module = getattr(ModelCls, "_original_module", None) or "base"
             targets.append((module, model_name))
@@ -328,13 +291,6 @@ def generate(
         ir_model = env["ir.model"].search([("model", "=", model_name)], limit=1)
         if not ir_model:
             continue
-        # Transient models are always skipped (no data-layer records to
-        # type).  Abstract models are skipped only when ``modules``
-        # (comma-joined list of contributing modules) is exactly
-        # ``"base"`` — due to operator precedence this is
-        # ``transient or (modules == "base" and abstract)``, so an
-        # abstract model extended by any non-base module is NOT
-        # skipped here.  Worth revisiting if wizards want types.
         if ir_model.transient or (
             ir_model.modules == "base"
             and (getattr(env[model_name], "_abstract", False))
@@ -353,8 +309,6 @@ def generate(
             try:
                 rel = target_path.relative_to(REPO_ROOT)
             except ValueError:
-                # Output dir is outside the repo (e.g. /tmp during smoke
-                # tests).  Fall back to the absolute path.
                 rel = target_path
             print(f"  emit: {model_name:<40s} → {rel}")
 
@@ -363,16 +317,10 @@ def generate(
     return written
 
 
-# ───────────────────────────────────────────────────────────────────────
-# Standalone bootstrap — used when invoked as ``python script.py …``.
-# In an ``odoo-bin shell`` session, prefer ``from … import generate;
-# generate(env, …)`` directly.
-# ───────────────────────────────────────────────────────────────────────
 
 
 def _bootstrap_odoo(config_path: str, db: str) -> Any:
     """Initialise Odoo and return an Environment for ``db``."""
-    # Lazy import — only needed in standalone mode.
     sys.path.insert(0, str(REPO_ROOT / "addons/odoo"))
     import odoo  # type: ignore[import-not-found]
     from odoo.tools import config  # type: ignore[import-not-found]

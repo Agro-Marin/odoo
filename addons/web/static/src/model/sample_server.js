@@ -16,9 +16,6 @@ import {
     unique,
 } from "@web/core/utils/collections/arrays";
 
-// Each `sample_server` entry is a mock implementation called as
-// `mockFunction.call(this, params)` from the lookup below; bind semantics
-// require a function (not an arrow without `this` context support).
 registry
     .category("sample_server")
     .addValidation((entry) => typeof entry === "function");
@@ -113,7 +110,6 @@ export class SampleServer {
             fields,
             records: [],
         };
-        // Generate relational fields' co models
         for (const fieldName of Object.keys(fields)) {
             const field = fields[fieldName];
             if (["many2one", "one2many", "many2many"].includes(field.type)) {
@@ -130,10 +126,6 @@ export class SampleServer {
         this.existingGroups = null;
         this.populated = false;
     }
-
-    //---------------------------------------------------------------------
-    // Public
-    //---------------------------------------------------------------------
 
     /**
      * Main entry point. Mocks a request to the server with sample data.
@@ -181,10 +173,6 @@ export class SampleServer {
         this.existingGroups = groups;
     }
 
-    //---------------------------------------------------------------------
-    // Overridable random primitives (override in subclasses for determinism)
-    //---------------------------------------------------------------------
-
     /** @param {any[]} array @returns {any} */
     _getRandomArrayEl(array) {
         return getRandomArrayEl(array);
@@ -199,10 +187,6 @@ export class SampleServer {
     _getRandomSubRecordId() {
         return getRandomSubRecordId();
     }
-
-    //---------------------------------------------------------------------
-    // Backward-compatible delegates (used by registry callbacks via .call)
-    //---------------------------------------------------------------------
 
     /**
      * Generate a value for one field, routing random calls through overridable
@@ -227,10 +211,6 @@ export class SampleServer {
     _getRandomInt(max) {
         return getRandomInt(max);
     }
-
-    //---------------------------------------------------------------------
-    // Private
-    //---------------------------------------------------------------------
 
     /**
      * @param {MeasureSpec[]} measures
@@ -276,6 +256,46 @@ export class SampleServer {
             }
         }
         return group;
+    }
+
+    /**
+     * Resolve a group-by spec (``field`` or ``field:interval``) against this
+     * server's schema, or ``undefined`` when this schema has no such field.
+     *
+     * ``_mockFormattedReadGroup`` always meant to skip an axis it cannot
+     * resolve — it guards on ``if (type)`` — but it destructured the schema
+     * entry one line before that guard, so the guard could never execute and an
+     * absent field threw instead. ``_populateExistingGroups`` and
+     * ``_tweakExistingGroups`` read the same entry with no guard at all.
+     * Routing all three through here is what makes the intended behaviour
+     * actual.
+     *
+     * NB no app-level trigger is known: a view hands the same ``fields`` object
+     * to ``buildSampleORM`` and to the model config, so the property axes
+     * ``_getPropertyDefinition`` adds at runtime land in this schema too (a
+     * sample view grouped by a property is covered by
+     * sample_property_groupby.test.js and does NOT crash without this helper).
+     * It is the unreachable guard, not a reproduced failure, that this fixes.
+     *
+     * @param {string} modelName
+     * @param {string} groupBySpec
+     * @returns {{ fieldName: string, type: string, interval: string | undefined,
+     *   relation: string | undefined, alias: string, field: Record<string, any> } | undefined}
+     */
+    _resolveGroupBy(modelName, groupBySpec) {
+        const [fieldName, interval] = groupBySpec.split(":");
+        const field = this.data[modelName].fields[fieldName];
+        if (!field?.type) {
+            return undefined;
+        }
+        return {
+            fieldName,
+            type: field.type,
+            interval,
+            relation: field.relation,
+            alias: groupBySpec,
+            field,
+        };
     }
 
     /**
@@ -345,21 +365,13 @@ export class SampleServer {
     _mockFormattedReadGroup(params) {
         const model = params.model;
         const groupBy = params.groupBy;
-        const fields = this.data[model].fields;
         const records = this.data[model].records;
         const normalizedGroupBys = [];
 
         for (const groupBySpec of groupBy) {
-            const [fieldName, interval] = groupBySpec.split(":");
-            const { type, relation } = fields[fieldName];
-            if (type) {
-                normalizedGroupBys.push({
-                    fieldName,
-                    type,
-                    interval,
-                    relation,
-                    alias: groupBySpec,
-                });
+            const normalized = this._resolveGroupBy(model, groupBySpec);
+            if (normalized) {
+                normalizedGroupBys.push(normalized);
             }
         }
 
@@ -481,12 +493,14 @@ export class SampleServer {
             if (Array.isArray(groupByValue)) {
                 groupByValue = groupByValue[0];
             }
-            if (!(groupByValue in data)) {
-                if (groupByValue === true) {
-                    groupByValue = "True";
-                } else if (groupByValue === false) {
-                    groupByValue = "False";
-                }
+            // A boolean axis always keys as "True"/"False", the shape the real
+            // read_progress_bar returns. Gating that on ``groupByValue in data``
+            // could never fire for the boolean itself — only the normalised key
+            // is ever inserted, so the raw ``true``/``false`` lookup missed
+            // every time. All the guard could do was let a char group literally
+            // named "true" swallow the boolean group's counts.
+            if (typeof groupByValue === "boolean") {
+                groupByValue = groupByValue ? "True" : "False";
             }
             if (!(groupByValue in data)) {
                 data[groupByValue] = {};
@@ -494,9 +508,6 @@ export class SampleServer {
                     data[groupByValue][key] = 0;
                 }
             }
-            // Only accumulate into a known progress-bar bucket: a generated
-            // field value outside ``progress_bar.colors`` would otherwise do
-            // ``undefined += count`` → a NaN bucket (and a stray string key).
             const bucket = group[progressBar.field];
             if (bucket in data[groupByValue]) {
                 data[groupByValue][bucket] += group.__count;
@@ -528,6 +539,13 @@ export class SampleServer {
         const result = { records, length: records.length };
         for (const fieldName of Object.keys(params.specification)) {
             const field = this.data[params.model].fields[fieldName];
+            if (!field) {
+                // A specification may name a field this sample schema doesn't
+                // carry; ``_mockRead`` already answers ``false`` for those
+                // rather than throwing, so the post-processing must skip them
+                // instead of dereferencing ``undefined.type``.
+                continue;
+            }
             if (field.type === "many2one") {
                 for (const record of result.records) {
                     record[fieldName] = record[fieldName]
@@ -609,33 +627,27 @@ export class SampleServer {
      */
     _populateExistingGroups(params) {
         const groups = this.existingGroups;
-        const groupBy = params.groupBy[0].split(":")[0];
-        const groupByField = this.data[params.model].fields[groupBy];
-        const groupedByM2O = groupByField.type === "many2one";
-        if (groupedByM2O) {
-            // A group whose value is falsy (records with no related record for
-            // the m2o) has ``g[groupBy] === false`` — skip it, indexing ``[0]``
-            // on ``false`` would throw. The falsy bucket is handled below.
-            this.data[groupByField.relation].records = groups
-                .filter((g) => g[groupBy])
+        const gb = this._resolveGroupBy(params.model, params.groupBy[0]);
+        if (!gb) {
+            return;
+        }
+        const { fieldName, alias, field } = gb;
+        if (gb.type === "many2one") {
+            this.data[gb.relation].records = groups
+                .filter((g) => g[fieldName])
                 .map((g) => ({
-                    id: g[groupBy][0],
-                    display_name: g[groupBy][1],
+                    id: g[fieldName][0],
+                    display_name: g[fieldName][1],
                 }));
         }
         for (const r of this.data[params.model].records) {
             const group = getSampleFromId(r.id, groups);
-            if (["date", "datetime"].includes(groupByField.type)) {
-                r[groupBy] = serializeGroupDateValue(
-                    group[params.groupBy[0]],
-                    groupByField,
-                );
-            } else if (groupByField.type === "many2one") {
-                r[groupBy] = group[params.groupBy[0]]
-                    ? group[params.groupBy[0]][0]
-                    : false;
+            if (["date", "datetime"].includes(gb.type)) {
+                r[fieldName] = serializeGroupDateValue(group[alias], field);
+            } else if (gb.type === "many2one") {
+                r[fieldName] = group[alias] ? group[alias][0] : false;
             } else {
-                r[groupBy] = group[params.groupBy[0]];
+                r[fieldName] = group[alias];
             }
         }
     }
@@ -676,46 +688,44 @@ export class SampleServer {
      */
     _tweakExistingGroups(params) {
         const groups = this.existingGroups;
+        const gb = this._resolveGroupBy(params.model, params.groupBy[0]);
+        if (!gb) {
+            // Nothing to redistribute the sample records over: leave the real
+            // groups exactly as the server sent them.
+            return;
+        }
         this._populateExistingGroups(params);
 
-        const fullGroupBy = params.groupBy[0];
-        const groupBy = fullGroupBy.split(":")[0];
-        const groupByField = this.data[params.model].fields[groupBy];
+        const { fieldName: groupBy, alias, field } = gb;
+        const modelFields = this.data[params.model].fields;
         const records = this.data[params.model].records;
         for (const g of groups) {
             const recordsInGroup = records.filter((r) => {
-                if (["date", "datetime"].includes(groupByField.type)) {
+                if (["date", "datetime"].includes(gb.type)) {
+                    return r[groupBy] === serializeGroupDateValue(g[alias], field);
+                } else if (gb.type === "many2one") {
                     return (
-                        r[groupBy] ===
-                        serializeGroupDateValue(g[fullGroupBy], groupByField)
-                    );
-                } else if (groupByField.type === "many2one") {
-                    // Guard ``g[fullGroupBy]`` before indexing ``[0]``: a falsy
-                    // (no related record) group has ``g[fullGroupBy] === false``,
-                    // and a truthy record compared against it must be a non-match
-                    // rather than a ``false[0]`` TypeError.
-                    return (
-                        (!r[groupBy] && !g[fullGroupBy]) ||
-                        (g[fullGroupBy] && r[groupBy] === g[fullGroupBy][0])
+                        (!r[groupBy] && !g[alias]) ||
+                        (g[alias] && r[groupBy] === g[alias][0])
                     );
                 }
-                return r[groupBy] === g[fullGroupBy];
+                return r[groupBy] === g[alias];
             });
             for (const aggregateSpec of params.aggregates || []) {
                 if (aggregateSpec === "__count") {
                     g.__count = recordsInGroup.length;
                     continue;
                 }
-                const [fieldName, func] = aggregateSpec.split(":");
+                const [aggFieldName, func] = aggregateSpec.split(":");
                 if (func === "array_agg") {
-                    g[aggregateSpec] = recordsInGroup.map((r) => r[fieldName]);
+                    g[aggregateSpec] = recordsInGroup.map((r) => r[aggFieldName]);
                 } else if (
                     ["integer", "float", "monetary"].includes(
-                        this.data[params.model].fields[fieldName].type,
+                        modelFields[aggFieldName]?.type,
                     )
                 ) {
                     g[aggregateSpec] = recordsInGroup.reduce(
-                        (acc, r) => acc + r[fieldName],
+                        (acc, r) => acc + r[aggFieldName],
                         0,
                     );
                 }
@@ -724,7 +734,6 @@ export class SampleServer {
     }
 }
 
-// Static properties — re-exported from sample_data for backward compatibility
 SampleServer.FORMATS = FORMATS;
 SampleServer.INTERVALS = INTERVALS;
 SampleServer.DISPLAY_FORMATS = DISPLAY_FORMATS;

@@ -25,10 +25,7 @@ beforeEach(() => {
         { ...testAction, id: 1002, params: { description: "Info" } },
         { ...testAction, id: 1003, params: { description: "Report" } },
     ]);
-    defineMenus([
-        { id: 0 }, // prevents auto-loading the first action
-        { id: 1, name: "App1", actionID: 1001, xmlid: "menu_1" },
-    ]);
+    defineMenus([{ id: 0 }, { id: 1, name: "App1", actionID: 1001, xmlid: "menu_1" }]);
     patchWithCleanup(transitionConfig, { disabled: true });
 });
 
@@ -173,11 +170,8 @@ test("Burger menu closes when click on menu item", async () => {
     ).toHaveText("App1\nSubMenu");
 
     await click(".o_burger_menu_content li:nth-of-type(1)", { root: document.body });
-    // click
     await animationFrame();
-    // action
     await animationFrame();
-    // close burger
     await animationFrame();
     expect(queryAll(".o_burger_menu_content", { root: document.body })).toHaveCount(0);
     expect(queryAll(".test_client_action", { root: document.body })).toHaveCount(1);

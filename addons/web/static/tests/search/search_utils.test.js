@@ -384,11 +384,6 @@ describe("month period options", () => {
 
         const january = options.find((o) => o.id === "month+1");
         expect(january.description).toBe("January");
-        // start_year/end_year is authoritative: January's natural year (+1)
-        // is outside the [-2, 0] window, so its default year snaps to the
-        // window edge (the auto-selected year option displays the effective
-        // year). Same semantics as the filter_menu "startYear in the future"
-        // test.
         expect(january.defaultYearId).toBe("year");
     });
 
@@ -404,15 +399,39 @@ describe("month period options", () => {
             customOptions: [],
         });
 
-        // The year options are exactly the arch window — never widened.
         expect(
             options.filter((o) => o.granularity === "year").map((o) => o.id),
         ).toEqual(["year+4", "year+3", "year+2"]);
-        // Every month option defaults into the window's first year and
-        // resolves to an existing year option.
         for (const option of options.filter((o) => o.granularity === "month")) {
             expect(option.defaultYearId).toBe("year+2");
             expect(options.some((o) => o.id === option.defaultYearId)).toBe(true);
         }
+    });
+});
+
+test("custom period options are OR'd, not silently reduced to the first", () => {
+    mockDate("2020-06-01T13:00:00");
+    const referenceMoment = luxon.DateTime.local();
+    const searchItem = {
+        ...dateSearchItem,
+        domain: "[]",
+        optionsParams: {
+            ...dateSearchItem.optionsParams,
+            customOptions: [
+                { id: "custom_a", description: "A", domain: `[("foo", "=", "a")]` },
+                { id: "custom_b", description: "B", domain: `[("foo", "=", "b")]` },
+            ],
+        },
+    };
+
+    expect(constructDateDomain(referenceMoment, searchItem, ["custom_a"])).toEqual({
+        description: "A",
+        domain: new Domain(`[("foo", "=", "a")]`),
+    });
+    expect(
+        constructDateDomain(referenceMoment, searchItem, ["custom_a", "custom_b"]),
+    ).toEqual({
+        description: "A/B",
+        domain: new Domain(`["|", ("foo", "=", "a"), ("foo", "=", "b")]`),
     });
 });

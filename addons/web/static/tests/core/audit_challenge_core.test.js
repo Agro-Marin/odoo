@@ -37,9 +37,6 @@ describe("setRecurringAnimationFrame", () => {
             }
         });
         await advanceTime(1000);
-        // Currently the handler re-schedules unconditionally after invoking the
-        // callback, so stop() cancels an already-fired handle and the loop runs
-        // forever, retaining its closure for the page lifetime.
         expect(ticks).toBe(2);
         stop();
     });
@@ -54,14 +51,11 @@ describe("assets loading lifecycle", () => {
             () => settled.resolve("resolved"),
             () => settled.resolve("rejected"),
         );
-        // Simulate bfcache suspension before the <script> fires load/error.
         window.dispatchEvent(new Event("pagehide"));
         const outcome = await Promise.race([
             settled,
             advanceTime(5000).then(() => "PENDING FOREVER"),
         ]);
-        // loadESMBundle's pagehide arm rejects; loadJS/loadCSS only remove the
-        // listeners and evict the cache, leaving the caller's promise pending.
         expect(outcome).toBe("rejected");
     });
 });

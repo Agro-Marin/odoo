@@ -37,9 +37,6 @@ let id = 0;
 
 const frenchTerms = { Hello: "Bonjour" };
 class TestComponent extends Component {
-    // HOOT caches compiled templates with terms already translated; since this
-    // suite varies translations per test, give each template a unique empty
-    // node so it isn't served from that cache.
     static get template() {
         return xml`${this._template}<div id="${id++}"/>`;
     }
@@ -107,10 +104,7 @@ test("can translate a text node", async () => {
 
 test("[cache] write into the cache", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        // Force a cache miss so the write path runs. Without this, a previous
-        // test in the same browser session may have warmed the real IndexedDB,
-        // and the server response would be considered already-cached.
-        read() {
+        async read() {
             return undefined;
         },
         write(table, key, value) {
@@ -153,7 +147,7 @@ test("[cache] write into the cache", async () => {
 
 test("[cache] read from cache, and don't wait to render", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        read() {
+        async read() {
             return {
                 lang: "en",
                 lang_parameters: {
@@ -181,23 +175,21 @@ test("[cache] read from cache, and don't wait to render", async () => {
         translations: frenchTerms,
     });
     await mountWithCleanup(TestComponent);
-    expect("#main").toHaveText("Bonjour"); //Don't wait the end of the fetch to render
+    expect("#main").toHaveText("Bonjour");
     def.resolve();
     await animationFrame();
-    expect.verifySteps(["hash: 30b70a0e"]); //Fetch with the hash of the translation in cache
+    expect.verifySteps(["hash: 30b70a0e"]);
 });
 
 test.tags("headless");
 test("[preload] adopt the parse-time preloaded fetch on cold boot", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        // Cold boot: IndexedDB miss
-        read() {
+        async read() {
             return undefined;
         },
-        write() {},
+        async write() {},
     });
     onRpc("/web/webclient/translations", () => {
-        // The service must adopt the preloaded fetch instead of re-fetching
         expect.step("unexpected service fetch");
     });
     const preloadedResult = {
@@ -217,14 +209,12 @@ test("[preload] adopt the parse-time preloaded fetch on cold boot", async () => 
         multi_lang: false,
         hash: "preload123",
     };
-    // Same globals as the inline script of web.webclient_bootstrap
     /** @type {any} */ (odoo).loadTranslationsURL =
         "/web/webclient/translations?hash=&lang=en";
     /** @type {any} */ (odoo).loadTranslationsPromise = Promise.resolve(
         new Response(JSON.stringify(preloadedResult)),
     );
     await makeMockEnv();
-    // The preload handle is consumed exactly once
     expect(/** @type {any} */ (odoo).loadTranslationsPromise).toBe(null);
     expect(/** @type {any} */ (odoo).loadTranslationsURL).toBe(null);
     expect(_t("Hello")).toBe("Bonjour (preloaded)");
@@ -234,8 +224,7 @@ test("[preload] adopt the parse-time preloaded fetch on cold boot", async () => 
 test.tags("headless");
 test("[preload] discard the preload and revalidate by hash when the cache hits", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        // Warm boot: IndexedDB hit despite a (stale) preload being present
-        read() {
+        async read() {
             return {
                 lang: "en",
                 lang_parameters: {
@@ -252,7 +241,7 @@ test("[preload] discard the preload and revalidate by hash when the cache hits",
                 hash: "30b70a0e",
             };
         },
-        write() {},
+        async write() {},
     });
     onRpc("/web/webclient/translations", (request) => {
         expect.step(`hash: ${new URL(request.url).searchParams.get("hash")}`);
@@ -264,24 +253,21 @@ test("[preload] discard the preload and revalidate by hash when the cache hits",
     );
     await makeMockEnv();
     expect(/** @type {any} */ (odoo).loadTranslationsPromise).toBe(null);
-    // Background revalidation used the cached hash, not the preload
     expect.verifySteps(["hash: 30b70a0e"]);
 });
 
 test.tags("headless");
 test("[preload] localStorage marker mirrors the IndexedDB cache state", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        read() {
+        async read() {
             return undefined;
         },
-        write() {},
+        async write() {},
     });
     defineParams({
         translations: frenchTerms,
     });
     await makeMockEnv();
-    // Written when the fetched translations are cached; the inline preload
-    // script of web.webclient_bootstrap uses it to skip the prefetch.
     expect(browser.localStorage.getItem("webclient_translations_version")).toBe(
         `${session.registry_hash}/en`,
     );
@@ -290,12 +276,10 @@ test("[preload] localStorage marker mirrors the IndexedDB cache state", async ()
 test.tags("headless");
 test("[cold boot] fetch failure falls back to usable localization defaults", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        // Cold boot: nothing cached, the fetch is the only source of
-        // lang_parameters.
-        read() {
+        async read() {
             return undefined;
         },
-        write() {
+        async write() {
             expect.step("unexpected cache write");
         },
     });
@@ -306,12 +290,8 @@ test("[cold boot] fetch failure falls back to usable localization defaults", asy
         expect.step("translations fetch");
         throw new Error("Connection refused");
     });
-    // Boot completes: the failure must neither reject env creation nor leave
-    // translationIsReady pending.
     await makeMockEnv();
     expect.verifySteps(["translations fetch", "console.error"]);
-    // The en-US-like fallback keeps every formatter usable (before the fix,
-    // localization stayed empty and any access threw / produced garbage).
     expect(localization.dateFormat).toBe("MM/dd/yyyy");
     expect(localization.timeFormat).toBe("HH:mm:ss");
     expect(localization.dateTimeFormat).toBe("MM/dd/yyyy HH:mm:ss");
@@ -320,14 +300,13 @@ test("[cold boot] fetch failure falls back to usable localization defaults", asy
     expect(localization.grouping).toEqual([3, 0]);
     expect(localization.direction).toBe("ltr");
     expect(localization.weekStart).toBe(7);
-    // Terms stay untranslated.
     expect(translatedTerms[translationLoaded]).toBe(true);
     expect(_t("Hello")).toBe("Hello");
 });
 
 test("[cache] update the cache if hash are different - template", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        read() {
+        async read() {
             return {
                 lang: "en",
                 lang_parameters: {
@@ -362,7 +341,7 @@ test("[cache] update the cache if hash are different - template", async () => {
         translations: frenchTerms,
     });
     const component = await mountWithCleanup(TestComponent);
-    expect("#main").toHaveText("Different Bonjour"); //Value came from the cache!
+    expect("#main").toHaveText("Different Bonjour");
     def.resolve();
     await animationFrame();
     const expectedValue = {
@@ -376,12 +355,12 @@ test("[cache] update the cache if hash are different - template", async () => {
             thousands_sep: ",",
             week_start: 7,
         },
-        modules: { web: { messages: [{ id: "Hello", string: "Bonjour" }] } }, // value was updated in the cache
+        modules: { web: { messages: [{ id: "Hello", string: "Bonjour" }] } },
         multi_lang: false,
-        hash: "ab5379cf", // hash was updated in the cache
+        hash: "ab5379cf",
     };
     expect.verifySteps([
-        "hash: 30b", //Fetch with the hash of the translation in cache
+        "hash: 30b",
         "table: /web/webclient/translations",
         'key: {"lang":"en"}',
         `value: ${JSON.stringify(expectedValue)}`,
@@ -389,13 +368,12 @@ test("[cache] update the cache if hash are different - template", async () => {
 
     component.render();
     await animationFrame();
-    // Not updated: owl caches translated templates for performance — a known limitation.
     expect("#main").toHaveText("Different Bonjour");
 });
 
 test("[cache] update the cache if hash are different - js", async () => {
     patchWithCleanup(IndexedDB.prototype, {
-        read() {
+        async read() {
             return {
                 lang: "en",
                 lang_parameters: {
@@ -440,7 +418,6 @@ test("[cache] update the cache if hash are different - js", async () => {
         translations: { Hi: "Salut" },
     });
     const component = await mountWithCleanup(MyTestComponent);
-    // The cached translated terms are used
     expect("#main").toHaveText("Different Salut");
 
     def.resolve();
@@ -460,12 +437,12 @@ test("[cache] update the cache if hash are different - js", async () => {
             web: {
                 messages: [{ id: "Hi", string: "Salut" }],
             },
-        }, // value was updated in the cache
+        },
         multi_lang: false,
-        hash: "5a528fc2", // hash was updated in the cache
+        hash: "5a528fc2",
     };
     expect.verifySteps([
-        "hash: 30b", //Fetch with the hash of the translation in cache
+        "hash: 30b",
         "table: /web/webclient/translations",
         'key: {"lang":"en"}',
         `value: ${JSON.stringify(expectedValue)}`,
@@ -473,12 +450,10 @@ test("[cache] update the cache if hash are different - js", async () => {
 
     component.render();
     await animationFrame();
-    // Using the updated translated terms
     expect("#main").toHaveText("Salut");
 });
 
 test("can lazy translate", async () => {
-    // Can't use patchWithCleanup cause it doesn't support Symbol
     translatedTerms[translationLoaded] = false;
     TestComponent._template = `<div id="main" t-translation-context="web"><t t-esc="constructor.someLazyText" /></div>`;
     TestComponent.someLazyText = _t("Hello");
@@ -654,13 +629,10 @@ describe("_pl", () => {
     });
 
     test("does not throw for an XPG @modifier locale (sr@latin)", () => {
-        // sr@latin carries no underscore, so a naive _→- replace left "@latin"
-        // intact and `new Intl.PluralRules("sr@latin")` threw RangeError, breaking
-        // every list/x2many aggregate render for Serbian-Latin users.
         patchWithCleanup(localization, { code: "sr@latin" });
         expect(() => _pl(2, { one: "a", few: "b", other: "c" })).not.toThrow();
-        expect(_pl(1, { one: "a", few: "b", other: "c" })).toBe("a"); // sr: 1 → one
-        expect(_pl(2, { one: "a", few: "b", other: "c" })).toBe("b"); // sr: 2 → few
+        expect(_pl(1, { one: "a", few: "b", other: "c" })).toBe("a");
+        expect(_pl(2, { one: "a", few: "b", other: "c" })).toBe("b");
     });
 
     test("falls back to `other` when the matched category form is absent", () => {

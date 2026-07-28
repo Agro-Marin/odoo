@@ -2,7 +2,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { queryAllTexts } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import {
     contains,
     defineActions,
@@ -53,16 +53,10 @@ defineActions([
 function fireActWindowWrite() {
     rpcBus.trigger(RpcEvent.RESPONSE, {
         data: { params: { model: "ir.actions.act_window", method: "write" } },
-        // Real RPC:RESPONSE events always carry settings; other listeners
-        // (e.g. the loading indicator) read them.
         settings: { silent: true },
     });
 }
 
-// Desktop-only: asserts on (and clicks) the `.breadcrumb-item` control-panel
-// DOM, which the mobile navbar does not render (mobile collapses breadcrumbs
-// into a back button). The cache-flush/stack-preservation logic under test is
-// desktop breadcrumb-stack behaviour.
 test.tags("desktop");
 test("act_window write refreshes breadcrumbs in place (no stack rebuild)", async () => {
     onRpc("/web/action/load_breadcrumbs", () => {
@@ -87,12 +81,9 @@ test("act_window write refreshes breadcrumbs in place (no stack rebuild)", async
     await animationFrame();
     await animationFrame();
 
-    // The display-name cache was flushed and fresh names were fetched.
     expect(am.breadcrumbCache).not.toBe(cacheBefore);
     expect.verifySteps(["/web/action/load_breadcrumbs"]);
 
-    // The stack still holds the same live controllers — not URL-derived
-    // virtual replacements that would lose exported view state.
     expect(am.controllerStack.length).toBe(stackBefore.length);
     expect(am.controllerStack.every((c, i) => c === stackBefore[i])).toBe(true);
     expect(am.controllerStack.some((c) => c.virtual)).toBe(false);
@@ -101,8 +92,6 @@ test("act_window write refreshes breadcrumbs in place (no stack rebuild)", async
         "First record",
     ]);
 
-    // Restoring through the breadcrumb reuses the kept controller instead of
-    // re-executing the action from scratch.
     await contains(".breadcrumb-item a").click();
     await animationFrame();
     expect(".o_list_view").toHaveCount(1);
@@ -127,8 +116,6 @@ test("any ir.actions.* write clears the /web/action/load cache", async () => {
     const onClear = (ev) => cleared.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
 
-    // Non-act_window action types (server/report/client/act_url) also
-    // staleness the action-load disk cache; each must clear it.
     for (const model of [
         "ir.actions.server",
         "ir.actions.report",
@@ -144,10 +131,8 @@ test("any ir.actions.* write clears the /web/action/load cache", async () => {
     await animationFrame();
     rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
 
-    // One CLEAR_CACHES("/web/action/load") per action-type write.
     expect(cleared.filter((d) => d === "/web/action/load").length).toBe(5);
 
-    // A non-action model must NOT clear the action cache.
     const clearedAfter = [];
     const onClear2 = (ev) => clearedAfter.push(ev.detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear2);
@@ -161,11 +146,7 @@ test("any ir.actions.* write clears the /web/action/load cache", async () => {
 });
 
 test("installActionCacheInvalidation returns a disposer that removes the listener", async () => {
-    // Pins the disposer contract relied on by short-lived managers (web_studio
-    // editor): after the returned disposer runs, the rpcBus listener is gone and
-    // an ir.actions write no longer clears the /web/action/load cache. Before the
-    // fix, the install happened in the ActionManager ctor and nothing disposed
-    // it, leaking one listener per Studio entry.
+    /** @type {any} */
     const am = { breadcrumbCache: new BreadcrumbCache(), controllerStack: [] };
     const uninstall = installActionCacheInvalidation(am);
 
@@ -177,23 +158,17 @@ test("installActionCacheInvalidation returns a disposer that removes the listene
     await animationFrame();
     expect(cleared.filter((d) => d === "/web/action/load").length).toBe(1);
 
-    // Dispose: the same write is now a no-op — the listener is gone.
     uninstall();
     fireActWindowWrite();
     await animationFrame();
     expect(cleared.filter((d) => d === "/web/action/load").length).toBe(1);
 
-    // Idempotent: a second dispose must not throw.
     uninstall();
 
     rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
 });
 
 test("action service exposes the cache-invalidation disposer", async () => {
-    // The session-lived webclient manager installs the listener in
-    // ``actionService.start`` (not the ctor) and exposes the disposer, so
-    // short-lived consumers can tear it down. Disposing here stops further
-    // cache clears.
     await mountWithCleanup(WebClient);
     const am = getService("action");
     expect(typeof am.uninstallActionCacheInvalidation).toBe("function");
@@ -210,8 +185,6 @@ test("action service exposes the cache-invalidation disposer", async () => {
     expect(cleared.includes("/web/action/load")).toBe(false);
 });
 
-// Desktop-only: asserts on the `.breadcrumb-item` breadcrumb texts, absent from
-// the mobile navbar (see the companion test above).
 test.tags("desktop");
 test("failed breadcrumb refresh keeps the current names", async () => {
     onRpc("/web/action/load_breadcrumbs", () => {
@@ -228,11 +201,105 @@ test("failed breadcrumb refresh keeps the current names", async () => {
     await animationFrame();
     await animationFrame();
 
-    // The refresh degraded silently: same controllers, same names, no dialog.
     expect.verifySteps(["/web/action/load_breadcrumbs"]);
     expect(".o_error_dialog").toHaveCount(0);
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Partners",
         "First record",
     ]);
+});
+
+/** Simulate a mutating RPC on an arbitrary model reaching the rpcBus. */
+function fireWrite(model) {
+    rpcBus.trigger(RpcEvent.RESPONSE, {
+        data: { params: { model, method: "write" } },
+        settings: { silent: true },
+    });
+}
+
+test("a non-act_window action write clears the cache but skips the refresh", async () => {
+    let refreshed = 0;
+    onRpc("/web/action/load_breadcrumbs", () => {
+        refreshed++;
+        return [];
+    });
+    const cacheBefore = new BreadcrumbCache();
+    /** @type {any} */
+    const am = {
+        breadcrumbCache: cacheBefore,
+        controllerStack: [
+            { state: { action: 1 }, action: {}, config: { breadcrumbs: [] } },
+        ],
+        _getBreadcrumbs: () => [],
+    };
+    const uninstall = installActionCacheInvalidation(am);
+
+    const cleared = [];
+    const onClear = (ev) => cleared.push(ev.detail);
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    fireWrite("ir.actions.server");
+    await animationFrame();
+
+    expect(cleared.includes("/web/action/load")).toBe(true);
+    expect(refreshed).toBe(0);
+    expect(am.breadcrumbCache).toBe(cacheBefore);
+
+    rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
+    uninstall();
+});
+
+test("a write on an unrelated model is ignored entirely", async () => {
+    const cacheBefore = new BreadcrumbCache();
+    /** @type {any} */
+    const am = { breadcrumbCache: cacheBefore, controllerStack: [] };
+    const uninstall = installActionCacheInvalidation(am);
+
+    const cleared = [];
+    const onClear = (ev) => cleared.push(ev.detail);
+    rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, onClear);
+
+    fireWrite("res.partner");
+    await animationFrame();
+
+    expect(cleared.includes("/web/action/load")).toBe(false);
+    expect(am.breadcrumbCache).toBe(cacheBefore);
+
+    rpcBus.removeEventListener(RpcEvent.CLEAR_CACHES, onClear);
+    uninstall();
+});
+
+test("navigation during the refresh abandons the stale breadcrumb write", async () => {
+    const released = new Deferred();
+    onRpc("/web/action/load_breadcrumbs", async () => {
+        await released;
+        return [{ display_name: "Refreshed" }];
+    });
+
+    /** @type {any} */
+    const staleTip = {
+        state: { action: 1 },
+        action: {},
+        displayName: "Old",
+        config: { breadcrumbs: ["ORIGINAL"] },
+    };
+    /** @type {any} */
+    const am = {
+        breadcrumbCache: new BreadcrumbCache(),
+        controllerStack: [staleTip],
+        _getBreadcrumbs: () => ["REBUILT"],
+    };
+    const uninstall = installActionCacheInvalidation(am);
+
+    fireWrite("ir.actions.act_window");
+    await animationFrame();
+
+    am.controllerStack = [{ state: { action: 2 }, action: {}, config: {} }];
+    released.resolve();
+    await animationFrame();
+    await animationFrame();
+
+    expect(staleTip.config.breadcrumbs).toEqual(["ORIGINAL"]);
+
+    uninstall();
 });

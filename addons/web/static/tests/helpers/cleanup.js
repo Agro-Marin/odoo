@@ -1,7 +1,5 @@
 // @ts-check
 
-// Cleanup
-
 const cleanups = [];
 
 /**

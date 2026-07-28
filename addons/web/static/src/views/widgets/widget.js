@@ -8,12 +8,6 @@ import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 const viewWidgetRegistry = registry.category("view_widgets");
 
-// The per-element shape must live under `element`, not as a sibling `shape`:
-// OWL's array validator reads `element` and ignores a sibling `shape`, so the
-// previous placement left the element shape completely unenforced. Enforce the
-// two load-bearing fields (name, type) and forward the rest via `"*": true`
-// (label / availableTypes / default / help / choices) so a well-formed
-// registration with extra descriptive fields still validates.
 const supportedInfoValidation = {
     type: Array,
     element: {
@@ -64,7 +58,7 @@ viewWidgetRegistry.addValidation({
  * extracted props, readonly state, and the current record.
  */
 export class Widget extends Component {
-    static template = xml /*xml*/ `
+    static template = xml`
         <div t-att-class="classNames" t-att-style="props.style">
             <t t-component="widget.component" t-props="widgetProps" />
         </div>`;
@@ -86,13 +80,11 @@ export class Widget extends Component {
 
         for (const { name, value } of node.attributes) {
             if (["name", "widget"].includes(name)) {
-                // avoid adding name and widget to attrs
                 continue;
             }
             if (name === "options") {
                 widgetInfo.options = evaluateExpr(value);
             } else if (!name.startsWith("t-att")) {
-                // all other (non dynamic) attributes
                 widgetInfo.attrs[name] = value;
             }
         }

@@ -143,9 +143,6 @@ test("BadgeSelectionField widget on a selection in a readonly mode", async () =>
     expect(`div.o_readonly_modifier span`).toHaveCount(1, {
         message: "should have 1 possible value in readonly mode",
     });
-    // The readonly span renders SelectionLikeField.get string(), which resolves
-    // the label from the field's `selection` metadata (not a subclass option
-    // accessor); the default "red" value must show its "Red" label.
     expect(`div.o_readonly_modifier span`).toHaveText("Red");
 });
 
@@ -173,7 +170,6 @@ test("BadgeSelectionField widget on a selection unchecking selected value", asyn
         message: "the active one should be Red",
     });
 
-    // click again on red option and save to update the server data
     await contains("span.o_selection_badge.active").click();
     expect.verifySteps([]);
     await contains(".o_form_button_save").click();
@@ -210,7 +206,6 @@ test("BadgeSelectionField widget on a selection unchecking selected value (requi
         message: "the active one should be Red",
     });
 
-    // click again on red option and save to update the server data
     await contains("span.o_selection_badge.active").click();
     expect.verifySteps([]);
     await contains(".o_form_button_save").click();
@@ -222,8 +217,6 @@ test("BadgeSelectionField widget on a selection unchecking selected value (requi
 });
 
 test("BadgeSelectionField respects arch/dynamic required when unchecking", async () => {
-    // The field is NOT model-level required, only required via the arch
-    // modifier. Clicking the active badge must not clear the value.
     await mountView({
         type: "form",
         resModel: "res.partner",
@@ -232,8 +225,6 @@ test("BadgeSelectionField respects arch/dynamic required when unchecking", async
 
     expect("span.o_selection_badge.active").toHaveText("Red");
 
-    // Re-click the active badge: with a dynamic-required field this must be a
-    // no-op (the value stays selected) rather than deselecting to false.
     await contains("span.o_selection_badge.active").click();
     expect("span.o_selection_badge.active").toHaveCount(1);
     expect("span.o_selection_badge.active").toHaveText("Red", {
@@ -253,7 +244,6 @@ test("BadgeSelectionField widget in list with the color_field option", async () 
         `,
     });
 
-    // Ensure that the correct o_badge_color is used.
     expect(`.o_field_selection_badge[name="product_id"] .o_badge_color_6`).toHaveCount(
         1,
     );
@@ -263,23 +253,19 @@ test("BadgeSelectionField widget in list with the color_field option", async () 
     expect(`div.o_field_selection_badge span:contains(xphone)`).toHaveCount(1);
     expect(`div.o_field_selection_badge span:contains(xpad)`).toHaveCount(0);
 
-    // Open the M2O selection.
     await contains(
         `.o_field_selection_badge[name="product_id"] .o_badge_color_6`,
     ).click();
 
-    // Ensure that the 'badge' display is used.
     expect("span.btn-secondary.badge").toHaveCount(2);
     expect(`span.btn-secondary.active:contains(xphone)`).toHaveCount(1);
     expect(`span.btn-secondary.active:contains(xpad)`).toHaveCount(0);
 
-    // Select the second product.
     await contains(`span.btn-secondary:contains(xpad)`).click();
 
     expect(`span.btn-secondary.active:contains(xphone)`).toHaveCount(0);
     expect(`span.btn-secondary.active:contains(xpad)`).toHaveCount(1);
 
-    // Save changes.
     await contains(".o_list_button_save").click();
 
     expect(`.o_field_selection_badge[name="product_id"] .o_badge_color_6`).toHaveCount(
@@ -304,7 +290,6 @@ test("BadgeSelectionField widget in list without the color_field option", async 
         `,
     });
 
-    // Ensure that the 'btn btn-secondary' display is used instead of the 'o_badge_color' one.
     expect(`div.o_field_selection_badge span.btn-secondary`).toHaveCount(1);
     expect(
         `div.o_field_selection_badge span.btn-secondary:contains(xphone)`,
@@ -313,21 +298,17 @@ test("BadgeSelectionField widget in list without the color_field option", async 
         0,
     );
 
-    // Open the M2O selection.
     await contains(`div.o_field_selection_badge span:contains(xphone)`).click();
 
-    // Ensure that the 'badge' display is used.
     expect("span.btn-secondary.badge").toHaveCount(2);
     expect(`span.btn-secondary.active:contains(xphone)`).toHaveCount(1);
     expect(`span.btn-secondary.active:contains(xpad)`).toHaveCount(0);
 
-    // Select the second product.
     await contains(`span.btn-secondary:contains(xpad)`).click();
 
     expect(`span.btn-secondary.active:contains(xphone)`).toHaveCount(0);
     expect(`span.btn-secondary.active:contains(xpad)`).toHaveCount(1);
 
-    // Save changes.
     await contains(".o_list_button_save").click();
 
     expect(`div.o_field_selection_badge span.btn-secondary`).toHaveCount(1);

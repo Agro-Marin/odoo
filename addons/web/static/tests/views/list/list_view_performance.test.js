@@ -39,8 +39,6 @@ import { RPCCache } from "@web/core/network/rpc_cache";
 import { ListAggregatesRow } from "@web/views/list/list_aggregates_row";
 import { ListRecordRow } from "@web/views/list/list_record_row";
 
-// ─── Minimal model fixture ────────────────────────────────────────────────────
-
 class Currency extends models.Model {
     _name = "res.currency";
     name = fields.Char();
@@ -62,18 +60,11 @@ const { ResCompany, ResPartner, ResUsers } = webModels;
 
 defineModels([Currency, Foo, ResCompany, ResPartner, ResUsers]);
 
-// ``result_set_cache_invalidator_service`` (the RPC:RESPONSE → CLEAR-CACHES
-// bridge under test below) attaches its listener in ``service.start()``, so
-// D3/D3b/D3c fail intermittently without an env started first. This makes
-// every test self-sufficient regardless of run order; ``mountView``'s
-// ``getMockEnv() || makeMockEnv()`` makes it a no-op for view-mounting tests.
 beforeEach(async () => {
     if (!getMockEnv()) {
         await makeMockEnv();
     }
 });
-
-// ─── R4: ListAggregatesRow render isolation ───────────────────────────────────
 
 /**
  * Clicking a data cell toggles `editedRecord` on the parent ListRenderer.
@@ -99,14 +90,11 @@ test.todo("aggregate row does not re-render when entering edit mode (R4)", async
         </list>`,
     });
 
-    // Exactly one initial render (mount + first paint)
     expect.verifySteps(["ListAggregatesRow render"]);
 
-    // Click a data cell → enters edit mode (editedRecord changes on parent)
     await contains(".o_data_row:first-child .o_data_cell").click();
     await animationFrame();
 
-    // aggregate row must NOT have re-rendered
     expect.verifySteps([]);
 });
 
@@ -134,18 +122,13 @@ test("aggregate row re-renders when a record is selected (R4 positive case)", as
         </list>`,
     });
 
-    // Clear initial render steps before the interaction
     expect.verifySteps(["ListAggregatesRow render"]);
 
-    // Selecting a record changes record.selected — aggregate row depends on this
     await contains(".o_data_row:first-child .o_list_record_selector input").click();
     await animationFrame();
 
-    // aggregate row MUST have re-rendered
     expect.verifySteps(["ListAggregatesRow render"]);
 });
-
-// ─── R5: ListRecordRow render isolation ───────────────────────────────────────
 
 /**
  * Rows are components whose props stay referentially stable for unchanged
@@ -174,22 +157,16 @@ test("toggling one checkbox re-renders only that record's row (R5)", async () =>
         </list>`,
     });
 
-    // Initial mount: one render per record row.
     expect(rowRenders).toHaveLength(8);
     rowRenders.length = 0;
 
-    // Toggle the FIRST record's selection checkbox.
     await contains(".o_data_row:first-child .o_list_record_selector input").click();
     await animationFrame();
 
-    // Exactly one row re-rendered — the toggled record's.
     expect(rowRenders).toEqual([1]);
 
-    // Sanity: the selection actually happened.
     expect(".o_data_row:first-child").toHaveClass("o_data_row_selected");
 });
-
-// ─── D3: Selective unlink cache invalidation ──────────────────────────────────
 
 /**
  * When a record is unlinked, `relational_model.js` must emit CLEAR-CACHES with
@@ -203,11 +180,6 @@ test("unlink emits CLEAR-CACHES with model name in payload (D3)", () => {
     rpcBus.addEventListener("CLEAR-CACHES", handler);
 
     try {
-        // Simulate the RPC:RESPONSE event that
-        // ``result_set_cache_invalidator_service`` listens to. The
-        // module-level ``beforeEach`` ensures the service has started
-        // (and therefore its listener is attached) before this test
-        // fires the event.
         rpcBus.trigger("RPC:RESPONSE", {
             data: {
                 params: { method: "unlink", model: "res.partner" },
@@ -239,14 +211,11 @@ test("non-removing RPC:RESPONSE does not emit CLEAR-CACHES (D3 guard)", () => {
     rpcBus.addEventListener("CLEAR-CACHES", handler);
 
     try {
-        // Cover every UPDATE_METHODS entry that is NOT a result-set remover.
-        // Source of truth: ``orm_service.js`` ``UPDATE_METHODS`` constant.
         for (const method of ["write", "create", "web_save", "web_save_multi"]) {
             rpcBus.trigger("RPC:RESPONSE", {
                 data: { params: { method, model: "res.partner" } },
             });
         }
-        // And a couple of arbitrary read methods for completeness.
         for (const method of ["web_read", "web_search_read", "name_search"]) {
             rpcBus.trigger("RPC:RESPONSE", {
                 data: { params: { method, model: "res.partner" } },
@@ -258,8 +227,6 @@ test("non-removing RPC:RESPONSE does not emit CLEAR-CACHES (D3 guard)", () => {
         rpcBus.removeEventListener("CLEAR-CACHES", handler);
     }
 });
-
-// ─── D3b: action_archive / action_unarchive symmetry ─────────────────────────
 
 /**
  * Archive must invalidate the same tables for the same reason as unlink:
@@ -316,8 +283,6 @@ test("action_unarchive emits CLEAR-CACHES with model name (D3b)", () => {
     }
 });
 
-// ─── D3c: end-to-end RAM cache invalidation ──────────────────────────────────
-
 /**
  * Build a JSON cache key matching the real shape that
  * ``rpc.js`` writes (``JSON.stringify({url, params})``).  ``invalidateByModel``
@@ -370,12 +335,6 @@ function installFreshRpcCache() {
 function seedTwoModels(cache) {
     const partnerKey = makeCacheKey("res.partner", "web_search_read", [[]]);
     const userKey = makeCacheKey("res.users", "web_search_read", [[]]);
-    // Match the production write path in ``RPCCache.read`` (line 492 of
-    // ``rpc_cache.js``) which passes ``model`` so that ``invalidateByModel``
-    // can find the entry through the model→Set reverse index. Seeding
-    // without the 4th arg makes ``modelIndex`` empty and the per-model
-    // invalidation becomes a no-op — the assertion would then mistakenly
-    // pass under buggy code and fail under correct code.
     cache.ramCache.write(
         "web_search_read",
         partnerKey,
@@ -395,21 +354,17 @@ test("end-to-end: unlink invalidates RAM cache for target model only (D3c)", () 
     const cache = installFreshRpcCache();
     const { partnerKey, userKey } = seedTwoModels(cache);
 
-    // Both entries present before the event fires.
     expect(Object.keys(cache.ramCache.ram.web_search_read)).toEqual([
         partnerKey,
         userKey,
     ]);
 
-    // Fire the RPC:RESPONSE that ``relational_model.js`` listens for.
     rpcBus.trigger("RPC:RESPONSE", {
         data: {
             params: { method: "unlink", model: "res.partner" },
         },
     });
 
-    // Only the unrelated-model entry survives.  The full chain — listener →
-    // CLEAR-CACHES → rpc.js consumer → invalidateByModel — must have run.
     expect(Object.keys(cache.ramCache.ram.web_search_read)).toEqual([userKey]);
 });
 
@@ -423,7 +378,6 @@ test("end-to-end: action_archive invalidates RAM cache for target model only (D3
         },
     });
 
-    // Same end-state as unlink: target-model entry gone, other survives.
     expect(Object.keys(cache.ramCache.ram.web_search_read)).toEqual([userKey]);
     void partnerKey;
 });
@@ -459,9 +413,6 @@ test("end-to-end: write does NOT invalidate RAM cache (D3c negative)", () => {
         },
     });
 
-    // Both entries must survive — the write self-maintains the cache via
-    // its response (see ``RESULT_SET_REMOVING_METHODS`` comment in
-    // ``relational_model.js``).
     expect(Object.keys(cache.ramCache.ram.web_search_read)).toEqual([
         partnerKey,
         userKey,

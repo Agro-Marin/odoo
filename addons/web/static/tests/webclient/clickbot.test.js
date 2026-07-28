@@ -26,9 +26,6 @@ import { ListRenderer } from "@web/views/list/list_renderer";
 import { SUCCESS_SIGNAL } from "@web/webclient/clickbot/clickbot";
 import { WebClient } from "@web/webclient/webclient";
 
-// The clickbot logs a detected errored RPC as a free-text prefix + JSON.stringify of
-// the runtime error object. Key insertion order of that object is an internal detail,
-// so step assertions must compare the payload by structure, not by serialized key order.
 const RPC_ERROR_MARKER =
     "A RPC in error was detected, maybe it's related to the error dialog : ";
 
@@ -65,18 +62,18 @@ class Foo extends models.Model {
     ];
 
     _views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter string="Not Bar" name="not bar" domain="[['bar','=',False]]"/>
                 <filter string="Date" name="date" date="date"/>
             </search>
         `,
-        list: /* xml */ `
+        list: `
             <list>
                 <field name="foo" />
             </list>
         `,
-        kanban: /* xml */ `
+        kanban: `
             <kanban class="o_kanban_test">
                 <templates><t t-name="card">
                     <field name="foo"/>
@@ -360,10 +357,6 @@ test("clickbot clickeverywhere test (with dropdown menu)", async () => {
         __WOWL_DEBUG__: { root: webClient },
     });
     await runAllTimers();
-    // The webclient auto-loads the default app (App2) on mount, which sets the
-    // current menu and asynchronously re-renders the navbar (via the
-    // MENUS_APP_CHANGED bus event). That chain isn't deterministically flushed
-    // by a fixed animationFrame(), so wait for the section to actually render.
     await waitFor(".o_menu_sections .dropdown-toggle");
     expect(".o_menu_sections .dropdown-toggle").toHaveText("a dropdown");
     window.clickEverywhere();
@@ -452,11 +445,11 @@ test("clickbot test waiting rpc after clicking filter", async () => {
     window.clickEverywhere();
     await clickEverywhereDef;
     expect.verifySteps([
-        "web_search_read called", // click on the App
+        "web_search_read called",
         "response",
-        "web_search_read called", // click on the Filter
+        "web_search_read called",
         "response",
-        "web_search_read called", // click on the Second Filter
+        "web_search_read called",
         "response",
         SUCCESS_SIGNAL,
     ]);
@@ -478,10 +471,8 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
                 }
             },
             error: (msg) => {
-                // Replace msg with null id as JSON-RPC ids are not reset between two tests
                 msg = msg.toString().replaceAll(/"id":\d+,/g, `"id":null,`);
                 if (msg.startsWith(RPC_ERROR_MARKER)) {
-                    // Compare the error payload structurally, not by runtime key order.
                     msg =
                         RPC_ERROR_MARKER +
                         canonicalJson(msg.slice(RPC_ERROR_MARKER.length));
@@ -494,7 +485,6 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
     onRpc("web_search_read", () => {
         if (clickBotStarted) {
             if (id === 3) {
-                // click on the Second Filter
                 throw makeServerError({
                     message:
                         "This is a server Error, it should be displayed in an error dialog",
@@ -564,10 +554,6 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
                 },
             },
         },
-        // ``RpcEvent.RESPONSE`` carries the request url alongside ``data`` /
-        // ``settings``, exactly as ``RpcEvent.REQUEST`` does, so a response
-        // observer can identify the endpoint even for calls whose params carry
-        // no model/method (session_info, /web/action/load, get_views, ...).
         url: "/web/dataset/call_kw/foo/web_search_read",
         settings: { silent: false, cache: false, retry: false, dedup: false },
         error: {
@@ -590,7 +576,7 @@ test("clickbot show rpc error when an error dialog is detected", async () => {
             errorEvent: { isTrusted: true },
         },
     });
-    const expectedModalHtml = /* xml */ `
+    const expectedModalHtml = `
         <header class="modal-header">
             <h4 class="modal-title text-break flex-grow-1" id="dialog_0_title">Oops!</h4>
             <button type="button" class="btn-close" aria-label="Close" tabindex="-1"></button>
@@ -675,11 +661,11 @@ test("clickbot test waiting render after clicking filter", async () => {
     window.clickEverywhere();
     await clickEverywhereDef;
     expect.verifySteps([
-        "onWillStart called", // click on APP
+        "onWillStart called",
         "response",
-        "onWillUpdateProps called", // click on filter
+        "onWillUpdateProps called",
         "response",
-        "onWillUpdateProps called", // click on second filter
+        "onWillUpdateProps called",
         "response",
         SUCCESS_SIGNAL,
     ]);
@@ -688,7 +674,7 @@ test("clickbot test waiting render after clicking filter", async () => {
 test("clickbot clickeverywhere menu modal", async () => {
     onRpc("has_group", () => true);
     mockDate("2017-10-08T15:35:11.000");
-    Foo._views.form = /* xml */ `
+    Foo._views.form = `
         <form>
             <field name="foo"/>
         </form>

@@ -16,8 +16,6 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 
 import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
 
-// UTILS
-
 /**
  * @param {Object} record - Raw record data with id and display_name/name
  * @returns {{ id: number, display_name: string }}
@@ -27,8 +25,6 @@ export function extractData(record) {
     if ("display_name" in record) {
         name = record.display_name;
     } else if ("name" in record) {
-        // `record.name` can be `false` (e.g. a record saved from a create
-        // dialog with an empty name): don't read `.id` on it.
         name = record.name?.id ? record.name.display_name : record.name;
     }
     return { id: record.id, display_name: name };
@@ -78,12 +74,6 @@ export function computeM2OProps(fieldProps) {
         readonly: fieldProps.readonly,
         relation: fieldProps.record.fields[fieldProps.name].relation,
         searchThreshold: fieldProps.searchThreshold,
-        // NB: `preventMemoization` is deliberately NOT piped here: it is a
-        // component-layer prop of Many2One/Many2XAutocomplete, not a field
-        // prop — Many2OneField.props doesn't declare it and extractM2OFieldProps
-        // never extracts it, so it can't come from the arch. Callers that need
-        // it (e.g. product's ProductNameAndDescriptionField) set it directly on
-        // the props they hand to the inner Many2One component.
         string:
             fieldProps.string || fieldProps.record.fields[fieldProps.name].string || "",
         update: (value, options = {}) =>
@@ -91,8 +81,6 @@ export function computeM2OProps(fieldProps) {
         value: toRaw(fieldProps.record.data[fieldProps.name]),
     };
 }
-
-// Components
 
 export class Many2One extends Component {
     static template = "web.Many2One";
@@ -183,12 +171,6 @@ export class Many2One extends Component {
         const self = this;
         this.recordDialog = {
             open: useOpenMany2XRecord({
-                // useOpenMany2XRecord reads activeActions.create/.write at
-                // dialog-open time. Passing `this.activeActions` would snapshot
-                // the getter's result at setup, so later prop changes to
-                // canCreate/canWrite (readonly re-evaluation, view context)
-                // wouldn't reach the dialog's preventCreate/preventEdit. Live
-                // getters keep it reading fresh props on each open.
                 activeActions: {
                     get create() {
                         return self.props.canCreate;
@@ -208,9 +190,6 @@ export class Many2One extends Component {
                 onRecordSaved: async () => {
                     const resId = this.props.value?.id;
                     if (resId == null) {
-                        // An onchange inside the dialog may have cleared the
-                        // value: there is nothing to refetch and
-                        // orm.read([undefined]) is a malformed request.
                         return;
                     }
                     const fieldNames = ["display_name"];
@@ -223,12 +202,6 @@ export class Many2One extends Component {
                         },
                     );
                     if (records[0]) {
-                        // Push the fresh name into the SHARED name_service cache
-                        // so every OTHER on-screen widget / list cell referencing
-                        // this record updates too, instead of showing the stale
-                        // name until a full reload. (Previously this read fed only
-                        // this widget's own value and left the cache stale — the
-                        // former CROSS-GROUP(name_service) gap.)
                         this.nameService.addDisplayNames(this.props.relation, {
                             [resId]: records[0].display_name,
                         });
@@ -321,9 +294,6 @@ export class Many2One extends Component {
 
     /** @returns {boolean} Whether to show the external link button */
     get hasLinkButton() {
-        // Require a persisted numeric id: a quick-created value is
-        // ``{ id: false, display_name }``, for which ``linkHref`` would build
-        // ``/odoo/<relation>/false`` — a link to a nonexistent record.
         return (
             this.props.canOpen &&
             typeof this.props.value?.id === "number" &&
@@ -406,7 +376,7 @@ export class Many2One extends Component {
             name: barcode,
             domain: this.props.domain(),
             operator: "ilike",
-            limit: 2, // limit 2: one result is set directly, more falls back to normal search flow
+            limit: 2,
             context: this.props.context,
         });
         const validPairs = pairs.filter(([id]) => !!id);
@@ -414,7 +384,10 @@ export class Many2One extends Component {
             const pair = validPairs[0];
             return this.update({ id: pair[0], display_name: pair[1] });
         } else {
-            const input = /** @type {HTMLInputElement} */ (this.input);
+            const input = this.input;
+            if (!input) {
+                return;
+            }
             input.value = barcode;
             input.dispatchEvent(new Event("input"));
             if (this.env.isSmall) {

@@ -9,8 +9,6 @@ import {
     makeButtonHandler,
 } from "@web/public/minimal_dom";
 
-// Track when all JS files have been lazy loaded. Will allow to unblock the
-// related DOM sections when the whole JS have been loaded and executed.
 let allScriptsLoadedResolve = null;
 const _allScriptsLoaded = new Promise((resolve) => {
     allScriptsLoadedResolve = resolve;
@@ -27,13 +25,14 @@ const retriggeringWaitingProms = [];
  */
 async function waitForLazyAndRetrigger(ev) {
     const targetEl = /** @type {HTMLElement} */ (ev.target);
-    await _allScriptsLoaded;
-    // Loaded scripts were able to add a delay to wait for before re-triggering
-    // events: we wait for it here. Use allSettled, not all: if ANY readiness
-    // delay rejects (e.g. a frontend service failed to start), Promise.all
-    // would reject and the retrigger below would never run — the user's first
-    // (blocked, preventDefault'd) click would be swallowed forever. Log the
-    // rejection instead and still replay the event.
+    try {
+        await _allScriptsLoaded;
+    } catch (error) {
+        // this runs as a bare DOM listener, so the promise carrying the failure
+        // is dropped by the caller and by `makeAsyncHandler`, which had to
+        // observe it to release its lock: report it here or nowhere
+        console.error("Lazy script loading failed:", error);
+    }
     const readinessResults = await Promise.allSettled(retriggeringWaitingProms);
     for (const result of readinessResults) {
         if (result.status === "rejected") {
@@ -41,11 +40,7 @@ async function waitForLazyAndRetrigger(ev) {
         }
     }
 
-    // At the end of the current execution queue, retrigger the event. The
-    // event is reconstructed — necessary in some cases (e.g. submit
-    // buttons), probably because the original event was defaultPrevented.
     setTimeout(() => {
-        // Extra safety check: the element might have been removed from the DOM
         if (targetEl.isConnected) {
             const EventCtor =
                 /** @type {new (type: string, init?: EventInit) => Event} */ (
@@ -89,29 +84,18 @@ function waitLazy() {
 
     document.body.classList.add("o_lazy_js_waiting");
 
-    // TODO should probably find the wrapwrap another way but in future versions
-    // the element will be gone anyway.
     const mainEl = document.getElementById("wrapwrap") || document.body;
-    const loadingEffectButtonEls = [...mainEl.querySelectorAll(BUTTON_HANDLER_SELECTOR)]
-        // We target all buttons but...
-        .filter(
-            (el) =>
-                // ... allow disabling the effect via that class. Buttons without
-                // it that get handlers from non-lazy code will show a stuck
-                // loading effect until lazy JS loads — a known compromise (added
-                // as a stable fix), mitigated by caching on later page visits.
-                !el.classList.contains("o_no_wait_lazy_js") &&
-                // ... also exclude links with an href other than "#" — even
-                // if a handler prevents their default, following the link is
-                // still likely relevant.
-                !(
-                    el.nodeName === "A" &&
-                    el.getAttribute("href") &&
-                    el.getAttribute("href") !== "#"
-                ),
-        );
-    // Note: this is a limitation/a "risk" to only block and retrigger those
-    // specific event types.
+    const loadingEffectButtonEls = [
+        ...mainEl.querySelectorAll(BUTTON_HANDLER_SELECTOR),
+    ].filter(
+        (el) =>
+            !el.classList.contains("o_no_wait_lazy_js") &&
+            !(
+                el.nodeName === "A" &&
+                el.getAttribute("href") &&
+                el.getAttribute("href") !== "#"
+            ),
+    );
     const loadingEffectEventTypes = [
         "mouseover",
         "mouseenter",
@@ -154,9 +138,11 @@ function stopWaitingLazy() {
     for (const { el, type, handler } of loadingEffectHandlers) {
         el.removeEventListener(type, handler, { capture: true });
     }
+    // one record per (button, event type): keeping them would pin every button
+    // of the page in memory for as long as the document lives
+    loadingEffectHandlers.length = 0;
 }
 
-// Start waiting for lazy loading as soon as the DOM is available
 if (document.readyState !== "loading") {
     waitLazy();
 } else {
@@ -165,7 +151,6 @@ if (document.readyState !== "loading") {
     });
 }
 
-// As soon as the document is fully loaded, start loading the whole remaining JS
 if (document.readyState === "complete") {
     setTimeout(_loadScripts, 0);
 } else {
@@ -174,16 +159,7 @@ if (document.readyState === "complete") {
     });
 }
 
-// Maximum time to wait for a single lazy script to settle ("load" or
-// "error") before unblocking the page anyway. A hung request (stalled
-// connection, unresponsive server) fires neither event, so without this
-// watchdog @see stopWaitingLazy would never run and every button/form
-// blocked by @see waitLazy would stay unusable forever. 60s is far beyond
-// any sane bundle load time and matches the module loader's
-// one-reload-per-minute self-heal guard window.
 const SCRIPT_LOAD_TIMEOUT_DELAY = 60000;
-/** @type {number | undefined} */
-let scriptLoadWatchdogTimer;
 
 /**
  * Sequentially loads all scripts with a `data-src` attribute, then resolves
@@ -196,6 +172,10 @@ let scriptLoadWatchdogTimer;
  * by @see waitLazy. No observability beacon is sent from here: the module
  * loader shim's capture-phase "error" listener already reports failing
  * /web/assets/ scripts (beacon + one-shot reload self-heal).
+ *
+ * The watchdog unblocks the page without abandoning the chain — a script that
+ * settles late still runs — so completion is reported at most once instead of
+ * again when the chain reaches its end.
  *
  * @param {NodeListOf<HTMLScriptElement> | HTMLScriptElement[]} [scripts]
  * @param {number} [index]
@@ -214,36 +194,47 @@ function _loadScripts(scripts, index, onAllScriptsDone) {
     if (onAllScriptsDone === undefined) {
         onAllScriptsDone = allScriptsLoadedResolve;
     }
-    clearTimeout(scriptLoadWatchdogTimer);
-    if (index >= scripts.length) {
-        onAllScriptsDone();
-        return;
-    }
-    const script = scripts[index];
-    const loadNext = () => _loadScripts(scripts, index + 1, onAllScriptsDone);
-    // Hard timeout fallback: a script that never settles must not keep the
-    // page blocked. The chain listeners stay in place: if the script settles
-    // after all, loading simply resumes in the background (resolving an
-    // already-resolved promise is a no-op).
-    scriptLoadWatchdogTimer = setTimeout(() => {
-        console.error(
-            `Lazy script did not settle within ${SCRIPT_LOAD_TIMEOUT_DELAY}ms,` +
-                ` unblocking the page anyway: ${script.src}`,
+    // per chain, not per module: the watchdog times out the script this chain
+    // is waiting on, and a second chain sharing the variable cancelled it
+    /** @type {number | undefined} */
+    let watchdogTimer;
+    let hasReportedDone = false;
+    const reportDone = () => {
+        if (!hasReportedDone) {
+            hasReportedDone = true;
+            onAllScriptsDone();
+        }
+    };
+    /** @param {number} i */
+    const loadFrom = (i) => {
+        clearTimeout(watchdogTimer);
+        if (i >= scripts.length) {
+            reportDone();
+            return;
+        }
+        const script = scripts[i];
+        const loadNext = () => loadFrom(i + 1);
+        watchdogTimer = setTimeout(() => {
+            console.error(
+                `Lazy script did not settle within ${SCRIPT_LOAD_TIMEOUT_DELAY}ms,` +
+                    ` unblocking the page anyway: ${script.src}`,
+            );
+            reportDone();
+        }, SCRIPT_LOAD_TIMEOUT_DELAY);
+        script.addEventListener("load", loadNext, { once: true });
+        script.addEventListener(
+            "error",
+            () => {
+                console.error(`Failed to load lazy script: ${script.src}`);
+                loadNext();
+            },
+            { once: true },
         );
-        onAllScriptsDone();
-    }, SCRIPT_LOAD_TIMEOUT_DELAY);
-    script.addEventListener("load", loadNext, { once: true });
-    script.addEventListener(
-        "error",
-        () => {
-            console.error(`Failed to load lazy script: ${script.src}`);
-            loadNext();
-        },
-        { once: true },
-    );
-    script.setAttribute("defer", "defer"); // See LAZY_LOAD_DEFER
-    script.src = script.dataset.src;
-    script.removeAttribute("data-src");
+        script.setAttribute("defer", "defer");
+        script.src = script.dataset.src ?? "";
+        script.removeAttribute("data-src");
+    };
+    loadFrom(index);
 }
 
 export default {

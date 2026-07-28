@@ -22,9 +22,6 @@ import { validate } from "@odoo/owl";
  * @type {Record<string, any>}
  */
 export const SEARCH_PARAMS_SCHEMA = {
-    // OWL's validator treats ``Object`` very loosely (any non-array
-    // non-null object), which is the right semantics for ``context``
-    // since it is a free-form Python dict.
     context: { type: Object, optional: true },
     domain: { type: Array, optional: true },
     groupBy: { type: Array, element: String, optional: true },
@@ -34,9 +31,6 @@ export const SEARCH_PARAMS_SCHEMA = {
             type: Object,
             shape: {
                 name: String,
-                // ``asc`` is optional in OrderTerm — some legacy callers
-                // pass ``{ name }`` without an explicit direction and
-                // rely on a downstream default.
                 asc: { type: Boolean, optional: true },
             },
         },
@@ -59,9 +53,6 @@ export function validateSearchParams(payload) {
         return ["search params must be a plain object"];
     }
     const issues = [];
-    // Recognized keys are shape-checked by OWL; unrecognized keys get the
-    // friendlier per-field message below. Validating only the known subset
-    // avoids OWL also emitting its own lumped "unknown key" error for them.
     const knownParams = {};
     for (const key of Object.keys(payload)) {
         if (Object.hasOwn(SEARCH_PARAMS_SCHEMA, key)) {

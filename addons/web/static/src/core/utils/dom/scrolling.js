@@ -97,8 +97,6 @@ export function scrollTo(element, options = {}) {
     if (!maybeScrollable) {
         return;
     }
-    // Bind a non-null const so the nested awaitScroll closure sees HTMLElement:
-    // TS does not carry the guard's narrowing across a function boundary.
     const scrollable = maybeScrollable;
 
     const scrollRect = scrollable.getBoundingClientRect();
@@ -117,11 +115,6 @@ export function scrollTo(element, options = {}) {
         const prevTop = scrollable.scrollTop;
         scrollable.scrollTo({ top: targetTop, behavior });
         if (scrollable.scrollTop === prevTop) {
-            // No scroll happened (already at target) — resolve immediately.
-            // For smooth scrolling the browser may not have updated scrollTop
-            // synchronously, but if it truly was a no-op, scrollend won't fire
-            // and we'd hang. Resolve now; if a smooth scroll does start, the
-            // caller's Promise.all simply won't wait for its end — acceptable.
             return Promise.resolve();
         }
         return new Promise((resolve) => {
@@ -142,14 +135,10 @@ export function scrollTo(element, options = {}) {
                 scrollable.removeEventListener("scrollend", finish);
                 resolve(undefined);
             };
-            // Always race with a max-duration timer so the promise can never
-            // hang if "scrollend" never fires or the element is removed.
             timer = browser.setTimeout(finish, SCROLL_SETTLE_TIMEOUT);
             if ("onscrollend" in scrollable) {
                 scrollable.addEventListener("scrollend", finish, { once: true });
             } else {
-                // No "scrollend" support (older Safari, embedded webviews):
-                // settle once scrollTop stops changing across frames.
                 let lastTop = scrollable.scrollTop;
                 let stableFrames = 0;
                 const check = () => {
@@ -229,8 +218,6 @@ export function compensateScrollbar(
         return;
     }
     const style = window.getComputedStyle(el);
-    // Round up to the nearest integer to be as close as possible to
-    // the correct value in case of browser zoom.
     const borderLeftWidth = Math.ceil(Number.parseFloat(style.borderLeftWidth));
     const borderRightWidth = Math.ceil(Number.parseFloat(style.borderRightWidth));
     const bordersWidth = borderLeftWidth + borderRightWidth;
@@ -249,9 +236,6 @@ export function getScrollingElement(document = window.document) {
     }
     const bodyHeight = Number.parseFloat(window.getComputedStyle(document.body).height);
     for (const el of document.body.children) {
-        // Search for a body child which is at least as tall as the body
-        // and which has the ability to scroll if enough content in it. If
-        // found, suppose this is the top scrolling element.
         if (bodyHeight - el.scrollHeight > 1.5) {
             continue;
         }

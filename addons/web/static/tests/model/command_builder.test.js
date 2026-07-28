@@ -14,7 +14,6 @@ import {
     shouldEmitUnlink,
 } from "@web/model/relational_model/command_builder";
 
-// Command constants (mirroring x2ManyCommands)
 const CREATE = 0;
 const UPDATE = 1;
 const DELETE = 2;
@@ -140,17 +139,10 @@ describe("serializeCommands", () => {
             convertUnityValues: (v) => v,
         });
         const result = serializeCommands(commands, params);
-        // One merged UPDATE: sequential writes of the same key collapse to
-        // the last value, matching what the server would compute anyway.
         expect(result).toEqual([[UPDATE, 99, { name: "second" }]]);
     });
 
     test("cached record's own changes are merged over deferred slices", () => {
-        // Regression: a loaded record whose onchange carried a sub-x2many
-        // slice its view doesn't display gets that slice stashed in
-        // unknownRecordCommands. The stash used to fully SHADOW the record's
-        // own changeset at serialize time, silently dropping later inline
-        // user edits to that row from the save payload.
         const commands = [[UPDATE, 42]];
         const params = makeParams({
             unknownRecordCommands: {
@@ -200,7 +192,6 @@ describe("shouldEmitDelete", () => {
     test("returns true when no CREATE exists (real record)", () => {
         const ownCommands = [{ command: [UPDATE, 1], index: 0 }];
         expect(shouldEmitDelete(ownCommands)).toBe(true);
-        // Should clear all commands
         expect(ownCommands.length).toBe(0);
     });
 
@@ -232,7 +223,7 @@ describe("shouldEmitUnlink", () => {
     test("returns true when no LINK exists", () => {
         const ownCommands = [{ command: [UPDATE, 3], index: 0 }];
         expect(shouldEmitUnlink(ownCommands)).toBe(true);
-        expect(ownCommands.length).toBe(1); // UPDATE not removed
+        expect(ownCommands.length).toBe(1);
     });
 
     test("returns false when LINK exists (cancels out)", () => {
@@ -241,10 +232,6 @@ describe("shouldEmitUnlink", () => {
             { command: [UPDATE, 3], index: 1 },
         ];
         expect(shouldEmitUnlink(ownCommands)).toBe(false);
-        // Every command for the id is dropped — "net effect: nothing happened".
-        // A surviving UPDATE would still serialize (the record stays in
-        // `_cache` after an UNLINK) and write edits to a record the user just
-        // removed from the relation.
         expect(ownCommands.length).toBe(0);
     });
 
@@ -263,10 +250,6 @@ describe("shouldEmitUnlink", () => {
     });
 
     test("returns false and clears when a CREATE exists (cancels out)", () => {
-        // Symmetric with shouldEmitDelete: an inline-created row (CREATE, no
-        // LINK) that is then UNLINKed never existed server-side, so NOTHING is
-        // emitted and every staged command is dropped. Previously the CREATE
-        // survived and the "removed" row got created anyway.
         const ownCommands = [{ command: [CREATE, "v1"], index: 0 }];
         expect(shouldEmitUnlink(ownCommands)).toBe(false);
         expect(ownCommands.length).toBe(0);
@@ -311,10 +294,6 @@ describe("absorbUnlinkIntoSet", () => {
     });
 
     test("also drops orphaned UPDATE commands for the absorbed id", () => {
-        // _replaceWith keeps [SET(ids), ...UPDATE]. Unlinking an id must remove
-        // it from the SET AND drop its UPDATE, else the server applies SET
-        // (removing the row) then writes edits into a record no longer in the
-        // relation.
         const commands = [
             [SET, false, [1, 2, 3]],
             [UPDATE, 2, { name: "edited" }],
@@ -322,7 +301,6 @@ describe("absorbUnlinkIntoSet", () => {
         ];
         expect(absorbUnlinkIntoSet(commands, 2)).toBe(true);
         expect(commands[0][2]).toEqual([1, 3]);
-        // the UPDATE for 2 is gone; the UPDATE for 3 (still in the SET) survives
         expect(commands).toEqual([
             [SET, false, [1, 3]],
             [UPDATE, 3, { name: "keep" }],

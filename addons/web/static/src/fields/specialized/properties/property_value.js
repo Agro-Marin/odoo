@@ -79,15 +79,6 @@ export class PropertyValue extends Component {
         this.orm = useService("orm");
         this.action = useService("action");
 
-        // Flush a typed-but-unblurred raw-input value on save. The property
-        // inputs commit only on the native ``change`` (blur) event, but neither
-        // Ctrl+S (``record.save()`` → NEED_LOCAL_CHANGES) nor tab-close (the
-        // beacon urgent save → WILL_SAVE_URGENTLY) blurs the input, so the value
-        // was silently dropped from the write. Only the FOCUSED input can hold an
-        // uncommitted value (anything else already committed on blur), so commit
-        // exactly that one and let the save await the mutex-queued update. The
-        // ``text`` type uses the PropertyText child, which flushes itself.
-        // ``record`` is optional on this component, so guard on it.
         if (this.props.record) {
             /** @type {any} */
             this.inputRef = useRef("input");
@@ -112,13 +103,8 @@ export class PropertyValue extends Component {
                 isToMany: false,
                 onRecordSaved: async (record) => {
                     if (!record || record.resId == null) {
-                        // A dialog onchange may have cleared the record: nothing
-                        // to refetch and orm.read([undefined]) is malformed.
                         return;
                     }
-                    // maybe the record display name has changed
-                    // CROSS-GROUP(name_service): bespoke orm.read bypasses the
-                    // shared name_service cache (see many2one.js).
                     const records = await this.orm.read(
                         record.resModel,
                         [record.resId],
@@ -134,10 +120,6 @@ export class PropertyValue extends Component {
             }),
         );
     }
-
-    /* --------------------------------------------------------
-     * Public methods / Getters
-     * -------------------------------------------------------- */
 
     get currency() {
         if (!isNaN(this.currencyId)) {
@@ -160,7 +142,6 @@ export class PropertyValue extends Component {
         const value = this.props.value;
 
         if (this.props.type === "float") {
-            // force to show at least 1 digit, even for integers
             return value;
         } else if (this.props.type === "datetime") {
             const datetimeValue =
@@ -183,7 +164,6 @@ export class PropertyValue extends Component {
                 return [];
             }
 
-            // Convert to TagsList component format
             return value.map((many2manyValue) => {
                 const hasAccess = many2manyValue[1] !== null;
                 return {
@@ -294,10 +274,6 @@ export class PropertyValue extends Component {
         );
     }
 
-    /* --------------------------------------------------------
-     * Event handlers
-     * -------------------------------------------------------- */
-
     /**
      * Parse the value received by the sub-components and trigger an onChange event.
      *
@@ -323,8 +299,6 @@ export class PropertyValue extends Component {
         } else if (["many2one", "many2many"].includes(this.props.type)) {
             newValue = newValue[0];
             if (newValue && newValue.id && newValue.display_name === undefined) {
-                // "Search more" only returns the record ID, not the name —
-                // resolve the display name via RPC so it can be shown.
                 newValue = await this._nameGet(newValue.id);
             }
 
@@ -345,9 +319,6 @@ export class PropertyValue extends Component {
             }
         }
 
-        // trigger the onchange event to notify the parent component. Return the
-        // resulting promise (``onPropertyValueChange`` → ``_updateRecordProperties``,
-        // queued on model.mutex) so the save-flush can await it before serializing.
         return this.props.onChange(newValue);
     }
 
@@ -396,10 +367,6 @@ export class PropertyValue extends Component {
         });
         this.onValueChange([{ id: result[0], display_name: result[1] }]);
     }
-
-    /* --------------------------------------------------------
-     * Private methods
-     * -------------------------------------------------------- */
 
     /**
      * Open the form view of the given record id / model.

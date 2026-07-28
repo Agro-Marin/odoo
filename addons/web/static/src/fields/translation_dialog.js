@@ -29,8 +29,6 @@ export class TranslationDialog extends Component {
         this.title = _t("Translate: %s", this.props.fieldName);
 
         this.user = user;
-        // Terms carry python-format lang codes ("es_MX") while user.lang is BCP-47
-        // ("es-MX") — the template's current-language highlight needs matching formats.
         this.userPyLang = jsToPyLocale(user.lang);
         this.orm = useService("orm");
 
@@ -51,14 +49,9 @@ export class TranslationDialog extends Component {
                 const relatedLanguage = languages.find((l) => l[0] === term.lang);
                 const termInfo = {
                     ...term,
-                    // A term for a deactivated language is absent from
-                    // loadLanguages; fall back to its raw lang code as the label
-                    // instead of dereferencing undefined (which blanked the whole
-                    // dialog in onWillStart).
                     langName: relatedLanguage ? relatedLanguage[1] : term.lang,
                     value: term.value || "",
                 };
-                // Use the form's live value instead of the DB value for the user's own language.
                 if (
                     term.lang === this.userPyLang &&
                     !this.showSource &&

@@ -16,17 +16,9 @@ import { HootCopyButton } from "./hoot_copy_button.js";
  * }} HootConfigMenuProps
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Object: { entries: $entries, keys: $keys, values: $values },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /** @extends {Component<HootConfigMenuProps, import("../hoot").Environment>} */
 export class HootConfigMenu extends Component {
@@ -360,7 +352,6 @@ export class HootConfigMenu extends Component {
             }
         } else {
             if (ev.altKey) {
-                // Aggregate all event types
                 this.config.events = $values(CASE_EVENT_TYPES).reduce((acc, t) => acc + t.value, 0);
             } else {
                 this.config.events |= nType;

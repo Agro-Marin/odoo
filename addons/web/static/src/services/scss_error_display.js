@@ -36,12 +36,9 @@ export const scssErrorNotificationService = {
      */
     start(env, { notification }) {
         const origin = getOrigin();
-        // Iframe with src "about:blank" origin isn't a valid base URL.
         if (browser.location.origin === "null") {
             return;
         }
-        // Bail before scraping stylesheets for anyone who could not act on the
-        // result anyway (see canActOnScssErrors).
         if (!canActOnScssErrors()) {
             return;
         }
@@ -49,41 +46,49 @@ export const scssErrorNotificationService = {
             (sheet) =>
                 sheet.href?.includes("/web") &&
                 sheet.href?.includes("/assets/") &&
-                // CORS security rules don't allow reading content in JS
                 new URL(sheet.href, browser.location.origin).origin === origin,
         );
         translationIsReady.then(() => {
+            let notified = false;
             for (const asset of assets) {
                 let cssRules;
                 try {
-                    // The filter above isn't enough: CORS can still block reading cssRules
-                    // (e.g. same origin but http protocol), so never let this line crash.
-                    // See opw 3746910.
                     cssRules = asset.cssRules;
                 } catch {
                     continue;
                 }
                 const lastRule = cssRules?.[cssRules?.length - 1];
                 if (
-                    /** @type {CSSStyleRule} */ (lastRule)?.selectorText ===
+                    /** @type {CSSStyleRule} */ (lastRule)?.selectorText !==
                     "css_error_message"
                 ) {
-                    const message = _t(
-                        "The style compilation failed. This is an administrator or developer error that must be fixed for the entire database before continuing working. See browser console or server logs for details.",
-                    );
-                    notification.add(message, {
-                        title: _t("Style error"),
-                        sticky: true,
-                        type: "danger",
-                    });
-                    // eslint-disable-next-line no-console -- dumps the failing SCSS rule for the developer to diagnose
-                    console.debug(
-                        /** @type {CSSStyleRule} */ (lastRule).style.content
-                            .replaceAll("\\a", "\n")
-                            .replaceAll("\\*", "*")
-                            .replaceAll(`\\"`, `"`),
+                    continue;
+                }
+                // One toast, however many bundles failed: the message is
+                // identical and un-actionable per-bundle, so N failing assets
+                // used to stack N sticky danger notifications over the UI.
+                // The console dump still runs per asset — that IS per-bundle
+                // diagnostic detail.
+                if (!notified) {
+                    notified = true;
+                    notification.add(
+                        _t(
+                            "The style compilation failed. This is an administrator or developer error that must be fixed for the entire database before continuing working. See browser console or server logs for details.",
+                        ),
+                        {
+                            title: _t("Style error"),
+                            sticky: true,
+                            type: "danger",
+                        },
                     );
                 }
+                // eslint-disable-next-line no-console -- dumps the failing SCSS rule for the developer to diagnose
+                console.debug(
+                    /** @type {CSSStyleRule} */ (lastRule).style.content
+                        .replaceAll("\\a", "\n")
+                        .replaceAll("\\*", "*")
+                        .replaceAll(`\\"`, `"`),
+                );
             }
         });
     },

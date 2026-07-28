@@ -1,22 +1,13 @@
-///
-/// This file regroups the odoo mixins. They are available in every asset bundle.
-///
 
-// ------------------------------------------------------------------
-// Caret
-// ------------------------------------------------------------------
 @mixin utils-caret-boilerplate {
     content: "";
     display: inline-block;
     width: 0;
     height: 0;
     vertical-align: middle;
-    -moz-transform: scale(0.9999); // Smooth the caret on firefox
+    -moz-transform: scale(0.9999);
 }
 
-// ------------------------------------------------------------------
-// Position absolute
-// ------------------------------------------------------------------
 @mixin o-position-absolute($top: auto, $right: auto, $bottom: auto, $left: auto) {
     position: absolute;
     top: $top;
@@ -25,9 +16,6 @@
     right: $right;
 }
 
-// ------------------------------------------------------------------
-// Position sticky
-// ------------------------------------------------------------------
 @mixin o-position-sticky($top: auto, $right: auto, $bottom: auto, $left: auto) {
     position: sticky;
     top: $top;
@@ -36,21 +24,15 @@
     right: $right;
 }
 
-// ------------------------------------------------------------------
-// Text overflow
-// ------------------------------------------------------------------
 @mixin o-text-overflow($display: inline-block, $max-width: 100%) {
     display: $display;
     max-width: $max-width;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    vertical-align: top; // To update display context changed by overflow:hidden
+    vertical-align: top;
 }
 
-// ------------------------------------------------------------------
-// Hovering effects
-// ------------------------------------------------------------------
 @mixin o-hover-opacity($default-opacity: 0.5, $hover-opacity: 1) {
     opacity: $default-opacity;
 
@@ -61,19 +43,14 @@
     }
 }
 
-//------------------------------------------------------------------------------
-// Colors
-//------------------------------------------------------------------------------
-
 @function luma($color) {
-    @return ((red($color) * 0.299) + (green($color) * 0.587) + (blue($color) * 0.114)) /
-        255 * 100%;
+    @return calc(
+            ((red($color) * 0.299) + (green($color) * 0.587) + (blue($color) * 0.114)) /
+                255
+        ) *
+        100%;
 }
 
-// Extend placeholder which adds a chess-like background below the color and
-// image of an element to preview the transparency of that color and image.
-// This is done thanks to both ::before and ::after elements so they must both
-// be available.
 %o-preview-alpha-background {
     position: relative;
     z-index: 0;
@@ -90,15 +67,12 @@
         content: "";
         @include o-position-absolute(0, 0, 0, 0);
         z-index: -1;
-        background: inherit; // Inherit all background properties
+        background: inherit;
         border-radius: inherit;
         box-shadow: inherit;
     }
 }
 
-// This function checks if the color ($color) has enough contrast to be visible
-// on a background with the color ($background-color). If not, it is replaced
-// with $light (if too dark) or $dark (if too light).
 @function adjust-color-to-background(
     $color,
     $background-color,
@@ -112,9 +86,6 @@
     );
 }
 
-// ------------------------------------------------------------------
-// Padding
-// ------------------------------------------------------------------
 @mixin o-webclient-padding(
     $top: 0px,
     $right: $o-horizontal-padding,
@@ -127,9 +98,6 @@
     padding-left: $left;
 }
 
-// ------------------------------------------------------------------
-// Caret
-// ------------------------------------------------------------------
 @mixin o-caret-down(
     $caret-width: $caret-width,
     $caret-color: var(--o-caret-color, currentColor)
@@ -140,49 +108,11 @@
     border-right: $caret-width solid transparent;
     border-top: $caret-width solid $caret-color;
 }
-@mixin o-caret-up(
-    $caret-width: $caret-width,
-    $caret-color: var(--o-input-border-color, currentColor)
-) {
-    @include utils-caret-boilerplate;
-    border-bottom: $caret-width solid $caret-color;
-    border-left: $caret-width solid transparent;
-    border-right: $caret-width solid transparent;
-    border-top: 0;
-}
-@mixin o-caret-left(
-    $caret-width: $caret-width,
-    $caret-color: var(--o-input-border-color, currentColor)
-) {
-    @include utils-caret-boilerplate;
-    border-bottom: $caret-width solid transparent;
-    border-left: 0;
-    border-right: $caret-width solid $caret-color;
-    border-top: $caret-width solid transparent;
-}
-@mixin o-caret-right(
-    $caret-width: $caret-width,
-    $caret-color: var(--o-input-border-color, currentColor)
-) {
-    @include utils-caret-boilerplate;
-    border-bottom: $caret-width solid transparent;
-    border-left: $caret-width solid $caret-color;
-    border-right: 0;
-    border-top: $caret-width solid transparent;
-}
-
-//-------------------------------------------------------------------
-// Cursor
-//-------------------------------------------------------------------
-
 @mixin o-grab-cursor() {
-    // Use a custom cursor for the open hand icon as "grab" is not properly
-    // working on Chrome Linux (at least)
     cursor: url(/web/static/img/openhand.cur), grab;
 }
 
 @mixin o-field-pointer() {
-    // Force `pointer`cursor on  inputs and labels
     .form-check-input:not(:disabled),
     .form-check-input:not(:disabled) + label {
         cursor: pointer;
@@ -194,9 +124,6 @@
     }
 }
 
-// ------------------------------------------------------------------
-// Hovering effects
-// ------------------------------------------------------------------
 @mixin o-hover-text-color($default-color: $body-color, $hover-color: $link-color) {
     color: $default-color;
 
@@ -207,9 +134,6 @@
     }
 }
 
-// ------------------------------------------------------------------
-// Mixin to define variations for btn-links and muted btn-links
-// ------------------------------------------------------------------
 @mixin o-btn-link-variant($color, $color-active) {
     text-transform: none;
     @include o-hover-text-color($default-color: $color, $hover-color: $color-active);
@@ -237,14 +161,6 @@
     }
 }
 
-// Odoo defines a limited Noto font-family for a small variety of unicode
-// characters that are not necessary defined in the user system or even defined
-// but not properly readable. This function allows to add this font family in a
-// given font list.
-//
-// @param {list} $font - a list of font names ending with the generic one.
-// @param {integer} [$index] - the position where to add the support font, if
-//        not given, it will be placed before the generic one.
 @function o-add-unicode-support-font($font, $index: false) {
     $-with-support-font: ();
     @for $i from 1 through length($font) {
@@ -262,7 +178,6 @@
     @return $-with-support-font;
 }
 
-// Function to remove all null values of a map.
 @function o-map-omit($map) {
     $-map: ();
     @each $key, $value in $map {
@@ -278,34 +193,16 @@
     @return $-map;
 }
 
-// Function to get an element of a list with a default value in case the index
-// is out-of-bounds; also return that value if the retrieved value is null.
 @function o-safe-nth($list, $index, $default: null) {
     $value: if($index > 0 and $index <= length($list), nth($list, $index), null);
     @return if($value != null, $value, $default);
 }
 
-// Function to get an element of a map with a default value in case the key
-// does not exist; also return that value if the retrieved value is null.
 @function o-safe-get($map, $key, $default: null) {
     $value: map-get($map, $key);
     @return if($value != null, $value, $default);
 }
 
-// ------- Kanban grouped mixins -------
-@mixin o-kanban-record-color {
-    @for $size from 2 through length($o-colors) {
-        // Note: the first color is not defined as it is the 'no color' for kanban
-        .o_kanban_color_#{$size - 1} {
-            border-left-color: nth($o-colors, $size);
-            &:after {
-                background-color: nth($o-colors, $size);
-            }
-        }
-    }
-}
-
-// ------- Kanban records mixins -------
 @mixin o-kanban-record-title($font-size: $h5-font-size) {
     color: $headings-color;
     font-size: $font-size;
@@ -314,7 +211,6 @@
     margin-top: 0;
 }
 
-// Emulate dropdown links
 @mixin o-kanban-dashboard-dropdown-link($link-padding-gap: $o-dropdown-hpadding) {
     padding: 0;
 
@@ -335,7 +231,6 @@
     }
 }
 
-// No content helper
 @mixin o-nocontent-empty {
     pointer-events: auto;
     max-width: 650px;
@@ -374,19 +269,12 @@
     background: transparent url(/web/static/img/empty_folder.svg) no-repeat center;
 }
 
-// Sample data
 @mixin o-sample-data-disabled {
     opacity: 0.06;
     pointer-events: none;
     user-select: none;
 }
 
-// ----------------------------------------------------------------------------
-// CSS Variables
-// ----------------------------------------------------------------------------
-
-// Print a document property the right way (depending on the type of the
-// printed variable).
 @mixin print-variable($key, $value) {
     @if $value != null {
         $-type: type-of($value);
@@ -400,30 +288,16 @@
     }
 }
 
-// ----------------------------------------------------------------------------
-// Media Type
-// ----------------------------------------------------------------------------
-
-// Conditionally includes SCSS  based on the current media context.
-// It serves two main purposes:
-// 1. Keep the base code clean by avoiding redundant `@media only screen {}`.
-// 2. Reduces CSS footprint by only compiling styles that match the current `$o-webclient-media`.
+$o-webclient-medias: screen, print;
 
 @mixin media-only($-media) {
-    @if ($-media != null and type-of($-media) == "string") {
-        @if $-media == $o-webclient-media {
-            @content;
-        }
-    } @else {
-        @warn "'media-only()' - missing argument";
+    @if not index($o-webclient-medias, $-media) {
+        @error "media-only(): expected one of #{$o-webclient-medias}, got '#{$-media}'.";
+    }
+    @if $-media == $o-webclient-media {
+        @content;
     }
 }
-
-// ----------------------------------------------------------------------------
-// Webkit Search Cancel Button
-// ----------------------------------------------------------------------------
-// Define the webkit cancel button used for search inputs to match bootstrap
-// btn-close style with a color parameter to allow contextual override.
 
 @mixin o-search-cancel-button(
     $search-cancel-button-color,
@@ -439,27 +313,17 @@
     }
 }
 
-// ----------------------------------------------------------------------------
-// Input type number
-// ----------------------------------------------------------------------------
-// Remove arrows/spinners from input type number.
 @mixin o-input-number-no-arrows() {
-    // => Chrome, Safari, Edge, Opera
     input::-webkit-outer-spin-button,
     input::-webkit-inner-spin-button {
         -webkit-appearance: none;
         margin: 0;
     }
 
-    // => Firefox
     input[type="number"] {
         -moz-appearance: textfield;
     }
 }
-
-// ----------------------------------------------------------------------------
-// Focus Ring
-// ----------------------------------------------------------------------------
 
 @mixin o-focus-ring(
     $color: $o-ring-color,
@@ -469,10 +333,6 @@
     outline: $width solid $color;
     outline-offset: $offset;
 }
-
-// ----------------------------------------------------------------------------
-// Glass Morphism
-// ----------------------------------------------------------------------------
 
 @mixin o-glass($opacity: 0.8, $blur: 12px, $saturate: 1.5) {
     background-color: rgba($o-glass-bg, $opacity);
@@ -484,13 +344,6 @@
     @include o-glass(0.85, 10px, 1.2);
 }
 
-// ------------------------------------------------------------------
-// OWL transition helpers
-// ------------------------------------------------------------------
-// Generates CSS classes for OWL t-transition fade animations.
-// Usage:
-//   scss: @include owl-fade(0.5s, 'o_notification')
-//   xml:  <tag t-transition="o_notification_fade" />
 @mixin owl-fade($time, $name) {
     .#{$name}_fade {
         transition: all $time;
@@ -500,10 +353,6 @@
         opacity: 0;
     }
 }
-
-// ----------------------------------------------------------------------------
-// Skeleton Loading Placeholder
-// ----------------------------------------------------------------------------
 
 @mixin o-skeleton($width: 100%, $height: 1em, $radius: $o-border-radius-sm) {
     display: inline-block;

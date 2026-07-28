@@ -36,25 +36,104 @@ export function containsActiveElement(parent) {
 }
 
 /**
+ * Whether the browser's own Tab handling will keep focus inside ``cell``, in
+ * which case the list must let the event through instead of moving to another
+ * cell.
+ *
+ * Answering that needs the active element's position in the cell's tab ring, so
+ * an active element that is not IN the ring has no answer: ``indexOf`` returns
+ * -1, which is "absent", not "before the first". Reading it as a position made
+ * ``tab`` report a toggle whenever the cell held any tabable element at all —
+ * and the ring genuinely excludes focused elements, by construction:
+ * ``getTabableElements`` drops ``[tabindex="-1"]`` and never matches
+ * ``contenteditable`` (an html field's editor), both of which are focusable.
+ *
+ * Pure DOM predicate, exported so it is testable without mounting a list.
+ *
+ * @param {string} hotkey
+ * @param {HTMLTableCellElement} cell
+ * @returns {boolean}
+ */
+export function togglesFocusInsideCell(hotkey, cell) {
+    if (!["tab", "shift+tab"].includes(hotkey) || !containsActiveElement(cell)) {
+        return false;
+    }
+    const focusableEls = getTabableElements(cell).filter(
+        (el) =>
+            el === document.activeElement ||
+            ["INPUT", "BUTTON", "TEXTAREA"].includes(el.tagName),
+    );
+    const index = focusableEls.indexOf(
+        /** @type {HTMLElement} */ (document.activeElement),
+    );
+    if (index === -1) {
+        return false;
+    }
+    return hotkey === "tab" ? index < focusableEls.length - 1 : index > 0;
+}
+
+/**
+ * Nearest cell of ``row`` whose grid column index is reachable from
+ * ``colIndex``, used when the row does not render that column at all.
+ *
+ * Rows may render a SUBSET of the grid's columns (see
+ * ``ListGridState#getColIndexOfColumn``): a section row carries, say, columns 0
+ * and 2, so a horizontal step onto column 1 addresses a cell that does not
+ * exist there, and the positional fallback dead-ends on the row's last cell —
+ * the arrow key does nothing. Continuing past the hole is what the user asked
+ * for.
+ *
+ * HORIZONTAL MOVES ONLY, deliberately. The trailing selector / open-form /
+ * actions cells carry no ``data-col-index``, so for a vertical move onto one of
+ * them this would answer with the nearest FIELD cell and quietly change where
+ * ArrowDown lands from the delete column on ordinary rows; the positional
+ * fallback already resolves those correctly.
+ *
+ * @param {Element} row
+ * @param {number} colIndex
+ * @param {"left" | "right"} [direction] index-space direction; absent for
+ *  vertical moves, which do not use this path
+ * @returns {Element | null}
+ */
+function nearestCellOnRow(row, colIndex, direction) {
+    if (direction !== "left" && direction !== "right") {
+        return null;
+    }
+    const cells = [...row.querySelectorAll("[data-col-index]")].map((cell) => ({
+        cell,
+        index: Number.parseInt(
+            /** @type {string} */ (cell.getAttribute("data-col-index")),
+            10,
+        ),
+    }));
+    const reachable = cells.filter((c) =>
+        direction === "left" ? c.index <= colIndex : c.index >= colIndex,
+    );
+    if (!reachable.length) {
+        return null;
+    }
+    return reachable.reduce((best, c) =>
+        Math.abs(c.index - colIndex) < Math.abs(best.index - colIndex) ? c : best,
+    ).cell;
+}
+
+/**
  * Resolve a grid index pair to a focusable DOM element.
  *
  * @param {any} tableRef
  * @param {{ rowIndex: number, colIndex: number }} position
+ * @param {"left" | "right"} [direction] index-space direction of a horizontal
+ *  move; absent for vertical moves and for post-patch focus restoration
  * @returns {HTMLElement | null}
  */
-function focusAtPosition(tableRef, { rowIndex, colIndex }) {
+function focusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
     const row = tableRef.el.querySelector(`[data-row-index="${rowIndex}"]`);
     if (!row) {
         return null;
     }
-    // Short rows (a group "Add a line" row has at most a selector cell plus
-    // one colspan cell, none carrying data-col-index) clamp to their last
-    // cell. Returning null for a RENDERED row made findFocusMove misdiagnose
-    // it as virtualized-out: the viewport jumped to the row and focus waited
-    // on a patch that could never resolve it — a focus trap at every group
-    // boundary of a virtualized grouped list.
     const cell =
         row.querySelector(`[data-col-index="${colIndex}"]`) ||
+        nearestCellOnRow(row, colIndex, direction) ||
         row.children[Math.min(colIndex, row.children.length - 1)];
     if (!cell) {
         return null;
@@ -187,10 +266,6 @@ export function useListKeyboardNavigation(tableRef, options) {
             }
             const pending = pendingVirtFocus;
             let { rowIndex, colIndex } = pending;
-            // Rows may have shifted between the arrow press and this patch
-            // (insertion/removal while the scroll settled): re-resolve the row
-            // index from the captured record id so focus lands on the intended
-            // record, not whatever now sits at the latched index.
             let recordStillExists = true;
             if (pending.recordId !== undefined) {
                 const flat = getGridState?.()?.findRowByRecordId(pending.recordId);
@@ -200,9 +275,6 @@ export function useListKeyboardNavigation(tableRef, options) {
                     recordStillExists = false;
                 }
             }
-            // Bound the latch's lifetime so a target that never renders (or a
-            // record that was deleted) cannot leave a zombie latch that fires
-            // at an unrelated later patch.
             if (
                 !recordStillExists ||
                 (pending.retries || 0) >= MAX_VIRT_FOCUS_RETRIES
@@ -212,14 +284,11 @@ export function useListKeyboardNavigation(tableRef, options) {
             }
             const element = focusAtPosition(tableRef, { rowIndex, colIndex });
             if (!element) {
-                // The target row has not scrolled into the rendered window yet:
-                // keep the latch so a later patch retries once it renders.
                 pending.retries = (pending.retries || 0) + 1;
                 return;
             }
             const active = document.activeElement;
             if (element === active || element.contains(active)) {
-                // Focus already rests on the target: the move has settled.
                 pendingVirtFocus = null;
                 return;
             }
@@ -230,22 +299,9 @@ export function useListKeyboardNavigation(tableRef, options) {
                 tableRef.el &&
                 !tableRef.el.contains(active)
             ) {
-                // Focus left the list entirely (the search bar, another widget,
-                // a freshly opened part): the pending move is stale — abandon it
-                // rather than yank focus back and steal it. Focus that is still
-                // inside the table is either the origin cell we are moving away
-                // from or a node a re-render is about to replace, so it does NOT
-                // take this branch.
                 pendingVirtFocus = null;
                 return;
             }
-            // Focus was lost to <body>/a detached node — a virtualization
-            // re-render replaced the cell node mid-scroll. Re-apply it. A plain
-            // arrow move dispatches the resolved cell through the renderer's
-            // overridable findFocusFutureCell (with the resolution latched, so
-            // no recompute) — subclasses that sync side state on arrow moves
-            // (documents preview, account_accountant attachment preview)
-            // observe virtualized-out moves like rendered ones.
             const origin = pending.origin;
             const toFocus =
                 origin && findFocusFutureCell
@@ -259,9 +315,6 @@ export function useListKeyboardNavigation(tableRef, options) {
             if (toFocus) {
                 self.focus(toFocus);
             }
-            // Keep the latch (bounded): a subsequent re-render during the same
-            // scroll can drop focus again; the next patch re-applies until it
-            // sticks (cleared above once focus rests on the target).
             pending.retries = (pending.retries || 0) + 1;
         },
 
@@ -332,7 +385,6 @@ export function useListKeyboardNavigation(tableRef, options) {
          * @returns {{ el: HTMLElement } | { pending: true } | null}
          */
         findFocusMove(cell, cellIsInGroupRow, direction) {
-            // Index-based path: use ListGridState when data attributes are present
             const gridState = getGridState?.();
             const row = cell.parentElement;
             if (gridState && row.dataset.rowIndex !== undefined) {
@@ -343,21 +395,24 @@ export function useListKeyboardNavigation(tableRef, options) {
                         : [...row.children].indexOf(cell);
                 const next = gridState.moveFocus(rowIndex, colIndex, direction);
                 if (next) {
-                    // Group header rows force colIndex=0 (span all columns); skip
-                    // updating lastKnownIndex for them so the legacy DOM-walking
-                    // path still lands on the correct column at the grid boundary
-                    // (e.g. thead).
-                    if (gridState._flatRows[next.rowIndex]?.type !== "group") {
+                    if (gridState.rowAt(next.rowIndex)?.type !== "group") {
                         lastKnownIndex = next.colIndex;
                     }
-                    const element = focusAtPosition(tableRef, next);
+                    // Index-space direction, derived from the move the grid
+                    // actually made rather than from ``direction`` — RTL swaps
+                    // left/right inside ``moveFocus``, so the key pressed does
+                    // not name the direction the index travelled.
+                    const isHorizontal = direction === "left" || direction === "right";
+                    const indexDirection =
+                        isHorizontal && next.colIndex !== colIndex
+                            ? next.colIndex > colIndex
+                                ? "right"
+                                : "left"
+                            : undefined;
+                    const element = focusAtPosition(tableRef, next, indexDirection);
                     if (element) {
                         return { el: element };
                     }
-                    // Row is virtualized out of DOM — scroll it into view
-                    // and schedule focus for the next patch. Capture the
-                    // target record id so the resolution can re-resolve the
-                    // row index if rows shift before the patch fires.
                     const virt = getVirtualization?.();
                     if (virt?.isActive) {
                         virt.ensureRowVisible(next.rowIndex);
@@ -373,20 +428,13 @@ export function useListKeyboardNavigation(tableRef, options) {
                         return { pending: true };
                     }
                 }
-                // At grid boundary: fall through to legacy path so it can
-                // handle transitions between tbody and thead.
             }
 
-            // Legacy DOM-walking path (unchanged, except the RTL swap below)
             const children = /** @type {HTMLElement[]} */ ([...row.children]);
             const index = children.indexOf(/** @type {HTMLElement} */ (cell));
             let futureCell;
             let targetIndex;
-            // DOM order is logical order: in RTL layouts the horizontal
-            // arrows must be swapped here too, or ArrowRight moves visually
-            // right on data rows (grid path swaps it) but visually left on
-            // header rows (this path).
-            if (gridState?._isRTL && (direction === "left" || direction === "right")) {
+            if (gridState?.isRTL && (direction === "left" || direction === "right")) {
                 direction = direction === "left" ? "right" : "left";
             }
             switch (direction) {
@@ -440,12 +488,9 @@ export function useListKeyboardNavigation(tableRef, options) {
                         const defaultIndex = cellIsInGroupRow ? targetIndex : 0;
                         if (headerRow === row) {
                             lastKnownIndex = index;
-                            // Bridge column info to the grid state so that
-                            // subsequent index-based group→record navigation
-                            // restores the header column position.
                             const gs = getGridState?.();
                             if (gs) {
-                                gs._lastColIndex = index;
+                                gs.rememberColumn(index);
                             }
                         }
                         futureCell =
@@ -544,12 +589,6 @@ export function useListKeyboardNavigation(tableRef, options) {
          */
         findPreviousFocusableOnRow(row, cell) {
             const children = /** @type {HTMLElement[]} */ ([...row.children]);
-            // With no `cell` (shift+tab cycle-to-last on a single-record list,
-            // list_keyboard_edit.js), treat the position as past the end so the
-            // scan covers every cell — mirroring findNextFocusableOnRow, where
-            // slice(index + 1) with index === -1 already yields all cells.
-            // Using indexOf(undefined) === -1 would make slice(0, -1) drop the
-            // row's last (rightmost editable) cell.
             const index = cell ? children.indexOf(cell) : children.length;
             const previousCells = children.slice(0, index);
             for (const c of previousCells.reverse()) {
@@ -581,24 +620,7 @@ export function useListKeyboardNavigation(tableRef, options) {
          * @returns {boolean}
          */
         toggleFocusInsideCell(hotkey, cell) {
-            if (
-                !["tab", "shift+tab"].includes(hotkey) ||
-                !containsActiveElement(cell)
-            ) {
-                return false;
-            }
-            const focusableEls = getTabableElements(cell).filter(
-                (el) =>
-                    el === document.activeElement ||
-                    ["INPUT", "BUTTON", "TEXTAREA"].includes(el.tagName),
-            );
-            const index = focusableEls.indexOf(
-                /** @type {HTMLElement} */ (document.activeElement),
-            );
-            return (
-                (hotkey === "tab" && index < focusableEls.length - 1) ||
-                (hotkey === "shift+tab" && index > 0)
-            );
+            return togglesFocusInsideCell(hotkey, cell);
         },
 
         /**
@@ -620,18 +642,9 @@ export function useListKeyboardNavigation(tableRef, options) {
                 case "arrowup": {
                     const move = self.findFocusMove(cell, cellIsInGroupRow, "up");
                     if (move && "pending" in move) {
-                        // The target row is virtualized out: focus lands on it
-                        // after the next patch (dispatched through the renderer
-                        // override then — see resolvePendingVirtFocus). Consume
-                        // the event so the search bar does not transiently
-                        // steal focus.
                         self.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, "up");
                         return true;
                     }
-                    // When a renderer override is wired, resolve the concrete
-                    // cell through it so subclasses observe the move; the
-                    // already-computed move is latched so the chain's terminal
-                    // facade does not recompute it.
                     toFocus = findFocusFutureCell
                         ? dispatchFutureCell(cell, cellIsInGroupRow, "up", move)
                         : move && move.el;
@@ -644,15 +657,9 @@ export function useListKeyboardNavigation(tableRef, options) {
                 case "arrowdown": {
                     const move = self.findFocusMove(cell, cellIsInGroupRow, "down");
                     if (move && "pending" in move) {
-                        // Focus is scheduled for the next patch (dispatched
-                        // through the renderer override then) — consume the
-                        // event to prevent the default browser scroll.
                         self.setPendingVirtFocusOrigin(cell, cellIsInGroupRow, "down");
                         return true;
                     }
-                    // Dispatch through the renderer override when wired (see
-                    // arrowup) so subclass findFocusFutureCell participates,
-                    // passing the already-computed move to avoid recompute.
                     toFocus = findFocusFutureCell
                         ? dispatchFutureCell(cell, cellIsInGroupRow, "down", move)
                         : move && move.el;
@@ -723,10 +730,6 @@ export function useListKeyboardNavigation(tableRef, options) {
                     break;
                 }
                 case "shift+space":
-                    // Group-header (and any non-record) rows have no record to
-                    // toggle. Without this guard onToggleRecordSelection(null)
-                    // -> toggleRangeSelection(null) dereferences records[-1] and
-                    // throws a TypeError.
                     if (!record) {
                         return false;
                     }
@@ -779,18 +782,14 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
     };
 
-    // Edit handlers (from list_keyboard_edit.js) close over `self` and call nav
-    // methods (focus, findNextFocusableOnRow, etc.) via late binding.
     Object.assign(self, makeEditHandlers(self, tableRef, options));
 
-    // Track field dirtiness for edit-mode navigation decisions.
     useBus(
         getProps().list.model.bus,
         ModelEvent.FIELD_IS_DIRTY,
         (ev) => (self.lastIsDirty = ev.detail),
     );
 
-    // Handle "focus-view" from the search model (e.g., after breadcrumb navigation).
     const env = getEnv();
     if (env.searchModel) {
         useBus(env.searchModel, SearchModelEvent.FOCUS_VIEW, () => {

@@ -1,6 +1,4 @@
 .o_report_layout_folder .o_folder_header_container {
-    // SVG shapes use presentation-attribute fill="none" on the parent SVG;
-    // CSS overrides that via the cascade to apply the per-company primary color.
     rect,
     path {
         fill: var(--co-primary, $o-default-report-primary-color);

@@ -43,7 +43,6 @@ test("control-click <a href/> in a standalone component", async () => {
         /** @param {MouseEvent} ev */
         onclick(ev) {
             expect.step(ev.ctrlKey ? "ctrl-click" : "click");
-            // Necessary in order to prevent the test browser to open in new tab on ctrl-click
             ev.preventDefault();
         }
     }
@@ -71,7 +70,6 @@ test("control-click propagation stopped on <a href/>", async () => {
                     message:
                         "the global click should not prevent the default behavior on ctrl-click an <a href/>",
                 });
-                // Necessary in order to prevent the test browser to open in new tab on ctrl-click
                 ev.preventDefault();
             }
         },
@@ -84,7 +82,6 @@ test("control-click propagation stopped on <a href/>", async () => {
         /** @param {MouseEvent} ev */
         onclick(ev) {
             expect.step(ev.ctrlKey ? "ctrl-click" : "click");
-            // Necessary in order to prevent the test browser to open in new tab on ctrl-click
             ev.preventDefault();
         }
     }
@@ -101,10 +98,6 @@ test("control-click propagation stopped on <a href/>", async () => {
 
     expect.verifySteps(["click"]);
 });
-
-// -----------------------------------------------------------------------------
-// Service worker update lifecycle (watchServiceWorkerUpdates)
-// -----------------------------------------------------------------------------
 
 class MockServiceWorker extends EventTarget {
     /** @param {string} state */
@@ -168,17 +161,13 @@ test("SW update: posts SKIP_WAITING when an updated worker finishes installing",
     watchServiceWorkerUpdates(/** @type {any} */ (registration));
     expect.verifySteps([]);
 
-    // A new version is discovered and starts installing.
     registration.installing = new MockServiceWorker("installing");
     registration.dispatchEvent(new Event("updatefound"));
     expect.verifySteps([]);
 
-    // Once installed (while an old version is still active), it must be told
-    // to skip the waiting state instead of parking until every tab closes.
     registration.installing.setState("installed");
     expect.verifySteps(["postMessage:SKIP_WAITING"]);
 
-    // Further state changes do not re-post.
     registration.installing.setState("activating");
     registration.installing.setState("activated");
     expect.verifySteps([]);
@@ -187,7 +176,6 @@ test("SW update: posts SKIP_WAITING when an updated worker finishes installing",
 test("SW update: first install keeps the natural lifecycle (no SKIP_WAITING)", async () => {
     captureVisibilityHandlers();
     const registration = new MockRegistration();
-    // No active worker: this is the very first install, not an update.
     watchServiceWorkerUpdates(/** @type {any} */ (registration));
 
     registration.installing = new MockServiceWorker("installing");
@@ -200,7 +188,6 @@ test("SW update: a worker already waiting at boot is promoted immediately", asyn
     captureVisibilityHandlers();
     const registration = new MockRegistration();
     registration.active = new MockServiceWorker("activated");
-    // A previous session left an updated worker parked in `waiting`.
     registration.waiting = new MockServiceWorker("installed");
     watchServiceWorkerUpdates(/** @type {any} */ (registration));
     expect.verifySteps(["postMessage:SKIP_WAITING"]);
@@ -220,8 +207,6 @@ test("SW update: periodic and visibility-triggered registration.update()", async
     await advanceTime(SIX_HOURS);
     expect.verifySteps(["update"]);
 
-    // Returning to a visible tab triggers one cheap update check.
-    // (document.visibilityState is "visible" in the test runner.)
     visibilityHandlers[0]();
     expect.verifySteps(["update"]);
 });

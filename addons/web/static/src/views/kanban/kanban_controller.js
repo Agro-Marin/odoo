@@ -78,14 +78,11 @@ export class KanbanController extends MultiRecordController {
     setup() {
         super.setup();
 
-        // --- Kanban-specific model with sample data override ---
         const { Model } = this.props;
 
         class KanbanSampleModel extends Model {
             hasData() {
                 if (this.root.groups && !this.root.groups.length) {
-                    // No groups yet: show the column quick-create and example
-                    // background instead of sample data.
                     return true;
                 }
                 return super.hasData();
@@ -115,7 +112,6 @@ export class KanbanController extends MultiRecordController {
             ),
         );
 
-        // --- Progress bar ---
         if (this.archInfo.progressAttributes) {
             const { activeBars } = this.props.state || {};
             this.progressBarState = useProgressBar(
@@ -127,21 +123,13 @@ export class KanbanController extends MultiRecordController {
         }
         this.headerButtons = this.archInfo.headerButtons;
 
-        // --- Quick create ---
-        //
-        // Side-effecting setter (Pattern 4, STATE_MANAGEMENT.md): opening a
-        // quick-create while sample data is visible must clear the samples
-        // synchronously with the ``groupId`` mutation, or sample records
-        // still paint while the form mounts. A useEffect-based migration
-        // (commit 19fb5d01bb81) was reverted because the deferred timing
-        // broke 3 sample-data integration tests in kanban_view.test.js.
         const self = this;
         this.quickCreateState = reactive(
             /** @type {any} */ ({
                 get groupId() {
                     return this._groupId || false;
                 },
-                // eslint-disable-next-line no-restricted-syntax -- synchronous timing contract; see comment above
+                // eslint-disable-next-line no-restricted-syntax -- must clear sample data synchronously with this mutation; see STATE_MANAGEMENT.md "Pattern 4"
                 set groupId(groupId) {
                     if (self.model.useSampleModel) {
                         self.model.removeSampleDataInGroups();
@@ -153,10 +141,8 @@ export class KanbanController extends MultiRecordController {
             }),
         );
 
-        // --- Common post-model behavior ---
         this.initMultiRecordBehavior();
 
-        // --- Kanban-specific hooks ---
         const { setScrollFromState } = useSetupAction({
             rootRef: this.rootRef,
             beforeUnload: this.beforeUnload.bind(this),
@@ -179,9 +165,6 @@ export class KanbanController extends MultiRecordController {
                             const group = groups.find(
                                 (g) => g.id === columnEl.dataset.id,
                             );
-                            // The DOM can hold a column the model no longer
-                            // knows (mid-patch snapshot while leaving the
-                            // action); skip it rather than break navigation.
                             if (group) {
                                 columnScrollTops.push([
                                     group.serverValue,
@@ -254,8 +237,6 @@ export class KanbanController extends MultiRecordController {
         });
     }
 
-    // Getters
-
     /**
      * Configuration object passed to the RelationalModel constructor.
      *
@@ -303,7 +284,7 @@ export class KanbanController extends MultiRecordController {
             },
             extras: {
                 limit: this.archInfo.limit || limit || 40,
-                groupsLimit: Number.MAX_SAFE_INTEGER, // no limit
+                groupsLimit: Number.MAX_SAFE_INTEGER,
                 maxGroupByDepth: 1,
             },
         });
@@ -364,8 +345,6 @@ export class KanbanController extends MultiRecordController {
         return this.isQuickCreateField(list.groupByField);
     }
 
-    // Methods
-
     /** @returns {Object[]} Field definitions eligible for data export (excludes properties). */
     getExportableFields() {
         return Object.keys(this.model.root.config.activeFields)
@@ -378,7 +357,6 @@ export class KanbanController extends MultiRecordController {
     async beforeUnload() {}
 
     async beforeLeave() {
-        // wait for potential pending write operations (e.g. records being moved)
         return this.model.mutex.getUnlockedDef();
     }
 
@@ -427,7 +405,7 @@ export class KanbanController extends MultiRecordController {
                     if (!noReload) {
                         await root.load();
                         this.model.useSampleModel = false;
-                        this.render(true); // Force re-render: model.useSampleModel change is not reactive
+                        this.render(true);
                     }
                 },
             };

@@ -35,10 +35,6 @@ export class FloatFactorField extends FloatField {
     parse(value) {
         const parsed = super.parse(value);
         if (parsed instanceof Operation) {
-            // The operation applies to the DISPLAYED value (stored * factor):
-            // += / -= operands must be scaled back to storage units, while
-            // *= and /= are scale-invariant. Dividing the Operation object
-            // itself would yield NaN and commit it.
             if (parsed.operator === "+" || parsed.operator === "-") {
                 return new Operation(parsed.operator, parsed.operand / this.factor);
             }
@@ -65,13 +61,10 @@ export const floatFactorField = {
             type: "number",
         },
     ],
-    extractProps({ options }) {
-        const props = /** @type {any} */ (
-            floatField.extractProps(.../** @type {any} */ (arguments))
-        );
-        props.factor = options.factor;
-        return props;
-    },
+    extractProps: (fieldInfo, dynamicInfo) => ({
+        .../** @type {any} */ (floatField.extractProps(fieldInfo, dynamicInfo)),
+        factor: fieldInfo.options.factor,
+    }),
 };
 
 registerField("float_factor", floatFactorField);

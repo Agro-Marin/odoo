@@ -1,8 +1,9 @@
 // @ts-check
 
 import { expect, getFixture, test } from "@odoo/hoot";
+import { click } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, useSubEnv, xml } from "@odoo/owl";
+import { Component, onMounted, onWillDestroy, useSubEnv, xml } from "@odoo/owl";
 import {
     getService,
     makeMockEnv,
@@ -83,7 +84,6 @@ test("double remove runs onRemove once (idempotent)", async () => {
     };
     const remove = getService("overlay").add(MyComp, {}, { onRemove });
 
-    // Two calls before the first async onRemove settles must not run it twice.
     remove();
     remove();
     expect.verifySteps(["onRemove"]);
@@ -91,7 +91,6 @@ test("double remove runs onRemove once (idempotent)", async () => {
     resolveRemove();
     await animationFrame();
 
-    // Once removed, further calls are no-ops (id no longer registered).
     remove();
     expect.verifySteps([]);
 });
@@ -197,4 +196,78 @@ test("allow env as option", async () => {
 
     expect(".o-overlay-container li:nth-child(1)").toHaveText("A=blip");
     expect(".o-overlay-container li:nth-child(2)").toHaveText("B=bar");
+});
+
+async function mountShadowOverlayContainer(hostId, parent) {
+    const { OverlayContainer } = await import("@web/ui/overlay/overlay_container");
+    const { App } = await import("@odoo/owl");
+    const { getTemplate } = await import("@web/core/templates");
+    const host = document.createElement("div");
+    host.id = hostId;
+    parent.appendChild(host);
+    const shadow = host.attachShadow({ mode: "open" });
+    const overlays = getService("overlay").overlays;
+    class ShadowHost extends Component {
+        static components = { OverlayContainer };
+        static props = {};
+        static template = xml`<OverlayContainer overlays="overlays" rootId="rootId"/>`;
+        setup() {
+            this.overlays = overlays;
+            this.rootId = hostId;
+        }
+    }
+    const app = new App(ShadowHost, { getTemplate, test: true });
+    await app.mount(shadow);
+    return { app, shadow };
+}
+
+test("click in a shadow-root overlay closes a main-document popover", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    const target = getFixture();
+    class Content extends Component {
+        static template = xml`<div class="pop-content">popover</div>`;
+        static props = ["*"];
+    }
+    class Foreign extends Component {
+        static template = xml`<button class="foreign-content">foreign</button>`;
+        static props = ["*"];
+    }
+
+    const { app, shadow } = await mountShadowOverlayContainer("otherRoot", target);
+
+    getService("popover").add(target, Content);
+    getService("overlay").add(Foreign, {}, { rootId: "otherRoot" });
+    await animationFrame();
+
+    expect(".pop-content").toHaveCount(1);
+    const foreignEl = shadow.querySelector(".foreign-content");
+    expect(Boolean(foreignEl)).toBe(true);
+
+    await click(foreignEl);
+    await animationFrame();
+    expect(".pop-content").toHaveCount(0);
+    app.destroy();
+});
+
+test("mounting a second container does not transiently mount foreign overlays", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    const target = getFixture();
+    const steps = [];
+    class Tracked extends Component {
+        static template = xml`<div class="tracked">tracked</div>`;
+        static props = ["*"];
+        setup() {
+            onMounted(() => steps.push("mounted"));
+            onWillDestroy(() => steps.push("destroyed"));
+        }
+    }
+    getService("overlay").add(Tracked, {});
+    await animationFrame();
+    expect(steps).toEqual(["mounted"]);
+
+    const { app } = await mountShadowOverlayContainer("secondRoot", target);
+    await animationFrame();
+
+    expect(steps).toEqual(["mounted"]);
+    app.destroy();
 });

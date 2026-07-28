@@ -1,8 +1,5 @@
 from odoo.tests import HttpCase, tagged
 
-# Browser Sec-Fetch-* headers: the /json/1 route is auth="bearer", which accepts
-# a logged-in session only for an interactive navigation (see
-# base.ir_http._auth_method_bearer -> check_sec_headers).
 _NAV_HEADERS = {
     "Sec-Fetch-Dest": "document",
     "Sec-Fetch-Mode": "navigate",
@@ -18,7 +15,6 @@ class TestJsonExportRoute(HttpCase):
     def setUp(self):
         super().setUp()
         self.env["ir.config_parameter"].sudo().set_param("web.json.enabled", "1")
-        # /json requires export permission.
         self.env.ref("base.user_admin").group_ids |= self.env.ref(
             "base.group_allow_export"
         )

@@ -6,8 +6,6 @@
 import { Component, markRaw, reactive, useChildSubEnv, xml } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 
-// The "dialogs" registry stores reusable dialog Component classes (form_view,
-// select_create, ...) looked up by string key from the dialog service's add().
 registry
     .category("dialogs")
     .addValidation((entry) => entry?.prototype instanceof Component);
@@ -15,8 +13,6 @@ registry
 /** Internal wrapper that injects dialogData into the child environment. */
 class DialogWrapper extends Component {
     static template = xml`<t t-component="props.subComponent" t-props="props.subProps" />`;
-    // Internal-only wrapper instantiated by the dialog service's ``add()``;
-    // typed here for typo-safety even though the contract is private to this file.
     static props = {
         subComponent: Function,
         subProps: Object,
@@ -30,6 +26,8 @@ class DialogWrapper extends Component {
 /**
  *  @typedef {{
  *      onClose?(): void;
+ *      env?: object;
+ *      rootId?: string;
  *  }} DialogServiceInterfaceAddOptions
  */
 /**
@@ -60,6 +58,15 @@ export const dialogService = {
         /** @type {Array<{ id: number, close: Function, isActive: boolean, scrollToOrigin?: () => void }>} */
         const stack = [];
         let nextId = 0;
+        /**
+         * Where the page sat before the FIRST dialog of a run opened. Captured
+         * once rather than per dialog: each dialog would otherwise record the
+         * position the one below it had already scrolled away from, and the
+         * last one to be destroyed would win — making the restored position
+         * depend on the order the stack happens to close in.
+         * @type {{ top: number, left: number } | null}
+         */
+        let scrollOrigin = null;
 
         const deactivate = () => {
             for (const subEnv of stack) {
@@ -82,15 +89,17 @@ export const dialogService = {
                 }),
             );
 
+            if (!stack.length) {
+                scrollOrigin = { top: window.scrollY, left: window.scrollX };
+            }
             deactivate();
             stack.push(subEnv);
             document.body.classList.add("modal-open");
-            let isBeingClosed = false;
 
-            const scrollOrigin = { top: window.scrollY, left: window.scrollX };
             subEnv.scrollToOrigin = () => {
-                if (!stack.length) {
+                if (!stack.length && scrollOrigin) {
                     window.scrollTo(scrollOrigin);
+                    scrollOrigin = null;
                 }
             };
 
@@ -102,18 +111,8 @@ export const dialogService = {
                     subEnv,
                 },
                 {
-                    // Forward a caller-supplied env to the overlay, like
-                    // popover_service / bottom_sheet_service do — lets a dialog
-                    // opened from a sub-app/embedded context render against the
-                    // right env instead of the default one.
                     env: options.env,
                     onRemove: async (/** @type {any} */ closeParams) => {
-                        if (isBeingClosed) {
-                            return;
-                        }
-                        isBeingClosed = true;
-                        // onClose may throw; keep the finally so stack/body-class
-                        // bookkeeping still runs and can't leave scroll locked.
                         try {
                             await options.onClose?.(closeParams);
                         } finally {
@@ -129,7 +128,7 @@ export const dialogService = {
                             }
                         }
                     },
-                    rootId: options.context?.root?.el?.getRootNode()?.host?.id,
+                    rootId: options.rootId,
                 },
             );
 

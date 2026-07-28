@@ -17,7 +17,7 @@ class Report extends models.Model {
     _records = [
         {
             id: 1,
-            html_field: /* html */ `
+            html_field: `
                 <html>
                     <head>
                         <style>
@@ -43,7 +43,7 @@ test("IframeWrapperField in form view with onchange", async () => {
         type: "form",
         resModel: "report",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="int_field"/>
                 <field name="html_field" widget="iframe_wrapper"/>
@@ -62,7 +62,7 @@ test("IframeWrapperField in form view with onchange", async () => {
 });
 
 test("IframeWrapperField does not execute injected scripts", async () => {
-    Report._records[0].html_field = /* html */ `
+    Report._records[0].html_field = `
         <html>
             <head></head>
             <body>
@@ -79,7 +79,7 @@ test("IframeWrapperField does not execute injected scripts", async () => {
         type: "form",
         resModel: "report",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="html_field" widget="iframe_wrapper"/>
             </form>
@@ -87,11 +87,7 @@ test("IframeWrapperField does not execute injected scripts", async () => {
     });
     await animationFrame();
 
-    // The legitimate (server-rendered) content still renders...
     expect("iframe:iframe .safe_content").toHaveCount(1);
-    // ...but the injected <script> must NOT run inside the sandboxed iframe.
     expect("iframe:iframe .xss_executed").toHaveCount(0);
-    // The iframe keeps same-origin (so the parent can write into it) but has no
-    // allow-scripts, which is what blocks script execution.
     expect("iframe.o_preview_iframe").toHaveAttribute("sandbox", "allow-same-origin");
 });

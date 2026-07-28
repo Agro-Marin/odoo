@@ -39,13 +39,8 @@ test("escape", () => {
 });
 
 test("escape coerces and escapes String-subclass / object inputs", () => {
-    // A String subclass (e.g. a lazy translated string) is typeof "object", so
-    // the old `typeof value !== "string"` guard returned it UNESCAPED — a
-    // silent XSS footgun. It must now be escaped like a primitive string.
-
     expect(escape(new String("<x>"))).toBe("&lt;x&gt;");
     expect(escape({ toString: () => "<b>" })).toBe("&lt;b&gt;");
-    // null / undefined still coerce to an empty string.
     expect(escape(null)).toBe("");
     expect(escape(undefined)).toBe("");
 });
@@ -226,8 +221,6 @@ describe("exprToBoolean", () => {
     });
 
     test("only the exact strings 'false'/'0' are falsy", () => {
-        // Regression: an unanchored alternation (/^false|0$/) treated any
-        // string ending in "0" (or starting with "false") as falsy.
         expect(exprToBoolean("10")).toBe(true);
         expect(exprToBoolean("100")).toBe(true);
         expect(exprToBoolean("20")).toBe(true);

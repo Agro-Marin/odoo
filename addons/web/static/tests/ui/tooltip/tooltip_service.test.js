@@ -100,11 +100,6 @@ test("remove element with opened tooltip", async () => {
     compState.visible = false;
     await animationFrame();
     expect("button").toHaveCount(0);
-    // The popover closes reactively once its target leaves the DOM (the
-    // popover's own MutationObserver, see popover.js ``onTargetMutate``), which
-    // also tears down the tooltip service's cleanup interval. That teardown
-    // empties the mock timer queue, so ``runAllTimers()`` no longer flushes a
-    // render frame here — await the overlay's removal render explicitly.
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 });
@@ -209,7 +204,7 @@ test("tooltip with a template, no info", async () => {
     await makeMockEnv({ tooltip_text: "tooltip" });
     await mountWithCleanup(MyComponent, {
         templates: {
-            my_tooltip_template: /* xml */ `<i t-esc='env.tooltip_text'/>`,
+            my_tooltip_template: `<i t-esc='env.tooltip_text'/>`,
         },
     });
 
@@ -240,7 +235,7 @@ test("tooltip with a template and info", async () => {
 
     await mountWithCleanup(MyComponent, {
         templates: {
-            my_tooltip_template: /* xml */ `
+            my_tooltip_template: `
                 <ul>
                     <li>X: <t t-esc="x"/></li>
                     <li>Y: <t t-esc="y"/></li>
@@ -306,7 +301,6 @@ test("tooltip does not crash with disappearing target", async () => {
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 
-    // the element disappeared from the DOM during the setTimeout
     queryOne(".mybtn").remove();
 
     await runAllTimers();
@@ -315,8 +309,6 @@ test("tooltip does not crash with disappearing target", async () => {
 
 test.tags("desktop");
 test("self-closing popover (Escape) stops the cleanup interval", async () => {
-    // Track only the tooltip service's own recurring cleanup interval (it uses
-    // CLOSE_DELAY as its period) so unrelated intervals don't skew the count.
     const tooltipIntervals = new Set();
     patchWithCleanup(browser, {
         setInterval(fn, delay) {
@@ -341,12 +333,8 @@ test("self-closing popover (Escape) stops the cleanup interval", async () => {
     await hover(".mybtn");
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
-    // While the tooltip is open the service polls its target every CLOSE_DELAY.
     expect(tooltipIntervals.size).toBe(1);
 
-    // The popover self-closes through its own escape hotkey; no mouseleave ever
-    // reaches the target. The onClose callback must tear the service state down,
-    // otherwise the interval would keep polling an already-closed tooltip.
     await press("Escape");
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
@@ -430,7 +418,6 @@ test("touch rendering - tap-to-show", async () => {
     await runAllTimers();
     expect(".o_popover").toHaveCount(1);
 
-    // The tooltip should be closed if you click on the button itself
     await click("button[data-tooltip]");
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
@@ -440,8 +427,83 @@ test("touch rendering - tap-to-show", async () => {
     await advanceTime(OPEN_DELAY);
     expect(".o_popover").toHaveCount(1);
 
-    // The tooltip should be also closed if you click anywhere else
     await pointerDown(document.body);
+    await animationFrame();
+    expect(".o_popover").toHaveCount(0);
+});
+
+test.tags("desktop");
+test("a custom tooltip suppresses the native title, then restores it", async () => {
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" title="native help" data-tooltip="custom">Action</button>`;
+    }
+    await mountWithCleanup(MyComponent);
+
+    await hover(".mybtn");
+    await advanceTime(OPEN_DELAY);
+    await animationFrame();
+    expect(".o-tooltip").toHaveCount(1);
+
+    await hover(document.body);
+    await advanceTime(OPEN_DELAY * 3);
+    await animationFrame();
+
+    expect(document.querySelector(".mybtn").getAttribute("title")).toBe("native help");
+});
+
+// REGRESSION-BLOCK
+/** A bare click: hoot's `click()` replays a pointer sequence that would
+ *  restart the touch flow instead of only ending it. */
+const bareClick = (/** @type {string} */ selector) =>
+    queryOne(selector).dispatchEvent(new MouseEvent("click", { bubbles: true }));
+
+test.tags("desktop");
+test("clicking a child of the tooltipped element cancels the pending tooltip", async () => {
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" data-tooltip="hello"><span class="inner">Action</span></button>`;
+    }
+
+    await mountWithCleanup(MyComponent);
+    await hover(".inner");
+    await click(".inner");
+    await runAllTimers();
+    expect(".o_popover").toHaveCount(0);
+});
+
+test.tags("mobile");
+test("a tap-to-show tooltip survives the click that ends the tap", async () => {
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" data-tooltip="hello" data-tooltip-touch-tap-to-show="true"><span class="inner">Action</span></button>`;
+    }
+
+    await mountWithCleanup(MyComponent);
+    await pointerDown(".inner");
+    await advanceTime(SHOW_AFTER_DELAY);
+    expect(".o_popover").toHaveCount(0);
+
+    await pointerUp(".inner");
+    bareClick(".inner");
+    await advanceTime(OPEN_DELAY);
+    await animationFrame();
+    expect(".o_popover").toHaveCount(1);
+});
+
+test.tags("mobile");
+test("a hold-to-show tooltip is still cancelled by the click that ends the tap", async () => {
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" data-tooltip="hello"><span class="inner">Action</span></button>`;
+    }
+
+    await mountWithCleanup(MyComponent);
+    await pointerDown(".inner");
+    await advanceTime(SHOW_AFTER_DELAY);
+    await pointerUp(".inner");
+    bareClick(".inner");
+    await advanceTime(OPEN_DELAY * 3);
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 });

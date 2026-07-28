@@ -131,25 +131,19 @@ test(`getSortedRecordGroups is a valid total order`, async () => {
         records: [],
     });
 
-    // Two same-day groups (A, B) and three multi-day groups (C, D, E). The old
-    // comparator returned MIN_SAFE_INTEGER for a same-day `a` and
-    // MAX_SAFE_INTEGER for a same-day `b`, so comparing two same-day groups was
-    // asymmetric and the result depended on input order.
     const makeGroups = () => [
-        group(0, 0, "A"), // same day
-        group(2, 2, "B"), // same day
-        group(0, 3, "C"), // multi-day, starts day 0
-        group(1, 2, "D"), // multi-day, starts day 1, ends day 2
-        group(1, 5, "E"), // multi-day, starts day 1, ends day 5
+        group(0, 0, "A"),
+        group(2, 2, "B"),
+        group(0, 3, "C"),
+        group(1, 2, "D"),
+        group(1, 5, "E"),
     ];
 
     const expected = ["A", "B", "C", "D", "E"];
     const titles = (groups) =>
         popover.getSortedRecordGroups(groups).map((g) => g.title);
 
-    // Same-day groups first, then multi-day sorted by start, then end.
     expect(titles(makeGroups())).toEqual(expected);
-    // Total order: the sorted result is independent of the input order.
     expect(titles(makeGroups().reverse())).toEqual(expected);
     expect(
         titles([

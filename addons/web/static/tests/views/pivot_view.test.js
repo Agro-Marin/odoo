@@ -240,7 +240,6 @@ test('pivot view without "string" attribute', async () => {
     });
 
     const model = findComponent(view, (c) => c instanceof PivotController).model;
-    // this is important for export functionality.
     expect(model.metaData.title.toString()).toBe("Untitled");
 });
 
@@ -319,9 +318,6 @@ test("pivot rendering with widget and options", async () => {
 });
 
 test("pivot rendering with monetary widget on a non-monetary measure", async () => {
-    // "foo" is a plain Integer with no currency_field, so its cells carry no
-    // currencyIds. Forcing the "monetary" format via the widget must not crash
-    // when dereferencing currencyIds (which is undefined here).
     await mountView({
         type: "pivot",
         resModel: "partner",
@@ -455,7 +451,6 @@ test("pivot rendering with string attribute on non stored field", async () => {
 });
 
 test("pivot rendering with invisible attribute on field", async () => {
-    // when invisible, a field should neither be an active measure nor be a selectable measure
     Partner._fields.foo = fields.Integer();
     Partner._fields.foo2 = fields.Integer();
     Partner._fields.computed_field = fields.Integer({
@@ -475,20 +470,14 @@ test("pivot rendering with invisible attribute on field", async () => {
 		`,
     });
 
-    // there should be only one displayed measure as the other one is invisible
     expect(".o_pivot_measure_row").toHaveCount(1);
     await contains(".o_pivot_buttons button.dropdown-toggle").click();
-    // there should be only one measure besides count, as the other one is invisible
     expect(".dropdown-item").toHaveCount(2);
     expect(".dropdown-item:first").toHaveText("Foo");
-    // the invisible field souldn't be in the groupable fields neither
     await contains(".o_pivot_header_cell_closed").click();
     expect('.o-dropdown--menu a[data-field="foo2"]').toHaveCount(0);
 });
 
-// Desktop-only: ``web_enterprise`` deliberately strips pivot tooltips on small
-// screens (PivotRenderer patch, ``if (this.env.isSmall)``), so the group-header
-// ``data-tooltip`` only exists on desktop when enterprise is installed.
 test.tags("desktop");
 test("group headers should have a tooltip", async () => {
     await mountView({
@@ -590,7 +579,7 @@ test("clicking on a cell triggers a doAction", async () => {
     });
 
     expect("table").toHaveClass("o_enable_linking");
-    await contains(".o_pivot_cell_value:eq(1)").click(); // should trigger a do_action
+    await contains(".o_pivot_cell_value:eq(1)").click();
 });
 
 test.tags("desktop");
@@ -641,7 +630,7 @@ test('pivot view with disable_linking="True"', async () => {
     expect("table").not.toHaveClass("o_enable_linking");
     expect(".o_pivot_cell_value").toHaveCount(1);
     expect(".o_pivot_cell_value").not.toHaveClass("cursor-pointer");
-    await contains(".o_pivot_cell_value").click(); // should not trigger a do_action
+    await contains(".o_pivot_cell_value").click();
 });
 
 test('clicking on the "Total" cell with time range activated', async () => {
@@ -872,7 +861,6 @@ test("pivot renders group dropdown same as search groupby dropdown if group bys 
 				<field name="bar" type="col"/>
 				<field name="foo" type="measure"/>
 			</pivot>`,
-        // TOASK DAM: <search><field/></search> won´t appear in groupbymenu ?
         searchViewArch: `
 			<search>
 				<filter name="bar" string="bar" context="{'group_by': 'bar'}"/>
@@ -911,13 +899,11 @@ test("headers group dropdown should close on selection", async () => {
                 <field name="foo" type="measure"/>
             </pivot>`,
     });
-    // 1. with first-level dropdown groupby
     await contains("tbody tr .o_pivot_header_cell_closed").click();
     expect(".o-dropdown--menu").toHaveCount(1);
     await contains(".o-dropdown-item").click();
     expect(".o-dropdown--menu").toHaveCount(0);
 
-    // 2. with sub dropdown groupby
     await contains("tbody tr .o_pivot_header_cell_closed").click();
     expect(".o-dropdown--menu").toHaveCount(1);
     await contains(".o-dropdown--menu .dropdown-toggle").click();
@@ -926,7 +912,6 @@ test("headers group dropdown should close on selection", async () => {
     await contains(queryFirst(".o-dropdown-item", { root: subDropdownMenu })).click();
     expect(".o-dropdown--menu").toHaveCount(0);
 
-    // 3. with custom groupby
     await contains("tbody tr .o_pivot_header_cell_closed").click();
     expect(".o-dropdown--menu").toHaveCount(1);
     await contains(`.o_add_custom_group_menu`).select("date");
@@ -953,17 +938,14 @@ test("pivot group dropdown sync with search groupby dropdown", async () => {
     expect(".o-dropdown--menu .o_menu_item").toHaveCount(5);
     await contains("tbody tr:last-child .o_pivot_header_cell_closed").click();
     expect(".o-dropdown--menu .o_menu_item").toHaveCount(3);
-    // add a custom group in searchview groupby
     await toggleSearchBarMenu();
     await contains(`.o_add_custom_group_menu`).select("company_type");
     expect(".o-dropdown--menu .o_menu_item").toHaveCount(6);
     await contains("tbody tr:last-child .o_pivot_header_cell_closed").click();
     expect(".o-dropdown--menu .o_menu_item").toHaveCount(3);
-    // add a custom group in pivot groupby
     await contains(`.o_add_custom_group_menu`).select("date");
     await contains("tbody tr:last-child .o_pivot_header_cell_closed").click();
     expect(".o-dropdown--menu .o_menu_item").toHaveCount(4);
-    // applying custom groupby in pivot groupby dropdown will not update search dropdown
     await toggleSearchBarMenu();
     expect(".o-dropdown--menu .o_menu_item").toHaveCount(6);
 });
@@ -1023,7 +1005,6 @@ test("pivot groupby dropdown renders custom search at the end with separator", a
     expect(queryAllTexts(items)).toEqual(["bar", "product"]);
     expect(".o-dropdown--menu .dropdown-divider").toHaveCount(1);
     expect(items[items.length - 1].nextElementSibling).toHaveClass("dropdown-divider");
-    // add a custom group in pivot groupby
     await contains(`.o_add_custom_group_menu`).select("customer");
     await contains("tbody .o_pivot_header_cell_closed:eq(1)").click();
     items = queryAll(".o_menu_item:not(select)");
@@ -1065,7 +1046,6 @@ test("pivot view do not show custom group selection if there are no groupable fi
         delete Partner._fields[fieldName];
     }
 
-    // Keep product_id but make it ungroupable
     Partner._fields.product_id = fields.Many2one({
         relation: "product",
         groupable: false,
@@ -1213,8 +1193,6 @@ test("no content helper when no data, part 3", async () => {
     expect(".o_searchview .o_searchview_facet").toHaveCount(0);
     expect(".o_view_nocontent").toHaveCount(0);
 
-    // tries to open a field selection menu, to make sure it was not
-    // removed from the dom.
     await contains("tbody .o_pivot_header_cell_closed").click();
     expect(".o-dropdown--menu").toHaveCount(1);
 });
@@ -1385,14 +1363,6 @@ test("expand all with a delay", async () => {
 });
 
 test("expanding two headers in quick succession opens both", async () => {
-    // Three sibling product groups. Expanding one (xphone) by "customer"
-    // establishes the sub-groupby while xphone stays open, so xpad and xdesk
-    // remain closed AND expandable by "customer" (a leaf-only collapse here
-    // would splice the sub-groupby away). We then fire the xpad and xdesk
-    // expansions back-to-back while their read_group is still pending: both
-    // go through the model's shared keepLast (in _subdivideGroup), so without
-    // serialization the second would supersede the first's read_group and its
-    // header would never open. The expandMutex must open BOTH.
     Product._records.push({ id: 99, name: "xdesk" });
     Partner._records.push({
         id: 5,
@@ -1416,26 +1386,21 @@ test("expanding two headers in quick succession opens both", async () => {
     });
     const model = findComponent(view, (c) => c instanceof PivotController).model;
 
-    // rows: Total, xphone, xpad, xdesk
     expect("tbody tr").toHaveCount(4);
     expect(".o_pivot_header_cell_closed:contains(xpad)").toHaveCount(1);
     expect(".o_pivot_header_cell_closed:contains(xdesk)").toHaveCount(1);
 
-    // Establish "customer" as the row sub-groupby by expanding xphone (id 37);
-    // xphone stays expanded, so xpad/xdesk stay closed but expandable.
     await model.addGroupBy({ groupId: [[37], []], fieldName: "customer", type: "row" });
     await animationFrame();
 
-    // Fire BOTH remaining expansions back-to-back while read_group is pending.
     def = new Deferred();
-    model.expandGroup([[41], []], "row"); // xpad
-    model.expandGroup([[99], []], "row"); // xdesk
+    model.expandGroup([[41], []], "row");
+    model.expandGroup([[99], []], "row");
     def.resolve();
     await animationFrame();
     await animationFrame();
     await animationFrame();
 
-    // Both headers must now be open (neither expansion was dropped).
     expect(".o_pivot_header_cell_opened:contains(xpad)").toHaveCount(1);
     expect(".o_pivot_header_cell_opened:contains(xdesk)").toHaveCount(1);
     expect(".o_pivot_header_cell_closed:contains(xpad)").toHaveCount(0);
@@ -1572,7 +1537,6 @@ test("a measure toggled after a favorite survives a filter toggle", async () => 
     await mountView({
         type: "pivot",
         resModel: "partner",
-        // mimics a favorite/action context pinning the active measures
         context: { pivot_measures: ["foo"] },
         arch: `
 			<pivot string="Partners">
@@ -1585,15 +1549,12 @@ test("a measure toggled after a favorite survives a filter toggle", async () => 
 			</search>`,
     });
 
-    // the favorite context seeds a single active measure
     expect(queryAllTexts(".o_pivot_measure_row")).toEqual(["Foo"]);
 
     await toggleMenu("Measures");
     await toggleMenuItem("bouh");
     expect(queryAllTexts(".o_pivot_measure_row").sort()).toEqual(["Foo", "bouh"]);
 
-    // toggling a filter reloads: the still-present pivot_measures context must
-    // NOT snap the measures back to the favorite's single-measure set
     await toggleSearchBarMenu();
     await toggleMenuItem("Bar");
     expect(queryAllTexts(".o_pivot_measure_row").sort()).toEqual(["Foo", "bouh"]);
@@ -1603,7 +1564,6 @@ test.tags("desktop");
 test("correctly remove pivot_ keys from the context", async () => {
     expect.assertions(5);
 
-    // in this test, we use "foo" as a measure
     Partner._fields.foo = fields.Integer({
         groupable: false,
     });
@@ -1872,7 +1832,6 @@ test("Unload Filter, reset display, load another filter", async () => {
     expect('tbody tr:contains("xphone")').toHaveCount(1);
     expect('tbody tr:contains("xpad")').toHaveCount(1);
 
-    // Equivalent to unload the filter
     await toggleSearchBarMenu();
     await toggleMenuItem("My fake favorite");
     await contains(".o_pivot_header_cell_opened:first-child").click();
@@ -1886,7 +1845,6 @@ test("Unload Filter, reset display, load another filter", async () => {
     expect('tbody tr:contains("xphone")').toHaveCount(0);
     expect('tbody tr:contains("xpad")').toHaveCount(0);
 
-    // Equivalent to load another filter
     await removeFacet();
     await toggleSearchBarMenu();
     await toggleMenuItem("My fake favorite 2");
@@ -1927,7 +1885,6 @@ test("Reload, group by columns, reload", async () => {
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter 1");
 
-    // Save to favorites and check that column groupbys were not lost
     expectedContext = {
         group_by: [],
         pivot_column_groupby: ["customer"],
@@ -2002,7 +1959,6 @@ test("folded groups remain folded at reload", async () => {
     ];
     expect(getCurrentValues()).toBe(values.join(","));
 
-    // reload (should keep folded groups folded as col/row groupbys didn't change)
     await toggleSearchBarMenu();
     await toggleMenuItem("Dummy Filter");
 
@@ -2010,8 +1966,6 @@ test("folded groups remain folded at reload", async () => {
 
     await contains(".o_pivot_expand_button").click();
 
-    // sanity check of what the table should look like if all groups are
-    // expanded, to ensure that the former asserts are pertinent
     values = [
         "12",
         "17",
@@ -2086,7 +2040,6 @@ test("Empty results keep groupbys", async () => {
 });
 
 test("correctly uses pivot_ keys from the context", async () => {
-    // in this test, we use "foo" as a measure
     Partner._fields.foo = fields.Integer({
         groupable: false,
     });
@@ -2131,20 +2084,18 @@ test("clear table cells data after closeGroup", async () => {
         ".o-overlay-item:nth-child(2) .o-dropdown--menu .dropdown-item:eq(3)",
     ).click();
 
-    // close and reopen row groupings after changing value
     MockServer.env["partner"].find((r) => r.product_id === 37).date = "2016-10-27";
 
     await contains("tbody .o_pivot_header_cell_opened").click();
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item:eq(4)").click();
-    expect(".o_pivot_cell_value:eq(4)").toHaveText(""); // xphone December 2016
+    expect(".o_pivot_cell_value:eq(4)").toHaveText("");
 
-    // invert axis, and reopen column groupings
     await contains(".o_pivot_buttons .o_pivot_flip_button").click();
     await contains("thead .o_pivot_header_cell_opened").click();
     await contains("thead .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item:eq(4)").click();
-    expect(".o_pivot_cell_value:eq(3)").toHaveText(""); // December 2016 xphone
+    expect(".o_pivot_cell_value:eq(3)").toHaveText("");
 });
 
 test("correctly group data after flip (1)", async () => {
@@ -2199,7 +2150,6 @@ test("correctly group data after flip (2)", async () => {
 });
 
 test("correctly uses pivot_ keys from the context (at reload)", async () => {
-    // in this test, we use "foo" as a measure
     Partner._fields.foo = fields.Integer({
         groupable: false,
     });
@@ -2285,7 +2235,6 @@ test("correctly uses pivot_row_groupby key with default groupBy from the context
     expect("thead .o_pivot_header_cell_closed:contains(First)").toHaveCount(1);
     expect("thead .o_pivot_header_cell_closed:contains(Second)").toHaveCount(1);
 
-    // With pivot_row_groupby, groupBy customer should replace and eventually display product_id
     expect("tbody .o_pivot_header_cell_opened").toHaveCount(1);
     expect("tbody .o_pivot_header_cell_closed:contains(xphone)").toHaveCount(1);
     expect("tbody .o_pivot_header_cell_closed:contains(xpad)").toHaveCount(1);
@@ -2304,9 +2253,6 @@ test("pivot still handles __count__ measure", async () => {
         aggregator: null,
         groupable: false,
     });
-
-    // for retro-compatibility reasons, the pivot view still handles
-    // '__count__' measure.
 
     onRpc("formatted_read_grouping_sets", ({ kwargs }) => {
         expect(kwargs.aggregates).toEqual(["__count"]);
@@ -2490,8 +2436,6 @@ test("pivot measures should be alphabetically sorted", async () => {
         groupable: false,
     });
 
-    // It's important to compare capitalized and lowercased words
-    // to be sure the sorting is effective with both of them
     Partner._fields.bouh = fields.Integer({ string: "bouh" });
     Partner._fields.modd = fields.Integer({ string: "modd" });
     Partner._fields.zip = fields.Integer({ string: "Zip" });
@@ -2565,11 +2509,6 @@ test("Click on the measure list but not on a menu item", async () => {
     await mountView({
         type: "pivot",
         resModel: "partner",
-        // have at least a measure to have a separator in the Measures dropdown:
-        //
-        // Foo
-        // -----
-        // Count
         arch: `<pivot><field name="foo" type="measure"/></pivot>`,
     });
 
@@ -2578,14 +2517,10 @@ test("Click on the measure list but not on a menu item", async () => {
     await contains(".o_pivot_buttons .dropdown-toggle").click();
     expect(".o-dropdown--menu").toHaveCount(1);
 
-    // click on the divider in the "Measures" menu does not crash
     await contains(".o-dropdown--menu .dropdown-divider").click();
-    // the menu should still be open
     expect(".o-dropdown--menu").toHaveCount(1);
 
-    // click on the measure list but not on a menu item or the separator
     await contains(".o-dropdown--menu").click();
-    // the menu should still be open
     expect(".o-dropdown--menu").toHaveCount(1);
 });
 
@@ -2795,11 +2730,7 @@ test("Server order is kept by default", async () => {
 			</pivot>`,
     });
 
-    const values = [
-        "32", // Total Value
-        "18", // Second
-        "14", // First
-    ];
+    const values = ["32", "18", "14"];
     expect(getCurrentValues()).toBe(values.join());
 });
 
@@ -2978,7 +2909,6 @@ test("expanded groups are kept when leaving and coming back", async () => {
     expect(".o_pivot_view").toHaveCount(1);
     expect(getCurrentValues()).toBe(["4", "2", "2"].join(","));
 
-    // drill down first row group (group by company_type)
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
 
@@ -3044,7 +2974,6 @@ test("correctly handle concurrent reloads", async () => {
         if (def) {
             readGroupCount++;
             if (readGroupCount === 2) {
-                // slow down last formatted_read_grouping_sets of first reload
                 return def;
             }
         }
@@ -3063,13 +2992,11 @@ test("correctly handle concurrent reloads", async () => {
     expect(".o_pivot_view").toHaveCount(1);
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // drill down first row group (group by company_type)
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
 
     expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
 
-    // reload twice by clicking on pivot view switcher
     def = new Deferred();
     await contains(".o_control_panel .o_switch_view.o_pivot").click();
     await contains(".o_control_panel .o_switch_view.o_pivot").click();
@@ -3098,14 +3025,13 @@ test("consecutively toggle several measures", async () => {
 
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Toggle several measures (the reload is blocked, so all measures should be toggled in once)
     def = new Deferred();
     await toggleMenu("Measures");
-    await toggleMenuItem("Foo2"); // add foo2
+    await toggleMenuItem("Foo2");
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
-    await toggleMenuItem("Foo"); // remove foo
+    await toggleMenuItem("Foo");
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
-    await toggleMenuItem("Count"); // add count
+    await toggleMenuItem("Count");
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
     def.resolve();
@@ -3135,7 +3061,6 @@ test("flip axis while loading a filter", async () => {
     const values = ["2", "1", "29", "32", "12", "12", "2", "1", "17", "20"];
     expect(getCurrentValues()).toBe(values.join(","));
 
-    // Set a domain (this reload is delayed)
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
@@ -3151,10 +3076,6 @@ test("flip axis while loading a filter", async () => {
 });
 
 test("remove a measure while loading a group by", async () => {
-    // Regression: the remove branch of toggleMeasure used to wait out the
-    // in-flight load and then assign a metaData snapshot built BEFORE the
-    // wait, reverting rowGroupBys under the freshly-grouped data (renderer
-    // TypeError). It must rebuild from the landed metaData instead.
     let def;
     onRpc("formatted_read_grouping_sets", () => def);
     await mountView({
@@ -3167,18 +3088,15 @@ test("remove a measure while loading a group by", async () => {
 			</search>`,
     });
 
-    // Activate Count so removing Foo still leaves a measure.
     await toggleMenu("Measures");
     await toggleMenuItem("Count");
     expect(getCurrentValues()).toBe(["32", "4"].join(","));
 
-    // Group by bar (this reload is delayed).
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("Bar");
     expect(getCurrentValues()).toBe(["32", "4"].join(","));
 
-    // Remove Foo while the group-by load is in flight: the removal waits.
     await toggleMenu("Measures");
     await toggleMenuItem("Foo");
     expect(getCurrentValues()).toBe(["32", "4"].join(","));
@@ -3186,17 +3104,10 @@ test("remove a measure while loading a group by", async () => {
     def.resolve();
     await animationFrame();
 
-    // The landed group-by state is kept and Foo is removed: Count only,
-    // for Total / bar=false (1 record) / bar=true (3 records).
     expect(getCurrentValues()).toBe(["4", "1", "3"].join(","));
 });
 
 test("remove a measure while a group expansion is in flight", async () => {
-    // Regression: addGroupBy snapshotted metaData before its RPC and assigned
-    // it wholesale on completion, clobbering an interleaved toggleMeasure
-    // (its remove path runs outside the expandMutex): the removed measure
-    // column reappeared once the expansion landed. The expansion must merge
-    // only its own delta into the current metaData instead.
     let def;
     onRpc("formatted_read_grouping_sets", () => def);
     await mountView({
@@ -3209,19 +3120,15 @@ test("remove a measure while a group expansion is in flight", async () => {
 			</pivot>`,
     });
 
-    // Activate Count so removing Foo still leaves a measure.
     await toggleMenu("Measures");
     await toggleMenuItem("Count");
     expect(getCurrentValues()).toBe(["32", "4", "12", "1", "20", "3"].join(","));
 
-    // Expand the first row group (this read_group is delayed).
     def = new Deferred();
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
     expect(getCurrentValues()).toBe(["32", "4", "12", "1", "20", "3"].join(","));
 
-    // Remove Foo while the expansion RPC is in flight: it applies immediately
-    // (no reload is needed for a removal).
     await toggleMenu("Measures");
     await toggleMenuItem("Foo");
     expect(getCurrentValues()).toBe(["4", "1", "3"].join(","));
@@ -3229,8 +3136,6 @@ test("remove a measure while a group expansion is in flight", async () => {
     def.resolve();
     await animationFrame();
 
-    // The expansion landed (xphone got its sub-group row) AND the removed
-    // measure stayed removed.
     expect(getCurrentValues()).toBe(["4", "1", "1", "3"].join(","));
 });
 
@@ -3253,13 +3158,11 @@ test("sort rows while loading a filter", async () => {
 
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Set a domain (this reload is delayed)
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Sort rows (ignored: it targets the old table, about to be replaced)
     await contains("th.o_pivot_measure_row").click();
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
@@ -3289,13 +3192,11 @@ test("close a group while loading a filter", async () => {
 
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Set a domain (this reload is delayed)
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Close a group (ignored: it targets the old table, about to be replaced)
     await contains("tbody .o_pivot_header_cell_opened").click();
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
@@ -3324,13 +3225,11 @@ test("add a groupby while loading a filter", async () => {
 
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Set a domain (this reload is delayed)
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Add a groupby (ignored: it targets the old table, about to be replaced)
     await contains("thead .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
@@ -3359,19 +3258,16 @@ test("expand a group while loading a filter", async () => {
 			</search>`,
     });
 
-    // Add a groupby, to have a group to expand afterwards
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
 
     expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
 
-    // Set a domain (this reload is delayed)
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
     expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
 
-    // Expand a group (ignored: it targets the old table, about to be replaced)
     await contains("tbody .o_pivot_header_cell_closed:eq(1)").click();
     expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
 
@@ -3382,9 +3278,6 @@ test("expand a group while loading a filter", async () => {
 });
 
 test("load a filter while a group expansion is pending", async () => {
-    // Reverse interleaving of "expand a group while loading a filter": the
-    // reload supersedes the pending expansion, which must settle and release
-    // the expand mutex (otherwise every later expansion queues forever).
     let def;
     onRpc("formatted_read_grouping_sets", () => def);
     await mountView({
@@ -3403,13 +3296,11 @@ test("load a filter while a group expansion is pending", async () => {
 
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Add a groupby on the first row group; its read_group is delayed
     def = new Deferred();
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Set a domain while the expansion is in flight: it supersedes it
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
@@ -3417,10 +3308,8 @@ test("load a filter while a group expansion is pending", async () => {
     def.resolve();
     await animationFrame();
 
-    // The reload won; the superseded expansion was discarded
     expect(getCurrentValues()).toBe(["20", "20"].join(","));
 
-    // The mutex was released: a new expansion still works
     def = undefined;
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
@@ -3440,28 +3329,22 @@ test("close an ancestor while a descendant expansion is in flight", async () => 
 			</pivot>`,
     });
 
-    // Add a groupby, to have a group to expand afterwards
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
     expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
 
-    // Expand the xpad group (delayed read_group)
     def = new Deferred();
     await contains("tbody .o_pivot_header_cell_closed:eq(1)").click();
     expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
 
-    // Close the ancestor (Total row) while the expansion is in flight: it
-    // queues after the expansion instead of pulling the tree from under it
     await contains("tbody .o_pivot_header_cell_opened:eq(0)").click();
     expect(getCurrentValues()).toBe(["32", "12", "12", "20"].join(","));
 
     def.resolve();
     await animationFrame();
 
-    // No crash: the expansion applied, then the close collapsed everything
     expect(getCurrentValues()).toBe(["32"].join(","));
 
-    // Still functional: group again from scratch
     def = undefined;
     await contains("tbody .o_pivot_header_cell_closed").click();
     await contains(".o-dropdown--menu .dropdown-item").click();
@@ -3487,7 +3370,6 @@ test("concurrent reloads: add a filter, and directly toggle a measure", async ()
 
     expect(getCurrentValues()).toBe(["32", "12", "20"].join(","));
 
-    // Set a domain (this reload is delayed)
     def = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("My Filter");
@@ -3557,9 +3439,7 @@ test("'Measures' menu when there is no measurable fields", async () => {
 
     await toggleMenu("Measures");
 
-    // "Count" is the only measure available
     expect(queryAllTexts(".o-dropdown--menu .o_menu_item")).toEqual(["Count"]);
-    // No separator should be displayed in the menu "Measures"
     expect(".o-dropdown--menu div.dropdown-divider").toHaveCount(0);
 });
 
@@ -3600,9 +3480,9 @@ test("pivot_row_groupby should be also used after first load", async () => {
     });
 
     expect(queryAllTexts("th").slice(3)).toEqual(["Total", "No", "Yes"]);
-    await contains("tbody th").click(); // click on row header "Total"
-    await contains("tbody th").click(); // click on row header "Total"
-    await contains(".o-dropdown--menu .o_menu_item").click(); // select "Product"
+    await contains("tbody th").click();
+    await contains("tbody th").click();
+    await contains(".o-dropdown--menu .o_menu_item").click();
     expect(queryAllTexts("th").slice(3)).toEqual(["Total", "xphone", "xpad"]);
     await toggleSearchBarMenu();
     await toggleSaveFavorite();
@@ -3623,9 +3503,9 @@ test("pivot_row_groupby should be also used after first load", async () => {
         "First",
         "Second",
     ]);
-    await contains("tbody th").click(); // click on row header "Total"
-    await contains("tbody th").click(); // click on row header "Total"
-    await contains(".o-dropdown--menu .o_menu_item:eq(1)").click(); // select "Customer"
+    await contains("tbody th").click();
+    await contains("tbody th").click();
+    await contains(".o-dropdown--menu .o_menu_item:eq(1)").click();
     expect(queryAllTexts("th").slice(3)).toEqual(["Total", "First", "Second"]);
     await toggleSearchBarMenu();
     await toggleSaveFavorite();
@@ -3737,7 +3617,6 @@ test("specific pivot keys in action context must have less importance than in fa
 });
 
 test("favorite pivot_measures should be used even if found also in global context", async () => {
-    // Computed and not stored displayed in "Measures" menu
     Partner._fields.computed_field = fields.Integer({
         string: "Computed and not stored",
         compute: () => 1,
@@ -4150,7 +4029,7 @@ test("middle clicking on a cell triggers a doAction", async () => {
     });
 
     expect("table").toHaveClass("o_enable_linking");
-    await contains(".o_pivot_cell_value:eq(1)").click({ ctrlKey: true }); // should trigger a do_action
+    await contains(".o_pivot_cell_value:eq(1)").click({ ctrlKey: true });
 });
 
 test("display '0' for false group, when grouped by int field", async () => {
@@ -4234,12 +4113,10 @@ test("pivot view with monetary with multiple currencies", async () => {
     expect(".o_pivot table tbody tr:eq(1)").toHaveText("USD \n$ 1,000.00");
     expect(".o_pivot table tbody tr:last").toHaveText("EUR \n400.00 €");
 
-    // multi currencies popover
     await toggleMultiCurrencyPopover(".o_pivot table tbody tr:first .o_value sup");
     expect(".o_multi_currency_popover").toHaveCount(1);
     expect(".o_multi_currency_popover").toHaveText("2,800.00 € at $ 0.50");
 
-    // test sorting
     await contains("th.o_pivot_measure_row").click();
     expect(".o_pivot table tbody tr:eq(1)").toHaveText("EUR \n400.00 €");
     expect(".o_pivot table tbody tr:last").toHaveText("USD \n$ 1,000.00");
@@ -4280,13 +4157,11 @@ test("scroll position is restored when coming back to pivot view", async () => {
     });
 
     expect(".o_pivot_view").toHaveCount(1);
-    // simulate a scroll in the pivot view
     queryOne(".o_content").scrollTop = 200;
 
     await getService("action").switchView("list");
     expect(".o_list_view").toHaveCount(1);
 
-    // pivot is "lazy": control panel renders immediately, table later -- verify scroll position survives that gap
     def = new Deferred();
     await getService("action").switchView("pivot");
     expect(".o_pivot_view").toHaveCount(1);
@@ -4328,13 +4203,11 @@ test("scroll position is restored when coming back to pivot view (mobile)", asyn
     });
 
     expect(".o_pivot_view").toHaveCount(1);
-    // simulate a scroll in the pivot view
     queryOne(".o_pivot_view").scrollTop = 200;
 
     await getService("action").switchView("list");
     expect(".o_list_view").toHaveCount(1);
 
-    // pivot is "lazy": control panel renders immediately, table later -- verify scroll position survives that gap
     def = new Deferred();
     await getService("action").switchView("pivot");
     expect(".o_pivot_view").toHaveCount(1);

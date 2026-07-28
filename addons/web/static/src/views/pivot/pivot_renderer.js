@@ -57,23 +57,9 @@ export class PivotRenderer extends Component {
         useRenderCounter("pivot.PivotRenderer");
         this.actionService = useService("action");
         this.notification = useService("notification");
-        // Subscribe directly to model.notify(): the model prop is stable,
-        // so this renderer only updated through the legacy deep-render
-        // listener before (PivotModel now opts out of it via
-        // ``reactiveRenderers``). The epoch guard keeps unrelated local
-        // re-renders (dropdown state, hover) from recomputing the table.
         this.model = useReactiveModel(this.props.model);
-        // Per-render cache of the <td> lists highlighted on column hover:
-        // the DOM may change on any render, but between two renders (where
-        // the bulk of mouseover/mouseout traffic happens) the cells of a
-        // column are stable, so each column is queried at most once.
         this.columnCellsCache = new Map();
         this.hoveredCells = null;
-        // Per-render cache of the group-by menu items: the ``groupByItems``
-        // getter is read several times per render (t-foreach, its t-if guard,
-        // and onGroupBySelected's lookup) and rebuilds the list each time.
-        // Cleared every render below, so it only dedupes intra-render reads and
-        // can't go stale across renders.
         this.groupByItemsCache = null;
         let tableEpoch;
         onWillRender(() => {
@@ -171,13 +157,8 @@ export class PivotRenderer extends Component {
         const { codec, formatType, baseOptions } = this.measureFormatters.get(
             cell.measure,
         );
-        // Shallow-copy per cell: some formatters self-mutate their options
         /** @type {Record<string, any>} */
         const formatOptions = { ...baseOptions };
-        // currencyIds is only populated for true monetary fields that declare a
-        // currency_field (see pivot_measurements.js getCurrencyIds). A plain
-        // measure forced to the "monetary" format via widget="monetary" has no
-        // currencyIds, so guard the dereference to avoid crashing every cell.
         if (formatType === "monetary" && cell.currencyIds) {
             if (cell.currencyIds.length > 1) {
                 formatOptions.currencyId = user.activeCompany?.currency_id;
@@ -226,15 +207,9 @@ export class PivotRenderer extends Component {
                 !searchItem.custom,
         );
         if (!items.length) {
-            // Copy: ``this.fields`` is the renderer's own array (built once in
-            // setup and passed to <CustomGroupByItem/>). The custom-groupby loop
-            // below pushes onto ``items``, and this getter is re-evaluated several
-            // times per menu render — aliasing would append the custom groupbys to
-            // ``this.fields`` on every call, growing it unboundedly.
             items = [...this.fields];
         }
 
-        // Add custom groupbys
         let groupNumber = 1 + Math.max(0, ...items.map(({ groupNumber: n }) => n || 0));
         for (const [
             fieldName,
@@ -277,8 +252,6 @@ export class PivotRenderer extends Component {
         const { groupable, type } = field;
         return groupable && fieldName !== "id" && GROUPABLE_TYPES.includes(type);
     }
-
-    // Handlers
 
     /**
      * Handle the adding of a custom groupby (inside the view, not the searchview).
@@ -352,7 +325,7 @@ export class PivotRenderer extends Component {
         const current = /** @type {HTMLElement} */ (ev.currentTarget);
         let index = [...current.parentNode.children].indexOf(current);
         if (current.tagName === "TH") {
-            index += 1; // row groupbys column
+            index += 1;
         }
         let cells = this.columnCellsCache.get(index);
         if (!cells) {
@@ -363,8 +336,6 @@ export class PivotRenderer extends Component {
         this.hoveredCells = cells;
     }
     onMouseLeave() {
-        // Fall back to a full sweep when a render invalidated the cache
-        // while a column was highlighted.
         const cells =
             this.hoveredCells ?? this.tableRef.el.querySelectorAll(".o_cell_hover");
         cells.forEach((elt) => elt.classList.remove("o_cell_hover"));
@@ -377,9 +348,6 @@ export class PivotRenderer extends Component {
      */
     onDownloadButtonClicked() {
         if (this.model.getTableWidth() > 16384) {
-            // Surface a user-facing notification rather than throwing from a
-            // click handler, which would trip the generic crash dialog and
-            // abort the handler abnormally.
             this.notification.add(
                 _t(
                     "For Excel compatibility, data cannot be exported if there are more than 16384 columns.\n\nTip: try to flip axis, filter further or reduce the number of measures.",
@@ -463,7 +431,6 @@ export class PivotRenderer extends Component {
             }
         }
 
-        // retrieve form and list view ids from the action
         const { views = [] } = this.env.config;
         this.views = ["list", "form"].map((viewType) => {
             const view = views.find((view) => view[1] === viewType);

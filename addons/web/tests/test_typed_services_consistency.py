@@ -25,26 +25,15 @@ WEB_ROOT = Path(__file__).resolve().parent.parent
 SRC_ROOT = WEB_ROOT / "static" / "src"
 SERVICES_DTS = SRC_ROOT / "@types" / "services.d.ts"
 
-# Matches direct chain: ``registry.category("services").add("KEY", ...``.
-# ``\s*`` covers line-breaks and indentation between method calls.
 _CHAIN_REGISTRATION_RE = re.compile(
     r'category\s*\(\s*["\']services["\']\s*\)\s*\.\s*add\s*\(\s*["\']([^"\']+)["\']',
 )
 
-# Matches an alias binding for ``registry.category("services")``.  Two
-# patterns are common:
-#   const services = registry.category("services");
-#   const serviceRegistry = registry.category("services");
-# Without this pass, ``services.add("X", ...)`` registrations are missed.
 _ALIAS_BINDING_RE = re.compile(
     r"(?:const|let|var)\s+(\w+)\s*=\s*registry\s*\.\s*category\s*\("
     r"\s*[\"']services[\"']\s*\)",
 )
 
-# Matches a key inside the ``Services`` interface body:
-#   "KEY": typeof X;       (quoted)
-#   KEY: typeof X;          (bare identifier)
-# Plus a ``Services`` block-locator regex.
 _INTERFACE_BODY_RE = re.compile(
     r"export\s+interface\s+Services\s*\{([^}]*)\}",
     re.DOTALL,
@@ -107,9 +96,6 @@ class TestTypedServicesConsistency(BaseCase):
     def test_every_registered_service_is_typed(self):
         registered = _registered_service_keys()
         typed = _typed_service_keys()
-        # Sanity: at minimum the well-known core services must be both
-        # registered and typed.  Catches regressions where the regex stops
-        # matching due to a refactor.
         for required in ("orm", "notification", "dialog", "ui"):
             self.assertIn(
                 required,

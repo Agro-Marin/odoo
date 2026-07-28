@@ -70,7 +70,6 @@ describe("mergeClasses", () => {
     });
 
     test("empty string produces empty object", () => {
-        // trim().split(/\s+/) on "" yields [""] — but empty string is falsy, returns {}
         const result = mergeClasses("");
         expect(result).toEqual({});
     });

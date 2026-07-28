@@ -262,7 +262,6 @@ test("Export dialog: interacting with export templates", async () => {
         message: "fields already selected cannot be added anymore",
     });
 
-    // load a template which contains the activity_ids field
     await select("1", { target: ".o_exported_lists_select" });
     await animationFrame();
     expect(`.o_fields_list .o_export_field`).toHaveCount(1);
@@ -386,11 +385,9 @@ test("Export dialog: interacting with available fields", async () => {
     const firstField = ".o_left_field_panel .o_export_tree_item:first-child ";
     await contains(firstField).click();
 
-    // show then hide content for the 'partner_ids' field. Then show it again
     await contains(firstField + ".o_export_tree_item").click();
     await contains(firstField + ".o_export_tree_item").click();
     await contains(firstField + ".o_export_tree_item").click();
-    // we should only make one rpc to fetch fields
     expect.verifySteps(["fetch fields for 'partner_ids'"]);
     expect(
         ".o_export_tree_item[data-field_id='activity_ids/partner_ids/company_ids'] .o_expand_parent",
@@ -1012,8 +1009,6 @@ test("Export dialog: search subfields", async () => {
     await openExportDialog();
     const firstField = ".o_left_field_panel .o_export_tree_item:first-child ";
     await contains(firstField).click();
-    // show then hide content for the 'partner_ids' field.
-    // this will load subfields and make them available to search
     await contains(firstField + ".o_export_tree_item").click();
     await contains(firstField + ".o_export_tree_item").click();
     await contains(".o_export_search_input").edit("company");
@@ -1044,8 +1039,6 @@ test("Export dialog: expand subfields after search", async () => {
     await openExportDialog();
     const firstField = ".o_left_field_panel .o_export_tree_item:first-child ";
     await contains(firstField).click();
-    // show then hide content for the 'partner_ids' field.
-    // this will load subfields and make them available to search
     await contains(firstField).click();
     await contains(firstField).click();
     await contains(".o_export_search_input").edit("Attendants");
@@ -1058,8 +1051,6 @@ test("Export dialog: expand subfields after search", async () => {
     await contains(
         ".o_export_tree_item[data-field_id='activity_ids/partner_ids']",
     ).click();
-    // 'Company' should be shown even if the company_ids string doesn't match the search string
-    // since the toggle was done by the user to show subfields
     expect(
         ".o_export_tree_item[data-field_id='activity_ids/partner_ids/company_ids']",
     ).toHaveCount(1, {
@@ -1141,8 +1132,6 @@ test("Export dialog: button is re-enabled after a failed export", async () => {
     expect(".o_select_button").toBeEnabled();
     await contains(".o_select_button").click();
     expect(".o_select_button").not.toBeEnabled();
-    // the download rejects: the button must be re-enabled by the finally block,
-    // not left permanently disabled.
     def.reject(new Error("export failed"));
     await animationFrame();
     expect(".o_select_button").toBeEnabled();
@@ -1156,7 +1145,7 @@ test("Export dialog: rapid template switch keeps the last selection", async () =
     onRpc("/web/export/namelist", async (request) => {
         const { params } = await request.json();
         if (params.export_id === 1) {
-            await slowTemplate; // template 1's fields arrive late
+            await slowTemplate;
             return [{ id: "foo", string: "Foo" }];
         }
         return [{ id: "bar", string: "Bar" }];
@@ -1178,17 +1167,13 @@ test("Export dialog: rapid template switch keeps the last selection", async () =
     });
     await openExportDialog();
 
-    // switch to template 1 (its namelist is delayed) then quickly to template 2
     await select("1", { target: ".o_exported_lists_select" });
     await select("2", { target: ".o_exported_lists_select" });
     await animationFrame();
 
-    // template 2 resolved first: its fields are shown, consistent with its id
     expect(".o_exported_lists_select").toHaveValue("2");
     expect(queryAllTexts(".o_fields_list .o_export_field")).toEqual(["Bar"]);
 
-    // template 1's late response must be discarded (KeepLast), not clobber the
-    // list and leave exportList mismatched with the selected templateId
     slowTemplate.resolve();
     await animationFrame();
     expect(".o_exported_lists_select").toHaveValue("2");
@@ -1196,9 +1181,6 @@ test("Export dialog: rapid template switch keeps the last selection", async () =
 });
 
 test("Export dialog: rapid compat toggle does not mix field sets", async () => {
-    // Non-compat and import-compat modes return different field sets. A rapid
-    // double toggle runs two fetchFields concurrently; the late (superseded)
-    // response must not be merged into the shared knownFields cache.
     const compatFields = [
         {
             children: false,
@@ -1224,7 +1206,7 @@ test("Export dialog: rapid compat toggle does not mix field sets", async () => {
     onRpc("/web/export/get_fields", async (request) => {
         const { params } = await request.json();
         if (params.import_compat) {
-            await slowCompat; // the import-compatible field set arrives late
+            await slowCompat;
             return compatFields;
         }
         return [...fetchedFields.root];
@@ -1240,15 +1222,12 @@ test("Export dialog: rapid compat toggle does not mix field sets", async () => {
     await openExportDialog();
     expect(".o_export_tree_item").toHaveCount(3);
 
-    // Toggle to import-compatible (RPC delayed), then immediately back off.
     await contains(".o_import_compat input").click();
     await contains(".o_import_compat input").click();
     await animationFrame();
     expect(".o_import_compat input").not.toBeChecked();
     expect(queryAllTexts(".o_export_tree_item")).toEqual(["Activities", "Foo", "Bar"]);
 
-    // The late import-compatible response resolves last: it must be discarded,
-    // not merged into the non-compat field set now on screen.
     slowCompat.resolve();
     await animationFrame();
     expect(".o_import_compat input").not.toBeChecked();

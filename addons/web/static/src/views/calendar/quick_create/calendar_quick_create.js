@@ -57,9 +57,6 @@ export class CalendarQuickCreate extends Component {
                 await this.props.model.createRecord(this.record);
                 this.props.close();
             } catch (error) {
-                // Only server (RPC) errors fall back to the full form dialog
-                // (same contract as kanban's showFormDialogInError); anything
-                // else (network loss, client crash) must surface normally.
                 if (!(error instanceof RPCError)) {
                     throw error;
                 }

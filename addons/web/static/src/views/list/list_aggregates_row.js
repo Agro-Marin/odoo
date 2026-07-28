@@ -63,10 +63,7 @@ export class ListAggregatesRow extends Component {
 
     /** Initialize group creation input ref and aggregate computation hook. */
     setup() {
-        // Group creation input ref + autofocus (was on ListRenderer; moved here
-        // because the DOM element lives in this component's template).
         this.groupInputRef = useRef("groupInput");
-        // Re-focus the input whenever showGroupInput becomes true
         useAutofocus({ refName: "groupInput" });
 
         this.agg = useListAggregates({
@@ -76,18 +73,6 @@ export class ListAggregatesRow extends Component {
             getOptionalActiveFields: () => this.props.optionalActiveFields,
         });
 
-        // Per-render memoization for `columns` / `aggregates`: the template reads
-        // `aggregates[col.name]` ~4x per column and `columns` via both colspan
-        // helpers, so an unmemoized getter recomputes the O(nCols × records)
-        // `computeAggregates()` up to `4·nCols + 2` times per render — O(nCols² ×
-        // records) on every cell edit/selection/sort. Caching per render collapses
-        // that to one computation.
-        //
-        // Reactive correctness holds: the first read per render still happens
-        // during template evaluation inside OWL's tracking scope, so subscriptions
-        // to `list.records`/`record.data`/`record.selected` are established as
-        // before; `onWillRender` only bumps a plain counter (`_renderId`), adding
-        // no reactive dependency of its own.
         this._renderId = 0;
         this._columnsCache = { renderId: -1, value: null };
         this._aggregatesCache = { renderId: -1, value: null };
@@ -95,8 +80,6 @@ export class ListAggregatesRow extends Component {
             this._renderId++;
         });
     }
-
-    // Column helpers (memoized per render — see setup())
 
     /** @returns {any[]} All columns including expanded property fields. */
     get allColumns() {
@@ -129,9 +112,6 @@ export class ListAggregatesRow extends Component {
 
     /** @returns {Record<string, object>} Computed aggregate values keyed by field name. */
     get aggregates() {
-        // First read per render establishes OWL reactive tracking (subscribes to
-        // list.records, record.data[field], record.selected); later reads within
-        // the same render return the cached result (see setup()).
         if (this._aggregatesCache.renderId !== this._renderId) {
             this._aggregatesCache = {
                 renderId: this._renderId,
@@ -145,8 +125,6 @@ export class ListAggregatesRow extends Component {
     get fields() {
         return this.props.list.fields;
     }
-
-    // Layout helpers
 
     /** @returns {any[]} Columns that have aggregate values to display. */
     getAggregateColumns() {
@@ -166,8 +144,6 @@ export class ListAggregatesRow extends Component {
             { hasSelectors: this.props.hasSelectors },
         );
     }
-
-    // Group creation input handlers
 
     /**
      * Handle keydown in the group creation input. Enter confirms, Escape cancels.
@@ -191,8 +167,6 @@ export class ListAggregatesRow extends Component {
         const value = /** @type {HTMLInputElement} */ (this.groupInputRef.el).value;
         this.props.onGroupInputConfirm(value);
     }
-
-    // Multi-currency popover
 
     /**
      * Open the multi-currency breakdown popover for a monetary aggregate cell.

@@ -15,20 +15,6 @@
  * @param {string} params.weekText - header label for the week column
  */
 export function makeWeekColumn({ el, weekText }) {
-    // FullCalendar v7 (with ``weekNumbersWithinDays: false``) renders the
-    // month-grid week number as the first child of each ``.fc-daygrid-row`` --
-    // a sibling of the day cells, not nested inside the first one as in v6 --
-    // but it does NOT emit a matching header cell, so the header row has one
-    // fewer column than the body rows.
-    //
-    // The body week number is tagged ``.o-fc-week`` via the renderer's
-    // ``inlineWeekNumberClass`` option (it survives FullCalendar's body
-    // re-renders, which an imperative class here would not). All that remains
-    // is to prepend an aligned header cell so the header keeps the same column
-    // count as the body. The cell must NOT carry ``.fc-col-header-cell`` --
-    // that class backs day-name queries and would pollute them with the week
-    // label. The shared ``width: 3ch`` rule on ``.o-fc-week, .o-fc-week-header``
-    // (calendar_renderer.scss) aligns it above the equal-width day columns.
     const headerCell = el.querySelector(".fc-col-header-cell");
     const headerRow = headerCell?.parentElement;
     if (headerRow && !headerRow.querySelector(".o-fc-week-header")) {

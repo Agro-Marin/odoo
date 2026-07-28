@@ -70,9 +70,6 @@ describe("sticky-empty group re-insertion", () => {
         const config = makeConfig();
         await runPostprocess(config, ["A", "B", "C"]);
 
-        // The response reorders the survivors: the dropped group (B) must be
-        // re-inserted after its previous surviving neighbor (A) in the NEW
-        // order — index-based splicing produced [C, B, A].
         const { groups } = await runPostprocess(config, ["C", "A"]);
 
         expect(groups.map((g) => g.value)).toEqual(["C", "A", "B"]);
@@ -82,7 +79,6 @@ describe("sticky-empty group re-insertion", () => {
         const config = makeConfig();
         await runPostprocess(config, ["A", "B"]);
 
-        // B dropped, E is new: B belongs after A, not between E and A.
         const { groups } = await runPostprocess(config, ["E", "A"]);
 
         expect(groups.map((g) => g.value)).toEqual(["E", "A", "B"]);
@@ -132,11 +128,6 @@ describe("sticky-empty group re-insertion", () => {
             );
         await run(["A", "B"]);
 
-        // Same-params reload where A drops out of the response (e.g. its
-        // records were all deleted): the sticky re-insertion claims count 0,
-        // so its stale nested subgroups (still holding the deleted records)
-        // must be reset too — they used to be spread as-is and rendered the
-        // deleted records as live rows under a "(0)" parent.
         const { groups } = await run(["B"]);
 
         expect(groups.map((g) => g.value)).toEqual(["A", "B"]);
@@ -144,7 +135,6 @@ describe("sticky-empty group re-insertion", () => {
         expect(sticky.count).toBe(0);
         expect(sticky.length).toBe(0);
         expect(sticky.groups).toEqual([]);
-        // The surviving group keeps its nested subgroups untouched.
         expect(groups[1].groups.map((g) => g.value)).toEqual(["x", "y"]);
     });
 });

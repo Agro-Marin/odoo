@@ -1,9 +1,6 @@
 // @ts-check
 
 // a prior `eslint --fix` hoisted this side-effect import to the top, ahead
-// of `registry`; restored to its original (last) position. Not verified
-// against the Hoot suite (harness unavailable in this environment) — treat
-// this position as the known-safe one until it is.
 import "@web/views/module_views";
 
 import { expect, test } from "@odoo/hoot";
@@ -29,7 +26,6 @@ function makeEnv({ resModel = "ir.module.module", viewType = "list", call } = {}
 test("isDisplayed swallows a rejected check_module_update", async () => {
     const isDisplayed = getIsDisplayed();
     const env = makeEnv({ call: () => Promise.reject(new Error("boom")) });
-    // A rejected background RPC must not crash the Apps view: hide the item.
     expect(await isDisplayed(env)).toBe(false);
 });
 
@@ -43,7 +39,6 @@ test("isDisplayed memoizes check_module_update per action", async () => {
         },
     });
     expect(await isDisplayed(env)).toBe(true);
-    // Simulate onWillUpdateProps re-evaluating with the same config object.
     expect(await isDisplayed(env)).toBe(true);
     expect(calls).toBe(1);
 });

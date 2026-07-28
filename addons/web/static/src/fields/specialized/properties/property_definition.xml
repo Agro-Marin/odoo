@@ -87,7 +87,6 @@
                         </Dropdown>
                     </div>
                 </div>
-                <!-- Add / remove selection labels -->
                 <div t-if="state.propertyDefinition.type === 'selection'" class="d-contents mb-3 mb-sm-0">
                     <label class="o_form_label text-900">Values</label>
                     <PropertyDefinitionSelection

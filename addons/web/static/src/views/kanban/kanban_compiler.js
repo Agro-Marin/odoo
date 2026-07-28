@@ -46,15 +46,12 @@ export class KanbanCompiler extends ViewCompiler {
         );
     }
 
-    // Compilers
-
     /**
      * @override
      */
     compileButton(el, params) {
         const type = el.getAttribute("type");
         if (!SPECIAL_TYPES.includes(type)) {
-            // Not a kanban-specific action type.
             return super.compileButton(el, params);
         }
 
@@ -62,7 +59,6 @@ export class KanbanCompiler extends ViewCompiler {
 
         if (ACTION_TYPES.includes(type)) {
             if (!el.hasAttribute("debounce")) {
-                // action buttons are debounced in kanban records
                 el.setAttribute("debounce", 300);
             }
             return super.compileButton(el, params);
@@ -108,7 +104,6 @@ export class KanbanCompiler extends ViewCompiler {
         const recordExpr = params.recordExpr || "__comp__.props.record";
         const dataPointIdExpr = params.dataPointIdExpr || `${recordExpr}.id`;
         if (!el.hasAttribute("widget")) {
-            // fields without a specified widget are rendered as simple spans in kanban records
             const fieldId = el.getAttribute("field_id");
             compiled = createElement("span", {
                 "t-out":
@@ -119,9 +114,6 @@ export class KanbanCompiler extends ViewCompiler {
             compiled = super.compileField(el, params);
             const fieldId = el.getAttribute("field_id");
             compiled.setAttribute("id", `'${fieldId}_' + ${dataPointIdExpr}`);
-            // x2many kanban records can be edited in a dialog using the same
-            // record; force fields readonly while it's in edition so the
-            // background kanban doesn't show it being edited.
             const readonlyAttr = compiled.getAttribute("readonly");
             if (readonlyAttr) {
                 compiled.setAttribute(
@@ -154,20 +146,18 @@ export class KanbanCompiler extends ViewCompiler {
                 return `'${key}':${value}`;
             });
             compiled.setAttribute("attrs", `{${attrsParts.join(",")}}`);
-        } else if (odoo.debug) {
-            // Widget-less fields compile to a bare <span t-out=...>: only t-*
-            // directives (except t-att*) are forwarded below, so class/style
-            // and t-att(f)-* attributes are silently dropped. Surface that in
-            // debug mode instead of leaving arch authors to diff the DOM.
-            for (const attr of Object.keys(attrs)) {
+        } else {
+            // A widget-less field compiles to a bare <span t-out="..."/>. Forward
+            // the author's presentational attributes onto it: the widget branch
+            // above passes them through `attrs`, so dropping them here made the
+            // same arch style or not depending on an unrelated `widget=`.
+            for (const [key, value] of Object.entries(attrs)) {
                 if (
-                    ["class", "style"].includes(attr) ||
-                    attr.startsWith("t-att-") ||
-                    attr.startsWith("t-attf-")
+                    ["class", "style"].includes(key) ||
+                    key.startsWith("t-att-") ||
+                    key.startsWith("t-attf-")
                 ) {
-                    console.warn(
-                        `KanbanCompiler: attribute "${attr}" on <field name="${attrs.name}"/> is ignored because the field has no widget (add a widget="..." to forward it)`,
-                    );
+                    compiled.setAttribute(key, value);
                 }
             }
         }

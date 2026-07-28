@@ -78,6 +78,13 @@ function _match(pattern, str, preNormalized = false) {
  * Return `list` filtered to fuzzy matches of `pattern`, ordered by score
  * (higher = better match, e.g. consecutive letters).
  *
+ * An EMPTY pattern matches everything, in the input order: every element
+ * trivially contains no letters in order. It used to match NOTHING, because
+ * {@link _match} scores an empty pattern 0 and this filters on ``score > 0`` —
+ * so "clear the search box" returned an empty result set rather than the
+ * unfiltered list. Every call site works around it with its own
+ * ``if (query)`` guard; the guard is now redundant rather than load-bearing.
+ *
  * @template T
  * @param {string} pattern
  * @param {T[]} list
@@ -88,6 +95,9 @@ function _match(pattern, str, preNormalized = false) {
  */
 export function fuzzyLookup(pattern, list, fn, { preNormalized = false } = {}) {
     const normalizedPattern = normalize(pattern);
+    if (!normalizedPattern) {
+        return [...list];
+    }
     /** @type {{ score: number, elem: T }[]} */
     const results = [];
     list.forEach((data) => {
@@ -97,19 +107,22 @@ export function fuzzyLookup(pattern, list, fn, { preNormalized = false } = {}) {
         }
     });
 
-    // we want better matches first
     results.sort((a, b) => b.score - a.score);
 
     return results.map((r) => r.elem);
 }
 
 /**
+ * Whether `string` fuzzy-matches `pattern`. An empty pattern matches anything,
+ * consistently with {@link fuzzyLookup}.
+ *
  * @param {string} pattern
  * @param {string} string
  * @returns {boolean}
  */
 export function fuzzyTest(pattern, string) {
-    return _match(normalize(pattern), string) !== 0;
+    const normalizedPattern = normalize(pattern);
+    return !normalizedPattern || _match(normalizedPattern, string) !== 0;
 }
 
 /**
@@ -122,9 +135,6 @@ export function fuzzyTest(pattern, string) {
  * @returns {string[]} The list of the words that matches within a defined number of errors.
  */
 export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
-    // maxNbrCorrection scales with pattern length: longer patterns tolerate
-    // more edits.  No minimum — errorRatio=100 on a short pattern yields 0,
-    // restricting results to exact substrings only.
     const maxNbrCorrection = Math.round(pattern.length / errorRatio);
     pattern = normalize(pattern);
     const scored = [];
@@ -139,7 +149,6 @@ export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
             }
         }
     }
-    // Best matches first; stable sort preserves input order within ties.
     scored.sort((a, b) => a.score - b.score);
     return scored.map((r) => r.candidate);
 }
@@ -161,7 +170,6 @@ function getLevenshteinScore(a, b) {
     if (bLen === 0) {
         return aLen;
     }
-    // Ensure b is the shorter string so the row arrays are minimal.
     if (aLen < bLen) {
         return getLevenshteinScore(b, a);
     }

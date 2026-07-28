@@ -66,7 +66,7 @@ export class X2ManyFieldDialog extends Component {
         shared.get("useViewButtons")(/** @type {any} */ (this.modalRef), {
             reload,
             beforeExecuteAction: this.beforeExecuteActionButton.bind(this),
-        }); // maybe pass the model directly in props
+        });
 
         this._computePermissions();
 
@@ -86,7 +86,6 @@ export class X2ManyFieldDialog extends Component {
 
         const { autofocusFieldIds, disableAutofocus } = this.archInfo;
         if (!disableAutofocus) {
-            // to simplify
             useEffect(
                 (isInEdition) => {
                     let elementToFocus;
@@ -198,9 +197,6 @@ export class X2ManyFieldDialog extends Component {
                     if (saveAndNew) {
                         await this.record.switchMode("readonly");
                         this.record = await this.props.addNew();
-                        // The new blank record has no resId: recompute so the
-                        // dialog isn't stuck with the previous record's readonly
-                        // / canCreate flags.
                         this._computePermissions();
                     }
                 } else {
@@ -260,15 +256,13 @@ async function getFormViewInfo({ list, context, activeField, viewService, env })
         const { ArchParser } = views.get("form");
         const xmlDoc = parseXML(loadedViews.form.arch);
         formArchInfo = new ArchParser().parse(xmlDoc, relatedModels, comodel);
-        // Fields needed = form view fields + list record fields (present in the
-        // list arch or the kanban arch of the one2many field)
-        fields = { ...list.fields, ...formFields }; // FIXME: update in place?
+        fields = { ...list.fields, ...formFields };
     }
 
     await shared.get("loadSubViews")(
         formArchInfo.fieldNodes,
         fields,
-        {}, // context
+        {},
         comodel,
         viewService,
         env.isSmall,
@@ -290,7 +284,7 @@ async function getFormViewInfo({ list, context, activeField, viewService, env })
  * @returns {Function} openRecord
  */
 export function useOpenX2ManyRecord({
-    activeField, // TODO: this should be renamed (object with keys "viewMode", "views" and "string")
+    activeField,
     activeActions,
     getList,
     updateRecord,
@@ -319,9 +313,6 @@ export function useOpenX2ManyRecord({
             env,
         });
         if (!component.props.record.isInEdition) {
-            // getFormViewInfo may return the shared, cached archInfo of the
-            // inline form subview: clone before mutating, otherwise the flag
-            // would poison every later dialog opened for the same field.
             archInfo = {
                 ...archInfo,
                 activeActions: { ...archInfo.activeActions, edit: false },
@@ -340,10 +331,6 @@ export function useOpenX2ManyRecord({
         } else {
             params.mode = readonly || !activeActions.write ? "readonly" : "edit";
         }
-        // Params for creating a blank record: used both when the dialog opens
-        // without a record and for the "Save & New" follow-up records (which
-        // must get the field context and, for m2m, `withoutParent` even when
-        // the dialog was opened on an existing record).
         const creationParams = {
             ...params,
             context: makeContext([list.context, context]),

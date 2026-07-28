@@ -71,7 +71,6 @@ export function useActiveElement(refName) {
             if (el) {
                 const [firstTabableEl] = getFirstAndLastTabableElements(el);
                 if (!firstTabableEl && !isFocusable(el)) {
-                    // no tabable elements: no need to trap focus nor become the UI active element
                     return;
                 }
                 const oldActiveElement = document.activeElement;
@@ -86,13 +85,7 @@ export function useActiveElement(refName) {
                 } else if (el !== document.activeElement) {
                     el.focus();
                 }
-                return async () => {
-                    // Components are destroyed from top to bottom, meaning that this cleanup is
-                    // called before the ones of children. As a consequence, event handlers added on
-                    // the current active element in children aren't removed yet, and can thus be
-                    // executed if we deactivate that active element right away (e.g. the blur and
-                    // change events could be triggered). For that reason, we wait for a micro-tick.
-                    await Promise.resolve();
+                return () => {
                     uiService.deactivateElement(el);
                     el.removeEventListener("keydown", trapFocus);
 
@@ -126,7 +119,6 @@ export function useActiveElement(refName) {
     );
 }
 
-// window size handling
 export const MEDIAS_BREAKPOINTS = [
     { maxWidth: 575 },
     { minWidth: 576, maxWidth: 767 },
@@ -156,9 +148,21 @@ export function getMediaQueryLists() {
     });
 }
 
-// window size handling.
 let MEDIAS = getMediaQueryLists();
+/** @type {((ev: MediaQueryListEvent) => void) | null} */
 let updateSizeHandler = null;
+/** Whether `MEDIAS` was already handed to a `uiService.start` (live or dead). */
+let mediasBound = false;
+
+/** Detach the current start's breakpoint listener from `MEDIAS`, if any. */
+function releaseMedias() {
+    if (updateSizeHandler) {
+        for (const media of MEDIAS) {
+            media.removeEventListener?.("change", updateSizeHandler);
+        }
+        updateSizeHandler = null;
+    }
+}
 
 export const utils = {
     getSize() {
@@ -178,7 +182,6 @@ const bus = new EventBus();
 export const uiService = {
     /** @param {import("@web/env").OdooEnv} env */
     start(env) {
-        // block/unblock code
         registry
             .category("main_components")
             .add(
@@ -190,9 +193,7 @@ export const uiService = {
         /** @param {{ message?: string, delay?: number }} [data] */
         function block(data) {
             blockCount++;
-            ui.blocked = true;
-            // TODO could probably be improved to handle multiple block demands
-            // but that have different messages and delays
+            ui.isBlocked = true;
             if (blockCount === 1) {
                 bus.trigger(AppEvent.BLOCK, {
                     message: data?.message,
@@ -209,12 +210,11 @@ export const uiService = {
                 blockCount = 0;
             }
             if (blockCount === 0) {
-                ui.blocked = false;
+                ui.isBlocked = false;
                 bus.trigger(AppEvent.UNBLOCK);
             }
         }
 
-        // UI active element code
         /** @type {(Document | HTMLElement)[]} */
         let activeElems = [document];
 
@@ -236,32 +236,31 @@ export const uiService = {
             }
         }
 
-        if (updateSizeHandler) {
-            MEDIAS.forEach((m) => m.removeEventListener?.("change", updateSizeHandler));
+        if (mediasBound) {
+            releaseMedias();
             MEDIAS = getMediaQueryLists();
         }
+        mediasBound = true;
 
         const ui = reactive({
             bus,
             size: utils.getSize(),
-            // Plain reactive properties (assigned in activate/deactivate and
-            // block/unblock): getters over closure state would be invisible
-            // to OWL reactivity, so `useState(useService("ui"))` consumers
-            // would silently never re-render on them.
             activeElement: /** @type {Document | HTMLElement} */ (document),
-            blocked: false,
-            get isBlocked() {
-                return blockCount > 0;
-            },
+            isBlocked: false,
             isSmall: utils.isSmall(),
             block,
             unblock,
             activateElement,
             deactivateElement,
             getActiveElementOf,
+            /**
+             * Service-teardown hook (see `makeEnv().destroy`). Without it the
+             * breakpoint listeners outlive their env and keep writing `size` /
+             * `isSmall` into a `ui` nobody reads any more on every resize.
+             */
+            destroy: releaseMedias,
         });
 
-        // listen to media query status changes
         updateSizeHandler = (ev) => {
             if (ev.matches) {
                 ui.size = MEDIAS.indexOf(ev.target);

@@ -18,7 +18,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 
-const ACTIVE_IDS_LIMIT = 20000; // session.active_ids_limit default (ir_http.py)
+const ACTIVE_IDS_LIMIT = 20000;
 const TOTAL_RECORDS = 25000;
 const NB_GROUPS = 12;
 
@@ -45,22 +45,16 @@ function makeList({ grouped }) {
     };
 
     if (grouped) {
-        // `count` == number of groups, per DynamicGroupList._setData.
         list.count = NB_GROUPS;
         list.groups = [];
-        // The real record total lives here.
         list._nbRecordsMatchingDomain = TOTAL_RECORDS;
     } else {
-        // `count` == number of records for a DynamicRecordList.
         list.count = TOTAL_RECORDS;
-        // `records` is a getter backed by `_records` — assigning it throws.
         list._records = [];
     }
 
     list.model = {
         activeIdsLimit: ACTIVE_IDS_LIMIT,
-        // The server caps the search at activeIdsLimit, so exactly that many
-        // ids come back even though TOTAL_RECORDS match the domain.
         orm: {
             search: async () =>
                 Array.from({ length: ACTIVE_IDS_LIMIT }, (_, i) => i + 1),
@@ -89,8 +83,6 @@ describe("grouped bulk operations respect the active-ids limit warning", () => {
     test("grouped list warns when delete is truncated", async () => {
         const { list, notifications } = makeList({ grouped: true });
         await list._deleteRecords([]);
-        // Currently 0: the guard compares 20000 < 12 (groups) instead of
-        // 20000 < 25000 (records), so the user is silently told nothing.
         expect(notifications.length).toBe(1);
         expect(notifications[0]).toInclude("20000");
     });
@@ -99,7 +91,6 @@ describe("grouped bulk operations respect the active-ids limit warning", () => {
         const { list, notifications } = makeList({ grouped: true });
         await list._toggleArchive(true);
         expect(notifications.length).toBe(1);
-        // Must mention 25000 records — never "12".
         expect(notifications[0]).toInclude("25000");
     });
 });

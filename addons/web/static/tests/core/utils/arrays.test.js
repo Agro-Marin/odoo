@@ -22,8 +22,6 @@ describe.current.tags("headless");
 
 describe("groupby", () => {
     test("groupBy parameter validations", () => {
-        // Safari: TypeError: undefined is not a function
-        // Other navigator: array is not iterable
         expect(() => groupBy({})).toThrow(/TypeError: \w+ is not iterable/);
         expect(() => groupBy([], true)).toThrow(
             /Expected criterion of type 'string' or 'function' and got 'boolean'/,
@@ -86,9 +84,6 @@ describe("sortby", () => {
     });
 
     test("sortBy places NaN keys consistently and keeps finite keys ordered", () => {
-        // NaN is `typeof "number"`, so `a - b` returned NaN and left the whole
-        // ordering engine-defined. Finite keys must still sort ascending, with
-        // NaN(s) ranked last (asc) / first (desc), never scrambling neighbors.
         expect(sortBy([3, NaN, 1])).toEqual([1, 3, NaN]);
         expect(sortBy([5, 3, NaN, 8, 1, 9, 2, 7, NaN, 4, 6, 0])).toEqual([
             0,
@@ -199,9 +194,6 @@ describe("intersection", () => {
     });
 
     test("preserves first-argument order", () => {
-        // Set.prototype.intersection iterates the SMALLER set, which would
-        // order the result by the shorter input; the result must always
-        // follow the first argument's order.
         expect(intersection([1, 2, 3, 4], [3, 1])).toEqual([1, 3]);
         expect(intersection([3, 1], [1, 2, 3, 4])).toEqual([3, 1]);
         expect(intersection(["b", "a", "c"], ["c", "a"])).toEqual(["a", "c"]);
@@ -239,8 +231,6 @@ describe("cartesian", () => {
     });
 
     test("cartesian product of a single array returns a fresh copy", () => {
-        // Every other arity produces a new array; n = 1 must too, so callers
-        // can mutate the result without corrupting their input.
         const input = [1, 2, 3];
         const result = cartesian(input);
         expect(result).toEqual([1, 2, 3]);

@@ -11,8 +11,7 @@ import { nextActionDepth } from "../action_constants.js";
 
 const actionRegistry = registry.category("actions");
 
-/** @import { ActionManager } from "../action_service.js" */
-/** @import { ClientAction } from "@web/webclient/actions/action_service" */
+/** @import { ActionManager, ActionOptions, ClientAction } from "../action_service.js" */
 
 /**
  * Execute an action of type ``ir.actions.client``.
@@ -26,13 +25,11 @@ const actionRegistry = registry.category("actions");
  *     ``nextActionDepth`` limit to catch action loops at the client level.
  *
  * @param {ClientAction} action
- * @param {{
- *   target?: string,
- *   newWindow?: boolean,
- *   props?: object,
- *   forceLeave?: boolean,
- *   _actionDepth?: number,
- * }} options
+ * @param {ActionOptions} options the full caller options bag. Same reason as
+ *   ``act_url.js``: the dispatcher in ``action_service`` forwards it verbatim to
+ *   every executor, and this executor spreads it into the follow-up
+ *   ``doAction``, so narrowing it to the keys read here made callers passing any
+ *   other legitimate option (``onClose``, ``clearBreadcrumbs``, …) a type error.
  * @param {ActionManager} am
  */
 export async function executeClientAction(action, options, am) {

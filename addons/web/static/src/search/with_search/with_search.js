@@ -13,7 +13,6 @@ import { KeepLast } from "@web/core/utils/concurrency";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
 
-// Re-export for backward compatibility — canonical location is @web/core/constants
 export { SEARCH_KEYS };
 
 /** Creates a SearchModel, injects it into the sub-env, and re-renders children on search-state change. */
@@ -30,13 +29,11 @@ export class WithSearch extends Component {
 
         display: { type: Object, optional: true },
 
-        // search query elements
         context: { type: Object, optional: true },
         domain: { type: Array, element: [String, Array], optional: true },
         groupBy: { type: Array, element: String, optional: true },
         orderBy: { type: Array, element: Object, optional: true },
 
-        // search view description
         searchViewArch: { type: String, optional: true },
         searchViewFields: { type: Object, optional: true },
         searchViewId: { type: [Number, Boolean], optional: true },
@@ -44,7 +41,6 @@ export class WithSearch extends Component {
         irFilters: { type: Array, element: Object, optional: true },
         loadIrFilters: { type: Boolean, optional: true },
 
-        // extra options
         activateFavorite: { type: Boolean, optional: true },
         dynamicFilters: { type: Array, element: Object, optional: true },
         hideCustomGroupBy: { type: Boolean, optional: true },
@@ -102,20 +98,10 @@ export class WithSearch extends Component {
             await this.searchModel.load(config);
         });
 
-        // Supersede overlapping prop-driven reloads: rapid successive updates
-        // (controller state churn) otherwise pile up awaits on interleaving
-        // reloads. Section fetches are additionally serialized by the model's
-        // internal mutex (see SearchModel._reloadSections); this KeepLast keeps
-        // only the latest reload's continuation live so the last-started reload
-        // cleanly wins.
         const reloadKeepLast = new KeepLast();
 
         onWillUpdateProps(async (nextProps) => {
             const config = {};
-            // NOTE: only SEARCH_KEYS (context/domain/groupBy/orderBy) are
-            // forwarded on update — changes to `display` and the other
-            // construction-time props are intentionally ignored after the
-            // initial load().
             for (const key of SEARCH_KEYS) {
                 if (nextProps[key] !== undefined) {
                     config[key] = nextProps[key];

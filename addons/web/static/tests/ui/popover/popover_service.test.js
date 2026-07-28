@@ -195,9 +195,30 @@ test("close popover if target is removed", async () => {
     expect(".o_popover #comp").toHaveCount(0);
 });
 
+test("close popover if an ancestor of the target is removed", async () => {
+    class Comp extends Component {
+        static template = xml`<div id="comp">in popover</div>`;
+        static props = ["*"];
+    }
+
+    const wrapper = document.createElement("div");
+    const popoverTarget = document.createElement("div");
+    wrapper.appendChild(popoverTarget);
+    target.appendChild(wrapper);
+
+    getService("popover").add(popoverTarget, Comp);
+    await animationFrame();
+
+    expect(".o_popover").toHaveCount(1);
+
+    wrapper.remove();
+    await animationFrame();
+
+    expect(popoverTarget.isConnected).toBe(false);
+    expect(".o_popover").toHaveCount(0);
+});
+
 test("close and do not crash if target parent does not exist", async () => {
-    // This target does not have any parent, it simulates the case where the element disappeared
-    // from the DOM before the setup of the component
     const dissapearedTarget = document.createElement("div");
 
     class Comp extends Component {

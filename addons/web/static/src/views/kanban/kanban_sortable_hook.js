@@ -56,10 +56,6 @@ export function useKanbanSortable(options) {
         onSortGroupDrop,
     } = options;
 
-    // onDrop's params carry the drop target but not the source's original
-    // data-id, so each useSortable instance captures its own at drag start —
-    // the two instances must not share these, or one drag kind could clobber
-    // the ids the other still reads.
     let dataRecordId;
     let dataGroupId;
     let draggedGroupId;
@@ -77,8 +73,6 @@ export function useKanbanSortable(options) {
             const { element, group } = params;
             dataRecordId = element.dataset.id;
             dataGroupId = group?.dataset.id;
-            // Clear any pre-existing selection so the drag affects only the
-            // dragged card, not the whole multi-select.
             const selection = getSelection();
             if (selection?.length) {
                 selection.forEach((record) => {

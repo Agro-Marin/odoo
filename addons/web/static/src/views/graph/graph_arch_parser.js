@@ -70,7 +70,7 @@ export class GraphArchParser {
                     break;
                 }
                 case "field": {
-                    const fieldName = node.getAttribute("name"); // exists (rng validation)
+                    const fieldName = node.getAttribute("name");
                     if (fieldName === "id") {
                         break;
                     }
@@ -101,10 +101,9 @@ export class GraphArchParser {
                     const isMeasure = node.getAttribute("type") === "measure";
                     if (isMeasure) {
                         archInfo.measures.push(fieldName);
-                        // the last field with type="measure" (if any) will be used as measure else __count
                         archInfo.measure = fieldName;
                     } else {
-                        const { type } = archInfo.fields[fieldName]; // exists (rng validation)
+                        const { type } = archInfo.fields[fieldName];
                         if (GROUPABLE_TYPES.includes(type)) {
                             let groupBy = fieldName;
                             const interval = node.getAttribute("interval");

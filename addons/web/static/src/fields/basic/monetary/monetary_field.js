@@ -3,7 +3,7 @@
 
 /** @module @web/fields/basic/monetary/monetary_field - Currency-aware numeric input field for Monetary columns */
 
-import { useEffect } from "@odoo/owl";
+import { useEffect, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
@@ -35,15 +35,29 @@ export class MonetaryField extends NumericInputFieldBase {
     setup() {
         useRenderCounter("fields.MonetaryField");
         super.setup();
-        // Mirrors the input's current text so the template's ghost <span> can
-        // size the currency symbol placement (kept in sync via onInput below).
-        this.state.value = /** @type {string | undefined} */ (undefined);
         this.nbsp = nbsp;
-        useEffect(() => {
-            if (this.inputRef?.el) {
-                this.state.value = this.inputRef.el.value;
-            }
-        });
+        this.ghostRef = useRef("ghostValue");
+        // The input is uncontrolled (useInputField writes input.value
+        // directly), so a model-driven change patches no DOM the renderer
+        // owns. This unconditional effect re-syncs the ghost after every
+        // patch; onInput covers the keystrokes in between.
+        useEffect(() => this.syncGhostValue());
+    }
+
+    /**
+     * Mirrors the input's text into the hidden ghost span that reserves the
+     * inline space the currency symbol is positioned against.
+     *
+     * Written straight to the DOM rather than held in ``useState``: the ghost
+     * is presentational and always equals the input's own value, so routing it
+     * through reactive state made every keystroke re-render the component
+     * (measured: 4 renders for 3 characters, against 0 for CharField, whose
+     * input is likewise uncontrolled).
+     */
+    syncGhostValue() {
+        if (this.ghostRef.el && this.inputRef?.el) {
+            this.ghostRef.el.textContent = this.inputRef.el.value;
+        }
     }
 
     /** @param {string} v @returns {number} */
@@ -91,11 +105,7 @@ export class MonetaryField extends NumericInputFieldBase {
     /** @returns {string|number} */
     get formattedValue() {
         if (this.props.inputType === "number" && !this.props.readonly) {
-            // A `<input type="number">` can't hold a locale-formatted string (e.g.
-            // "0,00" blanks the field in comma-decimal locales), so emit the raw
-            // number: `false` (unset) becomes "", `0` is preserved (same fix as
-            // FloatField.formattedValue).
-            return this.value === false ? "" : this.value;
+            return this.rawValue;
         }
         return formatMonetary(this.value, {
             digits: this.currencyDigits,
@@ -108,9 +118,8 @@ export class MonetaryField extends NumericInputFieldBase {
         });
     }
 
-    /** @param {InputEvent & { target: HTMLInputElement }} ev */
-    onInput(ev) {
-        this.state.value = ev.target.value;
+    onInput() {
+        this.syncGhostValue();
     }
 }
 

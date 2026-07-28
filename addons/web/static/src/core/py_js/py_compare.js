@@ -10,26 +10,27 @@ import { NotSupportedError, PyDate, PyDateTime, PyTime } from "./py_date.js";
  * Order: None < number (boolean) < dict < string < list. Each type maps to
  * an index representing that order.
  *
+ * This is Python **2**'s total order across types, and it is deliberate — do
+ * not "fix" it to Python 3, which raises a TypeError for every cross-type
+ * comparison (``safe_eval("1 < 'a'")`` does raise server-side).
+ *
+ * The reason is that this kernel evaluates VIEW-ATTRIBUTE expressions —
+ * ``decoration-danger``, ``invisible``, ``readonly`` — against a record's
+ * values, where an unset field is ``false``. A list row whose ``datetime`` is
+ * unset still has to evaluate ``datetime &gt; '2017-02-27 12:51:35'``, and
+ * such expressions are evaluated only on the client, so there is no server
+ * verdict to match. Raising there does not surface a latent bug: it replaces a
+ * cosmetic decoration with a crashed view. A total order keeps them total.
+ *
+ * (Domain LEAF matching does not come through here — see ``matchCondition`` in
+ * ``@web/core/domain``, which does follow the server exactly.)
+ *
  * @param {any} val
  * @returns {number} index type
  */
-// KNOWN LIMITATION (Python 3 divergence): this cross-type ordering is Python-2
-// semantics. Python 3 raises ``TypeError`` for ``<``/``>``/``<=``/``>=`` between
-// incompatible types (``1 < 'a'``, ``None < 1``, ``False < 'x'`` all raise),
-// whereas ``isLess`` returns a boolean by ranking types
-// (None < number < dict < string < list). This is reachable in the wild because
-// an UNSET field reads as ``false``: a view modifier such as
-// ``invisible="code < 'Z'"`` on an empty ``code`` evaluates ``false < 'Z'``.
-// NOT fixed here on purpose: aligning to Python 3 would turn code that silently
-// succeeds today into a thrown error during modifier/domain evaluation (a
-// per-render, view-breaking change), so it needs a focused pass with an audit
-// of existing modifiers + the browser test suite, not a blind flip. A proper
-// fix raises ``TypeError`` from the cross-index branch below (and from the
-// mixed-temporal guard) once callers are known safe.
 function pytypeIndex(val) {
     switch (typeof val) {
         case "object":
-            // None, List, Object, Dict
             return val === null ? 1 : Array.isArray(val) ? 5 : 3;
         case "number":
             return 2;
@@ -78,9 +79,6 @@ export function isLess(left, right) {
     if (typeof right === "boolean") {
         right = right ? 1 : 0;
     }
-    // Cross-kind temporal ordering is a TypeError in Python. Without this
-    // guard the relational operator would silently compare the incompatible
-    // valueOf() scales (date ordinal vs datetime epoch-µs vs time seconds).
     const leftDateKind = pyDateKind(left);
     const rightDateKind = pyDateKind(right);
     if (leftDateKind && rightDateKind && leftDateKind !== rightDateKind) {
@@ -92,9 +90,6 @@ export function isLess(left, right) {
     const rightIndex = pytypeIndex(right);
     if (leftIndex === rightIndex) {
         if (Array.isArray(left) && Array.isArray(right)) {
-            // Python lists compare lexicographically element-by-element, NOT
-            // by their string coercion: `[2] < [10]` is True. `left < right`
-            // would stringify to "2" < "10" → false.
             const n = Math.min(left.length, right.length);
             for (let i = 0; i < n; i++) {
                 if (isLess(left[i], right[i])) {
@@ -129,9 +124,6 @@ export function isEqual(left, right) {
         }
         return false;
     }
-    // Typed Py* objects (PyDate, PyTimeDelta, ...) carry their own equality.
-    // Guard with a typeof check so a plain context dict that happens to have an
-    // ``isEqual`` key (a data value, not a method) doesn't get called.
     if (left instanceof Object && typeof left.isEqual === "function") {
         return left.isEqual(right);
     }
@@ -171,8 +163,6 @@ export function isEqual(left, right) {
         typeof left === "object" &&
         typeof right === "object"
     ) {
-        // Plain dicts: deep-compare own enumerable keys. If either side exposes
-        // a custom ``isEqual`` method it's a typed Py* object, not a dict.
         if (typeof left.isEqual === "function" || typeof right.isEqual === "function") {
             return false;
         }
@@ -198,18 +188,11 @@ export function isEqual(left, right) {
  */
 export function isIn(left, right) {
     if (Array.isArray(right)) {
-        // Python ``in`` uses ``==`` per element, so deep-compare (``[1,2] in
-        // [[1,2]]`` is True) rather than JS strict ``includes``.
         return right.some((x) => isEqual(left, x));
     }
     if (typeof right === "string" && typeof left === "string") {
         return right.includes(left);
     }
-    // KNOWN LIMITATION (Python 3 divergence): ``<non-string> in <string>`` (e.g.
-    // ``1 in 'abc'``) raises ``TypeError`` in Python 3; here it falls through to
-    // ``return false`` below. Low impact (such an expression is almost always a
-    // mistake). A proper fix raises when ``right`` is a string and ``left`` is
-    // not.
     if (right instanceof Set) {
         for (const x of right) {
             if (isEqual(left, x)) {
@@ -219,14 +202,6 @@ export function isIn(left, right) {
         return false;
     }
     if (right != null && typeof right === "object") {
-        // KNOWN LIMITATION (Python 3 divergence): a Python dict is represented as
-        // a plain JS object whose keys are ALWAYS strings, so an integer key and
-        // the equal string key collide — ``5 in {'5': 1}`` returns true (Python:
-        // False) and ``'1' in {1: 2}`` likewise. Only bites dicts that mix int
-        // and string keys (rare in domains/context, which are string-keyed). A
-        // proper fix backs dicts with a real ``Map`` and keeps key types
-        // distinct end to end (see the matching subscript note in
-        // py_interpreter.js). Same root cause as the ``dict[key]`` lookup there.
         return Object.hasOwn(right, left);
     }
     return false;

@@ -51,16 +51,8 @@ export const POSITION_BUS = Symbol("position-bus");
 export function usePosition(refName, getTarget, options = {}) {
     const ref = useRef(refName);
     let lock = false;
-    // Memorize the last computed position in hook-local state instead of
-    // mutating the caller's `options` object: two components sharing one options
-    // object would otherwise cross-contaminate each other, and a frozen options
-    // object would throw on assignment.
     /** @type {string | undefined} */
     let lastPosition;
-    // The caller's requested position last seen by `update`. When it changes
-    // (reactive `options.position`), `lastPosition` is dropped so the new
-    // request takes effect — previously the first solved position replaced the
-    // caller's for the hook's whole lifetime, ignoring later changes.
     let lastRequestedPosition = options.position;
     const update = () => {
         const targetEl = getTarget();
@@ -85,7 +77,6 @@ export function usePosition(refName, getTarget, options = {}) {
 
     let executingUpdate = false;
     const batchedUpdate = async () => {
-        // not same as batch, here we're executing once and then awaiting
         if (!executingUpdate) {
             executingUpdate = true;
             update();
@@ -101,11 +92,6 @@ export function usePosition(refName, getTarget, options = {}) {
         useChildSubEnv({ [POSITION_BUS]: bus });
     }
 
-    // Only the topmost instance attaches scroll/resize listeners (below), so
-    // only it needs the throttled trigger — non-topmost instances would build
-    // an unused throttle wrapper (and its onWillUnmount cleanup) for nothing.
-    // `isTopmost` is fixed for the component's lifetime, so this conditional
-    // hook call is stable.
     const throttledUpdate = isTopmost
         ? useThrottleForAnimation(() => bus.trigger("update"))
         : null;
@@ -113,17 +99,12 @@ export function usePosition(refName, getTarget, options = {}) {
         bus.trigger("update");
 
         if (isTopmost) {
-            // Attach listeners to keep the positioning up to date
             const scrollListener = (/** @type {Event} */ e) => {
                 if (ref.el?.contains(/** @type {Node} */ (e.target))) {
-                    // In case the scroll event occurs inside the popper, do not reposition
                     return;
                 }
                 throttledUpdate();
             };
-            // Get the ownerDocument of the target, and the topmost document
-            // if the target is inside an iframe of same-origin
-            // (c.f. html_builder), to handle scroll events at these 2 levels.
             /** @type {Document[]} */
             const documents = [];
             const targetDocument = getTarget()?.ownerDocument;

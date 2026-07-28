@@ -47,10 +47,6 @@ export class RainbowMan extends Component {
     setup() {
         useExternalListener(document.body, "click", this.closeRainbowMan);
         this.state = useState({ isFading: false });
-        // Unknown fadeout keys (e.g. a server-supplied typo) would yield
-        // ``undefined`` and disable auto-close, leaving the rainbowman stuck
-        // forever. Fall back to "medium". ``??`` (not ``||``) preserves the
-        // intentional ``no: false`` value that keeps it up until a click.
         this.delay =
             /** @type {Record<string, number | false>} */ (RainbowMan.rainbowFadeouts)[
                 this.props.fadeout

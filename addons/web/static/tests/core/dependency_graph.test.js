@@ -42,8 +42,7 @@ describe("findDependencyCycle", () => {
         ]);
         const cycle = findDependencyCycle(graph);
         expect(cycle).not.toBe(null);
-        expect(cycle.length).toBe(3); // ["a", "b", "a"] or ["b", "a", "b"]
-        // First and last element must be the same (closed cycle)
+        expect(cycle.length).toBe(3);
         expect(cycle[0]).toBe(cycle[cycle.length - 1]);
     });
 
@@ -55,7 +54,7 @@ describe("findDependencyCycle", () => {
         ]);
         const cycle = findDependencyCycle(graph);
         expect(cycle).not.toBe(null);
-        expect(cycle.length).toBe(4); // e.g. ["a", "b", "c", "a"]
+        expect(cycle.length).toBe(4);
         expect(cycle[0]).toBe(cycle[cycle.length - 1]);
     });
 
@@ -76,7 +75,6 @@ describe("findDependencyCycle", () => {
         ]);
         const cycle = findDependencyCycle(graph);
         expect(cycle).not.toBe(null);
-        // Cycle must involve b, c, d but not a
         expect(cycle).not.toInclude("a");
         expect(cycle[0]).toBe(cycle[cycle.length - 1]);
     });
@@ -92,8 +90,6 @@ describe("findDependencyCycle", () => {
     });
 
     test("works with complex graph containing one cycle", () => {
-        // a -> b -> c -> d (acyclic)
-        //           c -> e -> f -> c (cycle)
         const graph = new Map([
             ["a", ["b"]],
             ["b", ["c"]],
@@ -105,7 +101,6 @@ describe("findDependencyCycle", () => {
         const cycle = findDependencyCycle(graph);
         expect(cycle).not.toBe(null);
         expect(cycle[0]).toBe(cycle[cycle.length - 1]);
-        // Cycle must be within {c, e, f}
         for (const node of cycle) {
             expect(["c", "e", "f"]).toInclude(node);
         }

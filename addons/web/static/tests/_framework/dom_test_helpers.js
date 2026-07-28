@@ -63,10 +63,6 @@ import { hasTouch } from "@web/core/browser/feature_detection";
  * @typedef {(...args: Parameters<T>) => MaybePromise<ReturnType<T>>} Promisify
  */
 
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
-
 /**
  * @param {typeof click} clickFn
  * @param {Promise<Element>} nodePromise
@@ -153,16 +149,19 @@ let cancelCurrentDragSequence = null;
 /** @type {Target[]} */
 const unconsumedContains = [];
 
-// { global: true } required: this runs at module top-level
-// (outside any describe() suite) when loaded by ModuleSetLoader.
 afterEach(
     async () => {
-        if (cancelCurrentDragSequence) {
-            await cancelCurrentDragSequence();
+        // Both globals are reset BEFORE anything that can throw: this hook runs
+        // after every test, so a cancel that fails must not leave state behind —
+        // otherwise the next test fails in this same cleanup, and so does every
+        // test after it, burying the one real failure under a suite-wide cascade.
+        const cancelDragSequence = cancelCurrentDragSequence;
+        cancelCurrentDragSequence = null;
+        const targets = unconsumedContains.splice(0).map(String).join(", ");
+        if (cancelDragSequence) {
+            await cancelDragSequence();
         }
-        if (unconsumedContains.length) {
-            const targets = unconsumedContains.map(String).join(", ");
-            unconsumedContains.length = 0;
+        if (targets) {
             throw new Error(
                 `called 'contains' on "${targets}" without any action: use 'waitFor' if no interaction is intended`,
             );
@@ -170,10 +169,6 @@ afterEach(
     },
     { global: true },
 );
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * @param {Target} target
@@ -265,9 +260,13 @@ export function contains(target, options) {
             consumeContains();
 
             await cancelCurrentDragSequence?.();
-            cancelCurrentDragSequence = cancelWithDelay;
 
+            // Published only once the sequence exists: ``cancelWithDelay`` closes
+            // over ``cancel`` from the destructuring below, so installing it first
+            // meant a ``drag()`` that threw (a target that never appeared) left a
+            // hook whose ``cancel`` is still in the temporal dead zone.
             const { cancel, drop, moveTo } = await drag(nodePromise, options);
+            cancelCurrentDragSequence = cancelWithDelay;
             const helpersWithDelay = {
                 cancel: cancelWithDelay,
                 drop: dropWithDelay,
@@ -392,7 +391,6 @@ export function contains(target, options) {
          */
         scroll: async (position) => {
             consumeContains();
-            // disable "scrollable" check
             await scroll(nodePromise, position, {
                 scrollable: /** @type {any} */ (false),
                 ...options,
@@ -450,10 +448,6 @@ export function defineStyle(style) {
  * @param {string} value
  */
 export async function editAce(value) {
-    // Ace editor traps focus on "mousedown" events, which are not triggered in
-    // mobile. To support both environments, a single "mouedown" event is triggered
-    // in this specific case. This should not be reproduced and is only accepted
-    // because the tested behaviour comes from a lib on which we have no control.
     await manuallyDispatchProgrammaticEvent(
         queryOne(".ace_editor .ace_content"),
         "mousedown",
@@ -503,8 +497,6 @@ export async function sortableDrag(from, options) {
      */
     const moveUnder = async (targetSelector) => {
         const elRect = queryRect(targetSelector);
-        // Need to consider that the moved element will be replaced by a
-        // placeholder with a height of 5px
         const firstMoveBelow = isFirstMove && elRect.y > fromRect.y;
         await moveTo(targetSelector, {
             position: {

@@ -25,9 +25,6 @@ export class ActionContainer extends Component {
         /** @param {CustomEvent} event */
         this.onActionManagerUpdate = ({ detail: info }) => {
             this.info = info;
-            // startViewTransition can't wrap owl's render() directly — it resolves
-            // before the actual DOM patch, so it would snapshot the pre-update UI
-            // (it must await the real patch, e.g. a mount deferred).
             this.render();
         };
         this.env.bus.addEventListener(

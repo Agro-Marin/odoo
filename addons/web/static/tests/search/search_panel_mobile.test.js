@@ -62,7 +62,7 @@ class Partner extends models.Model {
         },
     ];
     _views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="false_domain" string="False Domain" domain="[(0, '=', 1)]"/>
                 <filter name="filter" string="Filter" domain="[('bar', '=', true)]"/>
@@ -155,10 +155,6 @@ test("Dropdown closes on category selection", async () => {
 });
 
 test("grouped filter header reflects checked/indeterminate state in dropdown", async () => {
-    // Regression: on mobile the section content (incl. the group header
-    // checkbox) is mounted in a Dropdown popover OUTSIDE the panel root.el, so
-    // updateGroupHeadersChecked must scan the owning document, not root.el, for
-    // the header checked/indeterminate state to ever be applied.
     class Parent extends Component {
         static components = { SearchPanel };
         static template = xml`<SearchPanel/>`;
@@ -168,7 +164,7 @@ test("grouped filter header reflects checked/indeterminate state in dropdown", a
     await mountWithSearch(Parent, {
         resModel: "partner",
         searchViewId: false,
-        searchViewArch: /* xml */ `
+        searchViewArch: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" groupby="category_id" expand="1"/>
@@ -177,23 +173,19 @@ test("grouped filter header reflects checked/indeterminate state in dropdown", a
         `,
     });
 
-    // Open the filter section dropdown (content lives in the popover overlay).
     await contains(".o_search_panel .o-dropdown").click();
     expect(".o-dropdown--menu .o_search_panel_filter_group").toHaveCount(2);
-    // The "silver" group holds two companies (agrolait, camptocamp).
     const silverHeader =
         ".o_search_panel_filter_group:eq(1) .o_search_panel_group_header input";
     expect(silverHeader).not.toBeChecked();
     expect(silverHeader).not.toBeChecked({ indeterminate: true });
 
-    // Check one of the two values -> header becomes indeterminate.
     await contains(
         ".o_search_panel_filter_group:eq(1) .o_search_panel_filter_value:eq(0) input",
     ).click();
     expect(silverHeader).not.toBeChecked();
     expect(silverHeader).toBeChecked({ indeterminate: true });
 
-    // Check the second value -> header becomes fully checked.
     await contains(
         ".o_search_panel_filter_group:eq(1) .o_search_panel_filter_value:eq(1) input",
     ).click();

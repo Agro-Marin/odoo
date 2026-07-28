@@ -257,9 +257,6 @@ test("many2ones in form views", async () => {
     expect(".o_dialog:not(.o_inactive_modal) .modal-title").toHaveText(
         "Open: custom label",
     );
-
-    // TODO: test that we can edit the record in the dialog, and that
-    // the value is correctly updated on close
 });
 
 test("editing a many2one, but not changing anything", async () => {
@@ -291,11 +288,8 @@ test("editing a many2one, but not changing anything", async () => {
             </form>`,
     });
 
-    // click on the external button (should do an RPC)
     await contains(".o_external_button", { visible: false }).click();
-    // save and close modal
     await contains(".modal:eq(1) .o_form_button_save").click();
-    // save form
     await clickSave();
 });
 
@@ -379,17 +373,14 @@ test("editing a many2one (with form view opened with external button)", async ()
             </form>`,
     });
 
-    // click on the external button (should do an RPC)
     await contains(".o_external_button", { visible: false }).click();
 
     await contains(
         ".o_dialog:not(.o_inactive_modal) .o_field_widget[name='foo'] input",
     ).edit("brandon");
 
-    // save and close modal
     await contains(".modal:eq(1) .o_form_button_save").click();
     expect.verifySteps(["web_save", "read partner: display_name"]);
-    // save form
     await clickSave();
     expect.verifySteps([]);
 });
@@ -397,9 +388,6 @@ test("editing a many2one (with form view opened with external button)", async ()
 test("many2ones in form views with show_address", async () => {
     onRpc("web_read", ({ kwargs, parent }) => {
         if (kwargs.specification.trululu.context.show_address) {
-            // A real ``web_read`` returns the related record's id alongside its
-            // display_name; keep it (via ``parent()``) so the "open record"
-            // external button — which requires a persisted numeric id — renders.
             const result = parent();
             result[0].trululu = {
                 id: result[0].trululu.id,
@@ -541,7 +529,6 @@ test("show_address works in a view embedded in a view of another type", async ()
                 <field name="turtles" />
             </form>`,
     });
-    // click the turtle field, opens a modal with the turtle form view
     await contains(".o_data_row td.o_data_cell").click();
 
     expect('[name="turtle_trululu"]').toHaveText(
@@ -752,14 +739,11 @@ test("onchanges on many2ones trigger when editing record in form view", async ()
                 </form>`,
     });
 
-    // open the many2one in form view and change something
     await contains(".o_external_button", { visible: false }).click();
     await contains(
         ".o_dialog:not(.o_inactive_modal) .o_field_widget[name='other_field'] input",
     ).edit("wood");
 
-    // TODISCUSS ? Same record, don't change the display name (opti ?)
-    // save the modal and make sure an onchange is triggered
     await contains(".modal:eq(1) .o_form_button_save").click();
     expect.verifySteps([
         "get_views",
@@ -817,7 +801,6 @@ test("many2one doesn't trigger field_change when being emptied", async () => {
             </list>`,
     });
 
-    // Select two records
     await contains(".o_data_row:eq(0) .o_list_record_selector input").click();
     await contains(".o_data_row:eq(1) .o_list_record_selector input").click();
     await contains(".o_data_row .o_data_cell").click();
@@ -920,8 +903,6 @@ test("focus tracking on a many2one in a list", async () => {
         ".o_field_widget[name=trululu] .o_m2o_dropdown_option_create_edit",
     ).click();
 
-    // At this point, if the focus is correctly registered by the m2o, there
-    // should be only one modal (the "Create" one) and none for saving changes.
     expect(".modal").toHaveCount(1);
 
     await contains(".o_form_button_cancel").click();
@@ -1122,7 +1103,6 @@ test("many2one with no_create_edit and no_quick_create options should show no re
 test("many2one in edit mode", async () => {
     expect.assertions(17);
 
-    // create 10 partners to have the 'Search more' option in the autocomplete dropdown
     for (let i = 0; i < 10; i++) {
         const id = 20 + i;
         Partner._records.push({ id, name: `Partner ${id}` });
@@ -1172,14 +1152,11 @@ test("many2one in edit mode", async () => {
     await contains(".o_field_many2one[name='trululu'] input").click();
     expect(".o_field_many2one[name='trululu'] .dropdown-menu").toHaveCount(0);
 
-    // change the value of the m2o with a suggestion of the dropdown
     await selectFieldDropdownItem("trululu", "first record");
     expect(".o_field_many2one[name='trululu'] .dropdown-menu").not.toHaveCount();
     expect(".o_field_many2one input").toHaveValue("first record");
 
-    // change the value of the m2o with a record in the 'Search more' modal
     await clickFieldDropdown("trululu");
-    // click on 'Search more' (mouseenter required by ui-autocomplete)
     await contains(
         ".o_field_many2one[name='trululu'] .dropdown-menu .o_m2o_dropdown_option_search_more",
     ).click();
@@ -1194,13 +1171,11 @@ test("many2one in edit mode", async () => {
     await press("Enter");
     await animationFrame();
     expect(".modal tbody tr").toHaveCount(10);
-    // choose a record
     await contains(".modal .o_data_cell[data-tooltip='Partner 20']").click();
     expect(".modal").toHaveCount(0);
     expect(".o_field_many2one[name='trululu'] .dropdown-menu").not.toHaveCount();
     expect(".o_field_many2one input").toHaveValue("Partner 20");
 
-    // save
     await clickSave();
     expect(".o_field_many2one input").toHaveValue("Partner 20");
 });
@@ -1241,7 +1216,6 @@ test("many2one in non edit mode (without value)", async () => {
             </form>`,
     });
 
-    // Remove value from many2one and then save, there should be no link anymore
     expect("a.o_form_uri").toHaveCount(0);
 });
 
@@ -1281,7 +1255,6 @@ test("many2one with co-model whose name field is a many2one", async () => {
     await contains("div[name=product_id] .o_m2o_dropdown_option_create_edit").click();
     expect(".modal .o_form_view").toHaveCount(1);
 
-    // quick create 'new value'
     await contains(".modal div[name=name] input").edit("new value", {
         confirm: false,
     });
@@ -1314,7 +1287,6 @@ test("many2one searches with correct value", async () => {
     await contains(".o_field_many2one input").click();
     expect.verifySteps(["search: "]);
 
-    // unset the many2one -> should search again with ''
     await contains(".o_field_many2one input").clear({ confirm: false });
     await runAllTimers();
     expect.verifySteps(["search: "]);
@@ -1323,7 +1295,6 @@ test("many2one searches with correct value", async () => {
     await runAllTimers();
     expect.verifySteps(["search: f"]);
 
-    // close and re-open the dropdown -> should search with 'f' again
     await contains(".o_field_many2one input").click();
     await runAllTimers();
     await contains(".o_field_many2one input").click();
@@ -1332,10 +1303,6 @@ test("many2one searches with correct value", async () => {
 });
 
 test("narrowing a previously empty search still re-runs web_name_search", async () => {
-    // name_search is NOT substring-monotonic: an exact default_code/barcode
-    // match can appear only at full length (e.g. product.product), so a query
-    // that narrows a previously-empty one must still hit the server instead of
-    // being suppressed by the empty-search memo.
     onRpc("web_name_search", ({ kwargs }) => {
         expect.step(`search: ${kwargs.name}`);
     });
@@ -1364,7 +1331,6 @@ test("narrowing a previously empty search still re-runs web_name_search", async 
     });
     await contains(".o_field_many2one input").edit("pe", { confirm: false });
     await runAllTimers();
-    // "pe" narrows the empty "p" search but must still re-search.
     expect.verifySteps(["search: pe"]);
     await contains(".o_field_many2one input").edit("m", { confirm: false });
     await runAllTimers();
@@ -1375,8 +1341,6 @@ test("do not prevent previously empty searches once domain is changed", async ()
     let count = 0;
     onRpc("web_name_search", ({ kwargs }) => {
         count++;
-        // Searches 1-3 ("", "p", "pe") run under the original domain; only the
-        // 4th ("pe" after foo changed) uses the new domain.
         if (count < 4) {
             expect(kwargs.domain).toEqual([["foo", "=", "yop"]]);
         } else {
@@ -1407,14 +1371,12 @@ test("do not prevent previously empty searches once domain is changed", async ()
     });
     await contains(".o_field_many2one input").edit("pe");
     await runAllTimers();
-    // narrowing the empty "p" search still re-searches (same domain)
     expect.verifySteps(["search: pe"]);
     await contains(".o_field_widget[name='foo'] input").edit("not yop", {
         confirm: false,
     });
     await contains(".o_field_many2one input").edit("pe");
     await runAllTimers();
-    // domain changed so the search runs again under the new domain
     expect.verifySteps(["search: pe"]);
 });
 
@@ -1422,8 +1384,6 @@ test("do not prevent previously empty searches once context is changed", async (
     let count = 0;
     onRpc("web_name_search", ({ kwargs }) => {
         count++;
-        // Searches 1-3 ("", "p", "pe") run under the original context; only the
-        // 4th ("pe" after foo changed) uses the new context.
         if (count < 4) {
             expect(kwargs.context.foo).toBe("yop");
         } else {
@@ -1454,14 +1414,12 @@ test("do not prevent previously empty searches once context is changed", async (
     });
     await contains(".o_field_many2one input").edit("pe");
     await runAllTimers();
-    // narrowing the empty "p" search still re-searches (same context)
     expect.verifySteps(["search: pe"]);
     await contains(".o_field_widget[name='foo'] input").edit("not yop", {
         confirm: false,
     });
     await contains(".o_field_many2one input").edit("pe");
     await runAllTimers();
-    // context changed so the search runs again under the new context
     expect.verifySteps(["search: pe"]);
 });
 
@@ -1486,21 +1444,18 @@ test("many2one search with trailing and leading spaces", async () => {
         ".o_field_many2one[name='trululu'] .dropdown-menu li:not(.o_m2o_dropdown_option)",
     ).toHaveCount(3);
 
-    // search with leading spaces
     await contains(input).edit("   first", { confirm: false });
     await runAllTimers();
     expect(
         ".o_field_many2one[name='trululu'] .dropdown-menu li:not(.o_m2o_dropdown_option)",
     ).toHaveCount(1);
 
-    // search with trailing spaces
     await contains(input).edit("first  ", { confirm: false });
     await runAllTimers();
     expect(
         ".o_field_many2one[name='trululu'] .dropdown-menu li:not(.o_m2o_dropdown_option)",
     ).toHaveCount(1);
 
-    // search with leading and trailing spaces
     await contains(input).edit("   first   ", { confirm: false });
     await runAllTimers();
     expect(
@@ -1510,7 +1465,6 @@ test("many2one search with trailing and leading spaces", async () => {
     expect.verifySteps(["search: ", "search: first", "search: first", "search: first"]);
 });
 
-// Should be removed ?
 test("many2one field with option always_reload (edit)", async () => {
     onRpc("web_read", ({ parent }) => {
         const result = parent();
@@ -1545,15 +1499,11 @@ test("many2one field and list navigation", async () => {
             </list>`,
     });
 
-    // edit first input, to trigger autocomplete
     await contains(".o_data_row .o_data_cell").click();
     await contains(".o_data_cell input").clear();
 
-    // press keydown, to select first choice
     await press("arrowdown");
 
-    // we now check that the dropdown is open (and that the focus did not go
-    // to the next line)
     expect(".o_field_many2one").toHaveCount(1);
     expect(".o_data_row:eq(0)").toHaveClass("o_selected_row");
     expect(".o_data_row:eq(1)").not.toHaveClass("o_selected_row");
@@ -1599,7 +1549,7 @@ test("form: quick create then save directly", async () => {
     expect.assertions(3);
 
     const def = new Deferred();
-    const newRecordId = 5; // with the current records, the created record will be assigned id 5
+    const newRecordId = 5;
     onRpc("name_create", async () => {
         expect.step("name_create");
         await def;
@@ -1622,7 +1572,6 @@ test("form: quick create then save directly", async () => {
     await contains(".o_m2o_dropdown_option_create").click();
     await contains(".o_form_button_save").click();
 
-    // should wait for the name_create before creating the record
     expect.verifySteps(["name_create"]);
 
     def.resolve();
@@ -1634,8 +1583,6 @@ test("form: quick create then save directly", async () => {
 test("form: quick create for field that returns false after name_create call", async () => {
     onRpc("name_create", () => {
         expect.step("name_create");
-        // Resolve the name_create call to false. This is possible if
-        // _rec_name for the model of the field is unassigned.
         return false;
     });
     await mountView({
@@ -1691,7 +1638,6 @@ test("list: quick create then save directly", async () => {
 
     await contains(".o_list_button_save").click();
 
-    // should wait for the name_create before creating the record
     expect.verifySteps(["name_create"]);
     expect(".o_data_row").toHaveCount(4);
 
@@ -1707,7 +1653,7 @@ test("list in form: quick create then save directly", async () => {
     expect.assertions(4);
 
     const def = new Deferred();
-    const newRecordId = 5; // with the current records, the created record will be assigned id 5
+    const newRecordId = 5;
     onRpc("name_create", async () => {
         expect.step("name_create");
         await def;
@@ -1742,7 +1688,6 @@ test("list in form: quick create then save directly", async () => {
 
     await contains(".o_form_button_save").click();
 
-    // should wait for the name_create before creating the record
     expect.verifySteps(["name_create"]);
 
     await def.resolve();
@@ -1841,15 +1786,13 @@ test("many2one inside one2many form view, with domain", async () => {
 });
 
 test("list in form: quick create then add a new line directly", async () => {
-    // Required m2o in o2m: quick-creating a value then adding a new item before
-    // name_create resolves must not drop the row; saveLine should wait for it.
     expect.assertions(8);
     Partner._onChanges = {
         trululu: () => {},
     };
 
     const def = new Deferred();
-    const newRecordId = 5; // with the current records, the created record will be assigned id 5
+    const newRecordId = 5;
     onRpc("name_create", async () => {
         await def;
     });
@@ -1931,8 +1874,6 @@ test("list in form: create with one2many with many2one", async () => {
 });
 
 test("list in form: create with one2many with many2one (version 2)", async () => {
-    // Same scenario as above but the many2one is explicitly set to false, which
-    // happens in practice and must be handled.
     Partner._fields.p = fields.One2many({
         string: "one2many field",
         relation: "partner",
@@ -1965,8 +1906,6 @@ test("list in form: create with one2many with many2one (version 2)", async () =>
 });
 
 test("item not dropped on discard with empty required field (default_get)", async () => {
-    // Discarding an empty required field on a record added by default_get should
-    // not abandon the record just because it's new.
     Partner._fields.p = fields.One2many({
         string: "one2many field",
         relation: "partner",
@@ -1996,7 +1935,6 @@ test("item not dropped on discard with empty required field (default_get)", asyn
     await contains(".o_data_row .o_data_cell").click();
     expect(".o_selected_row .o_data_cell:eq(1)").toHaveClass("o_required_modifier");
 
-    // discard by clicking on body
     await contains(getFixture()).click();
 
     expect("tr.o_data_row").toHaveCount(1);
@@ -2078,8 +2016,6 @@ test("list in form: show name of many2one fields in multi-page (default_get)", a
 });
 
 test("list in form: item not dropped on discard with empty required field (onchange in default_get)", async () => {
-    // Variant where default_get triggers an onchange that creates records;
-    // those should not be abandoned on discard either.
     Partner._fields.product_id = fields.Many2one({
         string: "Product",
         relation: "product",
@@ -2106,26 +2042,20 @@ test("list in form: item not dropped on discard with empty required field (oncha
             </form>`,
     });
 
-    // check that there is a record in the editable list with empty string as required field
     expect(".o_data_row").toHaveCount(1);
     expect("td.o_data_cell:eq(0)").toHaveText("entry");
     expect("td.o_data_cell.o_required_modifier").toHaveCount(1);
     expect("td.o_data_cell.o_required_modifier").toHaveText("");
 
-    // click on empty required field in editable list record
     await contains("td.o_data_cell.o_required_modifier").click();
-    // click off so that the required field still stay empty
     await contains(getFixture()).click();
 
-    // record should not be dropped
     expect(".o_data_row").toHaveCount(1);
     expect("td.o_data_cell:eq(0)").toHaveText("entry");
     expect("td.o_data_cell.o_required_modifier").toHaveText("");
 });
 
 test("list in form: item not dropped on discard with empty required field (onchange on list after default_get)", async () => {
-    // A record added to the list by a later onchange (not the default_get one)
-    // should likewise not be dropped on discard.
     Partner._onChanges = {
         product_id: (obj) => {
             if (obj.product_id === 37) {
@@ -2149,33 +2079,25 @@ test("list in form: item not dropped on discard with empty required field (oncha
             </form>`,
     });
 
-    // check no record in list
     expect(".o_data_row").toHaveCount(0);
 
-    // select product_id to force on_change in editable list
     await contains("div[name=product_id] input").click();
     await contains(".ui-menu-item").click();
 
-    // check that there is a record in the editable list with empty string as required field
     expect(".o_data_row").toHaveCount(1);
 
     expect("td.o_data_cell:eq(0)").toHaveText("entry");
     expect("td.o_required_modifier").toHaveCount(1);
     expect("td.o_required_modifier").toHaveText("");
 
-    // click on empty required field in editable list record
     await contains("td.o_required_modifier").click();
-    // click off so that the required field still stay empty
     await contains(getFixture()).click();
 
-    // record should not be dropped
     expect(".o_data_row").toHaveCount(1);
     expect(queryAllTexts("td.o_data_cell")).toEqual(["entry", ""]);
 });
 
 test('item dropped on discard with empty required field with "Add an item" (invalid on "ADD")', async () => {
-    // A record added via "Add an item" should always be dropped on discard if a
-    // required field is still empty at creation time.
     await mountView({
         type: "form",
         resModel: "partner",
@@ -2190,23 +2112,17 @@ test('item dropped on discard with empty required field with "Add an item" (inva
             </form>`,
     });
 
-    // Click on "Add an item"
     await contains(".o_field_x2many_list_row_add a").click();
     expect(".o_field_widget.o_required_modifier[name=trululu]").toHaveCount(1);
     expect(".o_field_widget.o_required_modifier[name=trululu] input").toHaveValue("");
 
-    // click on empty required field in editable list record
     await contains(".o_field_widget.o_required_modifier[name=trululu] input").click();
-    // click off so that the required field still stay empty
     await contains(getFixture()).click();
 
-    // record should be dropped
     expect(".o_data_row").toHaveCount(0);
 });
 
 test('item not dropped on discard with empty required field with "Add an item" (invalid on "UPDATE")', async () => {
-    // A record added via "Add an item" while valid, then made invalid and
-    // discarded, should not be dropped (unlike an invalid record on creation).
     await mountView({
         type: "form",
         resModel: "partner",
@@ -2223,14 +2139,12 @@ test('item not dropped on discard with empty required field with "Add an item" (
 
     expect(".o_data_row").toHaveCount(0);
 
-    // Click on "Add an item"
     await contains(".o_field_x2many_list_row_add a").click();
     expect(".o_data_row").toHaveCount(1);
 
     expect(".o_field_widget.o_required_modifier[name=trululu] input").toHaveCount(1);
     expect(".o_field_widget.o_required_modifier[name=trululu] input").toHaveValue("");
 
-    // add something to required field and leave edit mode of the record
     await contains(".o_field_widget.o_required_modifier[name=trululu] input").click();
     await contains("li.ui-menu-item").click();
     await contains(getFixture()).click();
@@ -2238,13 +2152,11 @@ test('item not dropped on discard with empty required field with "Add an item" (
     expect(".o_data_row").toHaveCount(1);
     expect(".o_data_cell:eq(1)").toHaveText("first record");
 
-    // leave edit mode of the record
     await contains(getFixture()).click();
     expect(".o_data_row").toHaveCount(1);
     expect(".o_data_cell:eq(1)").toHaveText("first record");
 });
 
-// WARNING: this does not seem to be a many2one field test
 test("list in form: default_get with x2many create", async () => {
     expect.assertions(3);
 
@@ -2283,13 +2195,11 @@ test("list in form: default_get with x2many create", async () => {
     expect("td.o_data_cell").toHaveText("brandon is the new timmy");
     expect(".o_field_integer input").toHaveValue("1");
 
-    // edit the subrecord and save
     await contains(".o_data_cell").click();
     await contains(".o_data_cell input").edit("new value", { confirm: false });
     await clickSave();
 });
 
-// WARNING: this does not seem to be a many2one field test
 test("list in form: default_get with x2many create and onchange", async () => {
     expect.assertions(1);
     Partner._fields.turtles = fields.One2many({
@@ -2481,7 +2391,6 @@ test("X2Many sequence list in modal", async () => {
         ".o_dialog:not(.o_inactive_modal) .o_data_row:nth-child(2) .ui-sortable-handle",
     ).dragAndDrop(".o_dialog:not(.o_inactive_modal) tbody tr");
 
-    // Saving the modal and then the original model
     await contains(".modal:eq(1) .o_form_button_save").click();
     await clickSave();
 
@@ -2530,7 +2439,7 @@ test("creating record with many2one with option always_reload", async () => {
         relation: "partner",
         default: 1,
         onChange: (obj) => {
-            obj.trululu = 2; //[2, "second record"];
+            obj.trululu = 2;
         },
     });
 
@@ -2601,7 +2510,6 @@ test("domain and context are correctly used when doing a web_name_search in a m2
     expect.assertions(4);
 
     Partner._records[0].timmy = [12];
-    // Need to take into account the company service which populates context at startup
     const DEFAULT_USER_CTX = { ...user.context, allowed_company_ids: [1] };
     serverState.userContext = { hey: "ho" };
     onRpc("product", "web_name_search", ({ kwargs }) => {
@@ -2692,7 +2600,7 @@ test("failing quick create on a many2one because ValidationError", async () => {
     await contains(
         ".o_field_widget[name='product_id'] .o_m2o_dropdown_option_create",
     ).click();
-    await animationFrame(); // wait for the error service to ensure that there's no error dialog
+    await animationFrame();
     expect(".o_error_dialog").toHaveCount(0);
     expect(".modal .o_form_view").toHaveCount(1);
     expect(".modal .o_field_widget[name='name'] input").toHaveValue("abcd");
@@ -2725,7 +2633,7 @@ test("failing quick create on a many2one", async () => {
     await contains(
         ".o_field_widget[name='product_id'] .o_m2o_dropdown_option_create",
     ).click();
-    await animationFrame(); // wait for the error service
+    await animationFrame();
     expect.verifyErrors(["RPC_ERROR"]);
     expect(".o_error_dialog").toHaveCount(1);
     expect(".modal .o_form_view").toHaveCount(0);
@@ -2797,12 +2705,10 @@ test("slow create on a many2one", async () => {
     await animationFrame();
 
     expect(".modal").toHaveCount(1);
-    // cancel the many2one creation with Discard button
     await contains(".modal .modal-footer .btn:not(.btn-primary)").click();
     expect(".modal").toHaveCount(0);
     expect(".o_field_many2one input").toHaveValue("");
 
-    // cancel the many2one creation with Close button
     await contains(".o_field_many2one input").edit("new product", {
         confirm: false,
     });
@@ -2815,7 +2721,6 @@ test("slow create on a many2one", async () => {
     expect(".o_field_many2one input").toHaveValue("");
     expect(".modal").toHaveCount(0);
 
-    // select a new value then cancel the creation of the new one --> restore the previous
     await contains(".o_field_widget[name=product_id] input").click();
     await contains(".ui-menu-item").click();
     expect(".o_field_many2one input").toHaveValue("xphone");
@@ -2831,7 +2736,6 @@ test("slow create on a many2one", async () => {
     await contains(".modal .modal-footer .btn:not(.btn-primary)").click();
     expect(".o_field_many2one input").toHaveValue("");
 
-    // confirm the many2one creation
     await contains(".o_field_many2one input").edit("new product", {
         confirm: false,
     });
@@ -2973,9 +2877,6 @@ test("can_create and can_write option on a many2one", async () => {
 });
 
 test("create_name_field option on a many2one", async () => {
-    // when the 'create_name_field' option is set, the value entered in the
-    // many2one input should be used to populate this specified field,
-    // instead of the generic 'name' field.
     Partner._views = {
         form: `
             <form>
@@ -3101,28 +3002,22 @@ test("pressing enter in a m2o in an editable list", async () => {
     await contains("td.o_data_cell").click();
     expect(".o_selected_row").toHaveCount(1);
 
-    // we now write 'a' and press enter to check that the selection is
-    // working, and prevent the navigation
     await contains("[name=product_id] input").edit("a", { confirm: false });
     await runAllTimers();
     expect("[name=product_id] .o-autocomplete--dropdown-menu").toHaveCount(1);
 
-    // we now trigger ENTER to select first choice
     await press("Enter");
     await animationFrame();
 
     expect("[name=product_id] input").toBeFocused();
     expect("[name=product_id] .o-autocomplete--dropdown-menu").toHaveCount(0);
 
-    // we now trigger again ENTER to make sure we can move to next line
     await press("Enter");
     await animationFrame();
 
     expect("tr.o_data_row:nth-child(1) [name=product_id] input").toHaveCount(0);
     expect("tr.o_data_row:nth-child(2)").toHaveClass("o_selected_row");
 
-    // we now write again 'a' in the cell to select xpad. We will now
-    // test with the tab key
     await contains("[name=product_id] input").edit("a", { confirm: false });
     await runAllTimers();
     expect(
@@ -3162,7 +3057,6 @@ test("pressing ENTER on a 'no_quick_create' many2one should open a M2ODialog", a
     await press("Enter");
     await animationFrame();
     expect(".modal").toHaveCount(1);
-    // Check that discarding clears $input
     await contains(".modal .o_form_button_cancel").click();
     expect(".o_field_many2one input").toHaveValue("");
 });
@@ -3189,13 +3083,10 @@ test("select a value by pressing TAB on a many2one with onchange", async () => {
 
     await contains(".o_field_many2one input").edit("first", { confirm: "tab" });
 
-    // simulate a focusout (e.g. because the user clicks outside)
-    // before the onchange returns
     await click(".o_field_char");
 
     expect(".modal").toHaveCount(0);
 
-    // unlock the onchange
     def.resolve();
     await runAllTimers();
 
@@ -3221,7 +3112,6 @@ test("leaving a many2one by pressing tab", async () => {
 
     expect(".o_field_many2one input").toHaveValue("");
 
-    // open autocomplete dropdown and manually select item by UP/DOWN key and press TAB
     await contains(".o_field_many2one input").click();
     await runAllTimers();
     await press("arrowdown");
@@ -3230,7 +3120,6 @@ test("leaving a many2one by pressing tab", async () => {
 
     expect(".o_field_many2one input").toHaveValue("second record");
 
-    // clear many2one and then open autocomplete, write something and press TAB
     await contains(".o_field_many2one input").edit("", { confirm: false });
     await runAllTimers();
     await contains(".o_field_many2one input").click();
@@ -3255,7 +3144,6 @@ test("leaving an empty many2one by pressing tab (after backspace or delete)", as
 
     expect(".o_field_many2one input").toHaveValue();
 
-    // simulate backspace to remove values and press TAB
     await contains(".o_field_many2one input").edit("", { confirm: false });
     await runAllTimers();
     await press("backspace");
@@ -3263,16 +3151,13 @@ test("leaving an empty many2one by pressing tab (after backspace or delete)", as
     await animationFrame();
     expect(".o_field_many2one input").toHaveValue("");
 
-    // reset a value
     await selectFieldDropdownItem("trululu", "first record");
     expect(".o_field_many2one input").toHaveValue("first record");
 
-    // simulate delete to remove values and press TAB
     await contains(".o_field_many2one input").edit("", { confirm: false });
     await runAllTimers();
     await press("delete");
     await press("tab");
-    // TODO: fix owl
     await animationFrame();
     expect(".o_field_many2one input").toHaveValue("");
 });
@@ -3312,7 +3197,7 @@ test("many2one in editable list + onchange, with enter", async () => {
     expect(".modal").toHaveCount(0);
     expect.verifySteps([
         "get_views",
-        "web_search_read", // to display results in the dialog
+        "web_search_read",
         "has_group",
         "web_name_search",
         "onchange",
@@ -3321,8 +3206,6 @@ test("many2one in editable list + onchange, with enter", async () => {
 });
 
 test("many2one in editable list + onchange, with enter, part 2", async () => {
-    // this is the same test as the previous one, but the onchange is just
-    // resolved slightly later
     Partner._onChanges = {
         product_id: (obj) => {
             obj.int_field = obj.product_id || 0;
@@ -3355,7 +3238,7 @@ test("many2one in editable list + onchange, with enter, part 2", async () => {
     expect(".modal").toHaveCount(0);
     expect.verifySteps([
         "get_views",
-        "web_search_read", // to display results in the dialog
+        "web_search_read",
         "has_group",
         "web_name_search",
         "onchange",
@@ -3398,7 +3281,6 @@ test("many2one: domain set in view and on field", async () => {
         domain: "[('foo' ,'=', 'boum')]",
     });
     onRpc("web_name_search", ({ kwargs }) => {
-        // should only use the domain set in the view
         expect(kwargs.domain).toEqual([["foo", "=", "blip"]]);
     });
 
@@ -3448,19 +3330,13 @@ test("many2one: domain updated by an onchange", async () => {
             </form>`,
     });
 
-    // trigger a web_name_search (domain should be [])
     await contains(".o_field_widget[name=trululu] input").click();
-    // close the dropdown
     await contains(".o_field_widget[name=trululu] input").click();
-    // trigger an onchange that will update the domain
 
-    // trigger a web_name_search (domain should be [['id', 'in', [10]]])
     await contains(".o_field_widget[name='trululu'] input").click();
 });
 
 test("search more in many2one: no text in input", async () => {
-    // With no text to search on, 'Search more...' bypasses the web_name_search
-    // that would otherwise preselect ids to filter the list view dialog.
     expect.assertions(2);
 
     for (let i = 0; i < 8; i++) {
@@ -3494,18 +3370,16 @@ test("search more in many2one: no text in input", async () => {
     ).click();
 
     expect.verifySteps([
-        "get_views", // main form view
+        "get_views",
         "onchange",
-        "web_name_search", // to display results in the dropdown
-        "get_views", // list view in dialog
+        "web_name_search",
+        "get_views",
         "has_group",
-        "web_search_read", // to display results in the dialog
+        "web_search_read",
     ]);
 });
 
 test("search more in many2one: text in input", async () => {
-    // With text in the input, 'Search more...' performs a web_name_search to get a
-    // limited list of preselected ids and adds them as a removable filter in the dialog.
     expect.assertions(5);
 
     for (let i = 0; i < 8; i++) {
@@ -3545,20 +3419,19 @@ test("search more in many2one: text in input", async () => {
     expect(".modal .o_list_view").toHaveCount(1);
     expect(".modal .o_cp_searchview .o_facet_values").toHaveCount(1);
 
-    // remove the filter on ids
     expectedDomain = [];
     await contains(".modal .o_cp_searchview .o_facet_remove").click();
 
     expect.verifySteps([
-        "get_views", // main form view
+        "get_views",
         "onchange",
-        "web_name_search", // empty search, triggered when the user clicks in the input
-        "web_name_search", // to display results in the dropdown
-        "name_search", // to get preselected ids matching the search
-        "get_views", // list view in dialog
+        "web_name_search",
+        "web_name_search",
+        "name_search",
+        "get_views",
         "has_group",
-        "web_search_read", // to display results in the dialog
-        "web_search_read", // after removal of dynamic filter
+        "web_search_read",
+        "web_search_read",
     ]);
 });
 
@@ -3589,7 +3462,6 @@ test("search more in many2one: dropdown click", async () => {
         `.o_field_widget[name="trululu"] .o_m2o_dropdown_option_search_more`,
     ).click();
 
-    // dropdown selector
     const searchDropdown = ".o_control_panel_actions .o-dropdown";
     await contains(searchDropdown).click();
     expect(searchDropdown).toHaveClass("show");
@@ -3629,12 +3501,10 @@ test("updating a many2one from a many2many", async () => {
     });
     expect(".modal").toHaveCount(1);
 
-    // Opening the modal
     await contains(".o_data_row td:eq(1)").click();
     await contains(".o_external_button", { visible: false }).click();
     expect(".modal").toHaveCount(2);
 
-    // Changing the 'trululu' value
     await contains(".o_dialog:not(.o_inactive_modal) div[name=name] input").edit(
         "test",
     );
@@ -3642,15 +3512,12 @@ test("updating a many2one from a many2many", async () => {
 
     expect(".modal").toHaveCount(1);
 
-    // Test whether the value has changed
     expect(
         ".o_dialog:not(.o_inactive_modal) div[name=turtle_trululu] input",
     ).toHaveValue("test");
 });
 
 test("search more in many2one: cannot resequence inside dialog", async () => {
-    // when the user clicks on 'Search more...' in a many2one dropdown, resequencing inside
-    // the dialog works
     Partner._fields.sequence = fields.Integer();
     for (let i = 0; i < 8; i++) {
         Partner._records.push({ id: 100 + i, name: `test_${i}` });
@@ -3688,9 +3555,9 @@ test("search more in many2one: cannot resequence inside dialog", async () => {
     expect.verifySteps([
         "get_views",
         "onchange",
-        "web_name_search", // to display results in the dropdown
-        "get_views", // list view in dialog
-        "web_search_read", // to display results in the dialog
+        "web_name_search",
+        "get_views",
+        "web_search_read",
         "has_group",
     ]);
 });
@@ -3798,7 +3665,6 @@ test("focus when closing many2one modal in many2one modal", async () => {
     expect(".o_dialog").toHaveCount(1);
     expect(document.body).toHaveClass("modal-open");
 
-    // Open many2one modal
     await contains(".o_external_button", { visible: false }).click();
 
     const originalModal = queryOne(".o_dialog:eq(1)");
@@ -3807,7 +3673,6 @@ test("focus when closing many2one modal in many2one modal", async () => {
     expect(originalModal).not.toHaveClass("o_inactive_modal");
     expect(document.body).toHaveClass("modal-open");
 
-    // Open many2one modal of field in many2one modal
     await contains(".o_dialog:eq(1) .o_external_button", {
         visible: false,
     }).click();
@@ -3816,7 +3681,6 @@ test("focus when closing many2one modal in many2one modal", async () => {
     expect(".o_dialog:eq(2)").not.toHaveClass("o_inactive_modal");
     expect(document.body).toHaveClass("modal-open");
 
-    // Close second modal
     await contains(".o_dialog:eq(2) button[class='btn-close']").click();
 
     expect(".o_dialog").toHaveCount(2);
@@ -3826,7 +3690,6 @@ test("focus when closing many2one modal in many2one modal", async () => {
     expect(".o_dialog:eq(1)").not.toHaveClass("o_inactive_modal");
     expect(document.body).toHaveClass("modal-open");
 
-    // Close first modal
     await contains(".o_dialog:eq(1) button[class='btn-close']").click();
     expect(".o_dialog").toHaveCount(1);
 });

@@ -220,9 +220,6 @@ test("use a formula", async () => {
         message: "The new value should be calculated properly.",
     });
 
-    // "=2^3" parses back to the just-saved 8: the commit is a no-op, and the
-    // save/discard indicator must clear again (nothing left to save), so
-    // there is no save button to click.
     await contains(".o_field_widget[name=float_field] input").edit("=2^3");
     expect(".o_field_widget input").toHaveValue("8.000", {
         message: "The new value should be calculated properly.",
@@ -488,9 +485,6 @@ test("type number renders 0 as a raw number, not a locale-formatted string", asy
             grouping: [3, 0],
         },
     });
-    // Record 4 has float_field === 0. A comma-decimal locale would format it
-    // as "0,00", which a `<input type="number">` rejects (the browser blanks
-    // the field). The number path must emit the raw "0" instead.
     await mountView({
         type: "form",
         resModel: "partner",
@@ -501,4 +495,24 @@ test("type number renders 0 as a raw number, not a locale-formatted string", asy
     expect(".o_field_widget input").toHaveValue(0, {
         message: "a 0 float must render as the raw number 0, not '0,00'",
     });
+});
+
+test("float set to false by an onchange renders empty, not the string 'false'", async () => {
+    // The ORM's "no value" sentinel is `false`, and no float deserializer
+    // coerces it (see @web/model/relational_model/field_values). With
+    // formatting disabled the value reaches `input.value` verbatim, where a
+    // raw `false` would stringify to "false".
+    Partner._onChanges = {
+        float_field: (record) => {
+            record.float_field = false;
+        },
+    };
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="float_field" options="{'enable_formatting': false}"/></form>`,
+    });
+    await contains(".o_field_widget[name=float_field] input").edit("12.5");
+    expect(".o_field_widget[name=float_field] input").toHaveValue("");
 });

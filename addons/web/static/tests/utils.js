@@ -189,8 +189,13 @@ let hasUsedContainsPositively = false;
  * @property {boolean} [shadowRoot] if provided, targets the shadowRoot of the found elements.
  * @property {number|"bottom"} [setScroll] if provided, sets the scrollTop on the first found
  *  element.
- * @property {HTMLElement} [target=getFixture()]
- * @property {string[]} [triggerEvents] if provided, triggers the given events on the found element
+ * @property {Element} [target=getFixture()] `Element`, not `HTMLElement`: the
+ *  default comes from `getFixture()`, which is typed `Element`.
+ * @property {(import("@web/../tests/helpers/utils").EventType | [import("@web/../tests/helpers/utils").EventType, EventInit])[]} [triggerEvents]
+ *  if provided, triggers the given events on the found element. Mirrors the
+ *  `eventDefs` parameter of `helpers/utils.triggerEvents`, which is what
+ *  consumes it — it was declared `string[]`, which neither the public
+ *  `triggerEvents` wrapper below nor that call could satisfy.
  * @property {string} [text] if provided, the textContent of the found element(s) or one of their
  *  descendants must match. Use `textContent` option for a match on the found element(s) only.
  * @property {string} [textContent] if provided, the textContent of the found element(s) must match.
@@ -282,7 +287,7 @@ class Contains {
                 try {
                     this.runOnce("after mutations");
                 } catch (e) {
-                    this.def.reject(e); // prevents infinite loop in case of programming error
+                    this.def.reject(e);
                 }
             });
             this.observer.observe(this.options.target, {
@@ -313,7 +318,6 @@ class Contains {
     runOnce(whenMessage, { crashOnFail = false, executeOnSuccess = true } = {}) {
         const res = this.select();
         if (res?.length === this.options.count || crashOnFail) {
-            // clean before doing anything else to avoid infinite loop due to side effects
             this.observer?.disconnect();
             clearTimeout(this.timer);
             for (const el of this.scrollListeners ?? []) {
@@ -398,8 +402,6 @@ class Contains {
         }
         if (this.options.inputFiles) {
             message = `${message} and inputted ${this.options.inputFiles.length} file(s)`;
-            // could not use _createFakeDataTransfer as el.files assignation will only
-            // work with a real FileList object.
             const dataTransfer = new window.DataTransfer();
             for (const file of this.options.inputFiles) {
                 dataTransfer.items.add(file);
@@ -589,7 +591,10 @@ class Contains {
      * main selector.
      * If undefined is returned it means the parent cannot be found.
      *
-     * @returns {HTMLElement|undefined}
+     * `Element`, matching `ContainsOptions.target` (whose default is
+     * `getFixture()`, typed `Element`) — one branch returns that value verbatim.
+     *
+     * @returns {Element|undefined}
      */
     selectParent() {
         if (this.options.parent) {

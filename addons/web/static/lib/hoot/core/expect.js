@@ -127,10 +127,6 @@ import { Test } from "./test.js";
  * @typedef {T | Iterable<T>} MaybeIterable
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Array: { isArray: $isArray },
     clearTimeout,
@@ -147,10 +143,6 @@ const {
 } = globalThis;
 /** @type {Performance["now"]} */
 const $now = performance.now.bind(performance);
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {[string, unknown][]} entries
@@ -221,10 +213,9 @@ function getLength(object) {
 function getStack(depth) {
     const error = new Error();
     if (!isFirefox()) {
-        // remove ´Error´ in chrome
         depth++;
     }
-    const lines = error.stack.split(R_LINE_RETURN).slice(depth + 1); // Remove `getStack`
+    const lines = error.stack.split(R_LINE_RETURN).slice(depth + 1);
     const hidden = lines.splice(MAX_STACK_LENGTH);
     if (hidden.length) {
         lines.push(`… ${hidden.length} more`);
@@ -258,11 +249,9 @@ function includes(object, item) {
         return object.includes(item);
     }
     if ($isArray(object)) {
-        // Standard case: array
         return object.some((i) => deepEqual(i, item));
     }
     if (isIterable(object)) {
-        // Iterables: cast to array
         return includes([...object], item);
     }
     if ($isArray(item) && item.length === 2) {
@@ -398,10 +387,6 @@ const unconsumedMatchers = new Set();
 
 let currentStack = "";
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 /**
  * @param {ExpectBuilderParams} params
  * @returns {[typeof enrichedExpect, typeof expectHooks]}
@@ -423,7 +408,6 @@ export function makeExpect(params) {
             query: queryCount = 0,
         } = currentResult.counts;
 
-        // Expect without matchers
         if (unconsumedMatchers.size) {
             let times;
             switch (unconsumedMatchers.size) {
@@ -444,7 +428,6 @@ export function makeExpect(params) {
             unconsumedMatchers.clear();
         }
 
-        // Unverified steps
         if (currentResult.currentSteps.length) {
             currentResult.registerEvent("assertion", {
                 label: "step",
@@ -455,7 +438,6 @@ export function makeExpect(params) {
             });
         }
 
-        // Assertion & query event count
         if (!(assertionCount + queryCount)) {
             currentResult.registerEvent("assertion", {
                 label: "assertions",
@@ -485,7 +467,6 @@ export function makeExpect(params) {
             });
         }
 
-        // Unverified errors
         if (currentResult.currentErrors.length) {
             currentResult.registerEvent("assertion", {
                 label: "errors",
@@ -495,7 +476,6 @@ export function makeExpect(params) {
             });
         }
 
-        // Error count
         if (currentResult.expectedErrors && currentResult.expectedErrors !== errorCount) {
             currentResult.registerEvent("assertion", {
                 label: "errors",
@@ -511,7 +491,6 @@ export function makeExpect(params) {
             });
         }
 
-        // "Todo" tag
         if (test?.config.todo) {
             if (currentResult.pass) {
                 currentResult.registerEvent("assertion", {
@@ -524,7 +503,6 @@ export function makeExpect(params) {
             }
         }
 
-        // Abort status
         if (options?.aborted) {
             currentResult.registerEvent("assertion", {
                 label: "aborted",
@@ -534,7 +512,6 @@ export function makeExpect(params) {
         }
 
         if (test) {
-            // Set test status
             if (options?.aborted) {
                 test.status = Test.ABORTED;
             } else if (currentResult.pass) {
@@ -597,7 +574,6 @@ export function makeExpect(params) {
         if (test) {
             test.results.push(new CaseResult(test, params.headless));
 
-            // Must be retrieved from the list to be proxified
             currentResult = test.results.at(-1);
         } else {
             currentResult = new CaseResult(null, params.headless);
@@ -824,10 +800,8 @@ export function makeExpect(params) {
         }
         ensureArguments(arguments, "any[]", ["object", null]);
 
-        // Run check for any current resolver (if any)
         checkErrors(currentResult.errorResolver, true);
 
-        // Run early check if conditions are already met
         if (checkErrors({ errors, options }, false)) {
             return true;
         }
@@ -865,10 +839,8 @@ export function makeExpect(params) {
         }
         ensureArguments(arguments, "any[]", ["object", null]);
 
-        // Run check for any current resolver (if any)
         checkSteps(currentResult.stepResolver, true);
 
-        // Run early check if conditions are already met
         if (checkSteps({ steps, options }, false)) {
             return true;
         }
@@ -1020,7 +992,7 @@ export class CaseResult {
         switch (type) {
             case "assertion": {
                 if (value && this.headless) {
-                    delete value.docLabel; // Only required in UI
+                    delete value.docLabel;
                 }
                 caseEvent = new Assertion(this.counts.assertion, value);
                 this.pass &&= caseEvent.pass;
@@ -1051,7 +1023,6 @@ export class CaseResult {
                 const logArgs = [[caseEvent.label, getColorHex(colorName)]];
                 for (const part of caseEvent.message) {
                     if (isLabel(part)) {
-                        // Get and consume cached original values
                         logArgs.push(debugLabelCache.get(part) ?? part[0]);
                         debugLabelCache.delete(part);
                     } else {
@@ -1102,10 +1073,6 @@ export class Matcher {
 
         unconsumedMatchers.add(this);
     }
-
-    //-------------------------------------------------------------------------
-    // Modifiers
-    //-------------------------------------------------------------------------
 
     /**
      * Returns a set of matchers expecting a result opposite to what normal matchers
@@ -1161,10 +1128,6 @@ export class Matcher {
         }
         return this._clone(FLAGS.resolves);
     }
-
-    //-------------------------------------------------------------------------
-    // Standard matchers
-    //-------------------------------------------------------------------------
 
     /**
      * Expects the received value to be *strictly* equal to the `expected` value.
@@ -1678,10 +1641,6 @@ export class Matcher {
         });
     }
 
-    //-------------------------------------------------------------------------
-    // DOM matchers
-    //-------------------------------------------------------------------------
-
     /**
      * Expects the received {@link Target} to be checked, or to be indeterminate
      * if the homonymous option is set to `true`.
@@ -2172,10 +2131,6 @@ export class Matcher {
         }));
     }
 
-    //-------------------------------------------------------------------------
-    // Private methods
-    //-------------------------------------------------------------------------
-
     /**
      * @private
      * @param {number} flags
@@ -2229,7 +2184,6 @@ export class Matcher {
     _resolve(specCallback) {
         const isAsync = this._flags & (FLAGS.rejects | FLAGS.resolves);
         if (this._flags & FLAGS.error) {
-            // Prevent further assertions in error state
             return isAsync ? new Promise(() => {}) : undefined;
         }
         if (isAsync) {
@@ -2366,7 +2320,6 @@ export class Matcher {
             name,
             acceptedType: ["string", "node", "node[]"],
             mapElements: (el) =>
-                // Force HTML type here as it will be returned by outer/inner HTML
                 formatXml(el[property], { ...options, type: "html" }),
             predicate: (elHtml) => valueMatches(elHtml, expected),
             message: options?.message,
@@ -2382,10 +2335,6 @@ export class Matcher {
         }));
     }
 }
-
-//-----------------------------------------------------------------------------
-// Case events
-//-----------------------------------------------------------------------------
 
 export class CaseEvent {
     label = "";
@@ -2429,14 +2378,12 @@ export class Assertion extends CaseEvent {
 
         let { message, reportMessage } = values;
 
-        // Message
         if (typeof message === "function") {
             this.additionalMessage = message();
         } else {
             this.additionalMessage = message;
         }
 
-        // Reporting message
         if (typeof reportMessage === "function") {
             reportMessage = reportMessage(this.pass, r);
         }
@@ -2528,8 +2475,6 @@ export class CaseError extends CaseEvent {
         /** @type {string} */
         this.stack = error.stack;
 
-        // Ensures that the stack contains the error name & message.
-        // This can happen when setting the 'message' after creating the error.
         const errorNameAndMessage = String(error);
         if (!this.stack.startsWith(errorNameAndMessage)) {
             this.stack = errorNameAndMessage + this.stack.slice(error.name.length);

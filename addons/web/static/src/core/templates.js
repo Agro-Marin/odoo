@@ -18,7 +18,7 @@ const log = makeAssetLog("templates");
  */
 function getClone(template) {
     const c = /** @type {Element} */ (deepClone(template));
-    new Document().append(c); // => c is the documentElement of its ownerDocument
+    new Document().append(c);
     return c;
 }
 
@@ -78,7 +78,6 @@ export class TemplateRegistry {
         /** @type {Record<string, string>} */
         this.templates = Object.create(null);
         this.info = Object.create(null);
-        // Only ever holds `_parse(...)` results, which are non-null Elements.
         /** @type {Record<string, Element>} */
         this.parsedTemplates = Object.create(null);
         this.parsedTemplateExtensions = Object.create(null);
@@ -111,16 +110,11 @@ export class TemplateRegistry {
         const doc = this._parser.parseFromString(templateString, "text/xml");
         const parseError = doc.querySelector("parsererror");
         if (parseError) {
-            // A malformed template was previously compiled as-is (the
-            // <parsererror> doc), or `firstChild` picked up a leading
-            // comment/PI (a non-Element) and later blew up on `.getAttribute`.
             throw new Error(`Invalid template:\n${parseError.textContent}`);
         }
         for (const processor of this.templateProcessors) {
             processor(doc);
         }
-        // documentElement is the root Element, robust to leading comments /
-        // processing instructions that would make firstChild a non-Element.
         return doc.documentElement;
     }
 
@@ -188,8 +182,16 @@ export class TemplateRegistry {
         }
 
         let cloned = false;
-        for (const otherBlockId of Object.keys(this.templateExtensions[name] || {})) {
-            if (blockId && Number(otherBlockId) > blockId) {
+        // Extensions must layer in registration order, and the `break` below
+        // relies on it. Object key enumeration happens to give it (integer-like
+        // keys enumerate in ascending numeric order), but that is an incidental
+        // property of the key shape, not a stated contract of this loop — sort
+        // explicitly so the ordering survives any change to how blocks are keyed.
+        const blockIds = Object.keys(this.templateExtensions[name] || {})
+            .map(Number)
+            .sort((a, b) => a - b);
+        for (const otherBlockId of blockIds) {
+            if (blockId && otherBlockId > blockId) {
                 break;
             }
             if (!(name in this.parsedTemplateExtensions)) {
@@ -198,7 +200,7 @@ export class TemplateRegistry {
             if (!(otherBlockId in this.parsedTemplateExtensions[name])) {
                 this.parsedTemplateExtensions[name][otherBlockId] = [];
                 for (const { templateString, url } of this.templateExtensions[name][
-                    Number(otherBlockId)
+                    otherBlockId
                 ]) {
                     this.parsedTemplateExtensions[name][otherBlockId].push({
                         template: this._parse(templateString),
@@ -253,20 +255,10 @@ export class TemplateRegistry {
     registerTemplate(name, url, templateString) {
         const key = getKey([name, url, templateString]);
         if (this.registered.has(key)) {
-            // Verify the hit against the actual stored registration: the
-            // dedup keys are 53-bit hashes, and treating a (however
-            // unlikely) collision as a duplicate would silently skip
-            // registering a template — an undiagnosable failure mode. A
-            // mismatch falls through to a real registration attempt.
             if (
                 this.templates[name] === templateString &&
                 this.info[name]?.url === url
             ) {
-                // True duplicate: return a callable no-op so
-                // ``const un = registerTemplate(...); un()`` works
-                // regardless of registration order in test lifecycles.
-                // Unregistration stays owned by the FIRST registration's
-                // callback.
                 return () => {};
             }
         } else {
@@ -285,24 +277,12 @@ export class TemplateRegistry {
         }
         this.templates[name] = templateString;
         this.info[name] = { blockId: this.blockId, url };
-        // Evict a stale negative-cache entry: a prior getTemplate(name) probe
-        // before registration may have cached `null` permanently, which
-        // would make a lazy bundle serve `null` forever after this call.
         this.processedTemplates.delete(name);
 
         return () => {
             delete this.templates[name];
             delete this.info[name];
             delete this.parsedTemplates[name];
-            // Evict the parsed-extension CACHE only: it is derived state,
-            // lazily rebuilt from `templateExtensions` on the next
-            // _getTemplate, so dropping it can't lose anyone's registration.
-            // The raw `templateExtensions[name]` descriptors are NOT touched:
-            // they belong to whoever called registerTemplateExtension (each
-            // registration has its own unregister callback), and this registry
-            // is a globalThis-shared singleton — deleting them here would
-            // silently clobber other owners' extensions when one owner
-            // unregisters its primary template.
             delete this.parsedTemplateExtensions[name];
             this.processedTemplates.delete(name);
             this.registered.delete(key);
@@ -320,8 +300,6 @@ export class TemplateRegistry {
     registerTemplateExtension(inheritFrom, url, templateString) {
         const key = getKey([inheritFrom, url, templateString]);
         if (this.registered.has(key)) {
-            // Same hash-collision guard as ``registerTemplate``: only treat
-            // the hit as a duplicate if this exact extension is registered.
             const isRegistered = Object.values(
                 this.templateExtensions[inheritFrom] || {},
             ).some((block) =>
@@ -340,10 +318,6 @@ export class TemplateRegistry {
             this.blockId++;
         }
         if (!this.templateExtensions[inheritFrom]) {
-            // A plain object (integer-keyed map by blockId), matching the
-            // `Record<number, …>` JSDoc above — not an Array. It is only ever
-            // read via `Object.keys(...)` and `[blockId]` index access, never
-            // iterated as a dense list, so an Array was a misleading container.
             this.templateExtensions[inheritFrom] = {};
         }
         if (!this.templateExtensions[inheritFrom][this.blockId]) {
@@ -354,12 +328,6 @@ export class TemplateRegistry {
             templateString,
             url,
         });
-        // Evict any compiled/negative cache entry for the parent: a prior
-        // getTemplate(inheritFrom) — from an eager render before a lazy bundle
-        // registered this extension — would otherwise keep serving the
-        // pre-extension DOM forever. Symmetric with registerTemplate and with
-        // this method's own unregister callback below. (OWL Apps that already
-        // compiled the template keep their closure — same caveat as there.)
         delete this.parsedTemplateExtensions[inheritFrom]?.[blockId];
         this.processedTemplates.delete(inheritFrom);
 
@@ -370,10 +338,6 @@ export class TemplateRegistry {
             if (Number.isInteger(index) && index > -1) {
                 this.templateExtensions[inheritFrom][blockId].splice(index, 1);
             }
-            // Splicing the raw descriptor isn't enough: the parsed copy and
-            // compiled result are cached separately, and a later
-            // getTemplate(inheritFrom) would re-apply the removed extension
-            // from that stale cache if left untouched.
             delete this.parsedTemplateExtensions[inheritFrom]?.[blockId];
             this.processedTemplates.delete(inheritFrom);
             this.registered.delete(key);
@@ -431,10 +395,6 @@ export class TemplateRegistry {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Canonical shared instance + backward-compatible module-level functions
-// ---------------------------------------------------------------------------
-
 /**
  * Anchored on ``globalThis`` for the same bundle-sharing reason as the
  * class doc above. Bundle-evaluation order is deterministic: the first
@@ -446,16 +406,6 @@ export class TemplateRegistry {
 export const templates =
     /** @type {any} */ (globalThis).__odooTemplates__ ??
     /** @type {any} */ (globalThis.__odooTemplates__ = new TemplateRegistry());
-
-// ---------------------------------------------------------------------------
-// Backward-compatible module-level wrappers
-//
-// Pre-class API: 28 import sites across core+enterprise+agromarin call
-// these named functions.  Keep them as thin delegates so no consumer
-// has to change.  Each wrapper closes over ``templates`` (the shared
-// singleton); the binding survives when functions are passed by
-// reference (e.g. ``new App({ getTemplate })`` in env.js).
-// ---------------------------------------------------------------------------
 
 /**
  * @param {string} name

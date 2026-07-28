@@ -14,6 +14,39 @@ import { session } from "@web/session";
 /** @import { ActionManager } from "./action_service.js" */
 
 /**
+ * Build the ``updateActionState`` prop: the callback a controller uses to
+ * report a change in the state that belongs in the URL (``resId``,
+ * ``active_id``).
+ *
+ * Shared by both builders below, which carried byte-identical copies of this
+ * closure — same ``shallowEqual`` diff, same three-way gate. The two are not
+ * interchangeable at the call site (each closes over ITS controller's
+ * ``currentState``), so the duplication could only be removed by making the
+ * closure a factory rather than by hoisting one of them.
+ *
+ * The gate is deliberately conservative: nothing is pushed when the state did
+ * not actually change (a re-render reporting the same resId must not add a
+ * history entry), when the action is a dialog (a ``target="new"`` action owns
+ * no URL), or before the controller mounted (the URL still describes the
+ * controller currently on screen).
+ *
+ * @param {Object} currentState the controller's live state object, mutated in place
+ * @param {string} target the owning action's ``target``
+ * @param {ActionManager} am
+ * @returns {(controller: Object, patchState: Object) => void}
+ */
+function makeActionStateUpdater(currentState, target, am) {
+    return (controller, patchState) => {
+        const oldState = { ...currentState };
+        Object.assign(currentState, patchState);
+        const changed = !shallowEqual(currentState, oldState);
+        if (changed && target !== "new" && controller.isMounted) {
+            am.pushState();
+        }
+    };
+}
+
+/**
  * Build the props, config, currentState, and displayName for a client action controller.
  *
  * @param {Object} action the client action descriptor
@@ -25,18 +58,13 @@ export function buildActionInfo(action, props, am) {
     const actionProps = { ...props, action, actionId: action.id };
     const currentState = {
         resId: actionProps.resId ?? false,
-        // Do not default to false: action_state.js serializes non-null values,
-        // and false would leak "active_id":false into the URL state.
         active_id: action.context?.active_id,
     };
-    actionProps.updateActionState = (controller, patchState) => {
-        const oldState = { ...currentState };
-        Object.assign(currentState, patchState);
-        const changed = !shallowEqual(currentState, oldState);
-        if (changed && action.target !== "new" && controller.isMounted) {
-            am.pushState();
-        }
-    };
+    actionProps.updateActionState = makeActionStateUpdater(
+        currentState,
+        action.target,
+        am,
+    );
     return {
         props: actionProps,
         currentState,
@@ -152,18 +180,9 @@ export function buildViewInfo(view, action, views, props = {}, am) {
 
     const currentState = {
         resId: viewProps.resId,
-        // Do not default to false: action_state.js serializes non-null values,
-        // and false would leak "active_id":false into the URL state.
         active_id: action.context?.active_id,
     };
-    viewProps.updateActionState = (controller, patchState) => {
-        const oldState = { ...currentState };
-        Object.assign(currentState, patchState);
-        const changed = !shallowEqual(currentState, oldState);
-        if (changed && target !== "new" && controller.isMounted) {
-            am.pushState();
-        }
-    };
+    viewProps.updateActionState = makeActionStateUpdater(currentState, target, am);
 
     viewProps.noBreadcrumbs =
         "_noBreadcrumbs" in action ? action._noBreadcrumbs : target === "new";

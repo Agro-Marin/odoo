@@ -56,7 +56,7 @@ test("Numeric fields: fields with keydown on numpad decimal key", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="float_factor_field" options="{'factor': 0.5}" widget="float_factor"/>
                 <field name="qux"/>
@@ -70,8 +70,6 @@ test("Numeric fields: fields with keydown on numpad decimal key", async () => {
         resId: 1,
     });
 
-    // Dispatch numpad "dot" and numpad "comma" keydown events to all inputs and check
-    // Numpad "comma" is specific to some countries (Brazil...)
     await click(".o_field_float_factor input");
     await keyDown("ArrowRight", { code: "ArrowRight" });
     await keyDown(".", { code: "NumpadDecimal" });
@@ -121,7 +119,7 @@ test("Numeric fields: numpad decimal keystroke marks the field dirty", async () 
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="qux"/></form>`,
+        arch: `<form><field name="qux"/></form>`,
         resId: 1,
     });
 
@@ -131,8 +129,6 @@ test("Numeric fields: numpad decimal keystroke marks the field dirty", async () 
     await keyDown("ArrowRight", { code: "ArrowRight" });
     await keyDown(".", { code: "NumpadDecimal" });
     await animationFrame();
-    // setRangeText fires no native input event: the hook must dispatch a
-    // synthetic one so the status indicator reacts to the keystroke.
     expect(".o_form_status_indicator_buttons").toBeVisible({
         message: "the rewritten separator must mark the field dirty",
     });
@@ -142,7 +138,7 @@ test("Numeric fields: NumpadDecimal key is different from the decimalPoint", asy
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="float_factor_field" options="{'factor': 0.5}" widget="float_factor"/>
                 <field name="qux"/>
@@ -184,18 +180,15 @@ test("Numeric fields: NumpadDecimal key is different from the decimalPoint", asy
         }
         await animationFrame();
 
-        // dispatch an extra keydown event and expect that it's not default prevented
         const [extraEvent] = await keyDown("1", { code: "Digit1" });
         if (extraEvent.defaultPrevented) {
             throw new Error("should not be default prevented");
         }
         await animationFrame();
 
-        // Selection range should be at +2 from the specified selection start (separator + character).
         expect(el.selectionStart).toBe(selectionRange[0] + 2);
         expect(el.selectionEnd).toBe(selectionRange[0] + 2);
         await animationFrame();
-        // NumpadDecimal event should be default prevented
         expect.verifySteps(["preventDefault"]);
         expect(el).toHaveValue(expectedValue, { message: msg });
     }
@@ -258,7 +251,6 @@ test("useNumpadDecimal should synchronize handlers on input elements", async () 
             }
             await animationFrame();
 
-            // dispatch an extra keydown event and expect that it's not default prevented
             const [extraEvent] = await keyDown("1", { code: "Digit1" });
             if (extraEvent.defaultPrevented) {
                 throw new Error("should not be default prevented");
@@ -286,15 +278,12 @@ test("useNumpadDecimal should synchronize handlers on input elements", async () 
     const comp = await mountWithCleanup(MyComponent);
     await animationFrame();
 
-    // Initially, only one input should be rendered.
     expect("main > input").toHaveCount(1);
     await testInputElements(queryAll("main > input"));
 
-    // We show the second input by manually updating the state.
     comp.state.showOtherInput = true;
     await animationFrame();
 
-    // The second input should also be able to handle numpad decimal.
     expect("main > input").toHaveCount(2);
     await testInputElements(queryAll("main > input"));
 });
@@ -303,7 +292,7 @@ test("select all content on focus", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="monetary"/></form>`,
+        arch: `<form><field name="monetary"/></form>`,
     });
 
     const input = queryFirst(".o_field_widget[name='monetary'] input");
@@ -318,7 +307,7 @@ test("select all content on focus (human readable format)", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="int_field" options="{'human_readable': true}"/></form>`,
+        arch: `<form><field name="int_field" options="{'human_readable': true}"/></form>`,
         resId: 1,
     });
 
@@ -326,8 +315,6 @@ test("select all content on focus (human readable format)", async () => {
     expect(input).toHaveValue("5k");
     await pointerDown(input);
     await animationFrame();
-    // The focus-driven reformat ("5k" -> "5.000") must not collapse the
-    // select-all done by the focus handler.
     expect(input).toHaveValue("5.000");
     expect(input.selectionStart).toBe(0);
     expect(input.selectionEnd).toBe(5);

@@ -38,10 +38,6 @@ test("simple rendering", async () => {
     });
     await mountWithCleanup(MainComponentsContainer);
     expect("div.o-main-components-container").toHaveCount(1);
-    // ``clearRegistry`` can't unregister system-level main components other
-    // modules attach (ChatHub, notification managers, etc.), so asserting
-    // exact innerHTML would couple this test to the unit-test bundle's
-    // contents. Verify just that OUR two registry entries render.
     expect(".o-main-components-container > span:first-child").toHaveText(
         "MainComponentA",
     );
@@ -51,9 +47,6 @@ test("simple rendering", async () => {
 });
 
 test("unmounts erroring main component", async () => {
-    // Bumped from 6→7 after splitting the brittle ``toHaveInnerHTML``
-    // root assertion into per-child ``toHaveText`` checks (see comment
-    // below).
     expect.assertions(7);
     expect.errors(1);
     onError((error) => {
@@ -88,9 +81,6 @@ test("unmounts erroring main component", async () => {
     });
     await mountWithCleanup(MainComponentsContainer);
     expect("div.o-main-components-container").toHaveCount(1);
-    // See ``simple rendering`` test for why exact-innerHTML assertions
-    // are too brittle in this fork — verify the two TEST components are
-    // present rather than asserting the full container contents.
     expect(".o-main-components-container > span:first-child").toHaveText(
         "MainComponentA",
     );
@@ -105,16 +95,11 @@ test("unmounts erroring main component", async () => {
     ]);
     expect.verifyErrors(["BOOM"]);
 
-    // After MainComponentA errors out, only MainComponentB is left as a
-    // direct ``<span>`` child — system components render as ``<div>``s, so
-    // the span count is still a safe discriminator.
     expect(".o-main-components-container > span").toHaveCount(1);
     expect(".o-main-components-container > span").toHaveText("MainComponentB");
 });
 
 test("unmounts erroring main component: variation", async () => {
-    // See sibling test — assertion count bumped 6→7 for the same
-    // split-into-two-children reason.
     expect.assertions(7);
     expect.errors(1);
     onError((error) => {
@@ -149,8 +134,6 @@ test("unmounts erroring main component: variation", async () => {
     });
     await mountWithCleanup(MainComponentsContainer);
     expect("div.o-main-components-container").toHaveCount(1);
-    // See ``simple rendering`` test above for the brittle-innerHTML
-    // rationale: assert only on the two test components.
     expect(".o-main-components-container > span:first-child").toHaveText(
         "MainComponentA",
     );
@@ -191,16 +174,16 @@ test("Should be possible to add a new component when MainComponentContainer is n
             });
         },
     });
-    mountWithCleanup(MainComponentsContainer);
+    // Not awaited yet: the container stays blocked in onWillStart until
+    // `defer` resolves, which is the "not mounted yet" state under test.
+    const mounted = mountWithCleanup(MainComponentsContainer);
     class MyMainComponent extends Component {
         static template = xml`<div class="myMainComponent" />`;
         static props = ["*"];
     }
-    // Wait for the setup of MainComponentsContainer to be completed
-    await animationFrame();
     mainComponentsRegistry.add("myMainComponent", { Component: MyMainComponent });
-    // Release the component mounting
     defer.resolve();
+    await mounted;
     await animationFrame();
     expect(".myMainComponent").toHaveCount(1);
 });

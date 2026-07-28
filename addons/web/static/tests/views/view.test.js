@@ -44,9 +44,6 @@ class ToyControllerImp extends ToyController {
     }
 }
 
-// Re-register on every test: the global registry ``afterEach`` restores a
-// snapshot from the previous test's ``beforeEach``, which predates this
-// suite's ``before`` additions — toy/toy_imp would vanish after test 1.
 beforeEach(() => {
     patchWithCleanup(serverState.view_info, {
         toy: { multi_record: true, display_name: "Toy", icon: "fab fa-android" },
@@ -67,11 +64,11 @@ class Animal extends models.Model {
     });
 
     _views = {
-        toy: /* xml */ `<toy>Arch content (id=false)</toy>`,
-        "toy,1": /* xml */ `<toy>Arch content (id=1)</toy>`,
-        "toy,2": /* xml */ `<toy js_class="toy_imp">Arch content (id=2)</toy>`,
-        search: /* xml */ `<search/>`,
-        "search,1": /* xml */ `
+        toy: `<toy>Arch content (id=false)</toy>`,
+        "toy,1": `<toy>Arch content (id=1)</toy>`,
+        "toy,2": `<toy js_class="toy_imp">Arch content (id=2)</toy>`,
+        search: `<search/>`,
+        "search,1": `
             <search>
                 <filter name="filter" domain="[(1, '=', 1)]"/>
                 <filter name="group_by" context="{ 'group_by': 'display_name' }"/>
@@ -93,8 +90,6 @@ class Animal extends models.Model {
 }
 
 defineModels([Animal]);
-
-// get_views
 
 test("simple rendering", async function () {
     expect.assertions(9);
@@ -599,7 +594,7 @@ test("rendering with given arch, fields, searchViewId, searchViewArch, searchVie
             expect(searchViewArch).toBe(`<search/>`);
             expect(searchViewFields).toEqual({});
             expect(searchViewId).toBe(undefined);
-            expect(filters).toBe(irFilters); // irFilters is passed as it is without transformation -> we can use toBe instead of toEqual to avoid a warning
+            expect(filters).toBe(irFilters);
         },
     });
     onRpc("get_views", () => {
@@ -632,7 +627,7 @@ test("can click on action-bound links -- 1", async () => {
             expect(options).toEqual({});
         },
     });
-    Animal._views[["toy", 1]] = /* xml */ `
+    Animal._views[["toy", 1]] = `
         <toy>
             <a type="action" data-method="setTheControl" data-model="animal">link</a>
         </toy>
@@ -662,7 +657,7 @@ test("can click on action-bound links -- 2", async () => {
             });
         },
     });
-    Animal._views[["toy", 1]] = /* xml */ `
+    Animal._views[["toy", 1]] = `
         <toy>
             <a type="action" name="myLittleAction" data-context="{ &quot;somekey&quot;: &quot;somevalue&quot; }">
                 link
@@ -697,7 +692,7 @@ test("can click on action-bound links -- 3", async () => {
             });
         },
     });
-    Animal._views[["toy", 1]] = /* xml */ `
+    Animal._views[["toy", 1]] = `
         <toy>
             <a type="action" title="myTitle" data-model="animal" data-resId="66" data-views="[[55, 'toy']]" data-domain="[['field', '=', 'val']]" data-context="{ &quot;somekey&quot;: &quot;somevalue&quot; }">
                 link
@@ -711,8 +706,6 @@ test("can click on action-bound links -- 3", async () => {
     await click("a");
     await animationFrame();
 });
-
-// js_class
 
 test("rendering with given jsClass", async function () {
     expect.assertions(4);
@@ -826,8 +819,6 @@ test("rendering with given arch attribute 'js_class' and given jsClass", async f
     expect(".o_toy_view.toy_imp").toHaveCount(1);
 });
 
-// props validation
-
 test("'resModel' must be passed as prop", async function () {
     const props = {};
     try {
@@ -891,8 +882,6 @@ test("'searchViewFields' cannot be passed as prop alone", async function () {
         `"searchViewArch" and "searchViewFields" props must be given together`,
     ]);
 });
-
-// props
 
 test("search query props are passed as props to concrete view (default search arch)", async function () {
     expect.assertions(4);
@@ -1149,11 +1138,11 @@ test("callback recorders are moved from props to subenv", async () => {
         static props = ["*"];
         static template = xml`<div/>`;
         setup() {
-            expect(this.env.__getGlobalState__).toBeInstanceOf(CallbackRecorder); // put in env by View
-            expect(this.env.__getContext__).toBeInstanceOf(CallbackRecorder); // put in env by View
-            expect(this.env.__getLocalState__).toBe(null); // set by View
-            expect(this.env.__beforeLeave__).toBe(null); // set by View
-            expect(this.env.__getOrderBy__).toBeInstanceOf(CallbackRecorder); // put in env by WithSearch
+            expect(this.env.__getGlobalState__).toBeInstanceOf(CallbackRecorder);
+            expect(this.env.__getContext__).toBeInstanceOf(CallbackRecorder);
+            expect(this.env.__getLocalState__).toBe(null);
+            expect(this.env.__beforeLeave__).toBe(null);
+            expect(this.env.__getOrderBy__).toBeInstanceOf(CallbackRecorder);
         }
     }
     viewRegistry.add(
@@ -1169,8 +1158,6 @@ test("callback recorders are moved from props to subenv", async () => {
     };
     await mountWithCleanup(View, { props });
 });
-
-// update props
 
 test("react to prop 'domain' changes", async function () {
     expect.assertions(2);
@@ -1207,8 +1194,6 @@ test("react to prop 'domain' changes", async function () {
     parent.state.domain = [["type", "=", "herbivorous"]];
     await animationFrame();
 });
-
-// cache
 
 test("Cache: refresh with debug mode", async () => {
     const env = await makeMockEnv();

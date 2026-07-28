@@ -64,8 +64,6 @@ test("throws if key is missing", () => {
 });
 
 test("missing-key error names an unnamed (root) registry with a fallback label", () => {
-    // An anonymous registry has ``name === undefined``; the message must read
-    // "(root)" instead of the literal string "undefined".
     const registry = new Registry();
     expect(() => registry.get("missing")).toThrow(/in the "\(root\)" registry/);
 
@@ -104,8 +102,6 @@ test("can get ordered list of elements", () => {
 });
 
 test("equal sequences keep insertion order, even for integer-like keys", () => {
-    // Object key enumeration puts "2" before "10"; the insertion-index
-    // tiebreaker must override that so ties reflect add() order instead.
     const registry = new Registry();
     registry
         .add("10", "v10", { sequence: 50 })
@@ -143,11 +139,9 @@ test("getAll and getEntries return frozen cached arrays", () => {
     expect(all).toEqual(["foo1"]);
     expect(entries).toEqual([["foo1", "foo1"]]);
 
-    // Arrays are frozen — mutation throws in strict mode
     expect(() => all.push("foo2")).toThrow();
     expect(() => entries.push(["foo2", "foo2"])).toThrow();
 
-    // Cached array is unchanged
     expect(registry.getAll()).toEqual(["foo1"]);
     expect(registry.getEntries()).toEqual([["foo1", "foo1"]]);
 });
@@ -156,11 +150,9 @@ test("getAll and getEntries return the same cached reference", () => {
     const registry = new Registry();
     registry.add("a", 1);
 
-    // Same reference on repeated calls (no unnecessary copy)
     expect(registry.getAll()).toBe(registry.getAll());
     expect(registry.getEntries()).toBe(registry.getEntries());
 
-    // Adding invalidates cache — new reference
     const prev = registry.getAll();
     registry.add("b", 2);
     expect(registry.getAll()).not.toBe(prev);
@@ -171,12 +163,10 @@ test("getAll/getEntries: callers can spread for mutable copy", () => {
     registry.add("b", "b", { sequence: 2 });
     registry.add("a", "a", { sequence: 1 });
 
-    // Spread creates a mutable copy
     const sorted = [...registry.getAll()];
     expect(() => sorted.reverse()).not.toThrow();
     expect(sorted).toEqual(["b", "a"]);
 
-    // Original frozen cache unchanged
     expect(registry.getAll()).toEqual(["a", "b"]);
 });
 
@@ -213,27 +203,37 @@ test("force-replacing preserves sequence 0", () => {
 
     registry.add("first", "a", { sequence: 0 }).add("second", "b", { sequence: 1 });
 
-    // Force-replace without specifying sequence — should keep sequence 0
     registry.add("first", "a2", { force: true });
 
-    // "first" should still sort before "second" (sequence 0 < 1)
     expect(registry.getEntries()).toEqual([
         ["first", "a2"],
         ["second", "b"],
     ]);
 });
 
+test("force-replacing keeps the entry's position among equal-sequence peers", () => {
+    const registry = new Registry();
+
+    registry.add("a", "a1").add("b", "b1").add("c", "c1");
+
+    registry.add("a", "a2", { force: true });
+
+    expect(registry.getEntries()).toEqual([
+        ["a", "a2"],
+        ["b", "b1"],
+        ["c", "c1"],
+    ]);
+    expect(registry.getAll()).toEqual(["a2", "b1", "c1"]);
+});
+
 test("contains is not fooled by Object.prototype keys", () => {
     const registry = new Registry();
 
-    // These are inherited keys on a regular {} object.
-    // With Object.create(null), they correctly return false.
     expect(registry.contains("constructor")).toBe(false);
     expect(registry.contains("toString")).toBe(false);
     expect(registry.contains("hasOwnProperty")).toBe(false);
     expect(registry.contains("__proto__")).toBe(false);
 
-    // But explicitly added keys work
     registry.add("constructor", "my-value");
     expect(registry.contains("constructor")).toBe(true);
     expect(registry.get("constructor")).toBe("my-value");
@@ -260,9 +260,6 @@ test("can validate the values from a schema", () => {
     expect(() =>
         friendsRegistry.add("chris", { name: "chris", city: "Namur" }),
     ).toThrow();
-    // addValidation is idempotent (first-schema-wins): the globalThis-anchored
-    // shared registry is re-evaluated by each bundle, so a repeat call must be
-    // a silent no-op. See registry.js::addValidation.
     expect(() => friendsRegistry.addValidation({ something: Number })).not.toThrow();
     expect(friendsRegistry.validationSchema).toBe(schema);
 });
@@ -294,7 +291,6 @@ test("function predicate accepts and rejects values", async () => {
     expect(() => fnRegistry.add("ok", () => 1)).not.toThrow();
     expect(() => fnRegistry.add("bad", { not: "a function" })).toThrow();
 
-    // Only ``=== false`` rejects; truthy / undefined accept.
     /** @type {any} */
     const lenientReg = new Registry();
     lenientReg.addValidation(() => undefined);
@@ -309,23 +305,10 @@ test("function predicate validates existing entries on addValidation", async () 
     expect(() => fnRegistry.add("bad", 42)).not.toThrow({
         message: "no schema yet, anything goes",
     });
-    // Adding the predicate now retroactively validates the bad entry.
     expect(() => fnRegistry.addValidation((v) => typeof v === "function")).toThrow();
 });
 
-// NOTE: Hoot patches ``Registry.prototype.add`` (in
-// ``module_set.hoot.js``) to force ``force: true`` on every call so fixture
-// overrides work, which bypasses the ``!force`` branch that fires the
-// debug-mode collision warnings (registry.js:168-176 — both the
-// "different value" and "same value, different sequence" cases). Untestable
-// here; verified out-of-tree under Node via ``/tmp/registry_warn_test.mjs``
-// (inlines the production class).
-
 test("non-debug: refuses (quarantines) an invalid entry without throwing", async () => {
-    // 2026-06 onward: production REFUSES (quarantines) a schema-invalid
-    // registration instead of inserting-and-warning — no throw, but the key
-    // never resolves to corrupt data. Dev-mode still throws (see "can
-    // validate the values from a schema" above).
     const schema = { name: String };
     const registry = new Registry();
     registry.addValidation(schema);
@@ -340,20 +323,16 @@ test("non-debug: refuses (quarantines) an invalid entry without throwing", async
     expect(warnings.length).toBe(1);
     expect(warnings[0][0]).toInclude("[registry]");
     expect(warnings[0][0]).toInclude(`Validation error for key "jean"`);
-    // The quarantined entry must NOT be retrievable (no corrupt state).
     expect(registry.contains("jean")).toBe(false);
     expect(() => registry.get("jean")).toThrow();
-    // A subsequent VALID registration under the same key still works.
     registry.add("jean", { name: "Jean" });
     expect(registry.get("jean")).toEqual({ name: "Jean" });
 });
 
 test("non-debug: addValidation retroactively quarantines invalid existing entries", async () => {
-    // addValidation on an already-populated registry enforces the schema
-    // retroactively: pre-existing violating entries are removed (production).
     const registry = new Registry();
     registry.add("good", { name: "ok" });
-    registry.add("bad", { name: 123 }); // no schema yet → accepted
+    registry.add("bad", { name: 123 });
     patchWithCleanup(console, { warn: () => {} });
 
     expect(() => registry.addValidation({ name: String })).not.toThrow();
@@ -362,10 +341,6 @@ test("non-debug: addValidation retroactively quarantines invalid existing entrie
 });
 
 test("useRegistry: additions after a local splice keep sequence order", async () => {
-    // MainComponentsContainer.handleComponentError splices faulty entries
-    // out of the LOCAL reactive copy; a later registry addition must still
-    // land at its sequence-ordered position relative to the surviving local
-    // entries (the full-registry index would overshoot after the splice).
     const testRegistry = new Registry();
     testRegistry.add("a", "A", { sequence: 10 });
     testRegistry.add("b", "B", { sequence: 20 });
@@ -383,23 +358,17 @@ test("useRegistry: additions after a local splice keep sequence order", async ()
     await mountWithCleanup(MyComponent);
     expect(state.entries.map(([k]) => k)).toEqual(["a", "b", "d"]);
 
-    // Local removal (not through the registry).
     state.entries.splice(0, 1);
     expect(state.entries.map(([k]) => k)).toEqual(["b", "d"]);
 
-    // Registry order is a(10), b(20), c(30), d(40) → locally c belongs
-    // between b and d, not at full-registry index 2 (after d).
     testRegistry.add("c", "C", { sequence: 30 });
     expect(state.entries.map(([k]) => k)).toEqual(["b", "c", "d"]);
 
-    // Appending at the end still works.
     testRegistry.add("e", "E", { sequence: 50 });
     expect(state.entries.map(([k]) => k)).toEqual(["b", "c", "d", "e"]);
 });
 
 test("useRegistry: listens from setup time, not onWillStart", async () => {
-    // An addition landing between setup and an async willStart chain must
-    // not be lost.
     const testRegistry = new Registry();
     testRegistry.add("a", "A", { sequence: 10 });
 
@@ -410,7 +379,6 @@ test("useRegistry: listens from setup time, not onWillStart", async () => {
         static props = ["*"];
         setup() {
             state = useRegistry(testRegistry);
-            // Registered during setup, before any lifecycle hook runs.
             testRegistry.add("b", "B", { sequence: 20 });
         }
     }

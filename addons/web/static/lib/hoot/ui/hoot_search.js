@@ -35,18 +35,10 @@ import { HootTagButton } from "./hoot_tag_button.js";
  * @typedef {import("../core/test").Test} Test
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Math: { abs: $abs },
     Object: { entries: $entries, values: $values },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {string} query
@@ -88,7 +80,7 @@ function removeRegExp(query) {
  *
  * @param {string} tagName
  */
-const templateIncludeWidget = (tagName) => /* xml */ `
+const templateIncludeWidget = (tagName) =>   `
     <t t-set="type" t-value="category === 'tag' ? category : 'id'" />
     <t t-set="includeStatus" t-value="runnerState.includeSpecs[type][job.id] or 0" />
     <t t-set="readonly" t-value="isReadonly(includeStatus)" />
@@ -200,9 +192,7 @@ const EMPTY_SUITE = new Suite(null, "…", []);
 const SECRET_SEQUENCE = [38, 38, 40, 40, 37, 39, 37, 39, 66, 65];
 const RESULT_LIMIT = 5;
 
-// Template parts, because 16 levels of indent is a bit much
-
-const TEMPLATE_FILTERS_AND_CATEGORIES = /* xml */ `
+const TEMPLATE_FILTERS_AND_CATEGORIES =   `
     <div class="flex mb-2">
         <t t-if="trimmedQuery">
             <button
@@ -253,7 +243,7 @@ const TEMPLATE_FILTERS_AND_CATEGORIES = /* xml */ `
     </t>
 `;
 
-const TEMPLATE_SEARCH_DASHBOARD = /* xml */ `
+const TEMPLATE_SEARCH_DASHBOARD =   `
     <div class="flex flex-col gap-4 sm:grid sm:grid-cols-3 sm:gap-0">
         <div class="flex flex-col sm:px-4">
             <h4 class="text-primary font-bold flex items-center mb-2">
@@ -302,10 +292,6 @@ const TEMPLATE_SEARCH_DASHBOARD = /* xml */ `
         </div>
     </div>
 `;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /** @extends {Component<HootSearchProps, import("../hoot").Environment>} */
 export class HootSearch extends Component {
@@ -782,7 +768,7 @@ export class HootSearch extends Component {
     toggleInclude(type, id) {
         const currentValue = this.runnerState.includeSpecs[type][id];
         if (this.isReadonly(currentValue)) {
-            return; // readonly
+            return;
         }
         if (currentValue > 0) {
             this.setInclude(type, id, -INCLUDE_LEVEL.url);

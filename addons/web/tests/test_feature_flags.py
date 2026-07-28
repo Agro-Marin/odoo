@@ -25,9 +25,6 @@ class TestFeatureFlagsResolver(TransactionCase):
     def setUp(self):
         super().setUp()
         self.ICP = self.env["ir.config_parameter"].sudo()
-        # Clear any pre-existing web.feature.* rows so each test's assertion
-        # set (e.g. test_only_prefixed_keys_are_included) is self-contained
-        # rather than relying on TransactionCase's per-test savepoint rollback.
         self.ICP.search([("key", "=like", "web.feature.%")]).unlink()
         self.ir_http = self.env["ir.http"]
 
@@ -78,10 +75,6 @@ class TestFeatureFlagsResolver(TransactionCase):
         self.assertEqual(result["strategy"], "ab_test_cohort_42")
 
     def test_scientific_notation_and_infinity_stay_strings(self):
-        # Python's float() accepts ``1.5e2`` / ``inf`` / ``nan`` but the JS
-        # numeric regex does not, so the JS resolver would leave these as
-        # strings.  This test pins the Python parser to that gate so a flag
-        # value resolves to the same type regardless of source layer.
         self._set("scientific", "1.5e2")
         self._set("infinity", "inf")
         self._set("not_a_number", "nan")
@@ -91,16 +84,10 @@ class TestFeatureFlagsResolver(TransactionCase):
         self.assertEqual(result["not_a_number"], "nan")
 
     def test_empty_string_parses_to_truthy(self):
-        # Mirror JS behaviour: bare ``features=name:`` is treated as enabling
-        # the flag, so a stored empty string must also resolve truthy, not
-        # falsy. Built directly via create() to make the empty value explicit;
-        # set_param() would store it identically (it only special-cases
-        # True/False/None, not "").
         self.ICP.create({"key": "web.feature.bare", "value": ""})
         result = self.ir_http._resolve_feature_flags(self.ICP)
         self.assertIs(result["bare"], True)
 
-    # -- ormcache behavior (cache="stable") -----------------------------------
 
     def test_flags_cached_second_call_issues_no_query(self):
         """The flag set is ormcached: a second resolve within the same cache
@@ -120,17 +107,14 @@ class TestFeatureFlagsResolver(TransactionCase):
         self.assertEqual(
             self.ir_http._resolve_feature_flags(self.ICP)["inval_probe"], 1
         )
-        # write() path
         self._set("inval_probe", "2")
         self.assertEqual(
             self.ir_http._resolve_feature_flags(self.ICP)["inval_probe"], 2
         )
-        # create() path
         self._set("created_probe", "true")
         self.assertIs(
             self.ir_http._resolve_feature_flags(self.ICP)["created_probe"], True
         )
-        # unlink() path
         self.ICP.search([("key", "=", "web.feature.inval_probe")]).unlink()
         self.assertNotIn("inval_probe", self.ir_http._resolve_feature_flags(self.ICP))
 

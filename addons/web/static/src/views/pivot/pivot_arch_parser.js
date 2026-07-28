@@ -57,13 +57,8 @@ export class PivotArchParser {
                     break;
                 }
                 case "field": {
-                    let fieldName = node.getAttribute("name"); // exists (rng validation)
+                    let fieldName = node.getAttribute("name");
 
-                    // A field may legitimately appear several times in a
-                    // pivot arch (e.g. once as row, once as measure): merge
-                    // the attrs instead of resetting them. Note the key
-                    // asymmetry: fieldAttrs is keyed by the bare field name,
-                    // while widgets below is keyed by "name:interval".
                     archInfo.fieldAttrs[fieldName] ??= {};
                     if (node.hasAttribute("string")) {
                         archInfo.fieldAttrs[fieldName].string =

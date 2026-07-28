@@ -49,10 +49,6 @@ import {
 import { MockNotification } from "./notification.js";
 import { MockStorage } from "./storage.js";
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     EventTarget,
     HTMLAnchorElement,
@@ -76,10 +72,6 @@ const {
 
 const { addEventListener, removeEventListener } = EventTarget.prototype;
 const { preventDefault } = Event.prototype;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {unknown} target
@@ -195,12 +187,10 @@ function getWatchedEventTargets(view) {
     return [
         view,
         view.document,
-        // Permanent DOM elements
         view.HTMLDocument.prototype,
         view.HTMLBodyElement.prototype,
         view.HTMLHeadElement.prototype,
         view.HTMLHtmlElement.prototype,
-        // Other event targets
         EventBus.prototype,
         MockEventTarget.prototype,
     ];
@@ -273,11 +263,9 @@ function matchesQueryPart(mediaQueryString) {
 function mockedAddEventListener(...args) {
     const runner = getRunner();
     if (runner.dry || !runner.suiteStack.length) {
-        // Ignore listeners during dry run or outside of a test suite
         return;
     }
     if (!R_OWL_SYNTHETIC_LISTENER.test(String(args[1]))) {
-        // Ignore cleanup for Owl synthetic listeners
         runner.after(removeEventListener.bind(this, ...args));
     }
     return addEventListener.call(this, ...args);
@@ -338,7 +326,6 @@ function mockedPreventDefault() {
 /** @type {typeof removeEventListener} */
 function mockedRemoveEventListener(...args) {
     if (getRunner().dry) {
-        // Ignore listeners during dry run
         return;
     }
     return removeEventListener.call(this, ...args);
@@ -374,12 +361,10 @@ function onAnchorHrefClick(ev) {
 
     ev.preventDefault();
 
-    // Assign href to mock location instead of actual location
     mockLocation.href = href;
 
     const [, hash] = href.split("#");
     if (hash) {
-        // Scroll to the target element if the href is/has a hash
         getDocument().getElementById(hash)?.scrollIntoView();
     }
 }
@@ -456,7 +441,6 @@ const mockSessionStorage = new MockStorage();
 const preventedEvents = new WeakSet();
 let mockTitle = "";
 
-// Mock descriptors
 const ANCHOR_MOCK_DESCRIPTORS = {
     href: {
         ...$getOwnPropertyDescriptor(HTMLAnchorElement.prototype, "href"),
@@ -524,29 +508,20 @@ const WINDOW_MOCK_DESCRIPTORS = {
     XMLHttpRequestUpload: { value: MockXMLHttpRequestUpload },
 };
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export function cleanupWindow() {
     const view = getWindow();
 
-    // Storages
     mockLocalStorage.clear();
     mockSessionStorage.clear();
 
-    // Media
     mediaQueryLists.clear();
     $assign(mockMediaValues, DEFAULT_MEDIA_VALUES);
 
-    // Title
     mockTitle = "";
 
-    // Listeners
     view.removeEventListener("click", onAnchorHrefClick);
     view.removeEventListener("resize", onWindowResize);
 
-    // Head & body attributes
     const { head, body } = view.document;
     for (const { name } of head.attributes) {
         head.removeAttribute(name);
@@ -555,7 +530,6 @@ export function cleanupWindow() {
         body.removeAttribute(name);
     }
 
-    // Touch
     restoreTouch(view);
 }
 
@@ -647,14 +621,11 @@ export function mockTouch(setTouch) {
  * @param {typeof globalThis} [view=getWindow()]
  */
 export function patchWindow(view = getWindow()) {
-    // Window (doesn't need to be ready)
     applyPropertyDescriptors(view, WINDOW_MOCK_DESCRIPTORS);
 
     waitForDocument(view.document).then(() => {
-        // Document
         applyPropertyDescriptors(view.document, DOCUMENT_MOCK_DESCRIPTORS);
 
-        // Element prototypes
         applyPropertyDescriptors(view.Element.prototype, ELEMENT_MOCK_DESCRIPTORS);
         applyPropertyDescriptors(view.HTMLAnchorElement.prototype, ANCHOR_MOCK_DESCRIPTORS);
     });
@@ -676,7 +647,6 @@ export function setTitle(value) {
 export function setupWindow() {
     const view = getWindow();
 
-    // Listeners
     view.addEventListener("click", onAnchorHrefClick);
     view.addEventListener("resize", onWindowResize);
 }

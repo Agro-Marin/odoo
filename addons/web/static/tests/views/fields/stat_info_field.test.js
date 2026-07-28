@@ -21,12 +21,11 @@ class Partner extends models.Model {
 defineModels([Partner]);
 
 test("StatInfoField formats decimal precision", async () => {
-    // Rounding floats can yield artifacts like 14.000001; verify only two decimals show.
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <button class="oe_stat_button" name="items" icon="fa-gear">
                     <field name="qux" widget="statinfo" />
@@ -38,7 +37,6 @@ test("StatInfoField formats decimal precision", async () => {
         `,
     });
 
-    // formatFloat renders according to this.field.digits
     expect("button.oe_stat_button .o_field_widget .o_stat_value:eq(0)").toHaveText(
         "0.4",
         {
@@ -58,7 +56,7 @@ test("StatInfoField widget on a chart fields", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <button class="oe_stat_button" name="items" icon="fa-gear">
                     <field name="foo" widget="statinfo" />
@@ -78,7 +76,7 @@ test("StatInfoField widget on a char field (unset value)", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <button class="oe_stat_button" name="items" icon="fa-gear">
                     <field name="foo" widget="statinfo" />
@@ -100,7 +98,7 @@ test("StatInfoField widget on a one2many field (one record)", async () => {
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <button class="oe_stat_button" name="items" icon="fa-gear">
                     <field name="child_ids" widget="statinfo" />
@@ -126,7 +124,7 @@ test("StatInfoField widget on a one2many field (multiple records)", async () => 
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <button class="oe_stat_button" name="items" icon="fa-gear">
                     <field name="child_ids" widget="statinfo" />
@@ -149,7 +147,7 @@ test("StatInfoField widget on a many2one field", async () => {
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <button class="oe_stat_button" name="items" icon="fa-gear">
                     <field name="parent_id" widget="statinfo" />
@@ -169,7 +167,7 @@ test("StatInfoField in form view on desktop", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <div class="oe_button_box" name="button_box">
                     <button class="oe_stat_button" name="items" type="object" icon="fa-gear">
@@ -200,7 +198,7 @@ test("StatInfoField in form view on mobile", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <div class="oe_button_box" name="button_box">
                     <button class="oe_stat_button" name="items" type="object" icon="fa-gear">
@@ -232,7 +230,7 @@ test("StatInfoField in form view with specific label_field on desktop", async ()
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -265,7 +263,7 @@ test("StatInfoField in form view with specific label_field on mobile", async () 
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -299,7 +297,7 @@ test("StatInfoField in form view with no label on desktop", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -328,7 +326,7 @@ test("StatInfoField in form view with no label on mobile", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <div class="oe_button_box" name="button_box">

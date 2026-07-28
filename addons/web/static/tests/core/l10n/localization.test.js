@@ -18,9 +18,6 @@ test("set parameters are readable", () => {
 });
 
 test("protocol probes and symbols do not throw", () => {
-    // Inspecting the object while debugging (JSON.stringify, devtools
-    // formatters, assertion libraries) must not raise: symbols and the
-    // well-known protocol keys pass through.
     expect(() => JSON.stringify(localization)).not.toThrow();
     expect(localization[Symbol.toStringTag]).toBe(undefined);
     expect(localization[Symbol.toPrimitive]).toBe(undefined);

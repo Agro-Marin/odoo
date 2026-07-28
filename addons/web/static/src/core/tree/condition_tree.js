@@ -123,11 +123,6 @@ export const FALSE_TREE = condition(0, "=", 1);
  */
 function cloneValue(value) {
     if (value instanceof Expression) {
-        // Expression is an immutable value object: `_ast`/`_expr` are set once
-        // in the constructor and never mutated, and equality compares the
-        // `_expr` string (virtual_operators.js), not instance identity. Reusing
-        // the instance is therefore safe and avoids rebuilding it — which
-        // re-runs formatAST on every clone, across every operate() pass.
         return value;
     }
     if (Array.isArray(value)) {
@@ -260,7 +255,7 @@ export function formatValue(value) {
  * @param {Value} value
  */
 export function normalizeValue(value) {
-    return toValue(astFromValue(value)); // no array in array (see isWithinArray)
+    return toValue(astFromValue(value));
 }
 
 /**

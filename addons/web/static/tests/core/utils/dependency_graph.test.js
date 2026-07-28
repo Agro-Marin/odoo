@@ -28,11 +28,6 @@ describe("findDependencyCycle", () => {
     });
 
     test("diamond graph has no cycle", () => {
-        //   a
-        //  / \
-        // b   c
-        //  \ /
-        //   d
         const graph = new Map([
             ["a", ["b", "c"]],
             ["b", ["d"]],
@@ -108,7 +103,6 @@ describe("findDependencyCycle", () => {
     });
 
     test("large acyclic graph does not stack overflow", () => {
-        // Build a long chain: n0 → n1 → n2 → ... → n999
         const graph = new Map();
         for (let i = 0; i < 1000; i++) {
             graph.set(`n${i}`, [`n${i + 1}`]);
@@ -129,8 +123,6 @@ describe("createWaveResolver", () => {
         expect(r.pendingOf("b")).toBe(undefined);
 
         r.track("b", ["a"]);
-        // Regression guard: a stale reverse edge would let the re-track skip
-        // counting "a", declaring "b" ready with an unmet dependency.
         expect(r.pendingOf("b")).toBe(1);
         expect(r.hasReady()).toBe(false);
 
@@ -144,7 +136,6 @@ describe("createWaveResolver", () => {
         const r = createWaveResolver({ isLoaded: () => false });
         r.track("b", ["a"]);
         r.untrack("b");
-        // With the stale edge gone, propagate("a") must not resurrect "b".
         r.propagate("a");
         expect(r.hasReady()).toBe(false);
         r.track("c", ["a"]);

@@ -51,7 +51,7 @@ test("signature can be drawn", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="sign" widget="signature" /></form>`,
+        arch: `<form><field name="sign" widget="signature" /></form>`,
     });
 
     expect("div[name=sign] img.o_signature").toHaveCount(0);
@@ -64,7 +64,6 @@ test("signature can be drawn", async () => {
     expect(".modal .modal-body .o_web_sign_name_and_signature").toHaveCount(1);
     expect(".modal .btn.btn-primary:not([disabled])").toHaveCount(0);
 
-    // Use a drag&drop simulation to draw a signature
     const { drop } = await drag(".modal .o_web_sign_signature", {
         position: {
             x: 1,
@@ -74,20 +73,18 @@ test("signature can be drawn", async () => {
     });
     await drop(".modal .o_web_sign_signature", {
         position: {
-            x: 10, // Arbitrary value
-            y: 10, // Arbitrary value
+            x: 10,
+            y: 10,
         },
         relative: true,
     });
     await animationFrame();
     expect(".modal .btn.btn-primary:not([disabled])").toHaveCount(1);
 
-    // Click on "Adopt and Sign" button
     await click(".modal .btn.btn-primary:not([disabled])");
     await animationFrame();
     expect(".modal").toHaveCount(0);
 
-    // The signature widget should now display the signature img
     expect("div[name=sign] div.o_signature svg").toHaveCount(0);
     expect("div[name=sign] img.o_signature").toHaveCount(1);
 
@@ -108,7 +105,7 @@ test("Set simple field in 'full_name' node option", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="name"/>
                 <field name="sign" widget="signature" options="{'full_name': 'name'}" />
@@ -142,7 +139,7 @@ test("Set m2o field in 'full_name' node option", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="product_id"/>
                 <field name="sign" widget="signature" options="{'full_name': 'product_id'}" />
@@ -171,7 +168,7 @@ test("Set size (width and height) in node option", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="sign" widget="signature" options="{'size': [150,'']}" />
                 <field name="sign2" widget="signature" options="{'size': ['',100]}" />
@@ -202,7 +199,7 @@ test("clicking save manually after changing signature should change the unique o
 
     const rec = Partner._records.find((rec) => rec.id === 1);
     rec.sign = "3 kb";
-    rec.write_date = "2022-08-05 08:37:00"; // 1659688620000
+    rec.write_date = "2022-08-05 08:37:00";
     const fillSignatureField = async (lineToX, lineToY) => {
         await click(".o_field_signature img", { visible: false });
         await waitFor(".modal .modal-body");
@@ -225,7 +222,6 @@ test("clicking save manually after changing signature should change the unique o
         await click(".modal-footer .btn-primary");
         await animationFrame();
     };
-    // 1659692220000, 1659695820000
     const lastUpdates = ["2022-08-05 09:37:00", "2022-08-05 10:37:00"];
     let index = 0;
 
@@ -241,7 +237,7 @@ test("clicking save manually after changing signature should change the unique o
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo" />
                 <field name="sign" widget="signature" />
@@ -275,9 +271,8 @@ test("save record with signature field modified by onchange", async () => {
 
     const rec = Partner._records.find((rec) => rec.id === 1);
     rec.sign = "3 kb";
-    rec.write_date = "2022-08-05 08:37:00"; // 1659688620000
+    rec.write_date = "2022-08-05 08:37:00";
 
-    // 1659692220000, 1659695820000
     const lastUpdates = ["2022-08-05 09:37:00", "2022-08-05 10:37:00"];
     let index = 0;
     onRpc("web_save", ({ args }) => {
@@ -290,7 +285,7 @@ test("save record with signature field modified by onchange", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo" />
                 <field name="sign" widget="signature" />
@@ -323,7 +318,7 @@ test("signature field should render initials", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="product_id"/>
                 <field name="sign" widget="signature" options="{'full_name': 'product_id', 'type': 'initial'}" />
@@ -334,7 +329,6 @@ test("signature field should render initials", async () => {
         message: "should have a valid signature widget",
     });
 
-    // Click on the widget to open signature modal
     await click("div[name=sign] div.o_signature");
     await animationFrame();
     expect(".modal .modal-body a.o_web_sign_auto_button").toHaveCount(1, {

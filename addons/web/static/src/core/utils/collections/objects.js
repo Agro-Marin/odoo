@@ -23,9 +23,6 @@ export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
     const obj1Keys = Reflect.ownKeys(o1);
     return (
         obj1Keys.length === Reflect.ownKeys(o2).length &&
-        // ``Object.hasOwn`` guards against different key SETS with the same key
-        // COUNT: without it, ``{ a: undefined }`` and ``{ b: undefined }`` compared
-        // equal (``o2[key]`` is ``undefined`` for a missing key).
         obj1Keys.every(
             (key) => Object.hasOwn(o2, key) && comparisonFn(o1[key], o2[key]),
         )
@@ -51,26 +48,34 @@ export function deepEqual(obj1, obj2) {
 }
 
 /**
+ * Cycle guard around {@link _deepEqualInner}.
+ *
+ * The ``(a, b)`` pair is recorded as *in progress* and answered ``true`` if the
+ * recursion reaches it again — the standard co-inductive rule that makes
+ * self-referential inputs terminate. It must be *un*recorded on a negative
+ * result: a pair that was proven unequal is not a cycle, and leaving it behind
+ * turns the guard into a memo of wrong answers.
+ *
+ * That distinction is only observable where a failed comparison does not abort
+ * the whole walk, which is exactly the Set branch — it probes candidate
+ * counterparts until one matches, so every rejected candidate would otherwise
+ * be memoized as equal and answered ``true`` at any later position in the tree.
+ *
  * @param {any} a
  * @param {any} b
- * @param {WeakMap<object, WeakSet<object>>} seen pairs already being compared (cycle guard)
+ * @param {WeakMap<object, WeakSet<object>>} seen pairs currently being compared
  * @returns {boolean}
  */
 function _deepEqual(a, b, seen) {
     if (a === b) {
-        return true; // same reference or identical primitive (also short-circuits cycles)
+        return true;
     }
     if (typeof a === "number" && typeof b === "number") {
-        return Number.isNaN(a) && Number.isNaN(b); // NaN === NaN
+        return Number.isNaN(a) && Number.isNaN(b);
     }
     if (a === null || b === null || typeof a !== "object" || typeof b !== "object") {
-        return false; // primitive mismatch (=== already ruled out equality)
+        return false;
     }
-    // Cycle guard, keyed on the PAIR: one node of a cycle may have to be
-    // compared against several counterpart nodes (e.g. a 1-cycle vs a
-    // 2-cycle), so a single-slot ``WeakMap<a, b>`` would flip-flop and never
-    // fire. A pair already under comparison up the stack is assumed equal
-    // (coinductive equality): any actual difference is found elsewhere.
     let counterparts = seen.get(a);
     if (counterparts?.has(b)) {
         return true;
@@ -80,7 +85,20 @@ function _deepEqual(a, b, seen) {
         seen.set(a, counterparts);
     }
     counterparts.add(b);
+    const equal = _deepEqualInner(a, b, seen);
+    if (!equal) {
+        counterparts.delete(b);
+    }
+    return equal;
+}
 
+/**
+ * @param {any} a
+ * @param {any} b
+ * @param {WeakMap<object, WeakSet<object>>} seen
+ * @returns {boolean}
+ */
+function _deepEqualInner(a, b, seen) {
     if (a instanceof Date || b instanceof Date) {
         return a instanceof Date && b instanceof Date && a.getTime() === b.getTime();
     }
@@ -114,13 +132,8 @@ function _deepEqual(a, b, seen) {
         if (!(a instanceof Set) || !(b instanceof Set) || a.size !== b.size) {
             return false;
         }
-        // Matched-element accounting: without it, two elements of `a` can
-        // both "match" the same element of `b`, making the relation
-        // non-symmetric and true for unequal sets (greedy matching is exact
-        // here because deep equality is transitive).
         const unmatched = new Set(b);
         for (const av of a) {
-            // fast path for primitives / identical references
             if (unmatched.delete(av)) {
                 continue;
             }
@@ -180,9 +193,6 @@ export function toRawDeep(value, seen = new WeakMap()) {
         }
         return /** @type {any} */ (out);
     }
-    // Plain objects: both ``Object``-prototyped and null-prototype. Class
-    // instances (constructor !== Object and prototype !== null) fall through
-    // to the passthrough at the bottom.
     const proto = Object.getPrototypeOf(raw);
     if (proto === Object.prototype || proto === null) {
         /** @type {Record<string, any>} */
@@ -211,7 +221,6 @@ export function toRawDeep(value, seen = new WeakMap()) {
         }
         return /** @type {any} */ (out);
     }
-    // Date, RegExp, ArrayBuffer, class instances — passthrough.
     return /** @type {any} */ (raw);
 }
 
@@ -234,11 +243,9 @@ export function deepCopy(object) {
     try {
         return structuredClone(object);
     } catch {
-        // structuredClone fails on reactive proxies; unwrap and retry.
         try {
             return structuredClone(toRawDeep(object));
         } catch {
-            // Truly non-clonable input (functions, DOM nodes, etc.).
             return JSON.parse(JSON.stringify(toRawDeep(object)));
         }
     }
@@ -334,28 +341,16 @@ export function pick(object, ...properties) {
  */
 export function deepMerge(target, extension) {
     if (!isObject(target) && !isObject(extension)) {
-        // Neither side is a plain object — nothing to merge.
         return extension !== undefined ? extension : target;
     }
 
     target = target || {};
-    // Use Object.assign to preserve Symbol-keyed properties (spread only copies string keys).
     const output = Object.assign({}, target);
     if (isObject(extension)) {
         for (const key of Reflect.ownKeys(extension)) {
             if (extension[key] === undefined) {
-                // Same rule as the top-level both-non-object branch above: an
-                // ``undefined`` extension value leaves the target's value
-                // intact (use ``null`` to explicitly override to "empty").
-                // Without this, layering a partial options object that carries
-                // an unset field silently wiped the base value it meant to
-                // keep, e.g. deepMerge({icon: "x"}, {icon: undefined}) → {}.
                 continue;
             }
-            // Recurse only when BOTH sides are plain objects. Guarding on
-            // ``key in target`` instead let an object-over-primitive merge
-            // (e.g. deepMerge({a:1}, {a:{b:2}})) recurse with a primitive
-            // ``target`` and throw ``Cannot use 'in' operator … in 1``.
             if (isObject(target[key]) && isObject(extension[key])) {
                 output[key] = deepMerge(target[key], extension[key]);
             } else {

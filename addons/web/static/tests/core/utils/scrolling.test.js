@@ -27,7 +27,7 @@ function makeScrollable() {
 
 test("resolves immediately when no scroll is needed", async () => {
     const { scrollable, target } = makeScrollable();
-    scrollable.scrollTop = 500; // bring the target into view beforehand
+    scrollable.scrollTop = 500;
     let resolved = false;
     scrollTo(target, { scrollable })?.then(() => (resolved = true));
     await microTick();
@@ -40,8 +40,6 @@ test("resolves when a scrollend event fires", async () => {
     let resolved = false;
     scrollTo(target, { scrollable })?.then(() => (resolved = true));
     await microTick();
-    // Resolution here (without advancing any timer) can only come from the
-    // scrollend listener, not the max-duration fallback timer.
     scrollable.dispatchEvent(new Event("scrollend"));
     await microTick();
     await microTick();
@@ -52,8 +50,6 @@ test("resolves via the max-duration timer when scrollend never fires", async () 
     const { scrollable, target } = makeScrollable();
     let resolved = false;
     scrollTo(target, { scrollable })?.then(() => (resolved = true));
-    // Never dispatch scrollend — emulates older Safari / embedded webviews that
-    // don't fire it. The promise must still settle instead of hanging forever.
     await runAllTimers();
     await animationFrame();
     await microTick();

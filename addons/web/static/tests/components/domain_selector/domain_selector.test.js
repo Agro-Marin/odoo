@@ -2173,11 +2173,6 @@ test(`any/not any operator (readonly) with custom domain as value`, async () => 
 test(`any/not any operator (readonly) with invalid domain as value`, async () => {
     const toTest = [
         {
-            // An unparseable ``any`` value that is an Expression (the free
-            // variable ``A``) is kept verbatim, not wrapped in a one-element
-            // list — wrapping would round-trip the domain to ``[A]`` (a nested
-            // list) and corrupt it. So the readonly description shows ``A``, not
-            // ``( A )``.
             domain: `[("product_id", "any", A )]`,
             text: `Match\nall\nof the following rules:\nProduct\n:\nA`,
         },
@@ -2210,12 +2205,6 @@ test(`any operator (edit) with invalid domain as value`, async () => {
 });
 
 test(`nested any with dangling field path does not crash the editor`, async () => {
-    // Regression: a saved domain whose "any" sub-tree targets an unknown/
-    // renamed field (getResModel -> null) used to mount a nested TreeEditor
-    // with resModel=null, calling loadFields(null) which threw in onWillStart
-    // and rejected the whole editor unrecoverably (permanent blank editor, no
-    // way for the user to fix the rule via the UI). It must now mount and show
-    // an unsupported-value fallback for the sub-tree instead.
     await makeDomainSelector({
         domain: `[("i_do_not_exist", "any", [("id", "=", 1)])]`,
     });

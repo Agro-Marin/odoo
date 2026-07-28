@@ -7,6 +7,7 @@ import { useComponent, useEffect, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { ModelEvent } from "@web/core/events";
 import { useBus } from "@web/core/utils/hooks";
+import { ParseError } from "@web/fields/parse_error";
 
 /**
  * For field components backed by an input/textarea: prevents the value from
@@ -28,11 +29,6 @@ export function useInputField(params) {
     const fieldName = params.fieldName || component.props.name;
     const shouldSave = params.shouldSave ?? (() => false);
 
-    /*
-     * A field is dirty if out of sync with the model. It stops being dirty once
-     * it has *tried* to update the model, even if the value was invalid and thus
-     * never actually stored.
-     */
     let isDirty = false;
 
     /**
@@ -118,28 +114,13 @@ export function useInputField(params) {
      * user is typing (isDirty) or the field is invalid, otherwise apply it.
      */
     useEffect(() => {
-        // We need to call getValue before the condition to always observe
-        // the corresponding value in the record. Otherwise, in some cases,
-        // if the value in the record change the useEffect isn't triggered.
         const value = params.getValue();
-        // NB: unlike upstream, we deliberately do NOT reset `isDirty` when
-        // `inputRef.el.value === value`. The fork commits on blur/Tab via
-        // `onChange`/`commitChanges` (which clear `isDirty` themselves and set
-        // `pendingUpdate`), so re-deriving dirtiness here would resync the
-        // input to a stale model value while a slow onchange is still pending,
-        // wiping what the user typed. See list_view slow-onchange tests.
         if (
             inputRef.el &&
             !isDirty &&
             !component.props.record.isFieldInvalid(fieldName)
         ) {
             if (inputRef.el.value !== value) {
-                // Assign only on a genuine change: a same-value assignment
-                // would needlessly collapse the user's selection. When the
-                // rewrite happens on a fully-selected focused input (e.g. a
-                // human_readable field reformatting "5k" -> "5000" right
-                // after the focus handler's select-all), restore the
-                // selection instead of leaving the caret at the end.
                 const {
                     selectionStart,
                     selectionEnd,
@@ -158,10 +139,6 @@ export function useInputField(params) {
 
     const { model } = component.props.record;
     useBus(model.bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) => {
-        // Re-commit synchronously (unchanged behaviour) AND expose the promise
-        // so the urgent-save coordinator can await it before reading changes:
-        // the re-commit's value must land in ``_changes`` before the sendBeacon
-        // save serialises them.
         const prom = commitChanges(true);
         ev.detail?.proms?.push(prom);
     });
@@ -190,9 +167,20 @@ export function useInputField(params) {
             if (params.parse) {
                 try {
                     val = params.parse(val);
-                } catch {
+                } catch (error) {
                     if (!urgent) {
                         component.props.record.setInvalidField(fieldName);
+                    }
+                    if (!(error instanceof ParseError)) {
+                        // Only a ParseError means "the user typed something we
+                        // reject". Anything else is a defect in the parser; the
+                        // field still goes invalid so the user isn't stuck, but
+                        // the error is reported instead of vanishing here.
+                        console.error(
+                            `[useInputField] parsing "${fieldName}" threw a non-ParseError; ` +
+                                `this is a widget defect, not invalid user input:`,
+                            error,
+                        );
                     }
                     return;
                 }
@@ -201,9 +189,6 @@ export function useInputField(params) {
             if (hasValueChanged(val)) {
                 lastSetValue = inputRef.el.value;
                 pendingUpdate = true;
-                // A rejected `update` (e.g. a failing onchange RPC) must not
-                // leave `pendingUpdate` stuck at true and `FIELD_IS_DIRTY`
-                // uncleared, so both are reset in `finally`.
                 try {
                     await component.props.record.update(
                         { [fieldName]: val },
@@ -211,24 +196,12 @@ export function useInputField(params) {
                     );
                 } finally {
                     pendingUpdate = false;
-                    // Re-derive instead of hardcoding false: the user may
-                    // have typed again while the update was pending, and
-                    // clobbering that keystroke's FIELD_IS_DIRTY:true would
-                    // show a "saved" status over uncommitted input.
                     component.props.record.model.bus.trigger(
                         ModelEvent.FIELD_IS_DIRTY,
                         Boolean(inputRef.el && inputRef.el.value !== lastSetValue),
                     );
                 }
             } else {
-                // Parse-equal re-entry (e.g. " 10 " over a stored 10): resync
-                // the input's text to the formatted model value without any
-                // `record.update`. The keystrokes that led here emitted
-                // FIELD_IS_DIRTY:true via `onInput`, so re-emit the re-derived
-                // dirtiness (same expression as the changed branch's `finally`)
-                // or the form's save/discard indicator stays stuck on
-                // "unsaved". `lastSetValue` is refreshed first so the
-                // re-derivation compares against the resynced text.
                 inputRef.el.value = params.getValue();
                 lastSetValue = inputRef.el.value;
                 component.props.record.model.bus.trigger(

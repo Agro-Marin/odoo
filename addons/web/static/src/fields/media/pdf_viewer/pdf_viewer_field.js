@@ -38,18 +38,9 @@ export class PdfViewerField extends Component {
             objectUrl: "",
         });
         this.iframeViewerPdfRef = useRef("iframeViewerPdf");
-        // The component instance is reused across form pager navigation. A blob
-        // URL captured from an upload on one record must not leak into the next:
-        // `urlFile` prefers `state.objectUrl` over the server URL, so without
-        // this record B would show record A's uploaded PDF. The validity latch
-        // must reset too, or a load failure on one record blanks every record
-        // paged to on this reused instance.
         let lastResId = this.props.record.resId;
         onWillRender(() => {
             const resId = this.props.record.resId;
-            // Clear a stale blob only when navigating between distinct records
-            // (a truthy previous resId that changed). A brand-new record being
-            // saved (resId false -> real id) must keep its freshly-uploaded blob.
             if (lastResId && resId !== lastResId) {
                 this.setObjectUrl("");
                 this.state.isValid = true;
@@ -103,12 +94,8 @@ export class PdfViewerField extends Component {
             return null;
         }
         if (!this.state.objectUrl && !this.props.record.resId) {
-            // Unsaved record without a fresh upload (e.g. a duplicated record):
-            // /web/content?...&id=false would render a broken frame.
             return null;
         }
-        // By convention, an optional sibling `<name>_page` field selects the
-        // page to open (not declared in fieldDependencies: it is view-provided).
         const page = this.props.record.data[`${this.props.name}_page`] || 1;
         const file = encodeURIComponent(this.urlFile);
         return `/web/static/lib/pdfjs/web/viewer.html?file=${file}#page=${page}`;
@@ -129,8 +116,6 @@ export class PdfViewerField extends Component {
 
     onFileRemove() {
         this.state.isValid = true;
-        // Revoke the previously uploaded blob URL instead of leaking it: without
-        // this the object URL stays alive until the component is destroyed.
         this.setObjectUrl("");
         this.update(/** @type {any} */ ({}));
     }

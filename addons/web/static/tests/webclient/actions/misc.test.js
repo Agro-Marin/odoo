@@ -278,15 +278,8 @@ test("getCurrentAction (virtual controller)", async () => {
     ]);
 });
 
-// Desktop-only: builds a multi-level breadcrumb controller stack from a nested
-// URL and restores through the desktop breadcrumb model (the displayed list
-// view + virtual breadcrumb parent). Mobile uses a different, single-view
-// navigation model where this stack/DOM setup does not hold.
 test.tags("desktop");
 test("restore to a deleted virtual action keeps the current controller and surfaces the error", async () => {
-    // Build a stack with a *virtual* breadcrumb controller (action 1, kanban)
-    // and a mounted current controller (action 3, list) by loading the URL,
-    // exactly like the "getCurrentAction (virtual controller)" case above.
     redirect("/odoo/action-1/action-3");
     await mountWithCleanup(WebClient);
     await animationFrame();
@@ -299,8 +292,6 @@ test("restore to a deleted virtual action keeps the current controller and surfa
     const currentBefore = actionService.currentController;
     const lengthBefore = actionService.controllerStack.length;
 
-    // Delete action 1 server-side: loading it now raises a MissingActionError,
-    // so restoring its virtual breadcrumb rejects during doAction's load.
     onRpc("/web/action/load", async (request) => {
         const { params } = await request.json();
         if (params.action_id === 1) {
@@ -311,26 +302,15 @@ test("restore to a deleted virtual action keeps the current controller and surfa
         }
     });
 
-    // restore() must surface the error (reject) rather than swallow it...
     await expect(actionService.restore(virtualController.jsId)).rejects.toThrow();
 
-    // ...and the stack must stay consistent: the currently-displayed controller
-    // is still committed. Pre-fix, restore truncated the stack *before* calling
-    // doAction, so a rejected load left no current controller at all.
     expect(actionService.controllerStack).toHaveLength(lengthBefore);
     expect(actionService.currentController).toBe(currentBefore);
     expect(".o_list_view").toHaveCount(1);
 });
 
-// Desktop-only: companion to the test above — same nested-URL breadcrumb stack
-// and desktop navigation model (see its comment).
 test.tags("desktop");
 test("restore to a virtual action whose view errors pre-mount keeps the displayed controller", async () => {
-    // Companion to the test above, but for a pre-mount RENDER error (the action
-    // LOADS fine — no MissingActionError — but its view throws before mounting,
-    // e.g. a bad arch / access error on get_views). Clicking the broken
-    // breadcrumb must be a no-op: the displayed controller (action 3) survives
-    // instead of being discarded for the truncated stack's tip.
     expect.errors(1);
     redirect("/odoo/action-1/action-3");
     await mountWithCleanup(WebClient);
@@ -343,8 +323,6 @@ test("restore to a virtual action whose view errors pre-mount keeps the displaye
     const currentBefore = actionService.currentController;
     const lengthBefore = actionService.controllerStack.length;
 
-    // Make action 1's kanban view throw when it mounts. Only fires on restore:
-    // a virtual breadcrumb controller is never mounted at initial load.
     patchWithCleanup(KanbanController.prototype, {
         setup() {
             super.setup();
@@ -356,8 +334,6 @@ test("restore to a virtual action whose view errors pre-mount keeps the displaye
     await animationFrame();
     await animationFrame();
 
-    // The failed restore left the displayed controller untouched, and the
-    // stack was not truncated to the virtual parent.
     expect(".o_list_view").toHaveCount(1);
     expect(actionService.currentController).toBe(currentBefore);
     expect(actionService.controllerStack).toHaveLength(lengthBefore);
@@ -381,9 +357,6 @@ test("properly handle case when action id does not exist", async () => {
     expect.errors(1);
     await mountWithCleanup(WebClient);
     getService("action").doAction(4448);
-    // The dialog only mounts once the RPC failure has been handled, so waiting
-    // for it deterministically settles the error channel too (a single frame
-    // races the propagation and leaks the error into a later test).
     await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
     expect(`.modal .o_error_dialog`).toHaveCount(1);
@@ -394,8 +367,6 @@ test("properly handle case when action path does not exist", async () => {
     expect.errors(1);
     await mountWithCleanup(WebClient);
     getService("action").doAction("plop");
-    // See "action id does not exist": wait for the dialog so the error channel
-    // is settled deterministically rather than after a single racing frame.
     await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
     expect(`.modal .o_error_dialog`).toHaveCount(1);
@@ -408,8 +379,6 @@ test("properly handle case when action xmlId does not exist", async () => {
     expect.errors(1);
     await mountWithCleanup(WebClient);
     getService("action").doAction("not.found.action");
-    // See "action id does not exist": wait for the dialog so the error channel
-    // is settled deterministically rather than after a single racing frame.
     await waitFor(".o_error_dialog");
     expect.verifyErrors(["RPC_ERROR"]);
     expect(`.modal .o_error_dialog`).toHaveCount(1);
@@ -426,36 +395,27 @@ test("actions can be cached", async () => {
 
     await makeMockEnv();
 
-    // With no additional params
     await getService("action").loadAction(3);
     await getService("action").loadAction(3);
 
-    // With specific context
     await getService("action").loadAction(3, { configuratorMode: "add" });
     await getService("action").loadAction(3, { configuratorMode: "edit" });
 
-    // With same active_id
     await getService("action").loadAction(3, { active_id: 1 });
     await getService("action").loadAction(3, { active_id: 1 });
 
-    // With active_id change
     await getService("action").loadAction(3, { active_id: 2 });
 
-    // With same active_ids
     await getService("action").loadAction(3, { active_ids: [1, 2] });
     await getService("action").loadAction(3, { active_ids: [1, 2] });
 
-    // With active_ids change
     await getService("action").loadAction(3, { active_ids: [1, 2, 3] });
 
-    // With same active_model
     await getService("action").loadAction(3, { active_model: "a" });
     await getService("action").loadAction(3, { active_model: "a" });
 
-    // With active_model change
     await getService("action").loadAction(3, { active_model: "b" });
 
-    // should load from server once per active_id/active_ids/active_model change, nothing else
     const baseCtx = {
         lang: "en",
         tz: "taht",
@@ -491,10 +451,8 @@ test("action cache: additionalContext is used on the key", async () => {
     expect.verifySteps(["server loaded"]);
     expect(action.context).toEqual(actionParams);
 
-    // Modify the action in place
     action.context.additionalContext.some.deep.nested = "Nesta";
 
-    // Change additionalContext and reload
     actionParams.additionalContext.some.deep.nested = "Marley";
     action = await getService("action").loadAction(3, actionParams);
     expect.verifySteps(["server loaded"]);
@@ -518,7 +476,6 @@ test('action with "no_breadcrumbs" set to true', async () => {
     await mountWithCleanup(WebClient);
     await getService("action").doAction(3);
     expect(".o_breadcrumb").toHaveCount(1);
-    // push another action flagged with 'no_breadcrumbs=true'
     await getService("action").doAction(42);
     await waitFor(".o_kanban_view");
     expect(".o_breadcrumb").toHaveCount(0);
@@ -685,8 +642,8 @@ test('executing an action with target != "new" closes all dialogs', async () => 
     expect(".o_form_view").toHaveCount(1);
     await contains(".o_form_view .o_data_row .o_data_cell").click();
     expect(".modal .o_form_view").toHaveCount(1);
-    await getService("action").doAction(1); // target != 'new'
-    await animationFrame(); // wait for the dialog to be closed
+    await getService("action").doAction(1);
+    await animationFrame();
     expect(".modal").toHaveCount(0);
 });
 
@@ -706,7 +663,7 @@ test('executing an action with target "new" does not close dialogs', async () =>
     expect(".o_form_view").toHaveCount(1);
     await contains(".o_form_view .o_data_row .o_data_cell").click();
     expect(".modal .o_form_view").toHaveCount(1);
-    await getService("action").doAction(5); // target 'new'
+    await getService("action").doAction(5);
     expect(".modal .o_form_view").toHaveCount(2);
 });
 
@@ -739,19 +696,16 @@ test("search defaults are removed from context when switching view", async () =>
         ],
         context,
     });
-    // list view is loaded, switch to pivot view
     await switchView("pivot");
 });
 
 test("retrieving a stored action should remove 'allowed_company_ids' from its context (model)", async () => {
-    // Prepare a multi company scenario
     serverState.companies = [
         { id: 3, name: "Hermit", sequence: 1 },
         { id: 2, name: "Herman's", sequence: 2 },
         { id: 1, name: "Heroes TM", sequence: 3 },
     ];
 
-    // Prepare a stored action
     browser.sessionStorage.setItem(
         "current_action",
         JSON.stringify({
@@ -770,33 +724,26 @@ test("retrieving a stored action should remove 'allowed_company_ids' from its co
         }),
     );
 
-    // Prepare the URL hash to make sure the stored action will get executed.
     Object.assign(browser.location, { search: "?model=partner&view_type=kanban" });
 
-    // Create the web client. It should execute the stored action.
     await mountWithCleanup(WebClient);
-    await animationFrame(); // blank action
+    await animationFrame();
 
-    // Check the current action context
     expect(getService("action").currentController.action.context).toEqual({
-        // action context
         someKey: 44,
         lang: "not_en",
         tz: "not_taht",
         uid: 42,
-        // note there is no 'allowed_company_ids' in the action context
     });
 });
 
 test("retrieving a stored action should remove 'allowed_company_ids' from its context (action)", async () => {
-    // Prepare a multi company scenario
     serverState.companies = [
         { id: 3, name: "Hermit", sequence: 1 },
         { id: 2, name: "Herman's", sequence: 2 },
         { id: 1, name: "Heroes TM", sequence: 3 },
     ];
 
-    // Prepare a stored action
     browser.sessionStorage.setItem(
         "current_action",
         JSON.stringify({
@@ -815,22 +762,16 @@ test("retrieving a stored action should remove 'allowed_company_ids' from its co
         }),
     );
 
-    // Prepare the URL hash to make sure the stored action will get executed.
-    // Object.assign(browser.location, { search: "?model=partner&view_type=kanban" });
     redirect("/odoo/action-1?view_type=kanban");
 
-    // Create the web client. It should execute the stored action.
     await mountWithCleanup(WebClient);
-    await animationFrame(); // blank action
+    await animationFrame();
 
-    // Check the current action context
     expect(getService("action").currentController.action.context).toEqual({
-        // action context
         someKey: 44,
         lang: "not_en",
         tz: "not_taht",
         uid: 42,
-        // note there is no 'allowed_company_ids' in the action context
     });
 });
 test.tags("desktop");
@@ -864,23 +805,17 @@ test("action is removed while waiting for another action with selectMenu", async
     ]);
 
     await mountWithCleanup(WebClient);
-    // Let loadRouterState/_loadDefaultApp complete (doAction(1001) via selectMenu).
-    // Without this, _loadDefaultApp's doAction races with ours and cancels it via KeepLast.
     await animationFrame();
-    // starting point: a kanban view
     await getService("action").doAction(4);
     expect(".o_kanban_view").toHaveCount(1);
 
-    // select app in navbar menu
     def = new Deferred();
     await contains(".o_navbar_apps_menu .dropdown-toggle").click();
     const appsMenu = getDropdownMenu(".o_navbar_apps_menu");
     await contains(".o_app:contains(App1)", { root: appsMenu }).click();
 
-    // check that the action manager is empty, even though client action is loading
     expect(".o_action_manager").toHaveText("");
 
-    // resolve onwillstart so client action is ready
     def.resolve();
     await animationFrame();
     expect(".o_action_manager").toHaveText("My client action");

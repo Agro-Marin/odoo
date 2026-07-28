@@ -33,16 +33,12 @@ test(`render Public Component`, async () => {
     `;
 
     await startInteractions(html);
-    // interaction is now ready, but components not mounted yet
-    expect(`.my_public_comp`).toHaveCount(0);
     expect.verifySteps([
         "MyPublicComp: blibli - string",
         "MyPublicComp: 3 - number",
         'MyPublicComp: {"test":"plop"} - object',
     ]);
-
-    await animationFrame();
-    // components are now mounted
+    // startInteractions() resolves once sub-component mounts have settled
     expect(`.my_public_comp`).toHaveCount(3);
     expect(queryAllTexts`.my_public_comp`).toEqual(["blibli", "3", `{"test":"plop"}`]);
 });

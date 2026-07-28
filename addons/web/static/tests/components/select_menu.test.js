@@ -70,7 +70,6 @@ async function open() {
     await click(".o_select_menu_toggler");
     await animationFrame();
     if (getMockEnv().isSmall) {
-        // BottomSheet doesn't focus the search input by default; force it for consistency.
         await contains(".o_select_menu_input").click();
     }
     await animationFrame();
@@ -180,14 +179,11 @@ test("Escape while a debounced search is pending keeps the dropdown closed", asy
     await open();
     expect(".o_select_menu_menu").toHaveCount(1);
 
-    // Type then close with Escape before the debounced input handler fires.
     await edit("he", { confirm: false });
     await press("escape");
     await animationFrame();
     expect(".o_select_menu_menu").toHaveCount(0);
 
-    // The pending debounce must have been cancelled: it used to fire here and
-    // force the dropdown back open.
     await runAllTimers();
     await animationFrame();
     expect(".o_select_menu_menu").toHaveCount(0);
@@ -749,7 +745,6 @@ test("When multiSelect is enable, value is an array of values, multiple choices 
     await mountSingleApp(MyParent);
     expect(".o_select_menu .o_tag_badge_text").toHaveCount(0);
 
-    // Select first choice
     await editSelectMenu(".o_select_menu input", { index: 0 });
 
     expect.verifySteps([["a"]]);
@@ -757,7 +752,6 @@ test("When multiSelect is enable, value is an array of values, multiple choices 
     expect(".o_select_menu .o_tag_badge_text").toHaveCount(1);
     expect(".o_select_menu .o_tag_badge_text").toHaveText("A");
 
-    // Select second choice
     await open();
     expect(".o_select_menu_item:nth-of-type(1).selected").toHaveCount(1);
 
@@ -852,8 +846,6 @@ test("When multiSelect is enable, the clear button calls 'onSelect' with an empt
     await animationFrame();
     expect.verifySteps([[]]);
 
-    // Clearing an already empty multiSelect is not possible: the component
-    // re-renders without crashing and no longer displays the clear button.
     expect(".o_select_menu").toHaveCount(1);
     expect(".o_select_menu_toggler_clear").toHaveCount(0);
 });
@@ -971,7 +963,6 @@ test("Props onInput is executed when the search changes", async () => {
                 expect.step("call with empty search");
                 return;
             }
-            // Reference for fetching/loading choices dynamically from the parent.
             this.state.choices = [
                 { label: "Hello", value: "hello" },
                 { label: "Coucou", value: "hello2" },
@@ -1047,7 +1038,6 @@ test("Choices are updated and filtered when props change", async () => {
     await open();
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["Coucou", "Hello"]);
 
-    // edit the input, to trigger onInput and update the props
     await editInput("aft");
 
     await editSelectMenu(".o_select_menu input", { index: 0 });
@@ -1163,7 +1153,6 @@ test("search value is cleared when reopening the menu", async () => {
     await editInput("a");
     expect.verifySteps(["search=a"]);
 
-    // Reopening clears the search input and triggers onInput with an empty string.
     await press("escape");
     await animationFrame();
     await open();
@@ -1395,8 +1384,6 @@ test("In the BottomSheet, the 'Clear' button of a multiSelect calls 'onSelect' w
     await contains(".o_select_menu_menu .o_clear_button").click();
     expect.verifySteps(["Cleared"]);
 
-    // With an empty value, the component re-renders without crashing and the
-    // "Clear" button is not displayed anymore.
     await animationFrame();
     await contains(".o_select_menu_toggler").click();
     expect(".o_select_menu_menu .o_clear_button").toHaveCount(0);
@@ -1452,4 +1439,61 @@ test("Ensure items are properly sorted", async () => {
     expect(elements[4]).toHaveText("item-group-z");
     expect(elements[5]).toHaveText("item-world");
     expect(elements[6]).toHaveText("item-z");
+});
+
+test("a group header is never reported as the selected option", async () => {
+    /** @type {any} */
+    let instance;
+    class Probe extends SelectMenu {
+        setup() {
+            super.setup();
+            instance = this;
+        }
+    }
+    await mountSingleApp(Probe, {
+        groups: [
+            { label: "Group A", choices: [{ value: "a", label: "A" }] },
+            { label: "Group B", choices: [{ value: "b", label: "B" }] },
+        ],
+        onSelect: () => {},
+    });
+    await click(".o_select_menu_toggler");
+    await animationFrame();
+
+    const header = instance.state.choices.find((choice) => choice.isGroup);
+    expect(Boolean(header)).toBe(true);
+    expect(instance.isOptionSelected(header)).toBe(false);
+    expect(instance.getSelectedOptionIndex()).toBe(-1);
+});
+
+test("an emptied choices prop does not show 'No results' next to grouped options", async () => {
+    let clearChoices;
+    class Parent extends Component {
+        static components = { SelectMenu };
+        static props = {};
+        static template = xml`
+            <SelectMenu choices="state.choices" groups="groups" onSelect="() => {}"/>`;
+        setup() {
+            this.state = useState({ choices: [] });
+            this.groups = [
+                { label: "Group A", choices: [{ value: "a", label: "Alpha" }] },
+            ];
+            clearChoices = () => (this.state.choices = []);
+        }
+    }
+    await mountSingleApp(Parent, {});
+
+    await click(".o_select_menu_toggler");
+    await runAllTimers();
+    await animationFrame();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha"]);
+    expect(".o_select_menu_menu p.fst-italic").toHaveCount(0);
+
+    // A new (still empty) `choices` identity must not desync the "No results"
+    // message from the options actually rendered.
+    clearChoices();
+    await animationFrame();
+
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha"]);
+    expect(".o_select_menu_menu p.fst-italic").toHaveCount(0);
 });

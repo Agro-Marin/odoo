@@ -1,4 +1,3 @@
-// ------- Kanban Menu -------
 .o-dropdown--kanban-record-menu {
     margin-top: -1px;
     margin-bottom: 0px;
@@ -6,8 +5,6 @@
 
     $o-kanban-manage-toggle-height: 35px;
 
-    // Arbitrary value to place the dropdown-menu exactly below the
-    // dropdown-toggle (height is forced so that it works on Firefox)
     top: $o-kanban-manage-toggle-height;
 
     > div {
@@ -16,7 +13,6 @@
         margin-bottom: 5px;
     }
 
-    // Dropdown menu with complex layout
     .container {
         max-width: 400px;
         margin-left: 0;
@@ -73,7 +69,6 @@
     }
 }
 
-// ------- Kanban View -------
 .o_kanban_view {
     @include media-breakpoint-down(md) {
         @include media-only(screen) {
@@ -85,10 +80,7 @@
     }
 }
 
-// ------- Kanban renderer -------
 .o_kanban_renderer {
-    // ----------------------------------------------------------------------------
-    // Default KanbanView values
 
     --Kanban-background: #{$o-kanban-background};
     --Kanban-gap: unset;
@@ -121,15 +113,11 @@
 
     --Card-Footer-gap: 4px;
 
-    // ----------------------------------------------------------------------------
-    // Inner components contextual adaptations
     .o_kanban_record {
         --Ribbon-font-size: #{$font-size-sm};
         --Ribbon-wrapper-width: 6.5rem;
         --Ribbon-height: calc(var(--Ribbon-font-size) * 2);
     }
-
-    // ----------------------------------------------------------------------------
 
     border-top: $border-width solid var(--Kanban-background);
     background: var(--Kanban-background);
@@ -184,7 +172,6 @@
         }
     }
 
-    // Kanban Grouped Layout
     &.o_kanban_grouped {
         --KanbanGroup-width: calc(
             var(--KanbanRecord--small-width) + (2 * var(--KanbanGroup-padding-h))
@@ -194,7 +181,7 @@
         min-height: 100%;
 
         @include media-breakpoint-down(md) {
-            --KanbanGroup-width: 90%; // don't take full width to give a hint of next/previous column on smaller screens
+            --KanbanGroup-width: 90%;
 
             min-height: initial;
             height: 100%;
@@ -226,7 +213,6 @@
         }
     }
 
-    // Kanban Grouped Layout - Column default
     .o_kanban_group {
         .o_kanban_header > .o_kanban_header_title {
             &:hover .o_group_config {
@@ -241,7 +227,6 @@
                 1px 0px 0px 0px var(--KanbanColumn__highlight-border) inset;
 
             .o_kanban_header {
-                // hack to display correct background color
                 margin: 0 calc(-1 * var(--KanbanGroup-padding-h) + 1px);
                 padding: 0 calc(var(--KanbanGroup-padding-h) - 1px);
             }
@@ -297,13 +282,10 @@
         }
     }
 
-    // Kanban Grouped Layout - Column Folded
     .o_kanban_group.o_column_folded {
-        // don't fill the width of record for a folded column
         .o_kanban_record.o_draggable {
             display: none !important;
         }
-        // don't visually fold on smaller screens (aka. mobile)
         @include media-breakpoint-up(md) {
             --KanbanGroup-padding-h: 0;
 
@@ -354,7 +336,6 @@
         }
     }
 
-    // Kanban UN-grouped Layout
     &.o_kanban_ungrouped {
         min-height: 100%;
 
@@ -373,7 +354,7 @@
             }
 
             &.o_kanban_ghost {
-                max-height: 0 !important; // to prevent view writers to override this height
+                max-height: 0 !important;
             }
         }
     }
@@ -398,13 +379,9 @@
     }
 }
 
-// ------- Sample mode -------
 .o_kanban_view .o_view_sample_data {
-    // all records
     .o_kanban_record,
-    // load more buttons
     .o_kanban_load_more,
-    // progress bars and counters
     .o_kanban_counter {
         @include o-sample-data-disabled;
     }

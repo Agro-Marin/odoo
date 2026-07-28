@@ -35,7 +35,7 @@ test("in a list view", async () => {
         type: "list",
         resModel: "localization",
         resId: 1,
-        arch: /*xml*/ `
+        arch: `
             <list string="Localizations" editable="top">
                 <field name="tz_offset" column_invisible="True"/>
                 <field name="country" widget="timezone_mismatch" />
@@ -58,7 +58,7 @@ test("in a form view", async () => {
         type: "form",
         resModel: "localization",
         resId: 1,
-        arch: /*xml*/ `
+        arch: `
             <form>
                 <field name="tz_offset" invisible="True"/>
                 <field name="country" widget="timezone_mismatch" />

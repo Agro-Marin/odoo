@@ -32,19 +32,13 @@ export const AUTHORIZED_KEYS = [...ALPHANUM_KEYS, ...NAV_KEYS, "escape", "<", ">
  */
 export function getActiveHotkey(ev) {
     if (!ev.key) {
-        // Chrome may trigger incomplete keydown events under certain circumstances.
-        // E.g. when using browser built-in autocomplete on an input.
-        // See https://stackoverflow.com/questions/59534586/google-chrome-fires-keydown-event-when-form-autocomplete
         return "";
     }
     if (ev.isComposing) {
-        // This case happens with an IME for example: we let it handle all key events.
         return "";
     }
     const hotkey = [];
 
-    // ------- Modifiers -------
-    // Modifiers are pushed in ascending order to the hotkey.
     if (isMacOS() ? ev.ctrlKey : ev.altKey) {
         hotkey.push("alt");
     }
@@ -55,19 +49,12 @@ export function getActiveHotkey(ev) {
         hotkey.push("shift");
     }
 
-    // ------- Key -------
     let key = ev.key.toLowerCase();
 
-    // The browser space is natively " ", we want "space" for esthetic reasons
     if (key === " ") {
         key = "space";
     }
 
-    // Prefer physical keys when the produced character isn't itself a
-    // registrable hotkey: number-row digits whose layout emits a symbol
-    // (e.g. Shift+2 → "@"), and letters on non-latin keyboard layouts.
-    // Both remaps share the same guard so a produced character that IS a
-    // registered hotkey (e.g. "<") is never silently rewritten.
     if (!AUTHORIZED_KEYS.includes(key)) {
         if (ev.code?.startsWith("Digit")) {
             key = ev.code.slice(-1);
@@ -75,7 +62,6 @@ export function getActiveHotkey(ev) {
             key = ev.code.slice(-1).toLowerCase();
         }
     }
-    // Avoid duplicating a modifier key
     if (!MODIFIERS.includes(key)) {
         hotkey.push(key);
     }

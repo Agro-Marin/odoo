@@ -14,10 +14,6 @@ import {
     computeNextOrderBy,
 } from "@web/model/relational_model/static_list_utils";
 
-// ---------------------------------------------------------------------------
-// compareRecords
-// ---------------------------------------------------------------------------
-
 const charFields = {
     name: { type: "char" },
     code: { type: "char" },
@@ -73,7 +69,6 @@ describe("compareRecords — descending", () => {
     test("reverses sort direction", () => {
         const r1 = makeRecord({ name: "Alice" });
         const r2 = makeRecord({ name: "Bob" });
-        // desc: r1 < r2 alphabetically, but with desc r1 comes AFTER r2 → returns 1
         const result = compareRecords(
             r1,
             r2,
@@ -128,7 +123,6 @@ describe("compareRecords — many2one", () => {
             [{ name: "partner_id", asc: true }],
             m2oFields,
         );
-        // "" < "Bob" → -1
         expect(result).toBe(-1);
     });
 });
@@ -158,10 +152,6 @@ describe("compareRecords — multi-criterion tie-break", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// computeNextOrderBy
-// ---------------------------------------------------------------------------
-
 describe("computeNextOrderBy — new field", () => {
     test("new field becomes primary sort ascending", () => {
         const result = computeNextOrderBy("name", [], false);
@@ -180,7 +170,6 @@ describe("computeNextOrderBy — new field", () => {
             { name: "code", asc: false },
         ];
         const result = computeNextOrderBy("code", orderBy, false);
-        // code is now at front, not duplicated
         expect(result.filter((o) => o.name === "code").length).toBe(1);
         expect(result[0].name).toBe("code");
     });
@@ -204,7 +193,6 @@ describe("computeNextOrderBy — same field cycles", () => {
 
 describe("computeNextOrderBy — needsReordering keeps direction", () => {
     test("does not cycle direction when reordering is pending", () => {
-        // Already asc for name, but needsReordering is true → stays asc
         const orderBy = [{ name: "name", asc: true }];
         const result = computeNextOrderBy("name", orderBy, true);
         expect(result[0].asc).toBe(true);

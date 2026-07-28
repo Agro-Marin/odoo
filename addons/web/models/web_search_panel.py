@@ -304,11 +304,6 @@ class Base(models.AbstractModel):
                 group_by_selection[False] = self.env._("Not Set")
 
                 def group_id_name(value):
-                    # Fall back to the raw value as its own label: ``fields_get``
-                    # only returns currently-defined options, so a stored record
-                    # still holding a since-removed selection value would else
-                    # KeyError here and 500 the whole search panel. Mirrors the
-                    # many2one / default branches, which already fall back.
                     return value, group_by_selection.get(value, value)
 
             else:
@@ -341,9 +336,6 @@ class Base(models.AbstractModel):
 
             group_domain = kwargs.get("group_domain")
 
-            # Pre-compute all m2m counters in a single _read_group query. Only
-            # possible when every record shares the same count domain, i.e. no
-            # per-group `group_domain` override is requested (see below otherwise).
             count_image = None
             if enable_counters and not (group_by and group_domain):
                 count_domain = AND([model_domain, extra_domain])
@@ -353,14 +345,6 @@ class Base(models.AbstractModel):
                     set_count=True,
                 )
 
-            # Counters that need a per-group domain (``group_by`` + ``group_domain``)
-            # can't use the single ``count_image`` above. Rather than one
-            # ``search_count`` per comodel record (an N+1 over up to ``limit``
-            # records), compute one grouped count image per *distinct group*:
-            # records sharing a group share the same extra domain, so a single
-            # grouped read yields every count for that group. Worst case (every
-            # record in its own group) matches the old query count; the common
-            # case (few groups) collapses N queries into a handful.
             group_count_images = {}
             if enable_counters and count_image is None:
                 for record in comodel_records:

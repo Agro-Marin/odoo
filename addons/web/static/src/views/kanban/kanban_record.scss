@@ -18,7 +18,6 @@
         margin-top: 1px;
     }
 
-    // do not break wrap inside buttons
     button {
         word-wrap: normal;
         word-break: normal;
@@ -158,9 +157,7 @@
         border-radius: var(--Attachment-Image-border-radius, #{$border-radius});
     }
 
-    // Records colours
     @for $size from 2 through length($o-colors) {
-        // Note: the first color is not defined as it is the 'no color' for kanban
         &.o_kanban_color_#{$size - 1}::after {
             $-color: nth($o-colors, $size);
 

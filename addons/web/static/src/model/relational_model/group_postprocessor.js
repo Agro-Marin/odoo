@@ -71,9 +71,6 @@ export async function postprocessReadGroup(config, response, deps) {
     const extractGroups = async (currentConfig, groupsData) => {
         const groupByFieldName = currentConfig.groupBy[0].split(":")[0];
         if (groupByFieldName.includes(".")) {
-            // Property-field groupby — load the dynamic definition
-            // (and add the parent properties field to activeFields so
-            // a drag-and-drop doesn't need to refetch the value).
             if (!config.fields[groupByFieldName]) {
                 await getPropertyDefinition(config, groupByFieldName);
             }
@@ -170,9 +167,6 @@ export async function postprocessReadGroup(config, response, deps) {
 
     groups = await extractGroups(config, groups);
 
-    // Sticky-empty pass (see docstring): reloading the same (domain, groupBy,
-    // offset, limit, orderBy) tuple re-injects any group that dropped out of
-    // the response, so the UI doesn't lose the column mid-flow.
     const params = JSON.stringify([
         config.domain,
         config.groupBy,
@@ -182,11 +176,6 @@ export async function postprocessReadGroup(config, response, deps) {
     ]);
     if (config.currentGroups && config.currentGroups.params === params) {
         const currentGroups = config.currentGroups.groups;
-        // Precompute a ``key -> index`` map over the freshly-built groups once,
-        // so the cursor advance below is O(1) per surviving group instead of a
-        // linear ``findIndex`` scan (the pass was O(G²) ``JSON.stringify`` work
-        // per grouped reload). Group values are unique within a single
-        // ``web_read_group`` response, so the first index is the only index.
         const newGroupIndex = new Map();
         groups.forEach((g, i) => {
             const key = JSON.stringify(g.value);
@@ -194,17 +183,10 @@ export async function postprocessReadGroup(config, response, deps) {
                 newGroupIndex.set(key, i);
             }
         });
-        // Insert each dropped group right after the previous surviving
-        // group's position in the MERGED array — the old group's index is
-        // stale as soon as one group has been re-inserted or the response
-        // comes back with fewer/reordered groups.
         let cursor = 0;
         for (const group of currentGroups) {
             const key = JSON.stringify(group.value);
             if (newGroupIndex.has(key)) {
-                // Mirror the old ``findIndex(i >= cursor)`` guard: only advance
-                // past a surviving group at or after the cursor (an earlier
-                // index was already consumed).
                 const index = newGroupIndex.get(key);
                 if (index >= cursor) {
                     cursor = index + 1;
@@ -214,8 +196,6 @@ export async function postprocessReadGroup(config, response, deps) {
             if (config.groups[group.value]) {
                 const aggregates = { ...group.aggregates };
                 for (const aggKey of Object.keys(aggregates)) {
-                    // ``array_agg_distinct`` returns an array; everything else
-                    // collapses to a numeric zero.
                     aggregates[aggKey] = Array.isArray(aggregates[aggKey]) ? [] : 0;
                 }
                 groups.splice(cursor, 0, {
@@ -223,13 +203,6 @@ export async function postprocessReadGroup(config, response, deps) {
                     count: 0,
                     length: 0,
                     records: [],
-                    // Nested subgroups must be reset along with the records:
-                    // the re-inserted group claims count 0, so spreading the
-                    // stale ``groups`` of a multi-level grouping would render
-                    // rows that dropped out of the response (e.g. deleted
-                    // records) as live records under a "(0)" parent. Leaf
-                    // groups ignore the extra key (Group picks the list class
-                    // from config.list.groupBy, not from the data shape).
                     groups: [],
                     aggregates,
                 });

@@ -20,6 +20,5 @@ import { describe, expect, test } from "@odoo/hoot";
 describe.current.tags("headless");
 
 test.skip("modules only import from allowed folders (needs metafile rewire, F-5)", () => {
-    // Placeholder — see docstring above.
     expect(true).toBe(true);
 });

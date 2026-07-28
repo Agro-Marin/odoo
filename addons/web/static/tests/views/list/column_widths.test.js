@@ -136,17 +136,8 @@ defineModels([Foo, Bar, Currency, ResCompany, ResPartner, ResUsers]);
 beforeEach(() => {
     resize({ width: 800 });
     document.body.style.fontFamily = "sans-serif";
-    // date/datetime column widths are measured once from the live font and
-    // cached module-globally in @web/fields/field_widths. This suite pins the
-    // font above so those measurements are reproducible, but the pin only holds
-    // if the cache is recomputed afterwards: a date-column test in an earlier
-    // suite can populate the cache under a different font, and without this
-    // reset those stale widths leak in and shift the expected pixel values
-    // (5 tests failed this way only in a full run, never in isolation).
     resetDateFieldWidths();
 });
-// Clear the sans-serif measurement on the way out too, so this suite does not
-// leak its own cached widths into a later suite that measures under its font.
 after(resetDateFieldWidths);
 
 function getColumnWidths() {
@@ -159,7 +150,6 @@ function expectedColumnWidthsToBeCloseTo(expectedColumnWidths) {
     );
 }
 
-// width computation
 test(`width computation: no record, lot of fields`, async () => {
     Foo._records = [];
     await mountView({
@@ -356,9 +346,7 @@ test(`width computation: editable list, overflowing table`, async () => {
             {
                 id: 1,
                 titi: "Tiny text",
-                grosminet:
-                    // Ensure the table overflows.
-                    `Lorem ipsum dolor sit amet, consectetur adipiscing elit.
+                grosminet: `Lorem ipsum dolor sit amet, consectetur adipiscing elit.
                     Donec est massa, gravida eget dapibus ac, eleifend eget libero.
                     Suspendisse feugiat sed massa eleifend vestibulum. Sed tincidunt
                     velit sed lacinia lacinia. Nunc in fermentum nunc. Vestibulum ante
@@ -751,7 +739,6 @@ test(`width computation: widths are re-computed on parent resize`, async () => {
 });
 
 test(`width computation: button columns don't have a max width`, async () => {
-    // set a long foo value s.t. the column can be squeezed
     Foo._records[0].foo = "Lorem ipsum dolor sit amet";
 
     await mountView({
@@ -772,7 +759,6 @@ test(`width computation: button columns don't have a max width`, async () => {
     expect(columnWidths[1]).toBeGreaterThan(130);
     expect(columnWidths[2]).toBeGreaterThan(330);
 
-    // simulate a window resize (buttons column width should not be squeezed)
     await resize({ width: 300 });
     await runAllTimers();
     await animationFrame();
@@ -780,7 +766,6 @@ test(`width computation: button columns don't have a max width`, async () => {
     expect(tableWidth).toBeGreaterThan(300);
     expect(tableWidth).toBeLessThan(800);
     columnWidths = getColumnWidths();
-    // indices 0 and 1 because selectors aren't displayed on small screens
     expect(columnWidths[0]).toBe(100);
     expect(columnWidths[1]).toBeGreaterThan(330);
 });
@@ -806,9 +791,8 @@ test(`width computation: button with width in arch`, async () => {
     expect(getColumnWidths()).toEqual([40, 216, 216, 34, 68, 227]);
 });
 
-// freeze column widths
 test(`freeze widths: add first record`, async () => {
-    Foo._records = []; // in this scenario, we start with no records
+    Foo._records = [];
 
     await mountView({
         resModel: "foo",
@@ -878,7 +862,6 @@ test(`freeze widths: switch records in edition`, async () => {
 });
 
 test(`freeze widths: switch mode`, async () => {
-    // Warning: this test is css dependant
     await mountView({
         resModel: "foo",
         type: "list",
@@ -920,13 +903,11 @@ test(`freeze widths: switch mode`, async () => {
 });
 
 test(`freeze widths: switch mode (lot of fields)`, async () => {
-    // Warning: this test is css dependant
     serverState.multiLang = true;
 
     Foo._fields.foo = fields.Char({ translate: true });
     Foo._fields.boolean = fields.Boolean();
 
-    // width hardcoded to ensure the same condition in debug and non-debug mode
     await resize({ width: 1200 });
     await mountView({
         resModel: "foo",
@@ -1101,8 +1082,8 @@ test(`freeze widths: toggle a filter, vertical scrollbar appears`, async () => {
 
     await removeFacet("My Filter");
     expect(".o_data_row").toHaveCount(14);
-    expect(renderer.scrollHeight).toBeGreaterThan(renderer.clientHeight); // there must be a vertical scrollbar
-    expect(renderer.scrollWidth).toBe(renderer.clientWidth); // there must be no horizontal scrollbar
+    expect(renderer.scrollHeight).toBeGreaterThan(renderer.clientHeight);
+    expect(renderer.scrollWidth).toBe(renderer.clientWidth);
 });
 
 test(`freeze widths: add a record in empty list`, async () => {
@@ -1179,7 +1160,6 @@ test(`freeze widths: edit multiple records`, async () => {
 
     const initialWidths = getColumnWidths();
 
-    // select two records and edit
     await contains(`.o_data_row:eq(0) .o_list_record_selector input`).click();
     await contains(`.o_data_row:eq(1) .o_list_record_selector input`).click();
     await contains(`.o_data_row:eq(0) .o_data_cell:eq(1)`).click();
@@ -1323,8 +1303,6 @@ test(`freeze widths: x2many, toggle optional field`, async () => {
 
     expect(getColumnWidths()).toEqual([110, 626, 32]);
 
-    // create a record to store the current widths, but discard it directly to keep
-    // the list empty (otherwise, the browser automatically computes the optimal widths)
     await contains(".o_field_x2many_list_row_add a").click();
     expect(getColumnWidths()).toEqual([110, 626, 32]);
 
@@ -1333,7 +1311,6 @@ test(`freeze widths: x2many, toggle optional field`, async () => {
     expect(getColumnWidths()).toEqual([110, 436, 190, 32]);
 });
 
-// manually resize columns
 test(`resize, reorder, resize again`, async () => {
     await mountView({
         resModel: "foo",
@@ -1346,20 +1323,17 @@ test(`resize, reorder, resize again`, async () => {
         `,
     });
 
-    // 1. Resize column foo to middle of column int_field.
     const originalWidths = getColumnWidths();
     await contains(`th:eq(1) .o_resize`, { visible: false }).dragAndDrop(`th:eq(2)`);
     let widthsAfterResize = getColumnWidths();
     expect(widthsAfterResize[0]).toBe(originalWidths[0]);
     expect(widthsAfterResize[1]).toBeGreaterThan(originalWidths[1]);
 
-    // 2. Reorder column foo.
     await contains(`th:eq(1)`).click();
     const widthsAfterReorder = getColumnWidths();
     expect(widthsAfterResize[0]).toBe(widthsAfterReorder[0]);
     expect(widthsAfterResize[1]).toBe(widthsAfterReorder[1]);
 
-    // 3. Resize again, this time check sizes while dragging and after drop.
     const { moveTo, drop } = await contains(`th:eq(1) .o_resize`, {
         visible: false,
     }).drag();
@@ -1383,11 +1357,9 @@ test(`resize column and toggle one checkbox`, async () => {
         `,
     });
 
-    // 1. Resize column foo to middle of column int_field.
     await contains(`th:eq(1) .o_resize`, { visible: false }).dragAndDrop(`th:eq(2)`);
     const widthsAfterResize = getColumnWidths();
 
-    // 2. Column size should be the same after selecting a row
     await contains(`tbody .o_list_record_selector`).click();
     expect(getColumnWidths()).toEqual(widthsAfterResize, {
         message: "Width must not have been changed after selecting a row",
@@ -1414,7 +1386,7 @@ test(`resize column, then resize window`, async () => {
     resize({ width: 1200 });
     await runAllTimers();
     await animationFrame();
-    expect(getColumnWidths()).toEqual([40, 189, 971]); // all available space should be used again
+    expect(getColumnWidths()).toEqual([40, 189, 971]);
 
     await contains(`th:eq(2) .o_resize`, { visible: false }).dragAndDrop(`th:eq(2)`);
     expect(getColumnWidths()).toEqual([40, 189, 536]);
@@ -1422,7 +1394,7 @@ test(`resize column, then resize window`, async () => {
     resize({ width: 1000 });
     await runAllTimers();
     await animationFrame();
-    expect(getColumnWidths()).toEqual([40, 189, 771]); // all available space should be used again
+    expect(getColumnWidths()).toEqual([40, 189, 771]);
 });
 
 test(`resize column and toggle check all`, async () => {
@@ -1437,11 +1409,9 @@ test(`resize column and toggle check all`, async () => {
         `,
     });
 
-    // 1. Resize column foo to middle of column int_field.
     await contains(`th:eq(1) .o_resize`, { visible: false }).dragAndDrop(`th:eq(2)`);
     const widthsAfterResize = getColumnWidths();
 
-    // 2. Column size should be the same after selecting all
     await contains(`thead .o_list_record_selector`).click();
     expect(getColumnWidths()).toEqual(widthsAfterResize, {
         message: "Width must not have been changed after selecting all",
@@ -1471,8 +1441,6 @@ test("resize column headers in editable list", async () => {
 });
 
 test("resize column headers in editable list (2)", async () => {
-    // This test will ensure that, on resize list header,
-    // the resized element have the correct size and other elements are not resized
     Foo._records[0].foo = "a".repeat(200);
 
     await mountView({

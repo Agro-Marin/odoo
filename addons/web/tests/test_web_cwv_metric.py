@@ -21,7 +21,7 @@ class TestWebCwvMetric(TransactionCase):
 
     def _create(self, vals):
         rec = self.env["web.cwv.metric"].sudo().create(vals)
-        self.env.flush_all()  # force the INSERT so CHECK constraints fire here
+        self.env.flush_all()
         return rec
 
     def _assert_rejected(self, vals):
@@ -37,7 +37,6 @@ class TestWebCwvMetric(TransactionCase):
         self.assertTrue(rec.id)
 
     def test_null_metrics_allowed(self):
-        # Every vital may be null (e.g. ``inp`` is not captured yet).
         rec = self._create({"url": "/odoo"})
         self.assertTrue(rec.id)
 
@@ -45,8 +44,6 @@ class TestWebCwvMetric(TransactionCase):
         self._assert_rejected({"url": "/odoo", "lcp": -1.0})
 
     def test_infinity_rejected(self):
-        # A ``double precision`` column accepts Infinity; the upper-bound CHECK
-        # rejects it (``Infinity <= cap`` is FALSE in PostgreSQL).
         self._assert_rejected({"url": "/odoo", "lcp": float("inf")})
 
     def test_nan_rejected(self):
@@ -59,8 +56,6 @@ class TestWebCwvMetric(TransactionCase):
         self._assert_rejected({"url": "/odoo", "cls": 99_999.0})
 
     def test_url_capped_at_db_level(self):
-        # Oversized URLs are bounded (truncated to the column size), never stored
-        # unbounded — defends the table against bloat from a rogue writer.
         rec = self._create({"url": "/" + "x" * 5000})
         self.assertLessEqual(len(rec.url), 2048)
 
@@ -112,9 +107,6 @@ class TestWebCwvBeacon(HttpCase):
         )
 
     def test_pageview_upsert(self):
-        # Several beacons for one pageview (INP/CLS grow after the first
-        # tab-switch) must collapse to ONE row, updated to the latest values,
-        # not accumulate duplicates.
         Metric = self.env["web.cwv.metric"].sudo()
         before = Metric.search_count([])
 
@@ -132,8 +124,6 @@ class TestWebCwvBeacon(HttpCase):
         self.assertEqual(Metric.search_count([]) - before, 1)
 
     def test_missing_pageview_id_always_creates(self):
-        # Old clients send no pageview_id: each beacon still creates a row
-        # (previous behaviour preserved).
         Metric = self.env["web.cwv.metric"].sudo()
         before = Metric.search_count([])
         self._beacon({"url": "/odoo", "lcp": 1100.0})
@@ -141,15 +131,9 @@ class TestWebCwvBeacon(HttpCase):
         self.assertEqual(Metric.search_count([]) - before, 2)
 
     def test_rate_limited_beacons_are_capped(self):
-        # An anonymous caller must not amplify DB inserts without bound: once a
-        # client exceeds its per-window budget, further beacons are rejected
-        # (429) before touching the DB. The legit beacon (a small burst per
-        # pageview) stays well under the cap and is unaffected.
         from odoo.addons.web.controllers import observability
 
         Metric = self.env["web.cwv.metric"].sudo()
-        # Isolate this test from any accumulated per-IP count, and leave a clean
-        # slate for the sibling beacon tests.
         observability._rate_state.clear()
         self.addCleanup(observability._rate_state.clear)
         before = Metric.search_count([])
@@ -169,15 +153,9 @@ class TestWebCwvBeacon(HttpCase):
             all(s == 429 for s in statuses[3:]),
             f"beacons over the cap must be rejected with 429, got {statuses}",
         )
-        # Only the accepted beacons produced rows; the rejected ones never hit
-        # the DB.
         self.assertEqual(Metric.search_count([]) - before, 3)
 
     def test_js_error_beacon_is_rate_limited(self):
-        # The js_error beacon logs a WARNING per request and is public +
-        # csrf-exempt, so it must be server-side rate-limited just like cwv —
-        # otherwise an anonymous caller can flood the log pipeline without
-        # bound. (Its own docstring previously claimed only client-side dedup.)
         from odoo.addons.web.controllers import observability
 
         observability._rate_state.clear()
@@ -202,9 +180,6 @@ class TestWebCwvBeacon(HttpCase):
         )
 
     def test_cwv_and_js_error_have_separate_budgets(self):
-        # The two public beacon endpoints are namespaced per route, so a client
-        # that exhausts its CWV budget can still send JS-error beacons (and vice
-        # versa) — one endpoint's volume must not starve the other's bucket.
         from odoo.addons.web.controllers import observability as obs
 
         obs._rate_state.clear()

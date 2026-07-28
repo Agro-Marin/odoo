@@ -32,6 +32,15 @@ const DEFAULT_EMPTY_MESSAGE = _t("No result found");
 const FUZZY_NAMESPACES = ["default"];
 
 /**
+ * Upper bound on rendered commands. Every command mounts its own OWL
+ * component, so an unbounded provider result would stall the palette on each
+ * keystroke. The overflow is REPORTED (see ``state.hiddenCount``) rather than
+ * dropped silently: a bare ``slice(0, 100)`` reads to the user as "that is all
+ * there is", which is how a 150-result search looked like a 100-result one.
+ */
+export const MAX_DISPLAYED_COMMANDS = 100;
+
+/**
  * @typedef {Command & {
  *  Component?: import("@odoo/owl").ComponentConstructor;
  *  props?: object;
@@ -86,7 +95,6 @@ export class DefaultCommandItem extends Component {
     static template = "web.DefaultCommandItem";
     static props = {
         slots: { type: Object, optional: true },
-        // Props send by the command palette:
         hotkey: { type: String, optional: true },
         hotkeyOptions: { type: String, optional: true },
         name: { type: String, optional: true },
@@ -153,6 +161,7 @@ export class CommandPalette extends Component {
          * @type {{ commands: CommandItem[],
          *          emptyMessage: string,
          *          FooterComponent: Component,
+         *          hiddenCount: number,
          *          isLoading: boolean,
          *          namespace: string,
          *          placeholder: string,
@@ -165,6 +174,11 @@ export class CommandPalette extends Component {
         this.listboxRef = useRef("listbox");
 
         onWillStart(() => this.setCommandPaletteConfig(this.props.config));
+    }
+
+    /** @returns {string} */
+    get truncationMessage() {
+        return _t("%s more results — refine your search", this.state.hiddenCount);
     }
 
     /** @returns {Array<{commands: CommandItem[], name: string, keyId: string}>} */
@@ -210,13 +224,6 @@ export class CommandPalette extends Component {
         );
         this.switchNamespace(namespace);
         this.state.searchValue = searchValue;
-        // Track this config's search as the current one. A reconfigure (nested
-        // palette / SET_CONFIG) supersedes any in-flight typed search, whose
-        // KeepLast wrapper is then left pending forever; without this
-        // reassignment ``executeSelectedCommand`` would keep awaiting that dead
-        // promise and Enter/click would wedge. The superseded search hanging is
-        // intentional elsewhere — the shared ``race`` still resolves on this
-        // (winning) search, so the palette opens on the latest config.
         this.searchValuePromise = this.search(searchValue);
         await this.race.add(this.searchValuePromise);
     }
@@ -227,23 +234,18 @@ export class CommandPalette extends Component {
      * @param {{ searchValue?: string, activeElement?: Element, sessionId?: number }} [options]
      */
     async setCommands(namespace, options = {}) {
-        // Compute the grouping into locals and only publish it to ``this.*``
-        // after the await, in the same tick ``state.commands`` is replaced.
-        // Mutating them synchronously here would let a loading render (search()
-        // flips the reactive state.isLoading before this await) pair the
-        // PREVIOUS search's commands with reset category keys — every non-default
-        // command would collapse into the "default" group, dropping the <hr>
-        // separators until the new results land (visible flicker on async
-        // providers).
         let categoryKeys = ["default"];
         let categoryNames = {};
-        const proms = this.providersByNamespace[namespace].map((provider) => {
-            const { provide } = provider;
-            const result = provide(this.env, options);
-            return result;
-        });
-        // Don't let one broken provider swallow the others' results (Promise.all
-        // would reject the whole search, looking like "no result found").
+        // `Promise.allSettled` only contains REJECTIONS. A provider that throws
+        // synchronously throws out of this `map` before any promise exists, so
+        // it escaped the containment below entirely and took down the whole
+        // palette mount (`setCommands` -> `search` -> `setCommandPaletteConfig`
+        // -> `onWillStart`), losing every other provider's commands with it.
+        // Both built-in providers (`default_providers`, `debug_providers`) are
+        // synchronous and do DOM work, so this was reachable.
+        const proms = this.providersByNamespace[namespace].map(async (provider) =>
+            provider.provide(this.env, options),
+        );
         const settled = await this.keepLast.add(Promise.allSettled(proms));
         for (const result of settled) {
             if (result.status === "rejected") {
@@ -264,13 +266,9 @@ export class CommandPalette extends Component {
         if (options.searchValue && FUZZY_NAMESPACES.includes(namespace)) {
             commands = fuzzyLookup(options.searchValue, commands, (c) => c.name);
         } else {
-            // we have to sort the commands by category to avoid navigation issues with the arrows
             if (namespaceConfig.categories) {
                 /** @type {CommandItem[]} */
                 let commandsSorted = [];
-                // Copy: the config array is caller-owned — pushing "default"
-                // through the alias would permanently mutate the provider's
-                // registered categories (cf. ``default_providers.js``).
                 categoryKeys = [...namespaceConfig.categories];
                 categoryNames = namespaceConfig.categoryNames || {};
                 if (!categoryKeys.includes("default")) {
@@ -288,12 +286,11 @@ export class CommandPalette extends Component {
             }
         }
 
-        // Publish the grouping and the commands together so a render never sees
-        // them disagree.
         this.categoryKeys = categoryKeys;
         this.categoryNames = categoryNames;
+        this.state.hiddenCount = Math.max(0, commands.length - MAX_DISPLAYED_COMMANDS);
         this.state.commands = markRaw(
-            commands.slice(0, 100).map((command) => ({
+            commands.slice(0, MAX_DISPLAYED_COMMANDS).map((command) => ({
                 ...command,
                 keyId: this.keyId++,
                 text: highlightText(
@@ -327,7 +324,6 @@ export class CommandPalette extends Component {
      * @param {"PREV" | "NEXT"} type
      */
     selectCommandAndScrollTo(type) {
-        // Avoid the mouse re-selecting a command as a result of this scroll.
         this.mouseSelectionActive = false;
         const index = this.state.commands.indexOf(this.state.selectedCommand);
         if (index === -1) {
@@ -350,7 +346,7 @@ export class CommandPalette extends Component {
      * @param {number} index
      */
     onCommandClicked(event, index) {
-        event.preventDefault(); // Prevent redirect for commands with href
+        event.preventDefault();
         this.selectCommand(index);
         const ctrlKey = isMacOS() ? event.metaKey : event.ctrlKey;
         this.executeSelectedCommand(ctrlKey);
@@ -366,14 +362,15 @@ export class CommandPalette extends Component {
         try {
             config = await command.action();
         } catch (error) {
-            // A failing action must not leave the palette open with no
-            // feedback: close it, then let the error surface through the
-            // standard uncaught-error pipeline.
             this.props.close();
             throw error;
         }
         if (config) {
-            this.setCommandPaletteConfig(config);
+            // Awaited: an unawaited reconfiguration swallowed its own failure,
+            // leaving the palette showing the PREVIOUS namespace's commands with
+            // no error anywhere. The rejection now propagates to the caller and
+            // on to `error_service` via `unhandledrejection`.
+            await this.setCommandPaletteConfig(config);
         } else {
             this.props.close();
         }

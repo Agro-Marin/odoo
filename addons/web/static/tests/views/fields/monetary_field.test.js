@@ -1,7 +1,13 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryAll, queryAllTexts, queryFirst } from "@odoo/hoot-dom";
+import {
+    queryAll,
+    queryAllTexts,
+    queryFirst,
+    queryText,
+    queryValue,
+} from "@odoo/hoot-dom";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import {
     clickSave,
@@ -150,10 +156,6 @@ test("type number does not misparse a dot-decimal value in a dot-thousands local
             </form>`,
     });
     expect(".o_field_widget input").toHaveAttribute("type", "number");
-    // A number input's value is always dot-decimal: "1.5" must be saved as
-    // 1.5, NOT parsed with "." as a thousands separator (silent 15).
-    // `instantly` pastes the whole string: a `<input type="number">` rejects
-    // the transient "1." of char-by-char typing, which would collapse to "5".
     await contains(".o_field_monetary input").edit("1.5", { instantly: true });
     await clickSave();
     expect.verifySteps(["monetary_field: 1.5"]);
@@ -171,7 +173,6 @@ test("rounding using formula in form view - float field", async () => {
             </form>`,
     });
 
-    // Test computation and rounding
     await contains(".o_field_monetary input").edit("=100/3");
     await clickSave();
     expect(".o_field_widget input").toHaveValue("33.33", {
@@ -191,7 +192,6 @@ test("rounding using formula in form view - monetary field", async () => {
             </form>`,
     });
 
-    // Test computation and rounding
     await contains(".o_field_monetary input").edit("=100/3");
     await clickSave();
     expect(".o_field_widget input").toHaveValue("33.33", {
@@ -356,7 +356,6 @@ test("basic flow in editable list view - float field", async () => {
         message: "Only 1 line has no currency.",
     });
 
-    // switch to edit mode
     const dollarCell = queryFirst("td.o_field_cell");
     await contains(dollarCell).click();
 
@@ -438,7 +437,6 @@ test("basic flow in editable list view - monetary field", async () => {
         message: "Only 1 line has no currency.",
     });
 
-    // switch to edit mode
     const dollarCell = queryFirst("td.o_field_cell");
     await contains(dollarCell).click();
 
@@ -589,7 +587,6 @@ test("should keep the focus when being edited in x2many lists", async () => {
             </form>`,
     });
 
-    // test the monetary field inside the one2many
     await contains(".o_field_x2many_list_row_add a").click();
     await contains(".o_field_widget[name=float_field] input").edit("22", {
         confirm: "blur",
@@ -599,7 +596,6 @@ test("should keep the focus when being edited in x2many lists", async () => {
         ".o_field_widget[name=p] .o_field_widget[name=float_field] span",
     ).toHaveInnerHTML("$&nbsp;22.00", { type: "html" });
 
-    // test the monetary field inside the many2many
     await contains(".o_field_widget[name=m2m] .o_data_cell").click();
     await contains(".o_field_widget[name=float_field] input").edit("22", {
         confirm: "blur",
@@ -610,7 +606,6 @@ test("should keep the focus when being edited in x2many lists", async () => {
 });
 
 test("MonetaryField with currency set by an onchange", async () => {
-    // must re-render correctly when currency is set/unset by an onchange
     Partner._onChanges = {
         int_field: function (obj) {
             obj.currency_id = obj.int_field ? 2 : null;
@@ -638,7 +633,6 @@ test("MonetaryField with currency set by an onchange", async () => {
             "monetary field should have been rendered correctly (without currency)",
     });
 
-    // set a value for int_field -> should set the currency and re-render float_field
     await contains(".o_field_widget[name=int_field] input").edit("7", {
         confirm: "blur",
     });
@@ -660,7 +654,6 @@ test("MonetaryField with currency set by an onchange", async () => {
         message: "focus should be on the float_field field's input",
     });
 
-    // unset the value of int_field -> should unset the currency and re-render float_field
     await contains(".o_field_widget[name=int_field]").click();
     await contains(".o_field_widget[name=int_field] input").edit("0", {
         confirm: "blur",
@@ -762,7 +755,6 @@ test("MonetaryField without currency symbol", async () => {
             </form>`,
     });
 
-    // Non-breaking space between the currency and the amount
     expect(".o_field_widget[name=float_field] input").toHaveValue("9.10", {
         message: "The currency symbol is not displayed",
     });
@@ -873,4 +865,29 @@ test("with 'hide_trailing_zeros' option", async () => {
     });
     expect(".o_field_widget input").toHaveValue("9.1");
     expect(".o_field_widget .o_input span:eq(0)").toHaveText("$");
+});
+
+test("monetary ghost value mirrors the input without re-rendering per keystroke", async () => {
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 5,
+        arch: `<form><field name="monetary_field"/></form>`,
+    });
+    // The ghost span reserves the inline space the currency symbol is
+    // positioned against; it is written straight to the DOM rather than held
+    // in reactive state, so it must still track the uncontrolled input.
+    expect(queryText(".o_monetary_ghost_value")).toBe(
+        queryValue("[name=monetary_field] input"),
+    );
+
+    await contains("[name=monetary_field] input").edit("1234.5", { confirm: false });
+    expect(queryText(".o_monetary_ghost_value")).toBe("1234.5");
+
+    // A model-driven update patches the input imperatively; the ghost re-syncs.
+    await contains("[name=monetary_field] input").edit("77", { confirm: "blur" });
+    await animationFrame();
+    expect(queryText(".o_monetary_ghost_value")).toBe(
+        queryValue("[name=monetary_field] input"),
+    );
 });

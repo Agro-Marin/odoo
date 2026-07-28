@@ -31,10 +31,6 @@ import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
  * @typedef {{ readonly el: HTMLElement | null; }} Ref
  */
 
-// -----------------------------------------------------------------------------
-// useAutofocus
-// -----------------------------------------------------------------------------
-
 /**
  * Focus an element referenced by a t-ref="autofocus" in the active component
  * as soon as it appears in the DOM and if it was not displayed before.
@@ -49,11 +45,9 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
     const ref = useRef(refName || "autofocus");
     const uiService = useService("ui");
 
-    // Prevent autofocus on touch devices to avoid the virtual keyboard from popping up unexpectedly
     if (!mobile && hasTouch()) {
         return ref;
     }
-    // LEGACY
     if (!mobile && isMobileOS()) {
         return ref;
     }
@@ -70,7 +64,6 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
             uiService.activeElement.contains(rootNode.host)
         );
     }
-    // LEGACY
     useEffect(
         (el) => {
             if (isFocusable(el)) {
@@ -89,10 +82,6 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
     );
     return ref;
 }
-
-// -----------------------------------------------------------------------------
-// useBus
-// -----------------------------------------------------------------------------
 
 /**
  * Ensures a bus event listener is attached and cleared the proper way.
@@ -126,7 +115,6 @@ export const useServiceProtectMethodHandling = {
     },
     /** @returns {Promise<never>} */
     mocked() {
-        // Keep them unresolved so that no crash in test due to triggered RPCs by services
         return new Promise(() => {});
     },
     /** @returns {Promise<never>} */
@@ -135,9 +123,6 @@ export const useServiceProtectMethodHandling = {
     },
 };
 
-// -----------------------------------------------------------------------------
-// useService
-// -----------------------------------------------------------------------------
 /**
  * Wrap a service method so that it returns a pending promise when the
  * owning component is destroyed, preventing post-teardown side effects.
@@ -180,29 +165,31 @@ export function useService(serviceName) {
         throw new Error(`Service ${serviceName} is not available`);
     }
     const service = services[serviceName];
+    // A reactive service must be observed through THIS component's reactive
+    // view, or its mutations never schedule a re-render: OWL caches one proxy
+    // per (target, callback) pair, so reading through the service's own proxy
+    // subscribes whoever created it — not us.
+    const observed =
+        toRaw(service) !== service
+            ? /** @type {any} */ (useState(/** @type {any} */ (service)))
+            : service;
     if (SERVICES_METADATA[serviceName]) {
         if (service instanceof Function) {
             return /** @type {import("services").ServiceFactories[K]} */ (
                 _protectMethod(component, service)
             );
-        } else {
-            const methods = SERVICES_METADATA[serviceName] ?? [];
-            const result = Object.create(service);
-            for (const method of methods) {
-                result[method] = _protectMethod(component, service[method]);
-            }
-            return result;
         }
+        const methods = SERVICES_METADATA[serviceName] ?? [];
+        // Prototype-chain onto the observed view so plain property reads stay
+        // reactive while the listed async methods gain destroy-protection.
+        const result = Object.create(observed);
+        for (const method of methods) {
+            result[method] = _protectMethod(component, observed[method]);
+        }
+        return result;
     }
-    if (toRaw(service) !== service) {
-        return useState(service);
-    }
-    return service;
+    return observed;
 }
-
-// -----------------------------------------------------------------------------
-// useSpellCheck
-// -----------------------------------------------------------------------------
 
 /**
  * Enables spellcheck only while an element is focused, so the red squiggles
@@ -219,8 +206,6 @@ export function useSpellCheck({ refName } = {}) {
     }
     useEffect(
         (el) => {
-            // Collect managed elements per effect run to avoid leaking stale
-            // DOM references across re-runs.
             /** @type {Element[]} */
             const elements = [];
             if (el) {
@@ -311,13 +296,6 @@ export function useOwnedDialogs() {
         /** @type {any} */ props,
         /** @type {any} */ options = {},
     ) => {
-        // Auto-remove the closer from the set on EVERY close path. Calling the
-        // returned wrappedClose is one path; a NATURAL dismissal (ESC, backdrop,
-        // or a close triggered from inside the dialog) is the other, and it
-        // bypasses wrappedClose. The dialog service fires options.onClose on
-        // both, so hook it too — previously a naturally-dismissed dialog's
-        // closer (and its captured originalClose) lingered in the set until the
-        // owning component unmounted, contradicting the "auto-remove" promise.
         const originalOnClose = options.onClose;
         const originalClose = /** @type {any} */ (dialogService).add(
             dialogClass,

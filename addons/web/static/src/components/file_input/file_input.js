@@ -43,7 +43,6 @@ export class FileInput extends Component {
         this.uploadFiles = useFileUploader();
         this.fileInputRef = useRef("file-input");
         this.state = useState({
-            // Disables upload button if currently uploading.
             isDisable: false,
         });
 
@@ -69,22 +68,16 @@ export class FileInput extends Component {
         return params;
     }
 
-    // Handlers
-
     /** Upload the input's files to `route`, tagged with the record's model/id if set. */
     async onFileInputChange() {
         this.state.isDisable = true;
         const httpParams = this.httpParams;
         try {
             if (this.props.onWillUploadFiles) {
-                // Inside the same try/finally as the upload so a rejecting
-                // pre-upload hook still clears the input value below, otherwise
-                // re-selecting the same file wouldn't re-fire the change event.
                 httpParams.ufile = await this.props.onWillUploadFiles(httpParams.ufile);
             }
             const parsedFileData = await this.uploadFiles(this.props.route, httpParams);
             if (parsedFileData) {
-                // Also pass the raw files so onUpload can read metadata like names.
                 this.props.onUpload(
                     parsedFileData,
                     this.fileInputRef.el
@@ -93,8 +86,6 @@ export class FileInput extends Component {
                 );
             }
         } finally {
-            // The input won't fire this handler again for the same file name unless
-            // its value is cleared first — even on failure, so retry is possible.
             if (this.fileInputRef.el) {
                 /** @type {HTMLInputElement} */ (this.fileInputRef.el).value = "";
             }

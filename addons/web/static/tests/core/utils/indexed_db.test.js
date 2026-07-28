@@ -43,7 +43,6 @@ test("two caches, read", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    // having 2 caches simulates 2 tabs, each one accessing the same indexeddb
     const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
     await indexedDB1.write("mytable", "test", "value for 'test'");
     expect(await indexedDB1.read("mytable", "test")).toBe("value for 'test'");
@@ -52,7 +51,7 @@ test("two caches, read", async () => {
     expect(await indexedDB2.read("mytable", "test")).toBe("value for 'test'");
 
     await indexedDB1.deleteDatabase();
-    await indexedDB2.deleteDatabase(); // deleting twice the same DB don't throw error !
+    await indexedDB2.deleteDatabase();
     await ensureDbIsAbsent();
 });
 
@@ -60,7 +59,6 @@ test("two caches, read (2)", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    // having 2 caches simulates 2 tabs, each one accessing the same indexeddb
     const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
     const indexedDB2 = new IndexedDB(CACHE_NAME, 1);
 
@@ -70,7 +68,7 @@ test("two caches, read (2)", async () => {
     expect(await indexedDB2.read("mytable", "test")).toBe("value for 'test'");
 
     await indexedDB1.deleteDatabase();
-    await indexedDB2.deleteDatabase(); // deleting twice the same DB don't throw error !
+    await indexedDB2.deleteDatabase();
     await ensureDbIsAbsent();
 });
 
@@ -141,7 +139,6 @@ test("invalidate all tables, empty cache", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    //The indexedDB __DBVersion__ is not invalidated
     const indexedDB = new IndexedDB(CACHE_NAME, 1);
     await indexedDB.execute((db) => {
         expect([...db.objectStoreNames]).toEqual(["__DBVersion__"]);
@@ -197,7 +194,6 @@ test("two caches, invalidate", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
 
-    // having 2 caches simulates 2 tabs, each one accessing the same indexeddb
     const indexedDB1 = new IndexedDB(CACHE_NAME, 1);
     const indexedDB2 = new IndexedDB(CACHE_NAME, 1);
 
@@ -229,9 +225,7 @@ test("two caches, new DB version", async () => {
     expect(await indexedDB1.read("mytable", "test")).toBe("value for 'test'");
     expect(await indexedDB1.read("mytable", "test2")).toBe("value for 'test2'");
 
-    // simulate a new page, with a new version number for the given databases
     const indexedDB2 = new IndexedDB(CACHE_NAME, 2);
-    // DB should not contain tables !
     await indexedDB2.execute((db) => {
         expect([...db.objectStoreNames]).toEqual(["__DBVersion__"]);
     });
@@ -274,7 +268,6 @@ test("several caches, several tables", async () => {
     expect(await indexedDB2.read("table1", "test")).toBe("value for 'test'");
     expect(await indexedDB2.read("table2", "test")).toBe("value for 'test'");
 
-    // check that second table has been correctly setup
     const diskCache3 = new IndexedDB(CACHE_NAME, 1);
     expect(await diskCache3.read("table2", "test")).toBe("value for 'test'");
 
@@ -283,11 +276,6 @@ test("several caches, several tables", async () => {
     await ensureDbIsAbsent();
 });
 
-// Regression: ``_invalidateWhere`` called ``transaction.commit()`` synchronously
-// after opening the cursor, finishing the transaction before ``cursor.continue()``
-// could queue the next request (``TransactionInactiveError``). Hit in production
-// via ``rpc_cache.invalidateByModel`` on ``ir.filters`` favorites; these tests use
-// the real IDB cursor, not a mock.
 test("invalidateWhere, deletes only matching keys", async () => {
     onError(() => deleteCacheDB());
     await ensureDbIsAbsent();
@@ -322,8 +310,6 @@ test("invalidateWhere, iterates across many entries without committing early", a
     await ensureDbIsAbsent();
 
     const indexedDB = new IndexedDB(CACHE_NAME, 1);
-    // Enough entries to guarantee multiple ``cursor.continue()`` ticks; a
-    // single tick would not exercise the premature-commit bug.
     const N = 32;
     for (let i = 0; i < N; i += 1) {
         await indexedDB.write("mytable", `key-${i}`, `v${i}`);
@@ -352,7 +338,7 @@ test("invalidateWhere, spans multiple tables in one transaction", async () => {
     await indexedDB.write("t1", "b", "2");
     await indexedDB.write("t2", "a", "3");
     await indexedDB.write("t2", "b", "4");
-    await indexedDB.write("t3", "a", "5"); // not in the targeted set
+    await indexedDB.write("t3", "a", "5");
 
     await indexedDB.invalidateWhere(["t1", "t2"], (key) => key === "a");
 
@@ -381,7 +367,6 @@ test("invalidateWhere, predicate that throws keeps the entry", async () => {
         return true;
     });
 
-    // ``valid`` matched and was deleted; ``boom`` threw and must be kept.
     expect(await indexedDB.read("mytable", "valid")).toBe(undefined);
     expect(await indexedDB.read("mytable", "boom")).toBe("v2");
 
@@ -410,13 +395,10 @@ test("blocked schema-upgrade open degrades to no-cache instead of hanging", asyn
         warn: (message) => expect.step(`warn:${String(message).slice(0, 25)}`),
     });
 
-    // Seed the DB so it exists with one object store.
     const seed = new IndexedDB(BLOCKED_DB_NAME, "v1");
     await seed.write("mytable", "k", "v");
     seed._closeCachedDB();
 
-    // A foreign connection (e.g. a frozen tab) that never closes on
-    // versionchange: any version-bump open stays blocked behind it.
     /** @type {IDBDatabase} */
     const blocker = await new Promise((resolve, reject) => {
         const request = indexedDB.open(BLOCKED_DB_NAME);
@@ -425,26 +407,18 @@ test("blocked schema-upgrade open degrades to no-cache instead of hanging", asyn
         request.onerror = () => reject(request.error);
     });
 
-    // Reading a NEW table forces a schema upgrade (version-bump open), which
-    // blocks behind the foreign connection; subsequent operations queue on
-    // the instance mutex. Without the onblocked fallback this hangs forever.
     const wrapper = new IndexedDB(BLOCKED_DB_NAME, "v1");
     const readPromise = wrapper.read("newtable", "k");
-    // Interleave mock-timer advances with real macrotasks so the (real)
-    // IndexedDB blocked event can fire, then the fallback timeout.
     for (let i = 0; i < 10; i++) {
         await advanceTime(500);
     }
 
-    // Degraded: the read resolves (cache miss) instead of hanging, and
-    // subsequent operations short-circuit to the no-db path.
     expect(await readPromise).toBe(undefined);
     expect(wrapper._degraded).toBe(true);
     await wrapper.write("mytable", "k", "ignored");
     expect(await wrapper.read("mytable", "k")).toBe(undefined);
     expect.verifySteps(["warn:IndexedDB upgrade blocked"]);
 
-    // Cleanup: release the blocker so the DB can be deleted.
     blocker.close();
     await new Promise((resolve) => {
         const request = indexedDB.deleteDatabase(BLOCKED_DB_NAME);
@@ -453,19 +427,9 @@ test("blocked schema-upgrade open degrades to no-cache instead of hanging", asyn
     });
 });
 
-// _read/_invalidate abort handling
-//
-// An aborted IndexedDB transaction (e.g. quota exceeded) fires ``onabort``,
-// NOT ``onerror``: without an abort arm the wrapping promise never settles
-// and every later operation wedges behind it on the instance mutex.
-// ``_write``/``_invalidateByModel`` already rejected; these pin the same
-// contract on ``_read`` and ``_invalidate``. A real abort is not forcible
-// from script on these transactions, so a minimal fake ``db`` drives the
-// handler wiring directly.
-
 test("_read rejects when the transaction aborts", async () => {
     const idb = new IndexedDB(CACHE_NAME, 1);
-    idb._degraded = true; // keep the constructor's open away from real IDB
+    idb._degraded = true;
 
     const abortError = new DOMException("Quota exceeded", "QuotaExceededError");
     /** @type {any} */
@@ -483,7 +447,7 @@ test("_read rejects when the transaction aborts", async () => {
 
 test("_invalidate rejects when the transaction aborts", async () => {
     const idb = new IndexedDB(CACHE_NAME, 1);
-    idb._degraded = true; // keep the constructor's open away from real IDB
+    idb._degraded = true;
 
     const abortError = new DOMException("Quota exceeded", "QuotaExceededError");
     /** @type {any} */
@@ -509,13 +473,10 @@ test("blocked database deletion degrades to no-cache instead of hanging", async 
         warn: (message) => expect.step(`warn:${String(message).slice(0, 24)}`),
     });
 
-    // Seed the DB with a version marker and one entry.
     const seed = new IndexedDB(BLOCKED_DB_NAME, "v1");
     await seed.write("mytable", "k", "v");
     seed._closeCachedDB();
 
-    // A foreign connection (e.g. a frozen tab) that never closes on
-    // versionchange: any deleteDatabase request stays blocked behind it.
     /** @type {IDBDatabase} */
     const blocker = await new Promise((resolve, reject) => {
         const request = indexedDB.open(BLOCKED_DB_NAME);
@@ -524,24 +485,17 @@ test("blocked database deletion degrades to no-cache instead of hanging", async 
         request.onerror = () => reject(request.error);
     });
 
-    // A version bump triggers the delete path; reads queue behind it on the
-    // instance mutex. Without the onblocked fallback this would hang forever.
     const wrapper = new IndexedDB(BLOCKED_DB_NAME, "v2");
     const readPromise = wrapper.read("mytable", "k");
-    // Interleave mock-timer advances with real macrotasks so the (real)
-    // IndexedDB blocked event can fire, then the fallback timeout.
     for (let i = 0; i < 10; i++) {
         await advanceTime(500);
     }
 
-    // Degraded: the read resolves (cache miss) instead of hanging, and
-    // subsequent operations short-circuit.
     expect(await readPromise).toBe(undefined);
     await wrapper.write("mytable", "k", "ignored");
     expect(await wrapper.read("mytable", "k")).toBe(undefined);
     expect.verifySteps(["warn:IndexedDB delete blocked"]);
 
-    // Cleanup: release the blocker so the pending delete can complete.
     blocker.close();
     await new Promise((resolve) => {
         const request = indexedDB.deleteDatabase(BLOCKED_DB_NAME);

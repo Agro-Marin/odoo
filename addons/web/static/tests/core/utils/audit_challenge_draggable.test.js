@@ -50,7 +50,6 @@ test("control: a throwing params.onDrop goes through the guarded dispatcher", as
     await mountWithCleanup(List);
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
 
-    // `callHandler` caught it and ran dragEnd(null, true) -> cleanup.
     expect(document.body).not.toHaveClass("pe-none");
     expect(document.body).not.toHaveClass("user-select-none");
     expect.verifyErrors(["boom from onDrop"]);
@@ -74,8 +73,6 @@ test("a throwing isAllowed still tears the drag session down", async () => {
     await mountWithCleanup(List);
     await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
 
-    // Currently these fail: the throw escapes before cleanup.cleanup(), so the
-    // body keeps the drag classes and the page is permanently unclickable.
     expect(document.body).not.toHaveClass("pe-none");
     expect(document.body).not.toHaveClass("user-select-none");
     expect.verifyErrors(["boom from isAllowed"]);

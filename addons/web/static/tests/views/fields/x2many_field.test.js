@@ -28,10 +28,6 @@ import { X2ManyField, x2ManyField } from "@web/fields/relational/x2many/x2many_f
 
 describe.current.tags("desktop");
 
-// ---------------------------------------------------------------------------
-// Shared model definitions
-// ---------------------------------------------------------------------------
-
 class Partner extends models.Model {
     name = fields.Char();
     turtles = fields.One2many({
@@ -80,14 +76,9 @@ class PartnerType extends models.Model {
 
 defineModels([Partner, Turtle, PartnerType]);
 
-// ---------------------------------------------------------------------------
-// One2many — inline CREATE / DELETE
-// ---------------------------------------------------------------------------
-
 describe("one2many inline CRUD", () => {
     test("adding a record inline generates a CREATE command on save", async () => {
         onRpc("partner", "web_save", ({ args }) => {
-            // ORM encodes creates as [0, virtual_id, vals] — check by opcode + value
             const creates = args[1].turtles.filter((c) => c[0] === 0);
             expect(creates).toHaveLength(1);
             expect(creates[0][2].name).toBe("michelangelo");
@@ -109,7 +100,6 @@ describe("one2many inline CRUD", () => {
         });
 
         await contains(".o_field_x2many_list_row_add a").click();
-        // confirm: false avoids auto-Tab which would add a second empty row in the editable list
         await fieldInput("name").edit("michelangelo", { confirm: false });
         await clickSave();
 
@@ -118,7 +108,6 @@ describe("one2many inline CRUD", () => {
 
     test("removing a record from the inline list generates a DELETE command on save", async () => {
         onRpc("partner", "web_save", ({ args }) => {
-            // partner 1 has turtles:[2]; removing it should generate DELETE(2)
             expect(args[1].turtles).toEqual([Command.delete(2)]);
             expect.step("web_save");
         });
@@ -144,14 +133,9 @@ describe("one2many inline CRUD", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Many2many — LINK / UNLINK
-// ---------------------------------------------------------------------------
-
 describe("many2many LINK / UNLINK", () => {
     test("selecting a tag in many2many_tags generates a LINK command on save", async () => {
         onRpc("partner", "web_save", ({ args }) => {
-            // Starting with no timmy; adding gold(12) → LINK(12)
             expect(args[1].timmy).toEqual([Command.link(12)]);
             expect.step("web_save");
         });
@@ -173,7 +157,6 @@ describe("many2many LINK / UNLINK", () => {
 
     test("removing a tag from many2many_tags generates an UNLINK command on save", async () => {
         onRpc("partner", "web_save", ({ args }) => {
-            // record 2 starts with timmy:[12]; removing it → UNLINK(12)
             expect(args[1].timmy).toEqual([Command.unlink(12)]);
             expect.step("web_save");
         });
@@ -191,10 +174,6 @@ describe("many2many LINK / UNLINK", () => {
         expect.verifySteps(["web_save"]);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Non-editable one2many — opens X2ManyFieldDialog
-// ---------------------------------------------------------------------------
 
 describe("dialog mode", () => {
     test("clicking Add a line in non-editable one2many opens X2ManyFieldDialog", async () => {
@@ -217,38 +196,13 @@ describe("dialog mode", () => {
 
         await contains(".o_field_x2many_list_row_add a").click();
 
-        // X2ManyFieldDialog should be visible
         expect(".o_dialog").toHaveCount(1);
         expect(".o_dialog .o_form_view").toHaveCount(1);
     });
 });
 
-// ---------------------------------------------------------------------------
-// Renderer resolution
-// ---------------------------------------------------------------------------
-
 describe("renderer resolution", () => {
     test("kanban mode works when a subclass froze `components` into a static field", async () => {
-        // `X2ManyField.components` is a static GETTER so the renderers can be
-        // read from the `views` registry lazily. Roughly 40 subclasses across
-        // the codebase override it the natural way:
-        //
-        //     static components = { ...super.components, ListRenderer: Mine };
-        //
-        // A static FIELD replaces the inherited getter with a plain data
-        // property whose initializer runs once at module-load time — before
-        // the kanban view registers itself — so `KanbanRenderer` freezes as
-        // `undefined` forever.
-        //
-        // Nothing notices on desktop, where x2manys render through the
-        // ListRenderer branch; on small screens they render as a kanban, hit
-        // the frozen `undefined` and throw "Cannot find the definition of
-        // component KanbanRenderer", taking the whole form down (this killed
-        // the sale order form on mobile). `mode="kanban"` below forces that
-        // branch without needing a mobile viewport.
-        //
-        // `KanbanRenderer: undefined` is spelled out rather than relying on
-        // import order, so the test pins the behaviour deterministically.
         class FrozenComponentsX2Many extends X2ManyField {
             static components = {
                 ...X2ManyField.components,
@@ -278,9 +232,6 @@ describe("renderer resolution", () => {
                 </form>`,
         });
 
-        // Renders instead of throwing, and falls back to the real kanban
-        // renderer. `:not(...)` filters the ghost spacers and the "add" tile,
-        // which also carry `.o_kanban_record`.
         expect(".o_field_widget[name=turtles] .o_kanban_renderer").toHaveCount(1);
         expect(
             ".o_field_widget[name=turtles] .o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new)",

@@ -1,7 +1,6 @@
 .o_notebook {
     --Notebook-margin-x: 0;
     --Notebook-padding-x: 0;
-    // Kept for backward compat (consumed by kanban_examples_dialog.scss)
     --Notebook__link-border-color--active: #{$border-color};
 
     .o_notebook_headers {

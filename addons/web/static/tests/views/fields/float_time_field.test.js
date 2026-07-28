@@ -22,7 +22,6 @@ defineModels([Partner]);
 test("FloatTimeField in form view", async () => {
     expect.assertions(4);
     onRpc("partner", "web_save", ({ args }) => {
-        // 48 / 60 = 0.8
         expect(args[1].qux).toBe(-11.8, {
             message: "the correct float value should be saved",
         });
@@ -40,7 +39,6 @@ test("FloatTimeField in form view", async () => {
         resId: 5,
     });
 
-    // 9 + 0.1 * 60 = 9.06
     expect(".o_field_float_time[name=qux] input").toHaveValue("09:06", {
         message: "The value should be rendered correctly in the input.",
     });

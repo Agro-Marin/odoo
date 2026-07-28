@@ -116,7 +116,7 @@ test("no need to focus out of the input to save the record after correcting an i
     expect(".o_field_widget input").toHaveValue("1");
     expect(".o_form_status_indicator span i.fa-triangle-exclamation").toHaveCount(0);
     expect(".o_form_button_save[disabled]").toHaveCount(0);
-    await clickSave(); // makes sure there is an enabled save button
+    await clickSave();
 });
 
 test("formula with an integer result in form view", async () => {
@@ -139,15 +139,12 @@ test("formula with a non-integer result is rejected in form view", async () => {
         resId: 1,
         arch: '<form><field name="price"/></form>',
     });
-    // Same integrality rule as plain input: "=100/3" is rejected like "33.33"
-    // would be, instead of being silently truncated to 33.
     await fieldInput("price").edit("=100/3");
     expect(".o_field_widget input").toHaveValue("=100/3");
     expect(".o_form_status_indicator span i.fa-triangle-exclamation").toHaveCount(1);
 });
 
 test("with input type 'number' option", async () => {
-    // `localization > grouping` required for this test is [3, 0], which is the default in mock server
     Product._records = [{ id: 1, price: 10 }];
     await mountView({
         type: "form",
@@ -178,10 +175,6 @@ test("type number does not misparse a dot-decimal value in a dot-thousands local
         arch: `<form><field name="price" options="{'type': 'number'}"/></form>`,
     });
     expect(".o_field_widget input").toHaveAttribute("type", "number");
-    // A number input's value is always dot-decimal: "1.5" must be rejected as
-    // a non-integer, NOT parsed with "." as a thousands separator (silent 15).
-    // `instantly` pastes the whole string: a `<input type="number">` rejects
-    // the transient "1." of char-by-char typing, which would collapse to "5".
     await fieldInput("price").edit("1.5", { instantly: true });
     expect(".o_form_status_indicator span i.fa-triangle-exclamation").toHaveCount(1);
 });
@@ -233,7 +226,6 @@ test("with 'min'/'max' option", async () => {
 });
 
 test("without input type option", async () => {
-    // `localization > grouping` required for this test is [3, 0], which is the default in mock server
     Product._records = [{ id: 1, price: 10 }];
     await mountView({
         type: "form",
@@ -248,7 +240,6 @@ test("without input type option", async () => {
 });
 
 test("is formatted by default", async () => {
-    // `localization > grouping` required for this test is [3, 0], which is the default in mock server
     Product._records = [{ id: 1, price: 8069 }];
     await mountView({
         type: "form",
@@ -281,7 +272,6 @@ test("basic flow in editable list view", async () => {
 });
 
 test("with enable_formatting option as false", async () => {
-    // `localization > grouping` required for this test is [3, 0], which is the default in mock server
     Product._records = [{ id: 1, price: 8069 }];
     await mountView({
         type: "form",
@@ -295,7 +285,6 @@ test("with enable_formatting option as false", async () => {
 });
 
 test("value is formatted on Enter", async () => {
-    // `localization > grouping` required for this test is [3, 0], which is the default in mock server
     await mountView({
         type: "form",
         resModel: "product",
@@ -309,7 +298,6 @@ test("value is formatted on Enter", async () => {
 });
 
 test("value is formatted on Enter (even if same value)", async () => {
-    // `localization > grouping` required for this test is [3, 0], which is the default in mock server
     Product._records = [{ id: 1, price: 8069 }];
 
     await mountView({
@@ -326,7 +314,6 @@ test("value is formatted on Enter (even if same value)", async () => {
 });
 
 test("value is formatted on click out (even if same value)", async () => {
-    // `localization > grouping` required for this test is [3, 0], which is the default in mock server
     Product._records = [{ id: 1, price: 8069 }];
 
     await mountView({
@@ -359,4 +346,21 @@ test("Value should not be a boolean when enable_formatting is false", async () =
     });
     await contains(`.o_list_button_add`).click();
     expect(".o_selected_row .o_field_integer").toHaveText("");
+});
+
+test("integer set to false by an onchange renders empty, not the string 'false'", async () => {
+    Product._records = [{ id: 1, price: 3 }];
+    Product._onChanges = {
+        price: (record) => {
+            record.price = false;
+        },
+    };
+    await mountView({
+        type: "form",
+        resModel: "product",
+        resId: 1,
+        arch: `<form><field name="price" options="{'enable_formatting': false}"/></form>`,
+    });
+    await contains(".o_field_widget[name=price] input").edit("12");
+    expect(".o_field_widget[name=price] input").toHaveValue("");
 });

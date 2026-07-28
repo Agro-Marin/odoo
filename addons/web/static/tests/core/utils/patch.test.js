@@ -27,7 +27,6 @@ class BaseClass {
         expect.step("base.fn");
     }
     async asyncFn() {
-        // also check this binding
         expect.step(`base.${this.str}`);
     }
     get dynamic() {
@@ -51,7 +50,6 @@ function applyGenericPatch(Klass, tag) {
         async asyncFn() {
             await Promise.resolve();
             await super.asyncFn(...arguments);
-            // also check this binding
             expect.step(`${tag}.${this.str}`);
         },
     });
@@ -199,7 +197,6 @@ test("instance fields", () => {
     expect(instance.obj).toEqual({ base: "base", patch: "patch" });
 
     unpatch();
-    // unpatch does not change instance fields' values
     expect(instance.str).toBe("basepatch");
     expect(instance.arr).toEqual(["base", "patch"]);
     expect(instance.obj).toEqual({ base: "base", patch: "patch" });
@@ -291,7 +288,7 @@ test("setter", () => {
             super.dynamic = "patch:" + value;
         },
     });
-    expect(instance.dynamic).toBe("1"); // nothing changed
+    expect(instance.dynamic).toBe("1");
 
     instance.dynamic = "2";
     expect(instance.dynamic).toBe("patch:2");
@@ -314,7 +311,7 @@ test("patch getter/setter with value", () => {
         value: "patched",
         writable: true,
         configurable: true,
-        enumerable: false, // class properties are not enumerable
+        enumerable: false,
     });
     expect(instance.dynamic).toBe("patched");
 
@@ -372,7 +369,7 @@ test("call another super method", () => {
             super.fn();
         },
         fn() {
-            expect.step("patch.fn"); // should not called
+            expect.step("patch.fn");
         },
     });
 
@@ -826,9 +823,6 @@ describe("inheritance", () => {
             extension: "extension",
         });
 
-        // /!\ WARNING /!\
-        // If inherit comes after the patch then extension will still have
-        // the patched data when unpatching.
         unpatch();
         expect(Extension.staticStr).toBe("basepatchextension");
         expect(Extension.staticArr).toEqual(["base", "patch", "extension"]);
@@ -845,9 +839,6 @@ describe("inheritance", () => {
         expect(Extension.staticArr).toEqual(["base", "extension"]);
         expect(Extension.staticObj).toEqual({ base: "base", extension: "extension" });
 
-        // /!\ WARNING /!\
-        // If patch comes after the inherit then extension won't have
-        // the patched data.
         const unpatch = applyGenericStaticPatch(BaseClass, "patch");
         expect(Extension.staticStr).toBe("baseextension");
         expect(Extension.staticArr).toEqual(["base", "extension"]);
@@ -880,7 +871,6 @@ describe("inheritance", () => {
 
     test("keep original descriptor details", () => {
         class Klass {
-            // getter declared in classes are not enumerable
             get getter() {
                 return false;
             }
@@ -891,7 +881,6 @@ describe("inheritance", () => {
         expect(descriptor.enumerable).toBe(false);
 
         patch(Klass.prototype, {
-            // getter declared in object are enumerable
             get getter() {
                 return true;
             },
@@ -932,8 +921,6 @@ describe("other", () => {
     });
 
     test("can call a non bound patched method", () => {
-        // use case: patching a function on window (e.g. setTimeout)
-
         const obj = {
             fn() {
                 expect.step("original");
@@ -948,7 +935,7 @@ describe("other", () => {
             },
         });
 
-        const fn = obj.fn; // purposely not bound
+        const fn = obj.fn;
         fn();
         expect.verifySteps(["patched", "original"]);
     });
@@ -1029,8 +1016,6 @@ describe("single-use extension", () => {
             },
         };
         patch(A.prototype, ext);
-        // Reusing the same extension object used to throw the opaque
-        // "TypeError: Cyclic __proto__ value"; it must now be a clear message.
         expect(() => patch(A.prototype, ext)).toThrow(/already used in a patch/);
         expect(() => patch(A.prototype, ext)).not.toThrow(/Cyclic/);
     });
@@ -1053,10 +1038,7 @@ describe("single-use extension", () => {
         };
         patch(A.prototype, shared);
         expect(new A().fn()).toBe("s:a");
-        // Reusing on a second target would re-parent `shared` onto B's skeleton,
-        // corrupting A's `super` chain — it must throw instead.
         expect(() => patch(B.prototype, shared)).toThrow(/already used in a patch/);
-        // A's super chain is untouched.
         expect(new A().fn()).toBe("s:a");
     });
 
@@ -1078,8 +1060,6 @@ describe("single-use extension", () => {
         });
         expect(new A().fn()).toBe("2:1:a");
         unpatch1();
-        // Removing the first patch re-applies the second against a fresh
-        // description; the single-use guard must not block that.
         expect(new A().fn()).toBe("2:a");
     });
 });

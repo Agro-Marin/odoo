@@ -37,8 +37,6 @@ class Parent extends Component {
             options: (request) => [
                 {
                     label: `Create "${request}"`,
-                    // Close over the request that produced this option — the
-                    // real many2one quick-create does exactly this.
                     onSelect: () => selected.push(request),
                 },
             ],
@@ -50,20 +48,14 @@ test("an option is never selected against a superseded query", async () => {
     selected.length = 0;
     await mountWithCleanup(Parent);
 
-    // First query settles and renders its option.
     await contains(".o-autocomplete input").edit("ab", { confirm: false });
     await runAllTimers();
     expect(".o-autocomplete--dropdown-item").toHaveCount(1);
     expect(queryTextOfFirstOption()).toBe(`Create "ab"`);
 
-    // The user keeps typing. The debounce is re-armed, so the "ab" option is
-    // still on screen while the input already reads "abcdefgh".
     await contains(".o-autocomplete input").edit("abcdefgh", { confirm: false });
     expect(".o-autocomplete input").toHaveValue("abcdefgh");
 
-    // Clicking now must NOT act on the stale option. Either the selection is
-    // rejected outright, or it resolves against the current query — but it must
-    // never quick-create "ab" while the input says "abcdefgh".
     await contains(".o-autocomplete--dropdown-item").click();
     expect(selected).not.toInclude("ab");
 });

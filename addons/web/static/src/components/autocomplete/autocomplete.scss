@@ -1,6 +1,5 @@
 .o-autocomplete {
     .o-autocomplete--dropdown-menu {
-        // Needed because they are rendered at a lower stacking context compared to modals.
         z-index: $zindex-modal + 1;
         max-width: 600px;
     }

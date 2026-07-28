@@ -88,11 +88,6 @@ export class Many2XAutocomplete extends Component {
         searchMoreLimit: { type: Number, optional: true },
         searchThreshold: { type: Number, optional: true },
         setInputFloats: { type: Function, optional: true },
-        // Escape hatch disabling the empty-search memoization of search()
-        // entirely. Creation flows going through this component already
-        // invalidate the memo (see invalidateEmptySearch()); only pass this
-        // when the searchable set can change outside of the component's
-        // knowledge (e.g. product_name_and_description).
         preventMemoization: { type: Boolean, optional: true },
         slots: { optional: true },
         specification: { type: Object, optional: true },
@@ -156,21 +151,14 @@ export class Many2XAutocomplete extends Component {
                 },
                 fieldString,
                 onClose: () => {
-                    // A record may have been created through the dialog (even
-                    // by a subclass bypassing onRecordSaved), so a past empty
-                    // search result may no longer hold.
                     this.invalidateEmptySearch();
                     const autoCompleteInput = /** @type {HTMLInputElement | null} */ (
                         this.autoCompleteContainer.el?.querySelector("input")
                     );
                     if (!autoCompleteInput) {
-                        // The field may have been unmounted while the dialog
-                        // was open (e.g. the parent view was reloaded).
                         return;
                     }
 
-                    // Value matches input: record was saved and the UI re-rendered.
-                    // Value differs: input was manually typed and nothing happened (discarded).
                     if (this.props.value !== autoCompleteInput.value) {
                         autoCompleteInput.value = "";
                     }
@@ -285,14 +273,6 @@ export class Many2XAutocomplete extends Component {
             deepEqual(this.lastEmptySearch.context, context) &&
             name === this.lastEmptySearch.name
         ) {
-            // Only skip the RPC for an EXACT repeat of a query already known to
-            // be empty. The former `startsWith` prefix-skip assumed name_search
-            // is substring-monotonic (a narrower query can only return fewer
-            // records) — but it isn't: product.product.name_search does an EXACT
-            // default_code/barcode match, so a longer barcode ("0370006152")
-            // can match where its prefix ("037000") did not. Prefix-skipping
-            // suppressed those valid lookups and reported "No records" for a
-            // product that exists.
             return [];
         }
         const records = await this.orm.call(
@@ -401,8 +381,6 @@ export class Many2XAutocomplete extends Component {
         const suggestions = [];
         /** @type {Record<string, any>[] | null} */
         let records = null;
-        // search() fetches searchLimit + 1 records to detect overflow: slice
-        // the extra one back and remember whether more records exist.
         let hasMore = false;
 
         if (request.length < this.props.searchThreshold) {
@@ -474,10 +452,13 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @param {{ request: string, records: Array|null }} params
+     * Only reached once a search has already come back empty, so it needs no
+     * information about the request or the results — it just asks whether any
+     * creation affordance would already be offered in their place.
+     *
      * @returns {boolean}
      */
-    addNoRecordsSuggestion({ request, records }) {
+    addNoRecordsSuggestion() {
         return !this.activeActions.createEdit && !this.props.quickCreate;
     }
 

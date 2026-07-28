@@ -14,7 +14,6 @@ import {
 } from "@web/core/errors/uncaught_errors";
 import { registry } from "@web/core/registry";
 
-// Re-export for backward compatibility — canonical location is @web/core/errors/uncaught_errors
 export {
     ThirdPartyScriptError,
     UncaughtClientError,
@@ -51,12 +50,6 @@ export const errorService = {
          */
         function handleError(/** @type {any} */ uncaughtError) {
             function shouldLogError() {
-                // Only log business-relevant errors: event/traceback are set by
-                // one of the two listeners below, and skip if a handler opted
-                // out of logging. For window "error" events the listener
-                // already prevented the event synchronously (see below), so
-                // handler opt-out is tracked via the shadowed preventDefault
-                // (`logSuppressed`) instead of the event's canceled flag.
                 if (!uncaughtError.event || !uncaughtError.traceback) {
                     return false;
                 }
@@ -65,12 +58,6 @@ export const errorService = {
                 }
                 return !uncaughtError.event.defaultPrevented;
             }
-            // Unwrap to the deepest cause in the chain. Descend only while the
-            // next `cause` is DEFINED: a non-Error reason (e.g. a rejected
-            // promise with a string reason) is a legitimate original error and
-            // must be surfaced, but a chain ending in `{ cause: undefined }`
-            // must not hand handlers `originalError === undefined` — stop and
-            // keep the last defined value instead.
             let originalError = uncaughtError;
             const seen = new Set();
             while (
@@ -89,9 +76,6 @@ export const errorService = {
                         break;
                     }
                 } catch (e) {
-                    // A crashing handler must not silence the original error or
-                    // block later handlers. Log its failure briefly (the original
-                    // traceback is logged once by the fallback below) and continue.
                     console.error(
                         `@web/services/error_service: handler "${name}" failed with "${
                             e?.cause || e
@@ -100,23 +84,13 @@ export const errorService = {
                 }
             }
             if (shouldLogError()) {
-                // Log the full traceback instead of letting the browser log the incomplete one
                 uncaughtError.event.preventDefault();
                 console.error(uncaughtError.traceback);
             }
         }
 
-        // Named handlers (not inline) so ``destroy()`` below can detach them:
-        // an env that starts this service and is later torn down (notably every
-        // env spun up across a test suite) would otherwise leak both window
-        // listeners, each pinning the dead env — the same fix the sibling
-        // name/slow_rpc services already carry.
         const onError = async (ev) => {
             const { colno, error, filename, lineno, message } = ev;
-            // Never surface this ResizeObserver error to the user: it just means the
-            // browser deferred notifications a frame to prevent an infinite loop —
-            // expected behavior, though worth tracking down the trigger sites.
-            // https://trackjs.com/javascript-errors/resizeobserver-loop-completed-with-undelivered-notifications/
             const resizeObserverError =
                 "ResizeObserver loop completed with undelivered notifications.";
             if (!(error instanceof Error) && message === resizeObserverError) {
@@ -126,15 +100,13 @@ export const errorService = {
             const isRedactedError = !filename && !lineno && !colno;
             let isThirdPartyScriptError = isRedactedError;
             if (!isRedactedError && isBrowserFirefox() && filename) {
-                // Firefox doesn't hide details of errors occurring in third-party scripts, check origin explicitly.
                 try {
                     isThirdPartyScriptError =
-                        new URL(filename).origin !== window.location.origin;
+                        new URL(filename).origin !== browser.location.origin;
                 } catch {
                     // filename is not a valid URL (inline script, eval, etc.) — not third-party
                 }
             }
-            // Don't display error dialogs for third party script errors unless we are in debug mode
             if (isThirdPartyScriptError && !env.debug) {
                 return;
             }
@@ -150,16 +122,6 @@ export const errorService = {
                 /** @type {any} */ (uncaughtError).event = ev;
                 if (error instanceof Error) {
                     /** @type {any} */ (error).errorEvent = ev;
-                    // The browser prints its own (partial) report for an
-                    // uncaught error unless preventDefault runs synchronously
-                    // during dispatch — after the await below it would be a
-                    // no-op and the error would hit the console twice. Prevent
-                    // now (unless another listener already claimed the event),
-                    // and shadow preventDefault so handlers that call it to
-                    // opt out of the traceback log (e.g. website's
-                    // beforeunload suppression) keep working. Rejection events
-                    // don't need this: their report is deferred past the
-                    // microtask queue, so the late preventDefault is honored.
                     if (!ev.defaultPrevented) {
                         ev.preventDefault();
                         /** @type {any} */ (uncaughtError).browserLogSuppressed = true;
@@ -191,15 +153,10 @@ export const errorService = {
             let error = ev.reason;
 
             if (error && error.type === "error" && "eventPhase" in error) {
-                // https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/error_event
-                // The error Event doesn't bubble. We sometimes reject a promise with the
-                // Event from an HTMLElement's "error" handler; if it isn't wrapped in an
-                // actual Error, there's nothing more to do than the spec requires.
                 if (!error.bubbles) {
                     ev.preventDefault();
                     return;
                 }
-                // If the error Event does bubble, build a meaningful message.
                 let message;
                 if (error.target) {
                     message = `${HTMLElementLoadingError.message}: ${error.target.nodeName}`;
@@ -209,10 +166,6 @@ export const errorService = {
 
             let traceback;
             if (isBrowserChrome() && ev instanceof CustomEvent && error === undefined) {
-                // Ad-hoc fix for the Honey Paypal extension bug: it throws a CustomEvent
-                // instead of the spec'd PromiseRejectionEvent (Chrome doesn't sandbox
-                // extensions enough to keep this out of the page). Ignore unless debugging.
-                // https://developer.mozilla.org/en-US/docs/Web/API/Window/unhandledrejection_event
                 if (!env.debug) {
                     return;
                 }
@@ -225,6 +178,36 @@ export const errorService = {
             uncaughtError.unhandledRejectionEvent = ev;
             /** @type {any} */ (uncaughtError).event = ev;
             uncaughtError.traceback = traceback ?? null;
+            // Suppress the browser's own log ONLY when this service will print
+            // a traceback itself, i.e. when one is already set or when
+            // `completeUncaughtError` below is going to set one (it runs only
+            // for real Errors). Suppressing unconditionally silences a
+            // `Promise.reject("string")` entirely: shouldLogError() bails on
+            // the null traceback, so neither the browser nor Odoo reports it.
+            //
+            // It must also happen BEFORE the awaits below: preventDefault() on
+            // an already-dispatched event is a no-op, which is why the deferred
+            // call in shouldLogError() never suppressed anything and every
+            // Error rejection was logged twice. Mirrors the "error" path.
+            const willReportTraceback = error instanceof Error || Boolean(traceback);
+            if (willReportTraceback && !ev.defaultPrevented) {
+                ev.preventDefault();
+                /** @type {any} */ (uncaughtError).browserLogSuppressed = true;
+                try {
+                    // Keep a handler's later preventDefault() meaningful as an
+                    // opt-out of Odoo's own log, now that the real one has
+                    // already fired.
+                    Object.defineProperty(ev, "preventDefault", {
+                        configurable: true,
+                        value: () => {
+                            /** @type {any} */ (uncaughtError).logSuppressed = true;
+                        },
+                    });
+                } catch {
+                    // Instrumented event: opt-out tracking is lost, which only
+                    // affects console verbosity.
+                }
+            }
             if (error instanceof Error) {
                 /** @type {any} */ (error).errorEvent = ev;
                 const annotated = env.debug?.includes("assets");

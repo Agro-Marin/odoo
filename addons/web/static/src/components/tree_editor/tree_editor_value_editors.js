@@ -286,9 +286,6 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
                         extractProps: ({ value, update }) => ({
                             value,
                             update,
-                            // Per-call stringify: the ambiguity flag depends on
-                            // the CURRENT value, so it must not be baked into
-                            // the shared editorInfo (which outlives renders).
                             editorInfo: {
                                 ...editorInfo,
                                 stringify: (val) =>
@@ -328,9 +325,6 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
             const formatType = type === "integer" ? "integer" : "float";
             const typeFormatter = formatters.get(formatType, null);
             const formatter = (value) => {
-                // Only format actual numbers: dynamic values (an ``Expression``
-                // like ``uid``/``today``) must keep their raw expression text,
-                // or the domain editor's display of dynamic filters blanks out.
                 if (typeFormatter && typeof value === "number") {
                     try {
                         return String(typeFormatter(value));
@@ -350,9 +344,6 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
                 }),
                 isSupported: () => true,
                 defaultValue: () => 1,
-                // Keep committed numbers, dynamic values (e.g. an ``Expression``
-                // like ``uid``) and parsable leftover strings across operator
-                // changes; reset only unusable values.
                 shouldResetValue: (value) =>
                     typeof value !== "number" &&
                     !(value instanceof Expression) &&
@@ -397,8 +388,6 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
                     }
                     return start;
                 },
-                // A user-picked date must survive an operator change; only
-                // values that are not parsable date strings are reset.
                 shouldResetValue: (value) =>
                     !(typeof value === "string" && isParsable(type, value)),
                 stringify: (value) => {
@@ -453,8 +442,6 @@ function getPartialValueEditorInfo(fieldDef, operator, params = {}) {
         }
     }
 
-    // Fallback used mainly to visualize what's been produced in the debug
-    // textarea (o_domain_selector_debug_container); rarely useful otherwise.
     return {
         component: Input,
         extractProps: ({ value, update }) => ({

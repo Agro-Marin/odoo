@@ -1,7 +1,5 @@
 // @ts-check
 
-// ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
-
 /**
  * Per-element placeholder a template's `src` is rewritten to during tests,
  * so the browser's native image loader doesn't fire HTTP requests. A 1×1
@@ -72,10 +70,6 @@ function replaceAttributes(template) {
  *
  * @param {{ modules: Map<string, any> }} loader
  */
-// Once-guard keyed by the templates module object itself. In debug mode
-// (`?debug=assets`) `loader.modules.get(...)` holds a REAL frozen ES-module
-// namespace — writing a marker property onto it throws TypeError — so the
-// guard must live outside the module object.
 const mockTemplatesRegistered = new WeakSet();
 
 export function setupMockTemplates(loader) {

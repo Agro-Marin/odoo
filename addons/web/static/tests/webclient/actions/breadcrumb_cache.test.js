@@ -37,11 +37,9 @@ test("a read marks an entry as recently used", async () => {
     cache.set("b", 2);
     cache.set("c", 3);
 
-    // Touch "a" so it is no longer the coldest.
     expect(cache.get("a")).toBe(1);
     cache.set("d", 4);
 
-    // "b" was evicted instead — this is the whole point of the touch.
     expect(cache.has("a")).toBe(true);
     expect(cache.has("b")).toBe(false);
     expect(keysOf(cache)).toEqual(["c", "a", "d"]);
@@ -73,13 +71,10 @@ test("delete removes an entry and frees its slot", async () => {
     expect(cache.size).toBe(1);
 
     cache.set("c", 3);
-    // "b" survives: deleting "a" freed the slot rather than evicting.
     expect(keysOf(cache)).toEqual(["b", "c"]);
 });
 
 test("a cached in-flight promise is returned as-is", async () => {
-    // fetchBreadcrumbs stores the pending RPC so a concurrent visit joins it
-    // instead of firing its own; the cache must not touch the value.
     const cache = new BreadcrumbCache(2);
     const pending = Promise.resolve({ display_name: "Partner" });
     cache.set("k", pending);

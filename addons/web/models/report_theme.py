@@ -2,10 +2,6 @@ from markupsafe import Markup
 
 from odoo import fields, models
 
-# Characters that would let a token value escape its declaration and corrupt the
-# shared company stylesheet — or, via "</style>", escape the <style> element
-# itself and inject markup (the block is emitted as raw Markup). Stripped before
-# the value is emitted as raw CSS.
 _CSS_UNSAFE = str.maketrans("", "", "{};\n\r<>")
 
 
@@ -28,11 +24,6 @@ class ReportTheme(models.Model):
     name = fields.Char(required=True, translate=True)
     sequence = fields.Integer(default=50)
 
-    # Typography. Empty falls back (in the emit) to the company ``font``, so a
-    # theme need only override the roles it cares about. ``font_display`` styles
-    # the document title and grand total (the identity elements); ``font_body``
-    # styles running text. Values are CSS font-family stacks, e.g.
-    # ``Georgia, serif``.
     font_body = fields.Char(
         string="Body font",
         help="CSS font-family for running text. Empty uses the company font.",
@@ -43,7 +34,6 @@ class ReportTheme(models.Model):
         "Empty uses the body font.",
     )
 
-    # Rhythm & shape. Raw CSS lengths dropped straight into the token block.
     row_padding = fields.Char(
         string="Table row padding",
         default="0.5rem",
@@ -61,9 +51,6 @@ class ReportTheme(models.Model):
         help="Thickness of the accent rule under table headers (CSS length).",
     )
 
-    # Fields whose value is baked into the shared company report stylesheet;
-    # a change to any of them must regenerate that asset (mirrors the trigger on
-    # res.company._REPORT_STYLE_FIELDS for the company side).
     _STYLE_FIELDS = frozenset(
         {"font_body", "font_display", "row_padding", "border_radius", "rule_weight"}
     )
@@ -122,8 +109,6 @@ class ReportTheme(models.Model):
             "--rp-radius: %s;\n"
             "--rp-rule: %s;"
         ) % (
-            # Markup.__mod__ escapes each operand; wrap the already-sanitized
-            # font/length values in Markup so they pass through verbatim.
             css(primary),
             css(secondary),
             Markup(body),

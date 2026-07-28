@@ -19,8 +19,6 @@ import { StaticList } from "@web/model/relational_model/static_list";
 
 const LINK = 4;
 
-// Mock factory
-
 /**
  * Build a StaticList-shaped object backed by the real StaticList prototype.
  *
@@ -32,8 +30,6 @@ function makeList({ loadRecords = async () => [] } = {}) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
         id: "datapoint_test",
-        // config/activeFields/fields/resModel/context are prototype getters
-        // deriving from _config (see DataPoint)
         _config: {
             limit: 40,
             offset: 0,
@@ -60,7 +56,6 @@ function makeList({ loadRecords = async () => [] } = {}) {
             _patchConfig: (config, patch) => Object.assign(config, patch),
             _loadRecords: (config) => loadRecords(config),
         },
-        // simplified datapoint factory (the real one needs the full model)
         _createRecordDatapoint(data, params = {}) {
             const resId = data.id || false;
             const record = {
@@ -72,9 +67,6 @@ function makeList({ loadRecords = async () => [] } = {}) {
                 data: { ...data },
                 _changes: {},
                 _discard() {},
-                // Mirrors RelationalRecord._applyChanges(changes, serverChanges):
-                // the command engine routes UPDATE payloads through the raw
-                // server slot (second argument).
                 _applyChanges(changes, serverChanges = {}) {
                     Object.assign(
                         this.data,
@@ -96,8 +88,6 @@ function makeList({ loadRecords = async () => [] } = {}) {
     return list;
 }
 
-// Rejection surfacing
-
 describe("floating commands rejection", () => {
     test("a rejected commands load is surfaced, not silently dropped", async () => {
         expect.errors(1);
@@ -105,24 +95,18 @@ describe("floating commands rejection", () => {
             loadRecords: () => Promise.reject(new Error("load boom")),
         });
 
-        // LINK without data forces a record-values fetch → async result that
-        // the caller (a sync chain) cannot await.
         list._applyInitialCommands([[LINK, 42, false]]);
         expect(list._commandsPromise).not.toBe(null);
 
         await animationFrame();
 
-        // The rejection reached the error surface (unhandledrejection)...
         expect.verifyErrors([/load boom/]);
-        // ...and the tracked chain settled and was cleared, so later flows
-        // (save barrier, discard prune) are not blocked by the failure.
         expect(list._commandsPromise).toBe(null);
     });
 
     test("synchronous command application does not create a pending promise", () => {
         const list = makeList();
 
-        // LINK with data — fully synchronous application
         list._applyInitialCommands([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
 
         expect(list._commandsPromise).toBe(null);
@@ -130,29 +114,22 @@ describe("floating commands rejection", () => {
     });
 });
 
-// _discard × _pruneCache sequencing
-
 describe("_discard prune sequencing", () => {
     test("_pruneCache runs only after the pending commands load settles", async () => {
         const def = new Deferred();
         const list = makeList({ loadRecords: () => def });
 
-        // A stale cache entry not referenced by resIds/_currentIds: pruning
-        // would evict it.
         list._cache["stale"] = { resId: false, _virtualId: "stale", _discard() {} };
-        // Initial commands whose re-application on discard needs a fetch.
         list._initialCommands = [[LINK, 42, false]];
 
         list._discard();
 
-        // The load is still in flight — the prune must not have run yet.
         expect(list._commandsPromise).not.toBe(null);
         expect("stale" in list._cache).toBe(true);
 
         def.resolve([{ id: 42, display_name: "Rec 42" }]);
         await animationFrame();
 
-        // Load settled → prune ran → stale entry evicted, linked row loaded.
         expect("stale" in list._cache).toBe(false);
         expect(list._cache[42].data.display_name).toBe("Rec 42");
         expect(list._commandsPromise).toBe(null);
@@ -167,8 +144,6 @@ describe("_discard prune sequencing", () => {
         expect("stale" in list._cache).toBe(false);
     });
 });
-
-// Save barrier
 
 describe("save barrier on pending commands", () => {
     /**
@@ -194,8 +169,6 @@ describe("save barrier on pending commands", () => {
             _textValues: markRaw({}),
             _setEvalContext() {},
             _checkValidity: () => true,
-            // Serialize the x2many through the real command serializer, as
-            // record._getChanges does for a dirty x2many.
             _getChanges: () => ({ lines: list._getCommands() }),
             _clearChanges() {},
             _discard: () => {},
@@ -226,8 +199,6 @@ describe("save barrier on pending commands", () => {
         const def = new Deferred();
         const list = makeList({ loadRecords: () => def });
 
-        // Simulate an onchange returning a LINK command without values: the
-        // sync chain applies it and tracks the resulting floating load.
         list._trackCommandsPromise(list._applyCommands([[LINK, 42, false]]));
         expect(list._commandsPromise).not.toBe(null);
 
@@ -241,10 +212,8 @@ describe("save barrier on pending commands", () => {
             },
         });
 
-        // Save immediately, while the load is pending.
         const saveProm = save(rec, { reload: false });
         await animationFrame();
-        // The barrier must hold the save back until the load settles.
         expect.verifySteps([]);
 
         def.resolve([{ id: 42, display_name: "Rec 42" }]);
@@ -252,8 +221,6 @@ describe("save barrier on pending commands", () => {
 
         expect(result).toBe(true);
         expect.verifySteps(["webSave"]);
-        // The payload carries the linked row's command, serialized from a
-        // stable (fully loaded) list state.
         expect(savedChanges.lines).toEqual([[LINK, 42, false]]);
         expect(list._cache[42].data.display_name).toBe("Rec 42");
     });
@@ -278,9 +245,6 @@ describe("save barrier on pending commands", () => {
     test("the barrier gives up after a bounded number of iterations", async () => {
         const list = makeList();
         list._applyCommands([[LINK, 7, { id: 7, display_name: "Rec 7" }]]);
-        // A pathological list whose floating-commands promise regenerates on
-        // every read: without the iteration cap the save would hang forever
-        // inside the mutex with no diagnostic.
         Object.defineProperty(list, "_commandsPromise", {
             get: () => Promise.resolve(),
             set: () => {},
@@ -303,7 +267,6 @@ describe("save barrier on pending commands", () => {
             console.warn = originalWarn;
         }
 
-        // Degraded mode: the save still goes through, loudly.
         expect(result).toBe(true);
         expect.verifySteps(["webSave"]);
         expect(warnings.length).toBe(1);

@@ -44,14 +44,14 @@ class Partner extends models.Model {
         { id: 2, display_name: "Second record" },
     ];
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <group>
                     <field name="display_name"/>
                 </group>
             </form>
         `,
-        "kanban,1": /* xml */ `
+        "kanban,1": `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -60,7 +60,7 @@ class Partner extends models.Model {
                 </templates>
             </kanban>
         `,
-        list: /* xml */ `
+        list: `
             <list>
                 <field name="display_name" />
             </list>
@@ -226,7 +226,7 @@ test("can execute client actions from tag name", async () => {
 test("async client action (function) returning another action", async () => {
     actionRegistry.add("my_action", async () => {
         await Promise.resolve();
-        return 1; // execute action 1
+        return 1;
     });
     await mountWithCleanup(WebClient);
     await getService("action").doAction("my_action");
@@ -237,8 +237,6 @@ test("cyclic function client action chains hit the recursion limit", async () =>
     let callCount = 0;
     actionRegistry.add("looping_client_action", () => {
         callCount++;
-        // Returns itself as follow-up: without the depth guard this would
-        // recurse through doAction forever.
         return { type: "ir.actions.client", tag: "looping_client_action" };
     });
     await mountWithCleanup(WebClient);
@@ -248,8 +246,6 @@ test("cyclic function client action chains hit the recursion limit", async () =>
             tag: "looping_client_action",
         }),
     ).rejects.toThrow("Action recursion limit exceeded (max 20)");
-    // Invocation k runs the callback then checks depth k: the cap (> 20)
-    // trips on the 21st follow-up, so the callback ran exactly 21 times.
     expect(callCount).toBe(21);
 });
 
@@ -353,7 +349,7 @@ test("test display_notification client action", async () => {
             sticky: true,
         },
     });
-    await animationFrame(); // wait for the notification to be displayed
+    await animationFrame();
     expect(".o_notification_manager .o_notification").toHaveCount(1);
     expect(
         ".o_notification_manager .o_notification .o_notification_content",
@@ -382,7 +378,7 @@ test("test display_notification client action with links", async () => {
             ],
         },
     });
-    await animationFrame(); // wait for the notification to be displayed
+    await animationFrame();
     expect(".o_notification_manager .o_notification").toHaveCount(1);
     expect(
         ".o_notification_manager .o_notification .o_notification_content",
@@ -391,7 +387,6 @@ test("test display_notification client action with links", async () => {
     await contains(".o_notification_close").click();
     expect(".o_notification_manager .o_notification").toHaveCount(0);
 
-    // display_notification without title
     await getService("action").doAction({
         type: "ir.actions.client",
         tag: "display_notification",
@@ -406,7 +401,7 @@ test("test display_notification client action with links", async () => {
             ],
         },
     });
-    await animationFrame(); // wait for the notification to be displayed
+    await animationFrame();
     expect(".o_notification_manager .o_notification").toHaveCount(1);
     expect(".o_notification_manager .o_notification .o_notification_title").toHaveCount(
         0,
@@ -435,7 +430,7 @@ test("test next action on display_notification client action", async () => {
         },
         options,
     );
-    await animationFrame(); // wait for the notification to be displayed
+    await animationFrame();
     expect(".o_notification_manager .o_notification").toHaveCount(1);
     expect.verifySteps(["onClose"]);
 });

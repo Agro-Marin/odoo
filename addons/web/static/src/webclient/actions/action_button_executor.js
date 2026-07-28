@@ -36,8 +36,6 @@ export function buildCallButtonArgs(params) {
     if (params.args) {
         let additionalArgs;
         try {
-            // arch `args` is a Python-literal list (e.g. args="[1, 'foo']");
-            // evaluateExpr parses Python literals natively so quoting round-trips.
             additionalArgs = evaluateExpr(params.args);
         } catch (error) {
             throw new InvalidButtonParamsError(
@@ -98,9 +96,6 @@ export async function executeActionButton(
     }
     let action;
     if (!isEmbeddedAction && params.context) {
-        // `params.context` frequently aliases a view-owned context object:
-        // strip the embedded-action keys on a copy so the deletion cannot
-        // leak back into the originating view's state.
         params = {
             ...params,
             context: omit(params.context, ...EMBEDDED_ACTIONS_CTX_KEYS),
@@ -111,10 +106,6 @@ export async function executeActionButton(
     if (blockUi) {
         am.env.services.ui.block();
     }
-    // The whole block runs in try/finally so the `block-ui` overlay is always
-    // released, whatever exit path is taken (rejected RPC, invalid-args throw,
-    // embedded-action early return). `effect` is declared here and triggered
-    // after the finally so the spinner is removed before the effect plays.
     let effect;
     try {
         if (params.special) {
@@ -123,7 +114,6 @@ export async function executeActionButton(
                 infos: { special: true },
             };
         } else if (params.type === "object") {
-            // call a Python Object method, which may return an action to execute
             const args = buildCallButtonArgs(params);
             const callProm = rpc(
                 `/web/dataset/call_button/${params.resModel}/${params.name}`,
@@ -134,9 +124,6 @@ export async function executeActionButton(
                     model: params.resModel,
                 },
             );
-            // am.keepLast rejects with a SupersededError if a newer task
-            // supersedes this one; the `finally` still releases the block-ui
-            // overlay and the error service swallows the rejection.
             action = await am.keepLast.add(callProm);
             action =
                 action && typeof action === "object"
@@ -146,7 +133,6 @@ export async function executeActionButton(
                 action.help = markup(action.help);
             }
         } else if (params.type === "action") {
-            // execute a given action, so load it first
             context.active_id = params.resId ?? null;
             context.active_ids = params.resIds;
             context.active_model = params.resModel;
@@ -206,7 +192,6 @@ export async function executeActionButton(
                 return;
             }
         }
-        // filter out context keys specific to the current action (see filterActionContext)
         const currentCtx = filterActionContext(params.context);
         const activeCtx = { active_model: params.resModel };
         if (params.resId) {
@@ -219,14 +204,8 @@ export async function executeActionButton(
             activeCtx,
             action.context,
         ]);
-        // in case an effect is returned from python and there is already an effect
-        // attribute on the button, the priority is given to the button attribute
         effect = params.effect ? evaluateExpr(params.effect) : action.effect;
         const { onClose, stackPosition, viewType } = params;
-        // doAction rejects with a SupersededError when this dispatch is
-        // superseded before its controller mounts (its currentActionProm is
-        // rejected in ControllerComponent.onWillDestroy); the `finally` still
-        // releases the block-ui overlay and the error service swallows it.
         await am.doAction(action, {
             newWindow,
             onClose,

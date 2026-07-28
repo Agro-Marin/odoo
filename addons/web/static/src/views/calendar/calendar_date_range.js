@@ -21,8 +21,6 @@ export function computeCalendarRange(scale, date, firstDayOfWeek, monthOverflow)
     let end = date;
 
     if (scale !== "week") {
-        // startOf("week") does not depend on locale and will always give the
-        // "Monday" of the week...
         start = start.startOf(scale);
         end = end.endOf(scale);
     }

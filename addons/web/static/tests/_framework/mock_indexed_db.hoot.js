@@ -1,7 +1,5 @@
 // @ts-check
 
-// ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
-
 import { afterEach, beforeEach } from "@odoo/hoot";
 
 /**
@@ -70,7 +68,6 @@ export function mockIndexedDBForTests() {
                 this.mockIndexedDB = {};
             }
         };
-        // Mirrors production: delete keys per table where predicate returns true.
         proto.invalidateWhere = async function (tables, predicate) {
             this.mockIndexedDB ??= {};
             const tableList = typeof tables === "string" ? [tables] : tables;
@@ -91,8 +88,6 @@ export function mockIndexedDBForTests() {
                 }
             }
         };
-        // Mirrors production: delete entries whose value carries model === <model>;
-        // entries without a model property are skipped (not model-scoped).
         proto.invalidateByModel = async function (tables, model) {
             this.mockIndexedDB ??= {};
             const tableList = typeof tables === "string" ? [tables] : tables;

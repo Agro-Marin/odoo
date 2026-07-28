@@ -13,7 +13,7 @@ test("treeFromExpression", () => {
     const options = {
         getFieldDef: (name) => {
             if (["foo", "bar"].includes(name)) {
-                return { type: "any" }; // any field
+                return { type: "any" };
             }
             if (["foo_ids", "bar_ids"].includes(name)) {
                 return { type: "many2many" };
@@ -217,7 +217,6 @@ test("treeFromExpression", () => {
             expression: `expr in []`,
             result: complexCondition(`expr in []`),
         },
-        // `not <literal>`: the negation folds into the constant leaf
         {
             expression: `not 1`,
             result: condition(0, "=", 1),
@@ -242,7 +241,6 @@ test("treeFromExpression", () => {
             expression: `1`,
             result: condition(1, "=", 1),
         },
-        // the legacy <> comparator normalizes to !=
         {
             expression: `foo <> 1`,
             result: condition("foo", "!=", 1),

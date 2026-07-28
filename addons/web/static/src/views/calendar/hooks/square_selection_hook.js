@@ -9,17 +9,9 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { closest } from "@web/core/utils/dom/ui";
 
-// v7 layers ``.fc-day`` onto both body day cells and header cells (via
-// ``dayCellClass``/``dayHeaderClass``), so header cells must be excluded
-// explicitly. Rows are plain ``<div role="row">`` in v7, so the row
-// selector is just the role attribute.
 const CELL_SELECTOR = `.fc-day:not(.fc-col-header-cell)`;
 const ROW_SELECTOR = `[role="row"]`;
 const EVENT_CONTAINER_SELECTOR = ".fc-daygrid-event-harness";
-// Clicks on the "+N more" link in multi-create mode must be ignored here so
-// FC's own moreLinkClick can open the popover instead of it being
-// intercepted as a date-range selection. v6 names kept for compat —
-// closest() returns falsy if no ancestor matches.
 const IGNORE_SELECTOR = [
     ".fc-event",
     ".fc-more-cell",
@@ -229,10 +221,6 @@ export function useSquareSelection(params = {}) {
         const pseudoCtx = { current, ref, cellIsSelectable };
         const { selectedCells } = getSelectedCellsInBlock(pseudoCtx);
         const selectedCell = selectedCells[0];
-        // Read the modifier state straight off the click event rather than the
-        // window-tracked ``ctrlPressed`` boolean: a key released while the
-        // window is blurred never delivers its ``keyup``, which would
-        // otherwise leave the boolean stuck ``true``.
         if (prevSelectedCell && ev.shiftKey) {
             allSelectedCells = getSelectedCellsBetween2Cells(
                 pseudoCtx,
@@ -263,8 +251,6 @@ export function useSquareSelection(params = {}) {
         () => [ref.el, component.props.model.hasMultiCreate],
     );
 
-    // Only the drag path (onDragStart) still reads this window-tracked
-    // boolean — a drag callback has no originating click event to inspect.
     let ctrlPressed = false;
     function onWindowKeyDown(ev) {
         if (ev.key === "Control") {
@@ -279,7 +265,6 @@ export function useSquareSelection(params = {}) {
     }
 
     function onWindowBlur() {
-        // Losing focus swallows the pending keyup; reset to avoid sticking.
         ctrlPressed = false;
     }
 

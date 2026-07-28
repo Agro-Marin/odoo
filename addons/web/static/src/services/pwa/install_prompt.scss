@@ -1,5 +1,4 @@
 .o_install_prompt {
-    /* We don't use a rounded-x class for this dialog to match the look of a native OS dialog */
     border-radius: 20px;
     height: unset !important;
     -webkit-backdrop-filter: blur(5px);

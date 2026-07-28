@@ -3,22 +3,10 @@
 import { MockEventTarget } from "../hoot_utils.js";
 import { currentPermissions } from "./navigator.js";
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const { Event, Promise, Set } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /** @type {Set<MockNotification>} */
 const notifications = new Set();
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * Returns the list of notifications that have been created since the last call

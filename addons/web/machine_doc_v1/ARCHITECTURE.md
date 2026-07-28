@@ -5,7 +5,7 @@ High-level structure, data flow, and component organization for `core/addons/web
 > **See also**: `doc/COMPONENT_DIAGRAM.md` — 18 audit areas with file lists,
 > invariants, and cross-cutting concerns. `doc/FLOW_DIAGRAM.md` — 14 end-to-end
 > sequence diagrams (bootstrap, RPC, auth, view loading, onchange, save, etc.).
-> `DIRECTORY_MAP.md` — All 238 directories mapped to FSD layers and responsibilities.
+> `DIRECTORY_MAP.md` — All 234 directory entries (233 subdirectories + the `(root)` row) mapped to FSD layers and responsibilities.
 > `STATE_MANAGEMENT.md` — Decision tree for state patterns, record architecture, typed events.
 
 ## Module Identity
@@ -78,9 +78,9 @@ Top-level layout of `core/addons/web/` (detailed maps are separate docs):
 |------|----------|-----|
 | `controllers/` | 23 `.py` — HTTP endpoints (21 Controller classes) | `ROUTE_MAP.md` |
 | `models/` | 22 `.py` — ORM extensions (web_read, web_read_group, ir_http, …) | `MODEL_MAP.md` |
-| `static/src/` | 665 JavaScript/OWL source files across 234 directories (FSD layers) | `DIRECTORY_MAP.md` |
+| `static/src/` | 667 JavaScript/OWL source files across 234 directories (FSD layers) | `DIRECTORY_MAP.md` |
 | `static/lib/` | 17 vendored JS libraries — DO NOT MODIFY | versions table below |
-| `static/tests/` | 491 `.js` (incl. 435 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
+| `static/tests/` | 504 `.js` (incl. 448 `*.test.js` Hoot suites) | `TEST_TAGS.md` |
 | `tests/` | 44 Python test files | `TEST_TAGS.md` |
 | `views/` · `data/` · `security/` · `i18n/` | XML templates, data fixtures, `ir.model.access.csv`, translations | — |
 | `doc/` | `COMPONENT_DIAGRAM.md` (18 audit areas) · `FLOW_DIAGRAM.md` (14 sequence diagrams) | — |
@@ -100,10 +100,10 @@ Layered organization under `static/src/`:
 | **UI** | `ui/` | Overlay services & components: dialog, popover, tooltip, notification, effects, block | 19 JS |
 | **Fields** | `fields/` | 68 widget directories in 7 subcategories (basic, display, media, relational, selection, specialized, temporal); ~95 registry entries counting view-specific variants | 110 JS |
 | **Views** | `views/` | View types: form, list, kanban, calendar, graph, pivot + view utilities + settings | 151 JS |
-| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu | 61 JS |
+| **Webclient** | `webclient/` | App shell: navbar, menus, actions, user menu | 63 JS |
 | **Search** | `search/` | Search bar, facets, filters, group-by, favorites, embedded actions bar | 33 JS |
 | **Model** | `model/` | Client-side relational data model (Record, StaticList, etc.) | 44 JS |
-| **Public** | `public/` | Public (anonymous) page features | 11 JS |
+| **Public** | `public/` | Public (anonymous) page features | 15 JS |
 > **The `legacy/` namespace was fully retired (2026-07-23).** The Resig `Class`
 > inheritance system, `publicWidget`, `PublicRoot` and the `root.widget` alias
 > are gone: all public-page features run on `public.interactions`. The frontend
@@ -372,13 +372,13 @@ and the version string in the source file.
 
 | Category | Count |
 |----------|-------|
-| Python (controllers) | 23 (21 Controller classes + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
-| Python (models) | 22 (21 model files + `__init__.py`) |
-| Python (tests) | 44 |
-| JavaScript (src) | 663 |
-| JavaScript (tests) | 491 (incl. 435 `*.test.js` Hoot suites) |
-| JavaScript (vendored libs) | 91 |
+| Python (controllers) | 24 (22 Controller classes across 20 route-bearing files + `__init__.py`, `export_writers.py`, `json_helpers.py`, `utils.py`) |
+| Python (models) | 24 (23 model files + `__init__.py`) |
+| Python (tests) | 49 (`test_*.py`; 50 files incl. `__init__.py`) |
+| JavaScript (src) | 667 (665 carry `@ts-check`; `module_loader.js` + `service_worker.js` excluded) |
+| JavaScript (tests) | 504 (incl. 448 `*.test.js` Hoot suites) |
+| JavaScript (vendored libs) | 90 |
 | SCSS/CSS | 202 (25 in `static/src/scss/` shared base; remaining 177 co-located with JS components) |
-| XML (views/ + data/ + static/src OWL templates) | 277 (12 views + 3 data + 262 OWL templates) |
+| XML (views/ + data/ + static/src OWL templates) | 277 (12 views + 4 data + 261 OWL templates) |
 | i18n (.po + .pot) | 61 |
 | Total | ~1,810+ |

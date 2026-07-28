@@ -30,9 +30,6 @@ export function useListOptionalFields(
     keyDebugOpenView,
     { getAllColumns, getOptionalActiveFields, onSave },
 ) {
-    // `computeOptionalActiveFields` runs every render (column set can change,
-    // e.g. property fields), so cache the localStorage read and refresh it
-    // only when this hook itself writes (toggle/save paths).
     let optionalFieldsStorageValue = browser.localStorage.getItem(keyOptionalFields);
     const self = {
         debugOpenView: exprToBoolean(browser.localStorage.getItem(keyDebugOpenView)),
@@ -71,8 +68,6 @@ export function useListOptionalFields(
                 keyOptionalFields,
                 /** @type {any} */ (activeFieldNames),
             );
-            // localStorage coerces the array to a comma-separated string; keep the
-            // cache consistent with what getItem would now return.
             optionalFieldsStorageValue = activeFieldNames.join(",");
         },
 

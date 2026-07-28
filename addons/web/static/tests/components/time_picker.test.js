@@ -94,8 +94,6 @@ test("when opening, the nearest suggestion is highlighted for in-between values"
     await click(".o_time_picker_input");
     await animationFrame();
 
-    // 12:29 is not on the 15-minute suggestion grid: the closest entry is
-    // highlighted instead of none at all.
     expect(".o_time_picker_option:contains(12:30)").toHaveClass("focus");
 });
 
@@ -110,11 +108,8 @@ test("fine minutesRounding keeps a 15-minute suggestion grid but accepts exact v
     await click(".o_time_picker_input");
     await animationFrame();
 
-    // Suggestions deliberately fall back to a 15-minute grid for fine
-    // roundings (the exact grid would be unusably long)...
     expect(queryAllTexts(".o_time_picker_option")).toEqual(getTimeOptions());
 
-    // ...while typed values still honor the exact rounding.
     await edit("12:34", { confirm: "enter" });
     await animationFrame();
     expect("input.o_time_picker_input").toHaveValue("12:34");
@@ -210,12 +205,10 @@ test("handle 12h (am/pm) time format", async () => {
     await edit("4:15pm", { confirm: "enter" });
     await animationFrame();
     expect("input.o_time_picker_input").toHaveValue("4:15pm");
-    // actual data is always in 24h format
     expect.verifySteps(["16:15"]);
 
     await edit("8:30", { confirm: "enter" });
     await animationFrame();
-    // default to am when no meridiem is provided
     expect("input.o_time_picker_input").toHaveValue("8:30am");
     expect.verifySteps(["8:30"]);
 });
@@ -253,7 +246,6 @@ test.tags("desktop");
 test("rounding a near-midnight time does not wrap back to the start of the day", async () => {
     await mountWithCleanup(TimePicker, {
         props: {
-            // default minutesRounding is 5
             onChange: (value) => expect.step(`${value.hour}:${value.minute}`),
         },
     });
@@ -264,8 +256,6 @@ test("rounding a near-midnight time does not wrap back to the start of the day",
     await edit("23:58", { confirm: "enter" });
     await animationFrame();
 
-    // 23:58 rounds DOWN to 23:55 instead of wrapping to 0:00 of the same day
-    // (which would send a datetime consumer back ~24h).
     expect("input.o_time_picker_input").toHaveValue("23:55");
     expect.verifySteps(["23:55"]);
 });
@@ -313,7 +303,6 @@ test("if typing after navigating, enter validates input value", async () => {
 
     await press("enter");
     await animationFrame();
-    // Enter selects the navigated item
     expect.verifySteps(["0:15"]);
 
     await click(".o_time_picker_input");
@@ -327,7 +316,6 @@ test("if typing after navigating, enter validates input value", async () => {
     await edit("12:5", { confirm: false });
     await press("enter");
     await animationFrame();
-    // Enter validates the edited input
     expect.verifySteps(["12:50"]);
 });
 
@@ -361,10 +349,6 @@ test("false, null and undefined are accepted values", async () => {
     const comp = await mountWithCleanup(Parent);
     expect(".o_time_picker_input").toHaveValue("");
 
-    // A parent-state change re-renders TimePicker through onWillUpdateProps; the
-    // resulting DOM patch is committed one frame after runAllTimers() settles the
-    // pending timers, so an explicit animationFrame() is needed before asserting
-    // on the input value (unlike event-driven changes, which patch in-frame).
     comp.state.value = false;
     await runAllTimers();
     await animationFrame();
@@ -436,15 +420,12 @@ test("changing the props value updates the input", async () => {
     const comp = await mountWithCleanup(Parent);
     expect(".o_time_picker_input").toHaveValue("");
 
-    // Set value from props (prop-driven re-render patches one frame after
-    // runAllTimers(); see the note in the "false, null and undefined" test).
     comp.state.value = "12:00";
     await runAllTimers();
     await animationFrame();
     expect(".o_time_picker_input").toHaveValue("12:00");
     expect.verifySteps([]);
 
-    // Set value by clicking
     await click(".o_time_picker_input");
     await animationFrame();
     await click(`.o_time_picker_option:contains("11:30")`);
@@ -452,7 +433,6 @@ test("changing the props value updates the input", async () => {
     await runAllTimers();
     expect.verifySteps(["11:30"]);
 
-    // Set falsy value from props
     comp.state.value = false;
     await runAllTimers();
     await animationFrame();

@@ -4,6 +4,7 @@
 /** @module @web/services/multi_company_recovery_service - Recover from AccessError when the server suggests a company switch */
 
 import { registry } from "@web/core/registry";
+import { unique } from "@web/core/utils/collections/arrays";
 import { user } from "@web/services/user";
 
 /**
@@ -71,9 +72,6 @@ export const multiCompanyRecoveryService = {
                 }
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
                 if (activeCompanyIds.includes(suggestedCompany.id)) {
-                    // Already active: reactivating would just re-raise the same
-                    // error and loop forever. Not our recovery path (mirrors the
-                    // save-error guard below).
                     return false;
                 }
                 /** @type {any} */ (callerEnv).pushStateBeforeReload?.();
@@ -100,24 +98,27 @@ export const multiCompanyRecoveryService = {
                 }
                 const activeCompanyIds = user.activeCompanies.map((c) => c.id);
                 if (activeCompanyIds.includes(suggestedCompany.id)) {
-                    // Already active: save failed for a different reason, not
-                    // our recovery path.
                     return false;
                 }
-                // Seed from the live active list when the model context carries
-                // no allowed_company_ids: caller context keys win over
-                // user.context in ORM.call, so seeding `[]` would deactivate
-                // every other company for all subsequent RPCs of this model.
-                model.config.context.allowed_company_ids ??= [...activeCompanyIds];
-                if (
-                    !model.config.context.allowed_company_ids.includes(
-                        suggestedCompany.id,
-                    )
-                ) {
-                    model.config.context.allowed_company_ids.push(suggestedCompany.id);
-                }
-                activeCompanyIds.push(suggestedCompany.id);
-                user.activateCompanies(activeCompanyIds, { reload: false });
+                const scopedIds = model.config.context.allowed_company_ids ?? [];
+                const requestedIds = [...activeCompanyIds, suggestedCompany.id];
+                user.activateCompanies(requestedIds, { reload: false });
+                // Union of three sources, because none alone is right:
+                //  - `scopedIds`  — the model may be scoped to a company the user
+                //                   does not have active; overwriting would drop it.
+                //  - `requestedIds` — what we asked for, so the suggested company is
+                //                   present even if activation is a no-op.
+                //  - the companies READ BACK from the user, which is the only source
+                //    carrying the CHILDREN `activateCompanies` pulls in. Omitting
+                //    them left the model context a strict subset of the user
+                //    context, and the model context wins on the retried save — so a
+                //    record owned by a child of the suggested company failed again
+                //    with the very AccessError this recovery exists to clear.
+                model.config.context.allowed_company_ids = unique([
+                    ...scopedIds,
+                    ...requestedIds,
+                    ...user.activeCompanies.map((c) => c.id),
+                ]);
                 return true;
             },
         };

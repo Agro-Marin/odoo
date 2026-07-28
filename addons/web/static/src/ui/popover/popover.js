@@ -54,7 +54,6 @@ function useClickAway(popover, callback) {
             let checkEl = iframeEl.parentElement;
             while (checkEl) {
                 if (checkEl === popupEl) {
-                    // Ignore iframes within popup
                     return;
                 }
                 checkEl = checkEl.parentElement;
@@ -68,8 +67,6 @@ function useClickAway(popover, callback) {
                 win.removeEventListener("pointerdown", handler, { capture: true }),
             );
         } catch (e) {
-            // In some browsers, if an iframe is loaded from a different
-            // domain accessing it results in a SecurityError.
             if (e.name !== "SecurityError") {
                 throw e;
             }
@@ -141,32 +138,19 @@ export class Popover extends Component {
         position: "bottom",
     };
     static props = {
-        // Main props
         component: { type: Function },
         componentProps: { optional: true, type: Object },
         target: {
-            validate: (/** @type {any} */ target) => {
-                // target may be inside an iframe, so get the Element constructor
-                // to test against from its owner document's default view
-                const Element = target?.ownerDocument?.defaultView?.Element;
-                return (
-                    (Boolean(Element) &&
-                        (target instanceof Element ||
-                            target instanceof window.Element)) ||
-                    (typeof target === "object" &&
-                        target?.constructor?.name?.endsWith("Element"))
-                );
-            },
+            validate: (/** @type {any} */ target) =>
+                target?.nodeType === Node.ELEMENT_NODE,
         },
         close: { type: Function },
 
-        // Styling and semantical props
         animation: { optional: true, type: Boolean },
         arrow: { optional: true, type: Boolean },
         class: { optional: true },
         role: { optional: true, type: String },
 
-        // Positioning props
         fixedPosition: { optional: true, type: Boolean },
         extendedFlipping: { optional: true, type: Boolean },
         holdOnHover: { optional: true, type: Boolean },
@@ -183,12 +167,10 @@ export class Popover extends Component {
             },
         },
 
-        // Control props
         closeOnClickAway: { optional: true, type: Function },
         closeOnEscape: { optional: true, type: Boolean },
         setActiveElement: { optional: true, type: Boolean },
 
-        // Technical props
         ref: { optional: true, type: Function },
         slots: { optional: true, type: Object },
     };
@@ -222,11 +204,6 @@ export class Popover extends Component {
             resizeObserver.observe(this.popoverRef.el);
         });
         onWillDestroy(() => {
-            // Only clear the mapping if it still points at OUR element: when two
-            // popovers share a target, the second's onMounted overwrote the
-            // entry, so an unconditional delete on the first's teardown would
-            // wipe the second's live mapping (getPopoverForTarget would then
-            // return undefined while the popover is still open).
             if (POPOVERS.get(this.props.target) === this.popoverRef.el) {
                 POPOVERS.delete(this.props.target);
             }
@@ -240,17 +217,10 @@ export class Popover extends Component {
                 useHotkey("escape", () => this.props.close());
             }
             const targetObserver = new MutationObserver(this.onTargetMutate.bind(this));
-            // Observe the target's parent for child-list changes so the popover
-            // closes once its target is detached. Fall back to the root node
-            // when the parent is not an element (ShadowRoot/Document), whose
-            // `parentElement` is null. Deliberately NOT `subtree: true`:
-            // observing the whole document fires onTargetMutate on every
-            // unrelated mutation and transiently closes popovers whose target
-            // is re-rendered in place by Owl (e.g. the properties definition
-            // popover, whose dropdowns then never populate).
-            const observedNode =
-                this.props.target.parentElement || this.props.target.getRootNode();
-            targetObserver.observe(observedNode, { childList: true });
+            targetObserver.observe(this.props.target.getRootNode(), {
+                childList: true,
+                subtree: true,
+            });
             onWillDestroy(() => targetObserver.disconnect());
         } else {
             this.props.close();
@@ -294,8 +264,6 @@ export class Popover extends Component {
             bottom: ["translateY(5%)", "translateY(0)"],
             left: ["translateX(-5%)", "translateX(0)"],
         }[direction];
-        // Honor prefers-reduced-motion: duration 0 jumps straight to the end
-        // state (no slide/fade) while keeping the ``.finished`` flow intact.
         const reduced = browser.matchMedia("(prefers-reduced-motion: reduce)").matches;
         return this.popoverRef.el.animate(
             { opacity: [0, 1], transform },
@@ -333,7 +301,6 @@ export class Popover extends Component {
             this.updateArrow(direction, variant, variantOffset);
         }
 
-        // opening animation (only once)
         if (this.props.animation && !this.animationDone) {
             this.position.lock();
             this.animate(direction).finished.then(
@@ -343,14 +310,11 @@ export class Popover extends Component {
                         this.position.unlock();
                     }
                 },
-                () => {
-                    // Animation cancelled (popover closed mid-animation) — ignore
-                },
+                () => {},
             );
         }
 
         if (this.props.fixedPosition) {
-            // Prevent further positioning updates if fixed position is wanted
             this.position.lock();
         }
     }
@@ -371,16 +335,13 @@ export class Popover extends Component {
     updateArrow(direction, variant, variantOffset) {
         const { el } = this.popoverRef;
 
-        // Reverse the direction if RTL as bootstrap expects it that way
         [direction, variant] = reverseForRTL(
             /** @type {any} */ (direction),
             /** @type {any} */ (variant),
         );
 
-        // Update the bootstrap popper placement, to give the arrow its shape
         el.dataset.popperPlacement = direction;
 
-        // Update arrow position
         const vertical = ["top", "bottom"].includes(direction);
         const placementProperty = vertical ? "left" : "top";
         const placement = {
@@ -402,7 +363,6 @@ export class Popover extends Component {
             )`,
         });
 
-        // Should the arrow get sucked?
         const sizeProperty = vertical ? "width" : "height";
         const { [sizeProperty]: arrowSize, [placementProperty]: arrowPosition } =
             arrowEl.getBoundingClientRect();

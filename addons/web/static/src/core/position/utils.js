@@ -102,7 +102,6 @@ export function reverseForRTL(direction, variant = "middle") {
         if (["left", "right"].includes(direction)) {
             direction = direction === "left" ? "right" : "left";
         } else if (["start", "end"].includes(variant)) {
-            // here direction is either "top" or "bottom"
             variant = variant === "start" ? "end" : "start";
         }
     }
@@ -128,7 +127,6 @@ function computePosition(
     target,
     { container, extendedFlipping, flip, margin, position, shrink },
 ) {
-    // Retrieve directions and variants
     const [d, v] = position.split("-");
     const [direction, variant = "middle"] = reverseForRTL(
         /** @type {Direction} */ (d),
@@ -144,24 +142,20 @@ function computePosition(
     }
     const variants = VARIANT_FLIP_ORDER[variant];
 
-    // Retrieve container
     if (!container) {
         container = popper.ownerDocument.documentElement;
     } else if (typeof container === "function") {
         container = container();
     }
-    // At this point container is always an HTMLElement
     const /** @type {HTMLElement} */ cont = /** @type {HTMLElement} */ (container);
 
     if (variant === "fit") {
-        // make sure the popper has the desired dimensions during the computation of the position
         const styleProperty = ["top", "bottom"].includes(direction)
             ? "width"
             : "height";
         popper.style[styleProperty] = getComputedStyle(target)[styleProperty];
     }
 
-    // Account for popper actual margins
     const popperStyle = getComputedStyle(popper);
     const { marginTop, marginLeft, marginRight, marginBottom } = popperStyle;
     const popMargins = {
@@ -171,11 +165,9 @@ function computePosition(
         bottom: parseFloat(marginBottom),
     };
 
-    // IFrame
     const shouldAccountForIFrame = popper.ownerDocument !== target.ownerDocument;
     const iframe = shouldAccountForIFrame ? getIFrame(popper, target) : null;
 
-    // Boxes
     const popBox = popper.getBoundingClientRect();
     const targetBox = target.getBoundingClientRect();
     const contBox = cont.getBoundingClientRect();
@@ -185,7 +177,6 @@ function computePosition(
     const containerIsInIframe =
         shouldAccountForIFrame && target.ownerDocument === cont.ownerDocument;
 
-    // Compute positioning data
     /** @type {Record<string, number>} */
     const directionsData = {
         t: iframeBox.top + targetBox.top - popMargins.bottom - margin - popBox.height,
@@ -238,7 +229,6 @@ function computePosition(
             }
         }
 
-        // Compute overflows
         let directionOverflow = 0;
         if (Math.floor(directionValue) < Math.ceil(directionMin)) {
             directionOverflow = Math.floor(directionValue) - Math.ceil(directionMin);
@@ -256,27 +246,17 @@ function computePosition(
                 Math.ceil(variantValue + variantSize) - Math.floor(variantMax);
         }
 
-        // All non zero values of variantOverflow lead to the
-        // same malus value since it can be corrected by shifting
         let malus = Math.abs(directionOverflow) + (variantOverflow && 1);
 
-        // Apply variant offset
         variantValue -= variantOverflow;
         result.variantOffset = -variantOverflow;
 
         const positioning = vertical
             ? { top: directionValue, left: variantValue }
             : { top: variantValue, left: directionValue };
-        // Subtract the offsets of the containing block (relative to the
-        // viewport). It can be done like that because the style top and
-        // left were reset to 0px in `reposition`
-        // https://developer.mozilla.org/en-US/docs/Web/CSS/Containing_block#identifying_the_containing_block
         result.top = positioning.top - popBox.top;
         result.left = positioning.left - popBox.left;
         if (d === "c") {
-            // The center direction is a fallback for every other once there's
-            // a direction overflow, since we can shift the position in any
-            // direction in that case.
             malus = 1.001;
             result.top -= directionOverflow;
         } else if (shrink && malus) {
@@ -304,23 +284,19 @@ function computePosition(
         return { result, malus };
     }
 
-    // Find best solution
     const matches = [];
     for (const d of directions) {
         for (const v of variants) {
             const match = getPositioningData(d, v);
             if (!match.malus) {
-                // A perfect position match has been found.
                 return match.result;
             }
             matches.push(match);
         }
         if (!flip) {
-            // Stop when no flip is allowed
             break;
         }
     }
-    // Settle for the first match with the least malus
     return matches.sort((a, b) => a.malus - b.malus)[0].result;
 }
 
@@ -334,38 +310,25 @@ function computePosition(
  * @returns {PositioningSolution} the applied positioning solution.
  */
 export function reposition(popper, target, options) {
-    // Reset popper style
     popper.style.position = "fixed";
     popper.style.top = "0px";
     popper.style.left = "0px";
 
-    // Undo the maxHeight WE applied on a previous reposition so heights don't
-    // ratchet down monotonically (each pass min()-ing against the last pass's
-    // result kept a long-lived popover permanently squashed on scroll/resize).
-    // Only restore when the current inline value is EXACTLY what we last wrote,
-    // so a maxHeight the consumer authored (inline or via CSS) is preserved.
     const mhState = popperMaxHeightState.get(popper);
     if (mhState && popper.style.maxHeight === mhState.applied) {
         popper.style.maxHeight = mhState.authored;
     }
-    // The consumer's own maxHeight (possibly "") to re-min the new solution
-    // against — never our previous result.
     const authoredMaxHeight = popper.style.maxHeight;
 
-    // Compute positioning solution
     const solution = computePosition(popper, target, {
         ...DEFAULTS,
         ...options,
     });
 
-    // Apply it
     const { top, left, maxHeight } = solution;
     popper.style.top = `${top}px`;
     popper.style.left = `${left}px`;
     if (maxHeight !== undefined) {
-        // getComputedStyle now reflects only the consumer's authored maxHeight
-        // (its inline value was restored above), so min() bounds the new
-        // solution by the CSS-authored constraint, not by our last result.
         const existingMaxHeight = getComputedStyle(popper).maxHeight;
         const applied =
             existingMaxHeight !== "none"
@@ -374,7 +337,6 @@ export function reposition(popper, target, options) {
         popper.style.maxHeight = applied;
         popperMaxHeightState.set(popper, { authored: authoredMaxHeight, applied });
     } else {
-        // No shrink this pass — nothing of ours left to track.
         popperMaxHeightState.delete(popper);
     }
 

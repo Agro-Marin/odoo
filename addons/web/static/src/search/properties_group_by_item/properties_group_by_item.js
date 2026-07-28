@@ -60,9 +60,8 @@ export class PropertiesGroupByItem extends Component {
         if (this.definitionLoaded) {
             return;
         }
-        this.definitionLoaded = true;
-
         await this.env.searchModel.fillSearchViewItemsProperty();
+        this.definitionLoaded = true;
         this._updateGroupByItems();
     }
 
@@ -72,7 +71,7 @@ export class PropertiesGroupByItem extends Component {
      */
     onGroup(ids) {
         this.props.onGroup(ids);
-        this._updateGroupByItems(); // isActive state might have changed
+        this._updateGroupByItems();
     }
 
     /**

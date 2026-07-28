@@ -39,6 +39,36 @@ export class TextInputFieldBase extends Component {
     }
 
     /**
+     * Whether user input must be trimmed before it reaches the record.
+     *
+     * ``Char.trim`` defaults to ``True`` and the ORM documents the trim as
+     * client-enforced: "The web client trims user input during in write/create
+     * flows in UI. The server trims values during import (in ``base_import``)"
+     * (``odoo/orm/fields/textual.py``). Nothing strips the value on
+     * ``write``/``create`` — verified against Postgres, ``web_save`` stores
+     * "  x  " verbatim on a ``trim=True`` column. So a widget that skips this
+     * writes untrimmed data for a field declared trimmed, and the same column
+     * ends up with different content depending on which widget edited it.
+     *
+     * @returns {boolean}
+     */
+    get shouldTrim() {
+        return this.props.record.fields[this.props.name].trim;
+    }
+
+    /**
+     * Input parser shared by every widget backed by a textual column. Wire it
+     * through ``useInputField({ parse })`` — a widget that omits it opts out of
+     * the trim contract above.
+     *
+     * @param {string} value
+     * @returns {string}
+     */
+    parse(value) {
+        return this.shouldTrim ? value.trim() : value;
+    }
+
+    /**
      * Wires the optional dynamic-placeholder feature and initializes the caret
      * position tracked for placeholder insertion. Must be called from setup().
      *

@@ -56,7 +56,6 @@ describe(parseUrl(import.meta.url), () => {
         const results = hooks.after();
 
         expect(customTest.lastResults).toBe(results);
-        // Result is expected to have the same shape, no need for other assertions
     });
 
     test("makeExpect with a test flagged with TODO", async () => {
@@ -77,7 +76,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("makeExpect with no assertions & query events", async () => {
-        await mountForTest(/* xml */ `<div>ABC</div>`);
+        await mountForTest(  `<div>ABC</div>`);
 
         const [, hooks] = makeExpect({ headless: true });
 
@@ -142,7 +141,7 @@ describe(parseUrl(import.meta.url), () => {
         const results = hooks.after();
 
         expect(results.pass).toBe(false);
-        expect(results.events).toHaveLength(2); // 1 'verifySteps' + 1 'unverified steps'
+        expect(results.events).toHaveLength(2);
         expect(results.events.at(-1).message).toEqual(["unverified steps"]);
     });
 
@@ -164,7 +163,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("'expect' results contain the correct informations", async () => {
-        await mountForTest(/* xml */ `
+        await mountForTest(  `
             <label style="color: #f00">
                 Checkbox
                 <input class="cb" type="checkbox" />
@@ -179,7 +178,6 @@ describe(parseUrl(import.meta.url), () => {
         hooks.before();
 
         const matchers = [
-            // Standard
             ["toBe", 1, 1],
             ["toBeCloseTo", 1, 1],
             ["toBeEmpty", []],
@@ -199,7 +197,6 @@ describe(parseUrl(import.meta.url), () => {
                     throw new Error("");
                 },
             ],
-            // DOM
             ["toBeChecked", ".cb"],
             ["toBeDisplayed", ".cb"],
             ["toBeEnabled", ".cb"],
@@ -256,51 +253,42 @@ describe(parseUrl(import.meta.url), () => {
         const results = hooks.after();
 
         expect(results.pass).toBe(false);
-        expect(results.events).toHaveLength(3); // toBe + error + unverified errors
+        expect(results.events).toHaveLength(3);
     });
 
     describe("standard matchers", () => {
         test("toBe", () => {
-            // Boolean
             expect(true).toBe(true);
             expect(true).not.toBe(false);
 
-            // Floats
             expect(1.1).toBe(1.1);
-            expect(0.1 + 0.2).not.toBe(0.3); // floating point errors
+            expect(0.1 + 0.2).not.toBe(0.3);
 
-            // Integers
             expect(+0).toBe(-0);
             expect(1 + 2).toBe(3);
             expect(1).not.toBe(-1);
             expect(NaN).toBe(NaN);
 
-            // Strings
             expect("abc").toBe("abc");
             expect(new String("abc")).not.toBe(new String("abc"));
 
-            // Other primitives
             expect(undefined).toBe(undefined);
             expect(undefined).not.toBe(null);
 
-            // Symbols
             const symbol = Symbol("symbol");
             expect(symbol).toBe(symbol);
             expect(symbol).not.toBe(Symbol("symbol"));
             expect(Symbol.for("symbol")).toBe(Symbol.for("symbol"));
 
-            // Objects
             const object = { x: 1 };
             expect(object).toBe(object);
             expect([]).not.toBe([]);
             expect(object).not.toBe({ x: 1 });
 
-            // Dates
             const date = new Date(0);
             expect(date).toBe(date);
             expect(new Date(0)).not.toBe(new Date(0));
 
-            // Nodes
             expect(new Image()).not.toBe(new Image());
             expect(document.createElement("div")).not.toBe(document.createElement("div"));
         });
@@ -320,51 +308,41 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toEqual", () => {
-            // Boolean
             expect(true).toEqual(true);
             expect(true).not.toEqual(false);
 
-            // Floats
             expect(1.1).toEqual(1.1);
-            expect(0.1 + 0.2).not.toEqual(0.3); // floating point errors
+            expect(0.1 + 0.2).not.toEqual(0.3);
 
-            // Integers
             expect(+0).toEqual(-0);
             expect(1 + 2).toEqual(3);
             expect(1).not.toEqual(-1);
             expect(NaN).toEqual(NaN);
 
-            // Strings
             expect("abc").toEqual("abc");
             expect(new String("abc")).toEqual(new String("abc"));
 
-            // Other primitives
             expect(undefined).toEqual(undefined);
             expect(undefined).not.toEqual(null);
 
-            // Symbols
             const symbol = Symbol("symbol");
             expect(symbol).toEqual(symbol);
             expect(symbol).not.toEqual(Symbol("symbol"));
             expect(Symbol.for("symbol")).toEqual(Symbol.for("symbol"));
 
-            // Objects
             const object = { x: 1 };
             expect(object).toEqual(object);
             expect([]).toEqual([]);
             expect(object).toEqual({ x: 1 });
 
-            // Iterables
             expect(new Set([1, 4, 6])).toEqual(new Set([1, 4, 6]));
             expect(new Set([1, 4, 6])).not.toEqual([1, 4, 6]);
             expect(new Map([[{}, "abc"]])).toEqual(new Map([[{}, "abc"]]));
 
-            // Dates
             const date = new Date(0);
             expect(date).toEqual(date);
             expect(new Date(0)).toEqual(new Date(0));
 
-            // Nodes
             expect(new Image()).toEqual(new Image());
             expect(document.createElement("div")).toEqual(document.createElement("div"));
             expect(document.createElement("div")).not.toEqual(document.createElement("span"));
@@ -377,7 +355,6 @@ describe(parseUrl(import.meta.url), () => {
             expect("aaaa").toMatch("aa");
             expect("aaaa").not.toMatch("aaaaa");
 
-            // Matcher from a class
             expect(new Exception("oui")).toMatch(Error);
             expect(new Exception("oui")).toMatch(Exception);
             expect(new Exception("oui")).toMatch(new Error("oui"));
@@ -440,11 +417,8 @@ describe(parseUrl(import.meta.url), () => {
                 throw new Error(msg);
             };
 
-            // Timeout
             setTimeout(() => boom("timeout"));
-            // Promise
             queueMicrotask(() => boom("promise"));
-            // Event
             manuallyDispatchProgrammaticEvent(window, "error", { message: "event" });
 
             await tick();
@@ -471,7 +445,7 @@ describe(parseUrl(import.meta.url), () => {
 
     describe("DOM matchers", () => {
         test("toBeChecked", async () => {
-            await mountForTest(/* xml */ `
+            await mountForTest(  `
                 <input type="checkbox" />
                 <input type="checkbox" checked="" />
             `);
@@ -481,7 +455,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toHaveAttribute", async () => {
-            await mountForTest(/* xml */ `
+            await mountForTest(  `
                 <input type="number" disabled="" />
             `);
 
@@ -491,7 +465,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toHaveCount", async () => {
-            await mountForTest(/* xml */ `
+            await mountForTest(  `
                 <ul>
                     <li>milk</li>
                     <li>eggs</li>
@@ -509,7 +483,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toHaveProperty", async () => {
-            await mountForTest(/* xml */ `
+            await mountForTest(  `
                 <input type="search" readonly="" />
             `);
 
@@ -541,7 +515,7 @@ describe(parseUrl(import.meta.url), () => {
         });
 
         test("toHaveInnerHTML", async () => {
-            await mountForTest(/* xml */ `
+            await mountForTest(  `
                 <div class="parent">
                     <p>
                         abc<strong>def</strong>ghi
@@ -551,13 +525,13 @@ describe(parseUrl(import.meta.url), () => {
                 </div>
             `);
 
-            expect(".parent").toHaveInnerHTML(/* xml */ `
+            expect(".parent").toHaveInnerHTML(  `
                 <p>abc<strong>def</strong>ghi<br><input type="text"></p>
             `);
         });
 
         test("toHaveOuterHTML", async () => {
-            await mountForTest(/* xml */ `
+            await mountForTest(  `
                 <div class="parent">
                     <p>
                         abc<strong>def</strong>ghi
@@ -567,7 +541,7 @@ describe(parseUrl(import.meta.url), () => {
                 </div>
             `);
 
-            expect(".parent").toHaveOuterHTML(/* xml */ `
+            expect(".parent").toHaveOuterHTML(  `
                 <div class="parent">
                     <p>abc<strong>def</strong>ghi<br><input type="text"></p>
                 </div>
@@ -578,7 +552,7 @@ describe(parseUrl(import.meta.url), () => {
             const documentFontSize = parseFloat(
                 getComputedStyle(document.documentElement).fontSize
             );
-            await mountForTest(/* xml */ `
+            await mountForTest(  `
                 <div class="div" style="width: 3rem; height: 26px" />
             `);
 
@@ -596,7 +570,7 @@ describe(parseUrl(import.meta.url), () => {
             const [customExpect, hooks] = makeExpect({ headless: true });
             hooks.before();
 
-            await mountForTest(/* xml */ `
+            await mountForTest(  `
                 <div />
             `);
 

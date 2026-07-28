@@ -241,7 +241,7 @@ export class HootDebugToolBar extends Component {
     refresh = refresh;
 
     get done() {
-        return Boolean(this.runnerState.done.size); // subscribe to test being added as done
+        return Boolean(this.runnerState.done.size);
     }
 
     setup() {

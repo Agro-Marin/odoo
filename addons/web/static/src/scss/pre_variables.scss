@@ -1,23 +1,18 @@
-// Hack for Bootstrap 5
-// In Bootstrap 4 these variables was used with map-merge()
-// In Bootstrap 5 these variables has set only if they don't exist before
-// PS: Another fix will be to reorder all bundle to follow Bootstrap documentation and do another
-// logic that wasn't use before
-// Ref:
-// https://getbootstrap.com/docs/5.1/customize/sass/#colors
-// Need to be include before web/static/lib/bootstrap/scss/_variables.scss
 
-$white: #fff !default;
-$gray-100: #f8fafc !default;
-$gray-200: #e2e8f0 !default;
-$gray-300: #cbd5e1 !default;
-$gray-400: #94a3b8 !default;
-$gray-500: #64748b !default;
-$gray-600: #475569 !default;
-$gray-700: #334155 !default;
-$gray-800: #1e293b !default;
-$gray-900: #0f172a !default;
-$black: #000 !default;
+// This file always loads after `primary_variables.scss`, so the palette is
+// sourced from `$o-*` rather than copied: a third literal copy of the ramp
+// (next to `primary_variables` and `bootstrap_overridden`) silently diverges.
+$white: $o-white !default;
+$gray-100: $o-gray-100 !default;
+$gray-200: $o-gray-200 !default;
+$gray-300: $o-gray-300 !default;
+$gray-400: $o-gray-400 !default;
+$gray-500: $o-gray-500 !default;
+$gray-600: $o-gray-600 !default;
+$gray-700: $o-gray-700 !default;
+$gray-800: $o-gray-800 !default;
+$gray-900: $o-gray-900 !default;
+$black: $o-black !default;
 
 $grays: () !default;
 $grays: map-merge(

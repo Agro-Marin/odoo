@@ -83,13 +83,10 @@ test("columns identity is stable across renders with a displayed property column
             </list>`,
     });
 
-    // Display the (optional-hidden by default) property column.
     await contains(".o_optional_columns_dropdown_toggle").click();
     await contains(".o-dropdown--menu input[type='checkbox']").click();
     expect(".o_list_renderer th[data-name='properties.property_char']").toHaveCount(1);
 
-    // Trigger a full renderer render without a model reload (selection
-    // toggle: the renderer subscribes to `selectAll` in its header).
     capturedColumns.length = 0;
     await contains(".o_data_row:eq(0) .o_list_record_selector input").click();
     await animationFrame();
@@ -98,8 +95,6 @@ test("columns identity is stable across renders with a displayed property column
     const previous = capturedColumns.at(-1);
     expect(previous.some((col) => col.name === "properties.property_char")).toBe(true);
 
-    // Re-render again: same column set → the very same array (and thus the
-    // same property column objects) must be reused.
     capturedColumns.length = 0;
     await contains(".o_data_row:eq(0) .o_list_record_selector input").click();
     await animationFrame();
@@ -136,13 +131,10 @@ test("getPropertyFieldColumns is memoized per parent column and invalidated on d
 
     const first = getPropertyFieldColumns(column, list);
     expect(first).toHaveLength(1);
-    // Same inputs → same array and same column objects.
     expect(getPropertyFieldColumns(column, list)).toBe(first);
 
-    // New field definition object (property definitions changed) → rebuilt.
     list.fields["properties.property_char"] = makePropField();
     const rebuilt = getPropertyFieldColumns(column, list);
     expect(rebuilt).not.toBe(first);
-    // And the rebuilt expansion is memoized in turn.
     expect(getPropertyFieldColumns(column, list)).toBe(rebuilt);
 });

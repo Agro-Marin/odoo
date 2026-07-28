@@ -9,7 +9,7 @@ import { unique } from "@web/core/utils/collections/arrays";
 import { x2ManyCommands } from "./commands.js";
 import { buildKnownValuesKwargs } from "./concurrency_baseline.js";
 import { DataPoint } from "./datapoint.js";
-import { isX2Many } from "./field_context.js";
+import { getBasicEvalContext, isX2Many } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { Operation } from "./operation.js";
 import { RelationalRecord } from "./record.js";
@@ -27,7 +27,6 @@ export class DynamicList extends DataPoint {
      */
     setup(...args) {
         super.setup(...args);
-        // records and count are set by subclasses (DynamicRecordList / DynamicGroupList)
         /** @type {number} */
         this.count = 0;
         this.handleField = Object.keys(this.activeFields).find(
@@ -39,10 +38,6 @@ export class DynamicList extends DataPoint {
         this.isDomainSelected = false;
         this.evalContext = this.context;
     }
-
-    // -------------------------------------------------------------------------
-    // Abstract methods — implemented by DynamicRecordList / DynamicGroupList
-    // -------------------------------------------------------------------------
 
     /**
      * @abstract
@@ -76,10 +71,6 @@ export class DynamicList extends DataPoint {
      * @returns {any}
      */
     _getDPFieldValue(_dp, _handleField) {}
-
-    // -------------------------------------------------------------------------
-    // Getters
-    // -------------------------------------------------------------------------
 
     /**
      * List of records. Subclasses must override with their own getter:
@@ -147,10 +138,6 @@ export class DynamicList extends DataPoint {
         return this.records.filter((record) => record.selected);
     }
 
-    // -------------------------------------------------------------------------
-    // Public
-    // -------------------------------------------------------------------------
-
     archive(isSelected) {
         return this.model.mutex.exec(() => this._toggleArchive(isSelected, true));
     }
@@ -173,11 +160,6 @@ export class DynamicList extends DataPoint {
         }
         const canProceed = await this.leaveEditMode();
         if (canProceed) {
-            // Serialize the mutating tail (validity scan + mode switch) on the
-            // model mutex like every other verb: run outside it, the scan could
-            // interleave with a queued ``_update`` applying an onchange and flag
-            // half-applied data. ``leaveEditMode`` already handles the urgent
-            // path, so guard against a mutex the tab-close save may hold.
             const tail = () => {
                 record._checkValidity();
                 this.model._patchConfig(record.config, { mode: "edit" });
@@ -215,17 +197,10 @@ export class DynamicList extends DataPoint {
     /** @param {{ discard?: boolean }} [options] */
     async leaveEditMode({ discard } = {}) {
         if (this.model.urgentSave.isActive) {
-            // The tab-close path must not queue behind model.mutex — it may
-            // be held by the very save urgent mode is bypassing.
             return this._leaveEditMode({ discard });
         }
-        // Hoist the costly ``editedRecord`` find (see the getter docstring):
-        // stable until the first ``_askChanges`` flush, which can change it.
         const editedRecord = this.editedRecord;
         if (discard) {
-            // Set BEFORE flushing pending edits: a field commit drained by
-            // _askChanges must not multi-edit-dispatch changes that belong
-            // to the row being discarded (see _isRecordToDiscard).
             this._recordToDiscard = editedRecord;
         }
         try {
@@ -233,14 +208,6 @@ export class DynamicList extends DataPoint {
                 await this.model._askChanges();
             }
             if (!discard && this.editedRecord) {
-                // Second flush, mirroring the historical two-stage prelude
-                // (public checkValidity() then public save(), each running
-                // model._askChanges): reactions triggered by the first flush
-                // (multi-edit setInvalidField -> notification + discard)
-                // settle in between, and a commit that failed validation on
-                // the first flush must be re-committed afterwards so it
-                // re-raises its invalid-field reaction (browsers can fire
-                // the input's 'change' after focus already left the row).
                 await this.model._askChanges();
             }
             return await this.model.mutex.exec(() => this._leaveEditMode({ discard }));
@@ -269,9 +236,6 @@ export class DynamicList extends DataPoint {
 
     sortBy(fieldName) {
         return this.model.mutex.exec(() => {
-            // Same asc → desc → reset cycling as StaticList.sortBy, except the
-            // reset clears the order entirely (next load uses the server /
-            // default order) instead of falling back to "id asc".
             const orderBy = computeNextOrderBy(fieldName, this.orderBy, false, {
                 resetOrderBy: [],
             });
@@ -300,10 +264,6 @@ export class DynamicList extends DataPoint {
             this.unarchive(isSelected);
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Protected
-    // -------------------------------------------------------------------------
 
     async _duplicateRecords(records) {
         let resIds;
@@ -432,20 +392,14 @@ export class DynamicList extends DataPoint {
             return false;
         }
 
-        const selectedRecords = this.selection; // costly getter => compute it once
+        const selectedRecords = this.selection;
 
-        // special treatment for x2manys: apply commands on all selected record's static lists
         const proms = [];
         for (const fieldName of Object.keys(changes)) {
             if (isX2Many(this.fields[fieldName])) {
                 const list = editedRecord.data[fieldName];
                 let commands = list._getCommands();
                 if ("display_name" in list.activeFields) {
-                    // add display_name to LINK commands to prevent a web_read by selected record.
-                    // Pass-through commands (LINK included) are shared by reference with the
-                    // edited record's own command log (see serializeCommands), so build fresh
-                    // LINK tuples instead of mutating command[2] in place — otherwise we'd
-                    // rewrite the edited record's stored commands.
                     commands = commands.map((command) => {
                         if (command[0] === x2ManyCommands.LINK) {
                             const relRecord = list._cache[command[1]];
@@ -466,7 +420,6 @@ export class DynamicList extends DataPoint {
             }
         }
         await Promise.all(proms);
-        // apply changes on all selected records (for x2manys, the change is the static list itself)
         selectedRecords.forEach((record) => {
             const _changes = { ...changes };
             for (const fieldName of Object.keys(_changes)) {
@@ -477,7 +430,6 @@ export class DynamicList extends DataPoint {
             record._applyChanges(_changes);
         });
 
-        // determine valid and invalid records
         const validRecords = [];
         const invalidRecords = [];
         for (const record of selectedRecords) {
@@ -497,41 +449,34 @@ export class DynamicList extends DataPoint {
             invalidRecords.forEach((record) => record._discard());
 
         if (!validRecords.length) {
-            // Deliberately do NOT store the returned closer: the multi-edit
-            // "all records invalid" toast must persist past the
-            // discardInvalidRecords() below (whose discard() would otherwise
-            // dismiss it), so the user sees why the edit was rejected.
             editedRecord._displayInvalidFieldNotification();
             discardInvalidRecords();
             return false;
         }
 
-        // generate the save callback with the values to save (must be done before discarding
-        // invalid records, in case the editedRecord is itself invalid)
         const resIds = unique(validRecords.map((r) => r.resId));
         const kwargs = {
             context: this.context,
+            // Same eval context as the single-record read-back in
+            // ``record_save.save``: ``evalPartialContext`` drops any spec
+            // context key whose free names it can't resolve, so omitting it
+            // silently stripped ``uid`` / ``allowed_company_ids``-dependent
+            // field contexts here but not there — the two paths re-read the
+            // same records and must do it under the same context.
             specification: getFieldsSpec(
                 editedRecord.activeFields,
                 editedRecord.fields,
+                getBasicEvalContext(editedRecord.config),
             ),
         };
         let save;
         if (Object.values(changes).some((v) => v instanceof Operation)) {
-            // "changes" contains a Field Operation => we must call the web_save_multi method to
-            // save each record individually
             const changesById = {};
             for (const record of validRecords) {
                 changesById[record.resId] =
                     changesById[record.resId] || record._getChanges();
             }
             const valsList = resIds.map((resId) => changesById[resId]);
-            // Same field-scoped optimistic lock as the absolute mass-edit path,
-            // but a relative Operation resolves to a DIFFERENT absolute value
-            // per record, so each record is checked against its OWN baseline
-            // (the originally-loaded value the increment was computed from). If
-            // another user moved a record's value since load, that record's
-            // recomputed result is stale and the server rejects just that one.
             const multiKwargs = buildKnownValuesKwargs(
                 validRecords,
                 Object.keys(changes),
@@ -546,14 +491,6 @@ export class DynamicList extends DataPoint {
                 );
         } else {
             const vals = editedRecord._getChanges();
-            // Field-scoped optimistic locking for the mass-edit: the SAME vals
-            // are written to every record, but each carries its OWN baseline
-            // (its originally-loaded values). Send them as
-            // `{ resId: baseline }` so the server rejects only the records
-            // another user genuinely changed, in one bulk check — mass-edit
-            // was previously the only save path with no concurrency guard.
-            // Uses the same shared builder as single-save, so the exclusion
-            // rules can't drift; the server fails open per record.
             const saveKwargs = buildKnownValuesKwargs(
                 validRecords,
                 Object.keys(vals),
@@ -585,10 +522,6 @@ export class DynamicList extends DataPoint {
         );
         if (canProceed === false) {
             selectedRecords.forEach((record) => record._discard());
-            // Deliberately not awaited: _multiSave runs inside a
-            // model.mutex.exec critical section, and leaveEditMode wraps its
-            // core in the same mutex, so awaiting here would deadlock. Catch
-            // rejections so they don't go unhandled.
             this.leaveEditMode({ discard: true }).catch((e) => console.error(e));
             return false;
         }
@@ -607,10 +540,6 @@ export class DynamicList extends DataPoint {
         for (const record of validRecords) {
             const serverValues = serverValuesById[/** @type {number} */ (record.resId)];
             if (!serverValues) {
-                // The server returned fewer rows than requested (record
-                // concurrently deleted/filtered by the written value):
-                // _setData(undefined) would wipe the record's values to {}
-                // (same guard as static_list_command_engine's UPDATE path).
                 continue;
             }
             record._setData(serverValues);
@@ -651,14 +580,6 @@ export class DynamicList extends DataPoint {
             }
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Record-facing narrow interface
-    //
-    // Selection/discard bookkeeping lives in the list; records it owns call
-    // these instead of reading/writing the list's protected state directly
-    // (``isDomainSelected``/``_selectDomain``/``_recordToDiscard``).
-    // -------------------------------------------------------------------------
 
     /**
      * Whether the given record is the one currently being discarded through
@@ -712,8 +633,6 @@ export class DynamicList extends DataPoint {
     }
 
     async _toggleSelection() {
-        // Hoist the costly getter (see the `records`/`selection` docstrings):
-        // one flatMap instead of three back-to-back.
         const records = this.records;
         if (records.every((record) => record.selected)) {
             records.forEach((record) => {

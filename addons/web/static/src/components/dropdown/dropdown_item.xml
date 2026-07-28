@@ -16,8 +16,6 @@
     </t>
   </t>
 
-  <!-- In this file instead of in its own file as expected, because it must
-  be defined after the template it inherits from -->
   <t t-name="web.CheckboxItem" t-inherit="web.DropdownItem" t-inherit-mode="primary">
     <xpath expr="//t[@role='menuitem']" position="attributes">
       <attribute name="role">menuitemcheckbox</attribute>

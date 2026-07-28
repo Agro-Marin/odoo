@@ -64,8 +64,6 @@ export class TimezoneMismatchField extends SelectionField {
                     /([+-])([0-9]{2})([0-9]{2})/,
                 );
                 if (!offset) {
-                    // Missing/malformed offset string: fall back to the plain
-                    // label rather than throwing on ``offset[1]``.
                     return [value, label];
                 }
                 const sign = offset[1] === "-" ? -1 : 1;
@@ -74,8 +72,6 @@ export class TimezoneMismatchField extends SelectionField {
                     (Number.parseInt(offset[2], 10) * 60 +
                         Number.parseInt(offset[3], 10));
                 const browserOffset = -new Date().getTimezoneOffset();
-                // UTC time of the user's selected timezone, e.g. UTC 00:00 with
-                // userOffset +0300 and browserOffset +0200 gives 01:00.
                 const userUTCDatetime = DateTime.utc().plus({
                     minutes: userOffset - browserOffset,
                 });
@@ -104,16 +100,11 @@ export const timezoneMismatchField = {
             availableTypes: ["char"],
         },
     ],
-    extractProps({ options }) {
-        const props = selectionField.extractProps(...arguments);
-        props.tzOffsetField = options.tz_offset_field;
-        props.mismatchTitle = options.mismatch_title;
-        return props;
-    },
-    // The mismatch computation reads the tz-offset field; declare it as a
-    // dependency so the model fetches it even when the arch omits it (otherwise
-    // `record.data[tzOffsetField]` is undefined and the warning degrades
-    // silently).
+    extractProps: (fieldInfo, dynamicInfo) => ({
+        ...selectionField.extractProps(fieldInfo, dynamicInfo),
+        tzOffsetField: fieldInfo.options.tz_offset_field,
+        mismatchTitle: fieldInfo.options.mismatch_title,
+    }),
     fieldDependencies: ({ options }) => [
         { name: options.tz_offset_field || "tz_offset", type: "char" },
     ],

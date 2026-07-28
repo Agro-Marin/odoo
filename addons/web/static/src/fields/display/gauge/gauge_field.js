@@ -47,8 +47,6 @@ export class GaugeField extends Component {
                     }
                 };
             },
-            // Rebuild the (heavyweight) Chart.js instance only when an input
-            // that actually changes the gauge changes — not on every render.
             () => {
                 const value = this.props.record.data[this.props.name];
                 const maxValue = this.props.maxValueField
@@ -85,10 +83,6 @@ export class GaugeField extends Component {
         const configuredMax = this.props.maxValueField
             ? this.props.record.data[this.props.maxValueField]
             : this.props.maxValue;
-        // Draw a full arc when the value overflows the configured maximum
-        // (``maxValue - gaugeValue`` collapses to 0), but keep the tooltip's
-        // "Max" label reporting the real configured ceiling rather than the
-        // overflowed value.
         let maxValue = Math.max(gaugeValue, configuredMax);
         let maxLabel = configuredMax;
         if (gaugeValue === 0 && maxValue === 0) {

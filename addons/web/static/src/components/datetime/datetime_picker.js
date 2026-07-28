@@ -175,7 +175,6 @@ const PRECISION_LEVELS = new Map()
             /** @type {WeekItem[]} */
             const weeks = [];
 
-            // Generate 6 weeks for current month
             let startOfNextWeek = getStartOfWeek(monthRange[0]);
             for (let w = 0; w < WEEKS_PER_MONTH; w++) {
                 const weekDayItems = [];
@@ -293,7 +292,6 @@ const PRECISION_LEVELS = new Map()
         },
     });
 
-// Other constants
 const GRID_COUNT = 10;
 const GRID_MARGIN = 1;
 const NULLABLE_DATETIME_PROPERTY = [DateTime, { value: false }, { value: null }];
@@ -363,10 +361,6 @@ export class DateTimePicker extends Component {
     static template = "web.DateTimePicker";
     static components = { TimePicker };
 
-    //-------------------------------------------------------------------------
-    // Getters
-    //-------------------------------------------------------------------------
-
     get activePrecisionLevel() {
         return PRECISION_LEVELS.get(this.state.precision);
     }
@@ -378,10 +372,6 @@ export class DateTimePicker extends Component {
     get titles() {
         return ensureArray(this.title);
     }
-
-    //-------------------------------------------------------------------------
-    // Lifecycle
-    //-------------------------------------------------------------------------
 
     setup() {
         /** @type {PrecisionLevel[]} */
@@ -424,9 +414,6 @@ export class DateTimePicker extends Component {
 
         this.maxDate = parseLimitDate(props.maxDate, getMaxValidDate());
         this.minDate = parseLimitDate(props.minDate, getMinValidDate());
-        // Use the incoming ``props`` (not ``this.props``, which is still the
-        // previous value during onWillUpdateProps): a dynamic date<->datetime
-        // switch must expand the day boundaries per the NEW type immediately.
         if (props.type === "date") {
             this.maxDate = this.maxDate.endOf("day");
             this.minDate = this.minDate.startOf("day");
@@ -450,9 +437,6 @@ export class DateTimePicker extends Component {
         const precision = this.activePrecisionLevel;
         const effShowWeekNumbers = showWeekNumbers ?? !range;
 
-        // Grid (title + items) depends only on focusDate/precision/limits/validity, not
-        // hoveredDate — skip the expensive 6×7 luxon rebuild on every hover (e.g. during
-        // a range drag) and only recompute when a grid input actually changes.
         const gridKey = [
             focusDate?.ts,
             precision,
@@ -486,10 +470,6 @@ export class DateTimePicker extends Component {
             this.selectedRange[1] = hoveredDate;
         }
     }
-
-    //-------------------------------------------------------------------------
-    // Methods
-    //-------------------------------------------------------------------------
 
     /**
      * @param {NullableDateTime[]} values
@@ -568,17 +548,20 @@ export class DateTimePicker extends Component {
      * @param {DateTimePickerProps} props
      */
     getTimeValues(props) {
-        const timeValues = this.values.map(
-            (val, index) =>
-                new Time({
-                    hour:
-                        index === 1 && !this.values[1]
-                            ? Math.min((val || DateTime.local()).hour + 1, 23)
-                            : (val || DateTime.local()).hour,
-                    minute: val?.minute ?? 0,
-                    second: val?.second ?? 0,
-                }),
-        );
+        const timeValues = this.values.map((val, index) => {
+            // An end with no value defaults to one hour after the START, not
+            // one hour after now: `val` is the (falsy) end itself, so falling
+            // back to `DateTime.local()` here pre-filled the end of a range
+            // from the wall clock, unrelated to the date the user just picked.
+            const isImplicitEnd = index === 1 && !this.values[1];
+            const reference =
+                val || (isImplicitEnd && this.values[0]) || DateTime.local();
+            return new Time({
+                hour: isImplicitEnd ? Math.min(reference.hour + 1, 23) : reference.hour,
+                minute: val?.minute ?? 0,
+                second: val?.second ?? 0,
+            });
+        });
 
         if (props.range) {
             return timeValues;
@@ -642,7 +625,6 @@ export class DateTimePicker extends Component {
         result[valueIndex] = value;
 
         if (this.props.type === "datetime") {
-            // Adjusts result according to the current time values
             const { hour, minute, second } = this.state.timeValues[valueIndex];
             result[valueIndex] = result[valueIndex].set({
                 hour,

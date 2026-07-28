@@ -8,10 +8,6 @@ import { ConnectionLostError, rpcBus } from "@web/core/network/rpc";
 import { RAM_CACHE_MAX_ENTRIES, RPCCache } from "@web/core/network/rpc_cache";
 import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 
-// rpc_cache asserts against `instance.mockIndexedDB.<table>.<key>` —
-// the in-memory store provided by the prototype mock below.  Scoped via
-// beforeEach/afterEach so `core/utils/indexed_db.test.js` (which exercises
-// the real class) is unaffected.
 mockIndexedDBForTests();
 
 const S_PENDING = Symbol("Promise");
@@ -32,8 +28,6 @@ function promiseState(promise) {
 describe.current.tags("headless");
 
 test("RamCache: can cache a simple call", async () => {
-    // The first call caches the result; each next call hits the RAM cache
-    // independently, without executing the fallback.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -58,15 +52,12 @@ test("RamCache: ram is set with promises", async () => {
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // Two identical calls in succession trigger only one fallback; the second
-    // call gets the first call's result (or its pending promise).
     const promFirst = rpcCache.read("table", "key", () => def);
     const promsSecond = rpcCache.read("table", "key", () => def);
 
     expect(Object.keys(rpcCache.ramCache.ram.table).length).toBe(1);
     let promInRamCache = rpcCache.ramCache.ram.table.key;
 
-    // promInRamCache, promFirst, and promsSecond are the same promise.
     expect(await promiseState(promInRamCache)).toEqual({ status: "pending" });
     expect(await promiseState(promFirst)).toEqual({ status: "pending" });
     expect(await promiseState(promsSecond)).toEqual({ status: "pending" });
@@ -74,7 +65,6 @@ test("RamCache: ram is set with promises", async () => {
     def.resolve({ test: 123 });
     await microTick();
 
-    // The cache is updated when the fetch is back
     promInRamCache = rpcCache.ramCache.ram.table.key;
     expect(await promInRamCache).toEqual({ test: 123 });
     expect(await promFirst).toEqual({ test: 123 });
@@ -88,8 +78,6 @@ test("abortPending: a silently-aborted cache miss can be re-fetched fresh", asyn
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // A cache miss whose fallback never settles (silent abort leaves the
-    // underlying fetch pending forever).
     let fallbackCalls = 0;
     const hung = new Deferred();
     rpcCache.read("table", "key", () => {
@@ -99,9 +87,6 @@ test("abortPending: a silently-aborted cache miss can be re-fetched fresh", asyn
     expect(fallbackCalls).toBe(1);
     expect("table/key" in rpcCache.pendingRequests).toBe(true);
 
-    // Evicting the pending slot must clear the never-settling RAM promise too,
-    // so a subsequent read triggers a brand-new fallback instead of returning
-    // the wedged promise forever.
     rpcCache.abortPending("table", "key");
     expect("table/key" in rpcCache.pendingRequests).toBe(false);
 
@@ -120,7 +105,6 @@ test("abortPending: identity guard — a stale abort does not evict a newer requ
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // Initiator A: read() hands its request handle to the fallback.
     let requestA;
     const hungA = new Deferred();
     rpcCache.read("table", "key", (request) => {
@@ -129,7 +113,6 @@ test("abortPending: identity guard — a stale abort does not evict a newer requ
     });
     expect("table/key" in rpcCache.pendingRequests).toBe(true);
 
-    // An invalidation drops A's slot; a newer read B repopulates the same key.
     rpcCache.invalidate("table");
     expect("table/key" in rpcCache.pendingRequests).toBe(false);
     const hungB = new Deferred();
@@ -137,12 +120,10 @@ test("abortPending: identity guard — a stale abort does not evict a newer requ
     const requestB = rpcCache.pendingRequests["table/key"];
     expect(requestB).not.toBe(requestA);
 
-    // A's late silent abort, keyed to requestA, must NOT tear down B's slot.
     rpcCache.abortPending("table", "key", requestA);
     expect("table/key" in rpcCache.pendingRequests).toBe(true);
     expect(rpcCache.pendingRequests["table/key"]).toBe(requestB);
 
-    // B aborting its own request still evicts.
     rpcCache.abortPending("table", "key", requestB);
     expect("table/key" in rpcCache.pendingRequests).toBe(false);
 });
@@ -161,7 +142,6 @@ test("PersistentCache: can cache a simple call", async () => {
     ).toEqual({
         test: 123,
     });
-    // Both caches are correctly updated with the fetch values
     await microTick();
     await microTick();
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
@@ -172,12 +152,10 @@ test("PersistentCache: can cache a simple call", async () => {
         value: { test: 123 },
     });
 
-    // simulate a reload (clear ramCache)
     rpcCache.ramCache.invalidate();
     expect(rpcCache.ramCache.ram).toEqual({});
     const def = new Deferred();
 
-    // we return the disk cache value.
     expect(
         await rpcCache.read(
             "table",
@@ -191,12 +169,10 @@ test("PersistentCache: can cache a simple call", async () => {
     ).toEqual({ test: 123 });
     expect.verifySteps(["Fallback"]);
 
-    // the fallback returned a different value
     def.resolve({ test: 456 });
     await microTick();
     await microTick();
     await microTick();
-    // Both caches are updated with the last value
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
         'encrypted data:{"test":456}',
     );
@@ -221,7 +197,6 @@ test("invalidate table", async () => {
         test: 123,
     });
 
-    // Both caches are correctly updated with the fetch values
     await microTick();
     await microTick();
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
@@ -261,7 +236,6 @@ test("invalidate multiple tables", async () => {
         test: 456,
     });
 
-    // Both caches are correctly updated with the fetch values
     await microTick();
     await microTick();
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
@@ -302,7 +276,6 @@ test("IndexedDB Crypt: can cache a simple call", async () => {
     ).toEqual({
         test: 123,
     });
-    // Both caches are correctly updated with the fetch values
     await microTick();
     await microTick();
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
@@ -313,12 +286,10 @@ test("IndexedDB Crypt: can cache a simple call", async () => {
         value: { test: 123 },
     });
 
-    // simulate a reload (clear ramCache)
     rpcCache.ramCache.invalidate();
     expect(rpcCache.ramCache.ram).toEqual({});
     const def = new Deferred();
 
-    // we return the disk cache value - decrypted.
     expect(
         await rpcCache.read(
             "table",
@@ -332,7 +303,6 @@ test("IndexedDB Crypt: can cache a simple call", async () => {
     ).toEqual({ test: 123 });
     expect.verifySteps(["Fallback"]);
 
-    // the fallback returned a different value
     def.resolve({ test: 456 });
 });
 
@@ -355,7 +325,6 @@ test("update callback - Ram Value", async () => {
 
     const def = new Deferred();
 
-    // we return the RAM cache value.
     expect(
         await rpcCache.read(
             "table",
@@ -375,7 +344,6 @@ test("update callback - Ram Value", async () => {
     ).toEqual({ test: 123 });
     expect.verifySteps(["Fallback"]);
 
-    // the fallback returned a different value
     def.resolve({ test: 456 });
     await microTick();
     expect.verifySteps(["Callback"]);
@@ -392,7 +360,6 @@ test("update callback - reordered keys are not a change (order-independent compa
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // Seed the cache with {a, b}.
     await rpcCache.read("table", "key", () => Promise.resolve({ a: 1, b: 2 }));
 
     const def = new Deferred();
@@ -414,10 +381,6 @@ test("update callback - reordered keys are not a change (order-independent compa
     );
     expect.verifySteps(["Fallback"]);
 
-    // The server returns the SAME values with keys in a different insertion
-    // order. A byte-compare (JSON.stringify) would report a spurious change; the
-    // deep compare must treat it as unchanged so we don't needlessly re-deliver
-    // and re-persist identical payloads on every `update: "always"` refresh.
     def.resolve({ b: 2, a: 1 });
     await microTick();
     expect.verifySteps(["Callback"]);
@@ -438,7 +401,6 @@ test("update callback - Disk Value", async () => {
     ).toEqual({
         test: 123,
     });
-    // Both caches are correctly updated with the fetch values
     await microTick();
     await microTick();
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
@@ -449,12 +411,10 @@ test("update callback - Disk Value", async () => {
         value: { test: 123 },
     });
 
-    // simulate a reload (clear ramCache)
     rpcCache.ramCache.invalidate();
     expect(rpcCache.ramCache.ram).toEqual({});
     const def = new Deferred();
 
-    // we return the Disk cache value.
     expect(
         await rpcCache.read(
             "table",
@@ -474,13 +434,11 @@ test("update callback - Disk Value", async () => {
     ).toEqual({ test: 123 });
     expect.verifySteps(["Fallback"]);
 
-    // the fallback returned a different value
     def.resolve({ test: 456 });
     await microTick();
     await microTick();
     await microTick();
     expect.verifySteps(["Callback"]);
-    // Both caches are updated with the last value
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
         `encrypted data:{"test":456}`,
     );
@@ -497,7 +455,6 @@ test("Ram value shouldn't change (update the rpc response)", async () => {
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // fill the cache
     const res = await rpcCache.read("table", "key", () =>
         Promise.resolve({ test: 123 }),
     );
@@ -525,7 +482,6 @@ test("Ram value shouldn't change (update the Ram response)", async () => {
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // fill the cache
     let res = await rpcCache.read("table", "key", () => Promise.resolve({ test: 123 }));
     expect(res).toEqual({
         test: 123,
@@ -538,7 +494,6 @@ test("Ram value shouldn't change (update the Ram response)", async () => {
     const def = new Deferred();
     res = await rpcCache.read("table", "key", () => def);
 
-    // res came from the RAM
     expect(res).toEqual({ test: 123 });
     res.plop = true;
 
@@ -555,7 +510,6 @@ test("Ram value shouldn't change (update the IndexedDB response)", async () => {
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // fill the cache
     let res = await rpcCache.read(
         "table",
         "key",
@@ -567,7 +521,6 @@ test("Ram value shouldn't change (update the IndexedDB response)", async () => {
     expect(res).toEqual({
         test: 123,
     });
-    // Both caches are correctly updated with the fetch values
     await microTick();
     await microTick();
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
@@ -578,14 +531,12 @@ test("Ram value shouldn't change (update the IndexedDB response)", async () => {
         value: { test: 123 },
     });
 
-    // simulate a reload (clear ramCache)
     rpcCache.ramCache.invalidate();
     expect(rpcCache.ramCache.ram).toEqual({});
 
     const def = new Deferred();
     res = await rpcCache.read("table", "key", () => def, { type: "disk" });
 
-    // res came from IndexedDB
     expect(res).toEqual({ test: 123 });
     res.plop = true;
 
@@ -603,7 +554,6 @@ test("Changing the result shouldn't force the call to callback with hasChanged (
     );
 
     let res;
-    // fill the cache
     res = await rpcCache.read("table", "key", () => Promise.resolve({ test: 123 }));
     expect(res).toEqual({
         test: 123,
@@ -613,7 +563,6 @@ test("Changing the result shouldn't force the call to callback with hasChanged (
         value: { test: 123 },
     });
 
-    // read the RAM Value !
     const def = new Deferred();
     res = await rpcCache.read("table", "key", () => def, {
         callback: (_result, hasChanged) => {
@@ -626,14 +575,12 @@ test("Changing the result shouldn't force the call to callback with hasChanged (
         test: 123,
     });
 
-    //modify the result
     res.plop = true;
     expect(res).toEqual({
         test: 123,
         plop: true,
     });
 
-    // resolve with the same value as the cache !
     def.resolve({ test: 123 });
 });
 
@@ -645,14 +592,12 @@ test("Changing the result shouldn't force the call to callback with hasChanged (
     );
 
     let res;
-    // fill the cache
     res = await rpcCache.read("table", "key", () => Promise.resolve({ test: 123 }), {
         type: "disk",
     });
     expect(res).toEqual({
         test: 123,
     });
-    // Both caches are correctly updated with the fetch values
     await microTick();
     await microTick();
     expect(rpcCache.indexedDB.mockIndexedDB.table.key.ciphertext).toBe(
@@ -663,11 +608,9 @@ test("Changing the result shouldn't force the call to callback with hasChanged (
         value: { test: 123 },
     });
 
-    // simulate a reload (clear ramCache)
     rpcCache.ramCache.invalidate();
     expect(rpcCache.ramCache.ram).toEqual({});
 
-    // read the IndexedDB Value !
     const def = new Deferred();
     res = await rpcCache.read("table", "key", () => def, {
         type: "disk",
@@ -682,14 +625,12 @@ test("Changing the result shouldn't force the call to callback with hasChanged (
         test: 123,
     });
 
-    //modify the result
     res.plop = true;
     expect(res).toEqual({
         test: 123,
         plop: true,
     });
 
-    // resolve with the same value as the cache !
     def.resolve({ test: 123 });
 });
 
@@ -779,7 +720,6 @@ test("RamCache: pending request and call to invalidate", async () => {
         "first prom resolved with some value",
     ]);
 
-    // call again to ensure that the correct value is stored in the cache
     rpcCache
         .read("table", "key", () => expect.step("should not be called"))
         .then((r) => {
@@ -796,7 +736,6 @@ test("RamCache: pending request and call to invalidate, update callbacks", async
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // populate the cache
     rpcCache.read("table", "key", () => {
         expect.step("first call: fallback");
         return Promise.resolve("initial value");
@@ -804,7 +743,6 @@ test("RamCache: pending request and call to invalidate, update callbacks", async
     await tick();
     expect.verifySteps(["first call: fallback"]);
 
-    // read cache again, with update callback
     const def = new Deferred();
     rpcCache
         .read(
@@ -821,7 +759,6 @@ test("RamCache: pending request and call to invalidate, update callbacks", async
             },
         )
         .then((r) => expect.step(`second call: resolved with ${r}`));
-    // read it twice, s.t. there's a pending request
     rpcCache
         .read(
             "table",
@@ -846,14 +783,12 @@ test("RamCache: pending request and call to invalidate, update callbacks", async
     ]);
 
     rpcCache.invalidate();
-    // sanity check to ensure that cache has been invalidated
     rpcCache.read("table", "key", () => {
         expect.step("fourth call: fallback");
         return Promise.resolve("value after invalidation");
     });
     expect.verifySteps(["fourth call: fallback"]);
 
-    // resolve def => update callbacks of requests 2 and 3 must be called
     def.resolve("updated value");
     await tick();
     expect.verifySteps([
@@ -873,11 +808,10 @@ test("RamCache: pending request and call to invalidate, update callbacks in erro
     rpcCache
         .read("table", "key", () => {
             expect.step("first call: fallback (error)");
-            return defs[0]; // will be rejected
+            return defs[0];
         })
         .catch((e) => expect.step(`first call: rejected with ${e}`));
 
-    // invalidate cache and read again
     rpcCache.invalidate();
     rpcCache
         .read("table", "key", () => {
@@ -889,19 +823,16 @@ test("RamCache: pending request and call to invalidate, update callbacks in erro
 
     expect.verifySteps(["first call: fallback (error)", "second call: fallback"]);
 
-    // reject first def
     defs[0].reject("my_error");
     await tick();
     expect.verifySteps(["first call: rejected with my_error"]);
 
-    // read again, should retrieve same prom as second call which is still pending
     rpcCache
         .read("table", "key", () => expect.step("should not be called"))
         .then((r) => expect.step(`third call: resolved with ${r}`));
     await tick();
     expect.verifySteps([]);
 
-    // read again, should retrieve same prom as second call which is still pending (update "always")
     rpcCache
         .read("table", "key", () => expect.step("should not be called"), {
             update: "always",
@@ -910,7 +841,6 @@ test("RamCache: pending request and call to invalidate, update callbacks in erro
     await tick();
     expect.verifySteps([]);
 
-    // resolve second def
     defs[1].resolve("updated value");
     await tick();
     expect.verifySteps([
@@ -921,9 +851,6 @@ test("RamCache: pending request and call to invalidate, update callbacks in erro
 });
 
 test("DiskCache: multiple consecutive calls, empty cache", async () => {
-    // The first call saves the pending promise to the RAM cache; subsequent
-    // calls before it settles reuse that promise without re-running the
-    // fallback, but each still gets its own callback invocation.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -959,8 +886,6 @@ test("DiskCache: multiple consecutive calls, empty cache", async () => {
 });
 
 test("DiskCache: multiple consecutive calls, value already in disk cache", async () => {
-    // Each call before the first settles gets the disk value, then each
-    // callback fires once the fallback resolves.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -968,7 +893,6 @@ test("DiskCache: multiple consecutive calls, value already in disk cache", async
     );
     const def = new Deferred();
 
-    // fill the cache
     await rpcCache.read("table", "key", () => Promise.resolve({ test: 123 }), {
         type: "disk",
     });
@@ -981,7 +905,6 @@ test("DiskCache: multiple consecutive calls, value already in disk cache", async
         value: { test: 123 },
     });
 
-    // simulate a reload (clear ramCache)
     rpcCache.ramCache.invalidate();
     expect(rpcCache.ramCache.ram).toEqual({});
 
@@ -1033,10 +956,6 @@ test("DiskCache: multiple consecutive calls, value already in disk cache", async
 });
 
 test("DiskCache: multiple consecutive calls, fallback fails", async () => {
-    // Each call before the first settles gets the disk value; when the
-    // fallback fails, callbacks aren't executed. The background refresh
-    // failure is logged as a warning (not error) since cached data was
-    // already served.
     patchWithCleanup(console, { warn: () => {} });
     const rpcCache = new RPCCache(
         "mockRpc",
@@ -1045,7 +964,6 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
     );
     const def = new Deferred();
 
-    // fill the cache
     await rpcCache.read("table", "key", () => Promise.resolve({ test: 123 }), {
         type: "disk",
     });
@@ -1058,7 +976,6 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
         value: { test: 123 },
     });
 
-    // simulate a reload (clear ramCache)
     rpcCache.ramCache.invalidate();
     expect(rpcCache.ramCache.ram).toEqual({});
 
@@ -1103,23 +1020,14 @@ test("DiskCache: multiple consecutive calls, fallback fails", async () => {
     await tick();
 
     expect.verifySteps([]);
-    // No error raised — cached data was already served, background failure is
-    // silently warned to avoid disrupting the user with an error dialog.
 });
 
 test("silent update:always: ConnectionLostError refresh does not float a rejection", async () => {
-    // A ``silent`` caller opted out of connection UX. After it is served cached
-    // data, a background (update:"always") refresh that fails with
-    // ConnectionLostError must still fire BACKGROUND_REFRESH_FAILED on the bus,
-    // but must NOT float a ``Promise.reject`` (which would pop the global
-    // connection-lost dialog). A floating rejection would surface here as an
-    // unhandled rejection and fail this test.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
-    // Fill the RAM cache.
     await rpcCache.read("table", "key", () => Promise.resolve({ v: 1 }), {
         type: "ram",
     });
@@ -1134,21 +1042,18 @@ test("silent update:always: ConnectionLostError refresh does not float a rejecti
         update: "always",
         silent: true,
     });
-    expect(res).toEqual({ v: 1 }); // cached value served
+    expect(res).toEqual({ v: 1 });
 
     def.reject(new ConnectionLostError("/web/dataset/call_kw"));
     await tick();
     await tick();
 
-    // The failure is observable via the bus, but nothing floated.
     expect(failures.length).toBe(1);
     expect(failures[0]).toBeInstanceOf(ConnectionLostError);
     rpcBus.removeEventListener(RpcEvent.BACKGROUND_REFRESH_FAILED, onFail);
 });
 
 test("DiskCache: multiple consecutive calls, empty cache, fallback fails", async () => {
-    // The first call's promise (shared by subsequent calls before it settles)
-    // is rejected, so every call receives the error.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1217,22 +1122,6 @@ test("DiskCache: write throws an IDBQuotaExceededError", async () => {
     await expect.waitForSteps(["fallback", "write", "delete db"]);
 });
 
-// immutable contract
-//
-// Three guarantees the cache must keep when ``immutable: true`` is passed:
-//   1. The returned value is deep-frozen (mutation throws synchronously).
-//   2. Two consecutive immutable reads of the same key return the SAME
-//      reference (skip the structuredClone done by the default path).
-//   3. A mutable caller (no ``immutable`` flag) on the same key keeps
-//      receiving an unfrozen clone — mixing immutable and mutable callers
-//      is safe.
-//
-// Together these unlock the freeze-once-on-write pattern for boot-path reads
-// (fields_get, get_views, ir.actions.act_window, currency rates) that are
-// known never to be mutated by their consumers but otherwise pay a
-// ``structuredClone`` on every cache hit (see the perf rationale in the
-// ``shape`` comment in ``rpc_cache.js``).
-
 test("immutable: returned value is deep-frozen", async () => {
     const rpcCache = new RPCCache(
         "mockRpc",
@@ -1262,7 +1151,6 @@ test("immutable: mutation on returned value throws (strict mode)", async () => {
         { immutable: true },
     );
 
-    // ESM modules run in strict mode — frozen property assignment throws.
     expect(() => {
         result.id = 999;
     }).toThrow(TypeError);
@@ -1292,31 +1180,19 @@ test("immutable: mutable caller after immutable still gets an unfrozen clone", a
     );
     const fallback = () => Promise.resolve({ id: 1, sub: { name: "alpha" } });
 
-    // First caller opts in to immutable — freezes the cached value.
     const frozen = await rpcCache.read("t", "k", fallback, { immutable: true });
     expect(Object.isFrozen(frozen)).toBe(true);
 
-    // Second caller does NOT pass immutable — must receive a fresh clone.
     const clone = await rpcCache.read("t", "k", fallback);
     expect(clone).not.toBe(frozen);
     expect(Object.isFrozen(clone)).toBe(false);
     expect(Object.isFrozen(clone.sub)).toBe(false);
 
-    // The clone is independently mutable; mutating it must not touch the
-    // shared frozen cache entry.
     clone.id = 999;
     clone.sub.name = "beta";
     expect(frozen.id).toBe(1);
     expect(frozen.sub.name).toBe("alpha");
 });
-
-// __version contract (Plan C — server-emitted content hash compare)
-//
-// Endpoints that opt in (currently: search_panel_select_range,
-// search_panel_select_multi_range) inject a ``__version`` sha256 hash into
-// their dict return value.  The cache's ``payloadChanged`` helper uses the
-// version compare when present on both sides, falls back to ``jsonEqual``
-// otherwise.  These tests pin the three branches.
 
 test("__version: hasChanged=false when both sides carry the same version", async () => {
     const rpcCache = new RPCCache(
@@ -1324,23 +1200,19 @@ test("__version: hasChanged=false when both sides carry the same version", async
         1,
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
-    // First call writes the cached value with __version=v1.
     await rpcCache.read("t", "kv1", () =>
         Promise.resolve({
             values: [{ id: 1 }, { id: 2 }],
             __version: "abc",
         }),
     );
-    // Second call (update:always) returns SAME __version even though we
-    // intentionally vary an interior field — payload contract is "version
-    // is authoritative".
     await rpcCache.read(
         "t",
         "kv1",
         () =>
             Promise.resolve({
-                values: [{ id: 1 }, { id: 2 }, { id: 999 }], // would diff via jsonEqual!
-                __version: "abc", // …but version says equal
+                values: [{ id: 1 }, { id: 2 }, { id: 999 }],
+                __version: "abc",
             }),
         {
             update: "always",
@@ -1384,17 +1256,11 @@ test("__version: fallback to jsonEqual when one side lacks the field", async () 
         1,
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
-    // Legacy cached value WITHOUT __version (pre-migration state).
     await rpcCache.read("t", "kv3", () =>
         Promise.resolve({
             values: [{ id: 1 }],
         }),
     );
-    // New response carries __version — but old side doesn't, so we fall back
-    // to deep-compare.  Contents are identical except for the new __version
-    // key, so jsonEqual returns false ⇒ hasChanged=true (the new field counts
-    // as a real diff on this transitional call).  Next refresh will be on
-    // the version fast path.
     await rpcCache.read(
         "t",
         "kv3",
@@ -1412,11 +1278,6 @@ test("__version: fallback to jsonEqual when one side lacks the field", async () 
 });
 
 test("__version: a disk round-trip of an ARRAY payload preserves the version", async () => {
-    // On array payloads (versioned envelope + list return, e.g. web_read)
-    // ``__version`` is an expando property that JSON.stringify (inside
-    // encrypt) silently drops. It is persisted out-of-band next to the
-    // ciphertext and re-attached after decrypt, so a disk-warm
-    // ``update: "always"`` read keeps the O(1) version compare.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1433,20 +1294,13 @@ test("__version: a disk round-trip of an ARRAY payload preserves the version", a
     );
     await tick();
 
-    // Sanity: the JSON ciphertext lost the expando (arrays serialize to
-    // "[...]"), the plaintext sidecar carries it.
     const stored = rpcCache.indexedDB.mockIndexedDB.t.karr;
     expect(stored.ciphertext).toBe('encrypted data:[{"id":1},{"id":2}]');
     expect(stored.version).toBe("abc");
 
-    // simulate a reload (clear ramCache) → next read comes from disk
     rpcCache.ramCache.invalidate();
     expect(rpcCache.ramCache.ram).toEqual({});
 
-    // The refresh returns DIFFERENT rows but the SAME version: the version
-    // compare is authoritative, so hasChanged must be false. Without the
-    // re-attach, the disk side lacks __version and the layered compare
-    // falls through to shape/deepEqual → spurious hasChanged=true.
     const def = new Deferred();
     await rpcCache.read("t", "karr", () => def, {
         type: "disk",
@@ -1460,14 +1314,6 @@ test("__version: a disk round-trip of an ARRAY payload preserves the version", a
     expect.verifySteps(["changed=false"]);
 });
 
-// Shape fast-path (N1-A)
-//
-// Endpoints without ``__version`` (list-returning ``web_read``, template
-// dropdowns, m2o special data) fall through to the layered jsonEqual path.
-// The shape disqualifier catches the common "row appended / row removed"
-// case in O(1), skipping the full deep compare.  These tests pin the
-// shape-check branches.
-
 test("shape fast-path: list with different length → changed without jsonEqual", async () => {
     const rpcCache = new RPCCache(
         "mockRpc",
@@ -1475,18 +1321,10 @@ test("shape fast-path: list with different length → changed without jsonEqual"
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
     await rpcCache.read("t", "kshape1", () => Promise.resolve([{ id: 1 }]));
-    await rpcCache.read(
-        "t",
-        "kshape1",
-        () =>
-            Promise.resolve(
-                [{ id: 1 }, { id: 2 }], // length 1 → 2: shape disqualifier fires
-            ),
-        {
-            update: "always",
-            callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
-        },
-    );
+    await rpcCache.read("t", "kshape1", () => Promise.resolve([{ id: 1 }, { id: 2 }]), {
+        update: "always",
+        callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
+    });
     expect.verifySteps(["changed=true"]);
 });
 
@@ -1514,10 +1352,7 @@ test("shape fast-path: same length different content → falls through to jsonEq
     await rpcCache.read(
         "t",
         "kshape3",
-        () =>
-            Promise.resolve(
-                [{ id: 1 }, { id: 99 }], // same length, different id: jsonEqual must catch it
-            ),
+        () => Promise.resolve([{ id: 1 }, { id: 99 }]),
         {
             update: "always",
             callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
@@ -1533,7 +1368,6 @@ test("shape fast-path: array vs object → disqualified without jsonEqual", asyn
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
     await rpcCache.read("t", "kshape4", () => Promise.resolve([{ id: 1 }]));
-    // Different top-level shape — extremely defensive but cheap to guarantee.
     await rpcCache.read("t", "kshape4", () => Promise.resolve({ id: 1 }), {
         update: "always",
         callback: (_value, hasChanged) => expect.step(`changed=${hasChanged}`),
@@ -1541,25 +1375,12 @@ test("shape fast-path: array vs object → disqualified without jsonEqual", asyn
     expect.verifySteps(["changed=true"]);
 });
 
-// Model-scoped invalidation (RAM index + IDB value-shape contract)
-//
-// The cache maintains a per-table model→keys reverse index in RAM and stores
-// the model name plaintext alongside the encrypted IDB value, so
-// ``invalidateByModel`` is O(1) on the RAM side and cursor-based with a
-// fixed object-property check on the IDB side.  Entries written without a
-// ``model`` in their cache settings are not indexed (correct: they are not
-// model-scoped) and survive ``invalidateByModel``; the regular
-// ``invalidate(table)`` is the only path that touches them.
-
 test("invalidateByModel: only matching-model entries removed from IndexedDB", async () => {
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
-    // Seed three disk entries: two res.partner, one res.users — same table.
-    // Callers pass ``model`` in cache settings so the entries join the
-    // RAM model index and carry ``model`` on the encrypted IDB value.
     const keyPartner1 = JSON.stringify({
         url: "/web/dataset/call_kw/res.partner/web_read",
         params: { model: "res.partner", method: "web_read", args: [[1]] },
@@ -1586,7 +1407,6 @@ test("invalidateByModel: only matching-model entries removed from IndexedDB", as
     });
     await tick();
 
-    // Sanity: all three present on the mocked disk before invalidation.
     expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read).sort()).toEqual(
         [keyPartner1, keyPartner2, keyUser].sort(),
     );
@@ -1594,22 +1414,15 @@ test("invalidateByModel: only matching-model entries removed from IndexedDB", as
     rpcCache.invalidateByModel(["web_read"], "res.partner");
     await tick();
 
-    // Only res.users entry survives — partner entries were cursor-deleted.
     expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read)).toEqual([keyUser]);
 });
 
 test("invalidateByModel: entries lacking a model property are skipped", async () => {
-    // Pre-migration IDB entries (and anything else lacking a ``model``
-    // property) must survive ``invalidateByModel`` — the cursor only
-    // matches ``value.model === <model>``, so non-matching values stay put.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
-    // Inject pre-migration / foreign entries directly into the mock —
-    // a stringified-then-stored value, a plain object without ``model``,
-    // and a malformed key.  All three should survive.
     rpcCache.indexedDB.mockIndexedDB = {
         web_read: {
             "<not-json>": "stale-string",
@@ -1625,11 +1438,6 @@ test("invalidateByModel: entries lacking a model property are skipped", async ()
     rpcCache.invalidateByModel(["web_read"], "res.partner");
     await tick();
 
-    // None of the three were targeted: two have no model, one has the
-    // wrong model.  Pre-fix the JSON.parse predicate would have crashed
-    // on the malformed key (try/catch swallowed it) and incorrectly
-    // matched the wrong-model entry only if its key parsed to the right
-    // model — drift between key and value content was undefined behaviour.
     expect(Object.keys(rpcCache.indexedDB.mockIndexedDB.web_read).sort()).toEqual([
         "<not-json>",
         "no-model",
@@ -1638,9 +1446,6 @@ test("invalidateByModel: entries lacking a model property are skipped", async ()
 });
 
 test("RAM model-index: write+invalidateByModel is O(1) lookup, no JSON.parse", async () => {
-    // The reverse index lets ``invalidateByModel`` skip iterating every
-    // key in the table.  Pin behaviour by writing entries for several
-    // models, invalidating one, and asserting the index is also cleaned.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1656,14 +1461,11 @@ test("RAM model-index: write+invalidateByModel is O(1) lookup, no JSON.parse", a
         model: "res.users",
     });
 
-    // Inspect the RAM index directly.
     expect(rpcCache.ramCache.modelIndex.web_read.get("res.partner").size).toBe(2);
     expect(rpcCache.ramCache.modelIndex.web_read.get("res.users").size).toBe(1);
 
     rpcCache.invalidateByModel(["web_read"], "res.partner");
 
-    // res.partner entries gone from both the cache and the index;
-    // res.users untouched.
     expect(rpcCache.ramCache.read("web_read", "k1")).toBe(undefined);
     expect(rpcCache.ramCache.read("web_read", "k2")).toBe(undefined);
     expect(await rpcCache.ramCache.read("web_read", "k3")).toBe(3);
@@ -1672,10 +1474,6 @@ test("RAM model-index: write+invalidateByModel is O(1) lookup, no JSON.parse", a
 });
 
 test("RAM model-index: delete() removes key from the model set", async () => {
-    // The cache rarely calls ``delete`` directly (only on rejected
-    // requests) but when it does, the index must stay consistent or
-    // ``invalidateByModel`` would later try to delete a missing key
-    // (harmless) and leak the model→Set entry (memory drift).
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1688,16 +1486,10 @@ test("RAM model-index: delete() removes key from the model set", async () => {
 
     rpcCache.ramCache.delete("web_read", "k1");
 
-    // The empty set is also pruned (we delete the map key when its set
-    // hits zero) so ``has(model)`` reports ``false`` instead of a stale
-    // empty set sticking around.
     expect(rpcCache.ramCache.modelIndex.web_read.has("res.partner")).toBe(false);
 });
 
 test("RAM model-index: invalidate(table) clears the per-table index", async () => {
-    // Whole-table invalidation must reset the per-table model index, not
-    // just the value map.  Otherwise a subsequent write to the same
-    // table would find a stale model→Set entry from before the clear.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1713,16 +1505,10 @@ test("RAM model-index: invalidate(table) clears the per-table index", async () =
     rpcCache.invalidate(["web_read"]);
 
     expect(rpcCache.ramCache.modelIndex.web_read.size).toBe(0);
-    // Other tables untouched.
     expect(rpcCache.ramCache.modelIndex.web_read_group.get("res.partner").size).toBe(1);
 });
 
 test("RAM model-index: overwriting same key with a different model rebalances the index", async () => {
-    // Rare but legitimate: two callers hit the same URL+params (so same
-    // cache key) but the second supplies a different model name.  The
-    // first model's Set must drop the key; the second must gain it,
-    // otherwise ``invalidateByModel(firstModel)`` would later wrongly
-    // delete the second caller's entry.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1736,18 +1522,8 @@ test("RAM model-index: overwriting same key with a different model rebalances th
 
     rpcCache.invalidateByModel(["web_read"], "res.partner");
 
-    // Entry survives — it now belongs to res.users.
     expect(await rpcCache.ramCache.read("web_read", "k")).toBe(2);
 });
-
-// onFulfilled robustness: throwing subscriber callbacks
-//
-// A subscriber callback that throws must not abort ``onFulfilled`` before the
-// cache bookkeeping (pendingRequests cleanup, RAM write, disk-write
-// scheduling).  Pre-fix, one throwing callback left a dead entry in
-// ``pendingRequests``: every future read joined it forever, all
-// ``update: "always"`` refreshes for that key died, and the throw escaped as
-// an unhandled rejection.
 
 test("throwing subscriber callback does not wedge the key nor starve other callbacks", async () => {
     patchWithCleanup(console, {
@@ -1759,7 +1535,6 @@ test("throwing subscriber callback does not wedge the key nor starve other callb
         "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
     );
 
-    // Seed the caches.
     await rpcCache.read("table", "key", () => Promise.resolve({ test: 1 }), {
         type: "disk",
     });
@@ -1768,8 +1543,6 @@ test("throwing subscriber callback does not wedge the key nor starve other callb
         'encrypted data:{"test":1}',
     );
 
-    // Refresh with two subscribers on the same pending request: the first
-    // throws, the second must still be notified.
     const def = new Deferred();
     rpcCache.read(
         "table",
@@ -1803,8 +1576,6 @@ test("throwing subscriber callback does not wedge the key nor starve other callb
     await tick();
     expect.verifySteps(["callback 1 (throws)", "console.error", "callback 2: 2"]);
 
-    // Bookkeeping ran despite the throw: no dead pending request, RAM and
-    // disk both hold the fresh value.
     expect(Object.keys(rpcCache.pendingRequests)).toEqual([]);
     expect(await promiseState(rpcCache.ramCache.ram.table.key)).toEqual({
         status: "fulfilled",
@@ -1814,8 +1585,6 @@ test("throwing subscriber callback does not wedge the key nor starve other callb
         'encrypted data:{"test":2}',
     );
 
-    // Later reads/refreshes of the same key still work: the fallback fires
-    // again and its callback is delivered.
     const def2 = new Deferred();
     rpcCache
         .read(
@@ -1839,15 +1608,6 @@ test("throwing subscriber callback does not wedge the key nor starve other callb
     await tick();
     expect.verifySteps(["callback 3: 3"]);
 });
-
-// Disk-cache stale-persist race (invalidation generations)
-//
-// ``onFulfilled`` removes the request from ``pendingRequests`` and then runs
-// the async encrypt→IDB-write chain.  An invalidation landing in that window
-// can no longer flag the request; pre-fix its IDB clear was queued first and
-// the write landed after it, durably persisting pre-invalidation data (served
-// as truth on the next reload for ``update: "once"`` consumers such as
-// get_views).  The per-table generation counter must drop such writes.
 
 /**
  * Gate ``rpcCache.crypto.encrypt`` on a deferred so a test can act inside
@@ -1880,20 +1640,15 @@ test("invalidate between RPC resolution and disk write persists NO stale entry",
     def.resolve({ test: 123 });
     await tick();
 
-    // The RPC resolved: the request already left ``pendingRequests`` (so
-    // ``invalidate`` cannot flag it) while the encrypt is still gated.
     expect(Object.keys(rpcCache.pendingRequests)).toEqual([]);
 
-    // Invalidation arrives inside the window.
     rpcCache.invalidate("table");
     await tick();
 
-    // Release the encryption: the queued write must be skipped as stale.
     gate.resolve();
     await tick();
     await tick();
     expect(rpcCache.indexedDB.mockIndexedDB?.table?.key).toBe(undefined);
-    // RAM stays empty too — nothing resurrects the invalidated value.
     expect(rpcCache.ramCache.read("table", "key")).toBe(undefined);
 });
 
@@ -1924,8 +1679,6 @@ test("invalidateByModel between RPC resolution and disk write persists NO stale 
 });
 
 test("invalidating an unrelated table does not drop a concurrent disk write", async () => {
-    // Pins the per-table generation design: only invalidations touching the
-    // write's own table may skip the persist.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1938,8 +1691,6 @@ test("invalidating an unrelated table does not drop a concurrent disk write", as
     def.resolve({ test: 123 });
     await tick();
 
-    // Unrelated-table invalidation inside the window: must NOT affect the
-    // pending write for "table".
     rpcCache.invalidate("other_table");
     await tick();
 
@@ -1952,9 +1703,6 @@ test("invalidating an unrelated table does not drop a concurrent disk write", as
 });
 
 test("joined subscribers receive callbacks through their OWN shape", async () => {
-    // A joiner's callback must not inherit the first caller's shape closure:
-    // an `immutable: false` joiner would otherwise receive the deep-frozen
-    // shared reference (mutating it throws in strict mode), and vice-versa.
     const rpcCache = new RPCCache(
         "mockRpc",
         1,
@@ -1975,7 +1723,7 @@ test("joined subscribers receive callbacks through their OWN shape", async () =>
         callback: (result) => {
             expect.step("cb-mutable");
             expect(Object.isFrozen(result)).toBe(false);
-            result.mutated = true; // must not throw
+            result.mutated = true;
         },
     });
 
@@ -2006,9 +1754,6 @@ test("checkSize: prefers the IndexedDB-specific usage over the origin-wide figur
         warn: (...args) => warnings.push(args),
     });
 
-    // Origin-wide usage over the cap, but the RPC IndexedDB itself is tiny
-    // (the service worker's static cache is the consumer): the database must
-    // NOT be deleted.
     estimateResult = {
         usage: TWO_GB + 1,
         usageDetails: { indexedDB: 1024 },
@@ -2016,7 +1761,6 @@ test("checkSize: prefers the IndexedDB-specific usage over the origin-wide figur
     await rpcCache.checkSize();
     expect.verifySteps([]);
 
-    // IndexedDB usage itself over the cap: delete.
     estimateResult = {
         usage: TWO_GB + 1,
         usageDetails: { indexedDB: TWO_GB + 1 },
@@ -2024,8 +1768,6 @@ test("checkSize: prefers the IndexedDB-specific usage over the origin-wide figur
     await rpcCache.checkSize();
     expect.verifySteps(["deleteDatabase"]);
 
-    // No per-storage breakdown (non-Chromium): degrade to a warning, never
-    // delete a database that may not be the space consumer.
     warnings.length = 0;
     estimateResult = { usage: TWO_GB + 1 };
     await rpcCache.checkSize();
@@ -2037,13 +1779,11 @@ const RAM_SECRET = "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771
 
 test("RamCache: bounded by RAM_CACHE_MAX_ENTRIES (LRU eviction)", () => {
     const rc = new RPCCache("mockRpc", 1, RAM_SECRET).ramCache;
-    // Write cap + 5 distinct entries; the 5 coldest (first written) evict.
     for (let i = 0; i < RAM_CACHE_MAX_ENTRIES + 5; i++) {
         rc.write("t", `k${i}`, Promise.resolve(i));
     }
     expect(rc.lru.size).toBe(RAM_CACHE_MAX_ENTRIES);
     expect(Object.keys(rc.ram.t).length).toBe(RAM_CACHE_MAX_ENTRIES);
-    // The coldest are gone; the rest survive.
     expect(rc.read("t", "k0")).toBe(undefined);
     expect(rc.read("t", "k4")).toBe(undefined);
     expect(rc.read("t", "k5")).not.toBe(undefined);
@@ -2055,26 +1795,20 @@ test("RamCache: a read keeps its entry warm across later eviction", () => {
     for (let i = 0; i < RAM_CACHE_MAX_ENTRIES; i++) {
         rc.write("t", `k${i}`, Promise.resolve(i));
     }
-    // k0 is the coldest; a read touches it to the warm end.
     expect(rc.read("t", "k0")).not.toBe(undefined);
-    // Two fresh writes now evict the two CURRENT coldest (k1, k2), not k0.
     rc.write("t", "new1", Promise.resolve("a"));
     rc.write("t", "new2", Promise.resolve("b"));
-    expect(rc.read("t", "k0")).not.toBe(undefined); // survived (was warmed)
-    expect(rc.read("t", "k1")).toBe(undefined); // evicted
-    expect(rc.read("t", "k2")).toBe(undefined); // evicted
+    expect(rc.read("t", "k0")).not.toBe(undefined);
+    expect(rc.read("t", "k1")).toBe(undefined);
+    expect(rc.read("t", "k2")).toBe(undefined);
 });
 
 test("no disk secret: RAM caching still works, disk layer disabled", async () => {
-    // Only the DISK layer needs SubtleCrypto + browser_cache_secret; without
-    // them the cache degrades to RAM-only instead of disabling ALL caching
-    // (pre-fix, boot skipped rpc.setCache entirely on plain-HTTP deploys).
     const rpcCache = new RPCCache("mockRpc", 1, null);
     expect(rpcCache.diskEnabled).toBe(false);
     expect(rpcCache.indexedDB).toBe(null);
     expect(rpcCache.crypto).toBe(null);
 
-    // RAM caching: second read served from cache, no second fallback.
     expect(
         await rpcCache.read("table", "key", () => {
             expect.step("fallback");
@@ -2089,7 +1823,6 @@ test("no disk secret: RAM caching still works, disk layer disabled", async () =>
     ).toEqual({ test: 123 });
     expect.verifySteps(["fallback"]);
 
-    // ``type: "disk"`` transparently downgrades to RAM-only.
     expect(
         await rpcCache.read("t2", "key", () => Promise.resolve({ disk: 1 }), {
             type: "disk",
@@ -2102,7 +1835,6 @@ test("no disk secret: RAM caching still works, disk layer disabled", async () =>
         }),
     ).toEqual({ disk: 1 });
 
-    // Invalidation paths must not crash without a disk layer.
     rpcCache.invalidateByModel(["t2"], "res.partner");
     rpcCache.invalidate("table");
     rpcCache.invalidate();
@@ -2112,17 +1844,11 @@ test("no disk secret: RAM caching still works, disk layer disabled", async () =>
 });
 
 test("LRU eviction of a still-pending entry does not wedge later reads", async () => {
-    // Eviction can drop a pending entry's RAM promise while its
-    // ``pendingRequests`` slot survives (the fetch never settled). A later
-    // read of that key used to take the join branch and crash on
-    // ``ramValue.then`` (ramValue undefined); it must instead fall through
-    // to a fresh fetch.
     const rpcCache = new RPCCache("mockRpc", 1, RAM_SECRET);
     const hung = new Deferred();
-    rpcCache.read("t", "pending-key", () => hung); // fetch never settles
+    rpcCache.read("t", "pending-key", () => hung);
     expect("t/pending-key" in rpcCache.pendingRequests).toBe(true);
 
-    // Enough fresh writes to evict the pending entry (it is the coldest).
     for (let i = 0; i < RAM_CACHE_MAX_ENTRIES; i++) {
         rpcCache.ramCache.write("t", `k${i}`, Promise.resolve(i));
     }
@@ -2139,16 +1865,13 @@ test("LRU eviction of a still-pending entry does not wedge later reads", async (
 
 test("RamCache: eviction keeps the model reverse index consistent", () => {
     const rc = new RPCCache("mockRpc", 1, RAM_SECRET).ramCache;
-    // A model-scoped entry written first -> it becomes the eviction victim.
     rc.write("t", "victim", Promise.resolve("x"), "res.partner");
     for (let i = 0; i < RAM_CACHE_MAX_ENTRIES; i++) {
         rc.write("t", `k${i}`, Promise.resolve(i), "other.model");
     }
-    // Evicted from ram AND from both reverse indexes (set pruned when empty).
     expect(rc.read("t", "victim")).toBe(undefined);
     expect(rc.modelIndex.t.get("res.partner")).toBe(undefined);
     expect(rc.keyModel.t.victim).toBe(undefined);
-    // invalidateByModel on the evicted model is a clean no-op, no stale keys.
     rc.invalidateByModel(["t"], "res.partner");
     expect(rc.lru.size).toBe(RAM_CACHE_MAX_ENTRIES);
 });

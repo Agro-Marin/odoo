@@ -119,10 +119,6 @@ import { microTick } from "./time.js";
  * @typedef {import("./dom").Target<T>} Target
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     AnimationEvent,
     ClipboardEvent,
@@ -160,10 +156,6 @@ const {
 const $createRange = document.createRange.bind(document);
 const $toString = Object.prototype.toString;
 
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
-
 /**
  * @param {Event} ev
  */
@@ -198,7 +190,6 @@ function constrainScrollX(target, x) {
     let { offsetWidth, scrollWidth } = target;
     const document = getDocument(target);
     if (target === document || target === document.documentElement) {
-        // <html> elements in iframes consider the width of the <iframe> element
         const iframe = getParentFrame(target);
         if (iframe) {
             ({ offsetWidth } = iframe);
@@ -218,7 +209,6 @@ function constrainScrollY(target, y) {
     let { offsetHeight, scrollHeight } = target;
     const document = getDocument(target);
     if (target === document || target === document.documentElement) {
-        // <html> elements in iframes consider the height of the <iframe> element
         const iframe = getParentFrame(target);
         if (iframe) {
             ({ offsetHeight } = iframe);
@@ -346,18 +336,15 @@ function getDefaultRunTimeValue() {
     return {
         isComposing: false,
 
-        // Data transfers
         /** @type {DataTransfer | null} */
         clipboardData: null,
         /** @type {DataTransfer | null} */
         dataTransfer: null,
 
-        // Drag & drop
         canStartDrag: false,
         isDragging: false,
         lastDragOverCancelled: false,
 
-        // Pointer
         clickCount: 0,
         key: null,
         /** @type {HTMLElement | null} */
@@ -372,13 +359,10 @@ function getDefaultRunTimeValue() {
         /** @type {EventPosition | {}} */
         touchStartPosition: {},
 
-        // File
         fileInput: null,
 
-        // Buttons
         buttons: 0,
 
-        // Modifier keys
         modifierKeys: {},
 
         /**
@@ -398,10 +382,8 @@ function getDefaultRunTimeValue() {
  */
 function getDifferentParents(el1, el2) {
     if (!el1 && !el2) {
-        // No given elements => no parents
         return [];
     } else if (!el1 && el2) {
-        // No first element => only parents of second element
         [el1, el2] = [el2, el1];
     }
     const parents = [el2 || el1];
@@ -422,7 +404,6 @@ function getDifferentParents(el1, el2) {
  */
 function getEventConstructor(eventType) {
     switch (eventType) {
-        // Mouse events
         case "dblclick":
         case "mousedown":
         case "mouseup":
@@ -434,7 +415,6 @@ function getEventConstructor(eventType) {
         case "mouseleave":
             return [MouseEvent, mapMouseEvent, VIEW];
 
-        // Pointer events
         case "auxclick":
         case "click":
         case "contextmenu":
@@ -449,7 +429,6 @@ function getEventConstructor(eventType) {
         case "pointercancel":
             return [PointerEvent, mapPointerEvent, VIEW];
 
-        // Focus events
         case "blur":
         case "focus":
             return [FocusEvent, mapEvent];
@@ -457,18 +436,15 @@ function getEventConstructor(eventType) {
         case "focusout":
             return [FocusEvent, mapEvent, BUBBLES];
 
-        // Clipboard events
         case "cut":
         case "copy":
         case "paste":
             return [ClipboardEvent, mapEvent, BUBBLES];
 
-        // Keyboard events
         case "keydown":
         case "keyup":
             return [KeyboardEvent, mapKeyboardEvent, BUBBLES | CANCELABLE | VIEW];
 
-        // Drag events
         case "drag":
         case "dragend":
         case "dragenter":
@@ -478,23 +454,19 @@ function getEventConstructor(eventType) {
         case "drop":
             return [DragEvent, mapEvent, BUBBLES | CANCELABLE];
 
-        // Input events
         case "beforeinput":
             return [InputEvent, mapInputEvent, BUBBLES | CANCELABLE | VIEW];
         case "input":
             return [InputEvent, mapInputEvent, BUBBLES | VIEW];
 
-        // Composition events
         case "compositionstart":
         case "compositionend":
             return [CompositionEvent, mapEvent, BUBBLES];
 
-        // Selection events
         case "select":
         case "selectionchange":
             return [Event, mapEvent, BUBBLES];
 
-        // Touch events
         case "touchstart":
         case "touchend":
         case "touchmove":
@@ -502,19 +474,15 @@ function getEventConstructor(eventType) {
         case "touchcancel":
             return [TouchEvent, mapTouchEvent, BUBBLES | VIEW];
 
-        // Resize events
         case "resize":
             return [Event, mapEvent];
 
-        // Submit events
         case "submit":
             return [SubmitEvent, mapEvent, BUBBLES | CANCELABLE];
 
-        // Wheel events
         case "wheel":
             return [WheelEvent, mapWheelEvent, BUBBLES | VIEW];
 
-        // Animation events
         case "animationcancel":
         case "animationend":
         case "animationiteration":
@@ -522,23 +490,19 @@ function getEventConstructor(eventType) {
             return [AnimationEvent, mapEvent, BUBBLES | CANCELABLE];
         }
 
-        // Error events
         case "error":
             return [ErrorEvent, mapEvent];
         case "unhandledrejection":
             return [PromiseRejectionEvent, mapEvent, CANCELABLE];
 
-        // Unload events (BeforeUnloadEvent cannot be constructed)
         case "beforeunload":
             return [Event, mapEvent, CANCELABLE];
         case "unload":
             return [Event, mapEvent];
 
-        // URL events
         case "hashchange":
             return [HashChangeEvent, mapEvent];
 
-        // Default: base Event constructor
         default:
             return [Event, mapEvent, BUBBLES];
     }
@@ -558,7 +522,6 @@ function getFirstCommonParent(a, b) {
     range.setEnd(b, 0);
 
     if (range.collapsed) {
-        // Re-arranges range if the first node comes after the second
         range.setStart(b, 0);
         range.setEnd(a, 0);
     }
@@ -583,7 +546,7 @@ function getPointerTarget(element, options, originalTarget) {
     }
     const interactiveElement = getInteractiveNode(element);
     if (!interactiveElement && originalTarget) {
-        queryAny(originalTarget, { ...options, interactive: true }); // Will throw if no elements are found
+        queryAny(originalTarget, { ...options, interactive: true });
     }
     return interactiveElement;
 }
@@ -598,7 +561,6 @@ function getPosition(element, options) {
     const [posX, posY] = parsePosition(position);
 
     if (!isString && !relative && !$isNaN(posX) && !$isNaN(posY)) {
-        // Absolute position
         return toEventPosition(posX, posY, position);
     }
 
@@ -609,7 +571,6 @@ function getPosition(element, options) {
     if (isString) {
         const positions = position.split("-");
 
-        // X position
         if (positions.includes("left")) {
             clientX -= 1;
         } else if (positions.includes("right")) {
@@ -618,7 +579,6 @@ function getPosition(element, options) {
             clientX += width / 2;
         }
 
-        // Y position
         if (positions.includes("top")) {
             clientY -= 1;
         } else if (positions.includes("bottom")) {
@@ -627,7 +587,6 @@ function getPosition(element, options) {
             clientY += height / 2;
         }
     } else {
-        // X position
         if ($isNaN(posX)) {
             clientX += width / 2;
         } else {
@@ -638,7 +597,6 @@ function getPosition(element, options) {
             }
         }
 
-        // Y position
         if ($isNaN(posY)) {
             clientY += height / 2;
         } else {
@@ -760,27 +718,22 @@ function registerButton(eventInit, toggle) {
     let value = 0;
     switch (eventInit.button) {
         case btn.LEFT: {
-            // Main button (left button)
             value = 1;
             break;
         }
         case btn.MIDDLE: {
-            // Auxiliary button (middle button)
             value = 4;
             break;
         }
         case btn.RIGHT: {
-            // Secondary button (right button)
             value = 2;
             break;
         }
         case btn.BACK: {
-            // Fourth button (Browser Back)
             value = 8;
             break;
         }
         case btn.FORWARD: {
-            // Fifth button (Browser Forward)
             value = 16;
             break;
         }
@@ -1011,7 +964,6 @@ async function triggerClick(target, pointerInit) {
         return;
     }
     if (isFirefox()) {
-        // Thanks Firefox
         switch (getTag(target)) {
             case "label": {
                 /**
@@ -1049,7 +1001,6 @@ async function triggerClick(target, pointerInit) {
  */
 async function triggerDrag(target, eventInit) {
     await _dispatch(target, "drag", eventInit);
-    // Only "dragover" being prevented is taken into account for "drop" events
     const dragOverEvent = await _dispatch(target, "dragover", eventInit);
     return isPrevented(dragOverEvent);
 }
@@ -1090,12 +1041,8 @@ async function triggerFocus(target) {
  * @param {FillOptions} [options]
  */
 async function _clear(target, options) {
-    // Inputs and text areas
     const initialValue = target.value;
 
-    // Simulates 2 key presses:
-    // - Control + A: selects all the text
-    // - Backspace: deletes the text
     fullClear = true;
     await _press(target, { ctrlKey: true, key: "a" });
     await _press(target, { key: "Backspace" });
@@ -1206,13 +1153,11 @@ async function _fill(target, value, options) {
     }
 
     if (options?.instantly) {
-        // Simulates filling the clipboard with the value (can be from external source)
         globalThis.navigator.clipboard.writeText(value).catch();
         await _press(target, { ctrlKey: true, key: "v" });
     } else {
         if (options?.composition) {
             runTime.isComposing = true;
-            // Simulates the start of a composition
             await _dispatch(target, "compositionstart");
         }
         for (const char of String(value)) {
@@ -1221,7 +1166,6 @@ async function _fill(target, value, options) {
         }
         if (options?.composition) {
             runTime.isComposing = false;
-            // Simulates the end of a composition
             await _dispatch(target, "compositionend");
         }
     }
@@ -1244,8 +1188,6 @@ async function _hover(target, options, hoverOptions) {
     const isDifferentTarget = previousPT !== pointerTarget;
 
     if (hoverOptions?.implicit && !isDifferentTarget && !isDifferentPosition(position)) {
-        // Implicit hover: do not perform hover if the pointer target is the same
-        // and the position didn't change.
         return;
     }
     if (runTime.canStartDrag) {
@@ -1270,7 +1212,6 @@ async function _hover(target, options, hoverOptions) {
         previousPT &&
         (!pointerTarget || !previousPT.contains(pointerTarget))
     ) {
-        // Leaves previous target
         const leaveEventInit = {
             ...previousPosition,
             relatedTarget: pointerTarget,
@@ -1278,12 +1219,10 @@ async function _hover(target, options, hoverOptions) {
         };
 
         if (runTime.isDragging) {
-            // If dragging, only drag events are triggered
             const leaveEventInitWithDT = { ...leaveEventInit, dataTransfer: runTime.dataTransfer };
             runTime.lastDragOverCancelled = await triggerDrag(previousPT, leaveEventInitWithDT);
             await _dispatch(previousPT, "dragleave", leaveEventInitWithDT);
         } else {
-            // Regular case: pointer events are triggered
             await dispatchPointerEvent(previousPT, "pointermove", leaveEventInit, {
                 mouse: ["mousemove"],
                 touch: ["touchmove"],
@@ -1312,7 +1251,6 @@ async function _hover(target, options, hoverOptions) {
         button: options?.button || 0,
     };
     if (runTime.isDragging) {
-        // If dragging, only drag events are triggered
         const enterEventInitWithDT = { ...enterEventInit, dataTransfer: runTime.dataTransfer };
         runTime.lastDragOverCancelled = false;
         if (isDifferentTarget) {
@@ -1325,7 +1263,6 @@ async function _hover(target, options, hoverOptions) {
         }
         runTime.lastDragOverCancelled ||= await triggerDrag(pointerTarget, enterEventInitWithDT);
     } else {
-        // Regular case: pointer events are triggered
         if (isDifferentTarget) {
             await dispatchPointerEvent(pointerTarget, "pointerover", enterEventInit, {
                 mouse: ["mouseover"],
@@ -1403,10 +1340,8 @@ async function _keyDown(target, eventInit) {
                 const start = key === "ArrowLeft" || key === "ArrowUp";
                 let selectionTarget;
                 if (ctrlKey) {
-                    // Move to the start/end of the line
                     selectionTarget = start ? 0 : value.length;
                 } else {
-                    // Move the cursor left or right
                     selectionTarget = start ? selectionStart - 1 : selectionEnd + 1;
                 }
                 nextSelectionStart = nextSelectionEnd = $max(
@@ -1419,16 +1354,12 @@ async function _keyDown(target, eventInit) {
             case "Backspace": {
                 const { selectionStart, selectionEnd, value } = target;
                 if (fullClear) {
-                    // Remove all characters
                     nextValue = "";
                 } else if (isNil(selectionStart) || isNil(selectionEnd)) {
-                    // Remove last character
                     nextValue = value.slice(0, -1);
                 } else if (selectionStart === selectionEnd) {
-                    // Remove previous character from target value
                     nextValue = value.slice(0, selectionStart - 1) + value.slice(selectionEnd);
                 } else {
-                    // Remove current selection from target value
                     nextValue = deleteSelection(target);
                 }
                 inputType = "deleteContentBackward";
@@ -1437,16 +1368,12 @@ async function _keyDown(target, eventInit) {
             case "Delete": {
                 const { selectionStart, selectionEnd, value } = target;
                 if (fullClear) {
-                    // Remove all characters
                     nextValue = "";
                 } else if (isNil(selectionStart) || isNil(selectionEnd)) {
-                    // Remove first character
                     nextValue = value.slice(1);
                 } else if (selectionStart === selectionEnd) {
-                    // Remove next character from target value
                     nextValue = value.slice(0, selectionStart) + value.slice(selectionEnd + 1);
                 } else {
-                    // Remove current selection from target value
                     nextValue = deleteSelection(target);
                 }
                 inputType = "deleteContentForward";
@@ -1454,15 +1381,12 @@ async function _keyDown(target, eventInit) {
             }
             case "Enter": {
                 if (target.tagName === "TEXTAREA") {
-                    // Insert new line
                     insertValue("\n", "insertLineBreak");
                 }
                 break;
             }
             default: {
                 if (key.length === 1 && !ctrlKey) {
-                    // Character coming from the keystroke
-                    // ! TODO: Doesn't work with non-roman locales
                     insertValue(
                         shiftKey ? key.toUpperCase() : key.toLowerCase(),
                         runTime.isComposing ? "insertCompositionText" : "insertText"
@@ -1475,7 +1399,6 @@ async function _keyDown(target, eventInit) {
     switch (key) {
         case "a": {
             if (ctrlKey) {
-                // Select all
                 if (isEditable(target)) {
                     nextSelectionStart = 0;
                     nextSelectionEnd = target.value.length;
@@ -1497,7 +1420,6 @@ async function _keyDown(target, eventInit) {
          */
         case "c": {
             if (ctrlKey) {
-                // Get selection from window
                 const text = globalThis.getSelection().toString();
                 globalThis.navigator.clipboard.writeText(text).catch();
 
@@ -1556,11 +1478,9 @@ async function _keyDown(target, eventInit) {
          */
         case "v": {
             if (ctrlKey && isEditable(target)) {
-                // Set target value (if possible)
                 try {
                     nextValue = await globalThis.navigator.clipboard.readText();
                 } catch {
-                    // Ignore clipboard errors
                 }
                 inputType = "insertFromPaste";
 
@@ -1578,7 +1498,6 @@ async function _keyDown(target, eventInit) {
          */
         case "x": {
             if (ctrlKey && isEditable(target)) {
-                // Get selection from window
                 const text = globalThis.getSelection().toString();
                 globalThis.navigator.clipboard.writeText(text).catch();
 
@@ -1675,7 +1594,6 @@ async function _pointerDown(options) {
         return;
     }
 
-    // Focus the element (if focusable)
     await triggerFocus(pointerDownTarget);
 
     if (
@@ -1712,7 +1630,6 @@ async function _pointerUp(options) {
     registerButton(eventInit, false);
 
     if (runTime.isDragging) {
-        // If dragging, only drag events are triggered
         const eventInitWithDT = { ...eventInit, dataTransfer: runTime.dataTransfer };
         runTime.dataTransfer = null;
         runTime.isDragging = false;
@@ -1742,9 +1659,6 @@ async function _pointerUp(options) {
     runTime.touchStartPosition = {};
 
     if (hasTouch() && (isDifferentPosition(touchStartPosition) || isLongTap)) {
-        // No further event is triggered:
-        // there was a swiping motion since the "touchstart" event
-        // or a long press was detected.
         return;
     }
 
@@ -1774,8 +1688,6 @@ async function _pointerUp(options) {
         globalThis.clearTimeout(runTime.pointerDownTimeout);
     }
     runTime.pointerDownTimeout = globalThis.setTimeout(() => {
-        // Use `globalThis.setTimeout` to potentially make use of the mock timeouts
-        // since the events run in the same temporal context as the tests
         console.debug(
             "[debug:hoot] clickChain reset-timer fired (clickCount=%s -> 0)",
             runTime.clickCount,
@@ -1870,7 +1782,6 @@ const GLOBAL_FILE_INPUT_REGISTERERS = [
 const GLOBAL_SUBMIT_FORWARDERS = [["submit", redirectSubmit]];
 
 const KEY_ALIASES = {
-    // case insensitive aliases
     alt: "Alt",
     arrowdown: "ArrowDown",
     arrowleft: "ArrowLeft",
@@ -1885,7 +1796,6 @@ const KEY_ALIASES = {
     shift: "Shift",
     tab: "Tab",
 
-    // Other aliases
     caps: "Shift",
     cmd: "Meta",
     command: "Meta",
@@ -1912,22 +1822,13 @@ let afterNextDispatch = null;
 let allowLogs = false;
 let fullClear = false;
 
-// Keyboard global variables
 const changeTargetListeners = [];
 
-// Other global variables
 const runTime = getDefaultRunTimeValue();
-
-//-----------------------------------------------------------------------------
-// Event init attributes mappers
-//-----------------------------------------------------------------------------
 
 const BUBBLES = 0b1;
 const CANCELABLE = 0b10;
 const VIEW = 0b100;
-
-// Generic mappers
-// ---------------
 
 /**
  * - does not bubble
@@ -1937,9 +1838,6 @@ const VIEW = 0b100;
 function mapEvent(eventInit) {
     return eventInit;
 }
-
-// Pointer, mouse & wheel event mappers
-// ------------------------------------
 
 /**
  * @param {FullEventInit<MouseEventInit>} eventInit
@@ -1980,9 +1878,6 @@ function mapWheelEvent(eventInit) {
     };
 }
 
-// Touch event mappers
-// -------------------
-
 /**
  * @param {FullEventInit<TouchEventInit>} eventInit
  */
@@ -1997,9 +1892,6 @@ function mapTouchEvent(eventInit) {
         touches: eventInit.touches || (eventInit.type === "touchend" ? [] : touches),
     };
 }
-
-// Keyboard & input event mappers
-// ------------------------------
 
 /**
  * @param {FullEventInit<InputEventInit>} eventInit
@@ -2022,10 +1914,6 @@ function mapKeyboardEvent(eventInit) {
         ...eventInit,
     };
 }
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * Ensures that the given {@link AsyncTarget} is checked.
@@ -2071,7 +1959,6 @@ export function cleanupEvents() {
 
     removeChangeTargetListeners();
 
-    // Runtime global variables
     $assign(runTime, getDefaultRunTimeValue());
 }
 
@@ -2101,7 +1988,6 @@ export async function clear(options) {
     if (isEditable(element)) {
         await _clear(element, options);
     } else {
-        // Selects
         await _select(element, "");
     }
 
@@ -2256,7 +2142,6 @@ export async function drag(target, options) {
             const finalizeEvents = setupEvents("drag & drop: cancel", options);
             const bodyElement = getDocument(runTime.pointerTarget).body;
 
-            // Reset buttons
             runTime.buttons = 0;
 
             await _press(bodyElement, { key: "Escape" });
@@ -2313,7 +2198,6 @@ export async function drag(target, options) {
     const dragStartTarget = queryAny(await target, options);
     let dragEndReason = null;
 
-    // Pointer down on main target
     await _hover(dragStartTarget, options, { implicit: true, originalTarget: target });
     await _pointerDown(options);
 
@@ -2700,7 +2584,6 @@ export async function rightClick(target, options) {
 export async function scroll(target, position, options) {
     const finalizeEvents = setupEvents("scroll", options);
 
-    // Parse position and assign default options
     let [x, y] = parsePosition(position);
     options = {
         initiator: "wheel",

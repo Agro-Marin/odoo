@@ -40,8 +40,9 @@ cd addons/web/tooling/scripts
 ./hoot --watch --affected            # watch + re-select affected each change
 
 ./hoot --status                      # status of ALL warm servers
-./hoot --stop [--db hoot_mail]       # stop warm server(s) (keep DB); one DB if --db
-./hoot --clean [--db hoot_mail]      # stop warm server(s) AND drop DB(s)
+./hoot --stop [--db hoot_mail]       # stop ONE warm server (keep its DB)
+./hoot --clean [--db hoot_mail]      # stop ONE warm server AND drop its DB
+./hoot --stop --all                  # stop EVERY warm server (all sessions)
 ./hoot --restart '@web/core/domain'  # force a fresh server, then run
 ./hoot -v '@web/core/domain'         # verbose (server + browser logs)
 ./hoot --help
@@ -130,6 +131,9 @@ roughly an 8x loop speedup here, and much more where booting the ERP costs the
 1. `hoot_lib.boot_server` starts one `odoo-bin` (threaded, `workers=0`) on a
    free 8085-8089 port and records it in `.hoot_state.json`. Later runs detect
    the live pid + HTTP port and reuse it.
+1b. The server boots with `--dev=assets`, so it watches its own asset sources
+   over inotify and drops the assets cache when one changes. The runner does
+   nothing per-run. See "Why `--dev=assets`" below.
 2. `run_suites` authenticates over HTTP (admin/admin) to get a `session_id`,
    then instantiates `odoo.tests.common.ChromeBrowser` through a tiny shim
    (it only needs `_logger`, `browser_size`, `touch_enabled`, `fetch_proxy`),
@@ -139,8 +143,54 @@ roughly an 8x loop speedup here, and much more where booting the ERP costs the
    `[HOOT] Test suite succeeded` signal + the `unit_test_error_checker`. Console
    output is captured to report pass/fail counts and failed test names.
 
-Nothing in Odoo core is modified; `ChromeBrowser` is imported and driven as-is.
+The runner patches nothing at runtime; `ChromeBrowser` is imported and driven
+as-is. It does rely on one core capability added for it — the `--dev=assets`
+watcher described next — which is a normal dev-mode feature, not a hook for
+these scripts.
 
+### Why `--dev=assets`
+
+The warm server boots `--dev=assets,qweb`, deliberately **without** `xml`. Both
+flags give the same live reload; they differ in how.
+
+`--dev=xml` does not *invalidate* the asset caches, it *disables* them:
+`base/models/ir_qweb_assets.py` guarded four ormcaches with
+`@tools.conditional("xml" not in tools.config["dev_mode"], ormcache(...))`, so
+every `/web/tests` navigation recomputed the asset links and the ESM payload
+from scratch. Measured interleaved on two disposable databases with a same-flag
+control: 0.62 s per render without `--dev`, 0.73 s with `qweb`, **3.15 s with
+`xml`**. `qweb` alone is free (it only sets a render-context flag in `ir_qweb`),
+so it is kept; `xml` was the entire cost.
+
+`--dev=assets` instead gives the caches the input they were missing — *when did
+the sources change*. `service/_watcher.py` already watched the addons path over
+inotify for `--dev=reload`; under `assets` a changed `static/` source invalidates
+the assets cache instead of restarting the process. It does so by writing an
+`orm_signaling_assets` row rather than clearing in place, so it reaches every
+process through the `Registry.check_signaling` that `http/_serve.py` runs at the
+start of each request — including forked children under `--workers`, which the
+watcher thread (living in the prefork master) shares no registry with. Because
+that causal signal now exists, `_save_esm_attachment` no longer infers "the sources changed" from "a
+rebuild produced a different artifact" — an inference that discarded the entries
+the same request had just computed, costing a second full recompute. The render
+sequence after one edit went from `slow, slow, fast` to `slow, fast, fast`.
+
+Measured against a `--dev=xml,qweb` server on the same database, interleaved:
+**3.95x** faster with no edit between runs, **1.39x** on the render right after
+an edit.
+
+Under `assets` the watcher is narrowed to `static/{src,tests}`, which costs
+~5.8k inotify watches per server instead of ~20.8k for the whole addons tree.
+That matters: `fs.inotify.max_user_watches` (65536 by default) is per *user* and
+shared with your editor, so at the wide count a third warm server fails to
+start — which `hoot-shard -j 6` would hit every run. `--dev=reload` still
+watches the trees whole, since it must see every `.py`. If the watcher cannot
+start at all the server now logs a warning and runs without it instead of
+crashing, so check for that before concluding an edit "wasn't picked up".
+
+A server left over from before this change carries different `--dev` flags, so
+`ensure_server` detects it from `/proc/<pid>/cmdline` and recycles it once,
+automatically.
 ## CI entry points (gated runs through `odoo-bin`)
 
 The warm runner is for the local edit/run loop. CI runs the same suites through

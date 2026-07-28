@@ -25,13 +25,13 @@ const getFormat = (val, displayNames) => {
             typeof displayNames[val] === "string"
                 ? displayNames[val]
                 : _t("Inaccessible/missing record ID: %s", val);
-        colorIndex = typeof displayNames[val] === "string" ? 0 : 2; // 0 = grey, 2 = orange
+        colorIndex = typeof displayNames[val] === "string" ? 0 : 2;
     } else {
         text =
             val instanceof Expression
                 ? String(val)
                 : _t("Invalid record ID: %s", formatAST(toPyValue(val)));
-        colorIndex = val instanceof Expression ? 2 : 1; // 1 = red
+        colorIndex = val instanceof Expression ? 2 : 1;
     }
     return { text, colorIndex };
 };
@@ -40,7 +40,7 @@ const getFormat = (val, displayNames) => {
 export class DomainSelectorAutocomplete extends MultiRecordSelector {
     static props = {
         ...MultiRecordSelector.props,
-        resIds: true, //resIds could be an array of ids or an array of expressions
+        resIds: true,
     };
 
     /**

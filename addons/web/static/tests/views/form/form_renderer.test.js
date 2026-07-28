@@ -22,7 +22,7 @@ defineModels([Partner]);
 
 test("compile form with modifiers", async () => {
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <div invisible="display_name == uid">
                     <field name="charfield"/>
@@ -42,7 +42,7 @@ test("compile form with modifiers", async () => {
 
 test("compile notebook with modifiers", async () => {
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <sheet>
                     <notebook>
@@ -64,7 +64,7 @@ test("compile notebook with modifiers", async () => {
 
 test("compile header and buttons", async () => {
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <header>
                     <button string="ActionButton" class="oe_highlight" name="action_button" type="object"/>
@@ -103,7 +103,7 @@ test("render field with placeholder", async () => {
     );
 
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <field name="display_name" placeholder="e.g. Contact's Name or //someinfo..." />
             </form>
@@ -121,7 +121,7 @@ test("render field with placeholder", async () => {
 test.tags("desktop");
 test("compile a button with id on desktop", async () => {
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <header>
                     <button id="action_button" string="ActionButton"/>
@@ -141,7 +141,7 @@ test("compile a button with id on desktop", async () => {
 test.tags("mobile");
 test("compile a button with id on mobile", async () => {
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <header>
                     <button id="action_button" string="ActionButton"/>
@@ -161,7 +161,7 @@ test("compile a button with id on mobile", async () => {
 
 test("compile a button with disabled", async () => {
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <button id="action_button" string="ActionButton" name="action_button" type="object" disabled="disabled"/>
             </form>
@@ -179,7 +179,7 @@ test("compile a button with disabled", async () => {
 test.tags("desktop");
 test("statusbar stay visible when scrolling (sticky)", async () => {
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <header>
                     <button id="action_button" string="ActionButton"/>
@@ -216,7 +216,7 @@ test("statusbar stay visible when scrolling (sticky)", async () => {
 test.tags("mobile");
 test("statusbar is non-sticky on mobile", async () => {
     Partner._views = {
-        form: /*xml*/ `
+        form: `
             <form>
                 <header>
                     <button id="action_button" string="ActionButton"/>

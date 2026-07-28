@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, markup, xml } from "@odoo/owl";
+import { Component, markup, onWillStart, xml } from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { Interaction } from "@web/public/interaction";
 
@@ -193,7 +193,7 @@ test("stop interactions with selectorHas", async () => {
     expect.verifySteps(["start"]);
 
     queryOne(".inner").remove();
-    core.stopInteractions(queryOne(".other")); // on sub-element of the Interaction root
+    core.stopInteractions(queryOne(".other"));
     expect.verifySteps(["destroy"]);
 });
 
@@ -275,7 +275,7 @@ test("stop interactions with selectorNotHas", async () => {
     const div = document.createElement("div");
     div.className = "inner";
     queryOne(".test").appendChild(div);
-    core.stopInteractions(div); // on sub-element of the Interaction root (added node)
+    core.stopInteractions(div);
     expect.verifySteps(["destroy"]);
 });
 
@@ -338,14 +338,10 @@ test("global stop does not restart interactions from restored t-out content", as
         [Inner, Test],
         `<div class="test"><span class="inner">Hi</span></div>`,
     );
-    // Inner was started on the initial content, then stopped when the t-out
-    // of Test replaced that content.
     expect.verifySteps(["inner setup", "inner destroy"]);
     expect(queryOne(".test .dynamic")).toHaveText("Hello");
 
     core.stopInteractions();
-    // The initial content is restored, but stopping must not resurrect the
-    // Inner interaction it contains: no live interaction may survive a stop.
     expect(queryOne(".test .inner")).toHaveText("Hi");
     expect.verifySteps([]);
     expect(core.interactions).toHaveLength(0);
@@ -377,10 +373,6 @@ test("a crashed setup leaves the interaction retryable", async () => {
 });
 
 test("a crashed async willStart leaves the interaction retryable", async () => {
-    // willStart() rejects asynchronously, unlike setup() which throws
-    // synchronously in the Colibri constructor. The async rejection must still
-    // drop the half-initialized Colibri from core.interactions and forget the
-    // (el, I) pair so a later startInteractions() can retry it.
     let boom = true;
     class Test extends Interaction {
         static selector = ".test";
@@ -442,6 +434,63 @@ test("can mount a component", async () => {
     );
     core.stopInteractions();
     expect(".test").toHaveOuterHTML(`<div class="test"></div>`);
+});
+
+test("a surfaced failure does not make every later isReady reject", async () => {
+    class Boom extends Interaction {
+        static selector = ".boom";
+        setup() {
+            throw new Error("boom");
+        }
+    }
+    class Fine extends Interaction {
+        static selector = ".fine";
+    }
+    const { core } = await startInteraction(
+        [Boom, Fine],
+        `<div class="boom"></div><div class="fine"></div>`,
+        { waitForStart: false },
+    );
+    await expect(core.isReady).rejects.toThrow("boom");
+
+    // the crash has been surfaced: holding on to it made every later read
+    // reject too — the page could never become ready again — and grew the
+    // tracked-promise list without bound
+    expect(core.proms).toHaveLength(0);
+    await core.startInteractions(queryOne(".fine"));
+    await core.isReady;
+    expect.step("ready again");
+    expect.verifySteps(["ready again"]);
+});
+
+test("a component that fails to mount leaves no dead root behind", async () => {
+    // the failure has to happen after prepareRoot() inserted the <owl-root>:
+    // a component whose setup() throws synchronously never gets that far, so
+    // it does not exercise this at all
+    class Test extends Component {
+        static selector = ".test";
+        static template = xml`owl component`;
+        static props = {};
+        setup() {
+            onWillStart(async () => {
+                throw new Error("boom");
+            });
+        }
+    }
+    expect.errors(1);
+    const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+        waitForStart: false,
+    });
+    await expect(core.isReady).rejects.toThrow("owl lifecycle");
+    // neither the <owl-root> host nor the dead root may survive: the host
+    // lingers in the page and the root gets destroyed a second time by the
+    // next stopInteractions()
+    expect(".test").toHaveOuterHTML(`<div class="test"></div>`);
+    expect(core.roots).toHaveLength(0);
+    core.stopInteractions();
+    expect(".test").toHaveOuterHTML(`<div class="test"></div>`);
+    await animationFrame();
+    expect.verifyErrors([/boom/]);
 });
 
 test("can start interaction in specific el", async () => {
@@ -532,4 +581,37 @@ test("does not start interaction in el if not attached", async () => {
     span.remove();
     await core.startInteractions(span);
     expect(n).toBe(0);
+});
+
+test("every interaction that fails to start is reported, not just the first", async () => {
+    class BoomA extends Interaction {
+        static selector = ".a";
+        async willStart() {
+            throw new Error("boom A");
+        }
+    }
+    class BoomB extends Interaction {
+        static selector = ".b";
+        async willStart() {
+            throw new Error("boom B");
+        }
+    }
+    const { core } = await startInteraction(
+        [BoomA, BoomB],
+        `<div class="a"></div><div class="b"></div>`,
+        { waitForStart: false },
+    );
+    const reported = [];
+    core.reportError = (error) => reported.push(error);
+    let caught = null;
+    try {
+        await core.isReady;
+    } catch (error) {
+        caught = error;
+    }
+    expect(caught).toBeInstanceOf(AggregateError);
+    expect(caught.errors.map((e) => e.message).sort()).toEqual(["boom A", "boom B"]);
+    // the scan and the promise `activate` derives from it carry the same
+    // failure: it must not be logged twice
+    expect(reported).toHaveLength(1);
 });

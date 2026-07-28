@@ -1,9 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-// Emoji data are generated from Unicode CLDR, falling under the following
-// licence:
-
 /**
  * UNICODE, INC. LICENSE AGREEMENT - DATA FILES AND SOFTWARE
  *
@@ -52,11 +49,6 @@
  * use or other dealings in these Data Files or Software without prior
  * written authorization of the copyright holder.
  */
-
-// Since JSON grammar is way simpler than JavaScript's grammar, it is actually
-// faster to parse the data as a JSON object than as a JavaScript object.
-
-// Escape translated strings to prevent parsing errors
 
 import { appTranslateFn } from "@web/core/l10n/translation";
 const _t = (str) => JSON.stringify(appTranslateFn(str, "web")).slice(1, -1);

@@ -30,7 +30,6 @@ export class SettingsFormCompiler extends FormCompiler {
         settingsPage.setAttribute("initialTab", "__comp__.props.initialApp");
         settingsPage.setAttribute("t-slot-scope", "settings");
 
-        //props
         params.modules = [];
         params.anchors = [];
 
@@ -40,7 +39,6 @@ export class SettingsFormCompiler extends FormCompiler {
 
         settingsPage.setAttribute("modules", JSON.stringify(params.modules));
 
-        // Move the compiled content of the form inside the settingsPage
         while (res.firstChild) {
             append(settingsPage, res.firstChild);
         }
@@ -54,10 +52,6 @@ export class SettingsFormCompiler extends FormCompiler {
 
     compileApp(el, params) {
         if (el.getAttribute("notApp") === "1") {
-            // A technical module's settings shouldn't render until its
-            // "parent" app is installed (e.g. sale is a dep of both
-            // website_sale and sale_management, but its settings should
-            // only show under the latter).
             return;
         }
         const module = {

@@ -211,6 +211,17 @@ Auto-regenerate report stylesheet on style changes.
 - `_get_asset_style_b64()` — Renders `web.styles_company_report` QWeb template, returns base64 CSS.
 - `_update_asset_style()` — Updates `web.asset_styles_company_report` attachment if content changed.
 
+### models/report_theme.py — ReportTheme (`_name = 'report.theme'`)
+
+A named bundle of report design tokens (a *skin*), orthogonal to `report.layout` (structure) and to the company brand colors. Token values are emitted verbatim as `--rp-*` CSS custom properties by `web.styles_company_report`, scoped to the per-company `.o_company_<id>_layout` selector, so a theme change re-skins every printed document without touching a report template. Fields hold raw CSS values so WeasyPrint resolves them during PDF rendering. `_order = 'sequence, id'`.
+
+**Fields:** `name` (Char, required, translate), `sequence` (Integer, default 50), `font_body` / `font_display` (Char — CSS font-family; empty falls back to company font, then to body font), `row_padding` (default `0.5rem`), `border_radius` (default `0`), `rule_weight` (default `1px`).
+
+**Key Methods:**
+- `write(vals)` — Calls `res.company._update_asset_style()` when any of `_STYLE_FIELDS` changes. Without this the edit would not reach a rendered report until an unrelated company write, since the asset is only regenerated on `res.company` writes.
+- `unlink()` — Same reflow when a theme still referenced by a company is deleted; referencing companies fall back to the built-in token defaults.
+- `_report_css_vars(primary, secondary, base_font)` — Returns the `--rp-*` block as `Markup` (raw, unescaped). Raw is required because font stacks contain quotes/commas that `t-out` would escape into `&#39;`, which is invalid inside a stylesheet. Values are run through `_CSS_UNSAFE` (strips `{};\n\r<>`) to prevent breaking out of the declaration. Colors come from the company brand; the rest from this theme, or defaults when `self` is an empty recordset.
+
 ## Properties
 
 ### models/properties_base_definition.py — PropertiesBaseDefinition (`_inherit = 'properties.base.definition'`)

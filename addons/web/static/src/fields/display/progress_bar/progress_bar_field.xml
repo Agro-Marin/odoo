@@ -37,7 +37,7 @@
                     <span t-else="" class="mx-1" t-esc="formatCurrentValue(true)"/>
                     /
                     <input
-                        t-if="isEditable and props.isMaxValueEditable"
+                        t-if="canEditMaxValue"
                         t-ref="maxValue"
                         class="o_input h-100 text-center"
                         type="text"

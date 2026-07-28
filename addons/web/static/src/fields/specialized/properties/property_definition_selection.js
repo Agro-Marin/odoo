@@ -15,16 +15,13 @@ export class PropertyDefinitionSelection extends Component {
         options: {},
         readonly: { type: Boolean, optional: true },
         canChangeDefinition: { type: Boolean, optional: true },
-        onOptionsChange: { type: Function, optional: true }, // we add / remove / rename an option
-        onDefaultOptionChange: { type: Function, optional: true }, // we select a default value
+        onOptionsChange: { type: Function, optional: true },
+        onDefaultOptionChange: { type: Function, optional: true },
     };
 
     setup() {
         this.notification = useService("notification");
 
-        // when we create a new option, it's added in the state
-        // when we have finished to edit it (blur / enter) we propagate
-        // the new value in the props
         this.state = useState({
             newOption: null,
         });
@@ -33,7 +30,6 @@ export class PropertyDefinitionSelection extends Component {
         this.addButtonRef = useRef("addButton");
 
         useEffect(() => {
-            // automatically give the focus to the new option if it is empty
             if (!this.state.newOption) {
                 return;
             }
@@ -66,8 +62,6 @@ export class PropertyDefinitionSelection extends Component {
         });
     }
 
-    /* Public methods / Getters */
-
     /**
      * Current available options, deep-copied so we can restore the
      * original props if form-view editing is discarded.
@@ -92,8 +86,6 @@ export class PropertyDefinitionSelection extends Component {
         return options;
     }
 
-    /* Event handlers */
-
     onOptionCreate(index) {
         this.state.newOption = {
             index: index,
@@ -112,15 +104,12 @@ export class PropertyDefinitionSelection extends Component {
         const newLabel = target.value;
 
         if (this.options[optionIndex] && this.options[optionIndex][1] === newLabel) {
-            // do not update the props if we are already up to date
-            // e.g. we pressed enter already and lost focus
             return;
         }
 
         const options = this.optionsVisible;
 
         if (!newLabel || !newLabel.length) {
-            // if the label is empty, remove the option
             options.splice(optionIndex, 1);
         } else {
             options[optionIndex][1] = newLabel;
@@ -132,7 +121,6 @@ export class PropertyDefinitionSelection extends Component {
         this.props.onOptionsChange(nonEmptyOptions);
 
         if (this.state.newOption) {
-            // the new option has been propagated in the props
             this.state.newOption = null;
         }
     }
@@ -150,7 +138,6 @@ export class PropertyDefinitionSelection extends Component {
     onOptionBlur(event, optionIndex) {
         const target = /** @type {HTMLInputElement} */ (event.target);
         if (target.value && target.value.length) {
-            // losing the focus on a non-empty option should have no effect
             return;
         } else if (this._ignoreBlur) {
             this._ignoreBlur = false;
@@ -158,12 +145,9 @@ export class PropertyDefinitionSelection extends Component {
         }
 
         if (event.relatedTarget === this.addButtonRef.el) {
-            // lost the focus because we click on the add button
-            // if the value is empty, just ignore and cancel the event
             event.stopPropagation();
             event.preventDefault();
         } else if (optionIndex === this.state.newOption?.index) {
-            // we remove the focus from the new empty option, remove it
             this.state.newOption = null;
         }
     }
@@ -182,7 +166,6 @@ export class PropertyDefinitionSelection extends Component {
             const newLabel = /** @type {HTMLInputElement} */ (event.target).value;
 
             if (!newLabel || !newLabel.length) {
-                // press enter on an empty option, just ignore it, nothing to save
                 event.stopPropagation();
                 event.preventDefault();
                 return;
@@ -234,10 +217,6 @@ export class PropertyDefinitionSelection extends Component {
     onOptionDelete(optionIndex) {
         const options = this.optionsVisible;
         options.splice(optionIndex, 1);
-        // `optionsVisible` may still carry a pending empty `[uuid, ""]` option
-        // (state.newOption). Propagating it would persist an empty option and
-        // duplicate its uuid t-key on the next render. Filter empties and clear
-        // the pending option, exactly like onOptionChange does.
         const nonEmptyOptions = options.filter(
             (option) => option[1] && option[1].length,
         );
@@ -258,7 +237,6 @@ export class PropertyDefinitionSelection extends Component {
         this._ignoreBlur = true;
 
         let options = this.optionsVisible;
-        // if destinationOption is null, destinationOptionIndex will be -1 which is intended
         let destinationOptionIndex = options.findIndex(
             (option) => option[0] === destinationOption,
         );
@@ -266,9 +244,6 @@ export class PropertyDefinitionSelection extends Component {
             (option) => option[0] === movedOption,
         );
         if (destinationOptionIndex < movedOptionIndex) {
-            // Splicing out movedOption first shifts later indices down by one, so when the
-            // destination comes after the moved element we need +1 to land in the right spot
-            // (e.g. [A,B,C] -> move C after A => destinationIndex 0 becomes 1).
             destinationOptionIndex++;
         }
 
@@ -284,7 +259,6 @@ export class PropertyDefinitionSelection extends Component {
             const editedOptionIndex = options.findIndex(
                 (option) => option[0] === optionName,
             );
-            // we might be editing the value and drag and drop something else just after
             options[editedOptionIndex][1] = /** @type {HTMLInputElement} */ (
                 activeEl
             ).value;
@@ -301,8 +275,6 @@ export class PropertyDefinitionSelection extends Component {
                 (option) => option[0] === this.state.newOption.name,
             );
             if (!options[newOptionIndex][1]?.length) {
-                // if there's an empty option, fix its index in the state
-                // and do not propagate it in the props
                 this.state.newOption = {
                     ...this.state.newOption,
                     index: newOptionIndex,

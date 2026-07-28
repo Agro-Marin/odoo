@@ -137,9 +137,7 @@ test("navigation with virtual focus", async () => {
     async function navigate(hotkey, expected) {
         await press(hotkey);
         await animationFrame();
-        // Focus is kept on button outside container
         expect(".outside").toBeFocused();
-        // Virtually focused element has "focus" class
         expect(expected).toHaveClass("focus");
     }
 
@@ -265,7 +263,6 @@ test("items are focused only on mousemove, not on mouseenter", async () => {
 
     manuallyDispatchProgrammaticEvent(queryOne(".two"), "mouseenter");
     await animationFrame();
-    // mouseenter should be ignored
     expect(".two").not.toHaveClass("focus");
 
     await press("arrowdown");
@@ -274,7 +271,6 @@ test("items are focused only on mousemove, not on mouseenter", async () => {
 
     manuallyDispatchProgrammaticEvent(queryOne(".three"), "mousemove");
     await animationFrame();
-    // mousemove should not be ignored
     expect(".three").toHaveClass("focus");
     expect(".two").not.toHaveClass("focus");
 
@@ -284,9 +280,6 @@ test("items are focused only on mousemove, not on mouseenter", async () => {
 });
 
 test("non-navigable dom update does NOT cause re-focus", async () => {
-    // Guards against a DOM update (e.g. ALT key showing hotkeys) causing an
-    // unwanted refocus of a navigable item.
-
     class Parent extends Component {
         static props = [];
         static template = xml`

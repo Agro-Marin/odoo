@@ -210,7 +210,6 @@ test("many2many kanban: edition", async () => {
         const [record] = MockServer.env["partner.type"].search_read([
             ["name", "=", "A new type"],
         ]);
-        // get the created type's id
         expect(commands).toEqual([
             Command.link(3),
             Command.link(4),
@@ -227,17 +226,17 @@ test("many2many kanban: edition", async () => {
     );
 
     PartnerType._views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <field name="name" />
             </form>
         `,
-        list: /* xml */ `
+        list: `
             <list>
                 <field name="name" />
             </list>
         `,
-        search: /* xml */ `
+        search: `
             <search>
                 <field name="name" string="Name" />
             </search>
@@ -248,7 +247,7 @@ test("many2many kanban: edition", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="timmy">
                     <kanban>
@@ -276,18 +275,14 @@ test("many2many kanban: edition", async () => {
     expect(`.o_kanban_renderer .delete_icon`).toBeVisible();
     expect(`.o_field_many2many .o-kanban-button-new:visible`).toHaveText("Add pokemon");
 
-    // edit existing subrecord
-
     await clickKanbanRecord({ text: "gold" });
 
     await fieldInput("name").edit("new name");
     await clickModalButton({ text: "Save" });
-    await animationFrame(); // todo: ????
+    await animationFrame();
 
     expect(".o_kanban_record:first:visible").toHaveText("new name");
 
-    // add subrecords
-    // -> single select
     await contains(".o_view_controller .btn:contains(Add pokemon)").click();
 
     expect(".modal .o_list_view tbody .o_list_record_selector").toHaveCount(3);
@@ -297,7 +292,6 @@ test("many2many kanban: edition", async () => {
     expect(".o_kanban_record:visible:not(.o-kanban-button-new)").toHaveCount(3);
     expect(".o_kanban_record:contains(red)").toBeVisible();
 
-    // -> multiple select
     await contains(".o_view_controller .btn:contains(Add pokemon)").click();
     expect(".modal .o_select_button").not.toBeEnabled();
     await animationFrame();
@@ -310,7 +304,6 @@ test("many2many kanban: edition", async () => {
     expect(".modal .o_list_view").toHaveCount(0);
     expect(".o_kanban_record:visible:not(.o-kanban-button-new)").toHaveCount(5);
 
-    // -> created record
     await contains(".o_view_controller .btn:contains(Add pokemon)").click();
     await clickModalButton({ text: "New" });
 
@@ -322,7 +315,6 @@ test("many2many kanban: edition", async () => {
     expect(".o_kanban_record:visible:not(.o-kanban-button-new)").toHaveCount(6);
     expect(".o_kanban_record:contains(A new type)").toBeVisible();
 
-    // delete subrecords
     await clickKanbanRecord({ text: "silver" });
 
     expect(".modal .modal-footer .o_btn_remove").toHaveCount(1);
@@ -337,7 +329,6 @@ test("many2many kanban: edition", async () => {
     expect(".o_kanban_record:visible:not(.o-kanban-button-new)").toHaveCount(4);
     expect(".o_kanban_record:contains(blue)").toHaveCount(0);
 
-    // save the record
     await clickSave();
 });
 
@@ -470,7 +461,6 @@ test("many2many kanban: conditional create/delete actions", async () => {
         resId: 1,
     });
 
-    // color is red
     expect(".o-kanban-button-new").toHaveCount(1, {
         message: '"Add" button should be available',
     });
@@ -483,7 +473,6 @@ test("many2many kanban: conditional create/delete actions", async () => {
     expect(".modal .modal-footer button").toHaveCount(3);
     await contains(".modal .modal-footer .o_form_button_cancel:eq(0)").click();
 
-    // set color to black
     await editSelectMenu(".o_field_widget[name='color'] input", { value: "Black" });
     expect(".o-kanban-button-new").toHaveCount(1, {
         message:
@@ -491,8 +480,6 @@ test("many2many kanban: conditional create/delete actions", async () => {
     });
 
     await contains(".o-kanban-button-new:eq(0)").click();
-    // only select and cancel button should be available, create
-    // button should be removed based on color field condition
     expect(".modal .modal-footer button").toHaveCount(2);
     await contains(".modal .modal-footer .o_form_button_cancel:eq(0)").click();
 
@@ -634,7 +621,6 @@ test("add a new record in a many2many non editable list", async () => {
 
     stepAllNetworkCalls();
     onRpc("web_save", ({ kwargs }) => {
-        // should not read the record as we're closing the dialog
         expect(kwargs.specification).toEqual({});
     });
     await mountView({
@@ -677,7 +663,6 @@ test("add record in a many2many non editable list with context", async () => {
         search: '<search><field name="name"/></search>',
     };
     onRpc("web_search_read", (args) => {
-        // done by the SelectCreateDialog
         expect(args.kwargs.context).toEqual({
             abc: 2,
             allowed_company_ids: [1],
@@ -746,7 +731,6 @@ test("many2many list (editable): edition", async () => {
     expect("td.o_list_record_remove button").toHaveClass("fa-solid fa-xmark");
     expect(".o_field_x2many_list_row_add").toHaveCount(1);
 
-    // edit existing subrecord
     await contains(".o_list_renderer tbody td:eq(0)").click();
     expect(".modal").toHaveCount(0);
     expect(".o_list_renderer tbody tr:eq(0)").toHaveClass("o_selected_row");
@@ -764,7 +748,6 @@ test("many2many list (editable): edition", async () => {
     });
     expect.verifySteps(["get_views", "web_read"]);
 
-    // add new subrecords
     await contains(".o_field_x2many_list_row_add a").click();
     expect(".modal").toHaveCount(1);
     expect(".modal .o_list_view .o_data_row").toHaveCount(1);
@@ -772,14 +755,12 @@ test("many2many list (editable): edition", async () => {
     expect(".modal .o_list_view").toHaveCount(0);
     expect(".o_list_renderer td.o_list_number").toHaveCount(3);
 
-    // remove subrecords
     await contains(".o_list_record_remove:eq(1)").click();
     expect(".o_list_renderer td.o_list_number").toHaveCount(2);
     expect(".o_list_renderer tbody .o_data_row td:eq(0)").toHaveText("new name", {
         message: "the updated row still has the correct values",
     });
 
-    // save
     await clickSave();
     expect(".o_list_renderer td.o_list_number").toHaveCount(2);
     expect(".o_list_renderer .o_data_row td:eq(0)").toHaveText("new name", {
@@ -787,11 +768,11 @@ test("many2many list (editable): edition", async () => {
     });
 
     expect.verifySteps([
-        "get_views", // list view in dialog
-        "web_search_read", // list view in dialog
+        "get_views",
+        "web_search_read",
         "has_group",
-        "web_read", // relational field (updated)
-        "web_save", // save main record
+        "web_read",
+        "web_save",
     ]);
 });
 
@@ -856,8 +837,6 @@ test("many2many list: create action disabled", async () => {
 });
 
 test("fieldmany2many list comodel not writable", async () => {
-    // Many2Many list behaves like m2m_tags: the relation can be altered even when
-    // the comodel itself isn't CRUD-able (e.g. read-only access to the comodel).
     expect.assertions(12);
 
     PartnerType._views = {
@@ -927,7 +906,6 @@ test("many2many list: conditional create/delete actions", async () => {
         resId: 1,
     });
 
-    // color is red -> create and delete actions are available
     expect(".o_field_x2many_list_row_add").toHaveCount(1, {
         message: "should have the 'Add an item' link",
     });
@@ -939,11 +917,8 @@ test("many2many list: conditional create/delete actions", async () => {
 
     await contains(".modal .modal-footer .o_form_button_cancel:eq(0)").click();
 
-    // set color to black -> create and delete actions are no longer available
     await editSelectMenu(".o_field_widget[name='color'] input", { value: "Black" });
 
-    // add a line and remove icon should still be there as they don't create/delete records,
-    // but rather add/remove links
     expect(".o_field_x2many_list_row_add").toHaveCount(1);
     expect(".o_list_record_remove").toHaveCount(2);
 
@@ -972,7 +947,6 @@ test("many2many field with link/unlink options (list)", async () => {
         resId: 1,
     });
 
-    // color is red -> link and unlink actions are available
     expect(".o_field_x2many_list_row_add").toHaveCount(1);
     expect(".o_list_record_remove").toHaveCount(2);
 
@@ -982,7 +956,6 @@ test("many2many field with link/unlink options (list)", async () => {
 
     await contains(".modal .modal-footer .o_form_button_cancel:eq(0)").click();
 
-    // set color to black -> link and unlink actions are no longer available
     await editSelectMenu(".o_field_widget[name='color'] input", { value: "Black" });
 
     expect(".o_field_x2many_list_row_add").toHaveCount(0);
@@ -1010,7 +983,6 @@ test('many2many field with link/unlink options (list, create="0")', async () => 
         resId: 1,
     });
 
-    // color is red -> link and unlink actions are available
     expect(".o_field_x2many_list_row_add").toHaveCount(1);
     expect(".o_list_record_remove").toHaveCount(2);
 
@@ -1020,7 +992,6 @@ test('many2many field with link/unlink options (list, create="0")', async () => 
 
     await contains(".modal .modal-footer .o_form_button_cancel:eq(0)").click();
 
-    // set color to black -> link and unlink actions are no longer available
     await editSelectMenu(".o_field_widget[name='color'] input", { value: "Black" });
 
     expect(".o_field_x2many_list_row_add").toHaveCount(0);
@@ -1053,7 +1024,6 @@ test("many2many field with link option (kanban)", async () => {
         resId: 1,
     });
 
-    // color is red -> link and unlink actions are available
     expect(".o-kanban-button-new").toHaveCount(1);
 
     await contains(".o-kanban-button-new").click();
@@ -1062,7 +1032,6 @@ test("many2many field with link option (kanban)", async () => {
 
     await contains(".modal .modal-footer .o_form_button_cancel:eq(0)").click();
 
-    // set color to black -> link and unlink actions are no longer available
     await editSelectMenu(".o_field_widget[name='color'] input", { value: "Black" });
 
     expect(".o-kanban-button-new").toHaveCount(0);
@@ -1093,7 +1062,6 @@ test('many2many field with link option (kanban, create="0")', async () => {
         resId: 1,
     });
 
-    // color is red -> link and unlink actions are available
     expect(".o-kanban-button-new").toHaveCount(1);
 
     await contains(".o-kanban-button-new").click();
@@ -1102,7 +1070,6 @@ test('many2many field with link option (kanban, create="0")', async () => {
 
     await contains(".modal .modal-footer .o_form_button_cancel:eq(0)").click();
 
-    // set color to black -> link and unlink actions are no longer available
     await editSelectMenu(".o_field_widget[name='color'] input", { value: "Black" });
 
     expect(".o-kanban-button-new").toHaveCount(0);
@@ -1271,8 +1238,6 @@ test("many2many list with x2many: add a record", async () => {
 });
 
 test("many2many with a domain", async () => {
-    // The domain specified on the field should not be replaced by the potential
-    // domain the user writes in the dialog, they should rather be concatenated
     PartnerType._views = {
         list: '<list><field name="name"/></list>',
         search: '<search><field name="name" string="Name"/></search>',
@@ -1392,7 +1357,7 @@ test("many2many editable list: delete with confirmation (cancel, then delete aga
     expect(".o_dialog").toHaveCount(0);
     expect(".o_data_row").toHaveCount(2);
 
-    await runAllTimers(); // the button is disabled (programmatically) for a while
+    await runAllTimers();
     await contains(".o_list_record_remove button").click();
     expect(".o_dialog").toHaveCount(1);
 
@@ -1540,11 +1505,8 @@ test("many2many widget: creates a new record with a context containing the paren
 });
 
 test("onchange with 40+ commands for a many2many", async () => {
-    // this test ensures that the basic_model correctly handles more LINK_TO
-    // commands than the limit of the dataPoint (40 for x2many kanban)
     expect.assertions(10);
 
-    // create a lot of partner_types that will be linked by the onchange
     const commands = [];
     for (let id = 100; id < 145; id++) {
         PartnerType._records.push({ id, name: "type " + id });
@@ -1616,10 +1578,6 @@ test("onchange with 40+ commands for a many2many", async () => {
 
 test.tags("desktop");
 test("onchange with 40+ commands for a many2many on desktop", async () => {
-    // this test ensures that the basic_model correctly handles more LINK_TO
-    // commands than the limit of the dataPoint (40 for x2many kanban)
-
-    // create a lot of partner_types that will be linked by the onchange
     const commands = [];
     for (let id = 100; id < 145; id++) {
         PartnerType._records.push({ id, name: "type " + id });
@@ -1748,7 +1706,6 @@ test("many2many list add *many* records, remove, re-add", async () => {
         resId: 1,
     });
 
-    // First round: add 51 records in batch
     await contains(".o_field_x2many_list_row_add a").click();
 
     expect(".modal-lg").toHaveCount(1);
@@ -1758,7 +1715,7 @@ test("many2many list add *many* records, remove, re-add", async () => {
 
     await contains(".btn.btn-primary.o_select_button:eq(0)").click();
 
-    expect(".o_data_row").toHaveCount(51); // the 50 in batch + 'gold'
+    expect(".o_data_row").toHaveCount(51);
 
     expect(
         ".o_field_many2many.o_field_widget .o_field_x2many.o_field_x2many_list .o_cp_pager",
@@ -1774,7 +1731,6 @@ test("many2many list add *many* records, remove, re-add", async () => {
         ".o_field_many2many.o_field_widget .o_field_x2many.o_field_x2many_list .o_pager_value",
     ).toHaveText("1-40");
 
-    // Secound round: remove one record
     await contains(
         ".o_field_many2many.o_field_widget .o_field_x2many.o_field_x2many_list .o_list_record_remove:eq(0)",
     ).click();
@@ -1782,7 +1738,6 @@ test("many2many list add *many* records, remove, re-add", async () => {
         ".o_field_many2many.o_field_widget .o_field_x2many.o_field_x2many_list .o_pager_limit",
     ).toHaveText("50");
 
-    // Third round: re-add 1 records
     await contains(".o_field_x2many_list_row_add a:eq(0)").click();
 
     expect(".modal-lg").toHaveCount(1);
@@ -2113,7 +2068,6 @@ test("highlight search in many2many", async () => {
 });
 
 test("test view button warning on opening unsaved record", async () => {
-    // Making the field required so that we get a sticky notification
     Turtle._fields.name.required = true;
 
     mockService("notification", {

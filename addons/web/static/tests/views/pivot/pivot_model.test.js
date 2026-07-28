@@ -39,8 +39,6 @@ import {
     getGroupValues,
 } from "@web/views/pivot/pivot_value_utils";
 
-// Helpers
-
 /**
  * Build a minimal group tree node.
  * @param {Array} [values=[]] - group values (row or col)
@@ -58,8 +56,6 @@ function makeConfig(fields = {}, extraData = {}) {
         data: { numbering: {}, groupDomains: {}, ...extraData },
     };
 }
-
-// addGroup
 
 describe("addGroup — tree mutation", () => {
     test("adds a first-level group to an empty tree", () => {
@@ -85,9 +81,8 @@ describe("addGroup — tree mutation", () => {
     test("silently skips a duplicate value at the same level", () => {
         const tree = makeTree();
         addGroup(tree, ["Alice"], [1]);
-        addGroup(tree, ["Alice Updated"], [1]); // same value
+        addGroup(tree, ["Alice Updated"], [1]);
 
-        // First registration wins
         expect(tree.directSubTrees.get(1).root.labels).toEqual(["Alice"]);
         expect(tree.directSubTrees.size).toBe(1);
     });
@@ -105,8 +100,6 @@ describe("addGroup — tree mutation", () => {
         ]);
     });
 });
-
-// findGroup
 
 describe("findGroup — tree lookup", () => {
     test("finds a first-level group by value", () => {
@@ -141,8 +134,6 @@ describe("findGroup — tree lookup", () => {
     });
 });
 
-// getTreeHeight
-
 describe("getTreeHeight — depth computation", () => {
     test("single root with no children has height 1", () => {
         expect(getTreeHeight(makeTree())).toBe(1);
@@ -167,14 +158,11 @@ describe("getTreeHeight — depth computation", () => {
         const tree = makeTree();
         addGroup(tree, ["A"], [1]);
         addGroup(tree, ["B"], [2]);
-        addGroup(tree, ["A", "C"], [1, 3]); // depth 2 under A
+        addGroup(tree, ["A", "C"], [1, 3]);
 
-        // Max(2, 1) + 1 = 3
         expect(getTreeHeight(tree)).toBe(3);
     });
 });
-
-// getLeafCounts
 
 describe("getLeafCounts — leaf node counting", () => {
     test("a node with no children has leaf count 1", () => {
@@ -204,14 +192,11 @@ describe("getLeafCounts — leaf node counting", () => {
 
         const counts = getLeafCounts(root);
 
-        // Only the deepest node [1,2] is a true leaf → all ancestors = 1
         expect(counts[JSON.stringify([])]).toBe(1);
         expect(counts[JSON.stringify([1])]).toBe(1);
         expect(counts[JSON.stringify([1, 2])]).toBe(1);
     });
 });
-
-// hasData
 
 describe("hasData — table non-emptiness", () => {
     test("returns true when the total cell count is positive", () => {
@@ -227,15 +212,13 @@ describe("hasData — table non-emptiness", () => {
     });
 });
 
-// pruneTree
-
 describe("pruneTree — collapse to oldTree shape", () => {
     test("clears all children when oldTree is a leaf", () => {
         const tree = makeTree();
         addGroup(tree, ["A"], [1]);
         addGroup(tree, ["B"], [2]);
 
-        const oldTree = makeTree(); // no children
+        const oldTree = makeTree();
 
         pruneTree(tree, oldTree);
 
@@ -248,35 +231,29 @@ describe("pruneTree — collapse to oldTree shape", () => {
         addGroup(tree, ["B"], [2]);
 
         const oldTree = makeTree();
-        oldTree.directSubTrees.set(1, makeTree([1], ["A"])); // only "A" was expanded
+        oldTree.directSubTrees.set(1, makeTree([1], ["A"]));
 
         pruneTree(tree, oldTree);
 
-        // "A" (key=1) still has its subtree; "B" (key=2) is now a leaf
         expect(tree.directSubTrees.has(1)).toBe(true);
         expect(tree.directSubTrees.get(2).directSubTrees.size).toBe(0);
     });
 
     test("recursively prunes nested subtrees to match oldTree depth", () => {
-        // tree: root → A → B → C (depth 3)
-        // oldTree: root → A (leaf, depth 1)
         const tree = makeTree();
         addGroup(tree, ["A"], [1]);
         addGroup(tree, ["A", "B"], [1, 2]);
         addGroup(tree, ["A", "B", "C"], [1, 2, 3]);
 
         const oldTree = makeTree();
-        const oldA = makeTree([1], ["A"]); // leaf (no children)
+        const oldA = makeTree([1], ["A"]);
         oldTree.directSubTrees.set(1, oldA);
 
         pruneTree(tree, oldTree);
 
-        // A should be pruned to a leaf (B and C gone)
         expect(tree.directSubTrees.get(1).directSubTrees.size).toBe(0);
     });
 });
-
-// sortTree
 
 describe("sortTree — key ordering", () => {
     test("sets sortedKeys in ascending order", () => {
@@ -285,7 +262,6 @@ describe("sortTree — key ordering", () => {
         addGroup(tree, ["A"], [1]);
         addGroup(tree, ["C"], [3]);
 
-        // sortFunction returns identity (numeric ascending)
         sortTree((_tree) => (key) => key, tree);
 
         expect(tree.sortedKeys).toEqual([1, 2, 3]);
@@ -311,11 +287,9 @@ describe("sortTree — key ordering", () => {
         sortTree((_tree) => (key) => key, tree);
 
         const aTree = tree.directSubTrees.get(1);
-        expect(aTree.sortedKeys).toEqual([3, 4]); // ascending
+        expect(aTree.sortedKeys).toEqual([3, 4]);
     });
 });
-
-// getGroupValues — value sanitization
 
 describe("getGroupValues — value extraction", () => {
     const fields = {
@@ -339,7 +313,6 @@ describe("getGroupValues — value extraction", () => {
     });
 
     test("normalizes date field groupBy name to include interval", () => {
-        // "date_field" without interval → normalize adds ":month"
         const group = { "date_field:month": "2024-01" };
         const result = getGroupValues(group, ["date_field"], fields);
 
@@ -353,8 +326,6 @@ describe("getGroupValues — value extraction", () => {
         expect(result).toEqual([1, "done"]);
     });
 });
-
-// getGroupBySpecs — deduplication and normalization
 
 describe("getGroupBySpecs — spec building", () => {
     const fields = {
@@ -388,8 +359,6 @@ describe("getGroupBySpecs — spec building", () => {
     });
 });
 
-// getGroupDomain — domain lookup from data
-
 describe("getGroupDomain — domain retrieval", () => {
     test("returns the domain for a given row/col group pair", () => {
         const rowValues = [1];
@@ -410,8 +379,6 @@ describe("getGroupDomain — domain retrieval", () => {
         expect(result).toBe(undefined);
     });
 });
-
-// getMeasureSpecs — measure spec building
 
 describe("getMeasureSpecs — aggregator normalization", () => {
     test("__count passes through unchanged", () => {
@@ -459,7 +426,7 @@ describe("getMeasureSpecs — aggregator normalization", () => {
         const config = {
             metaData: {
                 activeMeasures: ["amount"],
-                fields: { amount: { type: "float" } }, // no aggregator
+                fields: { amount: { type: "float" } },
             },
         };
 
@@ -467,13 +434,7 @@ describe("getMeasureSpecs — aggregator normalization", () => {
     });
 });
 
-// computeExportedTableWidth — Excel export column count
-
 describe("computeExportedTableWidth — exported column count", () => {
-    // The XLSX controller writes 1 title column, then measureCount value
-    // columns per leaf column group, plus measureCount columns for the
-    // "Total" group when there is more than one leaf.
-
     test("single measure keeps the historical leafCount + 2 width", () => {
         expect(computeExportedTableWidth(2, 1)).toBe(4);
         expect(computeExportedTableWidth(5, 1)).toBe(7);
@@ -481,7 +442,6 @@ describe("computeExportedTableWidth — exported column count", () => {
     });
 
     test("each measure adds a column per leaf and one in the Total group", () => {
-        // leafCount × 2 + 2 (Total group) + 1 (title column)
         expect(computeExportedTableWidth(3, 2)).toBe(9);
         expect(computeExportedTableWidth(3, 3)).toBe(13);
         expect(computeExportedTableWidth(9000, 2)).toBe(18003);
@@ -494,15 +454,10 @@ describe("computeExportedTableWidth — exported column count", () => {
 
     test("detects multi-measure tables over Excel's 16384-column limit", () => {
         const EXCEL_MAX_COLUMNS = 16384;
-        // 9,000 leaves fit with one measure but overflow with two: the
-        // pre-fix guard (leafCount + 2 = 9002) let this export through
-        // and produced a corrupt workbook.
         expect(computeExportedTableWidth(9000, 1) <= EXCEL_MAX_COLUMNS).toBe(true);
         expect(computeExportedTableWidth(9000, 2) > EXCEL_MAX_COLUMNS).toBe(true);
     });
 });
-
-// formatPivotForExport — XLSX payload shape
 
 describe("formatPivotForExport — export payload", () => {
     /**
@@ -635,8 +590,6 @@ describe("formatPivotForExport — export payload", () => {
     });
 });
 
-// PivotModel.getTableWidth — export guard width from the column group tree
-
 describe("PivotModel.getTableWidth — export guard width", () => {
     /**
      * Fabricate the minimal model state getTableWidth reads: a column group
@@ -661,7 +614,6 @@ describe("PivotModel.getTableWidth — export guard width", () => {
     test("two measures widen every leaf and the Total group", () => {
         const model = makeFakeModel(3, ["__count", "amount"]);
 
-        // 3 leaves × 2 measures + 2 (Total group) + 1 (title) = 9
         expect(PivotModel.prototype.getTableWidth.call(model)).toBe(9);
     });
 
@@ -670,13 +622,9 @@ describe("PivotModel.getTableWidth — export guard width", () => {
 
         const width = PivotModel.prototype.getTableWidth.call(model);
         expect(width).toBe(18003);
-        // The renderer refuses to call /web/pivot/export_xlsx when
-        // getTableWidth() > 16384 (see PivotRenderer.onDownloadButtonClicked).
         expect(width > 16384).toBe(true);
     });
 });
-
-// stripSortedKeys — flip-order invariant
 
 describe("stripSortedKeys — clears cached sort order", () => {
     test("removes sortedKeys recursively from a tree and its subtrees", () => {
@@ -692,8 +640,6 @@ describe("stripSortedKeys — clears cached sort order", () => {
         expect("sortedKeys" in tree.directSubTrees.get(1)).toBe(false);
     });
 });
-
-// getTableRows — stale sortedKeys must not hide children
 
 describe("getTableRows — stale sortedKeys fallback", () => {
     /** Minimal metaData/columns/data for a single-measure Total column. */
@@ -717,9 +663,6 @@ describe("getTableRows — stale sortedKeys fallback", () => {
         const tree = makeTree([], []);
         addGroup(tree, ["A"], [1]);
         addGroup(tree, ["B"], [2]);
-        // Stale sort order: only one key though the tree now has two children
-        // (e.g. a group expanded after a sort, or a transposed tree). The old
-        // `tree.sortedKeys || [...keys]` would iterate [2] and drop child A.
         tree.sortedKeys = [2];
 
         const { metaData, columns, data } = makeRowConfig();
@@ -732,7 +675,7 @@ describe("getTableRows — stale sortedKeys fallback", () => {
         const tree = makeTree([], []);
         addGroup(tree, ["A"], [1]);
         addGroup(tree, ["B"], [2]);
-        tree.sortedKeys = [2, 1]; // valid: covers both children
+        tree.sortedKeys = [2, 1];
 
         const { metaData, columns, data } = makeRowConfig();
         const rows = getTableRows(tree, columns, data, metaData);
@@ -741,13 +684,8 @@ describe("getTableRows — stale sortedKeys fallback", () => {
     });
 });
 
-// PivotRenderer.getPadding — reinstated enterprise seam
-
 describe("PivotRenderer.getPadding — row indentation seam", () => {
     test("indents 5px + 30px per level", () => {
-        // env is only read by the web_enterprise override (mobile shrinks the
-        // step); the base method ignores `this`. Providing it keeps the test
-        // valid whether or not the enterprise patch is loaded.
         const self = { env: { isSmall: false } };
         expect(PivotRenderer.prototype.getPadding.call(self, { indent: 0 })).toBe(5);
         expect(PivotRenderer.prototype.getPadding.call(self, { indent: 1 })).toBe(35);

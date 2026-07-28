@@ -1,4 +1,3 @@
-// this is technically wrong, but in practice, it is correct. 
 
 interface Element {
     querySelector<E extends HTMLElement = HTMLElement>(

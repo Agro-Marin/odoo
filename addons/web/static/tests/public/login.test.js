@@ -17,8 +17,6 @@ test("add and remove loading effect", async () => {
             <button type="submit">log in</button>
         </div>`);
     expect(core.interactions).toHaveLength(1);
-    // Bare Event, not manuallyDispatchProgrammaticEvent: no need for a full
-    // submit event (FormData, method, action, etc.) here.
     const ev = new Event("submit");
     queryOne(".oe_login_form").dispatchEvent(ev);
     expect("button").toHaveClass(["o_btn_loading", "disabled"]);

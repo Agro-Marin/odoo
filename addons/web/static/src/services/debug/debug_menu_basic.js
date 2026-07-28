@@ -14,8 +14,6 @@ import { useEnvDebugContext } from "./debug_context.js";
 
 const debugSectionRegistry = registry.category("debug_section");
 
-// Sections group debug-menu items: `label` is the dropdown header,
-// `sequence` orders the section blocks vertically.
 debugSectionRegistry.addValidation({
     label: String,
     sequence: { type: Number, optional: true },

@@ -28,7 +28,7 @@ const granularityToInterval = {
     year: { years: 1 },
 };
 
-export const AGGREGATABLE_FIELD_TYPES = ["float", "integer", "monetary"]; // types that can be aggregated in grouped views
+export const AGGREGATABLE_FIELD_TYPES = ["float", "integer", "monetary"];
 
 /**
  * Per-type server→client value deserializers, keyed by field type.
@@ -46,7 +46,6 @@ deserializers
     .add("datetime", (value) => (value ? deserializeDateTime(value) : false))
     .add("selection", (value, field) => {
         if (value === false) {
-            // process selection: convert false to 0, if 0 is a valid key
             return field.selection.some((opt) => opt[0] === 0) ? 0 : value;
         }
         return value;
@@ -63,11 +62,9 @@ deserializers
     })
     .add("many2one_reference", (value) => {
         if (value === 0) {
-            // unset many2one_reference fields' value is 0
             return false;
         }
         if (typeof value === "number") {
-            // many2one_reference fetched without "fields" key in spec -> only returns the id
             return { resId: value };
         }
         return {
@@ -77,7 +74,6 @@ deserializers
     })
     .add("many2one", (value) => {
         if (Array.isArray(value)) {
-            // Used for web_read_group, where the value is an array of [id, display_name]
             return { id: value[0], display_name: value[1] };
         }
         return value;
@@ -85,7 +81,6 @@ deserializers
     .add("properties", (value) =>
         value
             ? value.map((property) => {
-                  // Shallow-clone to avoid mutating the server response object
                   property = { ...property };
                   if (property.value !== undefined) {
                       property.value = parseServerValue(
@@ -114,24 +109,72 @@ export function parseServerValue(field, value) {
     return deserializers.get(field.type, (v) => v)(value, field);
 }
 
-// The spec list depends only on the fields map, which is invariant across a
-// load: memoize per fields object so the response path doesn't re-derive it
-// once per group per level (O(groups × totalFields) of pure recomputation).
+/**
+ * Memoised specs, keyed on the field container and then on the requested
+ * subset. The second level exists because the read-group REQUEST asks only for
+ * ``config.fieldsToAggregate`` while the RESPONSE is decoded against the whole
+ * ``config.fields`` — two different scopes over one long-lived container. The
+ * subset key is the field NAMES, not the array holding them: the kanban
+ * controller rebuilds ``fieldsToAggregate`` with ``.map()`` on every config, so
+ * an identity key would never match.
+ *
+ * @type {WeakMap<object, Map<string, string[]>>}
+ */
 const aggregateSpecCache = new WeakMap();
 
-export function getAggregateSpecifications(fields) {
-    let specs = aggregateSpecCache.get(fields);
+/**
+ * Drop the memoised aggregate specs for ``fields``. MUST be called whenever a
+ * ``fields`` container is mutated IN PLACE after the memo may have been built
+ * — property axes spliced in by ``RelationalModel._getPropertyDefinition`` and
+ * ``record_properties.processProperties``, form-view fields merged by
+ * ``StaticList.extendRecord``.
+ *
+ * No mutation reachable today introduces an ``aggregator``-bearing field (a
+ * property definition is a user-authored JSONB blob that carries no
+ * ``aggregator``), so this closes an invariant gap rather than a live bug. It
+ * exists because the sibling memo in ``record_utils.js`` keyed on the same
+ * mutable containers DOES have {@link invalidateModifierDependencies}, and a
+ * cache whose key can change under it without an invalidation hook is a trap
+ * for the next person who adds a field def with an aggregator.
+ *
+ * @param {Record<string, any> | any[]} fields
+ */
+export function invalidateAggregateSpecs(fields) {
+    aggregateSpecCache.delete(fields);
+}
+
+/**
+ * Build the ``aggregates`` list for a read-group: ``field:aggregator`` per
+ * aggregatable field, plus the currency companions monetary sums need.
+ *
+ * @param {Record<string, any> | any[]} fields field defs, by name or as a list
+ * @param {string[]} [fieldNames] restrict to these fields (default: all of
+ *  ``fields``). Deduplicated, and names absent from ``fields`` are skipped.
+ * @returns {string[]}
+ */
+export function getAggregateSpecifications(fields, fieldNames) {
+    let byScope = aggregateSpecCache.get(fields);
+    if (!byScope) {
+        byScope = new Map();
+        aggregateSpecCache.set(fields, byScope);
+    }
+    const scope = fieldNames && [...new Set(fieldNames)];
+    const scopeKey = scope ? scope.join(",") : "";
+    let specs = byScope.get(scopeKey);
     if (specs) {
         return specs;
     }
-    const aggregatableFields = Object.values(fields)
+    const scopedFields = scope
+        ? scope.filter((name) => name in fields).map((name) => fields[name])
+        : Object.values(fields);
+    const aggregatableFields = scopedFields
         .filter(
             (field) =>
                 field.aggregator && AGGREGATABLE_FIELD_TYPES.includes(field.type),
         )
         .map((field) => `${field.name}:${field.aggregator}`);
     const currencyFields = unique(
-        Object.values(fields)
+        scopedFields
             .filter((field) => field.aggregator && field.currency_field)
             .map((field) => [
                 `${field.currency_field}:array_agg_distinct`,
@@ -140,8 +183,30 @@ export function getAggregateSpecifications(fields) {
             .flat(),
     );
     specs = [...aggregatableFields, ...currencyFields];
-    aggregateSpecCache.set(fields, specs);
+    byScope.set(scopeKey, specs);
     return specs;
+}
+
+/**
+ * The domain-independent part of {@link extractInfoFromGroupData}: a group's
+ * aggregate values and its server-side value.
+ *
+ * Consumers that only bucket aggregates per group (the kanban progress bars)
+ * use this instead, so they stop paying for a per-group ``__domain`` — two
+ * Domain constructions plus an AST evaluation each — that they discard.
+ *
+ * @param {Object} groupData
+ * @param {string[]} groupBy
+ * @param {Object} fields
+ * @returns {{ aggregates: Object, serverValue: any }}
+ */
+export function extractAggregatesFromGroupData(groupData, groupBy, fields) {
+    const groupByField = fields[groupBy[0].split(":")[0]];
+    const value = getValueFromGroupData(groupByField, groupData[groupBy[0]]);
+    return {
+        aggregates: getAggregatesFromGroupData(groupData, fields),
+        serverValue: getGroupServerValue(groupByField, value),
+    };
 }
 
 /**
@@ -150,13 +215,15 @@ export function getAggregateSpecifications(fields) {
  * @param {Object} groupData
  * @param {string[]} groupBy
  * @param {Object} fields
+ * @param {any} domain search domain the groups were read under; combined with
+ *   each group's ``__extra_domain`` into ``info.domain``
  * @returns {Object}
  */
 export function extractInfoFromGroupData(groupData, groupBy, fields, domain) {
     const info = {};
     const groupByField = fields[groupBy[0].split(":")[0]];
     info.count = groupData.__count;
-    info.length = info.count; // Alias: DynamicRecordList._updateCount reads .length
+    info.length = info.count;
     info.domain = Domain.and([domain, groupData.__extra_domain]).toList();
     info.rawValue = groupData[groupBy[0]];
     info.value = getValueFromGroupData(groupByField, info.rawValue);
@@ -170,7 +237,7 @@ export function extractInfoFromGroupData(groupData, groupBy, fields, domain) {
     info.displayName = getDisplayNameFromGroupData(groupByField, info.rawValue);
     info.serverValue = getGroupServerValue(groupByField, info.value);
     info.aggregates = getAggregatesFromGroupData(groupData, fields);
-    info.values = groupData.__values; // Extra data of the relational groupby field record
+    info.values = groupData.__values;
     return info;
 }
 
@@ -186,8 +253,6 @@ function getAggregatesFromGroupData(groupData, fields) {
             if (aggregate === "sum_currency") {
                 const currencies =
                     groupData[`${fields[fieldName].currency_field}:array_agg_distinct`];
-                // The currency aggregate may be absent/false for empty
-                // expanded groups — only skip on a confirmed single currency.
                 if (currencies?.length === 1) {
                     continue;
                 }
@@ -206,12 +271,6 @@ function getAggregatesFromGroupData(groupData, fields) {
 function getDisplayNameFromGroupData(field, rawValue) {
     switch (field.type) {
         case "selection": {
-            // Test MEMBERSHIP, not truthiness: a selection can legitimately
-            // define a falsy-keyed option (``0`` or ``""``) with its own label,
-            // which ``rawValue ? …`` would mislabel as "None". Only a value with
-            // no entry at all falls back to the falsy label. (Object keys are
-            // strings, so ``in`` coerces the raw value the same way the lookup
-            // does.)
             const selectionMap = Object.fromEntries(field.selection);
             return rawValue in selectionMap
                 ? selectionMap[rawValue]
@@ -304,6 +363,16 @@ export function fromUnityToServerValues(
         let value = values[fieldName];
         const field = fields[fieldName];
         const activeField = activeFields[fieldName];
+        if (!field) {
+            // These payloads come from onchange commands for records the client
+            // never loaded, so the field universe they name is the SERVER's,
+            // not this view's. Pass an unknown field through untransformed
+            // rather than dereferencing ``undefined``: dropping it would lose
+            // a value the server asked us to write, and ``_mockRead`` in
+            // sample_server takes the same "unknown field is not fatal" line.
+            serverValues[fieldName] = value;
+            continue;
+        }
         if (!withReadonly) {
             if (field.readonly) {
                 continue;
@@ -317,7 +386,7 @@ export function fromUnityToServerValues(
                 // didn't read the record, so we ignore it
             }
         }
-        switch (fields[fieldName].type) {
+        switch (field.type) {
             case "one2many":
             case "many2many":
                 value = value.map((c) => {
@@ -332,10 +401,6 @@ export function fromUnityToServerValues(
                             }),
                         ];
                     }
-                    // Strip server-enriched record data from LINK commands: onchange
-                    // responses include cached data as element 3 (e.g.
-                    // [4, id, {display_name: ...}]) to avoid extra reads, but it
-                    // must not be sent back on save.
                     if (c[0] === LINK && c[2] && typeof c[2] === "object") {
                         return [LINK, c[1], false];
                     }
@@ -346,12 +411,6 @@ export function fromUnityToServerValues(
                 value = value ? value.id : false;
                 break;
             case "reference":
-                // Serialize the unity shape ``{resModel, resId, displayName}`` to
-                // the ORM's ``"model,id"`` string. Without this, a deferred x2many
-                // CREATE/UPDATE (pagination / always-invisible sub-list) that
-                // touches a reference field shipped the raw client object to
-                // ``web_save`` → server write error. Mirrors the ``reference``
-                // serializer in record_value_transforms.js.
                 value =
                     value?.resModel && value.resId
                         ? `${value.resModel},${value.resId}`

@@ -107,10 +107,6 @@ viewRegistry.addValidation({
 
 /** Default config used when env.config is absent or incomplete (standalone views). */
 export function getDefaultConfig() {
-    // Store the display name on the SAME reactive proxy the Breadcrumbs
-    // component reads (breadcrumbs[0].name), not a sibling reactive: OWL
-    // doesn't propagate subscriptions across proxy boundaries, so a getter
-    // forwarding to a different reactive wouldn't notify observers here.
     const breadcrumbReactive = reactive([{ name: undefined }]);
     const config = {
         actionId: false,
@@ -182,7 +178,6 @@ const STANDARD_PROPS = [
 
     ...CALLBACK_RECORDER_NAMES,
 
-    // LEGACY: remove this later (clean when mappings old state <-> new state are established)
     "searchPanel",
     "searchModel",
 ];
@@ -257,11 +252,6 @@ export class View extends Component {
 
         this.viewService = useService("view");
         this.withSearchProps = null;
-        // Monotonic load epoch: onWillUpdateProps re-invokes loadView on
-        // arch/type/resModel change, and its loadViews RPC is async. A slow
-        // older call must not resolve after a newer one and clobber
-        // this.Controller / componentProps / withSearchProps with stale data
-        // (M7). Each loadView captures its epoch and bails if superseded.
         this.loadViewId = 0;
 
         useSubEnv({
@@ -289,15 +279,12 @@ export class View extends Component {
     async loadView(props) {
         const loadId = ++this.loadViewId;
         const type = props.type;
-        // A View always runs inside an action, so env.config is present;
-        // alias it (same object reference, so mutations below still apply).
         const config = /** @type {Record<string, any>} */ (this.env.config);
 
         if (!session.view_info[type]) {
             throw new Error(`Invalid view type: ${type}`);
         }
 
-        // determine views for which descriptions should be obtained
         let { viewId, searchViewId } = props;
 
         const views = deepCopy(props.views || config.views);
@@ -307,7 +294,7 @@ export class View extends Component {
             viewId = view[0];
         } else {
             view.push(viewId || false, type);
-            views.push(view); // viewId will remain undefined if not specified and loadView=false
+            views.push(view);
         }
 
         const searchView = views.find((v) => v[1] === "search");
@@ -317,7 +304,6 @@ export class View extends Component {
         } else if (searchViewId !== undefined) {
             views.push([searchViewId, "search"]);
         }
-        // searchViewId will remains undefined if loadSearchView=false
 
         const { resModel, loadActionMenus, loadIrFilters } = props;
         const context = /** @type {Record<string, any>} */ (props.context ?? {});
@@ -336,13 +322,10 @@ export class View extends Component {
             (searchViewId !== undefined && !searchViewArch) ||
             (!irFilters && loadIrFilters);
 
-        // Widened to `any`: the assignment below replaces the initial
-        // {viewId, resModel, type} literal with a server-returned ViewDescription.
         /** @type {any} */
         let viewDescription = { viewId, resModel, type };
         let searchViewDescription;
         if (loadView || loadSearchView) {
-            // view (or search view) description is incomplete: loadViews fills it in
             const options = {
                 actionId: config.actionId,
                 loadActionMenus,
@@ -356,14 +339,9 @@ export class View extends Component {
                 { context, resModel, views },
                 options,
             );
-            // The only await in loadView: a newer loadView (props changed again)
-            // may have started while this RPC was in flight. Bail before writing
-            // any stale Controller/props — everything below runs synchronously
-            // to completion, so a single epoch check here is sufficient (M7).
             if (loadId !== this.loadViewId) {
                 return;
             }
-            // Note: if props.views differs from views, cached descriptions won't be reused.
             viewDescription = result.views[type];
             searchViewDescription = /** @type {any} */ (result.views).search;
             if (loadSearchView) {
@@ -437,7 +415,6 @@ export class View extends Component {
             className,
         };
         if (viewDescription.custom_view_id) {
-            // for dashboard
             viewProps.info.customViewId = viewDescription.custom_view_id;
         }
         if (props.globalState) {
@@ -476,7 +453,6 @@ export class View extends Component {
         const finalProps = descr.props
             ? descr.props(viewProps, descr, config)
             : viewProps;
-        // prepare the WithSearch component props
         this.Controller = descr.Controller;
         this.componentProps = finalProps;
         /** @type {Record<string, any>} */
@@ -500,9 +476,6 @@ export class View extends Component {
         }
 
         if (descr.display) {
-            // FIXME: there's something inelegant here: display might come from
-            // the View's defaultProps, in which case, modifying it in place
-            // would have unwanted effects.
             const viewDisplay = deepCopy(descr.display);
             const display = { ...this.withSearchProps.display };
             for (const key of Object.keys(viewDisplay)) {
@@ -530,10 +503,6 @@ export class View extends Component {
      * @param {ViewProps} nextProps
      */
     onWillUpdateProps(nextProps) {
-        // arch / type / resModel are all server-supplied primitives (XML string,
-        // view-type string, model name); reference equality is sufficient and
-        // skips two ``pick`` allocations plus two ``JSON.stringify`` passes per
-        // update.
         if (
             this.props.arch !== nextProps.arch ||
             this.props.type !== nextProps.type ||
@@ -541,8 +510,6 @@ export class View extends Component {
         ) {
             return this.loadView(nextProps);
         }
-        // we assume that nextProps can only vary in the search keys:
-        // context, domain, groupBy, orderBy
         const { context, domain, groupBy, orderBy } = nextProps;
         Object.assign(/** @type {Record<string, any>} */ (this.withSearchProps), {
             context,

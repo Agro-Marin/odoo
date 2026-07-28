@@ -23,7 +23,6 @@ class TestWebPerfRegression(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Dedicated company + user for stable query counts
         cls.company = cls.env["res.company"].create({"name": "PerfTest Company"})
         cls.user = cls.env["res.users"].create(
             {
@@ -81,17 +80,10 @@ class TestWebPerfRegression(TransactionCase):
             ]
         )
 
-        # ir.ui.menu has a native sequence field, needed by web_resequence.
-        # It also overrides write() (registry-wide cache clear), which forces
-        # web_resequence onto its per-record write() slow path.
         cls.test_menus = cls.env["ir.ui.menu"].create(
             [{"name": f"PerfMenu_{i}", "sequence": i * 10} for i in range(10)]
         )
 
-        # report.layout has a plain stored Integer sequence, no write()
-        # override anywhere in the addons tree, and is admin-writable
-        # (group_system): it qualifies for web_resequence's cache-dirty
-        # fast path.
         layout_view = cls.env["ir.ui.view"].search([], limit=1)
         cls.test_layouts = cls.env["report.layout"].create(
             [
@@ -108,9 +100,6 @@ class TestWebPerfRegression(TransactionCase):
         super().setUp()
         self.env = self.env(user=self.user)
 
-    # ------------------------------------------------------------------
-    # web_read: flat specification
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_read_basic(self):
@@ -118,12 +107,8 @@ class TestWebPerfRegression(TransactionCase):
         partners = self.partners.with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(2):
-            # 1 read (fields) + access rules
             partners.web_read({"name": {}, "email": {}, "type": {}})
 
-    # ------------------------------------------------------------------
-    # web_read: many2one with sub-fields
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_read_many2one_subfields(self):
@@ -131,8 +116,6 @@ class TestWebPerfRegression(TransactionCase):
         partners = self.partners.with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
-            # 1 read (partner fields) + 1 read (country co-records)
-            # + 1 sudo read (display_name) + access rules
             partners.web_read(
                 {
                     "name": {},
@@ -145,9 +128,6 @@ class TestWebPerfRegression(TransactionCase):
                 }
             )
 
-    # ------------------------------------------------------------------
-    # web_read: one2many with sub-fields
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_read_x2many_subfields(self):
@@ -155,8 +135,6 @@ class TestWebPerfRegression(TransactionCase):
         parent = self.parent_partner.with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(5):
-            # 1 flush + 1 read (parent) + 1 read (child co-records)
-            # + access rules
             parent.web_read(
                 {
                     "name": {},
@@ -170,9 +148,6 @@ class TestWebPerfRegression(TransactionCase):
                 }
             )
 
-    # ------------------------------------------------------------------
-    # web_read: many2many with sub-fields
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_read_many2many_subfields(self):
@@ -180,8 +155,6 @@ class TestWebPerfRegression(TransactionCase):
         partners = self.partners.with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
-            # 1 read (partner fields incl. m2m rel table)
-            # + 1 read (category co-records) + access rules
             partners.web_read(
                 {
                     "name": {},
@@ -194,9 +167,6 @@ class TestWebPerfRegression(TransactionCase):
                 }
             )
 
-    # ------------------------------------------------------------------
-    # web_search_read
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_search_read(self):
@@ -204,16 +174,12 @@ class TestWebPerfRegression(TransactionCase):
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
-            # 1 search + 1 fetch + 1 read + 1 count
             Partners.web_search_read(
                 domain=[("name", "like", "PerfPartner")],
                 specification={"name": {}, "email": {}, "country_id": {}},
                 limit=80,
             )
 
-    # ------------------------------------------------------------------
-    # web_read_group: single level, no unfold
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_read_group_single(self):
@@ -221,16 +187,12 @@ class TestWebPerfRegression(TransactionCase):
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(3):
-            # 1 flush + 1 _read_group + 1 access rules
             Partners.web_read_group(
                 domain=[("name", "like", "PerfPartner")],
                 groupby=["country_id"],
                 aggregates=["__count"],
             )
 
-    # ------------------------------------------------------------------
-    # web_read_group: with auto_unfold
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_read_group_auto_unfold(self):
@@ -238,7 +200,6 @@ class TestWebPerfRegression(TransactionCase):
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(5):
-            # _read_group + per-group search + union web_read + count
             Partners.web_read_group(
                 domain=[("name", "like", "PerfPartner")],
                 groupby=["country_id"],
@@ -247,9 +208,6 @@ class TestWebPerfRegression(TransactionCase):
                 unfold_read_specification={"name": {}, "email": {}},
             )
 
-    # ------------------------------------------------------------------
-    # search_panel_select_range: many2one with counters
-    # ------------------------------------------------------------------
 
     @warmup
     def test_search_panel_m2o(self):
@@ -257,16 +215,12 @@ class TestWebPerfRegression(TransactionCase):
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(3):
-            # 1 _read_group (image) + 1 _read_group (count) + access rules
             Partners.search_panel_select_range(
                 "country_id",
                 search_domain=[("name", "like", "PerfPartner")],
                 enable_counters=True,
             )
 
-    # ------------------------------------------------------------------
-    # search_panel_select_multi_range: many2many with counters (N+1)
-    # ------------------------------------------------------------------
 
     @warmup
     def test_search_panel_m2m_counters(self):
@@ -277,16 +231,12 @@ class TestWebPerfRegression(TransactionCase):
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(5):
-            # 1 domain_image + 1 search_read + 1 count_image + access rules
             Partners.search_panel_select_multi_range(
                 "category_id",
                 search_domain=[("name", "like", "PerfPartner")],
                 enable_counters=True,
             )
 
-    # ------------------------------------------------------------------
-    # web_name_search: display_name-only fast path
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_name_search(self):
@@ -294,41 +244,16 @@ class TestWebPerfRegression(TransactionCase):
         Partners = self.env["res.partner"].with_user(self.user)
         self.env.invalidate_all()
         with self.assertQueryCount(4):
-            # 1 name_search + 1 exists() guard (concurrent-unlink hardening in
-            # web_name_search's display_name fast path) + 1 browse/read
-            # + access rules
             Partners.web_name_search(
                 "PerfPartner",
                 specification={"display_name": {}},
                 limit=100,
             )
 
-    # ------------------------------------------------------------------
-    # web_save_multi (N+1: per-record write)
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_save_multi(self):
         """web_save_multi: write 10 records with unique vals (per-record write)."""
-        # Records with identical vals are batched into a single write(); with
-        # unique vals (as here), web_save_multi falls back to per-record writes.
-        #
-        # tracking_disable pins the web-layer cost independently of the install
-        # set: once mail is installed, res.partner is mail.thread-enabled and
-        # each tracked write adds one mail.message + one mail.tracking.value
-        # INSERT per record plus two batched reads (35 → 57 measured on
-        # base+web+mail). The historical pin of 70 was calibrated on such a
-        # richer dev database, so it never matched this test's own fixture
-        # (fresh base+web: 35) and the non-fatal undercount had made the pin
-        # inert. With tracking disabled the count is identical on base+web and
-        # base+web+mail (verified 2026-07-21).
-        #
-        # Tracking is not the only install-set hazard: any module whose models
-        # depend on res.partner fields widens the per-write modified() dependent
-        # searches the pin counts (test_orm alone adds one per record: 35 → 45,
-        # verified 2026-07-23 on pristine base+web+test_orm). Those extra queries
-        # are legitimate for that install set, so instead of failing falsely the
-        # strict pin only runs on DBs without framework test modules.
         if (
             self.env["ir.module.module"]
             .sudo()
@@ -344,28 +269,8 @@ class TestWebPerfRegression(TransactionCase):
         vals_list = [{"name": f"Updated_{i}"} for i in range(10)]
         self.env.invalidate_all()
         with self.assertQueryCount(35):
-            # 10 unique vals → 10 individual write() calls. Breakdown
-            # (recalibrated 2026-07-21 on the fixture this test
-            # guarantees — no optimizing commit to cite: the fixture
-            # count has been 35 since the pin landed):
-            # - 4  batched pre-reads on the first write(): partner
-            #   fetch (covers all 10 records via the prefetch set, and
-            #   feeds the final web_read from cache), company co-read,
-            #   and res.partner.bank / res.users dependent-record
-            #   lookups for the display-name dependencies
-            # - 30 = 10 x 3 per-record modified() searches — the pinned
-            #   N+1: each write() re-resolves the complete_name /
-            #   display_name dependents (children by parent_id,
-            #   commercial descendants by commercial_partner_id,
-            #   companies by partner_id)
-            # - 1  single batched UPDATE at flush (name, complete_name,
-            #   write_date, write_uid via UPDATE ... FROM (VALUES ...))
-            # The final web_read issues 0 queries (served from cache).
             partners.web_save_multi(vals_list, specification={"name": {}})
 
-    # ------------------------------------------------------------------
-    # web_resequence: fast path vs write()-override slow path
-    # ------------------------------------------------------------------
 
     @warmup
     def test_web_resequence_fast_path(self):
@@ -379,8 +284,6 @@ class TestWebPerfRegression(TransactionCase):
         layouts = self.test_layouts.with_user(self.env.ref("base.user_admin"))
         self.env.invalidate_all()
         with self.assertQueryCount(2):
-            # 1 flush (single batched UPDATE of the dirty sequences)
-            # + 1 web_read
             layouts.web_resequence(
                 specification={"name": {}, "sequence": {}},
                 field_name="sequence",

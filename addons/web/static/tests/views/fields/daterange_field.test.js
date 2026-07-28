@@ -62,9 +62,6 @@ class User extends models.Model {
 defineModels([Partner, User]);
 
 beforeEach(() => {
-    // Tests run in UTC; code that bypasses the framework's safe timezone helpers (the daterange
-    // picker lib does) can collide with the dev machine's local timezone. Use an offset far enough
-    // from UTC (>5h30 covers India) that this can't happen on any dev machine.
     mockTimeZone(+5.5);
 
     disableAnimations();
@@ -100,7 +97,6 @@ test("Datetime field - interaction with the datepicker", async () => {
             </form>`,
     });
 
-    // Check date range picker initialization
     expect(".o_field_daterange").toHaveCount(1);
     expect(".o_datetime_picker").toHaveCount(0);
 
@@ -122,7 +118,6 @@ test("Datetime field - interaction with the datepicker", async () => {
     await contains(".o_form_view_container").click();
     expect(".o_datetime_picker").toHaveCount(0);
 
-    // Try to check with end date
     await contains(".o_field_daterange:first button[data-field=datetime_end]").click();
 
     expect(".o_datetime_picker").toBeDisplayed();
@@ -139,13 +134,11 @@ test("Datetime field - interaction with the datepicker", async () => {
     await animationFrame();
     expect(".o_time_picker_option").toHaveCount(24 * 4);
 
-    // Select a new range and check that inputs are updated
-    await contains(getPickerCell("8").at(0)).click(); // 02/08/2017
-    await contains(getPickerCell("9").at(0)).click(); // 02/09/2017
+    await contains(getPickerCell("8").at(0)).click();
+    await contains(getPickerCell("9").at(0)).click();
 
     await clickSave();
 
-    // Check date after save
     expect("button[data-field=datetime]").toHaveValue("02/08/2017 15:30:00");
     expect("button[data-field=datetime_end]").toHaveValue("02/09/2017 05:30:00");
 });
@@ -192,7 +185,6 @@ test("Date field - interaction with the datepicker", async () => {
             </form>`,
     });
 
-    // Check date range picker initialization
     expect(".o_field_daterange").toHaveCount(1);
     expect(".o_datetime_picker").toHaveCount(0);
 
@@ -201,19 +193,16 @@ test("Date field - interaction with the datepicker", async () => {
     expect(".o_select_start").toHaveText("3");
     expect(".o_select_end").toHaveText("8");
 
-    // Change date
-    await contains(getPickerCell("16")).click(); // 2017-02-16
+    await contains(getPickerCell("16")).click();
     await contains("button.o_next").click();
-    await contains(getPickerCell("12")).click(); // 2017-03-12
+    await contains(getPickerCell("12")).click();
 
     await contains(".o_form_view").click();
 
-    // Check date after change
     expect(".o_datetime_picker:first").not.toHaveCount();
     expect("button[data-field=date]").toHaveValue("02/16/2017");
     expect("button[data-field=date_end]").toHaveValue("03/12/2017");
 
-    // Try to change range with end date
     await contains("button[data-field=date_end]").click();
 
     expect(".o_datetime_picker:first").toBeDisplayed();
@@ -221,20 +210,17 @@ test("Date field - interaction with the datepicker", async () => {
     await contains("button.o_previous").click();
     expect(".o_select_start").toHaveText("16");
 
-    // Change date
     await contains(getPickerCell("13")).click();
     await contains("button.o_next").click();
     await contains(getPickerCell("18")).click();
     await contains(".o_form_view").click();
 
-    // Check date after change
     expect(".o_datetime_picker:first").not.toHaveCount();
     expect("button[data-field=date]").toHaveValue("02/13/2017");
     expect("button[data-field=date_end]").toHaveValue("03/18/2017");
 
     await clickSave();
 
-    // Check date after save
     expect("button[data-field=date]").toHaveValue("02/13/2017");
     expect("button[data-field=date_end]").toHaveValue("03/18/2017");
 });
@@ -258,7 +244,6 @@ test("Date field - interaction with the datepicker - empty dates", async () => {
     expect(".o_select_start").not.toHaveCount();
     expect(".o_select_end").not.toHaveCount();
 
-    // Change date
     await contains(getPickerCell("5")).click();
     await contains(getPickerCell("12")).click();
 
@@ -325,11 +310,9 @@ test("Datetime field manually input value should send utc value to server", asyn
         resId: 1,
     });
 
-    // check date display correctly in readonly
     expect("button[data-field=datetime]").toHaveValue("02/08/2017 15:30:00");
     expect("button[data-field=datetime_end]").toHaveValue("03/13/2017 05:30:00");
 
-    // update input for Datetime
     await contains("button[data-field=datetime]").click();
     await contains("input[data-field=datetime]").edit("02/08/2017 11:30:00");
     await clickSave();
@@ -350,13 +333,11 @@ test("Daterange field keyup should not erase end date", async () => {
         resId: 1,
     });
 
-    // check date display correctly in readonly
     expect("button[data-field=datetime]").toHaveValue("02/08/2017 15:30:00");
     expect("button[data-field=datetime_end]").toHaveValue("03/13/2017 05:30:00");
 
     await contains("button[data-field=datetime]").click();
 
-    // the keyup event should not be handled by o_datetime_picker
     await contains("input[data-field=datetime]").press("ArrowLeft");
     expect("input[data-field=datetime]").toHaveValue("02/08/2017 15:30:00");
     expect("button[data-field=datetime_end]").toHaveValue("03/13/2017 05:30:00");
@@ -383,7 +364,6 @@ test("Render with initial empty value: date field", async () => {
 
     await contains("button[data-field=date]").click();
 
-    // Add an end date
     await contains(".o_toggle_range").click();
     await press("Enter");
     await animationFrame();
@@ -516,13 +496,11 @@ test("Datetime field - open datepicker and toggle range with optional end date",
     expect("button[data-field=datetime_end]").toHaveCount(0);
     expect(".o_time_picker_input").toHaveValue("0:00");
 
-    // Range mode: on (add a end date)
     await contains(".o_toggle_range").click();
     await animationFrame();
     expect("input[data-field=datetime]").toHaveValue("03/13/2017 00:00:00");
     expect("button[data-field=datetime_end]").toHaveValue("03/13/2017 01:00:00");
 
-    // Range mode: off
     await contains(".o_toggle_range").click();
     await animationFrame();
     expect("input[data-field=datetime]").toHaveValue("03/13/2017 00:00:00");
@@ -552,13 +530,11 @@ test("Datetime field - open datepicker and toggle range with optional start date
     expect("input[data-field=datetime_end]").toHaveValue("03/13/2017 00:00:00");
     expect(".o_time_picker_input").toHaveValue("0:00");
 
-    // Range mode: on (add a end date)
     await contains(".o_toggle_range").click();
     await animationFrame();
     expect("input[data-field=datetime]").toHaveValue("03/12/2017 23:00:00");
     expect("button[data-field=datetime_end]").toHaveValue("03/13/2017 00:00:00");
 
-    // Range mode: off
     await contains(".o_toggle_range").click();
     await animationFrame();
     expect("button[data-field=datetime]").toHaveCount(0);
@@ -587,7 +563,6 @@ test("Datetime field - open datepicker and switch page", async () => {
                 </form>`,
     });
 
-    // Check date range picker initialization
     expect(".o_field_daterange").toHaveCount(1);
     expect(".o_datetime_picker").toHaveCount(0);
 
@@ -596,7 +571,6 @@ test("Datetime field - open datepicker and switch page", async () => {
     expect(".o_datetime_picker:first").toBeDisplayed();
 
     expect(".o_select_start").toHaveText("8");
-    // End date: id=1
     await contains("button.o_next").click();
     expect(".o_select_end").toHaveText("13");
 
@@ -604,13 +578,11 @@ test("Datetime field - open datepicker and switch page", async () => {
     expect(timePickerStart).toHaveValue("15:30");
     expect(timePickerEnd).toHaveValue("5:30");
 
-    // Close picker
     await contains(".o_form_view").click();
     expect(".o_datetime_picker:first").not.toHaveCount();
 
     await pagerNext();
 
-    // Check date range picker initialization
     expect(".o_field_daterange").toHaveCount(1);
     expect(".o_datetime_picker").toHaveCount(0);
 
@@ -619,7 +591,6 @@ test("Datetime field - open datepicker and switch page", async () => {
     expect(".o_datetime_picker:first").toBeDisplayed();
 
     expect(".o_select_start").toHaveText("10");
-    // End date id=2
     await contains("button.o_next").click();
     expect(".o_select_end").toHaveText("15");
 
@@ -634,7 +605,7 @@ test("related end date, both start date and end date empty", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end'}"/>
             </form>`,
@@ -670,7 +641,7 @@ test("required: related end date, both start date and end date empty", async () 
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="bool_field"/>
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end'}" required="bool_field"/>
@@ -722,8 +693,6 @@ test("required: related end date, both start date and end date empty", async () 
     expect(".o_field_daterange button").toHaveValue("07/07/2023 13:00:00");
     expect(".o_toggle_range").toHaveCount(0);
 
-    // Open the picker, this checks that props validation for the picker isn't
-    // broken by required being present
     await contains(".o_field_daterange input:eq(0)").click();
 });
 
@@ -733,7 +702,7 @@ test("related start date, both start date and end date empty", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime_end" widget="daterange" options="{'start_date_field': 'datetime'}"/>
             </form>`,
@@ -753,7 +722,7 @@ test("related end date, start date set and end date empty", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end'}"/>
             </form>`,
@@ -763,7 +732,6 @@ test("related end date, start date set and end date empty", async () => {
     expect(".o_field_daterange button").toHaveCount(1);
     expect(".o_field_daterange button:eq(0)").toHaveAttribute("data-field", "datetime");
 
-    // Open the datepicker
     await contains("button[data-field=datetime]").click();
     expect(".o_toggle_range").toBeVisible();
 });
@@ -772,7 +740,7 @@ test("related start date, start date set and end date empty", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime_end" widget="daterange" options="{'start_date_field': 'datetime'}"/>
             </form>`,
@@ -782,7 +750,6 @@ test("related start date, start date set and end date empty", async () => {
     expect(".o_field_daterange button").toHaveCount(1);
     expect(".o_field_daterange button:eq(0)").toHaveAttribute("data-field", "datetime");
 
-    // Open the datepicker
     await contains("button[data-field=datetime]").click();
     expect(".o_toggle_range").toBeVisible();
 });
@@ -795,7 +762,7 @@ test("related end date, start date empty and end date set", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end'}"/>
             </form>`,
@@ -808,7 +775,6 @@ test("related end date, start date empty and end date set", async () => {
         "datetime_end",
     );
 
-    // Open the datepicker
     await contains("button[data-field=datetime_end]").click();
     expect(".o_toggle_range").toBeVisible();
 });
@@ -821,7 +787,7 @@ test("related start date, start date empty and end date set", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime_end" widget="daterange" options="{'start_date_field': 'datetime'}"/>
             </form>`,
@@ -834,7 +800,6 @@ test("related start date, start date empty and end date set", async () => {
         "datetime_end",
     );
 
-    // Open the datepicker
     await contains("button[data-field=datetime_end]").click();
     expect(".o_toggle_range").toBeVisible();
 });
@@ -846,7 +811,7 @@ test("related end date, both start date and end date set", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end'}"/>
             </form>`,
@@ -869,7 +834,7 @@ test("related start date, both start date and end date set", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime_end" widget="daterange" options="{'start_date_field': 'datetime'}"/>
             </form>`,
@@ -908,7 +873,7 @@ test("related start date, required, both start date and end date set", async () 
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="date" widget="daterange" options="{'start_date_field': 'date_end'}" required="1" />
             </form>`,
@@ -926,7 +891,7 @@ test("list daterange with start date and empty end date", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="date" widget="daterange" options="{'end_date_field': 'date_end'}" />
             </list>`,
@@ -944,7 +909,7 @@ test("list daterange with empty start date and end date", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="date" widget="daterange" options="{'end_date_field': 'date_end'}" />
             </list>`,
@@ -968,7 +933,7 @@ test("list daterange: column widths", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="date" widget="daterange" options="{'end_date_field': 'date_end'}" />
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end'}" />
@@ -995,7 +960,7 @@ test("list daterange: column widths (numeric format)", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="date" widget="daterange" options="{'end_date_field': 'date_end', 'numeric': true}" />
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end', 'numeric': true}" />
@@ -1027,7 +992,7 @@ test("list daterange: column widths (show_time=false)", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="datetime" widget="daterange" options="{'show_time': false, 'end_date_field': 'datetime_end'}" />
                 <field name="char_field" />
@@ -1054,7 +1019,7 @@ test("list daterange: column widths (no record)", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="date" widget="daterange" options="{'end_date_field': 'date_end'}" />
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end'}" />
@@ -1074,7 +1039,7 @@ test("list daterange: start date input width matches its span counterpart", asyn
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list multi_edit="1">
                 <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end', 'numeric': true}" />
             </list>`,
@@ -1094,7 +1059,7 @@ test("always range: related end date, both start date and end date empty", async
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end', 'always_range': '1'}"/>
         </form>`,
@@ -1148,7 +1113,7 @@ test("there is no arrow between the dates with option always_range if nothing is
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end', 'always_range': 'true'}" />
             <field name="datetime" widget="daterange" options="{'end_date_field': 'datetime_end', 'always_range': 'true'}" readonly="true" />
@@ -1168,7 +1133,7 @@ test("invalid empty date with optional end date", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <label for="date" string="Daterange" />
             <field name="date" widget="daterange" options="{'end_date_field': 'date_end','always_range': '1'}"  string="Planned Date" required="date_end"/>
@@ -1192,7 +1157,7 @@ test("invalid empty date with optional start date", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <label for="date_end" string="Daterange" />
             <field name="date" invisible="1" required="date_end"/>
@@ -1255,7 +1220,7 @@ test("update the selected input date after removing the existing date", async ()
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
        <form>
             <field name="date" widget="daterange" options="{'start_date_field': 'date_end'}" required="1" />
         </form>`,
@@ -1316,8 +1281,6 @@ test("daterange field in kanban with show_time option", async () => {
     ]);
 });
 
-// desktop-only: edits the daterange picker's `input[data-field=datetime]` time
-// inputs, which the mobile BottomSheet picker does not expose.
 test.tags("desktop");
 test("updating time keeps selected dates", async () => {
     Partner._records[0].datetime_end = "2017-03-13 00:02:00";
@@ -1326,7 +1289,7 @@ test("updating time keeps selected dates", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime" options="{'end_date_field': 'datetime_end'}"/>
             </form>
@@ -1387,7 +1350,7 @@ test("daterange in list view with missing first date", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list multi_edit="1">
                 <field name="datetime_end" widget="daterange" options="{'start_date_field': 'datetime'}" />
             </list>

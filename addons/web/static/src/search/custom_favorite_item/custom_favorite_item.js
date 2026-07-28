@@ -80,7 +80,6 @@ export class CustomFavoriteItem extends Component {
                 this.saveFavorite(ev);
                 break;
             case "Escape":
-                // Gives the focus back to the component.
                 ev.preventDefault();
                 /** @type {HTMLElement} */ (ev.target).blur();
                 break;

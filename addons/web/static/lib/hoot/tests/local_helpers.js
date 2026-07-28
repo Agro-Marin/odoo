@@ -3,10 +3,6 @@
 import { after, destroy, getFixture } from "@odoo/hoot";
 import { App, Component, xml } from "@odoo/owl";
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 /**
  * @param {import("@odoo/owl").ComponentConstructor} ComponentClass
  * @param {ConstructorParameters<typeof App>[1]} [config]

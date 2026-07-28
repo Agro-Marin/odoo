@@ -46,9 +46,6 @@ test("single loadDisplayNames", async () => {
 
 test("loadDisplayNames maps every id when resIds contain duplicates", async () => {
     await makeMockEnv();
-    // The leading duplicate used to corrupt the result (record 1 took record 2's
-    // name and record 2 vanished) because the return zipped names against the
-    // non-deduped resIds. Every id must resolve to its own name.
     const displayNames = await getService("name").loadDisplayNames("dev", [1, 1, 2]);
     expect(displayNames).toEqual({ 1: "Julien", 2: "Pierre" });
 });
@@ -102,9 +99,6 @@ test("addDisplayNames refreshes an already-resolved name", async () => {
     expect(displayNames).toEqual({ 1: "Julien" });
     expect.verifySteps(["dev:web_search_read:1"]);
 
-    // A fresh name pushed over a settled cache entry (e.g. record renamed
-    // since first resolution, re-fetched by an autocomplete's name_search)
-    // must replace the stale value, without a new RPC.
     nameService.addDisplayNames("dev", { 1: "Julien (renamed)" });
     const refreshed = await nameService.loadDisplayNames("dev", [1]);
     expect(refreshed).toEqual({ 1: "Julien (renamed)" });
@@ -118,13 +112,9 @@ test("addDisplayNames settles in-flight loadDisplayNames callers", async () => {
     });
 
     const nameService = getService("name");
-    // Caller joins the microtask batch, then the name is added before the
-    // batch RPC settles: the caller must get the added name.
     const loadPromise = nameService.loadDisplayNames("dev", [1]);
     nameService.addDisplayNames("dev", { 1: "JUM" });
     expect(await loadPromise).toEqual({ 1: "JUM" });
-    // The already-opened batch still fired (its result is a no-op on the
-    // settled entry), but the added name stays authoritative.
     expect.verifySteps(["dev:web_search_read:1"]);
     expect(await nameService.loadDisplayNames("dev", [1])).toEqual({ 1: "JUM" });
 });
@@ -217,14 +207,8 @@ test("clearCache during an in-flight batch: all callers still settle", async () 
     });
 
     const nameService = getService("name");
-    // Caller A opens the batch (pre-clear Deferreds)...
     const loadPromise1 = nameService.loadDisplayNames("dev", [1, 4]);
-    // ...the cache is invalidated while the batch is still in flight...
     nameService.clearCache();
-    // ...and caller B joins the same batch with post-clear Deferreds. Before
-    // the fix, the flush resolved through caller A's stale cache mapping:
-    // caller B's ids were missing from it (TypeError inside the .then, whose
-    // .catch then rejected A) and caller B's own Deferreds never settled.
     const loadPromise2 = nameService.loadDisplayNames("dev", [2, 5]);
 
     const [displayNames1, displayNames2] = await Promise.all([
@@ -235,7 +219,6 @@ test("clearCache during an in-flight batch: all callers still settle", async () 
     expect(displayNames2).toEqual({ 2: "Pierre", 5: ERROR_INACCESSIBLE_OR_MISSING });
     expect.verifySteps(["dev:web_search_read:1,4,2,5"]);
 
-    // The clear stays effective: pre-clear ids are re-fetched afterwards.
     const displayNames3 = await nameService.loadDisplayNames("dev", [1]);
     expect(displayNames3).toEqual({ 1: "Julien" });
     expect.verifySteps(["dev:web_search_read:1"]);
@@ -253,8 +236,6 @@ test("clearCache during an in-flight batch: RPC failure rejects all callers", as
     nameService.clearCache();
     const loadPromise2 = nameService.loadDisplayNames("dev", [2]);
 
-    // Both the pre-clear and post-clear callers get a defined rejection —
-    // neither hangs on a Deferred nobody settles.
     await expect(loadPromise1).rejects.toThrow("boom");
     await expect(loadPromise2).rejects.toThrow("boom");
     expect.verifySteps(["web_search_read"]);
@@ -267,20 +248,15 @@ test("cache is bounded: cold entries evict past NAME_CACHE_LIMIT", async () => {
     });
     const nameService = getService("name");
 
-    // Fill the cache past the cap without any RPC (addDisplayNames populates
-    // the cache directly). Ids are inserted 1..LIMIT+2, so the two coldest
-    // (1 and 2) are evicted, leaving the cache at exactly NAME_CACHE_LIMIT.
     const many = {};
     for (let id = 1; id <= NAME_CACHE_LIMIT + 2; id++) {
         many[id] = `Name ${id}`;
     }
     nameService.addDisplayNames("dev", many);
 
-    // A coldest, evicted id is no longer cached -> the lookup re-fetches.
     await nameService.loadDisplayNames("dev", [1]);
     expect.verifySteps(["dev:web_search_read:1"]);
 
-    // A recently-added (warm) id is still cached -> no RPC.
     await nameService.loadDisplayNames("dev", [NAME_CACHE_LIMIT + 2]);
     expect.verifySteps([]);
 });
@@ -292,29 +268,23 @@ test("a recent lookup keeps its entry warm across later eviction", async () => {
     });
     const nameService = getService("name");
 
-    // Fill to exactly the cap (ids 1..LIMIT); id 1 is the coldest.
     const many = {};
     for (let id = 1; id <= NAME_CACHE_LIMIT; id++) {
         many[id] = `Name ${id}`;
     }
     nameService.addDisplayNames("dev", many);
 
-    // Touch id 1 (a cache hit, no RPC): it becomes the WARMEST entry.
     await nameService.loadDisplayNames("dev", [1]);
     expect.verifySteps([]);
 
-    // Two fresh ids push the size over the cap twice -> the two current
-    // coldest (2 and 3) evict; the just-touched id 1 survives.
     nameService.addDisplayNames("dev", {
         [NAME_CACHE_LIMIT + 1]: "extra a",
         [NAME_CACHE_LIMIT + 2]: "extra b",
     });
 
-    // id 1 survived (was warm) -> served from cache, no RPC.
     await nameService.loadDisplayNames("dev", [1]);
     expect.verifySteps([]);
 
-    // id 2 was evicted -> re-fetched.
     await nameService.loadDisplayNames("dev", [2]);
     expect.verifySteps(["dev:web_search_read:2"]);
 });

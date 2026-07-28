@@ -15,7 +15,6 @@ const TCTX = "t-translation-context";
  */
 function getTranslationContext(node) {
     if (!node || node.nodeType !== Node.ELEMENT_NODE) {
-        // Reached the root without finding a translation context.
         return translationContext ?? "";
     }
     const el = /** @type {Element} */ (node);
@@ -61,10 +60,6 @@ export function applyContextToTextNode() {
  * @returns {Node}
  */
 export function deepClone(node) {
-    // Native deep clone is O(n) in C++ vs. a per-node JS recursion. The only
-    // reason the old recursion existed was to carry `contextByTextNode`
-    // entries onto the clones, so replay just that mapping with a parallel
-    // TreeWalker, and only when the map actually holds entries.
     const clone = node.cloneNode(true);
     if (contextByTextNode.size) {
         remapTextNodeContexts(node, clone);
@@ -163,9 +158,6 @@ function getXpath(operation) {
             );
         }
     }
-    // hasclass does not exist in XPath 1.0; it's a custom function defined
-    // server side (see _hasclass) usable in lxml, so replace it with an
-    // equivalent condition. Assumes classes don't contain the chars , or )
     return xpath.replaceAll(HASCLASS_REGEXP, (_, capturedGroup) =>
         capturedGroup
             .split(",")
@@ -184,10 +176,6 @@ function getXpath(operation) {
  */
 function getNode(element, operation) {
     const root = getRoot(element);
-    // `doc.evaluate` (below) requires `root` to be attached to a document.
-    // `root` is normally already its own Document's documentElement, so only
-    // adopt it into a fresh Document when actually detached (right after
-    // being replaced by replace/outer) — avoids O(tree) waste per operation.
     if (root.ownerDocument?.documentElement !== root) {
         new Document().appendChild(root);
     }
@@ -400,13 +388,10 @@ function replace(root, target, operation) {
  * @returns {Element} root modified (in place) by the operations
  */
 export function applyInheritance(root, operations, url = "") {
-    translationContext = url.split("/")[1] ?? ""; // use addon name as context
+    translationContext = url.split("/")[1] ?? "";
     try {
         return applyOperations(root, operations, url);
     } finally {
-        // Always clear the module-global ambient context, even if an operation
-        // throws — a leaked stale context would silently mistranslate every
-        // subsequent template processed on this tick.
         translationContext = null;
     }
 }
@@ -431,7 +416,7 @@ function applyOperations(root, operations, url) {
                 ` From file: ${url} ; ${attributes.join(" ; ")} `,
             );
             if (position === "attributes") {
-                target.before(comment); // comment won't be visible if target is root
+                target.before(comment);
             } else {
                 operation.prepend(comment);
             }
@@ -439,7 +424,7 @@ function applyOperations(root, operations, url) {
 
         switch (position) {
             case "replace": {
-                root = replace(root, target, operation); // root can be replaced (see outer mode)
+                root = replace(root, target, operation);
                 break;
             }
             case "attributes": {

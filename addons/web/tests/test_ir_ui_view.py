@@ -35,6 +35,5 @@ class TestGetViewInfo(TransactionCase):
         info = self.env["ir.ui.view"].get_view_info()
         self.assertIn("form", info)
         self.assertIn("display_name", info["form"])
-        # form is the canonical single-record view
         self.assertFalse(info["form"]["multi_record"])
         self.assertNotIn("qweb", info, "qweb view type must be excluded")

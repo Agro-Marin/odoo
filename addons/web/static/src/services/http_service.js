@@ -47,7 +47,6 @@ function checkResponseStatus(response, readMethod, { rejectHtml = false } = {}) 
     }
     const { status, url } = response;
     if (status >= 502 && status <= 504) {
-        // 502 Bad Gateway / 503 Service Unavailable / 504 Gateway Timeout
         const error = new ConnectionLostError(url);
         error.message += ` (HTTP ${status})`;
         throw error;
@@ -89,8 +88,6 @@ export async function post(route, params = {}, readMethod = "json", options = {}
         formData = new FormData();
         for (const [key, value] of Object.entries(params)) {
             if (Array.isArray(value)) {
-                // One append per element; an empty array appends nothing
-                // (appending it directly would serialize to "").
                 for (const val of value) {
                     formData.append(key, val);
                 }
@@ -108,9 +105,6 @@ export async function post(route, params = {}, readMethod = "json", options = {}
 }
 
 export const httpService = {
-    // Wires destroy-protection at `useService("http")` time so a component
-    // unmounting mid-fetch won't resume into destroyed state on response.
-    // See `hooks.js:_protectMethod`.
     async: ["get", "post"],
     start() {
         return { get, post };

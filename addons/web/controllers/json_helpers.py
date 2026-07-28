@@ -91,9 +91,6 @@ def get_default_domain(model, action, context, eval_context):
         model._name, action._origin.id
     ):
         if ir_filter["is_default"]:
-            # Stored filter domain: substitute the ``uid`` identifier, then
-            # parse with literal_eval semantics only — no arbitrary code
-            # execution, and string values are never rewritten.
             default_domain = _eval_stored_domain(ir_filter["domain"], model.env.uid)
             break
     else:
@@ -124,8 +121,6 @@ def get_default_domain(model, action, context, eval_context):
                     ) is not None:
                         if domain := element.attrib.get("domain"):
                             yield domain
-                        # A filter's own context['group_by'] is intentionally
-                        # not applied here — only its domain is.
 
         default_domain = Domain.AND(
             safe_eval(domain, eval_context) for domain in filters_from_context()
@@ -170,8 +165,6 @@ def get_groupby(view_tree, groupby=None, fields=None):
                 field_by_type["invisible"].append(field_name)
             else:
                 field_by_type[element.attrib.get("type", "normal")].append(field_name)
-            # The date-grouping "interval" attribute (e.g. month/week) is not
-            # read here; groupby fields are returned without their interval.
         groupby = [
             *field_by_type.get("row", ()),
             *field_by_type.get("col", ()),
@@ -181,8 +174,5 @@ def get_groupby(view_tree, groupby=None, fields=None):
             fields = field_by_type.get("measure", [])
         return groupby, fields
     if field := view_tree.attrib.get("default_group_by"):
-        # Kanban (or other) views can declare a default grouping field, but
-        # this endpoint does not act on it as a groupby — return it as a
-        # `fields` entry instead, so the caller adds it to the read spec.
         return (None, [field])
     return None, None

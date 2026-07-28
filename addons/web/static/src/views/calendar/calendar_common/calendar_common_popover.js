@@ -58,11 +58,6 @@ export class CalendarCommonPopover extends Component {
             window,
             "pointerdown",
             (e) => {
-                // Scope preventDefault to the FullCalendar grid: a pointerdown
-                // there should only close the popover (click-away), not start a
-                // grid selection/drag. Pointerdown on the source event, or on
-                // unrelated UI (e.g. side-panel autocomplete), keeps its default
-                // so drag-&-drop and input focus keep working.
                 const onCalendar = e.target.closest(".o_calendar_widget, .fc-popover");
                 const onSourceEvent = e.target.closest(
                     `.fc-event[data-event-id="${this.props.record.id}"]`,
@@ -145,8 +140,6 @@ export class CalendarCommonPopover extends Component {
                 const minuteStr = duration.minutes === 1 ? _t("minute") : _t("minutes");
                 formatParts.push(`m '${luxonLiteral(minuteStr)}'`);
             }
-            // Zero-length timed events (start == end) would otherwise render
-            // an empty duration line (toFormat("") is "").
             this.timeDuration = formatParts.length
                 ? duration.toFormat(formatParts.join(", "))
                 : _t("0 minutes");

@@ -42,8 +42,6 @@ declare module "fields" {
         translate: boolean;
     }
 
-    // ------------------------------------------------------------------------
-
     export type BinaryFieldDefinition = IFieldDefinition<"binary">;
 
     export type BooleanFieldDefinition = IFieldDefinition<"boolean">;
@@ -106,8 +104,6 @@ declare module "fields" {
     };
 
     export type TextFieldDefinition = IFieldDefinition<"text"> & ITextual;
-
-    // ------------------------------------------------------------------------
 
     export type FieldDefinitionsByType = {
         binary: BinaryFieldDefinition;

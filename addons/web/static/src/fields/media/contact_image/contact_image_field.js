@@ -34,16 +34,10 @@ export class ContactImageField extends ImageField {
                 );
                 return this.lastURL;
             } else if (previewData) {
-                // Detect the image type via the base64 magic word instead of
-                // hardcoding PNG: a non-PNG inline preview (jpg/gif/svg/webp)
-                // would otherwise get the wrong MIME and fail to render.
                 const magic = fileTypeMagicWordMap[previewData[0]] || "png";
                 this.lastURL = `data:image/${magic};base64,${previewData}`;
                 return this.lastURL;
             }
-            // Neither the primary field nor the preview field holds data: fall
-            // through to the base placeholder instead of emitting a broken
-            // "data:image/png;base64,false" src.
         }
         return super.getUrl(imageFieldName);
     }

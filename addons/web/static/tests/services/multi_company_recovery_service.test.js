@@ -34,8 +34,6 @@ test("recoverFromLifecycleError no-ops when the suggested company is already act
     });
     const service = getService("multi_company_recovery");
 
-    // Suggested company (2) is already active: activating + reloading again
-    // would loop forever, so the recovery must bail out without side effects.
     const recovered = service.recoverFromLifecycleError(accessError(2), {
         env: {
             pushStateBeforeReload: () => expect.step("pushStateBeforeReload"),
@@ -84,10 +82,6 @@ test("recoverFromSaveError tolerates a missing allowed_company_ids context", asy
     const recovered = service.recoverFromSaveError(accessError(2), model);
 
     expect(recovered).toBe(true);
-    // The seed must include the user's currently-active companies, not just
-    // the suggested one: caller context keys win over user.context in
-    // ORM.call, so `[2]` alone would deactivate company 1 server-side for
-    // every subsequent RPC of this form session.
     expect(model.config.context.allowed_company_ids).toEqual([1, 2]);
     expect.verifySteps(["activate:1,2"]);
 });

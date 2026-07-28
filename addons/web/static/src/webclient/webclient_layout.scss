@@ -1,6 +1,3 @@
-// ------------------------------------------------------------------
-// Base layout rules, use the 'webclient.scss' file for styling
-// ------------------------------------------------------------------
 
 %o-html-layout-fill {
     height: 100%;
@@ -13,13 +10,12 @@
         @media (display-mode: browser) {
             overflow: hidden;
         }
-        // For iOS devices
         @supports (-webkit-touch-callout: none) {
             overflow: hidden;
         }
 
         > .o_action_manager {
-            direction: ltr; //Define direction attribute here so when rtlcss preprocessor run, it converts it to rtl
+            direction: ltr;
             flex: 1 1 auto;
             height: 100%;
             overflow: hidden;
@@ -31,11 +27,10 @@
                 overflow: hidden;
 
                 @include media-breakpoint-up(lg) {
-                    -ms-overflow-style: none; // IE and Edge
-                    scrollbar-width: none; // Firefox
+                    -ms-overflow-style: none;
+                    scrollbar-width: none;
 
                     &::-webkit-scrollbar {
-                        // Chrome, Safari and Opera
                         display: none;
                     }
                 }
@@ -49,8 +44,6 @@
                 }
 
                 @include media-breakpoint-down(md) {
-                    // Made the o_action scroll instead of its o_content.
-                    // Except when the view wants to handle the scroll itself.
                     &:not(.o_action_delegate_scroll),
                     .o_form_view_container {
                         overflow: auto;
@@ -72,12 +65,12 @@
         }
 
         .o_content {
-            direction: ltr; //Define direction attribute here so when rtlcss preprocessor run, it converts it to rtl
+            direction: ltr;
             flex: 1 1 auto;
-            position: relative; // Allow to redistribute the 100% height to its child
+            position: relative;
 
             > .o_view_controller {
-                position: absolute; // Get the 100% height of its flex parent
+                position: absolute;
                 top: 0;
                 right: 0;
                 bottom: 0;
@@ -88,7 +81,6 @@
         }
     }
 
-    // FIXME: Fix scrolling in modal on focus input due to a bug between Chrome (Android) and Bootstrap
     body.modal-open {
         position: fixed;
     }
@@ -99,10 +91,6 @@
         @extend %o-html-layout-fill;
     }
 }
-
-//------------------------------------------------------------------------------
-// Print Layout
-//------------------------------------------------------------------------------
 
 @include media-only(print) {
     .o_web_client {

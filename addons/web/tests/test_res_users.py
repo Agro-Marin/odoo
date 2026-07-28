@@ -154,8 +154,7 @@ class TestWebCreateUsers(TransactionCase):
             self.skipTest("email_normalized not available (mail not installed)")
         email = "test_idempotent_create@example.com"
         self.env["res.users"].web_create_users([email])
-        # Second call: user is now active — must be silently skipped.
-        self.env["res.users"].web_create_users([email])  # must not raise IntegrityError
+        self.env["res.users"].web_create_users([email])
 
     def test_web_create_users_dedups_login_with_empty_email_normalized(self):
         """A user matched only by login (empty ``email_normalized``) must dedup.
@@ -173,9 +172,7 @@ class TestWebCreateUsers(TransactionCase):
             existing.email_normalized,
             "precondition: the user has an empty email_normalized",
         )
-        # The input normalises to exactly the existing login => must be skipped,
-        # not re-created (which would raise on the UNIQUE login constraint).
-        self.env["res.users"].web_create_users([login])  # must not raise
+        self.env["res.users"].web_create_users([login])
         matches = (
             self.env["res.users"]
             .with_context(active_test=False)
@@ -196,7 +193,6 @@ class TestWebCreateUsers(TransactionCase):
         if "email_normalized" not in self.env["res.users"]._fields:
             self.skipTest("email_normalized not available (mail not installed)")
         email = "batch_dup@example.com"
-        # must not raise IntegrityError / UniqueViolation
         self.env["res.users"].web_create_users([email, f"Batch Dup <{email}>"])
         matches = (
             self.env["res.users"]

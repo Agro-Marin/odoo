@@ -11,13 +11,25 @@ import { x2ManyCommands } from "./commands.js";
 import { DataPoint } from "./datapoint.js";
 import { getBasicEvalContext, getId, isX2Many } from "./field_context.js";
 import { completeActiveFields, patchActiveFields } from "./field_metadata.js";
-import { fromUnityToServerValues } from "./field_values.js";
+import { fromUnityToServerValues, invalidateAggregateSpecs } from "./field_values.js";
 import { invalidateModifierDependencies } from "./record_utils.js";
 import { applyCommands } from "./static_list_command_engine.js";
 import { resequence, sort as sortRecords, sortBy } from "./static_list_sort.js";
 import { copyRecordData } from "./static_list_utils.js";
 
 /** @import { RelationalRecord } from "./record.js" */
+
+/**
+ * Deep-copy a command log one level into each tuple's array elements (a SET's
+ * id list is the only nested mutable member), so a snapshot survives the
+ * in-place splices ``absorbUnlinkIntoSet`` performs on staged commands.
+ *
+ * @param {[number, any, any?][]} commands
+ * @returns {[number, any, any?][]}
+ */
+function cloneCommands(commands) {
+    return commands.map((c) => c.map((el) => (Array.isArray(el) ? [...el] : el)));
+}
 
 export class StaticList extends DataPoint {
     static type = "StaticList";
@@ -41,18 +53,11 @@ export class StaticList extends DataPoint {
          */
         this._commandsPromise = null;
         this._savePoint = undefined;
-        this._unknownRecordCommands = {}; // tracks update commands on records we haven't fetched yet
-        // Page-fill stubs whose base values are still loading: their stash
-        // entries in ``_unknownRecordCommands`` must keep accumulating until
-        // the load lands (the command engine replays them then). A LOADED
-        // record can also own a stash entry (deferred invisible-x2many
-        // slices) — this set is what tells the two states apart.
+        this._unknownRecordCommands = {};
         this._loadingStubIds = new Set();
         this._currentIds = [...this.resIds];
         this._needsReordering = false;
         this._tmpIncreaseLimit = 0;
-        // Records already opened in a form dialog (kanban / non-editable list),
-        // whose activeFields we've already extended with the dialog's fields.
         this._extendedRecords = new Set();
 
         /** @type {RelationalRecord[]} */
@@ -64,10 +69,6 @@ export class StaticList extends DataPoint {
             (fieldName) => this.activeFields[fieldName].isHandle,
         );
     }
-
-    // -------------------------------------------------------------------------
-    // Getters
-    // -------------------------------------------------------------------------
 
     get currentIds() {
         return this._currentIds;
@@ -103,10 +104,6 @@ export class StaticList extends DataPoint {
     get selection() {
         return [];
     }
-
-    // -------------------------------------------------------------------------
-    // Public
-    // -------------------------------------------------------------------------
 
     /**
      * Adds a new record to an x2many relation: params.record if given (e.g.
@@ -183,12 +180,6 @@ export class StaticList extends DataPoint {
             await this._applyCommands([
                 x2ManyCommands.delete(record.resId || record._virtualId),
             ]);
-            // All records of last page are deleted => reload the new last page
-            if (this.count === this.offset) {
-                await this._load({
-                    offset: Math.max(this.offset - this.limit, 0),
-                });
-            }
             await this._onUpdate();
         });
     }
@@ -231,13 +222,10 @@ export class StaticList extends DataPoint {
      */
     extendRecord(params, record) {
         return this.model.mutex.exec(async () => {
-            // extend fields and activeFields of the list with those given in params
             completeActiveFields(this.config.activeFields, params.activeFields);
-            // ``completeActiveFields`` mutates ``this.config.activeFields`` in
-            // place (adding the dialog's fields), so drop any stale memoised
-            // modifier-dependency map keyed on it.
             invalidateModifierDependencies(this.config.activeFields);
             Object.assign(this.fields, params.fields);
+            invalidateAggregateSpecs(this.fields);
             const activeFields = { ...params.activeFields };
             for (const fieldName of Object.keys(this.activeFields)) {
                 if (fieldName in activeFields) {
@@ -258,25 +246,14 @@ export class StaticList extends DataPoint {
                     ...record.config,
                     ...params,
                     activeFields,
-                    // Keep the list's live, merged ``fields`` object (identity ===
-                    // ``list.fields``), not the caller's ``params.fields`` snapshot,
-                    // which diverges from it over time as properties splice /
-                    // applyCommands mutate the two independently.
                     fields: this.fields,
                 };
 
-                // case 1: the record already exists
                 if (this._extendedRecords.has(record.id)) {
-                    // case 1.1: the record has already been extended
-                    // -> simply store a savepoint
                     this.model._patchConfig(record.config, config);
                     record._addSavePoint();
                     return record;
                 }
-                // case 1.2: extended for the first time, possibly with more fields.
-                // Load values for existing records, apply defaults, update config
-                // recursively, then save — in that order, so the model mutates once
-                // per tick and datapoints have the right config when receiving values.
                 let data = {};
                 if (!record.isNew) {
                     const evalContext = Object.assign(
@@ -309,13 +286,10 @@ export class StaticList extends DataPoint {
                 const commands = this._unknownRecordCommands[record.resId];
                 delete this._unknownRecordCommands[record.resId];
                 if (commands) {
-                    // await before _addSavePoint, so the savepoint doesn't
-                    // snapshot a state where commands are partially applied
                     await this._applyCommands(commands);
                 }
                 record._addSavePoint();
             } else {
-                // case 2: new record — create it with the extended config
                 record = await this._createNewRecordDatapoint({
                     activeFields,
                     context: params.context,
@@ -325,7 +299,6 @@ export class StaticList extends DataPoint {
                 record._activeFieldsToRestore = { ...this.config.activeFields };
                 record._noUpdateParent = true;
             }
-            // mark the record as being extended, to go through case 1.1 next time
             this._extendedRecords.add(record.id);
 
             return record;
@@ -342,11 +315,6 @@ export class StaticList extends DataPoint {
     /** @param {{ discard?: boolean, canAbandon?: boolean, validate?: boolean }} [options] */
     async leaveEditMode({ discard, canAbandon, validate } = {}) {
         if (this.model.urgentSave.isActive) {
-            // Finding 14: the tab-close path must not queue behind ``model.mutex``
-            // — it may be held by the very save urgent mode is bypassing, so an
-            // unconditional ``mutex.exec`` here can silently deadlock at
-            // tab-close. Mirror ``dynamic_list.leaveEditMode`` / ``record.js``:
-            // skip the ``_askChanges`` prelude and run the core directly.
             return this._leaveEditMode({ discard, canAbandon, validate });
         }
         if (this.editedRecord) {
@@ -376,7 +344,6 @@ export class StaticList extends DataPoint {
             if (canAbandon !== false && !validate) {
                 this._abandonRecords([editedRecord], { force: true });
             }
-            // if we still have an editedRecord, it means it hasn't been abandonned
             editedRecord = this.editedRecord;
             if (editedRecord) {
                 if (isValid && !editedRecord.dirty && discard) {
@@ -406,12 +373,6 @@ export class StaticList extends DataPoint {
 
     /** @param {{ limit?: number, offset?: number, orderBy?: object[] }} [options] */
     async load({ limit, offset, orderBy } = {}) {
-        // Flush pending edits BEFORE taking the mutex (mirror ``leaveEditMode``'s
-        // prelude): the public ``editedRecord.checkValidity()`` awaits
-        // ``model._askChanges()`` (``mutex.getUnlockedDef``) and then re-takes
-        // ``model.mutex`` itself — calling it from inside our own
-        // ``mutex.exec`` would deadlock the non-reentrant mutex. Use the
-        // protected ``_checkValidity`` (no mutex re-entry) inside the callback.
         if (this.editedRecord) {
             await this.model._askChanges();
         }
@@ -465,7 +426,6 @@ export class StaticList extends DataPoint {
                     record.isNew ? record._virtualId : record.resId,
                 )
             ) {
-                // new record created, not yet in the list
                 await this._addRecord(record);
             } else if (!record.dirty) {
                 return;
@@ -496,11 +456,19 @@ export class StaticList extends DataPoint {
 
     /**
      * Resolve the resId the last save assigned to ``record``, using a token from
-     * ``snapshotCreateReconciliation`` taken before that save. web_save returns
-     * created rows in CREATE-command order, so the nth new resId corresponds to
-     * the nth CREATE. Returns ``undefined`` when the mapping is ambiguous (row
-     * count mismatch — e.g. a ``create()`` override adding rows, or interleaved
-     * ids) so callers can surface "save first" instead of guessing wrong.
+     * ``snapshotCreateReconciliation`` taken before that save.
+     *
+     * The nth CREATE command maps to the nth new resId in ASCENDING ID ORDER,
+     * not to the nth id as returned: ids come from a Postgres sequence, so a
+     * single save's inserts are monotonically increasing in creation order,
+     * which survives the server reordering rows on the way back.
+     *
+     * Returns ``undefined`` — so callers surface "save first" rather than open
+     * some other record — whenever the mapping cannot be trusted: a row-count
+     * mismatch (a ``create()`` override inserting extra rows, interleaved ids),
+     * or a record that no CREATE command claims. The latter means the record is
+     * not one this save created, and the previous fallback of returning the
+     * highest new id would then have navigated to an unrelated record.
      *
      * @param {{ createVirtualIds: (number|string)[], previousResIds: Set<any> }} token
      * @param {RelationalRecord} record
@@ -512,13 +480,11 @@ export class StaticList extends DataPoint {
             return undefined;
         }
         const index = token.createVirtualIds.indexOf(record._virtualId);
-        const sorted = [...newResIds].sort((x, y) => x - y);
-        return index >= 0 ? sorted[index] : sorted.at(-1);
+        if (index < 0) {
+            return undefined;
+        }
+        return [...newResIds].sort((x, y) => x - y)[index];
     }
-
-    // -------------------------------------------------------------------------
-    // Protected
-    // -------------------------------------------------------------------------
 
     _abandonRecords(
         records = this.records,
@@ -529,9 +495,6 @@ export class StaticList extends DataPoint {
                 const virtualId = record._virtualId;
                 const idIndex = this._currentIds.findIndex((id) => id === virtualId);
                 if (idIndex < 0) {
-                    // Not in the list (e.g. a dialog-created record not yet
-                    // validated): splice(-1, 1) would corrupt the list by
-                    // removing its LAST id instead.
                     continue;
                 }
                 this._currentIds.splice(idIndex, 1);
@@ -549,6 +512,29 @@ export class StaticList extends DataPoint {
                 }
             }
         }
+    }
+
+    /**
+     * Pull ``offset`` back into range after the membership shrank below the
+     * current page start.
+     *
+     * ``records`` is a window into ``_currentIds`` pinned by ``offset``, so a
+     * batch that removes every id at or after that offset (an onchange
+     * answering with a shorter relation, a bulk unlink) leaves the window
+     * past the end: ``_currentIds``/``count`` are right but the x2many renders
+     * an empty page until the user paginates back by hand. Lands on the last
+     * page that still holds data — 0 for an empty list — mirroring the offset
+     * reset ``_loadData`` already does for server-backed lists.
+     */
+    _clampOffset() {
+        const length = this._currentIds.length;
+        if (this.offset === 0 || this.offset < length) {
+            return;
+        }
+        const limit = this.limit;
+        const offset =
+            length && limit > 0 ? Math.floor((length - 1) / limit) * limit : 0;
+        this.model._patchConfig(this.config, { offset });
     }
 
     /**
@@ -575,12 +561,6 @@ export class StaticList extends DataPoint {
                 this.records.pop();
             }
             this._currentIds.splice(this.offset, 0, record._virtualId);
-            // Insert the CREATE just AFTER any leading SET/CLEAR command rather
-            // than at index 0: a raw ``unshift`` puts CREATE before a SET (from
-            // ``_replaceWith``), and the server applies commands in order — it
-            // would create the row, then the SET/CLEAR replaces the whole
-            // relation and drops it. With no SET/CLEAR the index is 0, i.e. the
-            // previous unshift behaviour.
             let insertAt = 0;
             while (
                 insertAt < this._commands.length &&
@@ -600,11 +580,6 @@ export class StaticList extends DataPoint {
         } else {
             const currentIds = [...this._currentIds, record._virtualId];
             if (this.orderBy.length && sort) {
-                // ``sortRecords`` sorts ``currentIds`` and commits the SORTED
-                // order into ``this._currentIds`` (via ``_load``). Do NOT
-                // re-assign ``this._currentIds = currentIds`` here: that would
-                // revert the just-committed sorted order back to insertion
-                // order, desyncing ``_currentIds`` from the sorted ``records``.
                 await sortRecords(this, currentIds);
             } else {
                 if (this.records.length < this.limit) {
@@ -628,57 +603,93 @@ export class StaticList extends DataPoint {
             this._bumpLimit(1);
         }
         await this._addRecord(newRecord);
-        // ``index`` may be out of range (e.g. account's section widget passes
-        // ``sectionIndex - 1`` == -1 for a first section): a negative index
-        // means "insert at the top" (no target → resequence to the first
-        // position), an overflow clamps to the last record.
         const targetRecord =
             index >= 0
                 ? this.records[Math.min(index, this.records.length - 1)]
                 : undefined;
         await resequence(this, newRecord.id, targetRecord ? targetRecord.id : null);
-        // resequence() sets dirty=true and _changes[handleField] via
-        // record._update() (Invariant 1, record.js). The user hasn't touched
-        // this new row, so force dirty=false, but keep _changes[handleField]
-        // so it still ships with the parent's CREATE command on save (a
-        // sanctioned invariant exception — see _assertChangeSetInvariant).
         newRecord.dirty = false;
         return newRecord;
+    }
+
+    /**
+     * Capture every piece of mutable state ``_applyCommands`` (and the
+     * ``_replaceWith`` path it shares with ``preprocessX2manyChanges``) can
+     * touch, so a caller that must undo a half-applied batch can put the list
+     * back exactly as it found it.
+     *
+     * The set is deliberately wider than membership: ``_bumpLimit`` widens
+     * ``config.limit`` AND ``_tmpIncreaseLimit``, and an UPDATE naming a record
+     * on an unloaded page stashes its payload in ``_unknownRecordCommands``.
+     * A restore that skipped those left the page one row too tall and left an
+     * orphaned stash that a later legitimate ``[UPDATE, id]`` re-attached to
+     * the save payload (see static_list_rollback_completeness.test.js).
+     *
+     * ``_cache`` is NOT captured: entries are keyed by id and merged into, so
+     * re-creating one is idempotent, and pinning them would defeat
+     * ``_pruneCache``.
+     *
+     * @returns {Record<string, any>} single-use snapshot for {@link _restore}
+     */
+    _snapshot() {
+        return markRaw({
+            _commands: cloneCommands(this._commands),
+            _currentIds: [...this._currentIds],
+            count: this.count,
+            _unknownRecordCommands: Object.fromEntries(
+                Object.entries(this._unknownRecordCommands).map(([id, cmds]) => [
+                    id,
+                    cloneCommands(cmds),
+                ]),
+            ),
+            _loadingStubIds: new Set(this._loadingStubIds),
+            _tmpIncreaseLimit: this._tmpIncreaseLimit,
+            limit: this.limit,
+        });
+    }
+
+    /**
+     * Reinstate a {@link _snapshot}. Copies the snapshot's containers rather
+     * than aliasing them, so one snapshot can be restored more than once (the
+     * undo closure in ``record._applyChanges`` is handed out to callers that
+     * may or may not invoke it).
+     *
+     * ``records`` is rebuilt from the restored membership; ids whose datapoint
+     * was evicted in the meantime (``_replaceWith`` prunes the cache) are
+     * dropped rather than left as holes — ``ListGridState._materialize``
+     * dereferences every entry, same guard as ``_load``.
+     *
+     * @param {Record<string, any>} snapshot
+     */
+    _restore(snapshot) {
+        this._commands = cloneCommands(snapshot._commands);
+        this._currentIds = [...snapshot._currentIds];
+        this.count = snapshot.count;
+        this._unknownRecordCommands = Object.fromEntries(
+            Object.entries(snapshot._unknownRecordCommands).map(([id, cmds]) => [
+                id,
+                cloneCommands(cmds),
+            ]),
+        );
+        this._loadingStubIds.clear();
+        for (const id of snapshot._loadingStubIds) {
+            this._loadingStubIds.add(id);
+        }
+        this._tmpIncreaseLimit = snapshot._tmpIncreaseLimit;
+        if (this.limit !== snapshot.limit) {
+            this.model._patchConfig(this.config, { limit: snapshot.limit });
+        }
+        this.records = this._currentIds
+            .slice(this.offset, this.offset + this.limit)
+            .map((resId) => this._cache[resId])
+            .filter(Boolean);
     }
 
     _addSavePoint() {
         for (const id of Object.keys(this._cache)) {
             this._cache[id]._addSavePoint();
         }
-        this._savePoint = markRaw({
-            // Deep-copy each command tuple (and any inner array, e.g. a SET
-            // command's id list at index 2): a shallow ``[...this._commands]``
-            // shares the tuple objects by reference, so an in-place mutation
-            // like ``absorbUnlinkIntoSet`` (which rewrites a SET tuple's id
-            // array) would corrupt this snapshot too — and a later ``_discard``
-            // would then restore a SET missing the unlinked id, silently
-            // dropping that row from the next web_save.
-            _commands: this._commands.map((c) =>
-                c.map((el) => (Array.isArray(el) ? [...el] : el)),
-            ),
-            _currentIds: [...this._currentIds],
-            count: this.count,
-            // Snapshot the off-page command stash and loading set too:
-            // ``_discard``'s savepoint branch must RESTORE these, not wipe
-            // them. ``_unknownRecordCommands`` is the sole carrier of the
-            // payload for an ``[UPDATE, id]`` on a row never loaded into
-            // ``_cache`` (an onchange touching an off-page record in a
-            // paginated list). Clearing it on a savepoint-restore discard
-            // (sub-dialog open + Cancel) silently dropped that edit from the
-            // next web_save. Deep-copy the command tuples like ``_commands``.
-            _unknownRecordCommands: Object.fromEntries(
-                Object.entries(this._unknownRecordCommands).map(([id, cmds]) => [
-                    id,
-                    cmds.map((c) => c.map((el) => (Array.isArray(el) ? [...el] : el))),
-                ]),
-            ),
-            _loadingStubIds: new Set(this._loadingStubIds),
-        });
+        this._savePoint = this._snapshot();
     }
 
     _applyCommands(commands, options) {
@@ -703,9 +714,6 @@ export class StaticList extends DataPoint {
             return;
         }
         if (serverValue.length && Array.isArray(serverValue[0])) {
-            // Command list — replay through the engine so UPDATE/LINK/…
-            // merge into the pending state; possibly async (page-fill
-            // loads), so track it like every other sync-chain application.
             this._trackCommandsPromise(this._applyCommands(serverValue));
             return;
         }
@@ -737,8 +745,6 @@ export class StaticList extends DataPoint {
             console.error(
                 `Failed to apply x2many commands (resModel: ${this.resModel}, list: ${this.id}): the pending record load rejected`,
             );
-            // Re-throw outside this chain so the error service surfaces it
-            // (error dialog / crash manager) instead of it being swallowed.
             Promise.resolve().then(() => {
                 throw error;
             });
@@ -824,26 +830,12 @@ export class StaticList extends DataPoint {
             cachedRecord &&
             (cachedRecord.dirty || Object.keys(cachedRecord._changes).length)
         ) {
-            // A cached datapoint with pending ``_changes`` must not be replaced:
-            // that would drop those changes and the ORM commands
-            // ``serializeCommands`` derives from them. Hit by ``sort()``'s
-            // restricted-field reload (only orderBy fields as activeFields).
-            // Merge the fresh values in instead — ``_applyValues`` preserves
-            // ``_changes`` (scalars untouched; x2many entries with pending
-            // commands are merged via ``_applyServerValues``, not replaced)
-            // and the record's fuller activeFields.
             cachedRecord._applyValues(data);
             return cachedRecord;
         }
         /** @type {any} */
         const config = {
             context: this.context,
-            // Share the list's ``activeFields`` object by identity for the
-            // common (un-extended) row: it is arch-stable and never mutated
-            // per-record (``extendRecord`` builds each extended record its own
-            // ``params.activeFields``), so sharing lets ``getModifierDependencies``
-            // memoise once per list instead of re-parsing every modifier
-            // expression per row (a fresh spread was a distinct WeakMap key).
             activeFields: params.activeFields || this.activeFields,
             resModel: this.resModel,
             fields: params.fields || this.fields,
@@ -859,8 +851,6 @@ export class StaticList extends DataPoint {
             onUpdate: async ({ withoutParentUpdate }) => {
                 const id = record.isNew ? record._virtualId : record.resId;
                 if (!this.currentIds.includes(id)) {
-                    // the record hasn't been added to the list yet (we're currently creating it
-                    // from a dialog)
                     return;
                 }
                 const hasCommand = this._commands.some(
@@ -870,9 +860,6 @@ export class StaticList extends DataPoint {
                     this._commands.push([UPDATE, id]);
                 }
                 if (record._noUpdateParent) {
-                    // the record is edited from a dialog, so we don't want to notify the parent
-                    // record to be notified at each change inside the dialog (it will be notified
-                    // at the end when the dialog is saved)
                     return;
                 }
                 if (!withoutParentUpdate) {
@@ -921,13 +908,6 @@ export class StaticList extends DataPoint {
      */
     _pruneCache() {
         const activeIds = new Set(this._currentIds);
-        // Pin the server-truth ids too: ``_discard``'s no-savepoint branch
-        // reverts ``_currentIds`` to ``this.resIds`` and rebuilds ``records``
-        // by mapping them through ``_cache``. A ``Command.set`` that shrinks
-        // membership prunes those ids here, so a later savepoint-less discard
-        // (the normal "edit form, click Discard" path) would map evicted ids to
-        // ``undefined`` holes. resIds is the bounded persisted relation, so
-        // pinning it does not reintroduce unbounded cache growth.
         for (const id of this.resIds) {
             activeIds.add(id);
         }
@@ -949,54 +929,42 @@ export class StaticList extends DataPoint {
             this._cache[id]._discard();
         }
         if (this._savePoint) {
-            this._commands = this._savePoint._commands;
-            this._currentIds = this._savePoint._currentIds;
-            this.count = this._savePoint.count;
-            // Restore the off-page stash instead of wiping it (see the
-            // snapshot rationale in ``_addSavePoint``). Reassign the object
-            // (matches the ``= {}`` idiom) but restore the Set's contents in
-            // place to keep its identity stable.
-            this._unknownRecordCommands = this._savePoint._unknownRecordCommands;
-            this._loadingStubIds.clear();
-            for (const id of this._savePoint._loadingStubIds) {
-                this._loadingStubIds.add(id);
-            }
-        } else {
-            this._commands = [];
-            this._currentIds = [...this.resIds];
-            this.count = this.resIds.length;
-            this._unknownRecordCommands = {};
-            this._loadingStubIds.clear();
+            // Restore what the savepoint captured — page limit included. The
+            // shared tail this branch used to fall through stripped the WHOLE
+            // ``_tmpIncreaseLimit``, which also gave back row slots opened
+            // BEFORE the savepoint: reverting a form dialog then paged out
+            // rows the savepoint still lists in ``_currentIds``.
+            const savePoint = this._savePoint;
+            this._savePoint = undefined;
+            this._restore(savePoint);
+            return;
         }
+        this._commands = [];
+        this._currentIds = [...this.resIds];
+        this.count = this.resIds.length;
+        this._unknownRecordCommands = {};
+        this._loadingStubIds.clear();
+        // No savepoint: the list goes back to server truth, so every temporary
+        // slot is forfeit whenever it was opened.
         const limit = this.limit - this._tmpIncreaseLimit;
         this._tmpIncreaseLimit = 0;
         this.model._patchConfig(this.config, { limit });
         this.records = this._currentIds
             .slice(this.offset, this.offset + this.limit)
-            .map((resId) => this._cache[resId]);
-        if (!this._savePoint) {
-            this._trackCommandsPromise(this._applyCommands(this._initialCommands));
-            if (this._commandsPromise) {
-                // A floating commands load is still mutating records/_cache, so
-                // sequence the prune after it settles — otherwise it could evict
-                // entries the load is about to (re)fill. Safe: the tracked
-                // promise never rejects (see _trackCommandsPromise) and prune
-                // re-reads _currentIds at execution time.
-                this._commandsPromise.then(() => this._pruneCache());
-            } else {
-                this._pruneCache();
-            }
+            .map((resId) => this._cache[resId])
+            .filter(Boolean);
+        this._trackCommandsPromise(this._applyCommands(this._initialCommands));
+        if (this._commandsPromise) {
+            this._commandsPromise.then(() => this._pruneCache());
+        } else {
+            this._pruneCache();
         }
-        this._savePoint = undefined;
     }
 
     /**
      * @fixme: this method is naive and ineffective (it triggers a lot of onchange rpcs)
      */
     async _duplicateRecords(records, options) {
-        // No records to duplicate, or no handle field to sequence on: the
-        // sequence arithmetic below would read `records[-1]`/`data[undefined]`
-        // and write NaN sequences into every following record.
         if (!records.length || !this.handleField) {
             return;
         }
@@ -1008,9 +976,6 @@ export class StaticList extends DataPoint {
             this.records.length,
         );
         const copyFields = options.copyFields || [];
-        // targetIndex 0 (insert at the top — e.g. account's section duplicate)
-        // starts from the first record's sequence instead of reading the
-        // non-existent records[-1].
         let sequence =
             targetIndex > 0
                 ? this.records[targetIndex - 1].data[this.handleField] + 1
@@ -1037,8 +1002,6 @@ export class StaticList extends DataPoint {
         }
 
         const commands = [];
-        // `this.records.slice(targetIndex)` is wrong
-        // we need to iterate on ALL the next records even the ones on the next pages..
         for (const record of this.records.slice(targetIndex)) {
             commands.push(
                 x2ManyCommands.update(record.resId || record._virtualId, {
@@ -1071,25 +1034,15 @@ export class StaticList extends DataPoint {
     }
 
     _getResIdsToLoad(resIds, fieldNames = this.fieldNames) {
-        // Filter "id" once — not inside the per-record callback
         const relevantFields = fieldNames.filter((f) => f !== "id");
         return resIds.filter((resId) => {
             if (typeof resId === "string") {
-                // this is a virtual id, we don't want to read it
                 return false;
             }
             const record = this._cache[resId];
             if (!record) {
-                // record hasn't been loaded yet
                 return true;
             }
-            // Test against the fields whose values were actually fetched
-            // (``_loadedFieldNames``), not ``record.fieldNames``: the latter
-            // derives from ``activeFields`` (what the view wants) and is
-            // already complete on a stub datapoint created from a bare
-            // ``{id}`` (e.g. a LINK command applied while the page was
-            // full), which would classify the stub as loaded and render a
-            // row of default values after a page navigation.
             return relevantFields.some(
                 (fieldName) => !record._loadedFieldNames.has(fieldName),
             );
@@ -1113,12 +1066,6 @@ export class StaticList extends DataPoint {
                 this._createRecordDatapoint(record);
             }
         }
-        // A linked row concurrently deleted server-side makes `_loadRecords`
-        // return fewer records than requested (it only throws when *zero* come
-        // back). Drop the ids that never landed in the cache instead of leaving
-        // `undefined` holes in `records` that the renderer would crash on, and
-        // keep `_currentIds` in sync so the missing id isn't re-requested every
-        // reload — mirroring the guard in static_list_command_engine.js.
         this.records = currentIds.map((id) => this._cache[id]);
         if (this.records.includes(undefined)) {
             const missing = new Set(currentIds.filter((id) => !this._cache[id]));
@@ -1141,21 +1088,22 @@ export class StaticList extends DataPoint {
                 this._createRecordDatapoint(record);
             }
         }
-        this.records = ids.map((id) => this._cache[id]);
-        const idSet = new Set(ids);
+        // ``_loadRecords`` only throws when NO row comes back; a partial
+        // response (an id deleted or made inaccessible server-side between the
+        // SET being built and this load) simply returns fewer. Mapping every
+        // requested id through ``_cache`` would then leave ``undefined`` holes
+        // in ``records`` — which ``ListGridState._materialize`` dereferences —
+        // and keep the phantom id in ``_currentIds``/``count`` and in the SET
+        // command the next save ships. Same guard as ``_load``.
+        const presentIds = ids.filter((id) => this._cache[id]);
+        this.records = presentIds.map((id) => this._cache[id]);
+        const idSet = new Set(presentIds);
         const updateCommandsToKeep = this._commands.filter(
             (c) => c[0] === x2ManyCommands.UPDATE && idSet.has(c[1]),
         );
-        this._commands = [x2ManyCommands.set(ids), ...updateCommandsToKeep];
-        this._currentIds = [...ids];
+        this._commands = [x2ManyCommands.set(presentIds), ...updateCommandsToKeep];
+        this._currentIds = [...presentIds];
         this.count = this._currentIds.length;
-        // Finding 4: prune the deferred-command stashes for ids dropped by this
-        // SET. The DELETE/UNLINK path (static_list_command_engine) deletes these
-        // explicitly with the same rationale; without the matching cleanup here,
-        // an id removed by SET and later re-introduced would replay a stale
-        // deferred UPDATE slice via ``_createRecordDatapoint``'s stash replay
-        // (and orphaned ``_cache`` entries would linger). Match ``_pruneCache``'s
-        // string/number key handling since the stashes are keyed by raw resId.
         for (const id of Object.keys(this._unknownRecordCommands)) {
             if (!idSet.has(id) && !idSet.has(Number(id))) {
                 delete this._unknownRecordCommands[id];
@@ -1173,17 +1121,6 @@ export class StaticList extends DataPoint {
     }
 
     _updateContext(context) {
-        // Runs from the parent's ``_setEvalContext`` for EVERY x2many field on
-        // EVERY committed edit. Skipping when the field context is unchanged
-        // avoids an O(rows × fields) recompute per keystroke; safe because
-        // sub-records observe the parent LIVE via the ``parent`` getter
-        // (record.js), not through this recompute, and an unchanged recompute
-        // would produce identical values anyway (OWL drops the no-op render).
-        //
-        // Compare by VALUE (``deepEqual``), not reference: ``getFieldContext()``
-        // always allocates fresh arrays (e.g. ``allowed_company_ids``), so
-        // ``!==`` would never skip. Compare over the UNION of old + new keys so
-        // a key that DISAPPEARED (not just changed) is still detected.
         let changed = false;
         const keys = new Set([...Object.keys(this.context), ...Object.keys(context)]);
         for (const key of keys) {
@@ -1195,10 +1132,6 @@ export class StaticList extends DataPoint {
         if (!changed) {
             return;
         }
-        // ``this.context`` mirrors getFieldContext() exactly (it has no other
-        // contributor — see the ``getFieldContext`` loop in ``record.js``), so drop keys that disappeared before
-        // merging; a plain Object.assign would leave stale keys lingering in
-        // every sub-record's eval context (and in load/save RPCs).
         for (const key of Object.keys(this.context)) {
             if (!(key in context)) {
                 delete this.context[key];

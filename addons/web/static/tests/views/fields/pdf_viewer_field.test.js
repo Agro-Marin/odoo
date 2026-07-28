@@ -125,14 +125,12 @@ test("PdfViewerField: uploaded blob does not leak across pager navigation", asyn
         resIds: [1, 2],
         arch: '<form><field name="document" widget="pdf_viewer"/></form>',
     });
-    // Upload a PDF on record 1 -> blob URL.
     const file = new File(["test"], "test.pdf", { type: "application/pdf" });
     await click(".o_field_pdf_viewer input[type=file]");
     await setInputFiles(file);
     await waitFor("iframe.o_pdfview_iframe");
     expect(getIframeProtocol()).toBe("blob");
     await clickSave();
-    // Navigate to record 2 -> must show record 2's server PDF, not record 1's blob.
     await click(".o_pager_next");
     await animationFrame();
     expect(getIframeProtocol()).toBe("https");

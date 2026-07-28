@@ -9,6 +9,7 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
 import { _t } from "@web/core/l10n/translation";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { session } from "@web/session";
 
@@ -54,6 +55,7 @@ export class ActionMenus extends Component {
         this.orm = useService("orm");
         this.actionService = useService("action");
         this.state = useState({ printItems: [] });
+        this.keepLast = new KeepLast();
         onWillStart(async () => {
             this.actionItems = await this.getActionItems(this.props);
         });
@@ -61,8 +63,6 @@ export class ActionMenus extends Component {
             this.actionItems = await this.getActionItems(nextProps);
         });
     }
-
-    // Private
 
     /**
      * Transform raw action items into display-ready objects.
@@ -90,8 +90,6 @@ export class ActionMenus extends Component {
         });
     }
 
-    // Handlers
-
     /**
      * Execute an ir.actions.* action with the current selection context.
      * @param {{ id: number, name: string }} action
@@ -111,8 +109,6 @@ export class ActionMenus extends Component {
             active_model: this.props.resModel,
         };
         if (this.props.domain) {
-            // keep active_domain in context for backward compatibility,
-            // and to allow actions to bypass the active_ids_limit
             activeIdsContext.active_domain = this.props.domain;
         }
         const context = makeContext([this.props.context, activeIdsContext]);
@@ -136,7 +132,6 @@ export class ActionMenus extends Component {
         } else if (item.action) {
             this.executeAction(item.action);
         } else if (item.url) {
-            // Event has been prevented at its source: we need to redirect manually.
             browser.location.href = item.url;
         }
     }
@@ -173,15 +168,23 @@ export class ActionMenus extends Component {
             }));
     }
 
-    /** Load print items and extra items, populating `state.printItems`. */
+    /**
+     * Load print items and extra items, populating `state.printItems`.
+     *
+     * Runs on every dropdown open, so closing and reopening while the first
+     * fetch is in flight starts a second one; `keepLast` drops the loser so a
+     * slow earlier run cannot land after (and overwrite) a newer one.
+     */
     async loadPrintItems() {
         if (!this.props.items.print?.length) {
             return;
         }
-        const [items, extraItems] = await Promise.all([
-            this.loadAvailablePrintItems(),
-            this.props.loadExtraPrintItems(),
-        ]);
+        const [items, extraItems] = await this.keepLast.add(
+            Promise.all([
+                this.loadAvailablePrintItems(),
+                this.props.loadExtraPrintItems(),
+            ]),
+        );
         const allItems = [...extraItems, ...items];
         if (!allItems.length) {
             allItems.push({

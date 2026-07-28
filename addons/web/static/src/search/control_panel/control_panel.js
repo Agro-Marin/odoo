@@ -74,7 +74,6 @@ export class ControlPanel extends Component {
     };
 
     // Declared with @type so strictNullChecks treats them as initialized; real
-    // assignment happens in setup()/lifecycle hooks (OWL components have no constructor).
     /** @type {any} */
     actionService;
     /** @type {any} */
@@ -117,18 +116,12 @@ export class ControlPanel extends Component {
             : undefined;
         this.notificationService = useService("notification");
         this.breadcrumbs = useState(this.env.config.breadcrumbs);
-        // Kept although unused here: inheriting control panels rely on it
-        // (e.g. account_accountant's BankRecKanbanControlPanel).
         this.orm = useService("orm");
 
         this.root = useRef("root");
         this.adaptiveMenuRef = useChildRef();
 
-        // `null` when the current action has no embedded actions: the bar is
-        // not rendered and none of the embedded machinery is instantiated.
         this.embeddedActions = useEmbeddedActions();
-        // Shared with the `web.embeddedActionsDropdown` template rendered on
-        // mobile from this component (desktop renders it in the bar).
         this.embeddedActionsDropdown = useDropdownState();
         this.newActionNameRef = useRef("newActionNameRef");
         this.state = useState({
@@ -149,9 +142,6 @@ export class ControlPanel extends Component {
                 {
                     category: "view_switcher",
                     // Global so the command is available regardless of which
-                    // UI element has focus (ControlPanel doesn't register as
-                    // an activeElement). The isAvailable guard ensures only
-                    // non-current view types are shown.
                     global: true,
                     isAvailable: () => view.type !== this.env.config.viewType,
                 },
@@ -202,12 +192,6 @@ export class ControlPanel extends Component {
                         this.onScrollThrottledBound,
                     );
                 };
-                // Explicit deps: without them OWL defaults to `() => [NaN]` (NaN !== NaN),
-                // re-running cleanup+setup on every patch. That would tear down and rebuild
-                // the ResizeObserver/scroll listener on each re-render and, worse, reset
-                // `root.el.style.top` to "0px" mid-scroll — snapping the sticky panel back
-                // down and fighting the offset kept by onScrollThrottled. These inputs only
-                // change on small/large switch, adaptToScroll toggle, or root remount.
             },
             () => [this.env.isSmall, this.display.adaptToScroll, this.root.el],
         );
@@ -317,13 +301,10 @@ export class ControlPanel extends Component {
         const delta = Math.round(scrollTop - this.oldScrollTop);
 
         if (scrollTop > this.initialScrollTop) {
-            // Beneath initial position => sticky display
             this.root.el.classList.add(STICKY_CLASS);
             if (delta <= 0) {
-                // Going up | not moving
                 this.lastScrollTop = Math.min(0, this.lastScrollTop - delta);
             } else {
-                // Going down
                 this.lastScrollTop = Math.max(
                     -this.root.el.offsetHeight,
                     -this.root.el.offsetTop - delta,
@@ -331,7 +312,6 @@ export class ControlPanel extends Component {
             }
             this.root.el.style.top = `${this.lastScrollTop}px`;
         } else {
-            // Above initial position => standard display
             this.root.el.classList.remove(STICKY_CLASS);
             this.lastScrollTop = 0;
         }
@@ -401,8 +381,6 @@ export class ControlPanel extends Component {
             } else if (elStyles.getPropertyValue("display") === "none") {
                 continue;
             } else {
-                // ``elements`` is an HTMLCollection typed as ``Element``, but at
-                // runtime it's always an HTMLElement (Bootstrap toolbar markup).
                 boxed.push(/** @type {HTMLElement} */ (el));
             }
         }

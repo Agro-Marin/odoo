@@ -5,7 +5,6 @@
 
     width: $o-datetime-picker-width;
 
-    // Day
     .o_selected {
         color: $o-component-active-color;
         background: $o-component-active-bg;
@@ -43,8 +42,6 @@
         color: $o-calendar-today-color;
     }
 
-    // Grids
-
     .o_date_picker {
         grid-template-rows: repeat(var(--DateTimePicker__Day-template-rows), 1fr);
         grid-template-columns: repeat(var(--DateTimePicker__Day-template-columns), 1fr);
@@ -54,8 +51,6 @@
         grid-template-rows: repeat(var(--DateTimePicker__Template-rows), 1fr);
         grid-template-columns: repeat(var(--DateTimePicker__Template-columns), 1fr);
     }
-
-    // Utilities
 
     .o_date_item_picker .o_datetime_button {
         &.o_selected:not(.o_select_start, .o_select_end) {

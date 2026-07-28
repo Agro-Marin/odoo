@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/controller_component - The OWL component that wraps every controller rendered by the action service, plus its placeholder BlankComponent */
+/** @module @web/webclient/actions/controller_component - The OWL component that wraps every controller rendered by the action service */
 
 import {
     Component,
@@ -15,33 +15,9 @@ import {
 } from "@odoo/owl";
 import { CallbackRecorder } from "@web/core/action_hook";
 import { AppEvent } from "@web/core/events";
-import { registry } from "@web/core/registry";
-import { SupersededError } from "@web/core/utils/concurrency";
-import { useBus, useService } from "@web/core/utils/hooks";
-import { ControlPanel } from "@web/search/control_panel/control_panel";
+import { useBus } from "@web/core/utils/hooks";
 import { useDebugCategory } from "@web/services/debug/debug_context";
-import { user } from "@web/services/user";
 import { View } from "@web/views/view";
-
-import { actionStorage } from "./action_storage.js";
-import { getActionMode } from "./action_views.js";
-
-const actionRegistry = registry.category("actions");
-
-/**
- * Placeholder shown by the action manager during error recovery and
- * transition states (skeleton view, cleared stack).
- */
-class BlankComponent extends Component {
-    static props = ["onMounted", "withControlPanel", "*"];
-    static template = "web.BlankComponent";
-    static components = { ControlPanel };
-
-    setup() {
-        useChildSubEnv({ config: { breadcrumbs: [], noBreadcrumbs: true } });
-        onMounted(() => this.props.onMounted());
-    }
-}
 
 /** OWL template for the ControllerComponent — wraps `this.Component` with computed props. */
 const ControllerComponentTemplate = xml`<t t-component="Component" t-props="componentProps"/>`;
@@ -50,15 +26,22 @@ const ControllerComponentTemplate = xml`<t t-component="Component" t-props="comp
 
 /**
  * Build the ControllerComponent class bound to a given {@link ActionManager}.
- * Factory pattern because each ActionManager needs lifecycle hooks that
- * read/write *its* instance state — this is the only sibling module that
- * writes action-manager state (committing the new stack on mount, swapping
- * ``dialog`` to ``nextDialog`` for ``target === "new"``).
+ * Factory pattern because the child sub-env and the ``pushStateBeforeReload``
+ * hook need *that* manager.
  *
- * ActionManager calls this once in its constructor; the returned class
- * identity must stay stable across every ``ACTION_MANAGER:UPDATE`` so OWL's
- * reconciler patches the existing instance instead of remounting — calling
- * this per-render would break SPA navigation continuity.
+ * ActionManager calls this once in its constructor; the returned class identity
+ * must stay stable across every ``ACTION_MANAGER:UPDATE`` so OWL's reconciler
+ * patches the existing instance instead of remounting — calling this per-render
+ * would break SPA navigation continuity.
+ *
+ * WHAT THIS COMPONENT IS NOT
+ * --------------------------
+ * It does not own action-manager state. Each dispatch arrives as an
+ * {@link import("./action_dispatch.js").ActionDispatch} on ``props._context``,
+ * and the lifecycle hooks below simply report which outcome happened —
+ * ``commit`` / ``fail`` / ``discard``. The component contributes only what is
+ * genuinely component-local and cannot be read from outside: OWL's ``status``,
+ * and the ``CallbackRecorder``-backed state exporters.
  *
  * @param {ActionManager} am
  * @returns the bound ControllerComponent class
@@ -67,8 +50,8 @@ export function makeControllerComponent(am) {
     /**
      * OWL component wrapping the actual action/view component.
      * Defined once per action manager (not re-created on each navigation).
-     * Per-call data (controller, nextStack, promise callbacks) is received via
-     * `this.props._context` and stripped from the props passed down to the child.
+     * Per-dispatch data is received via `this.props._context` and stripped from
+     * the props passed down to the child.
      */
     return class ControllerComponent extends Component {
         static template = ControllerComponentTemplate;
@@ -77,7 +60,6 @@ export function makeControllerComponent(am) {
         setup() {
             const { controller, action, nextStack } = this.props._context;
             this.Component = controller.Component;
-            this.titleService = useService("title");
             useDebugCategory("action", { action });
             useChildSubEnv({
                 config: controller.config,
@@ -111,165 +93,39 @@ export function makeControllerComponent(am) {
             onError(this.onError);
         }
 
-        onWillDestroy() {
-            const { controller, reject } = this.props._context;
-            // A controller replaced by a newer ACTION_MANAGER:UPDATE before it
-            // ever mounts is destroyed without running onMounted (which
-            // resolves) or onError (which rejects). onWillDestroy DOES fire for
-            // a destroyed-before-mount component, so settle the outer
-            // currentActionProm here — otherwise every doAction awaiter of the
-            // superseded action would hang forever. ``_dispatchInline`` catches
-            // this SupersededError at its ``await currentActionProm`` (the sole
-            // awaiter) and terminates that dispatch quietly, so the rejection is
-            // contained at the source and never reaches the global error service
-            // as an unhandled rejection (which the service swallows only
-            // asynchronously — too late in debug=assets mode, and too fragile).
-            if (!controller.isMounted && status(this) !== "mounted") {
-                reject(new SupersededError());
+        /**
+         * Collapse a CallbackRecorder into a single state-export function.
+         * Returns ``undefined`` (not ``{}``) when nothing registered, which is
+         * what the action manager's "did this controller export state?" checks
+         * rely on.
+         *
+         * @param {CallbackRecorder} recorder
+         */
+        _makeStateExporter(recorder) {
+            if (!recorder) {
+                return undefined;
             }
-        }
-
-        onError(error) {
-            const { controller, action, reject, removeDialogRef } = this.props._context;
-            if (controller.isMounted) {
-                // Controller is already in the DOM — just surface the error.
-                Promise.reject(error);
-                return;
-            }
-            if (!controller.isMounted && status(this) === "mounted") {
-                // Error happened during a child component's onMounted hook.
-                // The dispatch promise was never resolved (our onMounted, which
-                // resolve()s, didn't run because the child threw). Settle it now
-                // with SupersededError — the same quiet, keepLast-swallowed
-                // resolution onWillDestroy uses — instead of leaving it to settle
-                // whenever the BlankComponent swap below happens to destroy this
-                // component: that async, timing-dependent settlement can strand
-                // the doAction/switchView awaiter. The actual error is surfaced
-                // exactly once via Promise.reject(error) below, so we must NOT
-                // reject the dispatch promise with `error` here (double dialog).
-                reject(new SupersededError());
-                am.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {
-                    id: am._nextId(),
-                    Component: BlankComponent,
-                    componentProps: {
-                        onMounted: () => {},
-                        withControlPanel: action.type === "ir.actions.act_window",
-                    },
-                });
-                Promise.reject(error);
-                return;
-            }
-            // Forward the error to the _updateUI caller then restore the
-            // action container to an unbroken state.
-            reject(error);
-            if (action.target === "new") {
-                // Removing the failed dialog performs the whole pending-slot
-                // recovery on its own: ``remove()`` runs
-                // overlay.remove -> dialog onRemove -> options.onClose ->
-                // ``am._removeDialog(closeParams, removeFn)`` SYNCHRONOUSLY
-                // (no await precedes _removeDialog's identity guard), and that
-                // guard is the single owner of "the dialog going away is the
-                // pending one": it hands ``stolenOnClose`` back to the
-                // committed dialog and clears the slot.
-                //
-                // A second copy of that recovery used to live here. It was
-                // unreachable — by the time it ran, _removeDialog had already
-                // nulled ``nextDialog``, so its guard was always false.
-                // Verified 2026-07-25 by mutation + probe: an identical
-                // unswallowable probe fires 5x from _removeDialog's branch and
-                // 0x from here, and neutering this copy left 2599 tests green
-                // across @web/webclient, @web/views and @web/search.
-                //
-                // INVARIANT: keep the recovery in _removeDialog. Any future
-                // path that tears a pending dialog down WITHOUT going through
-                // its ``remove()`` must clear the slot itself.
-                removeDialogRef.current?.();
-                return;
-            }
-            const index = am.controllerStack.findIndex(
-                (ct) => ct.jsId === controller.jsId,
-            );
-            if (index > 0) {
-                // Error on an existing controller (e.g. breadcrumb click) —
-                // go back to the previous one.
-                return am.restore(am.controllerStack[index - 1].jsId);
-            }
-            if (index === 0) {
-                // No previous controller to restore; just display the error.
-                return;
-            }
-            // index === -1: the erroring controller was never committed (it
-            // fails before its onMounted, the sole commit point). For a
-            // breadcrumb RESTORE (restoreStackOnError set), the URL still points
-            // at the controller that was displayed, so return to that stack
-            // instead of the truncated newStack tip — the failed click becomes a
-            // no-op. Guarded so it can't loop: the tip must be a currently-
-            // mounted (known-good) controller, and reverting must make progress
-            // (the reverted-to stack differs from the live one). loadState
-            // dispatches don't set the flag and keep their ancestor-fallback.
-            const { restoreStackOnError } = this.props._context;
-            if (
-                restoreStackOnError?.length &&
-                restoreStackOnError.at(-1).isMounted &&
-                am.controllerStack !== restoreStackOnError
-            ) {
-                am.controllerStack = restoreStackOnError;
-            }
-            const lastController = am.controllerStack.at(-1);
-            if (lastController) {
-                if (lastController.jsId !== controller.jsId) {
-                    // Error while rendering a new controller — go back to the
-                    // last non-faulty one (the promise reject above still
-                    // surfaces the error to the caller).
-                    return am.restore(lastController.jsId);
+            return () => {
+                const exportFns = recorder.callbacks;
+                if (exportFns.length) {
+                    return Object.assign({}, ...exportFns.map((fn) => fn()));
                 }
-            } else {
-                am.env.bus.trigger(AppEvent.ACTION_MANAGER_UPDATE, {});
-            }
+            };
         }
 
         onMounted() {
-            const { controller, action, nextStack, resolve } = this.props._context;
-            if (action.target === "new") {
-                // Remove the previously committed dialog (if any) — this
-                // mounted dialog replaces it. The removal chain synchronously
-                // nulls am.dialog and fires no user callback, since
-                // _dispatchTargetNew already moved onClose to am.nextDialog.
-                am.dialog?.remove();
-                // Commit the new dialog and clear the pending slot so the two
-                // never alias (_dispatchTargetNew only removes a still-pending,
-                // never-mounted nextDialog).
-                am.dialog = am.nextDialog;
-                am.nextDialog = null;
-            } else {
-                controller.getGlobalState = () => {
-                    const exportFns = this.__getGlobalState__.callbacks;
-                    if (exportFns.length) {
-                        return Object.assign({}, ...exportFns.map((fn) => fn()));
-                    }
-                };
-                controller.getLocalState = () => {
-                    const exportFns = this.__getLocalState__.callbacks;
-                    if (exportFns.length) {
-                        return Object.assign({}, ...exportFns.map((fn) => fn()));
-                    }
-                };
-                // Commit the new stack: the controller is mounted.
-                am.controllerStack = nextStack;
-                am.pushState();
-                this.titleService.setParts({ action: controller.displayName });
-                actionStorage.setCurrentAction(action._originalAction);
-                actionStorage.setLang(user.lang);
-            }
-            // Flip isMounted before resolve()/trigger: code resumed by the
-            // resolved doAction promise (or the UI_UPDATED listeners) must
-            // never observe `false` on an actually-mounted controller.
-            controller.isMounted = true;
-            resolve();
-            am.env.bus.trigger(
-                AppEvent.ACTION_MANAGER_UI_UPDATED,
-                getActionMode(action, actionRegistry),
-            );
+            this.props._context.commit({
+                getGlobalState: this._makeStateExporter(this.__getGlobalState__),
+                getLocalState: this._makeStateExporter(this.__getLocalState__),
+            });
+        }
+
+        onError(error) {
+            return this.props._context.fail(error, { componentStatus: status(this) });
+        }
+
+        onWillDestroy() {
+            this.props._context.discard({ componentStatus: status(this) });
         }
 
         onWillUnmount() {

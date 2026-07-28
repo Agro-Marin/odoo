@@ -1,14 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
 
-    <!--
-        Footer row for the list view aggregate summary.
-
-        Extracted from web.ListRenderer so OWL template-level reactive tracking
-        constrains aggregate recomputation to changes in list.records / record.data
-        / record.selected — not triggered by unrelated parent state changes such as
-        editedRecord toggling when the user clicks a cell.
-    -->
     <t t-name="web.ListAggregatesRow">
         <tr>
             <t t-set="groupNameCellColspan" t-value="getGroupNameCellColSpan()"/>

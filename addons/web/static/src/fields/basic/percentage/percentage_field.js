@@ -24,10 +24,6 @@ export class PercentageField extends NumericInputFieldBase {
     parse(v) {
         const parsed = parsePercentage(v, { allowOperation: true });
         if (parsed instanceof Operation) {
-            // The operation is entered in DISPLAYED units (value × 100), so an
-            // additive operand ("+= 5" meaning +5 percentage points) must be
-            // scaled back to storage units (0.05). Multiplicative operations
-            // (*= / /=) are scale-invariant. Mirrors FloatFactorField.parse.
             if (parsed.operator === "+" || parsed.operator === "-") {
                 return new Operation(parsed.operator, parsed.operand / 100);
             }
@@ -61,7 +57,13 @@ export class PercentageField extends NumericInputFieldBase {
 export const percentageField = {
     component: PercentageField,
     displayName: _t("Percentage"),
-    supportedTypes: ["integer", "float"],
+    // Float only. The widget's contract is "stored as a 0..1 ratio, displayed
+    // x100", which an integer column cannot hold: 4 renders as "400", typing
+    // "50" writes 0.5, and `Integer.convert_to_cache` truncates that to 0 (int
+    // truncation verified against Postgres). An integer percentage field can
+    // therefore only ever express 0% or 100%, so the combination is declared
+    // unsupported rather than silently destroying the value.
+    supportedTypes: ["float"],
     isEmpty: isFalseEmpty,
     extractProps: ({ attrs, options }) => ({
         digits: extractDigits({ attrs, options }),

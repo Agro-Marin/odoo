@@ -36,9 +36,6 @@ export function makeActionState(controllerStack) {
         if (action.type === "ir.actions.act_window") {
             actionState.view_type = props.type;
             if (props.type === "form" && action.res_model !== "res.config.settings") {
-                // Use || (not ??): buildViewInfo defaults resId to false for
-                // new records, and false is not nullish. Any valid record ID
-                // is a positive integer, so || is safe here.
                 actionState.resId = controller.currentState.resId || "new";
             }
         }
@@ -58,7 +55,6 @@ export function makeActionState(controllerStack) {
     const stateKeys = [...PATH_KEYS];
     const { action, props, currentState } = controllerStack.at(-1);
     if (props.type !== "form" && props.type !== action.views?.[0]?.[1]) {
-        // add view_type only when it's not already known implicitly
         stateKeys.push("view_type");
     }
     if (currentState) {
@@ -81,11 +77,17 @@ export function makeActionState(controllerStack) {
  * @returns {{ actionRequest: Object, options: Object } | null}
  */
 export function getActionParams(state) {
+    /**
+     * @type {{
+     *   additionalContext?: Object,
+     *   viewType?: string,
+     *   index?: number,
+     *   props?: { resId?: any, globalState?: any },
+     * }}
+     */
     const options = {};
     let actionRequest = null;
     const lastAction = actionStorage.getCurrentAction();
-    // If this method is called because of a company switch, the
-    // stored allowed_company_ids is incorrect.
     delete lastAction.context?.allowed_company_ids;
     if (lastAction.help) {
         lastAction.help = markup(lastAction.help);
@@ -100,7 +102,6 @@ export function getActionParams(state) {
         } else if (state.active_id) {
             context.active_ids = [state.active_id];
         }
-        // ClientAction
         const [actionRequestKey, clientAction] = resolveClientAction(state.action);
         if (actionRequestKey && clientAction) {
             actionRequest = /** @type {any} */ ({
@@ -113,7 +114,6 @@ export function getActionParams(state) {
                 actionRequest.path = /** @type {any} */ (clientAction).path;
             }
         } else {
-            // The action to load isn't the current one => executes it
             Object.assign(options, {
                 additionalContext: context,
                 viewType: state.resId ? "form" : state.view_type,
@@ -162,8 +162,6 @@ export function getActionParams(state) {
                 };
             }
         } else {
-            // This is a window action on a multi-record view => restores it from
-            // the session storage
             if (lastAction.res_model === state.model) {
                 actionRequest = lastAction;
                 options.viewType = state.view_type;
@@ -171,9 +169,6 @@ export function getActionParams(state) {
         }
     }
     if (!actionRequest) {
-        // If the last action isn't valid (eg a model with no resId and no view_type) which can
-        // happen if the user edits the url and removes the id from the end of the url, we don't want
-        // to send him back to the home menu: we unwind the actionStack until we find a valid action
         const { actionStack } = state;
         if (actionStack?.length > 1) {
             const nextState = { actionStack: actionStack.slice(0, -1) };
@@ -182,14 +177,11 @@ export function getActionParams(state) {
             if (!params) {
                 return null;
             }
-            // Place the controller at the found position in the action stack to remove all the
-            // invalid virtual controllers.
             if (params.options && params.options.index === undefined) {
                 params.options.index = nextState.actionStack.length - 1;
             }
             return params;
         }
-        // Fall back to the home action if no valid action was found
         actionRequest = user.homeActionId;
     }
     return actionRequest ? { actionRequest, options } : null;

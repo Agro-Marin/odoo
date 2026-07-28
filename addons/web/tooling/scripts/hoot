@@ -41,8 +41,9 @@ Examples
   hoot --affected                      # suites touched by your git diff
   hoot --watch '@web/core/domain'      # re-run on file change
   hoot --status                        # show all warm servers
-  hoot --stop [--db hoot_mail]         # stop warm server(s) (keep DBs)
-  hoot --clean [--db hoot_mail]        # stop warm server(s) AND drop DB(s)
+  hoot --stop [--db hoot_mail]         # stop ONE warm server (keep its DB)
+  hoot --clean [--db hoot_mail]        # stop ONE warm server AND drop its DB
+  hoot --stop --all                    # stop EVERY warm server (all sessions)
 
 Full test path form works too (HOOT resolves an id against a suite OR a single
 test), e.g.  hoot '@web/core/domain/Basic Properties/empty'.
@@ -255,9 +256,14 @@ def main() -> int:
     ap.add_argument("--status", action="store_true",
                     help="Print warm-server status and exit.")
     ap.add_argument("--stop", action="store_true",
-                    help="Stop the warm server (keep its DB) and exit.")
+                    help="Stop this invocation's warm server (keep its DB) "
+                         "and exit.")
     ap.add_argument("--clean", action="store_true",
-                    help="Stop the warm server AND drop its DB, then exit.")
+                    help="Stop this invocation's warm server AND drop its DB, "
+                         "then exit.")
+    ap.add_argument("--all", action="store_true",
+                    help="With --stop/--clean: act on EVERY recorded warm "
+                         "server, including those other sessions are using.")
     ap.add_argument("--restart", action="store_true",
                     help="Force a fresh warm server before running.")
     args = ap.parse_args()
@@ -273,11 +279,15 @@ def main() -> int:
                 f"WARM  pid={st['pid']} port={st['port']} db={st['db']}",
                 C_GREEN))
         return 0
-    if args.stop:
-        print(H.stop_server(db=args.db, clean=False))
-        return 0
-    if args.clean:
-        print(H.stop_server(db=args.db, clean=True))
+    if args.stop or args.clean:
+        # Default to a single DB. This workspace runs several Claude Code
+        # sessions against the same checkout, and a bare --stop used to kill
+        # every recorded warm server, including whichever one another session
+        # was mid-run against.
+        db = args.db
+        if db is None and not args.all:
+            db = H.db_for_modules(H.modules_for_suites(list(args.suites)))
+        print(H.stop_server(db=db, clean=args.clean))
         return 0
 
     suites = _resolve_suites(args)

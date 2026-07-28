@@ -116,8 +116,6 @@ export class ExpressionEditor extends Component {
             }),
             isSupported: (value) =>
                 [0, 1].includes(value) || value in this.filteredFields,
-            // by construction, all values received by the path editor are O/1 or a field (name) in this.props.fields.
-            // (see _leafFromAST in condition_tree.js)
             stringify: (value) => this.props.fields[value].string,
             defaultValue: () => defaultCondition.path,
             message: _t("Field properties not supported"),
@@ -151,8 +149,6 @@ export class ExpressionEditor extends Component {
                 generateSmartDates: false,
             });
         } catch {
-            // The edited tree has no expression representation: keep the
-            // previous expression instead of persisting an error artifact.
             expression = this.props.expression;
         }
         this.props.update(expression);

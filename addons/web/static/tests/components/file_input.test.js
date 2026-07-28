@@ -12,8 +12,6 @@ import {
 import { FileInput } from "@web/components/file_input/file_input";
 import { session } from "@web/session";
 
-// Helpers
-
 async function createFileInput({ mockPost, mockAdd, props }) {
     mockService("notification", {
         add: mockAdd || (() => {}),
@@ -23,8 +21,6 @@ async function createFileInput({ mockPost, mockAdd, props }) {
     });
     await mountWithCleanup(FileInput, { props });
 }
-
-// Tests
 
 beforeEach(() => {
     patchWithCleanup(odoo, { csrf_token: "dummy" });
@@ -138,14 +134,12 @@ test("uploading a file that is too heavy will send a notification", async () => 
     await createFileInput({
         props: {
             onUpload(files) {
-                // This code should be unreachable in this case
                 expect.step(files[0].name);
             },
         },
         mockPost: (_, params) => JSON.stringify([{ name: params.ufile[0].name }]),
         mockAdd: (message) => {
             expect.step("notification");
-            // Byte values (2, 4) are simplified to 2 decimals when shown as MB
             expect(message).toBe(
                 "The selected file (4B) is larger than the maximum allowed file size (2B).",
             );
@@ -186,8 +180,6 @@ test("Upload button is disabled if attachment upload is not finished", async () 
 });
 
 test("a rejecting onWillUploadFiles still clears the input value (same-file retry)", async () => {
-    // The pre-upload hook used to reject before the finally that clears the input
-    // value ran, so re-selecting the identical file wouldn't re-fire onChange.
     expect.errors(1);
     await createFileInput({
         props: {

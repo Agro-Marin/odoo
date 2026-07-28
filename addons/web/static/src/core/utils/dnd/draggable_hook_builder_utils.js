@@ -5,13 +5,11 @@
 
 import { closestScrollableX, closestScrollableY } from "@web/core/utils/dom/scrolling";
 
-// Constants
-
 export const DRAGGABLE_CLASS = "o_draggable";
 export const DRAGGED_CLASS = "o_dragged";
 
 export const DEFAULT_ACCEPTED_PARAMS = {
-    allowDisconnected: [Boolean], // do not use, introduced for stable versions, to challenge in master
+    allowDisconnected: [Boolean],
     enable: [Boolean, Function],
     preventDrag: [Function],
     ref: [Object],
@@ -41,8 +39,6 @@ export const DEFAULT_DEFAULT_PARAMS = {
 export const LEFT_CLICK = 0;
 export const MANDATORY_PARAMS = ["ref"];
 export const WHITE_LISTED_KEYS = ["Alt", "Control", "Meta", "Shift"];
-
-// Pure functions
 
 /**
  * Transforms a camelCased string to return its kebab-cased version.
@@ -109,8 +105,6 @@ export function toFunction(value) {
     return typeof value === "function" ? /** @type {() => T} */ (value) : () => value;
 }
 
-// Element attribute cache & save/restore
-
 /**
  * Elements whose attribute a hook has modified. Global since multiple draggable
  * hooks can share elements; WeakSet lets removed elements be garbage-collected.
@@ -152,8 +146,6 @@ export function saveAttribute(el, attribute) {
     return restoreAttribute;
 }
 
-// Factory functions
-
 /**
  * Create a cleanup lifecycle manager.
  *
@@ -180,12 +172,6 @@ export function makeCleanupManager(defaultCleanupFn) {
             try {
                 cleanups.pop()();
             } catch (error) {
-                // Per-entry isolation: the stack is LIFO, so the entries pushed
-                // earliest — `controller.abort()` (which unbinds every window
-                // listener) and the default state reset — pop LAST. One throwing
-                // cleanup (a restore on a since-detached node, a consumer's
-                // addCleanup) would otherwise strand exactly the two that matter
-                // most, and skip re-arming `defaultCleanupFn` below.
                 console.error(error);
             }
         }
@@ -238,7 +224,6 @@ export function makeDOMHelpers(cleanup) {
         delete options.noAddedStyle;
         el.addEventListener(event, callback, options);
         if (!noAddedStyle && /mouse|pointer|touch/.test(event)) {
-            // Restore pointer events on elements listening on mouse/pointer/touch events.
             addStyle(/** @type {HTMLElement} */ (el), {
                 pointerEvents: "auto",
             });

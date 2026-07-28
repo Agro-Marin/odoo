@@ -101,21 +101,6 @@ export const SearchQueryMixin = (Base) =>
             this._notify();
         }
 
-        /** Remove filter, field and favorite facets but keep groupBy ones. */
-        clearFilters() {
-            // The `facets` getter runs inside this window and can throw on a favorite
-            // whose stored domain doesn't parse; the blocked window guarantees the
-            // flag is reset so a throw can't permanently silence the model.
-            this._withNotificationsBlocked(() => {
-                this.facets.forEach((facet) => {
-                    if (facet.type !== "groupBy") {
-                        this.deactivateGroup(facet.groupId);
-                    }
-                });
-            });
-            this._notify();
-        }
-
         /**
          * Create new search items of type 'filter' and activate them.
          * @param {Object[]} prefilters
@@ -127,9 +112,6 @@ export const SearchQueryMixin = (Base) =>
             }
             const searchItemIds = [];
             prefilters.forEach((preFilter) => {
-                // Copy rather than Object.assign onto the caller's prefilter — this is
-                // public API (search_model.createNewFilters); stamping id/groupId/type
-                // onto the passed-in object would corrupt any reused prefilter template.
                 const filter = {
                     ...preFilter,
                     groupId: this.nextGroupId,
@@ -159,11 +141,6 @@ export const SearchQueryMixin = (Base) =>
         createNewGroupBy(fieldName, { interval, invisible } = {}) {
             const field = this.searchViewFields[fieldName];
             const { string, type: fieldType } = field;
-            // Match either group-by variant: the arch parser unifies groupBy and
-            // dateGroupBy items into a single group sharing one groupId (see
-            // search_arch_parser.reduceType/pushGroup), and one query group renders
-            // as one group-by facet. If only date group-bys pre-exist, matching just
-            // "groupBy" would mint a fresh groupId and split off a second facet.
             const firstGroupBy = Object.values(this.searchItems).find(
                 (f) => f.type === "groupBy" || f.type === "dateGroupBy",
             );
@@ -179,9 +156,6 @@ export const SearchQueryMixin = (Base) =>
             if (invisible) {
                 preSearchItem.invisible = "True";
             }
-            // toggleDateGroupBy/toggleSearchItem each end with their own _notify();
-            // block notifications around the toggle so the trailing _notify() below is
-            // the only reload — otherwise "Add Custom Group" triggers two full reloads.
             this._withNotificationsBlocked(() => {
                 if (["date", "datetime"].includes(fieldType)) {
                     this.searchItems[this.nextId] = Object.assign(
@@ -213,15 +187,7 @@ export const SearchQueryMixin = (Base) =>
         deactivateGroup(groupId) {
             if (groupId === SPECIAL) {
                 delete this.defaultGroupBy;
-                // Persist the removal across breadcrumb restore / back-forward:
-                // exportState/execute serializes this marker and load() honors it,
-                // otherwise load() re-applies config.defaultGroupBy and the facet
-                // silently reappears.
                 this.defaultGroupByRemoved = true;
-                // Removing the last effective groupBy must also clear a latched count
-                // sort — otherwise the next groupBy the user adds is unexpectedly
-                // count-sorted (computeOrderBy injects {name:"__count"} whenever
-                // groupBy.length && orderByCount).
                 this._checkOrderByCountStatus();
                 this._notify();
                 return;
@@ -259,10 +225,6 @@ export const SearchQueryMixin = (Base) =>
                 this._checkOrderByCountStatus();
             } else {
                 if (searchItem.type === "favorite") {
-                    // Clearing the query must also reset orderByCount (as clearQuery
-                    // does): a favorite carrying group_by would otherwise load with a
-                    // stale {name:"__count"} sort it never contained, because
-                    // computeOrderBy injects it whenever groupBy.length && orderByCount.
                     this.query = [];
                     this.orderByCount = false;
                 }
@@ -284,17 +246,9 @@ export const SearchQueryMixin = (Base) =>
             let generatorIds = generatorId
                 ? [generatorId]
                 : searchItem.defaultGeneratorIds;
-            // Computed once and reused below (auto-year lookup): both consumers want
-            // the same options for the same (referenceMoment, optionsParams) pair.
-            // null when there's no optionsParams to check against (e.g. explicit
-            // generatorId, unit tests) — getPeriodOptions destructures it and would
-            // throw.
             const knownOptions = searchItem.optionsParams
                 ? getPeriodOptions(this.referenceMoment, searchItem.optionsParams)
                 : null;
-            // defaultGeneratorIds are unvalidated arch/context strings; an unknown id
-            // used to silently produce an ACTIVE filter with an empty facet and a
-            // match-all domain, so drop it loudly instead.
             if (knownOptions) {
                 const validGeneratorIds = generatorIds.filter(
                     (gid) =>
@@ -308,6 +262,18 @@ export const SearchQueryMixin = (Base) =>
                     );
                 }
                 generatorIds = validGeneratorIds;
+            }
+            // Selecting a custom period replaces whatever the filter held, so a
+            // multi-custom default (`default_period`/`search_default_*` naming
+            // several) resolves to its last entry alone. Say so rather than
+            // dropping the others without a trace.
+            const customIds = generatorIds.filter((gid) => gid.startsWith("custom"));
+            if (customIds.length > 1) {
+                console.warn(
+                    `[search] date filter "${searchItem.name}": custom periods are mutually exclusive; ` +
+                        `keeping "${customIds.at(-1)}" and ignoring`,
+                    customIds.slice(0, -1),
+                );
             }
             for (const generatorId of generatorIds) {
                 const index = this.query.findIndex(
@@ -337,9 +303,6 @@ export const SearchQueryMixin = (Base) =>
                             !queryElem.generatorId.startsWith("custom"),
                     );
                     this.query.push({ searchItemId, generatorId });
-                    // Reuses knownOptions computed above: without optionsParams
-                    // there is nothing to resolve a defaultYearId against, so skip
-                    // the auto-year lookup entirely.
                     if (
                         knownOptions &&
                         !yearSelected(this._getSelectedGeneratorIds(searchItemId))

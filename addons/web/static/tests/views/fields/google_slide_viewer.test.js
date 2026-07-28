@@ -35,7 +35,6 @@ test("iframe src is rebuilt on the docs.google.com origin", async () => {
     });
 
     expect(".o_google_slide_iframe").toHaveCount(1);
-    // hoot rewrites iframe src bindings to data-src to keep tests offline
     expect(".o_google_slide_iframe").toHaveAttribute(
         "data-src",
         "https://docs.google.com/presentation/d/e/2PACX-abc123_DEF/preview?slide=1",
@@ -56,7 +55,6 @@ test("companion <name>_page field selects the previewed slide", async () => {
             </form>`,
     });
 
-    // hoot rewrites iframe src bindings to data-src to keep tests offline
     expect(".o_google_slide_iframe").toHaveAttribute(
         "data-src",
         "https://docs.google.com/presentation/d/e/2PACX-abc123_DEF/preview?slide=3",
@@ -64,7 +62,6 @@ test("companion <name>_page field selects the previewed slide", async () => {
 });
 
 test("non-Google URLs render no iframe", async () => {
-    // "." must not act as a regex wildcard: docsXgoogle.com is not Google
     Slide._records[0].presentation_url =
         "https://docsXgoogle.com/presentation/d/e/2PACX-abc123/pub";
 
@@ -82,7 +79,6 @@ test("getGoogleSlideUrl encodes the page and pins the origin", () => {
     expect(
         getGoogleSlideUrl("https://docs.google.com/presentation/d/abc-123/edit", 2),
     ).toBe("https://docs.google.com/presentation/d/abc-123/preview?slide=2");
-    // page is URL-encoded, so it cannot smuggle extra query params
     expect(
         getGoogleSlideUrl(
             "https://docs.google.com/presentation/d/abc-123/edit",

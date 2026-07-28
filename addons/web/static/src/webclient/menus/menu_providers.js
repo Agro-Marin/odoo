@@ -53,17 +53,12 @@ commandProviderRegistry.add("menu", {
                     },
                     category: "menu_items",
                     name: `${menu.parents} / ${menu.label}`,
-                    // `href` is always set by computeAppsAndMenuItems
-                    // (`/odoo/...`); the old `#menu_id=` legacy fallback was
-                    // unreachable.
                     href: menu.href,
                 });
             });
         }
 
         apps.forEach((menu) => {
-            // webIconData is already a valid src value from the server:
-            // either a data URI (data:image/...;base64,...) or a URL path.
             const props = {};
             if (menu.webIconData) {
                 props.webIconData = menu.webIconData;
@@ -77,7 +72,6 @@ commandProviderRegistry.add("menu", {
                 },
                 category: "apps",
                 name: menu.label,
-                // `href` is always set (see the menu_items branch above).
                 href: menu.href,
                 props,
             });

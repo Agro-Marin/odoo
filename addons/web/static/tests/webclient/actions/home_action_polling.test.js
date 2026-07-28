@@ -31,8 +31,6 @@ import { WebClient } from "@web/webclient/webclient";
 
 /** Dispatch `home` exactly as client_action.test.js does. */
 function doHome() {
-    // Deliberately NOT awaited: it only settles once the server answers or
-    // the deadline expires, and the tests drive the clock in between.
     getService("action").doAction({ type: "ir.actions.client", tag: "home" });
 }
 
@@ -42,10 +40,6 @@ describe("home action: bounded server-wait loop", () => {
         browser.location.search = "";
         patchWithCleanup(browser.location, { assign: () => {} });
 
-        // Record the delay of every timer the polling loop schedules. This
-        // measures the retry SCHEDULE directly; counting attempts via
-        // advanceTime() cannot, because advanceTime does not cascade into
-        // timers created while it is flushing (one retry per call).
         const delays = [];
         const realSetTimeout = browser.setTimeout;
         patchWithCleanup(browser, {
@@ -67,17 +61,13 @@ describe("home action: bounded server-wait loop", () => {
         doHome();
         await animationFrame();
 
-        // Drive several retry rounds; each advanceTime yields one more probe.
         for (let i = 0; i < 6; i++) {
             await advanceTime(8000);
             await animationFrame();
         }
 
         expect(attempts).toBe(6);
-        // Was [1000, 250, 250, ...]: flat, unbounded. Now the delay doubles
-        // until it saturates at HOME_POLL_MAX_DELAY.
         expect(delays.slice(0, 5)).toEqual([1000, 2000, 4000, 8000, 8000]);
-        // Never exceeds the ceiling, and never regresses to the old flat value.
         expect(delays.every((d) => d <= 8000)).toBe(true);
     });
 
@@ -95,8 +85,6 @@ describe("home action: bounded server-wait loop", () => {
         doHome();
         await animationFrame();
 
-        // Past HOME_POLL_DEADLINE (2 min). Previously the promise never
-        // settled and the loop probed forever.
         for (let i = 0; i < 40; i++) {
             await advanceTime(8000);
             await animationFrame();
@@ -130,8 +118,6 @@ describe("home action: bounded server-wait loop", () => {
         expect(attempts).toBe(3);
         expect(assigned).toEqual(["/"]);
 
-        // Confirms the loop terminates on success, so the deadline case is
-        // really about the server never answering, not a runaway timer.
         await advanceTime(10_000);
         expect(attempts).toBe(3);
     });

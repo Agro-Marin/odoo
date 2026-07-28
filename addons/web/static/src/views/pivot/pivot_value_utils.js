@@ -15,9 +15,6 @@ import { _t } from "@web/core/l10n/translation";
 function normalize(gb, fields) {
     const [fieldName, interval] = gb.split(":");
     const field = fields[fieldName];
-    // A stale favorite / removed-or-renamed field yields no `field`; degrade to
-    // the bare name instead of throwing on `field.type` and blanking the whole
-    // pivot. (Row/col groupBys are not sanitized upstream the way measures are.)
     if (field && ["date", "datetime"].includes(field.type)) {
         return `${fieldName}:${interval || "month"}`;
     }
@@ -60,8 +57,6 @@ function sanitizeLabel(value, groupBy, config) {
         }
     }
     if (value === false) {
-        // ``fieldName`` may be absent from metaData.fields (property / dynamic
-        // field, stale favorite) — the sibling branches above already guard it.
         return metaData.fields[fieldName]?.falsy_value_label || _t("None");
     }
     if (Array.isArray(value)) {

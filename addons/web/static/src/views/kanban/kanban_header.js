@@ -39,8 +39,6 @@ export class KanbanHeader extends Component {
     };
     static props = {
         activeActions: { type: Object },
-        // Optional: x2many kanban embeds don't pass it (and the renderer forwards
-        // props.canQuickCreate = undefined). Defaulted to false below (M5).
         canQuickCreate: { type: Boolean, optional: true },
         deleteGroup: { type: Function },
         dialogClose: { type: Array },
@@ -76,8 +74,6 @@ export class KanbanHeader extends Component {
         try {
             tooltip = await this.loadTooltip();
         } catch {
-            // Transient failure (loadTooltip dropped its cache): no tooltip
-            // for this hover, the next one retries.
             return;
         }
         if (tooltip.length) {
@@ -90,8 +86,6 @@ export class KanbanHeader extends Component {
         /** @type {any} */ (this.onTitleMouseEnter).cancel();
         this.popover.close();
     }
-
-    // Getters
 
     /** @returns {Object} Props for the GroupConfigMenu dropdown (fold, edit, delete, archive). */
     get configMenuProps() {
@@ -135,8 +129,6 @@ export class KanbanHeader extends Component {
         const { sumField } = progressBarState.progressAttributes;
         return progressBarState.getAggregateValue(group, sumField);
     }
-
-    // Tooltip methods
 
     /** @returns {boolean} Whether this group header should show a tooltip on hover. */
     get hasTooltip() {

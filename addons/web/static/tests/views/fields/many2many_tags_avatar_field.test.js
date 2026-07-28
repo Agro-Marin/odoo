@@ -157,7 +157,6 @@ test("widget many2many_tags_avatar in list view", async () => {
         ".o_data_row:nth-child(4) .o_field_many2many_tags_avatar .o_m2m_avatar_empty",
     ).toHaveText("+9");
 
-    // check data-tooltip attribute (used by the tooltip service)
     const tag = queryOne(
         ".o_data_row:nth-child(2) .o_field_many2many_tags_avatar .o_m2m_avatar_empty",
     );
@@ -182,7 +181,6 @@ test("widget many2many_tags_avatar in list view", async () => {
 
     await contains(".o_data_row:nth-child(1) .o_data_cell").click();
 
-    // Only the first row should have tags with delete buttons.
     expect(".o_data_row:nth-child(1) .o_field_tags span .o_delete").toHaveCount(2);
     expect(".o_data_row:nth-child(2) .o_field_tags span .o_delete").toHaveCount(0);
     expect(".o_data_row:nth-child(3) .o_field_tags span .o_delete").toHaveCount(0);
@@ -193,7 +191,7 @@ test("widget many2many_tags_avatar list view - don't crash on keyboard navigatio
     await mountView({
         type: "list",
         resModel: "turtle",
-        arch: /*xml*/ `
+        arch: `
                 <list editable="bottom">
                     <field name="partner_ids" widget="many2many_tags_avatar"/>
                 </list>
@@ -202,13 +200,11 @@ test("widget many2many_tags_avatar list view - don't crash on keyboard navigatio
 
     await contains(".o_data_row:nth-child(2) .o_data_cell").click();
 
-    // Pressing left arrow should focus on the right-most (second) tag.
     await press("arrowleft");
     expect(
         ".o_data_row:nth-child(2) .o_field_tags span:nth-child(2):first",
     ).toBeFocused();
 
-    // Pressing left arrow again should not crash and should focus on the first tag.
     await press("arrowleft");
     expect(
         ".o_data_row:nth-child(2) .o_field_tags span:nth-child(1):first",

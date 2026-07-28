@@ -9,21 +9,8 @@ import { makeAssetLog } from "@web/core/utils/asset_log";
 
 const log = makeAssetLog("registry");
 
-// -----------------------------------------------------------------------------
-// Errors
-// -----------------------------------------------------------------------------
 export class KeyNotFoundError extends Error {}
 
-// -----------------------------------------------------------------------------
-// Validation
-// -----------------------------------------------------------------------------
-
-/**
- * @param {string | undefined} name
- * @param {string} key
- * @param {any} value
- * @param {object} schema
- */
 /**
  * Report a registry-integrity anomaly (e.g. a quarantined invalid entry).
  * Routed through ``error_beacon`` so it lands in the same observability
@@ -59,12 +46,6 @@ const validateSchema = (name, key, value, schema) => {
     let error;
     try {
         if (typeof schema === "function") {
-            // Function predicate: registries holding bare functions
-            // (formatters, parsers, error_handlers, …) cannot express
-            // their contract via OWL's object-shape ``validate``, so
-            // ``addValidation`` also accepts a predicate. Returning
-            // ``false`` flags the entry as invalid; ``undefined`` /
-            // truthy accepts it.
             if (schema(value) === false) {
                 error = new Error(`value did not pass the predicate`);
             }
@@ -79,18 +60,11 @@ const validateSchema = (name, key, value, schema) => {
     }
     const msg = `Validation error for key "${key}" in registry "${name}": ${error}`;
     if (odoo.debug) {
-        // Dev: fail-fast so the bad registration cannot enter the registry.
         throw new Error(msg, { cause: error });
     }
-    // Production: refuse the entry (quarantine) and report. Keeping the
-    // page alive no longer requires serving a known-invalid value.
     reportRegistryAnomaly(msg);
     return false;
 };
-
-// -----------------------------------------------------------------------------
-// Types
-// -----------------------------------------------------------------------------
 
 /**
  * @template S
@@ -140,7 +114,14 @@ export class Registry extends EventBus {
          * enumeration alone is not insertion order — integer-like keys ("2",
          * "10") enumerate in ascending numeric order BEFORE string keys — so
          * a registry keyed by numeric ids would otherwise reorder ties
-         * unpredictably. @type {number}
+         * unpredictably.
+         *
+         * A key's ordinal is stamped at FIRST registration and preserved by a
+         * ``force`` override (see {@link add}), which is the whole point: a
+         * ``{ force: true }`` re-add is how an addon overrides an existing
+         * entry, and re-stamping would silently move that entry behind its
+         * equal-sequence peers — reordering first-match-wins registries such
+         * as ``error_handlers``. @type {number}
          */
         this._insertionIndex = 0;
         /** @type {{ [P in keyof GetRegistryCategories<T>]?: Registry<GetRegistryCategories<T>[P]> }} */
@@ -170,21 +151,10 @@ export class Registry extends EventBus {
     add(key, value, { force, sequence } = {}) {
         if (this.validationSchema) {
             if (!validateSchema(this.name, key, value, this.validationSchema)) {
-                // Production: the entry failed schema validation and was
-                // quarantined (not inserted) — see validateSchema. Debug
-                // mode already threw. Return chainably without crashing.
                 return this;
             }
         }
         if (!force && key in this.content) {
-            // Multiple ESM bundles (e.g. web.assets_tests, web.assets_web) each
-            // inline this module and race to add() the same key; first-wins
-            // keeps that working since web.assets_web evaluates first. Real
-            // cross-addon collisions still surface as wrong-impl bugs at
-            // runtime (see test-suite-validation notes task #5).
-            //
-            // Warn in odoo.debug on a different-value duplicate to flag a real
-            // collision; stay silent in production to preserve the behavior.
             if (this.content[key][1] !== value) {
                 if (odoo.debug) {
                     console.warn(
@@ -194,9 +164,6 @@ export class Registry extends EventBus {
                 }
                 return this;
             }
-            // Same value re-registered: the early return keeps the ORIGINAL
-            // sequence, so a caller passing a different sequence to reorder
-            // has it silently dropped — warn in dev so that isn't a mystery.
             if (
                 odoo.debug &&
                 sequence !== undefined &&
@@ -210,12 +177,20 @@ export class Registry extends EventBus {
             return this;
         }
         let previousSequence;
+        let previousInsertion;
         if (force) {
             const elem = this.content[key];
-            previousSequence = elem && elem[0];
+            if (elem) {
+                previousSequence = elem[0];
+                previousInsertion = elem[2];
+            }
         }
         sequence = sequence ?? previousSequence ?? 50;
-        this.content[key] = [sequence, value, this._insertionIndex++];
+        this.content[key] = [
+            sequence,
+            value,
+            previousInsertion ?? this._insertionIndex++,
+        ];
         const payload = { operation: "add", key, value };
         this.trigger("UPDATE", payload);
         return this;
@@ -260,9 +235,6 @@ export class Registry extends EventBus {
     getAll() {
         if (!this.elements) {
             const tuples = Object.values(this.content);
-            // Sequence first, then insertion index so equal sequences keep
-            // add() order deterministically (Object.values enumeration would
-            // otherwise put integer-like keys ahead of string keys).
             tuples.sort((a, b) => a[0] - b[0] || a[2] - b[2]);
             const elements = new Array(tuples.length);
             for (let i = 0; i < tuples.length; i++) {
@@ -270,8 +242,6 @@ export class Registry extends EventBus {
             }
             this.elements = /** @type {any} */ (Object.freeze(elements));
         }
-        // Non-null after the cache-fill above; the field is nullable only to
-        // model the "needs recompute" reset performed by the UPDATE listener.
         return /** @type {ReadonlyArray<GetRegistryItemShape<T>>} */ (this.elements);
     }
 
@@ -286,7 +256,6 @@ export class Registry extends EventBus {
     getEntries() {
         if (!this.entries) {
             const raw = Object.entries(this.content);
-            // See getAll(): sequence, then insertion index for stable ties.
             raw.sort((a, b) => a[1][0] - b[1][0] || a[1][2] - b[1][2]);
             const entries = new Array(raw.length);
             for (let i = 0; i < raw.length; i++) {
@@ -294,7 +263,6 @@ export class Registry extends EventBus {
             }
             this.entries = /** @type {any} */ (Object.freeze(entries));
         }
-        // Non-null after the cache-fill above (see getAll).
         return /** @type {ReadonlyArray<[string, GetRegistryItemShape<T>]>} */ (
             this.entries
         );
@@ -350,43 +318,21 @@ export class Registry extends EventBus {
      */
     addValidation(schema) {
         if (this.validationSchema) {
-            // Idempotent: multiple bundles sharing the globalThis-anchored
-            // registry each call addValidation for the same category.
-            // First-wins keeps this deterministic (web.assets_web evaluates
-            // first), silently discarding later calls.
             return;
         }
         this.validationSchema = schema;
         for (const [key, value] of this.getEntries()) {
             if (!validateSchema(this.name, key, value, schema)) {
-                // Retroactively quarantine an already-registered entry that
-                // violates the new schema. Safe to mutate while iterating:
-                // getEntries() is a frozen snapshot; debug mode already
-                // threw inside validateSchema.
                 this.remove(key);
             }
         }
     }
 }
 
-// Anchor the global ``registry`` on ``globalThis`` so every ESM bundle that
-// inlines this module (web.assets_web, web.assets_tests, web.assets_unit_tests,
-// esm.dynamic_children, ...) shares the SAME instance. Without this, a tour
-// registered from web.assets_tests would write to that bundle's private
-// registry while ``odoo.isTourReady`` (web.assets_web) reads a different one —
-// the tour is never found and the browser-tour test times out. ``??=`` keeps
-// the FIRST bundle's instance authoritative (typically web.assets_web).
-//
-// Duplicate ``add("ui", …)`` calls from bundles inlining the same source now
-// hit one registry — see Registry.add's idempotent-duplicate handling above.
 /** @type {Registry<import("registries").GlobalRegistry>} */
 export const registry = /** @type {any} */ (
     globalThis.__odooRegistry__ ??= new Registry()
 );
-
-// ---------------------------------------------------------------------------
-// Registry hook (merged from registry_hook.js)
-// ---------------------------------------------------------------------------
 
 /**
  * OWL hook that provides a reactive view of a registry's entries.
@@ -416,14 +362,8 @@ export function useRegistry(registry) {
                 return;
             }
             if (index !== -1) {
-                // Force-replace: remove old, insert at new position.
                 state.entries.splice(index, 1);
             }
-            // ``state.entries`` may have diverged from the full registry
-            // ordering (error handlers splice entries out locally), so the
-            // full-order index can overshoot. Map full order → local order:
-            // insert before the first local entry that sorts after the new
-            // key in the registry's ordering.
             const followers = new Set(newEntries.slice(newIndex + 1).map(([k]) => k));
             let insertAt = state.entries.findIndex(([k]) => followers.has(k));
             if (insertAt === -1) {
@@ -435,9 +375,6 @@ export function useRegistry(registry) {
         }
     };
 
-    // Attach at setup time (not onWillStart): an "add" landing between setup
-    // and an async willStart chain would otherwise be lost — the snapshot
-    // above is taken now, so listening must start now too.
     registry.addEventListener("UPDATE", /** @type {any} */ (listener));
     onWillDestroy(() =>
         registry.removeEventListener("UPDATE", /** @type {any} */ (listener)),

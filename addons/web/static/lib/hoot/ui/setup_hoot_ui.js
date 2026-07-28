@@ -19,10 +19,6 @@ import { HootMain } from "./hoot_main.js";
  * @typedef {ReturnType<typeof makeUiState>} UiState
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     customElements,
     document,
@@ -30,10 +26,6 @@ const {
     HTMLElement,
     Object: { entries: $entries },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {string} href
@@ -109,10 +101,6 @@ class HootContainer extends HTMLElement {
 
 customElements.define("hoot-container", HootContainer);
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export function makeUiState() {
     return reactive({
         resultsPage: 0,
@@ -134,7 +122,6 @@ export function makeUiState() {
  * @returns {Promise<void>}
  */
 export async function setupHootUI() {
-    // - Patch window before code from other modules is executed
     patchWindow();
 
     const runner = getRunner();
@@ -148,7 +135,6 @@ export async function setupHootUI() {
     document.body.appendChild(container);
 
     const promises = [
-        // Mount main container
         mount(HootMain, container.shadowRoot, {
             env: {
                 runner,
@@ -159,7 +145,6 @@ export async function setupHootUI() {
     ];
 
     if (!runner.headless) {
-        // In non-headless: also wait for lazy-loaded libs (Highlight & DiffMatchPatch)
         promises.push(loadBundle("web.assets_unit_tests_setup_ui"));
 
         let colorStyleContent = "";
@@ -180,7 +165,6 @@ export async function setupHootUI() {
             createLinkElement("/web/static/src/libs/fontawesome7/css/regular.css"),
             createLinkElement("/web/static/src/libs/fontawesome7/css/brands.css"),
             prismStyleLink,
-            // Hoot-specific style is loaded last to take priority over other stylesheets
             createLinkElement("/web/static/lib/hoot/ui/hoot_style.css")
         );
     }

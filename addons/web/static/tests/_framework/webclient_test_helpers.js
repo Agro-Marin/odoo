@@ -51,11 +51,6 @@ export function useTestClientAction() {
  * @returns {Promise<ActionContainer>}
  */
 export async function mountActionHost(options = {}) {
-    // No settle loop, unlike ``mountWebClient``: those three frames exist to
-    // absorb the shell's boot-time ``loadRouterState`` -> loadState -> skeleton
-    // -> real render sequence. Nothing here dispatches an action on mount, so
-    // the container is ready as soon as it is mounted; awaiting frames would
-    // only add latency. Tests await their own ``doAction`` instead.
     return mountWithCleanup(ActionContainer, options);
 }
 
@@ -66,11 +61,8 @@ export async function mountWebClient(options = {}) {
     const WebClientComponent = /** @type {any} */ (options).WebClient || WebClient;
     delete (/** @type {any} */ (options).WebClient);
     const webClient = await mountWithCleanup(WebClientComponent, options);
-    // Wait for visual changes caused by a potential loadState
     await animationFrame();
-    // wait for BlankComponent
     await animationFrame();
-    // wait for the regular rendering
     await animationFrame();
 
     return webClient;

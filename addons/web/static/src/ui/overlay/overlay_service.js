@@ -29,19 +29,8 @@ export const overlayService = {
     start() {
         let nextId = 0;
         const overlays = reactive(/** @type {Record<number, any>} */ ({}));
-        // Ids whose removal is in flight. A closer may be invoked more than once
-        // before its async ``onRemove`` settles (e.g. action_service calls the
-        // dialog's ``remove()`` while a re-entrant ``onRemove`` also fires, or
-        // OverlayContainer.handleError removes a crashing overlay). Tracking the
-        // in-flight ids makes ``remove`` idempotent internally so ``onRemove``
-        // runs exactly once and consumers don't each need their own guard.
         const removing = new Set();
 
-        // No props: OverlayContainer reads the overlays from ITS env's overlay
-        // service. Passing `overlays` through the registry entry would bind
-        // every rendered container (one per WebClient) to the overlays of the
-        // service instance that registered last — with several mock envs in
-        // tests, overlays opened from the other envs would render nowhere.
         mainComponents.add("OverlayContainer", {
             Component: /** @type {any} */ (OverlayContainer),
         });
@@ -67,7 +56,9 @@ export const overlayService = {
          * @param {import("@odoo/owl").ComponentConstructor} component
          * @param {object} props
          * @param {OverlayServiceAddOptions} [options]
-         * @returns {() => void}
+         * @returns {(removeParams?: any) => Promise<void>} resolves once
+         *  `options.onRemove` has settled and the overlay is gone. Calling it
+         *  more than once is a no-op: the first call owns the removal.
          */
         const add = (component, props, options = {}) => {
             const id = ++nextId;

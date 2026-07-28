@@ -49,7 +49,6 @@ export function getFieldDomain(record, fieldName, domain) {
     if (domain) {
         return domain;
     }
-    // Fallback to the domain defined in the field definition in python
     domain = record.fields[fieldName].domain;
     return typeof domain === "string"
         ? new Domain(evaluateExpr(domain, record.evalContext)).toList()

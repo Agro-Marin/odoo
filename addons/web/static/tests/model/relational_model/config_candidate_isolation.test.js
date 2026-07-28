@@ -92,17 +92,14 @@ describe("candidate config isolation", () => {
             },
         };
         const cloned = cloneGroupTree(groups);
-        // Containers are fresh objects at every level…
         expect(cloned.A).not.toBe(groups.A);
         expect(cloned.A.list).not.toBe(groups.A.list);
         expect(cloned.A.record).not.toBe(groups.A.record);
         expect(cloned.A.list.groups.sub).not.toBe(groups.A.list.groups.sub);
         expect(cloned.A.list.groups.sub.list).not.toBe(groups.A.list.groups.sub.list);
-        // …but the shared immutable references are kept.
         expect(cloned.A.fields).toBe(fields);
         expect(cloned.A.activeFields).toBe(activeFields);
         expect(cloned.A.list.fields).toBe(fields);
-        // Values are preserved.
         expect(cloned.A.list.offset).toBe(40);
         expect(cloned.A.isFolded).toBe(false);
     });
@@ -116,7 +113,6 @@ describe("candidate config isolation", () => {
         expect(candidate.groups).not.toBe(committed.groups);
         expect(candidate.groups.A).not.toBe(committed.groups.A);
         expect(candidate.groups.A.list).not.toBe(committed.groups.A.list);
-        // Pagination/fold state opened by the user is still carried over.
         expect(candidate.groups.A.list.limit).toBe(committed.groups.A.list.limit);
         expect(candidate.groups.A.isFolded).toBe(committed.groups.A.isFolded);
     });
@@ -140,8 +136,6 @@ describe("candidate config isolation", () => {
         );
 
         expect(candidate.groups.A.list.offset).toBe(0);
-        // Without candidate isolation, resetOffset recursed into the
-        // committed config's group lists.
         expect(committed.groups.A.list.offset).toBe(40);
     });
 
@@ -149,9 +143,6 @@ describe("candidate config isolation", () => {
         const committed = makeCommittedConfig();
         await seedGroups(committed, ["A"]);
 
-        // Two racing root loads: A (stale) starts first, B (fresh) starts
-        // second and wins; A's RPC resolves late and its postprocess runs
-        // after B committed.
         const staleCandidate = computeNextConfig(
             committed,
             { domain: [["stale", "=", 1]] },
@@ -167,11 +158,8 @@ describe("candidate config isolation", () => {
         const winningDomain = winningCandidate.groups.A.list.domain;
         expect(JSON.stringify(winningDomain)).toInclude("fresh");
 
-        // The stale load's continuation lands late.
         await seedGroups(staleCandidate, ["A"]);
 
-        // The winning (now committed) config is untouched: same object,
-        // same domain — the next group fold/pager fetch stays fresh.
         expect(winningCandidate.groups.A.list.domain).toBe(winningDomain);
         expect(JSON.stringify(winningCandidate.groups.A.list.domain)).toInclude(
             "fresh",
@@ -179,7 +167,6 @@ describe("candidate config isolation", () => {
         expect(JSON.stringify(winningCandidate.groups.A.list.domain)).not.toInclude(
             "stale",
         );
-        // The stale candidate mutated only its own discarded copy.
         expect(JSON.stringify(staleCandidate.groups.A.list.domain)).toInclude("stale");
     });
 });

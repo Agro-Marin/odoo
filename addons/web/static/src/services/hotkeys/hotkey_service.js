@@ -8,7 +8,6 @@ import { AUTHORIZED_KEYS, getActiveHotkey, MODIFIERS } from "@web/core/browser/h
 import { registry } from "@web/core/registry";
 import { getVisibleElements } from "@web/core/utils/dom/ui";
 
-// Re-export for backward compatibility — consumers should migrate to @web/core/browser/hotkeys
 export { getActiveHotkey };
 
 /**
@@ -40,7 +39,6 @@ export { getActiveHotkey };
 
 export const hotkeyService = {
     dependencies: ["ui"],
-    // All odoo hotkeys assume this modifier; changing it may conflict with existing shortcuts.
     overlayModifier: "alt",
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -96,8 +94,6 @@ export const hotkeyService = {
          */
         function onKeydown(event) {
             if (event.code?.startsWith("Numpad") && /^\d$/.test(event.key)) {
-                // Ignore Keypad number keys — Windows ALT+[numeric code] inputs ASCII/Unicode
-                // chars this way. See https://support.microsoft.com/en-us/office/insert-ascii-or-unicode-latin-based-symbols-and-characters-d13f58d3-7bcb-44a7-a4d5-972ee12e50e0#bm1
                 return;
             }
 
@@ -111,10 +107,6 @@ export const hotkeyService = {
                 return;
             }
 
-            // Replace [accesskey] attrs with [data-hotkey] to take over the default accesskey
-            // behavior and avoid conflicts. Only overlay-modifier presses reach these elements,
-            // and only within the UI active element — dispatch can't route outside it, so
-            // stripping accesskeys there would destroy native behavior for nothing.
             if (includesOverlayModifier(hotkey)) {
                 const elementsWithAccessKey =
                     activeElement.querySelectorAll("[accesskey]");
@@ -126,7 +118,6 @@ export const hotkeyService = {
                 }
             }
 
-            // Special case: open hotkey overlays
             if (!overlaysVisible && hotkey === hotkeyService.overlayModifier) {
                 addHotkeyOverlays(activeElement);
                 event.preventDefault();
@@ -138,8 +129,6 @@ export const hotkeyService = {
                 return;
             }
 
-            // Protect any editable target that does not explicitly accept hotkeys
-            // NB: except for ESC, which is always allowed as hotkey in editables.
             const targetIsEditable =
                 event.target instanceof HTMLElement &&
                 (/input|textarea/i.test(event.target.tagName) ||
@@ -159,9 +148,7 @@ export const hotkeyService = {
             };
             const dispatched = dispatch(infos);
             if (dispatched) {
-                // Prevent browser defaults
                 event.preventDefault();
-                // Stop other window keydown listeners (e.g. home menu)
                 event.stopImmediatePropagation();
             }
 
@@ -191,8 +178,6 @@ export const hotkeyService = {
             const { activeElement, hotkey, isRepeated, target, shouldProtectEditable } =
                 infos;
 
-            // Only registrations under this exact hotkey can match; DOM [data-hotkey]
-            // registrations also need the overlay modifier — bail out early otherwise.
             const matchingRegistrations = registrationsByHotkey.get(hotkey);
             if (!matchingRegistrations?.size && !includesOverlayModifier(hotkey)) {
                 return false;
@@ -204,32 +189,41 @@ export const hotkeyService = {
             const domRegistrations = getDomRegistrations(hotkey, activeElement);
             const allRegistrations = [...reversedRegistrations, ...domRegistrations];
 
-            const candidates = allRegistrations.filter(
-                (reg) =>
-                    (reg.allowRepeat || !isRepeated) &&
-                    (reg.bypassEditableProtection || !shouldProtectEditable) &&
-                    (reg.global || reg.activeElement === activeElement) &&
-                    (!reg.isAvailable ||
-                        reg.isAvailable(/** @type {HTMLElement} */ (target))) &&
-                    (!reg.area ||
-                        (target &&
-                            reg.area() &&
-                            reg.area().contains(/** @type {Node} */ (target)))),
-            );
+            // `area()` is caller-supplied and typically queries the DOM. It used
+            // to be invoked up to twice per candidate in the filter and twice
+            // more per candidate in the containment loop, on every keystroke —
+            // and, worse, a callback returning a fresh result between calls made
+            // the comparisons inconsistent. Resolve it exactly once per
+            // registration and compare the resolved elements.
+            const candidates = allRegistrations
+                .map((reg) => ({ reg, area: reg.area?.() }))
+                .filter(
+                    ({ reg, area }) =>
+                        (reg.allowRepeat || !isRepeated) &&
+                        (reg.bypassEditableProtection || !shouldProtectEditable) &&
+                        (reg.global || reg.activeElement === activeElement) &&
+                        (!reg.isAvailable ||
+                            reg.isAvailable(/** @type {HTMLElement} */ (target))) &&
+                        (!reg.area ||
+                            Boolean(
+                                target &&
+                                area &&
+                                area.contains(/** @type {Node} */ (target)),
+                            )),
+                );
 
             let winner = candidates.shift();
             if (winner?.area) {
-                // If there is an area, find the closest one
-                for (const candidate of candidates.filter((c) => Boolean(c.area))) {
-                    if (candidate.area() && winner.area().contains(candidate.area())) {
+                for (const candidate of candidates) {
+                    if (candidate.area && winner.area.contains(candidate.area)) {
                         winner = candidate;
                     }
                 }
             }
 
             if (winner) {
-                winner.callback({
-                    area: winner.area?.(),
+                winner.reg.callback({
+                    area: winner.area,
                     target,
                 });
                 return true;
@@ -249,8 +243,6 @@ export const hotkeyService = {
                 return [];
             }
 
-            // Get all elements having a data-hotkey attribute  and matching
-            // the actual hotkey without the overlayModifier.
             const overlayModParts = hotkeyService.overlayModifier.split("+");
             const cleanHotkey = hotkey
                 .split("+")
@@ -279,12 +271,8 @@ export const hotkeyService = {
          * @param {HTMLElement} activeElement
          */
         function addHotkeyOverlays(activeElement) {
-            // Gather the hotkeys to overlay registered through the useHotkey hook.
             const hotkeysFromHookToHighlight = [];
             for (const [, registration] of registrations) {
-                // Only highlight hotkeys ``dispatch`` would actually route to this active
-                // element (same filter): a hotkey behind a now-open dialog won't dispatch,
-                // so showing its badge would be misleading.
                 if (
                     !registration.global &&
                     registration.activeElement !== activeElement
@@ -303,7 +291,6 @@ export const hotkeyService = {
                 }
             }
 
-            // Gather the hotkeys to overlay registered through the DOM datasets.
             const hotkeysFromDomToHighlight = getVisibleElements(
                 activeElement,
                 "[data-hotkey]:not(:disabled)",
@@ -335,17 +322,11 @@ export const hotkeyService = {
 
                 let overlayParent;
                 if (item.el.tagName.toUpperCase() === "INPUT") {
-                    // Special case: the search input has an accesskey, but the
-                    // overlay can only go on its parent, not the input itself.
                     overlayParent = item.el.parentElement;
                 } else {
                     overlayParent = item.el;
                 }
 
-                // Check the computed position (not the inline style): an element
-                // positioned fixed/sticky/absolute via CSS class would otherwise
-                // be forced to inline relative, causing a layout jump while the
-                // overlays are visible.
                 if (getComputedStyle(overlayParent).position === "static") {
                     overlayParent.dataset.hotkeyOrigPosition =
                         overlayParent.style.position;
@@ -358,8 +339,6 @@ export const hotkeyService = {
 
         function removeHotkeyOverlays() {
             if (!overlaysVisible) {
-                // Bound to every keyup/blur/click: skip the document-wide
-                // query when no overlay can exist.
                 return;
             }
             for (const overlay of document.querySelectorAll(".o_web_hotkey_overlay")) {
@@ -430,8 +409,6 @@ export const hotkeyService = {
                 withOverlay: options?.withOverlay,
             };
 
-            // Owl mounts elements bottom-to-top, so wait a microtask tick before
-            // setting the registration's context owner.
             queueMicrotask(() => {
                 registration.activeElement = ui.activeElement;
             });
@@ -454,7 +431,14 @@ export const hotkeyService = {
         function unregisterHotkey(token) {
             const registration = registrations.get(token);
             if (registration) {
-                registrationsByHotkey.get(registration.hotkey)?.delete(registration);
+                const sameHotkey = registrationsByHotkey.get(registration.hotkey);
+                sameHotkey?.delete(registration);
+                if (sameHotkey && !sameHotkey.size) {
+                    // Otherwise the index retains one empty Set per hotkey ever
+                    // registered, and `dispatch` pays a Map hit that can never
+                    // match for the rest of the session.
+                    registrationsByHotkey.delete(registration.hotkey);
+                }
             }
             registrations.delete(token);
         }

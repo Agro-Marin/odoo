@@ -15,7 +15,6 @@ from odoo.libs.constants import PREFETCH_MAX
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import dumps as json_dumps
 from odoo.libs.json import loads as json_loads
-from odoo.tools.misc import split_every
 
 from .export_writers import (
     ExportXlsxWriter,
@@ -62,13 +61,10 @@ class Export(http.Controller):
             definition_record = field["definition_record"]
             definition_record_field = field["definition_record_field"]
 
-            # sudo(): user may lack access to property definition model
             target_model = Model.env[
                 Model._fields[definition_record].comodel_name
             ].sudo()
             domain_definition = [(definition_record_field, "!=", False)]
-            # Restrict to property definitions actually used by the selected
-            # records, so unused properties aren't offered for export.
             if domain:
                 self_subquery = Model.with_context(active_test=False)._search(domain)
                 field_to_get = Model._field_to_sql(
@@ -81,7 +77,7 @@ class Export(http.Controller):
             definition_records = target_model.search_fetch(
                 domain_definition,
                 [definition_record_field, "display_name"],
-                order="id",  # Avoid complex order
+                order="id",
             )
 
             for record in definition_records:
@@ -180,8 +176,6 @@ class Export(http.Controller):
                 and import_compat
                 and parent_field_type in ["many2one", "many2many"]
             ):
-                # In import-compatible mode, a m2o/m2m's "name" field is the
-                # relation's own import path, not path + "/name".
                 val = prefix
             name = parent_name + ((parent_name and "/") or "") + field["string"]
             field_dict = {
@@ -240,9 +234,6 @@ class Export(http.Controller):
             subfields = list(subfields)
             if length == 2:
                 if base not in fields or "relation" not in fields[base]:
-                    # Stale saved template: the base field was removed or is no
-                    # longer relational. Drop the paths silently, exactly like
-                    # the ``elif base in fields`` guard does for 1-level paths.
                     _logger.debug(
                         "Skipping stale export paths %s on %s: field %r is "
                         "missing or not relational",
@@ -371,9 +362,6 @@ class ExportFormat:
 
         order = params.get("order") or None
         if order:
-            # Validate order tokens cheaply before running the search, so a
-            # stale or forged order raises a clean error instead of a raw
-            # ValueError bubbling up from the ORM.
             order_root = []
             for term in order.split(","):
                 parts = term.split()
@@ -400,14 +388,10 @@ class ExportFormat:
                     )
                 )
 
-        # When exporting by ids the client sends them in on-screen order, so
-        # ``order`` only applies to the search. The grouped branch below also
-        # inherits it: per-group rows follow the fetch order of ``records``.
         records = Model.browse(ids) if ids else Model.search(domain, order=order)
 
         groupby = params.get("groupby")
         if not import_compat and groupby:
-            # Validate groupby fields cheaply before running the expensive export_data query.
             groupby_root = [x.split(":", 1)[0].split(".", 1)[0] for x in groupby]
             unknown = [f for f in groupby_root if f not in Model._fields]
             if unknown:
@@ -429,24 +413,18 @@ class ExportFormat:
                 domain, groupby, ["__count", "id:array_agg"]
             )
 
-            # Batch export_data + invalidate the ORM cache between batches, as
-            # the non-grouped branch below does: a single export over the whole
-            # recordset held every browsed record in the ORM cache at once, so
-            # a large grouped XLSX export could exhaust worker memory where the
-            # equivalent non-grouped export survived.
             record_rows = {}
             current_id = None
-            for batch in split_every(PREFETCH_MAX, records.ids, Model.browse):
+            for batch_ids in itertools.batched(records.ids, PREFETCH_MAX, strict=False):
+                batch = Model.browse(batch_ids)
                 export_data = batch.export_data([".id"] + field_names).get("datas", [])
                 for row in export_data:
-                    if row[0]:  # First column is the record ID
+                    if row[0]:
                         current_id = int(row[0])
                         record_rows[current_id] = []
                     record_rows[current_id].append(row[1:])
                 batch.invalidate_recordset()
 
-            # Preserve the order records were fetched in (browse/search above)
-            # rather than the group order, by indexing rows through `export_data`.
             groups = [group["id:array_agg"] for group in groups_data]
             record_to_group = defaultdict(list)
             for group_index, group_record_ids in enumerate(groups):
@@ -464,7 +442,8 @@ class ExportFormat:
             response_data = self.from_group_data(fields, columns_headers, tree)
         else:
             all_rows = []
-            for batch in split_every(PREFETCH_MAX, records.ids, Model.browse):
+            for batch_ids in itertools.batched(records.ids, PREFETCH_MAX, strict=False):
+                batch = Model.browse(batch_ids)
                 export_data = batch.export_data(field_names).get("datas", [])
                 all_rows.extend(export_data)
                 batch.invalidate_recordset()
@@ -482,7 +461,6 @@ class ExportFormat:
             records.ids[:10] if ids else domain,
         )
 
-        # TODO: call `clean_filename` directly in `content_disposition`?
         return request.make_response(
             response_data,
             headers=[
@@ -548,11 +526,6 @@ class ExcelExport(ExportFormat, http.Controller):
         columns_headers: list[str],
         groups: GroupsTreeNode,
     ) -> bytes:
-        # ``groups.count`` only budgets leaf record rows, not the group header
-        # rows, so the writer's upfront row-limit check is approximate here.
-        # Overflow past the XLSX row limit is still caught: the writer raises
-        # a UserError from its checked ``write()`` instead of silently
-        # dropping the tail.
         with GroupExportXlsxWriter(
             fields, columns_headers, groups.count
         ) as xlsx_writer:

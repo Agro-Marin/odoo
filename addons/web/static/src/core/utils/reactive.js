@@ -89,7 +89,6 @@ export function disposableEffect(cb, deps) {
     let disposed = false;
     const reactiveDeps = reactive(deps, () => {
         if (disposed) {
-            // Reading no reactive key here releases the subscriptions.
             return;
         }
         cb(...reactiveDeps);

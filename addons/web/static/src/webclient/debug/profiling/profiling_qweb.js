@@ -25,9 +25,29 @@ class MenuItem extends Component {
     };
 }
 
+/**
+ * Parse the stored profile JSON, normalizing every xpath to its fully
+ * indexed form so it can be compared against the xpaths this widget derives
+ * from the rendered arch.
+ *
+ * Returns ``null`` for anything unusable — the field is plain text on
+ * ``ir.profile`` and may be empty or truncated, which {@link ProfilingQwebView#profile}
+ * already degrades to an empty profile for. Parsing eagerly here used to
+ * throw out of ``setup()`` and take the whole form view down with it, making
+ * that fallback unreachable.
+ */
 function processValue(value) {
-    const data = JSON.parse(value);
-    for (const line of data[0].results.data) {
+    let data;
+    try {
+        data = JSON.parse(value);
+    } catch {
+        return null;
+    }
+    const lines = data?.[0]?.results?.data;
+    if (!Array.isArray(lines)) {
+        return null;
+    }
+    for (const line of lines) {
         line.xpath = line.xpath
             .replace(/([^\]])\//g, "$1[1]/")
             .replace(/([^\]])$/g, "$1[1]");
@@ -74,7 +94,6 @@ export class ProfilingQwebView extends Component {
             if (this.aceEditor) {
                 this.aceEditor.destroy();
             }
-            this._unmoutInfo();
         });
     }
 
@@ -86,10 +105,6 @@ export class ProfilingQwebView extends Component {
     get profile() {
         return this.value ? this.value[0].results : { archs: {}, data: [] };
     }
-
-    //--------------------------------------------------------------------------
-    // Public
-    //--------------------------------------------------------------------------
 
     /**
      * Return association of view key, view name, query number and total delay
@@ -114,8 +129,8 @@ export class ProfilingQwebView extends Component {
                 view.delay += root.delay;
                 view.query += root.query;
             } else {
-                view.delay = lines.map((l) => l.delay).reduce((a, b) => a + b);
-                view.query = lines.map((l) => l.query).reduce((a, b) => a + b);
+                view.delay = lines.map((l) => l.delay).reduce((a, b) => a + b, 0);
+                view.query = lines.map((l) => l.query).reduce((a, b) => a + b, 0);
             }
             view.delay = Math.ceil(view.delay * 10) / 10;
         }
@@ -163,15 +178,36 @@ export class ProfilingQwebView extends Component {
             useSoftTabs: true,
         });
 
-        // Ace render 3 times when change the value and 1 time per click.
         this.aceEditor.renderer.on(
             "afterRender",
             this.renderProfilingInformation.bind(this),
         );
     }
 
+    /**
+     * Drop the badges injected by the previous pass.
+     *
+     * Ace recycles its gutter cells as the editor scrolls, so a badge left on
+     * a cell is re-shown against whatever source line that cell is next used
+     * for. This ran as ``_unmoutInfo``, which never removed anything: it was
+     * gated on ``this.hover``/``this.info`` (never assigned anywhere) and
+     * looked for ``.o_ace_hover``/``.o_ace_info`` (present in no template or
+     * stylesheet in the codebase). The ``!node.querySelector(".o_info")``
+     * guards at the injection sites were what kept duplicates down — and they
+     * also suppressed the CORRECT badge for a recycled cell, so a scrolled
+     * editor showed another line's timings.
+     *
+     * Both badge templates root at ``.o_info``, so every match under the
+     * editor is exactly the previous pass's output.
+     */
+    _clearInjectedBadges() {
+        for (const badge of this.ace.el.querySelectorAll(".o_info")) {
+            badge.remove();
+        }
+    }
+
     renderProfilingInformation() {
-        this._unmoutInfo();
+        this._clearInjectedBadges();
 
         const flat = {};
         const arch = [{ xpath: "", children: [] }];
@@ -193,13 +229,11 @@ export class ProfilingQwebView extends Component {
                 }
                 const tag = previous?.textContent;
                 if (parent.tag === tag) {
-                    // can be different when scroll because ace does not display the previous lines.
                     arch.pop();
                 }
             } else if (node.classList.contains("ace_end-tag-open")) {
                 const tag = node.nextElementSibling?.textContent;
                 if (parent.tag === tag) {
-                    // can be different when scroll because ace does not display the previous lines.
                     arch.pop();
                 }
             } else if (node.classList.contains("ace_qweb")) {
@@ -209,7 +243,6 @@ export class ProfilingQwebView extends Component {
                     directive: directive,
                 });
 
-                // Compute delay and query number.
                 let delay = 0;
                 let query = 0;
                 for (const line of this.profile.data) {
@@ -223,8 +256,7 @@ export class ProfilingQwebView extends Component {
                     }
                 }
 
-                // Render delay and query number in span visible on hover.
-                if ((delay || query) && !node.querySelector(".o_info")) {
+                if (delay || query) {
                     this._renderHover(delay, query, node);
                 }
             } else if (node.classList.contains("ace_tag-open")) {
@@ -235,7 +267,6 @@ export class ProfilingQwebView extends Component {
                 );
                 const row = rows[index];
 
-                // Add a children to the arch and compute the xpath.
                 xpath += `/${nodeTagName.textContent}`;
                 let i = 1;
                 while (flat[`${xpath}[${i}]`]) {
@@ -251,7 +282,6 @@ export class ProfilingQwebView extends Component {
                 arch.push(flat[xpath]);
                 parent.children.push(flat[xpath]);
 
-                // Compute delay and query number.
                 const closed = !!row.querySelector(".ace_closed");
                 const delays = [];
                 const querys = [];
@@ -278,8 +308,7 @@ export class ProfilingQwebView extends Component {
                     }
                 }
 
-                // Display delay and query number in front of the line.
-                if (delays.length && !row.querySelector(".o_info")) {
+                if (delays.length) {
                     this._renderInfo(delays, querys, displayDetail, groups, row);
                 }
             }
@@ -303,18 +332,6 @@ export class ProfilingQwebView extends Component {
         }
         this.state.view = view;
     }
-    _unmoutInfo() {
-        if (/** @type {any} */ (this).hover) {
-            if (this.ace.el.querySelector(".o_ace_hover")) {
-                this.ace.el.querySelector(".o_ace_hover").remove();
-            }
-        }
-        if (/** @type {any} */ (this).info) {
-            if (this.ace.el.querySelector(".o_ace_info")) {
-                this.ace.el.querySelector(".o_ace_info").remove();
-            }
-        }
-    }
     _renderHover(delay, query, node) {
         const xml = renderToString("web.ProfilingQwebView.hover", {
             delay: this._formatDelay(delay),
@@ -337,10 +354,6 @@ export class ProfilingQwebView extends Component {
             .querySelector("div");
         node.appendChild(div);
     }
-
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
 
     /**
      * @private

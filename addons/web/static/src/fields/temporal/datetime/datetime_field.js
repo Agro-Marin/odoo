@@ -106,10 +106,6 @@ export class DateTimeField extends Component {
      * clobbering the indicator/keyboard-nav state set by a dirty sibling. */
     lastIsDirty = false;
 
-    //-------------------------------------------------------------------------
-    // Getters
-    //-------------------------------------------------------------------------
-
     get endDateField() {
         return this.relatedField ? this.props.endDateField || this.props.name : null;
     }
@@ -129,10 +125,6 @@ export class DateTimeField extends Component {
     get values() {
         return ensureArray(this.state.value);
     }
-
-    //-------------------------------------------------------------------------
-    // Lifecycle
-    //-------------------------------------------------------------------------
 
     setup() {
         useRenderCounter("fields.DateTimeField");
@@ -194,9 +186,6 @@ export class DateTimeField extends Component {
             }
         };
 
-        // Stores the field that was active when the picker closed, so that the
-        // useEffect below can focus the button that appears after re-render.
-        // Plain variable (not reactive) because it only needs to survive one render cycle.
         let pendingFocusField = "";
 
         const dateTimePicker = useDateTimePicker({
@@ -210,19 +199,16 @@ export class DateTimeField extends Component {
             },
             onClose: () => {
                 this.picker.activeInput = "";
-                // pendingFocusField was already set (or kept "") by onApply.
             },
             onApply: async () => {
                 const toUpdate = {};
                 if (Array.isArray(this.state.value)) {
-                    // Value is already a range
                     [toUpdate[this.startDateField], toUpdate[this.endDateField]] =
                         this.state.value;
                 } else {
                     toUpdate[this.props.name] = this.state.value;
                 }
 
-                // If startDateField or endDateField are not set, delete unchanged fields
                 for (const fieldName of Object.keys(toUpdate)) {
                     if (
                         areDatesEqual(
@@ -235,27 +221,15 @@ export class DateTimeField extends Component {
                 }
 
                 if (Object.keys(toUpdate).length) {
-                    // Capture before the async update so onClose + useEffect can
-                    // focus the button for the field whose value actually changed.
-                    // Only set when a real change happens: Tab-away without a
-                    // selection skips this block and leaves pendingFocusField as "".
                     pendingFocusField = this.picker.activeInput;
                     await this.props.record.update(toUpdate);
                 }
             },
         });
-        // Subscribes to changes made on the picker state
         this.state = useState(dateTimePicker.state);
         this.picker = useState({ activeInput: "" });
         this.openPicker = dateTimePicker.open;
 
-        // Flush a typed-but-unblurred value on save. The input only commits via
-        // the picker's native ``change`` (blur) listener, but neither Ctrl+S
-        // (``record.save()`` → NEED_LOCAL_CHANGES) nor tab-close (the beacon
-        // urgent save → WILL_SAVE_URGENTLY) blurs the input — so without these
-        // the typed date is silently dropped from the save, while sibling
-        // ``useInputField`` widgets (which subscribe to exactly these events)
-        // commit correctly. ``commitInputs`` is a no-op when nothing changed.
         const { model } = this.props.record;
         useBus(model.bus, ModelEvent.WILL_SAVE_URGENTLY, (ev) =>
             ev.detail?.proms?.push(dateTimePicker.commitInputs()),
@@ -272,7 +246,6 @@ export class DateTimeField extends Component {
                 [this.startDate, this.endDate].forEach((ref, index) => {
                     const fieldAttr = ref.el?.getAttribute("data-field");
                     if (fieldAttr === this.picker.activeInput) {
-                        // Input became active: focus it and open the picker.
                         ref.el.focus();
                         this.openPicker(index);
                     } else if (
@@ -280,9 +253,6 @@ export class DateTimeField extends Component {
                         ref.el?.tagName === "BUTTON" &&
                         fieldAttr === pendingFocusField
                     ) {
-                        // Picker just closed: the input was replaced by a button.
-                        // Suppress the onDateButtonFocus handler so it doesn't
-                        // immediately re-open the picker by setting activeInput.
                         this._suppressNextFocus = true;
                         ref.el.focus();
                         pendingFocusField = "";
@@ -296,10 +266,6 @@ export class DateTimeField extends Component {
             ],
         );
 
-        // Emit only when the computed dirtiness actually changed:
-        // FIELD_IS_DIRTY is a global last-writer-wins bus event, so an
-        // unconditional per-render emission from a clean DateTimeField would
-        // overwrite the indicator state set by a dirty sibling field.
         onWillRender(() => {
             const isDirty = !areDatesEqual(this.getRecordValue(), this.state.value);
             if (isDirty !== this.lastIsDirty) {
@@ -307,11 +273,6 @@ export class DateTimeField extends Component {
             }
         });
 
-        // A dirty picker unmounted by a notebook-tab switch would otherwise
-        // leave FIELD_IS_DIRTY (a last-writer-wins bus event) asserting unsaved
-        // changes with no field left to clear it. Emit a final false, but only
-        // when we last asserted dirty so a clean field doesn't clobber the
-        // indicator set by a dirty sibling.
         onWillUnmount(() => {
             if (this.lastIsDirty) {
                 this.triggerIsDirty(false);
@@ -320,10 +281,6 @@ export class DateTimeField extends Component {
 
         this.futureWarningMsg = _t("This date is in the future");
     }
-
-    //-------------------------------------------------------------------------
-    // Methods
-    //-------------------------------------------------------------------------
 
     /**
      * Focus handler for date/time display buttons: switches to edit mode.
@@ -441,12 +398,6 @@ export class DateTimeField extends Component {
         if (this.field.type === "date") {
             return deserializeDate(value);
         }
-        // Bare-date min_date/max_date on a datetime field: the option means a
-        // calendar day in the *user's* timezone, covering the whole local day
-        // (start of day for min, end of day for max). deserializeDateTime
-        // would read it as UTC midnight, shifting the bound by the tz offset
-        // (e.g. UTC-6: max "2017-02-10" would become Feb 9 18:00 local,
-        // wrongly excluding most of Feb 10).
         if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
             const day = deserializeDate(value);
             return boundary === "max" ? day.endOf("day") : day.startOf("day");
@@ -482,10 +433,6 @@ export class DateTimeField extends Component {
         this.lastIsDirty = isDirty;
         this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
     }
-
-    //-------------------------------------------------------------------------
-    // Handlers
-    //-------------------------------------------------------------------------
 
     onInput() {
         this.triggerIsDirty(true);
@@ -718,7 +665,7 @@ export const dateRangeField = {
             type === "datetime"
                 ? dateTimeField.listViewWidth({ options })
                 : dateField.listViewWidth({ options });
-        return 2 * width + 30; // 30px for the arrow and the gaps
+        return 2 * width + 30;
     },
     isValid: (record, fieldname, fieldInfo) => {
         if (fieldInfo.widget === "daterange") {

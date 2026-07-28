@@ -56,26 +56,39 @@ export const titleService = {
             updateTitle();
         }
 
-        /** Recompute document.title from parts and counters. */
-        function updateTitle() {
+        /** @returns {string} the title this service's state describes */
+        function computeTitle() {
             const counter = Object.values(titleCounters).reduce(
                 (acc, count) => acc + count,
                 0,
             );
             const name = Object.values(titleParts).join(" - ") || "Odoo";
-            if (!counter) {
-                document.title = name;
-            } else {
-                document.title = `(${counter}) ${name}`;
+            return counter ? `(${counter}) ${name}` : name;
+        }
+
+        /** Recompute document.title from parts and counters. */
+        function updateTitle() {
+            const title = computeTitle();
+            // Assigning document.title unconditionally re-enters the browser's
+            // title machinery (and fires a DOM mutation observed by tooling) on
+            // every setParts/setCounters call, most of which are no-ops.
+            if (document.title !== title) {
+                document.title = title;
             }
         }
 
         return {
             /**
+             * The title this service's own parts and counters describe.
+             *
+             * Reads the computed value, NOT ``document.title``: anything else on
+             * the page that writes the DOM title (a third-party script, a tour,
+             * a stray `document.title =`) used to make `current` contradict
+             * `getParts()` with no way for a caller to tell which was authoritative.
              * @returns {string}
              */
             get current() {
-                return document.title;
+                return computeTitle();
             },
             getParts,
             setCounters,

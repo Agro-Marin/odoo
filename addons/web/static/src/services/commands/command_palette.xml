@@ -49,6 +49,9 @@
 
             <hr class="my-2 mx-0" t-if="!category_last" />
           </t>
+          <div t-if="state.hiddenCount" class="o_command_palette_truncated px-4 py-2 fst-italic text-muted smaller">
+            <t t-out="truncationMessage"/>
+          </div>
         </div>
 
         <div t-if="state.FooterComponent" class="o_command_palette_footer mt-2 px-4 py-2 border-top rounded-bottom bg-100 text-muted">

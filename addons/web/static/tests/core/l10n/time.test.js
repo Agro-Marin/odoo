@@ -23,7 +23,6 @@ beforeEach(() => {
 describe.current.tags("headless");
 test("parseTime (various entries)", async () => {
     const testSet = [
-        // Default ":" separator
         ["8:15", "8:15:00"],
         ["15:15", "15:15:00"],
         ["15:5", "15:50:00"],
@@ -31,7 +30,6 @@ test("parseTime (various entries)", async () => {
         ["24:00", "0:00:00"],
         ["10:", "10:00:00"],
 
-        // No separators
         ["123", "12:30:00"],
         ["101", "10:10:00"],
         ["1015", "10:15:00"],
@@ -41,7 +39,6 @@ test("parseTime (various entries)", async () => {
         ["1 15", "1:15:00"],
         ["35", "3:50:00"],
 
-        // Am / Pm
         ["8pm", "20:00:00"],
         ["8PM", "20:00:00"],
         ["8 pm", "20:00:00"],
@@ -54,7 +51,6 @@ test("parseTime (various entries)", async () => {
         ["12am", "0:00:00"],
         ["12pm", "12:00:00"],
 
-        // Ignore any non-numeric characters
         ["10h", "10:00:00"],
         ["1abc30", "1:30:00"],
         ["10abc15", "10:15:00"],
@@ -64,10 +60,7 @@ test("parseTime (various entries)", async () => {
         ["10 35abc", "10:35:00"],
         ["abc8", "8:00:00"],
 
-        // Wrong inputs
         ["28:00", null],
-        // "24" is only valid as ISO 8601 end-of-day ("24:00"): accepting
-        // "24:30" would silently produce "0:30".
         ["24:30", null],
         ["24:00:01", null],
         ["2430", null],
@@ -94,17 +87,12 @@ test("parseTime (various entries)", async () => {
 
 describe.current.tags("headless");
 test("parseTime (3-digit '24x' resolves to 2:4x, not end-of-day)", async () => {
-    // Regression: the "[24, x]" split passed the ``h <= 24`` gate before its
-    // minutes were validated, so "240" was consumed as hour 24 (→ 0:00) and
-    // "241".."249" were rejected outright. The intended "[2, 4x]" reading must
-    // win instead. Bare "24" (no minutes) stays ISO end-of-day (→ 0:00).
     const testSet = [
         ["240", "2:40:00"],
         ["241", "2:41:00"],
         ["245", "2:45:00"],
         ["249", "2:49:00"],
         ["250", "2:50:00"],
-        // Unchanged neighbours / end-of-day semantics
         ["24", "0:00:00"],
         ["230", "23:00:00"],
         ["210", "21:00:00"],

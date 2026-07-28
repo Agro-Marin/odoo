@@ -28,17 +28,11 @@ export class LoadingIndicator extends Component {
         this.startShowTimer = null;
         useBus(rpcBus, RpcEvent.REQUEST, /** @type {any} */ (this.requestCall));
         useBus(rpcBus, RpcEvent.RESPONSE, /** @type {any} */ (this.responseCall));
-        // Clear the pending 250ms show-timer if the component is destroyed
-        // before it fires, so its callback can't run against a torn-down state.
         onWillUnmount(() => browser.clearTimeout(this.startShowTimer));
     }
 
     /** @param {{ detail: { settings: Object, data: { id: number } } }} ev */
     requestCall({ detail }) {
-        // Defensive: malformed payloads (null detail, missing data/settings) can
-        // reach the shared rpcBus from tests or synthetic fires. Guard like the
-        // sibling listeners (currency_service, slow_rpc_service) so a bad event
-        // is ignored instead of throwing inside the bus dispatch.
         if (!detail?.data || detail.settings?.silent) {
             return;
         }
@@ -51,14 +45,11 @@ export class LoadingIndicator extends Component {
             }, 250);
         }
         this.rpcIds.add(detail.data.id);
-        // Single source of truth (mirrors responseCall): the badge can never
-        // desynchronize from the tracked ids, whatever an emitter does.
         this.state.count = this.rpcIds.size;
     }
 
     /** @param {{ detail: { settings: Object, data: { id: number } } }} ev */
     responseCall({ detail }) {
-        // Same defensive guard as requestCall (see comment there).
         if (!detail?.data || detail.settings?.silent) {
             return;
         }

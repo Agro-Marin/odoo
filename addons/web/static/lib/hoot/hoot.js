@@ -32,34 +32,22 @@ import { setupHootUI } from "./ui/setup_hoot_ui.js";
  * }} Environment
  */
 
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
-
 const runner = new Runner(urlParams);
 
 setRunner(runner);
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
-// Main test API
 export const describe = runner.describe;
 export const expect = runner.expect;
 export const test = runner.test;
 
-// Test hooks
 export const after = makeRuntimeHook("after");
 export const afterEach = makeRuntimeHook("afterEach");
 export const before = makeRuntimeHook("before");
 export const beforeEach = makeRuntimeHook("beforeEach");
 export const onError = makeRuntimeHook("onError");
 
-// Fixture
 export const getFixture = runner.fixture.get;
 
-// Other test runner functions
 export const definePreset = runner.exportFn(runner.definePreset);
 export const dryRun = runner.exportFn(runner.dryRun);
 export const getCurrent = runner.exportFn(runner.getCurrent);
@@ -71,30 +59,13 @@ export { destroy } from "./core/fixture.js";
 export { defineTags } from "./core/tag.js";
 export { createJobScopedGetter } from "./hoot_utils.js";
 
-// Constants
 export const globals = copyAndBind(globalThis);
-// Only auto-mount the Hoot UI on the dedicated test runner page.
-// The bridge script of every ESM bundle imports @odoo/hoot to register
-// it in odoo.loader.modules, which used to be harmless because the
-// esbuild shim did not execute the real module body. After the ESM
-// native migration (and the fix that makes the import map resolve
-// @odoo/hoot to the real hoot.js URL instead of a shim), this
-// side-effect fires on every page — including the webclient —
-// overlaying the test runner UI on top of the actual app. Gate the
-// call so the UI only appears when the page explicitly requested it.
-//
-// Two distinct pages legitimately host Hoot and need both the UI AND the
 // global API mocks (patchWindow): the integrated Odoo JS runner at
-// /web/tests, and the standalone Hoot self-test harness served from
-// /web/static/lib/hoot/tests/. The latter was wrongly excluded by a
-// /web/tests-only check, leaving its mock-dependent suites (network,
-// timers, navigator) running against the real browser APIs.
 const _inTestPage = typeof window !== "undefined"
     && (window.location.pathname.startsWith("/web/tests")
         || window.location.pathname.startsWith("/web/static/lib/hoot/tests/"));
 export const isHootReady = _inTestPage ? setupHootUI() : Promise.resolve();
 
-// Mock
 export { disableAnimations, enableTransitions } from "./mock/animation.js";
 export { mockDate, mockLocale, mockTimeZone, onTimeZoneChange } from "./mock/date.js";
 export { makeSeededRandom } from "./mock/math.js";
@@ -116,7 +87,6 @@ export {
     watchListeners,
 } from "./mock/window.js";
 
-// HOOT-DOM
 export {
     advanceFrame,
     advanceTime,
@@ -188,7 +158,6 @@ export {
     waitUntil,
 } from "@odoo/hoot-dom";
 
-// Debug
 export { exposeHelpers } from "../hoot-dom/hoot_dom_utils.js";
 export const __debug__ = runner;
 

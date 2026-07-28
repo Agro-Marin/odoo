@@ -7,11 +7,11 @@ import { localization } from "@web/core/l10n/localization";
 import { DateTime } from "@web/core/l10n/luxon";
 
 const NUMERAL_MAPS = [
-    "٠١٢٣٤٥٦٧٨٩", // Arabic
+    "٠١٢٣٤٥٦٧٨٩",
     "۰۱۲۳۴۵۶۷۸۹",
-    "०१२३४५६७८९", // Devanagari (Hindi)
-    "๐๑๒๓๔๕๖๗๘๙", // Thai
-    "零一二三四五六七八九", // Chinese/Japanese/Korean
+    "०१२३४५६७८९",
+    "๐๑๒๓๔๕๖๗๘๙",
+    "零一二三四五六七八九",
 ];
 
 /**
@@ -55,11 +55,6 @@ export class Time {
         this.minute = minute;
         /**@type {number} */
         this.second = second;
-        // The locale format flags are deliberately NOT stamped here: they are
-        // resolved lazily in ``toString`` instead. Stamping at construction
-        // froze them (stale after a language switch) and made constructing a
-        // Time before localization boot throw — neither is wanted, since a
-        // Time is a plain value that may outlive/precede those events.
     }
 
     /**
@@ -69,9 +64,6 @@ export class Time {
         const rounded = Math.round(this.minute / rounding) * rounding;
         if (rounded >= 60) {
             if (this.hour >= 23) {
-                // Rounding up would spill past midnight and wrap to 00:00 the
-                // same day (~24h back). Round down to the last valid slot
-                // instead (e.g. 23:58 -> 23:55 with rounding 5).
                 this.minute = Math.floor(59 / rounding) * rounding;
             } else {
                 this.hour = this.hour + 1;
@@ -111,17 +103,11 @@ export class Time {
      * @returns {string}
      */
     toString(showSeconds = false) {
-        // Resolve the locale format flags now (not at construction) so a Time
-        // formatted after a language switch honours the current format.
         const hourFormat = is24HourFormat() ? "H" : "h";
         const secondFormat = showSeconds ? ":ss" : "";
         const dateTime = this.toDateTime();
         let result = dateTime.toFormat(`${hourFormat}:mm${secondFormat}`);
         if (isMeridiemFormat()) {
-            // Lowercase ONLY the meridiem (locale renders "AM"/"PM"). The rest
-            // of the string is digits and separators, so the previous
-            // whole-string toLowerCase was a blunt instrument that would also
-            // have folded any locale letters elsewhere.
             result += dateTime.toFormat("a").toLowerCase();
         }
         return result;
@@ -222,10 +208,6 @@ export function parseTime(value, parseSeconds) {
         const pickSolution = (/** @type {string[][]} */ ...solutions) => {
             for (const solution of solutions) {
                 const h = parse(solution[0]);
-                // "24" is only a valid hour with no minutes (ISO 8601
-                // end-of-day). Reject a 24-hour candidate that carries minutes
-                // so e.g. "240" resolves to the ["2", "40"] reading (2:40)
-                // instead of being consumed as hour 24 → 00:00.
                 if (h < 24 || (h === 24 && !solution[1])) {
                     hour = h;
                     if (solution[1]) {
@@ -272,8 +254,6 @@ export function parseTime(value, parseSeconds) {
         second < 60
     ) {
         if (hour === 24) {
-            // "24" is only a valid hour as ISO 8601 end-of-day ("24:00:00");
-            // accepting "24:30" would silently turn it into "00:30".
             if (minute || second) {
                 return null;
             }

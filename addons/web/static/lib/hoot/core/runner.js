@@ -9,15 +9,6 @@ import {
     setupTime,
 } from "@odoo/hoot-dom-helpers-time";
 
-// Read the REAL (un-mocked) setTimeout/clearTimeout captured by
-// module_loader.js — the very first synchronous script in the bundle,
-// guaranteed to run before any mock can replace globalThis.setTimeout.
-// Fall back to globalThis when the loader isn't installed (e.g. the
-// webclient loads Hoot's hoot.js via the import map even though no
-// test harness is running and no mock timers are ever registered).
-// The native module_loader.js file was removed during the ESM native
-// migration but the reference here was left dangling, crashing any
-// page that imports @odoo/hoot outside a test bundle.
 const __nativeTimers = globalThis.odoo?.__nativeTimers ?? globalThis;
 const { setTimeout: nativeSetTimeout, clearTimeout: nativeClearTimeout } = __nativeTimers;
 import { exposeHelpers, isInstanceOf, isIterable } from "@odoo/hoot-dom-utils";
@@ -64,7 +55,6 @@ import { Tag, getTagSimilarities, getTags } from "./tag.js";
 import { Test, testError } from "./test.js";
 import { EXCLUDE_PREFIX, createUrlFromId, setParams } from "./url.js";
 
-// Import all helpers for debug mode
 import * as _hootDom from "@odoo/hoot-dom";
 import * as _animation from "../mock/animation.js";
 import * as _date from "../mock/date.js";
@@ -125,10 +115,6 @@ const { isPrevented, mockPreventDefault } = _window;
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     clearTimeout,
     console: { error: $error },
@@ -154,10 +140,6 @@ const {
 } = globalThis;
 /** @type {Performance["now"]} */
 const $now = performance.now.bind(performance);
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {Job[]} jobs
@@ -285,16 +267,11 @@ const handledErrors = new WeakSet();
 /** @type {string | null} */
 let lastPresetWarn = null;
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export class Runner {
     static URL_SPEC = 1;
     static TAG_SPEC = 2;
     static PRESET_SPEC = 3;
 
-    // Properties
     aborted = false;
     /** @type {boolean | Test | Suite} */
     debug = false;
@@ -390,7 +367,6 @@ export class Runner {
         return this._removableFilterCount > 0;
     }
 
-    // Private properties
     _callbacks = new Callbacks();
     /** @type {Job[]} */
     _currentJobs = [];
@@ -415,14 +391,11 @@ export class Runner {
      * @param {typeof DEFAULT_CONFIG} [config]
      */
     constructor(config) {
-        // Main test methods
         this.describe = this._addConfigurators(this.addSuite, () => this.suiteStack.at(-1));
         this.fixture = makeFixtureManager(this);
         this.test = this._addConfigurators(this.addTest, false);
 
         this.initialConfig = { ...DEFAULT_CONFIG, ...config };
-        // Headless cannot be configured while running since it retains much less
-        // information/state that cannot be retrieved after construction.
         this.headless = this.initialConfig.headless;
         if (this.headless) {
             this.config = { ...this.initialConfig };
@@ -449,10 +422,8 @@ export class Runner {
             this.config[key];
         }
 
-        // Debug
         this.debug = Boolean(this.config.debugTest);
 
-        // Text filter
         if (this.config.filter) {
             for (const queryPart of parseQuery(this.config.filter)) {
                 if (queryPart.exclude) {
@@ -465,12 +436,10 @@ export class Runner {
             this._includeFilterCount += this.queryInclude.length;
         }
 
-        // Jobs (suites or tests)
         if (this.config.id?.length) {
             this._include(this.state.includeSpecs.id, this.config.id, INCLUDE_LEVEL.url);
         }
 
-        // Tags
         if (this.config.tag?.length) {
             this._include(this.state.includeSpecs.tag, this.config.tag, INCLUDE_LEVEL.url);
         }
@@ -480,7 +449,6 @@ export class Runner {
             throttleNetwork(...values);
         }
 
-        // Random seed
         if (this.config.random) {
             internalRandom.seed = this.config.random;
         }
@@ -540,7 +508,6 @@ export class Runner {
 
         this._applyTagModifiers(suite);
         if (suite.config.skip && this.headless) {
-            // Do not register skipped jobs in headless
             return this._erase(suite, true);
         }
 
@@ -619,7 +586,6 @@ export class Runner {
 
         this._applyTagModifiers(test);
         if (test.config.skip && this.headless) {
-            // Do not register skipped jobs in headless
             return this._erase(test, true);
         }
 
@@ -945,14 +911,11 @@ export class Runner {
         while (job && this.state.status === "running") {
             const callbackChain = this._getCallbackChain(job);
             if (job instanceof Suite) {
-                // Case: suite
-                // -----------
 
                 /** @type {Suite} */
                 const suite = job;
                 if (!suite.config.skip && suite.currentJobs.length) {
                     if (suite.currentJobIndex <= 0) {
-                        // before suite code
                         this.suiteStack.push(suite);
 
                         suite.before();
@@ -960,7 +923,6 @@ export class Runner {
                         await suite.callbacks.call("before-suite", suite, handleError);
                     }
                     if (suite.currentJobIndex >= suite.currentJobs.length) {
-                        // after suite code
                         this.suiteStack.pop();
 
                         await this._execAfterCallback(async () => {
@@ -990,13 +952,9 @@ export class Runner {
                 continue;
             }
 
-            // Case: test
-            // ----------
-
             /** @type {Test} */
             const test = job;
             if (test.config.skip) {
-                // Skipped test
                 this._pushTest(test);
                 test.setRunFn(null);
                 test.parent.reporting.add({ skipped: +1, tests: +1 });
@@ -1004,11 +962,8 @@ export class Runner {
                 continue;
             }
 
-            // Suppress console errors and warnings if test is in "todo" mode
-            // (and not in debug).
             const restoreConsole = handleConsoleIssues(test, !this.debug);
 
-            // Before test — wrap setup in a timeout to prevent hanging
             this.state.currentTest = test;
             this.expectHooks.before(test);
             test.before();
@@ -1025,18 +980,12 @@ export class Runner {
 
             let timeoutId = 0;
 
-            // ! The following assignment should stay in the `start` function to
-            // ! keep the smallest stack trace possible:
-            // !    Runner.start() > Test.run() > Error
             const testPromise = Promise.resolve(test.run());
             const timeout = $floor(test.config.timeout || this.config.timeout);
             const timeoutPromise = new Promise((resolve, reject) => {
-                // Set abort signal
                 this._resolveCurrent = resolve;
 
                 if (timeout && !this.debug) {
-                    // Set timeout — use native setTimeout so the timeout
-                    // fires even when Hoot has frozen/mocked timers.
                     timeoutId = nativeSetTimeout(() => {
                         const msg = `test ${stringify(
                             test.name
@@ -1046,10 +995,9 @@ export class Runner {
                 }
             }).then(() => {
                 this.aborted = true;
-                this.debug = false; // Remove debug mode to let the runner stop
+                this.debug = false;
             });
 
-            // Run test
             await Promise.race([testPromise, timeoutPromise])
                 .catch((error) => {
                     if (handleError) {
@@ -1066,8 +1014,6 @@ export class Runner {
                     }
                 });
 
-            // After test — wrap cleanup in a timeout to prevent hanging
-            // when afterEach callbacks await mocked timers.
             const { lastResults } = test;
             await Promise.race([
                 this._execAfterCallback(async () => {
@@ -1083,7 +1029,6 @@ export class Runner {
 
             restoreConsole();
 
-            // Log test errors and increment counters
             this.expectHooks.after(this);
             if (lastResults.pass) {
                 logger.logTest(test);
@@ -1130,7 +1075,6 @@ export class Runner {
 
                 if (!this.aborted) {
                     if (this._failed === 1) {
-                        // On first failed test: reset the "failed IDs" list
                         this.state.failedIds.clear();
                     }
                     this.state.failedIds.add(test.id);
@@ -1189,7 +1133,6 @@ export class Runner {
         if (this._resolveCurrent) {
             this._resolveCurrent();
 
-            // `stop` will be called again after test has been resolved.
             return false;
         }
 
@@ -1200,7 +1143,6 @@ export class Runner {
         await this._callbacks.call("after-all", this, logger.error);
 
         if (this.headless) {
-            // Log root suite results in headless
             const restoreLogLevel = logger.setLogLevel("suites");
             for (const suite of this.suites.values()) {
                 if (!suite.parent) {
@@ -1216,40 +1158,27 @@ export class Runner {
             if (this.headless) {
                 const ids = this.simplifyUrlIds({ id: this.state.failedIds });
                 const link = createUrlFromId(ids, { debug: true });
-                // Tweak parameters to make debugging easier
                 link.searchParams.set("debug", "assets");
                 link.searchParams.delete("headless");
                 link.searchParams.delete("loglevel");
                 link.searchParams.delete("timeout");
                 errorMessage.push(`Failed tests link: ${link.toString()}`);
             }
-            // Use console.dir for this log to appear on runbot sub-builds page
             logger.logGlobal(
                 `Failed ${failed} tests (${passed} passed, total time: ${this.totalTime})`
             );
-            // Do not use logger to not apply the [HOOT] prefix and allow the CI
-            // to stop the test run browser.
             $error(errorMessage.join("\n"));
         } else if (this.headless && passed === 0) {
-            // Fail closed: in headless (CI) mode a run that produced zero
-            // passing tests (and none failed, per the branch above) means an
-            // include filter matched nothing — it must NOT emit the success
-            // signal, or a renamed tests directory would stay
-            // green-with-zero-tests forever (13 files / ~183 tests were once
-            // lost exactly that way; see web/tests/test_js.py suite lists).
             logger.logGlobal(`no tests matched the current filters`);
             $error("Test suite matched no tests: failing closed (check the suite id filters)");
         } else {
-            // Use console.dir for this log to appear on runbot sub-builds page
             logger.logGlobal(
                 `Passed ${passed} tests (${assertions} assertions, total time: ${this.totalTime})`
             );
-            // This statement acts as a success code for the server to know when
-            // all suites have passed.
             logger.logRun("Test suite succeeded");
         }
 
-        logger.setIssueLevel("critical"); // Goes back to critical mode after a test run
+        logger.setIssueLevel("critical");
 
         return false;
     }
@@ -1285,8 +1214,6 @@ export class Runner {
          * }} Configurators
          */
 
-        // GETTER MODIFIERS
-
         /** @type {Configurators["current"]} */
         const current = getCurrent && (() => this._createCurrentConfigurators(getCurrent));
 
@@ -1313,8 +1240,6 @@ export class Runner {
             tags("todo");
             return configurableFn;
         }
-
-        // FUNCTION MODIFIERS
 
         /**
          * Modifies the current test/suite configuration.
@@ -1414,7 +1339,6 @@ export class Runner {
                         );
                     }
                     this.debug = job;
-                // Falls through
                 case Tag.ONLY:
                     if (!this.dry) {
                         logger.global.warn(
@@ -1613,14 +1537,12 @@ export class Runner {
      * @returns {boolean | null}
      */
     _isImplicitlyExcluded(job) {
-        // By tag name
         for (const [tagName, status] of $entries(this.state.includeSpecs.tag)) {
             if (status < 0 && job.tags.some((tag) => tag.name === tagName)) {
                 return true;
             }
         }
 
-        // By text filter
         if (this.queryExclude.length && this.queryExclude.some((qp) => qp.matchValue(job.key))) {
             return true;
         }
@@ -1633,14 +1555,12 @@ export class Runner {
      * @returns {boolean | null}
      */
     _isImplicitlyIncluded(job) {
-        // By tag name
         for (const [tagName, status] of $entries(this.state.includeSpecs.tag)) {
             if (status > 0 && job.tags.some((tag) => tag.name === tagName)) {
                 return true;
             }
         }
 
-        // By text filter
         if (this.queryInclude.length && this.queryInclude.every((qp) => qp.matchValue(job.key))) {
             return true;
         }
@@ -1678,7 +1598,6 @@ export class Runner {
      */
     _prepareJobs(jobs, implicitInclude = !this._includeFilterCount) {
         if (typeof this.debug !== "boolean") {
-            // Special case: test (or suite with 1 test) with "debug" tag
             let debugTest = this.debug;
             while (debugTest instanceof Suite) {
                 if (debugTest.jobs.length > 1) {
@@ -1705,21 +1624,17 @@ export class Runner {
         }
 
         const filteredJobs = jobs.filter((job) => {
-            // Priority 1: explicit include or exclude (URL or special tag)
             const [explicitInclude, explicitExclude] = this._getExplicitIncludeStatus(job);
             if (explicitExclude) {
                 return false;
             }
 
-            // Priority 2: implicit exclude
             if (!explicitInclude && this._isImplicitlyExcluded(job)) {
                 return false;
             }
 
-            // Priority 3: implicit include
             let included = explicitInclude || implicitInclude || this._isImplicitlyIncluded(job);
             if (job instanceof Suite) {
-                // For suites: included if at least 1 included job
                 job.setCurrentJobs(this._prepareJobs(job.jobs, included));
                 included = Boolean(job.currentJobs.length);
 
@@ -1767,13 +1682,11 @@ export class Runner {
             this.checkPresetForViewPort();
         }
 
-        // Cleanup invalid IDs and tags from URL
         const hasChanged = this._simplifyIncludeSpecs(this.state.includeSpecs.id);
         if (hasChanged) {
             this._updateConfigFromSpecs();
         }
 
-        // Cleanup invalid tests from storage
         const failedIds = [...this.state.failedIds];
         const existingFailed = failedIds.filter((id) => this.tests.has(id));
         if (existingFailed.length !== failedIds.length) {
@@ -1781,7 +1694,6 @@ export class Runner {
             storageSet(STORAGE.failed, existingFailed);
         }
 
-        // Check tags similarities
         const similarities = getTagSimilarities();
         if (similarities.length) {
             this._handleGlobalWarning(
@@ -1798,7 +1710,6 @@ export class Runner {
             logger.logGlobal(`no tests to run`);
         }
 
-        // Reduce non-included suites & tests info to a miminum
         const includedSuites = new Set(this.state.suites);
         for (const suite of this.suites.values()) {
             if (!includedSuites.has(suite)) {
@@ -1846,7 +1757,6 @@ export class Runner {
         }
 
         if (handledErrors.has(error)) {
-            // Already handled
             return ev.preventDefault();
         }
         handledErrors.add(error);
@@ -1854,7 +1764,6 @@ export class Runner {
         mockPreventDefault(ev);
 
         if (error.message.includes(RESIZE_OBSERVER_MESSAGE)) {
-            // Stop event
             ev.stopImmediatePropagation();
             if (ev.bubbles) {
                 ev.stopPropagation();
@@ -1863,7 +1772,6 @@ export class Runner {
         }
 
         if (this.state.currentTest && !(error instanceof HootError)) {
-            // Handle the error in the current test
             const handled = this._handleErrorInTest(ev, error);
             if (handled) {
                 return ev.preventDefault();
@@ -1872,13 +1780,10 @@ export class Runner {
             this._handleGlobalError(ev, error);
         }
 
-        // Prevent error event
         ev.preventDefault();
 
-        // Log error
         if (error.level) {
             const restoreLogger = logger.setIssueLevel(error.level);
-            // Stringify global errors to avoid logging whole tracebacks on CI
             logger.error(error.level === "global" ? String(error) : error);
             restoreLogger();
         } else {
@@ -1894,7 +1799,6 @@ export class Runner {
         for (const callbackRegistry of this._getCallbackChain(this.state.currentTest)) {
             callbackRegistry.callSync("error", ev, logger.error);
             if (isPrevented(ev)) {
-                // Prevented in tests
                 return true;
             }
         }
@@ -1945,7 +1849,6 @@ export class Runner {
             this._canStartDef ||= Promise.withResolvers();
         }
 
-        // Config log
         const table = { ...toRaw(this.config) };
         for (const key of FILTER_KEYS) {
             if (isIterable(table[key])) {
@@ -1958,7 +1861,6 @@ export class Runner {
         logger.logRun("Starting test suites");
         logger.setIssueLevel("trace");
 
-        // Adjust debug mode if more or less than 1 test will be run
         if (this.debug) {
             const activeSingleTests = this.state.tests.filter(
                 (test) => !test.config.skip && !test.config.multi
@@ -1992,10 +1894,8 @@ export class Runner {
             }
         }
 
-        // Register default hooks
         this.beforeAll(defineRootNode.bind(null, this.fixture.get));
         this.afterAll(
-            // Warn user events
             !this.debug && on(window, "pointermove", warnUserEvent),
             !this.debug && on(window, "pointerdown", warnUserEvent),
             !this.debug && on(window, "keydown", warnUserEvent)
@@ -2035,7 +1935,6 @@ export class Runner {
             if (!item) {
                 const couldRemove = this._include(idSpecs, [id], 0);
                 if (value > 0) {
-                    // Only log warning for not-found *included* jobs
                     if (couldRemove) {
                         logger.warn(
                             `Test runner did not find job with ID "${id}": it has been removed from the URL`
@@ -2049,7 +1948,6 @@ export class Runner {
                 hasChanged = true;
             }
             if (!item?.parent || item.parent.jobs.length < 1) {
-                // No parent or no need to simplify
                 continue;
             }
             const siblingIds = item.parent.jobs.map((job) => job.id);

@@ -52,8 +52,6 @@ export const checkModeIs = (view, mode) => {
  * @param {number} datasetIndex
  */
 export const checkTooltip = (view, { title, lines }, index, datasetIndex = null) => {
-    // If the tooltip options are changed, this helper should change: we construct the dataPoints
-    // similarly to Chart.js according to the values set for the tooltips options 'mode' and 'intersect'.
     const chart = getChart(view);
     const { datasets } = chart.data;
     const dataPoints = [];
@@ -214,9 +212,6 @@ export async function clickOnLegend(view, text) {
  * Pre-loads Chart.js and disables its animations, for test suites that render charts.
  */
 export function setupChartJsForTests() {
-    // Load and patch in a SINGLE awaited hook: a separate sync patch hook could
-    // run before loadChartJS() resolves, leaving animations on and racing
-    // getCenterPoint()-based click hit-tests against the bar animation.
     before(async () => {
         const Chart = await loadChartJS();
         patch(Chart.defaults, { animation: false });

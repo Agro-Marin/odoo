@@ -146,7 +146,6 @@ test("handles http not success", async () => {
 });
 
 test("handles jsonrpc error", async () => {
-    // https://www.jsonrpc.org/specification#error_object
     await mountWithCleanup(Parent);
     onRpc("/test/", () => ({
         error: {

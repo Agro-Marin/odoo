@@ -12,10 +12,6 @@ import {
 
 import { parse } from "./content_disposition.js";
 
-// -----------------------------------------------------------------------------
-// _download — trigger a browser file download from a Blob, data URL, or URL
-// -----------------------------------------------------------------------------
-
 /**
  * Trigger a browser file download.
  *
@@ -29,9 +25,7 @@ import { parse } from "./content_disposition.js";
  * @param {string} [mimetype]
  */
 function _download(data, filename, mimetype) {
-    // Pattern 3: single URL argument — fetch via XHR and hand off to configureBlobDownloadXHR
     if (!filename && !mimetype && typeof data === "string") {
-        // Data URLs can be downloaded directly via an anchor click.
         if (/^data:/i.test(data)) {
             const anchor = document.createElement("a");
             anchor.href = data;
@@ -55,7 +49,6 @@ function _download(data, filename, mimetype) {
         });
     }
 
-    // Pattern 1 & 2: Blob/File download via <a download> click
     const blob =
         data instanceof Blob
             ? data
@@ -68,14 +61,9 @@ function _download(data, filename, mimetype) {
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
-    // Delay revocation so the browser has time to start the download.
     setTimeout(() => URL.revokeObjectURL(objectUrl), 250);
     return true;
 }
-
-// -----------------------------------------------------------------------------
-// Exported download functions
-// -----------------------------------------------------------------------------
 
 /**
  * Download data as a file.
@@ -128,9 +116,6 @@ download._download = (/** @type {any} */ options) =>
         configureBlobDownloadXHR(xhr, {
             onSuccess: resolve,
             onFailure: reject,
-            // The `form` call pattern has no options.url; the request target is
-            // the form's action. Fall back to it so ConnectionLostError carries
-            // the real URL instead of `undefined`.
             url: options.form?.action ?? options.url,
         });
         xhr.send(data);
@@ -158,7 +143,6 @@ function configureBlobDownloadXHR(
             /;$/,
             "",
         );
-        // replace because some C-D headers are sent with a trailing ";"
         let filename = null;
         if (header) {
             try {
@@ -168,24 +152,13 @@ function configureBlobDownloadXHR(
                 // Malformed Content-Disposition — fall back to no filename.
             }
         }
-        // Odoo's default mimetype, including for JSON errors, is text/html
-        // (ref: http.py:Root.get_response); requiring a filename too lets us
-        // still support downloading actual HTML files.
         if (xhr.status === 200 && (mimetype !== "text/html" || filename)) {
-            // Repackage as application/octet-stream so browsers (Safari, Chrome) do not
-            // intercept the blob URL with their built-in PDF/office viewers and open it
-            // inline instead of downloading. The filename extension is sufficient for the
-            // OS to restore the correct file type after download.
             const downloadBlob = new Blob([xhr.response], {
                 type: "application/octet-stream",
             });
             _download(downloadBlob, filename, "application/octet-stream");
             onSuccess(filename);
         } else if (xhr.status >= 502 && xhr.status <= 504) {
-            // Bad Gateway (502) / Service Unavailable (503) / Gateway Timeout
-            // (504): Odoo is behind another server (nginx) that could not reach
-            // it. Surface a ConnectionLostError instead of trying to parse the
-            // proxy's raw HTML error page. Matches rpc.js's status handling.
             onFailure(new ConnectionLostError(url));
         } else {
             const decoder = new FileReader();
@@ -198,7 +171,6 @@ function configureBlobDownloadXHR(
 
                 let error;
                 try {
-                    // a Serialized python Error
                     const node = nodes[1] || nodes[0];
                     error = JSON.parse(node.textContent);
                 } catch {
@@ -207,14 +179,6 @@ function configureBlobDownloadXHR(
                         xhr.status < 300 &&
                         mimetype === "text/html"
                     ) {
-                        // A 2xx HTML body that is NOT a serialized Python
-                        // error (parsed above) is a genuine HTML page: the
-                        // XHR followed the session-expired redirect and
-                        // landed on the login page with a 200. Classify it
-                        // like rpc.js does (InvalidResponseError) so the
-                        // connection-lost handler routes it to the
-                        // session-expired flow, instead of popping a fake
-                        // "Arbitrary Uncaught Python Exception" dialog.
                         onFailure(new InvalidResponseError(url ?? "", xhr.status));
                         return;
                     }

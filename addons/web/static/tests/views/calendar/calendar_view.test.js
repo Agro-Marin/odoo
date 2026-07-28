@@ -360,9 +360,6 @@ function expectEventToBeOver(eventSelector, ranges) {
     const eventRects = queryAllRects(eventSelector);
     expect(eventRects.length).toBe(ranges.length);
 
-    // FC v7 adds a small visual margin between adjacent day-grid events
-    // (~9px start / ~5px end, measured in create-event-in-month-mode tests);
-    // tolerate it rather than asserting pixel-perfect cell alignment.
     const PX_TOLERANCE = 16;
 
     let result = true;
@@ -1178,12 +1175,6 @@ test(`create and change events on desktop`, async () => {
     );
     await contains(`.o-calendar-quick-create--create-btn`).click();
     expect(`.o_event[data-event-id="8"]`).toHaveText("new event in quick create");
-    // v7 dropped the v6 ``.fc-daygrid-event-harness*`` wrapper.  The
-    // ``:not(.fc-daygrid-event-harness-abs)`` filter previously excluded
-    // events rendered inside the "+N more" popover.  Closing the
-    // popover (if any) before the assertion is simpler than encoding
-    // a "not inside popover" CSS predicate, which HOOT's query engine
-    // doesn't reliably parse when ``:not()`` contains a combinator.
     expect(`.o_event:contains("new event in quick create")`).toHaveCount(1);
 
     await clickDate("2016-12-13");
@@ -1300,12 +1291,6 @@ test(`create and change events on mobile`, async () => {
     );
     await contains(`.o-calendar-quick-create--create-btn`).click();
     expect(`.o_event[data-event-id="8"]`).toHaveText("new event in quick create");
-    // v7 dropped the v6 ``.fc-daygrid-event-harness*`` wrapper.  The
-    // ``:not(.fc-daygrid-event-harness-abs)`` filter previously excluded
-    // events rendered inside the "+N more" popover.  Closing the
-    // popover (if any) before the assertion is simpler than encoding
-    // a "not inside popover" CSS predicate, which HOOT's query engine
-    // doesn't reliably parse when ``:not()`` contains a combinator.
     expect(`.o_event:contains("new event in quick create")`).toHaveCount(1);
 
     await clickDate("2016-12-13");
@@ -1453,10 +1438,6 @@ test(`quickcreate switching to actual create for required fields`, async () => {
 });
 
 test(`open multiple event form at the same time`, async () => {
-    // FullCalendar's internal drag state machine (FeaturefulElementDragging)
-    // defers `isDragging` reset via setTimeout(done, 0) in mirror.stop().
-    // Rapid clicks on the same date can be blocked by this mechanism, so we
-    // test that a single date click correctly opens exactly one dialog.
     let callCounter = 0;
     mockService("dialog", {
         add() {
@@ -1541,7 +1522,6 @@ test(`create multi day event in week mode`, async () => {
 });
 
 test(`default week start (US)`, async () => {
-    // if not given any option, default week start is on Sunday
     mockTimeZone(-7);
     onRpc("event", "search_read", ({ kwargs }) => {
         expect.step("event.search_read");
@@ -1561,7 +1541,6 @@ test(`default week start (US)`, async () => {
 });
 
 test(`European week start`, async () => {
-    // the week start depends on the locale
     defineParams({ lang_parameters: { week_start: 1 } });
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -1583,9 +1562,6 @@ test(`European week start`, async () => {
 
 test.tags("desktop");
 test(`Monday week start: clicking the displayed week's Sunday drills into day scale`, async () => {
-    // mockDate is 2016-12-12 (a Monday); with a Monday week start the displayed
-    // week is Dec 12 (Mon) → Dec 18 (Sun). Clicking that Sunday in the mini date
-    // picker must drill into the day scale, not re-navigate to the week scale.
     defineParams({ lang_parameters: { week_start: 1 } });
     await mountView({
         resModel: "event",
@@ -1605,8 +1581,6 @@ test(`Monday week start: clicking the displayed week's Sunday drills into day sc
 
 test.tags("desktop");
 test(`week numbering`, async () => {
-    // Using ISO week calculation, get the ISO week number of
-    // the Monday nearest to the start of the week.
     defineParams({ lang_parameters: { week_start: 7 } });
 
     await mountView({
@@ -1614,9 +1588,6 @@ test(`week numbering`, async () => {
         type: "calendar",
         arch: `<calendar date_start="start" date_stop="stop" mode="week"/>`,
     });
-    // v7 emits ``.fc-week-number`` natively for the timegrid axis
-    // week-label cell; v6's ``.fc-timegrid-axis-cushion`` is gone
-    // (the axis itself has a hashed class).
     expect(`.fc-week-number:eq(0)`).toHaveText("Week 50");
 });
 
@@ -1703,8 +1674,6 @@ test(`render popover with modifiers`, async () => {
 
 test.tags("desktop");
 test(`render popover: inside fullcalendar popover`, async () => {
-    // 10 all-day records on the same day render as blocks (one per row) and
-    // trigger FC v7's dayMaxEventRows overflow into the "+N more" popover.
     Event._records = Array.from({ length: 10 }).map((_, i) => ({
         id: i + 1,
         name: `event ${i + 1}`,
@@ -1740,9 +1709,6 @@ test(`render popover: inside fullcalendar popover`, async () => {
         `,
     });
 
-    // v7 keeps hidden overflow events in the DOM (not display:none), so
-    // ".o_event" matches all 10; the "+6 more" link's text is the simplest
-    // signal of how many are visible vs. routed to the overflow popover.
     expect(`.fc-more-link`).toHaveCount(1);
     expect(`.fc-more-link`).toHaveText("+6 more");
     expect(`.fc-popover`).toHaveCount(0);
@@ -1832,11 +1798,9 @@ test(`create event with timezone in week mode with formViewDialog`, async () => 
     await contains(`.modal .o_field_boolean[name='is_all_day'] input`).click();
     expect(`.o_field_widget[name='start']`).toHaveText("Dec 13, 2:00 AM");
 
-    // use datepicker to enter a date: 12/13/2016 08:00:00
     await contains(`.o_field_widget[name='start'] button`).click();
     await selectHourOnPicker("8");
 
-    // use datepicker to enter a date: 12/13/2016 10:00:00
     await contains(`.o_field_widget[name='stop'] button`).click();
     await selectHourOnPicker("10");
 
@@ -1940,10 +1904,6 @@ test(`check calendar week column time format`, async () => {
         type: "calendar",
         arch: `<calendar date_start="start"/>`,
     });
-    // v7 splits the v6 ``.fc-timegrid-slot`` into a label-side cell
-    // (with the time text) and a lane-side cell (the empty drop
-    // target).  Both carry ``data-time`` and the v6 base class.
-    // Disambiguate by addressing the label explicitly.
     expect(`.fc-timegrid-slot-label[data-time="08:00:00"]:eq(0)`).toHaveText("8am");
     expect(`.fc-timegrid-slot-label[data-time="23:00:00"]:eq(0)`).toHaveText("11pm");
 });
@@ -2017,10 +1977,6 @@ test(`create all day event in month mode: utc-11`, async () => {
     expect(`.o_event[data-event-id="1"]`).toHaveText("new event");
     const eventRect = queryRect(`.o_event[data-event-id="1"]`);
     const cellRect = queryRect(`[data-date="2016-12-14"]`);
-    // FC v7 events render with ~9px visual margin past the date
-    // cell's nominal edges. Tolerate that drift; the assertion's
-    // intent is "event is positioned within the 14th-of-Dec column",
-    // not pixel-perfect cell containment.
     expect(eventRect.left).toBeGreaterThan(cellRect.left - FC_V7_EVENT_MARGIN_PX);
     expect(eventRect.right).toBeLessThan(cellRect.right + FC_V7_EVENT_MARGIN_PX);
     expect(eventRect.top).toBeGreaterThan(cellRect.top - FC_V7_EVENT_MARGIN_PX);
@@ -2184,17 +2140,14 @@ test(`use mini calendar`, async () => {
     expect(`.fc-timeGridWeek-view`).toHaveCount(1);
     expect(`.o_event`).toHaveCount(5);
 
-    // Clicking on a day in another week should switch to the other week view
     await pickDate("2016-12-19");
     expect(`.fc-timeGridWeek-view`).toHaveCount(1);
     expect(`.o_event`).toHaveCount(2);
 
-    // Clicking on a day in the same week should switch to that particular day view
     await pickDate("2016-12-18");
     expect(`.fc-timeGridDay-view`).toHaveCount(1);
     expect(`.o_event`).toHaveCount(2);
 
-    // Clicking on the same day should toggle between day, month and week views
     await pickDate("2016-12-18");
     expect(`.fc-dayGridMonth-view`).toHaveCount(1);
     expect(`.o_event`).toHaveCount(7);
@@ -2448,7 +2401,7 @@ test(`open form view`, async () => {
         },
     });
 
-    onRpc("get_formview_id", () => expect.step("get_formview_id")); // should not be called
+    onRpc("get_formview_id", () => expect.step("get_formview_id"));
     await mountView({
         resModel: "event",
         type: "calendar",
@@ -2504,8 +2457,8 @@ test(`create and edit event in month mode (all_day: false)`, async () => {
                 target: "current",
                 context: {
                     default_name: "coucou",
-                    default_start: "2016-12-27 11:00:00", // 7:00 + 4h
-                    default_stop: "2016-12-27 23:00:00", // 19:00 + 4h
+                    default_start: "2016-12-27 11:00:00",
+                    default_stop: "2016-12-27 23:00:00",
                     default_allday: true,
                     lang: "en",
                     tz: "taht",
@@ -2708,7 +2661,7 @@ test(`check filters with filter_field specified on desktop`, async () => {
     ).toHaveCount(0);
     expect(MockServer.env["filter.partner"].read([2])[0].is_checked).toBe(false);
 
-    await changeScale("week"); // trick to reload the entire view
+    await changeScale("week");
     expect(
         `.o_calendar_filter[data-name="attendee_ids"] .o_calendar_filter_item[data-value="2"] input:checked`,
     ).toHaveCount(0);
@@ -2739,7 +2692,7 @@ test(`check filters with filter_field specified on mobile`, async () => {
     ).toHaveCount(0);
     expect(MockServer.env["filter.partner"].read([2])[0].is_checked).toBe(false);
     await hideCalendarPanel();
-    await changeScale("week"); // trick to reload the entire view
+    await changeScale("week");
     await displayCalendarPanel();
     expect(
         `.o_calendar_filter[data-name="attendee_ids"] .o_calendar_filter_item[data-value="2"] input:checked`,
@@ -2926,7 +2879,6 @@ test(`Add filters and specific color`, async () => {
         "search_read (event) [display_name, start, stop, is_all_day, color, attendee_ids, type_id]",
     ]);
 
-    // By default no filter is selected. We check before continuing.
     await toggleFilter("attendee_ids", 1);
     expect.verifySteps([
         "search_read (filter.partner) [partner_id]",
@@ -3054,10 +3006,10 @@ test(`Colors: dynamic filters without color attr (direct)`, async () => {
             </calendar>
         `,
     });
-    expect(`.o_event[data-event-id="1"]`).toHaveClass("o_calendar_color_7"); // uid = serverState.user_id
-    expect(`.o_event[data-event-id="2"]`).toHaveClass("o_calendar_color_7"); // uid = serverState.user_id
+    expect(`.o_event[data-event-id="1"]`).toHaveClass("o_calendar_color_7");
+    expect(`.o_event[data-event-id="2"]`).toHaveClass("o_calendar_color_7");
     expect(`.o_event[data-event-id="3"]`).toHaveClass("o_calendar_color_4");
-    expect(`.o_event[data-event-id="4"]`).toHaveClass("o_calendar_color_7"); // uid = serverState.user_id
+    expect(`.o_event[data-event-id="4"]`).toHaveClass("o_calendar_color_7");
     await displayCalendarPanel();
     expect(
         `.o_calendar_filter[data-name="partner_id"] [class*='o_cw_filter_color_']`,
@@ -3316,13 +3268,8 @@ test(`Colors: dynamic filters with no color source`, async () => {
     ).toHaveClass("o_cw_filter_color_4");
 });
 
-// desktop-only: uses the `.o-calendar-quick-create--input` inline quick-create,
-// absent from the mobile calendar UI.
 test.tags("desktop");
 test(`create event with filters`, async () => {
-    // Time-grid slot selection is timezone-sensitive and this test doesn't
-    // exercise TZ behavior: pin UTC so it passes on any dev machine, not
-    // only on UTC hosts (CI).
     mockTimeZone(0);
     Event._fields.user_id = fields.Many2one({ relation: "calendar.users", default: 5 });
     Event._fields.partner_id = fields.Many2one({
@@ -3357,7 +3304,6 @@ test(`create event with filters`, async () => {
     Event._fields.user_id.default = 4;
     Event._fields.partner_id.default = 4;
 
-    // Disable our filter to create a record without displaying it
     await toggleFilter("partner_id", 4);
 
     await selectTimeRange("2016-12-13 06:00:00", "2016-12-13 08:00:00");
@@ -3374,9 +3320,6 @@ test(`create event with filters`, async () => {
 });
 
 test(`create event with filters (no quickCreate)`, async () => {
-    // Time-grid slot selection is timezone-sensitive and this test doesn't
-    // exercise TZ behavior: pin UTC so it passes on any dev machine, not
-    // only on UTC hosts (CI).
     mockTimeZone(0);
     Event._views = {
         form: `
@@ -3440,7 +3383,7 @@ test(`Toggle multiple values at once in a filter with filter_field`, async () =>
     });
 
     await toggleSectionFilter("attendee_ids");
-    expect.verifySteps(["write 1,2"]); // single write rpc, on both records
+    expect.verifySteps(["write 1,2"]);
 });
 
 test.tags("desktop");
@@ -3493,7 +3436,6 @@ test(`Update event with filters on desktop`, async () => {
     expect(`.o_calendar_filter_item`).toHaveCount(5);
     expect(`.o_event`).toHaveCount(3);
 
-    // test the behavior of the 'select all' input checkbox
     expect(`.o_calendar_filter_item input:checked`).toHaveCount(3);
     expect(`.o_calendar_filter_item input:not(:checked)`).toHaveCount(2);
 
@@ -3558,7 +3500,6 @@ test(`Update event with filters on mobile`, async () => {
     expect(`.o_event`).toHaveCount(3);
     await displayCalendarPanel();
 
-    // test the behavior of the 'select all' input checkbox
     expect(`.o_calendar_filter_item input:checked`).toHaveCount(3);
     expect(`.o_calendar_filter_item input:not(:checked)`).toHaveCount(2);
     await hideCalendarPanel();
@@ -3695,22 +3636,16 @@ test(`single day event from midnight to midnight`, async () => {
     expect(`.o_event`).toHaveCount(1);
     let eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
     let cellWidth = queryFirst(`.fc-daygrid-day-frame`).getBoundingClientRect().width;
-    expect(eventWidth).toBe(cellWidth); // over a single day
+    expect(eventWidth).toBe(cellWidth);
     await changeScale("month");
     expect(`.o_event`).toHaveCount(1);
     eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
-    // v7 removed ``.fc-daygrid-day-events`` — use the inner-frame
-    // wrapper (fork's ``dayCellInnerClass`` injection) instead.
     cellWidth = queryFirst(`.fc-daygrid-day-frame`).getBoundingClientRect().width;
-    // FC v7 events render with ~1-2px visual margin per side past
-    // the nominal cell width. Allow a small tolerance.
     expect(eventWidth).not.toBeGreaterThan(cellWidth + FC_V7_EVENT_MARGIN_PX);
     await changeScale("week");
     expect(`.fc-daygrid-day-frame .o_event`).toHaveCount(1);
     eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
     cellWidth = queryFirst(`.fc-day`).getBoundingClientRect().width;
-    // FC v7 events render with ~1-2px visual margin per side past
-    // the nominal cell width. Allow a small tolerance.
     expect(eventWidth).not.toBeGreaterThan(cellWidth + FC_V7_EVENT_MARGIN_PX);
     await changeScale("day");
     expect(`.fc-daygrid-day-frame .o_event`).toHaveCount(1);
@@ -3737,26 +3672,15 @@ test(`event over two days but lasting less than 24h`, async () => {
     expect(`.o_event`).toHaveCount(1);
     let eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
     let cellWidth = queryFirst(`.fc-daygrid-day-frame`).getBoundingClientRect().width;
-    expect(eventWidth).toBe(2 * cellWidth); // over 2 days
+    expect(eventWidth).toBe(2 * cellWidth);
     await changeScale("month");
     expect(`.o_event`).toHaveCount(1);
     eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
-    // v7 removed ``.fc-daygrid-day-events``.  Use the outer day cell
-    // (``.fc-day``) for the per-day width yardstick — the inner
-    // ``.fc-daygrid-day-frame`` is a few pixels narrower (border /
-    // padding) and event widths in v7 align to the outer cell.
     cellWidth = queryFirst(`.fc-day:not(.fc-col-header-cell)`).getBoundingClientRect()
         .width;
     expect(eventWidth).toBeGreaterThan(cellWidth);
-    // FC v7 events render with ~1-2px visual margin per side past
-    // the nominal cell width. Allow a small tolerance.
     expect(eventWidth).not.toBeGreaterThan(2 * cellWidth + FC_V7_EVENT_MARGIN_PX);
     await changeScale("week");
-    // v7 dropped the ``.fc-day-<weekday>`` class hooks (sun/mon/tue/…)
-    // from time-grid columns — the stable v7 selector per day is
-    // ``[data-date="YYYY-MM-DD"]`` injected on the column gridcell
-    // (see ``fullcalendar.esm.js:12141``).  2016-12-12 is Monday,
-    // 2016-12-13 is Tuesday.
     expect(`[data-date="2016-12-12"] .o_event`).toHaveCount(1);
     expect(`[data-date="2016-12-13"] .o_event`).toHaveCount(1);
     await changeScale("day");
@@ -3784,31 +3708,22 @@ test(`event over two days lasting longer than 24h`, async () => {
     expect(`.o_event`).toHaveCount(1);
     let eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
     let cellWidth = queryFirst(`.fc-daygrid-day-frame`).getBoundingClientRect().width;
-    expect(eventWidth).toBe(2 * cellWidth); // over 2 days
+    expect(eventWidth).toBe(2 * cellWidth);
     await changeScale("month");
     expect(`.o_event`).toHaveCount(1);
     eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
-    // v7 removed ``.fc-daygrid-day-events`` — the day-cell inner
-    // wrapper is now ``.fc-daygrid-day-frame`` (re-injected by the
-    // fork's ``dayCellInnerClass`` option).
     cellWidth = queryFirst(`.fc-daygrid-day-frame`).getBoundingClientRect().width;
     expect(eventWidth).toBeGreaterThan(cellWidth);
-    // FC v7 events render with ~1-2px visual margin per side past
-    // the nominal cell width. Allow a small tolerance.
     expect(eventWidth).not.toBeGreaterThan(2 * cellWidth + FC_V7_EVENT_MARGIN_PX);
     await changeScale("week");
     expect(`.fc-daygrid-day-frame .o_event`).toHaveCount(1);
     eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
     cellWidth = queryFirst(`.fc-day`).getBoundingClientRect().width;
     expect(eventWidth).toBeGreaterThan(cellWidth);
-    // FC v7 events render with ~1-2px visual margin per side past
-    // the nominal cell width. Allow a small tolerance.
     expect(eventWidth).not.toBeGreaterThan(2 * cellWidth + FC_V7_EVENT_MARGIN_PX);
     await changeScale("day");
     expect(`.fc-daygrid-day-frame .o_event`).toHaveCount(1);
     await navigate("next");
-    // v7 removed ``.fc-daygrid-day-events`` — use the inner-frame
-    // wrapper (fork's ``dayCellInnerClass`` injection) instead.
     expect(`.fc-daygrid-day-frame .o_event`).toHaveCount(1);
 });
 
@@ -3832,31 +3747,22 @@ test(`all day event lasting 2 days`, async () => {
     expect(`.o_event`).toHaveCount(1);
     let eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
     let cellWidth = queryFirst(`.fc-daygrid-day-frame`).getBoundingClientRect().width;
-    expect(eventWidth).toBe(2 * cellWidth); // over 2 days
+    expect(eventWidth).toBe(2 * cellWidth);
     await changeScale("month");
     expect(`.o_event`).toHaveCount(1);
     eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
-    // v7 removed ``.fc-daygrid-day-events`` — the day-cell inner
-    // wrapper is now ``.fc-daygrid-day-frame`` (re-injected by the
-    // fork's ``dayCellInnerClass`` option).
     cellWidth = queryFirst(`.fc-daygrid-day-frame`).getBoundingClientRect().width;
     expect(eventWidth).toBeGreaterThan(cellWidth);
-    // FC v7 events render with ~1-2px visual margin per side past
-    // the nominal cell width. Allow a small tolerance.
     expect(eventWidth).not.toBeGreaterThan(2 * cellWidth + FC_V7_EVENT_MARGIN_PX);
     await changeScale("week");
     expect(`.fc-daygrid-day-frame .o_event`).toHaveCount(1);
     eventWidth = queryOne(`.o_event`).getBoundingClientRect().width;
     cellWidth = queryFirst(`.fc-day`).getBoundingClientRect().width;
     expect(eventWidth).toBeGreaterThan(cellWidth);
-    // FC v7 events render with ~1-2px visual margin per side past
-    // the nominal cell width. Allow a small tolerance.
     expect(eventWidth).not.toBeGreaterThan(2 * cellWidth + FC_V7_EVENT_MARGIN_PX);
     await changeScale("day");
     expect(`.fc-daygrid-day-frame .o_event`).toHaveCount(1);
     await navigate("next");
-    // v7 removed ``.fc-daygrid-day-events`` — use the inner-frame
-    // wrapper (fork's ``dayCellInnerClass`` injection) instead.
     expect(`.fc-daygrid-day-frame .o_event`).toHaveCount(1);
 });
 
@@ -3877,11 +3783,6 @@ test(`set event as all day when field is date`, async () => {
     });
 
     await toggleFilter("attendee_ids", 1);
-    // v7 dropped the unique ``.fc-daygrid-body`` hook for the all-day
-    // strip; instead, all-day-row events carry ``.fc-daygrid-event``
-    // (via our ``rowEventClass`` injection) while timegrid body events
-    // carry ``.fc-timegrid-event``.  Distinguishing the all-day strip
-    // now goes through the event-side class, not a body wrapper.
     expect(`.fc-daygrid-event`).toHaveCount(1);
 
     await clickEvent(1);
@@ -3896,11 +3797,6 @@ test(`set event as all day when field is date (without all_day mapping)`, async 
         type: "calendar",
         arch: `<calendar date_start="start_date" mode="week"/>`,
     });
-    // v7 dropped the unique ``.fc-daygrid-body`` hook for the all-day
-    // strip; instead, all-day-row events carry ``.fc-daygrid-event``
-    // (via our ``rowEventClass`` injection) while timegrid body events
-    // carry ``.fc-timegrid-event``.  Distinguishing the all-day strip
-    // now goes through the event-side class, not a body wrapper.
     expect(`.fc-daygrid-event`).toHaveCount(1);
 });
 
@@ -3928,13 +3824,11 @@ test(`quickcreate avoid double event creation`, async () => {
         arch: `<calendar date_start="start" date_stop="stop" all_day="is_all_day" mode="month" event_open_popup="1"/>`,
     });
 
-    // create a new event
     await clickDate("2016-12-13");
     await contains(`.modal-body input`).edit("new event in quick create", {
         confirm: false,
     });
 
-    // Simulate ENTER pressed on Create button (after a TAB)
     await press("Enter");
     await click(`.o-calendar-quick-create--create-btn`);
     await animationFrame();
@@ -3945,11 +3839,6 @@ test(`quickcreate avoid double event creation`, async () => {
 });
 
 test(`filter toggle during an in-flight reload releases the awaiting caller`, async () => {
-    // Regression: createRecord/updateRecord/multiCreateRecords (and the
-    // quick-create flow) all ``await this.load()``. Toggling a filter cancels
-    // that in-flight reload; before the fix the cancellation left the reload
-    // promise pending forever (KeepLast never settles a superseded wrapper),
-    // so the awaiting caller — and, e.g., the quick-create dialog — hung.
     let searchReadDeferred = null;
     onRpc("event", "search_read", async () => {
         if (searchReadDeferred) {
@@ -3968,22 +3857,17 @@ test(`filter toggle during an in-flight reload releases the awaiting caller`, as
     const model = findComponent(view, (c) => c instanceof CalendarController).model;
     const section = model.filterSections[0];
 
-    // A caller awaits a reload (as createRecord does after orm.create)...
     searchReadDeferred = new Deferred();
     const pendingReload = model.load();
     pendingReload.then(() => expect.step("reload settled"));
     await animationFrame();
 
-    // ...meanwhile the user toggles a filter, cancelling that reload.
-    // Use the user-type filters so no server write is needed; the load-epoch
-    // bump that supersedes the in-flight reload happens regardless.
     model.updateFilters(
         section.fieldName,
         section.filters.filter((f) => f.type === "user"),
         false,
     );
 
-    // Release the now-superseded reload: it must resolve, not hang.
     searchReadDeferred.resolve();
     await pendingReload;
     expect.verifySteps(["reload settled"]);
@@ -4227,9 +4111,6 @@ test(`drag and drop on month mode`, async () => {
 });
 
 test(`drag and drop on month mode with all_day mapping`, async () => {
-    // Same as above but exercises the all_day-mapping branch in
-    // calendarEventToRecord (calendar_model.js).
-
     await mountView({
         resModel: "event",
         type: "calendar",
@@ -4245,11 +4126,9 @@ test(`drag and drop on month mode with all_day mapping`, async () => {
     await contains(`.o_field_widget[name="name"] input`).edit("An event");
     await contains(`.o_field_widget[name="is_all_day"] input`).click();
 
-    // use datepicker to enter a date: 12/20/2016 07:00:00
     await contains(`.o_field_widget[name="start"] button`).click();
     await selectHourOnPicker("7:00");
 
-    // use datepicker to enter a date: 12/20/2016 19:00:00
     await contains(`.o_field_widget[name="stop"] button`).click();
     await selectHourOnPicker("19:00");
     await contains(`.modal .o_form_button_save`).click();
@@ -4311,9 +4190,6 @@ test(`drag and drop rejected by the server resyncs the event`, async () => {
     await moveEventToDate(6, "2016-11-27");
     await animationFrame();
 
-    // The rejected write must trigger a reload: the event snaps back to its
-    // original slot instead of silently staying at the dropped slot while the
-    // database still holds the old dates.
     expect.verifySteps(["write", "search_read"]);
     expect(`[data-date="2016-11-27"] .o_event[data-event-id="6"]`).toHaveCount(0);
     expect(`[data-date="2016-12-18"] .o_event[data-event-id="6"]`).toHaveCount(1);
@@ -4339,8 +4215,6 @@ test(`resize rejected by the server resyncs the event`, async () => {
     await animationFrame();
     expect.verifySteps(["write"]);
 
-    // After the rejected write the view is reloaded: the event keeps its
-    // server dates instead of showing the resized range.
     await clickEvent(2);
     expect(`.o_cw_popover .list-group-item:eq(1)`).toHaveText(
         "11:55 - 15:55 (4 hours)",
@@ -4350,10 +4224,6 @@ test(`resize rejected by the server resyncs the event`, async () => {
 
 test.tags("desktop");
 test(`filter toggle rejected by the server resyncs the filter panel`, async () => {
-    // Regression: updateFilters flips the filters optimistically and bumps the
-    // load epoch BEFORE awaiting the write; when the write rejected, no reload
-    // was scheduled, leaving the panel (and the discarded in-flight load)
-    // desynced from the server until a manual navigation.
     expect.errors(1);
 
     onRpc("filter.partner", "write", () => {
@@ -4381,8 +4251,6 @@ test(`filter toggle rejected by the server resyncs the filter panel`, async () =
     await toggleFilter("attendee_ids", 2);
     await animationFrame();
 
-    // The rejected write still schedules a reload: the optimistic unchecking
-    // is reverted to the server state (is_checked stayed true).
     expect.verifySteps(["write", "search_read"]);
     expect(MockServer.env["filter.partner"].read([2])[0].is_checked).toBe(true);
     expect(
@@ -4393,8 +4261,6 @@ test(`filter toggle rejected by the server resyncs the filter panel`, async () =
 
 test.tags("desktop");
 test(`filter removal rejected by the server resyncs the filter panel`, async () => {
-    // Same contract as the rejected toggle: unlinkFilter removes the filter
-    // optimistically, so a rejected unlink must still reload to restore it.
     expect.errors(1);
 
     onRpc("filter.partner", "unlink", () => {
@@ -4416,13 +4282,9 @@ test(`filter removal rejected by the server resyncs the filter panel`, async () 
     ).toHaveCount(1);
 
     await removeFilter("attendee_ids", 2);
-    // The debounced reload is scheduled only once the unlink rejection lands,
-    // which may be after removeFilter's own advanceTime: flush it explicitly.
     await runAllTimers();
     await animationFrame();
 
-    // The rejected unlink still schedules a reload: the optimistically
-    // removed filter reappears since the server still has it.
     expect.verifySteps(["unlink"]);
     expect(
         `.o_calendar_filter[data-name="attendee_ids"] .o_calendar_filter_item[data-value="2"]`,
@@ -4455,9 +4317,6 @@ test(`updateRecord does not write the create_name_field mapped name`, async () =
 
     onRpc("custom.event", "write", ({ args }) => {
         expect.step("write");
-        // The record name is immutable from calendar updates: the mapped
-        // create_name_field key must be stripped, not only the literal
-        // "name" key.
         expect(args[1]).toEqual({ x_start_date: "2016-12-06" });
     });
 
@@ -4467,8 +4326,6 @@ test(`updateRecord does not write the create_name_field mapped name`, async () =
         arch: `<calendar date_start="x_start_date" create_name_field="x_name" mode="month"/>`,
     });
 
-    // Simulate an update carrying a title, as model subclasses may do: the
-    // title maps onto x_name in buildRawRecord and must not reach the write.
     await model.updateRecord({ ...model.records[1], title: "changed title" });
     expect.verifySteps(["write"]);
 });
@@ -4481,11 +4338,7 @@ test(`form_view_id attribute works (for creating events)`, async () => {
         },
     });
 
-    onRpc("create", () =>
-        // Simulate a create rpc rejection (e.g. a required field): the web
-        // client should fall back to opening a form view.
-        Promise.reject("None shall pass!"),
-    );
+    onRpc("create", () => Promise.reject("None shall pass!"));
 
     await mountView({
         resModel: "event",
@@ -4522,7 +4375,7 @@ test(`form_view_id attribute works with popup (for creating events)`, async () =
 });
 
 test(`calendar fallback to form view id in action if necessary`, async () => {
-    Event._views["form,43"] = /* xml */ `<form />`;
+    Event._views["form,43"] = `<form />`;
 
     mockService("action", {
         doAction(request) {
@@ -4530,7 +4383,7 @@ test(`calendar fallback to form view id in action if necessary`, async () => {
             expect(request).toEqual({
                 type: "ir.actions.act_window",
                 res_model: "event",
-                views: [[43, "form"]], // should use the view id from the config
+                views: [[43, "form"]],
                 target: "current",
                 context: {
                     lang: "en",
@@ -4546,11 +4399,7 @@ test(`calendar fallback to form view id in action if necessary`, async () => {
         },
     });
 
-    onRpc("create", () =>
-        // Simulate a create rpc rejection (e.g. a required field): the web
-        // client should fall back to opening a form view.
-        Promise.reject("None shall pass!"),
-    );
+    onRpc("create", () => Promise.reject("None shall pass!"));
     await mountView({
         resModel: "event",
         type: "calendar",
@@ -4567,7 +4416,6 @@ test(`calendar fallback to form view id in action if necessary`, async () => {
 });
 
 test(`fullcalendar initializes with right locale`, async () => {
-    // The machine that runs this test must have this locale available
     serverState.lang = "fr";
 
     await mountView({
@@ -4575,9 +4423,6 @@ test(`fullcalendar initializes with right locale`, async () => {
         type: "calendar",
         arch: `<calendar date_start="start" date_stop="stop" mode="week"/>`,
     });
-    // Verify the French locale (weekday abbreviations) reaches FullCalendar.
-    // v7 renders day name + number inline (dropped the v6 navLink wrapper
-    // the fork's CSS used to stack them on), so compare against v7's shape.
     expect(queryAllTexts`.fc-col-header-cell`).toEqual([
         "dim. 11",
         "lun. 12",
@@ -4600,7 +4445,7 @@ test(`initial_date given in the context`, async () => {
             name: "context initial date",
             res_model: "event",
             views: [[1, "calendar"]],
-            context: { initial_date: "2016-01-30 08:00:00" }, // 30th of january
+            context: { initial_date: "2016-01-30 08:00:00" },
         },
     ]);
 
@@ -4617,7 +4462,6 @@ test(`initial_date given in the context`, async () => {
 
 test.tags("desktop");
 test(`default week start (US) month mode on desktop`, async () => {
-    // if not given any option, default week start is on Sunday
     mockDate("2019-09-12 08:00:00", -7);
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -4635,10 +4479,6 @@ test(`default week start (US) month mode on desktop`, async () => {
     expect.verifySteps(["event.search_read"]);
     expect(`.fc-col-header-cell .o_cw_day_name:eq(0)`).toHaveText("Sun");
     expect(`.fc-col-header-cell .o_cw_day_name:eq(-1)`).toHaveText("Sat");
-    // v7 renders the inline week number as a SIBLING of the first day
-    // cell rather than as a child — the descendant selector ``.fc-day
-    // .fc-daygrid-week-number`` no longer matches.  Target the
-    // week-number element directly (it's the first one in the grid).
     expect(`.fc-daygrid-week-number:eq(0)`).toHaveText("36");
     expect(`.fc-daygrid-day:eq(0) .fc-daygrid-day-number`).toHaveText("1");
     expect(`.fc-daygrid-day:eq(0)`).toHaveAttribute("data-date", "2019-09-01");
@@ -4648,7 +4488,6 @@ test(`default week start (US) month mode on desktop`, async () => {
 
 test.tags("mobile");
 test(`default week start (US) month mode on mobile`, async () => {
-    // if not given any option, default week start is on Sunday
     mockDate("2019-09-12 08:00:00", -7);
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -4676,7 +4515,6 @@ test(`default week start (US) month mode on mobile`, async () => {
 test.tags("desktop");
 test(`European week start month mode on chat`, async () => {
     mockDate("2019-09-15 08:00:00");
-    // the week start depends on the locale
     defineParams({ lang_parameters: { week_start: 1 } });
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -4704,7 +4542,6 @@ test(`European week start month mode on chat`, async () => {
 test.tags("mobile");
 test(`European week start month mode on mobile`, async () => {
     mockDate("2019-09-15 08:00:00");
-    // the week start depends on the locale
     defineParams({ lang_parameters: { week_start: 1 } });
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -4732,7 +4569,6 @@ test(`European week start month mode on mobile`, async () => {
 test.tags("desktop");
 test(`Monday week start week mode on desktop`, async () => {
     mockDate("2019-09-15 08:00:00");
-    // the week start depends on the locale
     defineParams({ lang_parameters: { week_start: 1 } });
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -4759,7 +4595,6 @@ test(`Monday week start week mode on desktop`, async () => {
 test.tags("mobile");
 test(`Monday week start week mode on mobile`, async () => {
     mockDate("2019-09-15 08:00:00");
-    // the week start depends on the locale
     defineParams({ lang_parameters: { week_start: 1 } });
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -4787,7 +4622,6 @@ test(`Monday week start week mode on mobile`, async () => {
 test.tags("desktop");
 test(`Saturday week start week mode on desktop`, async () => {
     mockDate("2019-09-12 08:00:00");
-    // the week start depends on the locale
     defineParams({ lang_parameters: { week_start: 6 } });
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -4814,7 +4648,6 @@ test(`Saturday week start week mode on desktop`, async () => {
 test.tags("mobile");
 test(`Saturday week start week mode on mobile`, async () => {
     mockDate("2019-09-12 08:00:00");
-    // the week start depends on the locale
     defineParams({ lang_parameters: { week_start: 6 } });
 
     onRpc("event", "search_read", ({ kwargs }) => {
@@ -4841,7 +4674,6 @@ test(`Saturday week start week mode on mobile`, async () => {
 
 test(`Monday week start year mode`, async () => {
     mockDate("2019-09-15 08:00:00");
-    // the week start depends on the locale
     defineParams({ lang_parameters: { week_start: 1 } });
 
     patchWithCleanup(CalendarYearRenderer.prototype, {
@@ -4864,11 +4696,6 @@ test(`Monday week start year mode`, async () => {
     });
     expect.verifySteps(["event.search_read"]);
 
-    // FC v7 dropped ``<table>``/``<tr>`` markup in favour of
-    // ``<div role="row">`` semantic ARIA layout. The week number also
-    // moved to the row's ``aria-label="Week N"`` attribute (no
-    // separate ``.fc-daygrid-week-number`` element in multimonth view
-    // anymore).
     const weekRow = queryFirst(`.fc-day-today`).closest('[role="row"]');
     expect(queryFirst(`.fc-daygrid-day-top`, { root: weekRow })).toHaveText("9", {
         message: "The first day of the week should be Monday the 9th",
@@ -4881,8 +4708,6 @@ test(`Monday week start year mode`, async () => {
 
 test(`Sunday week start year mode`, async () => {
     mockDate("2019-09-15 08:00:00");
-    // the week start depends on the locale
-    // the localization presents a python-like 1 to 7 weekStart value
     defineParams({ lang_parameters: { week_start: 7 } });
 
     patchWithCleanup(CalendarYearRenderer.prototype, {
@@ -4905,8 +4730,6 @@ test(`Sunday week start year mode`, async () => {
     });
     expect.verifySteps(["event.search_read"]);
 
-    // FC v7 dropped ``<table>``/``<tr>`` markup; see Monday-week-start
-    // year-mode test above for the same reason.
     const weekRow = queryFirst(`.fc-day-today`).closest('[role="row"]');
     expect(queryFirst(`.fc-daygrid-day-top`, { root: weekRow })).toHaveText("15", {
         message: "The first day of the week should be Sunday the 15th",
@@ -5109,9 +4932,6 @@ test(`correctly display year view`, async () => {
     await toggleFilter("attendee_ids", 2);
 
     expect(`.fc-month`).toHaveCount(12);
-    // v7 dropped the ``.fc-header-toolbar`` class; the title lives
-    // in ``.fc-toolbar-title`` (re-injected by the year renderer's
-    // ``toolbarTitleClass`` option — see calendar_year_renderer.js).
     expect(queryAllTexts`.fc-month .fc-toolbar-title`).toEqual([
         "January 2016",
         "February 2016",
@@ -5126,7 +4946,7 @@ test(`correctly display year view`, async () => {
         "November 2016",
         "December 2016",
     ]);
-    expect(`.fc-bg-event`).toHaveCount(7); // There should be 6 events displayed but there is 1 split on 2 weeks
+    expect(`.fc-bg-event`).toHaveCount(7);
     expect(`.o_event_hatched`).toHaveCount(3);
     expect(`.o_event_striked`).toHaveCount(1);
 
@@ -5254,10 +5074,6 @@ test(`toggle filters in year view`, async () => {
 
 test.tags("desktop");
 test(`year view: no stale background events linger after a filter toggle`, async () => {
-    // Pins the synchronous rebuild in full_calendar_hook's onPatched: FC v7
-    // schedules background-event re-renders asynchronously, so without the
-    // forced destroy+render, stale .fc-bg-event nodes would survive the OWL
-    // patch that removed their records.
     await mountView({
         resModel: "event",
         type: "calendar",
@@ -5274,8 +5090,6 @@ test(`year view: no stale background events linger after a filter toggle`, async
     expect(`.fc-bg-event[data-event-id="5"]`).toHaveCount(2);
     expect(`.fc-bg-event[data-event-id="7"]`).toHaveCount(1);
 
-    // Toggle without the helper's trailing frames: right after the OWL patch
-    // that applied the reload, the removed events' nodes must be gone.
     const root = findFilterPanelFilter("attendee_ids", 2);
     await click(queryFirst(`input`, { root }));
     await advanceTime(CalendarModel.DEBOUNCED_LOAD_DELAY);
@@ -5286,10 +5100,6 @@ test(`year view: no stale background events linger after a filter toggle`, async
 
 test.tags("desktop");
 test(`navigation patches the calendar in place instead of remounting it`, async () => {
-    // Date navigation must go through the full_calendar_hook onPatched
-    // gotoDate path: the renderer (and its FullCalendar instance) survives,
-    // only the displayed period changes. A date-derived t-key used to force
-    // a full teardown + rebuild on every prev/next/today.
     await mountView({
         resModel: "event",
         type: "calendar",
@@ -5307,7 +5117,6 @@ test(`navigation patches the calendar in place instead of remounting it`, async 
     await navigate("next");
     expect(`.fc-day[data-date="2016-12-19"]`).not.toHaveCount(0);
     expect(`.fc-day[data-date="2016-12-12"]`).toHaveCount(0);
-    // Same component instance and same FullCalendar root node.
     expect.verifySteps([]);
     expect(queryOne(`.fc`)).toBe(fcEl);
 
@@ -5476,7 +5285,6 @@ test(`popover ignores readonly field modifier`, async () => {
     });
 
     await clickEvent(4);
-    // test would fail here if we don't ignore readonly modifier
     const popover = getMockEnv().isSmall ? ".modal" : ".o_cw_popover";
     expect(popover).toHaveCount(1);
 });
@@ -5618,7 +5426,6 @@ test(`can not select invalid scale from datepicker`, async () => {
     });
 
     await contains(`.o_datetime_picker .o_today`).click();
-    // test would fail here if we went to week mode
     expect(`.fc-dayGridMonth-view`).toHaveCount(1);
 });
 
@@ -5727,9 +5534,6 @@ test(`calendar render properties in popover`, async () => {
 });
 
 test(`calendar create record with default properties`, async () => {
-    // Time-grid slot selection is timezone-sensitive and this test doesn't
-    // exercise TZ behavior: pin UTC so it passes on any dev machine, not
-    // only on UTC hosts (CI).
     mockTimeZone(0);
     Event._fields.properties = fields.Properties({
         definition_record: "type_id",
@@ -5983,20 +5787,11 @@ test(`scroll to current hour when clicking on today`, async () => {
         type: "calendar",
         arch: `<calendar event_open_popup="1" date_start="start" date_stop="stop" all_day="is_all_day" mode="week"/>`,
     });
-    // Default scroll time should be 6am no matter the current hour.
-    // FC v7 computes scrollTop = frac * slatHeight * slatCnt + 1
-    // border. With the fork's slotMinHeight=22 and v7's default 48
-    // half-hour slats: 6am frac=0.25 → 22*48*0.25 + 1 = 265. v6 used
-    // 24 hourly slats so the original 210-230 range no longer holds.
     expect(queryOne(".fc-scroller:last").scrollTop).toBeWithin(260, 270);
     await contains(".o_calendar_button_today").click();
     expect(queryOne(".fc-scroller:last").scrollTop).toBe(0);
     mockDate("2016-12-12T20:00:00", 1);
     await contains(".o_calendar_button_today").click();
-    // The mocked instant (20:00 at +1h -> 21:00 local) targets hour 19
-    // (~836px), which exceeds the fixture's scrollable range, so FC v7
-    // clamps to the maximum scroll. Assert the clamped max, not a fixed
-    // pixel target that would depend on viewport height.
     const scroller = queryOne(".fc-scroller:last");
     expect(scroller.scrollTop).toBe(scroller.scrollHeight - scroller.clientHeight);
 });
@@ -6029,9 +5824,6 @@ test("save selected date during view switching", async () => {
 
     await getService("action").switchView("calendar");
     await navigate("next");
-    // v7 dropped ``th`` table elements (uses ``<div role="columnheader">``)
-    // and ``.fc-timegrid-axis-cushion``.  ``.fc-week-number`` is the
-    // v7 hook for the week-label cell.
     const weekNumber = await queryFirst(`.fc-week-number`).textContent;
     await getService("action").switchView("list");
     await getService("action").switchView("calendar");
@@ -6181,7 +5973,6 @@ test("simple calendar rendering in mobile", async () => {
 
 test.tags("mobile");
 test("calendar: popover is rendered as dialog in mobile", async () => {
-    // Legacy name of this test: "calendar: popover rendering in mobile"
     await mountView({
         type: "calendar",
         resModel: "event",
@@ -6281,8 +6072,6 @@ test('calendar: tap on "Free Zone" opens quick create', async () => {
     });
     expandCalendarView();
 
-    // Simulate a "TAP" (touch) on the 08:30 slot. FC v7 slot lanes are
-    // non-interactive background rows, so tap the interactive time-grid column.
     await clickTimeSlot("2016-12-12 08:30:00");
 
     expect(".modal").toHaveCount(1);
@@ -6311,8 +6100,6 @@ test('calendar: select range on "Free Zone" opens quick create', async () => {
     });
     expandCalendarView();
 
-    // FC v7 slot lanes are non-interactive background rows; select via the
-    // interactive time-grid columns (selectTimeRange targets them).
     await selectTimeRange("2016-12-12 08:00:00", "2016-12-12 09:00:00");
 
     expect(".modal").toHaveCount(1);
@@ -6328,7 +6115,7 @@ test("calendar (year): select date range opens quick create", async () => {
         onSelect(info) {
             expect.step("select");
             expect(info.startStr).toBe("2016-02-02");
-            expect(info.endStr).toBe("2016-02-06"); // end date is exclusive
+            expect(info.endStr).toBe("2016-02-06");
             return super.onSelect(info);
         },
     });
@@ -6362,8 +6149,8 @@ test("calendar (year): tap on date switch to day scale", async () => {
     expect(".fc-month-container").toHaveCount(12);
 
     await click(".fc-daygrid-day[data-date='2016-02-05']");
-    await animationFrame(); // switch renderer
-    await animationFrame(); // await breadcrumb update
+    await animationFrame();
+    await animationFrame();
     expect(".o_calendar_container .o_calendar_header h5").toHaveText("5 February 2016");
 
     expect(".fc-dayGridYear-view").toHaveCount(0);
@@ -6379,8 +6166,8 @@ test("calendar (year): tap on date switch to day scale", async () => {
     expect(".fc-dayGridMonth-view").toHaveCount(1);
 
     await click(".fc-daygrid-day[data-date='2016-02-10']");
-    await animationFrame(); // await reload & render
-    await animationFrame(); // await breadcrumb update
+    await animationFrame();
+    await animationFrame();
     expect(".o_calendar_container .o_calendar_header h5").toHaveText("February 2016");
 
     expect(".modal").toHaveCount(1);
@@ -6483,9 +6270,6 @@ test(`calendar view with show_unusual_days`, async () => {
 
 test.tags("desktop");
 test(`unusual days are refetched after a record update`, async () => {
-    // Regression: the unusual-days cache lived for the whole model lifetime,
-    // so shading computed from the very records being edited (e.g. hr_leave)
-    // stayed stale after a CRUD. Record CRUD must flush the cache.
     let unusualDays = {
         "2016-12-14": true,
     };
@@ -6505,9 +6289,6 @@ test(`unusual days are refetched after a record update`, async () => {
     expect.verifySteps(["get_unusual_days"]);
     expect(".fc-daygrid-day.o_calendar_disabled").toHaveCount(1);
 
-    // The server-side unusual days change (e.g. a leave gets approved by the
-    // write): the reload after the record update must refetch them instead of
-    // serving the cached range.
     unusualDays = {
         "2016-12-14": true,
         "2016-12-21": true,

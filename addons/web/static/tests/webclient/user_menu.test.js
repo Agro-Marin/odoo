@@ -121,7 +121,7 @@ test("can be rendered", async () => {
     for (let i = 0; i < 4; i++) {
         await click(`.dropdown-menu .dropdown-item:eq(${i})`);
 
-        await click("button.dropdown-toggle"); // re-open the dropdown
+        await click("button.dropdown-toggle");
         await animationFrame();
     }
 
@@ -191,4 +191,39 @@ test("can use component as registry item", async () => {
     await mountWithCleanup(UserMenu);
     await contains("button.dropdown-toggle").click();
     expect(".o-dropdown--menu span.component-class").toHaveText("Example Component");
+});
+
+test("sequence 0 sorts first, not as the default 100", async () => {
+    // `sequence` used to be read as `x.sequence ? x.sequence : 100`, so the one
+    // value that means "before everything" was silently demoted to the value
+    // that means "no preference". No in-tree item uses 0 today — mail's status
+    // item is 45, web_enterprise's share is 25 — which is exactly why this
+    // could sit here unnoticed until an addon picked 0 and landed mid-menu.
+    userMenuRegistry.add("last_item", () => ({
+        type: "item",
+        id: "last",
+        description: "Last",
+        callback: () => {},
+        sequence: 200,
+    }));
+    userMenuRegistry.add("default_item", () => ({
+        type: "item",
+        id: "default",
+        description: "Default",
+        callback: () => {},
+    }));
+    userMenuRegistry.add("first_item", () => ({
+        type: "item",
+        id: "first",
+        description: "First",
+        callback: () => {},
+        sequence: 0,
+    }));
+    await mountWithCleanup(UserMenu);
+    await contains("button.dropdown-toggle").click();
+    expect(queryAllTexts(".o-dropdown--menu .dropdown-item")).toEqual([
+        "First",
+        "Default",
+        "Last",
+    ]);
 });

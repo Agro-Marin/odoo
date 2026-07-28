@@ -73,13 +73,9 @@ export class InnerGroup extends Group {
         let currentRow = [];
         let reservedSpace = 0;
 
-        // Dispatch items across table rows
         const items = this.getItems();
         while (items.length) {
             const [slotName, slot] = items.shift();
-            // Same predicate as OuterGroup.getItems: a slot without an
-            // isVisible key (third-party form_compilers) is visible —
-            // `!slot.isVisible` silently dropped it here.
             if ("isVisible" in slot && !slot.isVisible) {
                 continue;
             }
@@ -104,9 +100,6 @@ export class InnerGroup extends Group {
         }
         rows.push(currentRow);
 
-        // Every pushed cell is visible (invisible slots were skipped above),
-        // so a row renders iff it has cells — empty rows (leading newline,
-        // trailing remainder) are dropped by the template's t-if.
         for (const row of rows) {
             /** @type {any} */ (row).isVisible = row.length > 0;
         }

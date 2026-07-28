@@ -1,7 +1,5 @@
 // @ts-check
 
-// ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
-
 import {
     __debug__,
     definePreset,
@@ -13,6 +11,33 @@ import {
 
 import { patchBrowserLocation } from "./mock_browser.hoot.js";
 import { setupTestEnvironment } from "./module_set.hoot.js";
+
+/**
+ * HOOT's job-id hash (``hoot_utils.js::generateHash``), reimplemented rather
+ * than imported: ``@odoo/hoot`` lives in ``web.assets_unit_tests_setup`` while
+ * this file lives in ``web.assets_unit_tests``, and the two bundles are cached
+ * separately — importing across them breaks with "does not provide an export
+ * named ..." whenever only one has been rebuilt. Same algorithm as
+ * ``hoot_lib.generate_hash`` and ``test_js.py::_generate_hash``.
+ *
+ * @param {string} value
+ * @returns {string}
+ */
+function _hashJobId(value) {
+    let hash = 0;
+    for (let i = 0; i < value.length; i++) {
+        hash = (hash << 5) - hash + value.charCodeAt(i);
+        hash |= 0;
+    }
+    return (hash + 16 ** 8).toString(16).slice(-8);
+}
+
+// Read before patchBrowserLocation() swaps the location object out.
+const REQUESTED_IDS = new Set(
+    new URLSearchParams(globalThis.location?.search ?? "")
+        .getAll("id")
+        .filter((id) => !id.startsWith("-")),
+);
 
 function beforeFocusRequired(test) {
     if (!document.hasFocus()) {
@@ -56,17 +81,10 @@ defineTags(
     },
 );
 
-// Setup test environment: patch registries, remove app-specific services.
 setupTestEnvironment();
 
-// Wire ``browser.location`` to HOOT's ``mockLocation`` so navigation calls
-// in tests (``redirect()``, ``router.pushState`` w/ reload, etc.) update an
-// in-memory mock URL instead of triggering real ``window.location`` writes
-// that would destroy the test runner page mid-suite.
 patchBrowserLocation();
 
-// Hoot exposes the runner via ``__debug__`` so we can push/pop the
-// suiteStack around each test-file import — see ``_importInFileSuite``.
 const _runner = /** @type {any} */ (__debug__);
 
 /**
@@ -83,6 +101,81 @@ const _runner = /** @type {any} */ (__debug__);
 function _suiteNameFromSpecifier(specifier) {
     const m = specifier.match(/^(@[^/]+)\/\.\.\/tests\/(.*?)(?:\.test)?$/);
     return m ? `${m[1]}/${m[2]}` : specifier;
+}
+
+/**
+ * Narrow ``testSpecifiers`` to the test files an ``&id=`` filter can possibly
+ * select, so a filtered run stops paying for every other file in the bundle.
+ *
+ * Every job a file registers is nested under that file's synthetic suite (see
+ * ``_importInFileSuite``), so a job's ``fullName`` always starts with the
+ * file's suite name. An id therefore selects a file only if it hashes one of
+ * that suite name's ancestors — ``@web``, ``@web/core``, ``@web/core/domain``
+ * for ``@web/core/domain``.
+ *
+ * The reverse case — an id naming a job *inside* a file (a nested
+ * ``describe``, or a single test) — cannot be recognised from the hash alone,
+ * so when nothing matches we import everything rather than run zero tests.
+ * Non-test modules (helpers registering global hooks) are never filtered.
+ *
+ * @param {string[]} testSpecifiers
+ * @returns {string[]}
+ */
+function _selectTestSpecifiers(testSpecifiers) {
+    if (!REQUESTED_IDS.size) {
+        return testSpecifiers;
+    }
+    const isSelected = (specifier) => {
+        if (!specifier.endsWith(".test")) {
+            return true;
+        }
+        const parts = _suiteNameFromSpecifier(specifier).split("/");
+        return parts.some((_, i) =>
+            REQUESTED_IDS.has(_hashJobId(parts.slice(0, i + 1).join("/"))),
+        );
+    };
+    const selected = testSpecifiers.filter(isSelected);
+    return selected.some((specifier) => specifier.endsWith(".test"))
+        ? selected
+        : testSpecifiers;
+}
+
+/**
+ * Fetch the modules ``loadAndStart`` is about to import, in parallel.
+ *
+ * The imports themselves must stay serial (each file's top-level code has to
+ * see only its own suite on the stack), so without this every file costs a
+ * round trip. The server no longer emits these links because it cannot see the
+ * page's ``&id=`` filter; the URLs come from the import map it did emit.
+ *
+ * @param {string[]} specifiers
+ */
+function _preloadTestModules(specifiers) {
+    const importMap = document.querySelector('script[type="importmap"]');
+    if (!importMap?.textContent) {
+        return;
+    }
+    let imports;
+    try {
+        imports = JSON.parse(importMap.textContent).imports;
+    } catch {
+        return;
+    }
+    if (!imports) {
+        return;
+    }
+    const fragment = document.createDocumentFragment();
+    for (const specifier of specifiers) {
+        const href = imports[specifier];
+        if (!href) {
+            continue;
+        }
+        const link = document.createElement("link");
+        link.rel = "modulepreload";
+        link.href = href;
+        fragment.append(link);
+    }
+    document.head.append(fragment);
 }
 
 /**
@@ -122,10 +215,6 @@ async function _importInFileSuite(specifier) {
         fileSuite = _runner.suiteStack.at(-1);
     });
     if (!fileSuite) {
-        // Should never happen — describe() always pushes a suite — but
-        // if HOOT internals change, fall back to the raw import so the
-        // error surfaces at the file's top-level call site instead of
-        // here.
         return import(specifier);
     }
     _runner.suiteStack.push(fileSuite);
@@ -145,14 +234,12 @@ async function _importInFileSuite(specifier) {
  *
  * Called by the bridge script generated in ir_qweb.py.
  *
- * @param {string[]} testSpecifiers - import map specifiers for test files
+ * @param {string[]} allTestSpecifiers - import map specifiers for test files
  */
-export async function loadAndStart(testSpecifiers) {
+export async function loadAndStart(allTestSpecifiers) {
     await isHootReady;
-    // SERIAL load to keep the suiteStack consistent across imports.
-    // Bundles are pre-fetched (esbuild output + import-map satellites
-    // are already in browser cache by the time we get here), so the
-    // serial cost is dominated by module-evaluation, not network I/O.
+    const testSpecifiers = _selectTestSpecifiers(allTestSpecifiers);
+    _preloadTestModules(testSpecifiers);
     /** @type {Array<{status: "fulfilled" | "rejected", value?: any, reason?: any}>} */
     const results = [];
     for (const spec of testSpecifiers) {
@@ -167,11 +254,6 @@ export async function loadAndStart(testSpecifiers) {
         .map((r, i) => ({ result: r, specifier: testSpecifiers[i] }))
         .filter(({ result }) => result.status === "rejected");
     if (failed.length) {
-        // Group failures by error message (not by specifier) so a single
-        // underlying bug doesn't appear as 300 near-identical log lines;
-        // keep the first occurrence's full reason (message, type, stack,
-        // cause chain — it may be wrapped, e.g. in a HootError) as the
-        // actionable summary, with the full specifier list beneath it.
         const grouped = new Map();
         for (const { result, specifier } of failed) {
             const reason = result.reason;
@@ -189,9 +271,6 @@ export async function loadAndStart(testSpecifiers) {
                     typeName = "(thrown-during-introspection)";
                 }
                 const stack = reason?.stack || "";
-                // Walk the cause chain so wrapped errors don't lose the
-                // root site.  ``cause`` is standard on Error in modern
-                // browsers; HOOT also uses it for re-throws.
                 const causes = [];
                 let cur = reason?.cause;
                 let depth = 0;
@@ -216,23 +295,10 @@ export async function loadAndStart(testSpecifiers) {
             `[HOOT] ${failed.length}/${testSpecifiers.length} test modules failed to import; ${grouped.size} unique error(s)`,
         );
         for (const [message, { specifiers, typeName, stack, causes }] of grouped) {
-            // First-line summary per group: count + type + message.
-            // Type prefix ("TypeError" vs "HootError" vs "Object") lets
-            // a developer tell at a glance whether the failure is a JS
-            // runtime error, a HOOT registration error, or a thrown
-            // primitive (which would have no stack).
             console.warn(
                 `[HOOT][import-fail][x${specifiers.length}] [${typeName}] ${message}`,
             );
-            // Stack from the FIRST failing specifier in the group.
-            // For "X / 132 failed with the same message" cases this
-            // pinpoints the shared culprit (e.g. a top-level call in a
-            // common helper) without bloating the log with N copies.
             if (stack) {
-                // Each stack frame on its own log line so the
-                // browser→Python bridge doesn't truncate at the first
-                // newline.  Cap at 8 frames per group — the top frames
-                // are the actionable ones.
                 const frames = String(stack).split("\n").slice(0, 8);
                 for (const f of frames) {
                     if (f.trim()) {
@@ -240,15 +306,8 @@ export async function loadAndStart(testSpecifiers) {
                     }
                 }
             } else {
-                // Some thrown values (strings, plain objects, frozen
-                // errors) don't carry a stack — surface that explicitly
-                // so it's not mistaken for "we forgot to capture it".
                 console.warn(`[HOOT][import-fail]   stack: <none>`);
             }
-            // Wrapped causes appear when HOOT re-throws an inner error;
-            // log up to the first 3 levels so the original site is
-            // visible.  Most chains are 1 deep (HootError wrapping a
-            // TypeError), so 3 is generous.
             for (let i = 0; i < Math.min(causes.length, 3); i++) {
                 const c = causes[i];
                 console.warn(

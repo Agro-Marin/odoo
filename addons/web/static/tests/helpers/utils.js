@@ -55,7 +55,6 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
     const RealDate = window.Date;
     const actualDate = new RealDate();
 
-    // By default, RealDate uses the browser offset, so we must replace it with the offset fixed in luxon.
     const fakeDate = new RealDate(year, month, day, hours, minutes, seconds, ms);
     if (!(luxon.Settings.defaultZone instanceof luxon.FixedOffsetZone)) {
         throw new Error("luxon.Settings.defaultZone must be a FixedOffsetZone");
@@ -74,12 +73,9 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
             let date;
             if (arguments.length > 0) {
                 date =
-                    length === 1 && String(Y) === Y // isString(Y)
-                        ? // We explicitly pass it through parse:
-                          new NativeDate(Date.parse(Y))
-                        : // We have to manually make calls depending on argument
-                          // length here
-                          length >= 7
+                    length === 1 && String(Y) === Y
+                        ? new NativeDate(Date.parse(Y))
+                        : length >= 7
                           ? new NativeDate(Y, M, D, h, m, s, ms)
                           : length >= 6
                             ? new NativeDate(Y, M, D, h, m, s)
@@ -94,7 +90,6 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
                                     : length >= 1
                                       ? new NativeDate(Y)
                                       : new NativeDate();
-                // Prevent mixups with unfixed Date object
                 date.constructor = Date;
                 return date;
             } else {
@@ -106,13 +101,10 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
             }
         }
 
-        // Copy any custom methods a 3rd party library may have added
         for (const key in NativeDate) {
             Date[key] = NativeDate[key];
         }
 
-        // Copy "native" methods explicitly; they may be non-enumerable
-        // exception: 'now' uses fake date as reference
         Date.now = function () {
             const date = new NativeDate();
             let time = date.getTime();
@@ -123,7 +115,6 @@ export function patchDate(year, month, day, hours, minutes, seconds, ms = 0) {
         Date.prototype = NativeDate.prototype;
         Date.prototype.constructor = Date;
 
-        // Upgrade Date.parse to handle simplified ISO 8601 strings
         Date.parse = NativeDate.parse;
         return Date;
     })(Date);
@@ -191,8 +182,6 @@ export function findElement(el, selector) {
     return target;
 }
 
-// Event init attributes mappers
-
 /** @param {EventInit} [args] */
 const mapBubblingEvent = (args) => ({ ...args, bubbles: true });
 
@@ -248,7 +237,6 @@ const mapKeyboardEvent = (args) => ({
  */
 const getEventConstructor = (eventType) => {
     switch (eventType) {
-        // Mouse events
         case "auxclick":
         case "click":
         case "contextmenu":
@@ -264,7 +252,6 @@ const getEventConstructor = (eventType) => {
         case "mouseleave": {
             return [MouseEvent, mapNonBubblingPointerEvent];
         }
-        // Pointer events
         case "pointerdown":
         case "pointerup":
         case "pointermove":
@@ -276,7 +263,6 @@ const getEventConstructor = (eventType) => {
         case "pointerleave": {
             return [PointerEvent, mapNonBubblingPointerEvent];
         }
-        // Focus events
         case "focusin": {
             return [FocusEvent, mapBubblingEvent];
         }
@@ -284,19 +270,16 @@ const getEventConstructor = (eventType) => {
         case "blur": {
             return [FocusEvent, mapNonBubblingEvent];
         }
-        // Clipboard events
         case "cut":
         case "copy":
         case "paste": {
             return [ClipboardEvent, mapBubblingEvent];
         }
-        // Keyboard events
         case "keydown":
         case "keypress":
         case "keyup": {
             return [KeyboardEvent, mapKeyboardEvent];
         }
-        // Drag events
         case "drag":
         case "dragend":
         case "dragenter":
@@ -306,20 +289,16 @@ const getEventConstructor = (eventType) => {
         case "drop": {
             return [DragEvent, mapBubblingEvent];
         }
-        // Input events
         case "input": {
             return [InputEvent, mapBubblingEvent];
         }
-        // Composition events
         case "compositionstart":
         case "compositionend": {
             return [CompositionEvent, mapBubblingEvent];
         }
-        // UI events
         case "scroll": {
             return [UIEvent, mapNonBubblingEvent];
         }
-        // Touch events
         case "touchstart":
         case "touchend":
         case "touchmove": {
@@ -328,7 +307,6 @@ const getEventConstructor = (eventType) => {
         case "touchcancel": {
             return [TouchEvent, mapNonCancelableTouchEvent];
         }
-        // Default: base Event constructor
         default: {
             return [Event, mapBubblingEvent];
         }
@@ -348,7 +326,6 @@ export function triggerEvent(el, selector, eventType, eventInit, options = {}) {
     const errors = [];
     const target = findElement(el, selector);
 
-    // Error handling
     if (typeof eventType !== "string") {
         errors.push("event type must be a string");
     }
@@ -365,7 +342,6 @@ export function triggerEvent(el, selector, eventType, eventInit, options = {}) {
         );
     }
 
-    // Actual dispatch
     const [Constructor, processParams] = getEventConstructor(eventType);
     const event = new Constructor(eventType, processParams(eventInit));
     target.dispatchEvent(event);
@@ -621,7 +597,6 @@ export async function editInput(el, selector, value) {
     await triggerEvents(input, null, ["input", "change"], eventOpts);
 
     if (input.type === "file") {
-        // Need to wait for the file to be loaded by the input
         await nextTick();
         await nextTick();
     }
@@ -735,7 +710,6 @@ export function mockTimeout() {
             timeouts.clear();
         },
         async advanceTime(duration) {
-            // Let microtasks queued this frame run first; they may register their own timeout.
             await nextTick();
             currentTime += duration;
             for (const { fn, scheduledFor, id } of timeouts.values()) {
@@ -744,7 +718,6 @@ export function mockTimeout() {
                     timeouts.delete(id);
                 }
             }
-            // wait here to make sure owl can update the UI
             await nextTick();
         },
     };
@@ -772,7 +745,6 @@ export function mockAnimationFrame() {
             callbacks.clear();
         },
         async advanceFrame(count = 1) {
-            // Let microtasks queued this frame run first; they may register their own timeout.
             await nextTick();
             currentTime += 16 * count;
             for (const { fn, scheduledFor, id } of callbacks.values()) {
@@ -781,7 +753,6 @@ export function mockAnimationFrame() {
                     callbacks.delete(id);
                 }
             }
-            // wait here to make sure owl can update the UI
             await nextTick();
         },
     };
@@ -823,7 +794,6 @@ export function findChildren(comp, predicate = (e) => e) {
     }
 }
 
-// partial replacement of t-ref on component
 export function useChild() {
     const node = useComponent().__owl__;
     const setChild = () => {
@@ -958,13 +928,11 @@ export async function drag(from, pointerType = "mouse") {
             clientY: Math.floor(tRect.y),
         };
         if (position && typeof position === "object") {
-            // x and y coordinates start from the element's initial coordinates
             tPos.clientX += position.x || 0;
             tPos.clientY += position.y || 0;
         } else {
             const positions = typeof position === "string" ? position.split("-") : [];
 
-            // X position
             if (positions.includes("left")) {
                 tPos.clientX -= 1;
             } else if (positions.includes("right")) {
@@ -973,7 +941,6 @@ export async function drag(from, pointerType = "mouse") {
                 tPos.clientX += Math.floor(tRect.width / 2);
             }
 
-            // Y position
             if (positions.includes("top")) {
                 tPos.clientY -= 1;
             } else if (positions.includes("bottom")) {
@@ -1002,7 +969,6 @@ export async function drag(from, pointerType = "mouse") {
             button: -1,
         });
 
-        // "pointerenter" fires on every parent of `target` not containing `from` (different parent lists).
         for (const parent of getDifferentParents(source, target)) {
             triggerEvent(parent, null, "pointerenter", targetPosition);
         }
@@ -1105,21 +1071,17 @@ export async function clickOpenM2ODropdown(el, fieldName, selector) {
     return matches[0];
 }
 
-// TO FIX
 export async function clickM2OHighlightedItem(el, fieldName, selector) {
     const m2oSelector = `${selector || ""} .o_field_many2one[name=${fieldName}] input`;
-    // const $dropdown = $(m2oSelector).autocomplete('widget');
     const matches = el.querySelectorAll(m2oSelector);
     if (matches.length !== 1) {
         throw new Error(
             `cannot open m2o: selector ${selector} has been found ${matches.length} instead of 1`,
         );
     }
-    // clicking on an li (no matter which one), will select the focussed one
     return click(matches[0].parentElement.querySelector("li"));
 }
 
-// X2Many
 export async function addRow(target, selector) {
     await click(
         target.querySelector(

@@ -130,20 +130,6 @@ export const listGroupRenderingMixin = {
         return this.props.list.groupBy.length - group.list.groupBy.length - 1;
     },
 
-    // -----------------------------------------------------------------
-    // Aggregate-column / colspan computations
-    //
-    // Shape-adapters over the pure utilities in ``list_group_layout.js``,
-    // kept as overridable methods because subclasses (``stock``,
-    // ``hr_recruitment``) pre-process columns/aggregates before dispatch.
-    //
-    // Group-header layout the helpers cooperatively render:
-    //   TH TH TH TH TH AGG AGG TH AGG AGG TH TH TH
-    //   0  1  2  3  4   5   6   7  8   9  10 11 12
-    //   [    TH 5    ][TH][TH][TH][TH][TH][ TH 3 ]
-    //   [ group name ][ aggregate cells  ][ pager]
-    // -----------------------------------------------------------------
-
     getAggregateColumns(group) {
         return getAggregateColumnsUtil(
             /** @type {any} */ (this.columns),
@@ -179,19 +165,12 @@ export const listGroupRenderingMixin = {
      */
     getGroupPagerProps(group) {
         const list = group.list;
-        // For a single leveled group with a countLimit, we already have the full count.
         const total = list.isGrouped ? list.count : group.count;
         return {
             offset: list.offset,
             limit: list.limit,
             total,
             onUpdate: async ({ offset, limit }) => {
-                // Commit any in-progress inline edit BEFORE paginating the
-                // group: loading a new page directly (as this did) discards the
-                // edited row's unsaved changes when it scrolls out of the
-                // datapoint window. The root pager already leaves edit mode
-                // first (list_controller.onPagerUpdate); mirror it here. If the
-                // edit can't be left (invalid/blocked), don't navigate away.
                 if (await this.props.list.leaveEditMode()) {
                     await list.load({ limit, offset });
                     this.render(true);

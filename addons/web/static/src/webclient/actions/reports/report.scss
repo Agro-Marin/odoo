@@ -17,9 +17,6 @@ body {
     line-height: 1.5;
 }
 
-// Layout spacing in css instead of relying on paperformat using padding instead
-// of margins to override the .container padding while keeping its margin.
-
 .o_body_html,
 .o_body_pdf.o_css_margins {
     padding: 0 $o-default-report-margins;
@@ -38,7 +35,7 @@ span.o_force_ltr {
 }
 .o_force_ltr,
 .o_field_phone {
-    unicode-bidi: embed; // ensure element has level of embedding for direction
+    unicode-bidi: embed;
     /*rtl:ignore*/
     direction: ltr;
 }
@@ -51,9 +48,6 @@ span.o_force_ltr {
     font-weight: bolder;
 }
 
-// Justify text alignment — used by invoice/order narration and fiscal notes
-// when content is plain text (not HTML). Defined here so all report modules
-// can use it without depending on the account module's CSS.
 .justify-text {
     text-align: justify;
     text-justify: inter-word;
@@ -63,7 +57,6 @@ span.o_force_ltr {
     border-bottom: 2px solid black !important;
 }
 
-/* Checklist */
 ul.o_checklist {
     > li {
         list-style: none;
@@ -139,17 +132,10 @@ li.oe-nested {
     font-size: 0.85rem;
 }
 
-// Per-company branding via CSS custom properties (--co-primary, --co-secondary, --co-font).
-// Values are emitted on .o_company_X_layout by the compiled styles_company_report SCSS.
-// Fallbacks match the static SCSS defaults for renders without per-company overrides.
 .o_report_layout {
-    // --rp-* report tokens carry the theme skin; fall back to --co-* / SCSS
-    // defaults so a company with no theme renders exactly as before.
     font-family: var(--rp-font, var(--co-font, $o-default-report-font));
     color: var(--co-primary, $o-default-report-primary-color);
 
-    // Align figures in numeric columns. WeasyPrint honors OpenType features and
-    // Lato ships a tabular set — the old wkhtmltopdf engine could not.
     .oe_currency_value,
     .o_price_total,
     .o_td_quantity,
@@ -158,10 +144,6 @@ li.oe-nested {
         font-variant-numeric: tabular-nums;
     }
 
-    // Display face (theme font_display): the document title and the grand-total
-    // figure — the two elements that carry a document's identity at a glance.
-    // Falls back to the body font when a theme sets no display face, so a
-    // company without a display theme renders exactly as before.
     h2[name="document_title"],
     .o_total_table .o_total {
         font-family: var(
@@ -181,14 +163,10 @@ li.oe-nested {
 
 div[name="comment"] p,
 div[name="address"] p {
-    // Cut address block's p margins to prevent flex container height expansion
     margin-bottom: 0;
 }
 
 .o_snail_mail {
-    // Moving anything under the address (eg Tax ID) further down to
-    // avoid breaking Pingen validation. !important because field template
-    // comes with mb-0 utility class.
     .address {
         padding-top: $o-snailmail-address-padding-top;
 
@@ -197,7 +175,6 @@ div[name="address"] p {
         }
     }
 
-    // Same as above for followup, because it doesn't use the same structure.
     .o_followup_address {
         padding-top: $o-snailmail-address-padding-top;
 
@@ -207,19 +184,15 @@ div[name="address"] p {
     }
 }
 
-// The default ir.qweb.field.contact uses a text-truncate on the address span
-// which breaks the wrapping behavior in PDF output.
 span[itemprop="streetAddress"] {
     white-space: normal;
 }
 
-// Force a max width on quantity column to handle long UoM
 .o_td_quantity {
     min-width: 7rem;
     max-width: 9rem;
 }
 
-// Override html_editor display styles with explicit font sizes for PDF output
 .display-1-fs {
     font-size: 6rem;
 }
@@ -260,7 +233,6 @@ span[itemprop="streetAddress"] {
     font-size: 1rem;
 }
 
-// Alert
 .alert {
     padding: #{$alert-padding-y} #{$alert-padding-x};
     margin-bottom: #{$alert-margin-bottom};
@@ -302,8 +274,6 @@ hr {
     border-radius: 0.25rem;
 }
 
-// 1. Render buttons defined in '$o-btns-bs-override' and '$o-btns-bs-outline-override'
-//    maps.
 @each $-name, $-value in $o-btns-bs-override {
     .btn-#{$-name} {
         background-color: o-safe-get($-value, background);
@@ -324,24 +294,11 @@ hr {
     }
 }
 
-// // 2. Render '$theme-colors' buttons excluding the ones already generated
-//    using the custom maps.
-//    Use the loop's '$-color' directly rather than looking the name back up
-//    through 'o-color()': that function is defined in 'html_editor', which
-//    depends on 'web' and not the reverse, so it is absent from
-//    'web.report_assets_common' whenever html_editor is not installed (and
-//    during web's own at_install phase). Sass passes an unknown function
-//    through as a literal CSS function call, so the miss was silent — the
-//    declarations reached WeasyPrint as 'o-color("primary")' and were dropped,
-//    leaving report buttons unstyled.
 @each $-name, $-color in $theme-colors {
     @if (not map-get($o-btns-bs-override, $-name)) {
         .btn-#{$-name} {
             background-color: $-color;
             border: 1px solid $-color;
-            // Filled button: the label sits on '$-color', so it has to
-            // contrast with it — mirrors the 'color' role that the
-            // '$o-btns-bs-override' branch above carries explicitly.
             color: color-contrast($-color);
         }
     }

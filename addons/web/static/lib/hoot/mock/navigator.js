@@ -15,10 +15,6 @@ import { ensureTest } from "../main_runner.js";
  * @typedef {"android" | "ios" | "linux" | "mac" | "windows"} Platform
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Blob,
     ClipboardItem = class NonSecureClipboardItem {},
@@ -28,10 +24,6 @@ const {
     TypeError,
 } = globalThis;
 const { userAgent: $userAgent } = navigator;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 function getBlobValue(value) {
     return isInstanceOf(value, Blob) ? value.text() : value;
@@ -62,7 +54,7 @@ function getMockValues() {
 function getPermissions() {
     return {
         "background-sync": {
-            state: "granted", // should always be granted
+            state: "granted",
             name: "background_sync",
         },
         "local-fonts": {
@@ -130,13 +122,13 @@ function getPermissions() {
 
 function getUserAgentBrowser() {
     if (/Firefox/i.test($userAgent)) {
-        return "Gecko/20100101 Firefox/1000.0"; // Firefox
+        return "Gecko/20100101 Firefox/1000.0";
     }
     if (/Chrome/i.test($userAgent)) {
-        return "AppleWebKit/1000.00 (KHTML, like Gecko) Chrome/1000.00 Safari/1000.00"; // Chrome
+        return "AppleWebKit/1000.00 (KHTML, like Gecko) Chrome/1000.00 Safari/1000.00";
     }
     if (/Safari/i.test($userAgent)) {
-        return "AppleWebKit/1000.00 (KHTML, like Gecko) Version/1000.00 Safari/1000.00"; // Safari
+        return "AppleWebKit/1000.00 (KHTML, like Gecko) Version/1000.00 Safari/1000.00";
     }
 }
 
@@ -192,10 +184,6 @@ const permissionStatuses = new Set();
 const userAgentBrowser = getUserAgentBrowser();
 const mockValues = getMockValues();
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export class MockClipboard {
     /** @type {unknown} */
     _value = null;
@@ -223,8 +211,6 @@ export class MockClipboardItem extends ClipboardItem {
 
         setSyncValue(this, items);
     }
-
-    // Added synchronous methods to enhance speed in tests
 
     async getType(type) {
         return getSyncValue(this, false)[type];

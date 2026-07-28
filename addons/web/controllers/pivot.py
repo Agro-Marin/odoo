@@ -10,22 +10,8 @@ from odoo.http import Response, content_disposition, request
 from odoo.libs.filesystem import osutil
 from odoo.libs.json import loads as json_loads
 
-# Hard ceiling on the number of cells a single pivot export may emit. The
-# per-header ``width`` and ``measure_count`` are individually clamped below, but
-# the COUNT of headers/rows is client-controlled and unbounded, and the workbook
-# is built ``in_memory`` (``constant_memory`` cannot help while ``in_memory`` is
-# set, and is incompatible with the ``autofit`` below — measured: it gives no RAM
-# reduction). A crafted body with many wide headers could otherwise drive ~10^8
-# ``write`` calls into RAM → worker OOM. Capping the emitted cells bounds the work
-# without altering the output of any legitimately-sized export (a 10k-row ×
-# 30-measure pivot is ~300k cells). ~1M cells ≈ 230 MB peak — generous but finite.
 MAX_EXPORT_CELLS = 1_000_000
 
-# Excel's hard limit is 32767 characters per cell. Clamp every client-supplied
-# string there BEFORE it reaches a ``write`` (or is multiplied into an indent):
-# ``MAX_EXPORT_CELLS`` counts cells, not per-cell length, so a single crafted
-# multi-hundred-MB ``title``/``value`` would otherwise be built into one Python
-# string and OOM the worker while writing well under the cell cap.
 MAX_CELL_CHARS = 32_767
 
 
@@ -54,16 +40,11 @@ class TableExporter(http.Controller):
         if not jdata:
             raise UnprocessableEntity(_("No data to export"))
         output = io.BytesIO()
-        # strings_to_formulas=False: pivot labels/values are client-supplied;
-        # never let a leading "=" be interpreted as a formula (injection).
         with xlsxwriter.Workbook(
             output, {"in_memory": True, "strings_to_formulas": False}
         ) as workbook:
             worksheet = workbook.add_worksheet(jdata["title"])
 
-            # Bound the total number of cells written, regardless of the header /
-            # row COUNT the client declares (only per-header width is clamped
-            # below). Shadowing the instance ``write`` intercepts every call site.
             cells_written = 0
             _raw_write = worksheet.write
 
@@ -90,12 +71,8 @@ class TableExporter(http.Controller):
 
             measure_count = _clamp_int(jdata["measure_count"], 100000)
 
-            # Step 1: writing col group headers
             col_group_headers = jdata["col_group_headers"]
 
-            # x,y: current coordinates
-            # carry: queue containing cell information when a cell has a >= 2 height
-            #      and the drawing code needs to add empty cells below
             x, y, carry = 1, 0, deque()
             for i, header_row in enumerate(col_group_headers):
                 worksheet.write(i, 0, "", header_plain)
@@ -128,7 +105,6 @@ class TableExporter(http.Controller):
                     x = x + measure_count
                 x, y = 1, y + 1
 
-            # Step 2: writing measure headers
             measure_headers = jdata["measure_headers"]
 
             if measure_headers:
@@ -140,14 +116,8 @@ class TableExporter(http.Controller):
                 x, y = 1, y + 1
             worksheet.freeze_panes(y, 1)
 
-            # Step 3: writing data
             x = 0
             for row in jdata["rows"]:
-                # Clamp caller-supplied indent before it multiplies a string:
-                # `indent` is raw client JSON and the MAX_EXPORT_CELLS cap counts
-                # cells, not per-cell string length, so an unclamped indent (e.g.
-                # 4e8) builds a multi-GB string in a single write() and OOM-kills
-                # the worker. Pivot nesting never exceeds a handful of levels.
                 indent = _clamp_int(row.get("indent", 0), 50)
                 worksheet.write(
                     y,

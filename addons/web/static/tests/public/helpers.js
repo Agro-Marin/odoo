@@ -21,10 +21,6 @@ export function setupInteractionWhiteList(interactions) {
     if (typeof interactions === "string") {
         interactions = [interactions];
     }
-    // Scope the whitelist to the calling suite. Without this hook pair,
-    // the value leaks across test files because ``setupInteractionWhiteList``
-    // is invoked at module top-level — a single file's whitelist would
-    // then poison every test file loaded after it in the same bundle.
     before(() => {
         activeInteractions = interactions;
     });
@@ -62,15 +58,6 @@ export async function startInteractions(
         fixture.closest("html").dataset.edit_translations = "1";
     }
     if (activeInteractions) {
-        // Known interactions = the import-time snapshot PLUS whatever is
-        // registered right now. `clearRegistry` swaps `elementRegistry.content`
-        // for a fresh object, so `content` only ever reflects the modules that
-        // registered before this file was imported. A test registering its own
-        // interaction (a stub it drives, from `beforeEach`) writes into the
-        // live object, and consulting `content` alone lost it the moment any
-        // earlier test had cleared the registry once — the suite then passed
-        // in isolation and failed with "White-listed Interaction does not
-        // exist" in a full run.
         const known = { ...content, ...elementRegistry.content };
         clearRegistry(elementRegistry);
         if (!options.editMode) {

@@ -105,7 +105,6 @@ describe("splitAndAddDomain", () => {
         expect(created.invisible).toBe("True");
         expect(created.description).toBe("desc");
         expect(created.tooltip).toBe("tip");
-        // Each split condition gets its own group (own facet).
         expect(model.searchItems[2].groupId).not.toBe(model.searchItems[3].groupId);
         expect(model._notifications.length).toBe(1);
     });
@@ -122,9 +121,8 @@ describe("splitAndAddDomain", () => {
 
         await model.splitAndAddDomain(`[("foo", "=", 1), ("bar", "=", 2)]`, 2);
 
-        // The two new filters (ids 4, 5) take the replaced group's position.
         expect(queryIds(model)).toEqual([1, 4, 5, 3]);
-        expect(2 in model.searchItems).toBe(true); // item stays, group inactive
+        expect(2 in model.searchItems).toBe(true);
         expect(model.query.some((q) => q.searchItemId === 2)).toBe(false);
     });
 
@@ -144,8 +142,6 @@ describe("splitAndAddDomain", () => {
 
         await model.splitAndAddDomain(`[("foo", "=", 1)]`, 5);
 
-        // Pinned observable: recreated groupBy first, then the new filter at
-        // the favorite's (pre-rotation) position, then the other groups.
         const groupById = model.query
             .map((q) => model.searchItems[q.searchItemId])
             .find((item) => item.type === "groupBy");

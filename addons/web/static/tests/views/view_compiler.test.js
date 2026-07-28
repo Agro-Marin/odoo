@@ -15,8 +15,6 @@ import {
 } from "@web/views/view_compiler";
 import { toStringExpression } from "@web/views/view_utils";
 
-// Helpers
-
 /**
  * Minimal ViewCompiler stub accepted by useViewCompiler.
  *
@@ -56,8 +54,6 @@ function makeTemplates(specs) {
     return templates;
 }
 
-// toStringExpression — quote-safe string -> template-literal codegen seam
-
 describe("toStringExpression", () => {
     test("wraps a plain string in backticks", () => {
         expect(toStringExpression("abc")).toBe("`abc`");
@@ -73,7 +69,6 @@ describe("toStringExpression", () => {
 
     test("neutralizes ${ interpolation so it stays a literal, not evaluated", () => {
         const expr = toStringExpression("a${1 + 1}b");
-        // The produced code must NOT contain a raw, evaluable ${ ... }
         expect(expr.includes("`a\\${1 + 1}b`")).toBe(true);
 
         expect(eval(expr)).toBe("a${1 + 1}b");
@@ -86,11 +81,8 @@ describe("toStringExpression", () => {
     });
 });
 
-// makeIsVisibleExpr — shared invisible->isVisible helper
-
 describe("makeIsVisibleExpr", () => {
     test("falsy / 'False' / '0' modifiers map to the always-visible literal", () => {
-        // These are the three literal forms that mean "always visible".
         expect(makeIsVisibleExpr(undefined)).toBe("true");
         expect(makeIsVisibleExpr(null)).toBe("true");
         expect(makeIsVisibleExpr("")).toBe("true");
@@ -116,8 +108,6 @@ describe("makeIsVisibleExpr", () => {
     });
 });
 
-// Cache coherence — deterministic template names (the core fix)
-
 describe("useViewCompiler — cache coherence after reset", () => {
     test("same arch returns the same OWL template name after resetViewCompilerCache", () => {
         resetViewCompilerCache();
@@ -127,9 +117,6 @@ describe("useViewCompiler — cache coherence after reset", () => {
         resetViewCompilerCache();
         const name2 = useViewCompiler(TestCompiler, templates).form;
 
-        // Before fix: name1 = "__template__N", name2 = "__template__N+1" — different,
-        // causing an orphaned entry in OWL's globalTemplates on every reset.
-        // After fix: both equal the arch-content key — identical, no accumulation.
         expect(name1).toBe(name2);
     });
 
@@ -141,11 +128,6 @@ describe("useViewCompiler — cache coherence after reset", () => {
 
         const result = useViewCompiler(TestCompiler, templates);
 
-        // The OWL template name is "ClassName#N/paramsKey/arch.outerHTML" —
-        // deterministic and unique per (compiler class, params, arch) triple.
-        // The #N class discriminator is a private monotonic counter (it keeps
-        // same-named compiler classes apart), so assert the structure rather
-        // than a literal.
         expect(result.list).toMatch(/^TestCompiler#\d+\/\//);
         expect(result.list.endsWith(`/${arch.outerHTML}`)).toBe(true);
     });
@@ -164,8 +146,6 @@ describe("useViewCompiler — cache coherence after reset", () => {
         expect(name2).toBe(name3);
     });
 });
-
-// Template name uniqueness
 
 describe("useViewCompiler — template name uniqueness", () => {
     test("different arches produce different template names", () => {
@@ -199,7 +179,6 @@ describe("useViewCompiler — template name uniqueness", () => {
         const nameA = useViewCompiler(CompilerA, templates).form;
         const nameB = useViewCompiler(CompilerB, templates).form;
 
-        // CompilerA.name !== CompilerB.name, so the key differs
         expect(nameA).not.toBe(nameB);
     });
 
@@ -212,15 +191,11 @@ describe("useViewCompiler — template name uniqueness", () => {
 
         const result = useViewCompiler(TestCompiler, templates);
 
-        // Structural check (the #N class discriminator is private — see
-        // "template name equals the arch-content key" above).
         expect(result.form.endsWith(`/${templates.form.outerHTML}`)).toBe(true);
         expect(result.buttons.endsWith(`/${templates.buttons.outerHTML}`)).toBe(true);
         expect(result.form).not.toBe(result.buttons);
     });
 });
-
-// Cache hit — no recompilation on repeated calls
 
 describe("useViewCompiler — cache hits", () => {
     test("calling twice with the same arch compiles only once", () => {
@@ -255,10 +230,10 @@ describe("useViewCompiler — cache hits", () => {
         }
 
         const templates = makeTemplates([["form", "form", {}]]);
-        useViewCompiler(CountingCompiler, templates); // compile #1
+        useViewCompiler(CountingCompiler, templates);
         resetViewCompilerCache();
-        useViewCompiler(CountingCompiler, templates); // compile #2
-        useViewCompiler(CountingCompiler, templates); // cache hit — no #3
+        useViewCompiler(CountingCompiler, templates);
+        useViewCompiler(CountingCompiler, templates);
 
         expect(compilations).toBe(2);
     });

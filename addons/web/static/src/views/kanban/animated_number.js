@@ -36,9 +36,6 @@ export class AnimatedNumber extends Component {
             position: "right",
         });
         onWillUpdateProps((nextProps) => {
-            // Animate from what is currently ON SCREEN (state.value), not from
-            // the previous target prop — otherwise a prop change mid-animation
-            // snaps the display back to the old target before animating onward.
             const from = this.state.value;
             const { value: to, duration } = nextProps;
             if (
@@ -47,8 +44,6 @@ export class AnimatedNumber extends Component {
                 !duration ||
                 to <= from
             ) {
-                // No animation (disabled, reduced-motion, or nothing to count):
-                // jump straight to the final value.
                 browser.cancelAnimationFrame(this.handle);
                 this.state.value = to;
                 return;

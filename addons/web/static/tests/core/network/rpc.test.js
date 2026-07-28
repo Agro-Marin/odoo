@@ -143,15 +143,6 @@ test("check connection aborted", async () => {
 });
 
 test("abort during body streaming stays silent, no InvalidResponseError", async () => {
-    // Regression: abort() can land after the response headers pass the guards
-    // but while the body is still streaming. Cancelling the body makes
-    // response.json() reject; the rpc must treat that as caller intent (the
-    // abort already decided the promise's fate) rather than fabricating an
-    // InvalidResponseError — which would reject a silently-aborted promise and
-    // pop a false "Session Expired" dialog on a healthy session.
-    // Headers pass every guard (200 + application/json), but the body read is
-    // held open via a json() we resolve/reject by hand — modeling a body that
-    // is still streaming when abort() lands.
     let rejectJson;
     const response = new Response("{}", {
         status: 200,
@@ -166,28 +157,17 @@ test("abort during body streaming stays silent, no InvalidResponseError", async 
         () => expect.step("resolved"),
         () => expect.step("rejected"),
     );
-    // Let fetch resolve so execution parks on `await response.json()`.
     await tick();
     await tick();
-    // Silent abort: the outer promise must stay pending, exactly one
-    // RPC:RESPONSE (the abort's) must be emitted.
     connection.abort(false);
-    // Now fail the still-pending body read with the abort in flight.
     rejectJson(new DOMException("The user aborted a request.", "AbortError"));
     await tick();
     await tick();
 
-    // Only the abort's RPC:RESPONSE — no second (InvalidResponseError) event and
-    // no rejection of the caller-orphaned promise.
     expect.verifySteps(["RPC:RESPONSE"]);
 });
 
 test("a non-2xx JSON response rejects instead of resolving undefined", async () => {
-    // Regression: a rate limiter (429) or SSO proxy (401) can return a JSON body
-    // with no `error` field. A JSON-RPC endpoint always answers 200, so a non-2xx
-    // here is an intermediary and must be classified as an error — not parsed as
-    // a success envelope, which resolved `undefined` and blew up the view on
-    // `result.records` with an opaque TypeError.
     mockFetch(
         () =>
             new Response('{"detail": "rate limited"}', {
@@ -200,8 +180,6 @@ test("a non-2xx JSON response rejects instead of resolving undefined", async () 
 });
 
 test("a 500 JSON response is a retryable ServerOverloadError", async () => {
-    // A 5xx with a JSON body (outside the 502-504 gateway range handled above)
-    // is transient server trouble, not a JSON-RPC envelope.
     mockFetch(
         () =>
             new Response('{"msg": "boom"}', {
@@ -212,15 +190,6 @@ test("a 500 JSON response is a retryable ServerOverloadError", async () => {
     const error = await rpc("/test/").catch((e) => e);
     expect(error).toBeInstanceOf(ServerOverloadError);
 });
-
-// settings.timeout / ConnectionTimeoutError
-//
-// ``AbortSignal.timeout()`` is native — hoot's mocked timers do not drive it —
-// so these tests use tiny REAL timeouts (~10ms).  hoot's ``mockFetch`` also
-// replaces the ``signal`` rpc passes to fetch with its own controller's signal
-// and never rejects when it fires, so the tests that need the real fetch/signal
-// contract patch ``browser.fetch`` directly with a stub honoring it: reject
-// with ``signal.reason`` (a TimeoutError DOMException) when the signal fires.
 
 /**
  * @param {(url: string, init: RequestInit) => Promise<any>} fetchFn
@@ -251,8 +220,6 @@ function streamingBodyResponse(signal) {
 }
 
 test("settings.timeout: timeout before the response arrives is a ConnectionTimeoutError", async () => {
-    // Pins the outer fetch .catch classification: the fetch itself rejects
-    // with the timeout signal's TimeoutError DOMException.
     patchBrowserFetch(
         (_url, { signal }) =>
             new Promise((_resolve, reject) => {
@@ -267,14 +234,6 @@ test("settings.timeout: timeout before the response arrives is a ConnectionTimeo
 });
 
 test("settings.timeout firing during the body read is a ConnectionTimeoutError, not InvalidResponseError", async () => {
-    // Regression: the timeout signal passed to fetch also cancels an
-    // in-progress body read, so ``response.json()`` rejects with a
-    // TimeoutError DOMException AFTER the headers passed every guard.
-    // Pre-fix, the body-read catch only checked the caller-abort flag and
-    // fell through to the status-based fallback — on a 200 response that
-    // fabricated an InvalidResponseError (false "Session Expired" dialog,
-    // page-reload button discarding form state) and, being excluded from
-    // ``isRetryable``, stopped retry chains on exactly the retryable case.
     patchBrowserFetch((_url, { signal }) =>
         Promise.resolve(streamingBodyResponse(signal)),
     );
@@ -287,11 +246,6 @@ test("settings.timeout firing during the body read is a ConnectionTimeoutError, 
 });
 
 test("settings.timeout: silent caller abort during body read still wins over a fired timeout", async () => {
-    // Ordering pin: when BOTH the timeout signal has fired and the caller
-    // aborted by the time the body-read failure is handled, caller intent
-    // wins — abort() already emitted its RPC:RESPONSE and (silently) decided
-    // the promise's fate. Classifying as ConnectionTimeoutError here would
-    // reject the caller-orphaned promise and double-emit for this data.id.
     let rejectJson;
     const response = new Response("{}", {
         status: 200,
@@ -306,24 +260,17 @@ test("settings.timeout: silent caller abort during body read still wins over a f
         () => expect.step("resolved"),
         () => expect.step("rejected"),
     );
-    // Park on response.json(), then let the (real) 10ms timeout signal fire.
     await tick();
     await new Promise((resolve) => setTimeout(resolve, 30));
-    // Silent abort AFTER the timeout fired, then fail the held body read the
-    // way the cancelled stream would.
     connection.abort(false);
     rejectJson(new DOMException("The operation timed out.", "TimeoutError"));
     await tick();
     await tick();
 
-    // Only the abort's RPC:RESPONSE; the silently-aborted promise stays pending.
     expect.verifySteps(["RPC:RESPONSE"]);
 });
 
 test("Retry: mid-body timeout is retryable", async () => {
-    // ConnectionTimeoutError is in ``isRetryable``; pre-fix the mid-body
-    // misclassification (InvalidResponseError) aborted the retry chain on
-    // the first attempt.
     let fetchCount = 0;
     patchBrowserFetch((_url, { signal }) => {
         fetchCount++;
@@ -337,15 +284,10 @@ test("Retry: mid-body timeout is retryable", async () => {
     );
     const error = await prom.catch((e) => e);
     expect(error).toBeInstanceOf(ConnectionTimeoutError);
-    // Initial attempt + 1 retry — pre-fix this stopped at 1.
     expect(fetchCount).toBe(2);
 });
 
 test("trigger a ServerOverloadError when response carries a non-JSON content-type", async () => {
-    // Server returned an HTML error page (typical werkzeug PoolError /
-    // OperationalError traceback).  Caught by content-type sniff BEFORE
-    // attempting JSON parse — the more specific ``ServerOverloadError``
-    // is thrown so retry logic can apply a longer backoff floor.
     mockFetch(
         () =>
             new Response("<html>pool full</html>", {
@@ -358,10 +300,6 @@ test("trigger a ServerOverloadError when response carries a non-JSON content-typ
 });
 
 test("502/503/504 proxy statuses are ServerOverloadError (earn the backoff floor)", async () => {
-    // 503 is the canonical "back off" status; classifying it as
-    // ServerOverloadError (still a ConnectionLostError, so the reconnect UX is
-    // unchanged) makes retries honour SERVER_OVERLOAD_BACKOFF_FLOOR_MS instead
-    // of thundering the recovering backend on the short default schedule.
     for (const status of [502, 503, 504]) {
         mockFetch(() => new Response("", { status }));
         const error = await rpc("/test/").catch((e) => e);
@@ -372,9 +310,6 @@ test("502/503/504 proxy statuses are ServerOverloadError (earn the backoff floor
 });
 
 test("ServerOverloadError is also a ConnectionLostError (backward compatibility)", async () => {
-    // Existing callers catching ``instanceof ConnectionLostError`` must
-    // continue to match the subclass — this contract is load-bearing for
-    // every component that currently shows the connection-lost UX.
     mockFetch(
         () =>
             new Response("<html/>", {
@@ -387,9 +322,6 @@ test("ServerOverloadError is also a ConnectionLostError (backward compatibility)
 });
 
 test("trigger a ConnectionLostError when response says JSON but body is unparseable", async () => {
-    // Content-Type advertises JSON, but the body is truncated / malformed.
-    // No evidence of server-side error page; treat as transient connectivity
-    // failure with the default backoff (no overload floor).
     mockFetch(
         () =>
             new Response("<h...", {
@@ -402,10 +334,6 @@ test("trigger a ConnectionLostError when response says JSON but body is unparsea
 });
 
 test("no content-type header falls back to ConnectionLostError (preserves prior behavior)", async () => {
-    // ``Response(string)`` defaults to ``text/plain;charset=UTF-8`` per the
-    // Fetch spec — but here we explicitly strip the header to simulate a
-    // truly bare response.  The sniff guards on ``contentType && !isJson``
-    // so the absence of a header preserves the pre-T2.3 behavior.
     mockFetch(() => {
         const r = new Response("<h...", { status: 500 });
         r.headers.delete("content-type");
@@ -416,9 +344,6 @@ test("no content-type header falls back to ConnectionLostError (preserves prior 
 });
 
 test("non-JSON response with a non-5xx status is an InvalidResponseError", async () => {
-    // fetch follows redirects: a session-expired POST redirected to the
-    // HTML login page arrives here as a 200 text/html response. That is
-    // deterministic — not a server overload — and must not be retried.
     mockFetch(
         () =>
             new Response("<html>login page</html>", {
@@ -443,8 +368,6 @@ test("InvalidResponseError is also a ConnectionLostError (backward compatibility
 });
 
 test("unparseable JSON body with a non-5xx status is an InvalidResponseError", async () => {
-    // A truncated/empty 200 body is deterministic garbage: only 5xx
-    // unparseable bodies keep the retryable ConnectionLostError treatment.
     mockFetch(
         () =>
             new Response("", {
@@ -454,6 +377,43 @@ test("unparseable JSON body with a non-5xx status is an InvalidResponseError", a
     );
 
     await expect(rpc("/test/")).rejects.toThrow(InvalidResponseError);
+});
+
+/**
+ * @param {string} url
+ * @returns {Response} a 200 whose body read fails the way Chrome fails one that
+ *   is cut mid-transfer: the headers arrived, the stream then errored.
+ */
+function responseWithBrokenBodyStream(url) {
+    const response = new Response("{}", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+    });
+    response.json = () => Promise.reject(new TypeError(`Failed to fetch ${url}`));
+    return response;
+}
+
+test("a transfer cut mid-body is a ConnectionLostError, not an InvalidResponseError", async () => {
+    mockFetch(() => responseWithBrokenBodyStream("/test/"));
+
+    const error = await rpc("/test/").catch((e) => e);
+    expect(error).toBeInstanceOf(ConnectionLostError);
+    expect(error).not.toBeInstanceOf(InvalidResponseError);
+});
+
+test("Retry: a transfer cut mid-body is retried like any other transport failure", async () => {
+    let fetchCount = 0;
+    mockFetch(() => {
+        fetchCount++;
+        if (fetchCount === 1) {
+            return responseWithBrokenBodyStream("/test/");
+        }
+        return { result: "recovered" };
+    });
+
+    const prom = rpc("/test/", {}, { retry: { retries: 1, baseMs: 1, maxMs: 1 } });
+    expect(await prom).toBe("recovered");
+    expect(fetchCount).toBe(2);
 });
 
 test("Retry: InvalidResponseError is never retried", async () => {
@@ -468,8 +428,6 @@ test("Retry: InvalidResponseError is never retried", async () => {
 
     const prom = rpc("/test/", {}, { retry: 3 });
     await expect(prom).rejects.toThrow(InvalidResponseError);
-    // A single attempt: retrying a deterministic non-JSON response would
-    // just burn retries with a backoff against an unchanging outcome.
     expect(fetchCount).toBe(1);
 });
 
@@ -515,9 +473,6 @@ test("Dedup: concurrent identical rpcs share one fetch and one promise", async (
     const p2 = rpc("/test/", {}, { dedup: true });
     const p3 = rpc("/test/", {}, { dedup: true });
 
-    // Promise identity is the load-bearing contract: matches rpc_dedup.test.js
-    // and is what callers rely on when they apply ``.abort()`` to one of the
-    // returned promises (shared abort across deduped callers).
     expect(p1).toBe(p2);
     expect(p2).toBe(p3);
 
@@ -568,8 +523,6 @@ test("Dedup: error path also evicts so subsequent calls retry", async () => {
     await expect(p2).rejects.toThrow(ConnectionLostError);
     expect.verifySteps(["Fetch"]);
 
-    // After the shared rejection settles, a new call must fire fresh —
-    // dedup must NOT cache failures.
     await expect(rpc("/test/", {}, { dedup: true })).rejects.toThrow(
         ConnectionLostError,
     );
@@ -577,27 +530,10 @@ test("Dedup: error path also evicts so subsequent calls retry", async () => {
 });
 
 test("Dedup: silent abort evicts the inflight entry (regression)", async () => {
-    // Silent abort (``promise.abort(false)``) cancels the underlying
-    // fetch but intentionally leaves the outer promise pending so the
-    // caller can swallow the cancellation without surfacing an error.
-    //
-    // Pre-fix, the dedup-eviction hook was wired exclusively through
-    // ``promise.then(onSettle, onSettle)`` — since the promise never
-    // settles on a silent abort, ``onSettle`` never fired and the
-    // inflight Map slot leaked forever.  A subsequent identical
-    // request would then be deduped onto a forever-pending,
-    // already-canceled promise and the new caller would never see
-    // data.
-    //
-    // The fix wraps ``.abort`` in the dedup branch so silent aborts
-    // evict synchronously.  This test verifies the user-observable
-    // contract: a fresh request after silent abort fires a new fetch.
     let fetchCount = 0;
     mockFetch(() => {
         fetchCount++;
         expect.step(`Fetch:${fetchCount}`);
-        // First fetch hangs (so abort actually does something);
-        // subsequent fetches resolve normally.
         if (fetchCount === 1) {
             return new Promise(() => {});
         }
@@ -605,9 +541,8 @@ test("Dedup: silent abort evicts the inflight entry (regression)", async () => {
     });
 
     const p1 = rpc("/test/", {}, { dedup: true });
-    p1.abort(false); // silent — p1 stays pending forever
+    p1.abort(false);
 
-    // Fresh identical request must NOT be deduped onto p1.
     const p2 = rpc("/test/", {}, { dedup: true });
     expect(p2).not.toBe(p1);
     expect(await p2).toEqual({ ok: true });
@@ -630,7 +565,6 @@ test("Dedup composes with cache: cache hit skips the fetch", async () => {
     expect(await rpc("/test/", {}, { cache: true })).toEqual({ x: 42 });
     expect.verifySteps(["Fetch"]);
 
-    // Concurrent dedup calls — both hit cache (no fetch).
     const p1 = rpc("/test/", {}, { cache: true, dedup: true });
     const p2 = rpc("/test/", {}, { cache: true, dedup: true });
     expect(p1).toBe(p2);
@@ -639,11 +573,6 @@ test("Dedup composes with cache: cache hit skips the fetch", async () => {
 });
 
 test("Dedup + cache: callers with different callbacks are not deduped together", async () => {
-    // A cache ``callback`` is a function, dropped by the fingerprint's
-    // JSON.stringify. Without a split, two dedup.cache callers differing only by
-    // callback would share one promise and the second's callback would never
-    // register (its background-refresh notification lost). Each must stay
-    // independent; the cache layer still coalesces the single underlying fetch.
     rpc.setCache(
         new RPCCache(
             "mockRpcDedupCb",
@@ -666,20 +595,13 @@ test("Dedup + cache: callers with different callbacks are not deduped together",
         {},
         { dedup: true, cache: { update: "always", callback: () => {} } },
     );
-    // Different callbacks => not interchangeable => must NOT dedup together.
     expect(p1).not.toBe(p2);
     expect(await p1).toEqual({ x: 1 });
     expect(await p2).toEqual({ x: 1 });
-    // The cache layer coalesced the underlying fetch to a single call.
     expect.verifySteps(["Fetch"]);
 });
 
 test("Dedup: differing settings do not leak silent to a non-silent caller", async () => {
-    // Two concurrent callers with identical (url, params) but DIFFERENT
-    // ``silent`` settings must NOT share one promise — otherwise the second
-    // caller inherits the first's behaviour (silent: no loading indicator, no
-    // error dialog).  The settings fingerprint in the dedup key prevents the
-    // join, so each caller fires its own fetch with its own settings.
     mockFetch(() => {
         expect.step("Fetch");
         return { result: true };
@@ -692,20 +614,15 @@ test("Dedup: differing settings do not leak silent to a non-silent caller", asyn
     const pSilent = rpc("/test/", {}, { dedup: true, silent: true });
     const pLoud = rpc("/test/", {}, { dedup: true });
 
-    // Differing settings ⇒ distinct promises (no dedup join).
     expect(pSilent).not.toBe(pLoud);
 
     await Promise.all([pSilent, pLoud]);
 
-    // Each caller issued its own fetch, and the non-silent caller's REQUEST
-    // was NOT downgraded to silent.
     expect.verifySteps(["Fetch", "Fetch"]);
     expect(requestSilentFlags).toEqual([true, false]);
 });
 
 test("Dedup: identical settings still share one promise", async () => {
-    // Guard the other direction of the fingerprint: same (url, params) AND
-    // same settings must still dedup onto a single fetch.
     mockFetch(() => {
         expect.step("Fetch");
         return { result: { ok: true } };
@@ -720,10 +637,6 @@ test("Dedup: identical settings still share one promise", async () => {
 });
 
 test("Cache: abort(false) on a cache-miss rpc exposes abort and does not throw", async () => {
-    // The RpcPromise contract promises ``.abort()`` on EVERY rpc() return.
-    // Pre-fix the cache branch returned a plain promise with no ``abort``, so
-    // ``prom.abort(false)`` (record_autocomplete.js pattern) threw a
-    // TypeError.  The fix forwards abort to the underlying fallback.
     rpc.setCache(
         new RPCCache(
             "mockRpcCacheAbortMiss",
@@ -731,19 +644,15 @@ test("Cache: abort(false) on a cache-miss rpc exposes abort and does not throw",
             "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b",
         ),
     );
-    // Hang so the fallback fetch is genuinely in flight when we abort.
     mockFetch(() => new Promise(() => {}));
 
     const prom = rpc("/test/", {}, { cache: true });
     expect(prom.abort).toBeInstanceOf(Function);
-    // Let the cache miss run the fallback (creating the abortable inner rpc).
     await tick();
     expect(() => prom.abort(false)).not.toThrow();
 });
 
 test("Cache: abort on a cache hit is a safe no-op", async () => {
-    // On a cache HIT the fallback never runs, so there is no in-flight fetch
-    // to cancel — ``abort`` must exist (contract) and be a harmless no-op.
     rpc.setCache(
         new RPCCache(
             "mockRpcCacheAbortHit",
@@ -762,15 +671,11 @@ test("Cache: abort on a cache hit is a safe no-op", async () => {
     const prom = rpc("/test/", {}, { cache: true });
     expect(prom.abort).toBeInstanceOf(Function);
     expect(() => prom.abort(false)).not.toThrow();
-    // Cache hit still resolves normally after the no-op abort.
     expect(await prom).toEqual({ x: 7 });
     expect.verifySteps([]);
 });
 
 test("abort after settle does not emit a second RPC:RESPONSE", async () => {
-    // Once the RPC has settled it fired exactly one RESPONSE for its data.id.
-    // A late ``abort()`` must be a no-op: a second RESPONSE would double-emit
-    // to id-keyed observers (loading_indicator, slow_rpc_service).
     mockFetch(() => ({ result: { ok: true } }));
     onRpcResponse(() => expect.step("RESPONSE"));
 
@@ -778,7 +683,6 @@ test("abort after settle does not emit a second RPC:RESPONSE", async () => {
     expect(await prom).toEqual({ ok: true });
     expect.verifySteps(["RESPONSE"]);
 
-    // Late aborts (both variants) must not fire anything nor throw.
     expect(() => prom.abort()).not.toThrow();
     expect(() => prom.abort(false)).not.toThrow();
     await tick();
@@ -786,8 +690,6 @@ test("abort after settle does not emit a second RPC:RESPONSE", async () => {
 });
 
 test("abort after an RPCError settle does not emit a second RPC:RESPONSE", async () => {
-    // The server-error path must mark the promise settled like every other
-    // terminal path, so a late abort() stays a no-op.
     mockFetch(() => ({ error: { code: 200, message: "Odoo Server Error", data: {} } }));
     onRpcResponse(() => expect.step("RESPONSE"));
 
@@ -802,7 +704,6 @@ test("abort after an RPCError settle does not emit a second RPC:RESPONSE", async
 });
 
 test("abort after a network-failure settle does not emit a second RPC:RESPONSE", async () => {
-    // Same exactly-once invariant for the generic fetch-failure path.
     mockFetch(() => {
         throw new TypeError("NetworkError when attempting to fetch resource.");
     });
@@ -819,10 +720,7 @@ test("abort after a network-failure settle does not emit a second RPC:RESPONSE",
 });
 
 test("Retry: abort while an attempt is in flight rejects once", async () => {
-    // Aborting mid-attempt forwards to the in-flight inner rpc, which fires
-    // its single RESPONSE(ko); the outer promise rejects with the abort class.
-    // No stray extra RESPONSE.
-    mockFetch(() => new Promise(() => {})); // hang → attempt stays in flight
+    mockFetch(() => new Promise(() => {}));
     onRpcResponse(({ detail }) =>
         expect.step("error" in detail ? "RESPONSE(ko)" : "RESPONSE(ok)"),
     );
@@ -834,14 +732,10 @@ test("Retry: abort while an attempt is in flight rejects once", async () => {
 });
 
 test("Retry: abort during backoff cancels the scheduled retry", async () => {
-    // A retryable first attempt schedules a backoff timer (no attempt is in
-    // flight during the wait).  Aborting must clearTimeout it so the retry
-    // never fires a fresh RPC after the caller gave up.
     let fetchCount = 0;
     mockFetch(() => {
         fetchCount++;
         expect.step(`Fetch:${fetchCount}`);
-        // Malformed JSON body ⇒ ConnectionLostError ⇒ retryable.
         return new Response("<h...", {
             status: 500,
             headers: { "Content-Type": "application/json" },
@@ -853,27 +747,15 @@ test("Retry: abort during backoff cancels the scheduled retry", async () => {
         {},
         { retry: { retries: 5, baseMs: 100000, maxMs: 100000 } },
     );
-    // Let the first attempt fail and schedule the (long) backoff timer.
     await tick();
     await tick();
     expect.verifySteps(["Fetch:1"]);
 
-    // Abort during the backoff wait (silent: outer stays pending), then run
-    // every pending timer.  A cleared timer ⇒ no second fetch.
     prom.abort(false);
     await runAllTimers();
     await tick();
     expect.verifySteps([]);
 });
-
-// Plan-C envelope versioning (Phase 3)
-//
-// The server-side ``@versioned_envelope`` decorator stashes a content hash on
-// ``request._response_version``; the JSON-RPC dispatcher lifts it as a
-// sibling of ``result`` (``parsed.version``).  rpc.js reattaches it as
-// ``result.__version`` so the rpc cache's ``payloadChanged`` sees the same
-// field as for in-payload ``@versioned`` returns.  These tests pin the JS
-// half of that contract.
 
 test("envelope version: list result gets __version attached when parsed.version is present", async () => {
     mockFetch(() => ({
@@ -895,8 +777,6 @@ test("envelope version: dict result gets __version attached when parsed.version 
 });
 
 test("envelope version: in-payload __version wins over envelope sibling", async () => {
-    // If the result already carries __version (e.g. ``@versioned`` decorator
-    // on a dict return), the envelope sibling must not overwrite it.
     mockFetch(() => ({
         result: { records: [], __version: "in-payload-wins" },
         version: "envelope-loses",
@@ -906,7 +786,6 @@ test("envelope version: in-payload __version wins over envelope sibling", async 
 });
 
 test("envelope version: absent parsed.version leaves result unchanged", async () => {
-    // Legacy server (no envelope versioning) — result must round-trip clean.
     mockFetch(() => ({ result: [{ id: 1 }] }));
     const result = await rpc("/test/");
     expect(result).toEqual([{ id: 1 }]);
@@ -945,8 +824,6 @@ describe("CLEAR-CACHES bus handling", () => {
                 detail: { tables: ["web_read", "web_search_read"] },
             }),
         );
-        // Passing the whole object to invalidate() used to feed a non-iterable
-        // into bumpDiskGeneration and crash with a TypeError, silently skipping.
         expect(calls.invalidate).toEqual([["web_read", "web_search_read"]]);
         expect(calls.invalidateByModel).toEqual([]);
     });
@@ -973,11 +850,6 @@ const RPC_CACHE_SECRET =
     "85472d41873cdb504b7c7dfecdb8993d90db142c4c03e6d94c4ae37a7771dc5b";
 
 test("Cache: aborting a cache joiner rejects only that caller", async () => {
-    // Regression: a 2nd concurrent identical cached call is a joiner that shares
-    // the initiator's in-flight fetch. Its abort(true) must reject ITS OWN
-    // promise (ConnectionAbortedError) rather than silently resolving with the
-    // shared value after the caller has torn down — and must NOT abort the
-    // initiator's shared fetch.
     rpc.setCache(new RPCCache("mockRpc", 1, RPC_CACHE_SECRET));
     after(() => rpc.setCache(undefined));
 
@@ -991,8 +863,6 @@ test("Cache: aborting a cache joiner rejects only that caller", async () => {
     const initiator = rpc("/test/", {}, { cache: true });
     const joiner = rpc("/test/", {}, { cache: true });
 
-    // Track settlement so an unfixed (no-op) joiner abort fails fast on the
-    // state assertion below rather than hanging until the test timeout.
     let initiatorState = "pending";
     initiator.then(
         () => (initiatorState = "resolved"),
@@ -1005,29 +875,18 @@ test("Cache: aborting a cache joiner rejects only that caller", async () => {
     );
 
     await tick();
-    // Only the initiator issued a fetch; the joiner shares it.
     expect(fetchCount).toBe(1);
 
-    // The joiner's abort(true) rejects only the joiner...
     joiner.abort(true);
     await tick();
     expect(joinerState).toBe("ConnectionAbortedError");
-    // ...and leaves the initiator's shared fetch untouched (still pending).
     expect(initiatorState).toBe("pending");
 
-    // When the shared fetch completes, the initiator resolves normally.
     fetchDef.resolve({ result: { ok: 1 } });
     expect(await initiator).toEqual({ ok: 1 });
 });
 
 test("Cache: a joiner aborted with abort(false) swallows a later shared rejection", async () => {
-    // Regression (original finding): a joiner silently aborted with abort(false)
-    // must NOT reject when the shared in-flight request later FAILS — an
-    // unguarded reject would float as an unhandled rejection and pop the global
-    // connection-lost / session-expired UX for a torn-down consumer. abort(false)
-    // leaves the joiner pending. (A warm-hit RESOLUTION is still delivered — see
-    // "abort on a cache hit is a safe no-op" — because only the reject handler
-    // is guarded.)
     rpc.setCache(new RPCCache("mockRpc", 1, RPC_CACHE_SECRET));
     after(() => rpc.setCache(undefined));
 
@@ -1050,29 +909,21 @@ test("Cache: a joiner aborted with abort(false) swallows a later shared rejectio
 
     await tick();
 
-    // Silently abort the joiner (caller torn down, no rejection wanted).
     joiner.abort(false);
     await tick();
     expect(joinerState).toBe("pending");
 
-    // The shared fetch now fails with a connection loss.
     const r = new Response("<h...", { status: 500 });
     r.headers.delete("content-type");
     fetchDef.resolve(r);
     await tick();
     await tick();
 
-    // The initiator sees the error; the aborted joiner stays pending (no float).
     expect(initiatorState).toBe("ConnectionLostError");
     expect(joinerState).toBe("pending");
 });
 
 test("Cache: aborting a joiner stops its update:'always' callback firing after teardown", async () => {
-    // Regression: an ``update: "always"`` joiner registers its callback on the
-    // initiator's shared request. Aborting the joiner (e.g. its component
-    // unmounts) previously left that callback subscribed, so it fired into the
-    // torn-down consumer when the shared request finally resolved. The
-    // initiator's own callback must still fire.
     rpc.setCache(new RPCCache("mockRpc", 1, RPC_CACHE_SECRET));
     after(() => rpc.setCache(undefined));
 
@@ -1100,18 +951,14 @@ test("Cache: aborting a joiner stops its update:'always' callback firing after t
             cache: { update: "always", callback: () => expect.step("joiner callback") },
         },
     );
-    joiner.catch(() => {}); // aborted below; swallow its rejection
+    joiner.catch(() => {});
 
     await tick();
-    // The joiner shared the initiator's fetch (no second request).
     expect(fetchCount).toBe(1);
 
-    // Joiner tears down and aborts before the shared request resolves.
     joiner.abort(true);
     await tick();
 
-    // Shared request resolves and rpc_cache fans out to every callback: only
-    // the still-mounted initiator's callback runs; the joiner's is suppressed.
     fetchDef.resolve({ result: { ok: 1 } });
     expect(await initiator).toEqual({ ok: 1 });
     await tick();
@@ -1129,15 +976,10 @@ test("Cache: aborting the initiator rejects it (control)", async () => {
 });
 
 test("RPC:RESPONSE carries the url, like RPC:REQUEST", async () => {
-    // Every RESPONSE trigger used to omit ``url``, so an observer could not
-    // identify the endpoint of a call whose params carry no model/method
-    // (session_info, /web/action/load, get_views, ...). The debug RPC log
-    // rendered a literal "undefined" for exactly those.
     const seen = [];
     onRpcRequest(({ detail }) => seen.push(["request", detail.url]));
     onRpcResponse(({ detail }) => seen.push(["response", detail.url]));
 
-    // Success path.
     mockFetch(() => ({ result: 1 }));
     await rpc("/web/session/get_session_info");
     expect(seen).toEqual([
@@ -1145,7 +987,6 @@ test("RPC:RESPONSE carries the url, like RPC:REQUEST", async () => {
         ["response", "/web/session/get_session_info"],
     ]);
 
-    // Server-error path.
     seen.length = 0;
     mockFetch(() => ({ error: { code: 200, message: "boom", data: {} } }));
     await rpc("/web/action/load").catch(() => {});
@@ -1154,7 +995,6 @@ test("RPC:RESPONSE carries the url, like RPC:REQUEST", async () => {
         ["response", "/web/action/load"],
     ]);
 
-    // Abort path.
     seen.length = 0;
     mockFetch(() => new Promise(() => {}));
     const prom = rpc("/web/dataset/call_kw/foo/bar");

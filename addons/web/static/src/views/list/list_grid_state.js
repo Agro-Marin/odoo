@@ -31,7 +31,12 @@ export class ListGridState {
      * @param {boolean} options.hasOpenFormViewColumn - Whether "open form" column is present
      * @param {boolean} options.hasActionsColumn - Whether actions column is present
      * @param {boolean} options.isRTL - Right-to-left layout
-     * @param {boolean} options.showAddLine - Whether "add a line" rows should be materialized
+     * @param {boolean} options.showGroupAddLine - Whether each group's trailing
+     *  "Add a line" row should be materialized. Scoped to GROUPS on purpose: an
+     *  ungrouped list renders its create-controls row outside the virtualized
+     *  flow (after the bottom spacer, see ``web.ListRenderer.Rows``), so giving
+     *  it a flat row would reserve spacer height for a row that is also
+     *  rendered separately and leave the scroll extent one row too tall.
      * @param {(col: object, rec: object) => boolean} options.isCellReadonly - Readonly check callback
      */
     constructor({
@@ -41,16 +46,16 @@ export class ListGridState {
         hasOpenFormViewColumn = false,
         hasActionsColumn = false,
         isRTL = false,
-        showAddLine = false,
+        showGroupAddLine = false,
         isCellReadonly = () => false,
     }) {
         this._list = list;
-        this._columns = columns;
+        this._setColumns(columns);
         this._hasSelectors = hasSelectors;
         this._hasOpenFormViewColumn = hasOpenFormViewColumn;
         this._hasActionsColumn = hasActionsColumn;
         this._isRTL = isRTL;
-        this._showAddLine = showAddLine;
+        this._showGroupAddLine = showGroupAddLine;
         this._isCellReadonly = isCellReadonly;
 
         /** @type {FlatRow[]} */
@@ -78,7 +83,7 @@ export class ListGridState {
             this._list = options.list;
         }
         if (options.columns !== undefined) {
-            this._columns = options.columns;
+            this._setColumns(options.columns);
         }
         if (options.hasSelectors !== undefined) {
             this._hasSelectors = options.hasSelectors;
@@ -92,8 +97,8 @@ export class ListGridState {
         if (options.isRTL !== undefined) {
             this._isRTL = options.isRTL;
         }
-        if (options.showAddLine !== undefined) {
-            this._showAddLine = options.showAddLine;
+        if (options.showGroupAddLine !== undefined) {
+            this._showGroupAddLine = options.showGroupAddLine;
         }
         if (options.isCellReadonly !== undefined) {
             this._isCellReadonly = options.isCellReadonly;
@@ -120,6 +125,32 @@ export class ListGridState {
     /** @returns {number} */
     get rowCount() {
         return this._flatRows.length;
+    }
+
+    /** @returns {boolean} whether the grid is laid out right-to-left */
+    get isRTL() {
+        return this._isRTL;
+    }
+
+    /**
+     * Flat row at a grid index, or ``undefined`` past either end.
+     *
+     * @param {number} rowIndex
+     * @returns {FlatRow | undefined}
+     */
+    rowAt(rowIndex) {
+        return this._flatRows[rowIndex];
+    }
+
+    /**
+     * Remember the column to return to when focus crosses a row that does not
+     * address columns (a group header, or the ``<thead>`` row — which the grid
+     * does not model at all, so the keyboard hook reports it from the DOM).
+     *
+     * @param {number} colIndex
+     */
+    rememberColumn(colIndex) {
+        this._lastColIndex = colIndex;
     }
 
     /**
@@ -182,6 +213,50 @@ export class ListGridState {
         const offset = this._hasSelectors ? 1 : 0;
         const idx = this._columns.findIndex((col) => col.name === name);
         return idx === -1 ? -1 : idx + offset;
+    }
+
+    /**
+     * Canonical grid column index of a column descriptor.
+     *
+     * A row may render a per-record SUBSET of the grid's columns:
+     * ``ListRenderer.getColumns(record)`` is an override seam, and the section
+     * renderers (account/sale order lines, resource, survey, website_slides)
+     * use it to collapse a section row down to a handle + title pair. The
+     * position of a cell inside its own row is therefore NOT its position in
+     * the grid, while every index-based consumer here — ``moveFocus``,
+     * ``getColumnAt``, ``isCellEditable``, ``findNextEditableCell`` — addresses
+     * the grid. Resolving through the column's identity keeps the DOM's
+     * ``data-col-index`` in the one index space they all share.
+     *
+     * @param {object} column
+     * @returns {number | undefined} ``undefined`` when the column is not part
+     *   of the grid, so the template omits ``data-col-index`` entirely and
+     *   ``findFocusMove`` falls back to the cell's DOM position rather than
+     *   trusting a bogus index.
+     */
+    getColIndexOfColumn(column) {
+        const idx = this._colIndexById.get(column?.id);
+        if (idx === undefined) {
+            return undefined;
+        }
+        return idx + (this._hasSelectors ? 1 : 0);
+    }
+
+    /**
+     * Store the active columns and (re)build the id → array-index lookup that
+     * backs {@link getColIndexOfColumn}. The map holds raw array indexes so it
+     * stays independent of the selector offset, which changes on its own.
+     *
+     * Rebuilt unconditionally rather than memoized on array identity: ``update``
+     * runs per render, but a list carries a handful of columns, and a reference
+     * check would go stale the moment a sub-renderer mutated its columns array
+     * in place — a silent wrong-column bug traded for an unmeasurable saving.
+     *
+     * @param {object[]} columns
+     */
+    _setColumns(columns) {
+        this._columns = columns;
+        this._colIndexById = new Map(columns.map((col, index) => [col.id, index]));
     }
 
     /**
@@ -256,13 +331,11 @@ export class ListGridState {
         if (fieldCount === 0) {
             return null;
         }
-        // Clamp startColIndex into the field column range
         const startFieldIdx = Math.max(
             0,
             Math.min(startColIndex - offset, fieldCount - 1),
         );
 
-        // Build iteration order: from startFieldIdx, wrapping around all columns
         for (let i = 0; i < fieldCount; i++) {
             let fieldIdx;
             if (forward) {
@@ -314,10 +387,6 @@ export class ListGridState {
         return col.type === "field" && !this._isCellReadonly(col, row.record);
     }
 
-    // -------------------------------------------------------------------------
-    // Private
-    // -------------------------------------------------------------------------
-
     /**
      * Recursively walk the list structure, building the flat row array.
      *
@@ -354,8 +423,7 @@ export class ListGridState {
                 this._flatRows.push(recordRow);
                 this._rowByRecordId.set(String(record.id), recordRow);
             }
-            // "Add a line" row for editable grouped lists
-            if (parentGroup && this._showAddLine) {
+            if (parentGroup && this._showGroupAddLine) {
                 const addLineRow = {
                     type: /** @type {const} */ ("add-line"),
                     globalIndex: this._flatRows.length,
@@ -396,44 +464,33 @@ export class ListGridState {
      * @returns {{ rowIndex: number, colIndex: number } | null}
      */
     _moveVertical(rowIndex, colIndex, step) {
-        const nextRowIndex = rowIndex + step;
-        if (nextRowIndex < 0 || nextRowIndex >= this._flatRows.length) {
+        // The caller's origin comes from the DOM (``data-row-index``), which can
+        // be one rebuild behind this state — or absent/malformed. Require it to
+        // name a live row, as ``_moveHorizontal`` already does, so a stale index
+        // yields "no move" instead of throwing out of a keydown handler.
+        const currentRow = this._flatRows[rowIndex];
+        if (!currentRow) {
             return null;
         }
-        const currentRow = this._flatRows[rowIndex];
+        const nextRowIndex = rowIndex + step;
         const nextRow = this._flatRows[nextRowIndex];
+        if (!nextRow) {
+            return null;
+        }
 
-        // Row-type transition: save/restore column index across group/add-line boundaries
         const currentIsRecord = currentRow.type === "record";
-        const nextIsRecord = nextRow.type === "record";
-        const nextIsGroup = nextRow.type === "group";
-
-        let targetCol;
         if (currentIsRecord) {
-            // Leaving a data record: save current column for later
             this._lastColIndex = colIndex;
         }
-        if (nextIsRecord) {
-            // Entering a data record: restore saved column if crossing non-record rows
-            targetCol = currentIsRecord ? colIndex : this._lastColIndex || 0;
-        } else if (nextIsGroup) {
-            targetCol = 0; // group headers are single-cell
-        } else {
-            // add-line or other: preserve column if coming from record,
-            // restore saved column otherwise (e.g. group → add-line where
-            // colIndex is always 0 — the empty selector placeholder).
-            targetCol = currentIsRecord ? colIndex : this._lastColIndex || 0;
+        if (nextRow.type === "group") {
+            // Group headers span the grid: only column 0 is addressable.
+            return { rowIndex: nextRowIndex, colIndex: 0 };
         }
-
-        // Clamp to the target row's column count
-        // Group headers are single-cell, so colIndex stays 0
-        if (nextIsGroup) {
-            targetCol = Math.min(targetCol, 0);
-        } else {
-            targetCol = Math.min(targetCol, this.colCount - 1);
-        }
-
-        return { rowIndex: nextRowIndex, colIndex: targetCol };
+        const targetCol = currentIsRecord ? colIndex : this._lastColIndex || 0;
+        return {
+            rowIndex: nextRowIndex,
+            colIndex: Math.min(targetCol, this.colCount - 1),
+        };
     }
 
     /**
@@ -449,11 +506,6 @@ export class ListGridState {
         if (nextCol < 0 || nextCol >= this.colCount) {
             return null;
         }
-        // Only remember the column when moving within a data record: cells
-        // of group-header rows carry no data-col-index, so their DOM child
-        // positions (name cell spans many columns) are not grid columns —
-        // storing one here made the next vertical re-entry into records
-        // "restore" an arbitrary early column.
         if (this._flatRows[rowIndex]?.type === "record") {
             this._lastColIndex = nextCol;
         }

@@ -194,7 +194,6 @@ test("Sorting in groups with distinct per-axis scrolling", async () => {
     const dragAndExpect = async (selector, position, callback) => {
         const { drop, moveTo } = await contains(selector).drag();
         await moveTo(`${selector}:last`, { position });
-        // Wait for the edge scrolling to scroll to the end
         await advanceFrame(50);
 
         callback();
@@ -241,8 +240,6 @@ test("Sorting in groups with distinct per-axis scrolling", async () => {
     expect(".list").toHaveCount(3);
     expect(".item").toHaveCount(9);
 
-    // Negative horizontal scrolling
-
     queryFirst(".spacer_horizontal").scrollIntoView();
     queryFirst(".root").scrollLeft = 16;
     expect(".root").toHaveProperty("scrollLeft", 16, {
@@ -263,8 +260,6 @@ test("Sorting in groups with distinct per-axis scrolling", async () => {
 
     expect(".o_dragged").toHaveCount(0);
 
-    // Positive horizontal scrolling
-
     queryFirst(".spacer_horizontal").scrollIntoView();
     expect(".root").toHaveProperty("scrollLeft", 0, {
         message: "Positive horizontal scrolling - scrollLeft",
@@ -283,8 +278,6 @@ test("Sorting in groups with distinct per-axis scrolling", async () => {
     });
 
     expect(".o_dragged").toHaveCount(0);
-
-    // Negative vertical scrolling
 
     queryFirst(".root").scrollIntoView();
     queryFirst(".root").scrollLeft = 16;
@@ -305,8 +298,6 @@ test("Sorting in groups with distinct per-axis scrolling", async () => {
     });
 
     expect(".o_dragged").toHaveCount(0);
-
-    // Positive vertical scrolling
 
     queryFirst(".spacer_before").scrollIntoView();
     queryFirst(".root").scrollLeft = 16;
@@ -375,8 +366,6 @@ test("draggable area contains overflowing visible elements", async () => {
     expect(content).toHaveProperty("scrollLeft", 0);
     expect(".item.o_dragged").toHaveCount(1);
 
-    // Verify that the dragged element is allowed to go inside the
-    // overflowing part of the draggable container.
     expect(".item.o_dragged").toHaveRect({ right: 900 });
     expect(".list3 .item:first").toHaveRect({ right: 900 });
 
@@ -454,7 +443,7 @@ test("Drag has a default tolerance of 10 pixels before initiating the dragging",
     const listItem = queryFirst(".item");
     const { cancel, moveTo } = await contains(listItem).drag({
         initialPointerMoveDistance: 0,
-        position: { x: 0, y: 0 }, // Move the element from only 5 pixels
+        position: { x: 0, y: 0 },
         relative: true,
     });
     await moveTo(listItem, {
@@ -465,7 +454,7 @@ test("Drag has a default tolerance of 10 pixels before initiating the dragging",
     expect.verifySteps([]);
 
     await moveTo(listItem, {
-        position: { x: 10, y: 10 }, // Move the element from more than 10 pixels
+        position: { x: 10, y: 10 },
         relative: true,
     });
 
@@ -540,7 +529,6 @@ test("the classes parameters (placeholderElement, helpElement)", async () => {
                     dragElement = element;
                     expect(dragElement).toHaveClass("add-1");
                     expect(dragElement).toHaveClass("add-2");
-                    // the placeholder is added in onDragStart after the current element
                     const children = [...dragElement.parentElement.children];
                     const placeholder = children[children.indexOf(dragElement) + 1];
                     expect(placeholder).toHaveClass("placeholder-t1");
@@ -648,7 +636,7 @@ test("dragged element is removed from the DOM while being dragged", async () => 
                     expect.step("end");
                 },
                 onDrop() {
-                    expect.step("drop"); // should not be called
+                    expect.step("drop");
                 },
             });
         }
@@ -676,10 +664,6 @@ test("dragged element is removed from the DOM while being dragged", async () => 
 });
 
 test("native useSortable leaves the caller's params object intact", async () => {
-    // The native variant used to `delete params.setupHooks`, silently
-    // breaking a caller that reuses its params object across two hook
-    // instantiations (the OWL wrapper spreads a fresh object, direct
-    // consumers may not).
     const { useSortable: nativeUseSortable } =
         await import("@web/core/utils/dnd/sortable");
     const { throttleForAnimation } = await import("@web/core/utils/timing");
@@ -702,7 +686,6 @@ test("native useSortable leaves the caller's params object intact", async () => 
     };
     nativeUseSortable(/** @type {any} */ (params));
     expect(params.setupHooks).toBe(setupHooks);
-    // Reusing the same params object for a second instantiation must work.
     expect(() => nativeUseSortable(/** @type {any} */ (params))).not.toThrow();
     expect(params.setupHooks).toBe(setupHooks);
 });

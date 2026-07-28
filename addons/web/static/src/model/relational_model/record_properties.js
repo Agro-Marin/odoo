@@ -40,6 +40,7 @@ import { _t } from "@web/core/l10n/translation";
 
 import { x2ManyCommands } from "./commands.js";
 import { createPropertyActiveField } from "./field_metadata.js";
+import { invalidateAggregateSpecs } from "./field_values.js";
 import { invalidateModifierDependencies } from "./record_utils.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
@@ -78,7 +79,6 @@ export function processProperties(
     for (const property of properties) {
         const propertyFieldName = `${fieldName}.${property.name}`;
 
-        // Add Unknown Property Field and ActiveField
         if (hasCurrentValues || !record.fields[propertyFieldName]) {
             record.fields[propertyFieldName] = {
                 ...property,
@@ -104,7 +104,6 @@ export function processProperties(
             };
         }
 
-        // Extract property data
         if (property.type === "many2many") {
             let staticList = currentValues[propertyFieldName];
             if (!staticList) {
@@ -119,23 +118,6 @@ export function processProperties(
                 typeof staticList._applyCommands === "function" &&
                 (Array.isArray(property.value) || property.value === false)
             ) {
-                // Change-driven call with a cached StaticList: the incoming
-                // ``property.value`` is the FULL membership ([[id, label], …]
-                // tuples, or ``false`` for empty). It used to be silently
-                // ignored, so an onchange rewriting an m2m property left the
-                // displayed tags (and the row eval context) stale until
-                // reload. Reconcile by diffing membership into LINK/UNLINK
-                // commands applied to the SAME list — mutating in place keeps
-                // datapoint identity stable for OWL reactivity and preserves
-                // any pending command log. LINK carries {id, display_name} so
-                // no record load is triggered. (The value bag only matters
-                // for tuple-array shapes: a live StaticList arriving here —
-                // e.g. a list-cell property edit re-entering through
-                // preprocessPropertiesChanges — is the cached list itself and
-                // must not be diffed against. The _applyCommands duck-check
-                // additionally skips a truthy non-list left in currentValues
-                // by a property whose TYPE just changed to many2many — same
-                // reuse behavior as before for that edge.)
                 const target = property.value || [];
                 const currentIds = new Set(staticList.currentIds);
                 const targetIds = new Set(target.map((rec) => rec[0]));
@@ -174,11 +156,9 @@ export function processProperties(
         }
     }
 
-    // The property fields spliced into ``record.activeFields`` above may carry
-    // modifier expressions, so drop any stale memoised dependency map keyed on
-    // this (mutated-in-place) activeFields object.
     if (properties.length) {
         invalidateModifierDependencies(record.activeFields);
+        invalidateAggregateSpecs(record.fields);
     }
 
     return data;

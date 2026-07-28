@@ -33,7 +33,6 @@ export function jsToPyLocale(locale) {
     let language, script, region;
     try {
         ({ language, script, region } = new Intl.Locale(locale));
-        // new Intl.Locale("tl-PH") produces fil-PH, which one might not expect
         if (language === "fil") {
             language = "tl";
         }

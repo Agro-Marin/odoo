@@ -259,8 +259,6 @@ test("macro timeout if element is not visible", async () => {
 });
 
 test("macro without onError falls back to a console.error default", async () => {
-    // The handlers must not be class fields: an own no-op field would make
-    // this default (and any subclass prototype handler) dead code.
     patchWithCleanup(console, {
         error: (message, step, index) => expect.step(`${message} @${index}`),
     });
@@ -312,20 +310,10 @@ test("descriptor onError wins over the default and a subclass prototype onError"
 });
 
 test("macro clears the step timeout timer once the step settles", async () => {
-    // Every step used to leave its (up to 10s) timeout running after
-    // winning the race — pure waste that made timing-sensitive tests flakier
-    // under fake timers. `browser.setTimeout`/`clearTimeout` are made
-    // non-configurable by the test harness (so the timer calls can't be spied
-    // on directly). Instead we watch the step's own AbortController: a timeout
-    // timer that outlives its settled step fires later and aborts that (already
-    // finished) controller a second time. With the fix, the timer is cleared,
-    // so firing every remaining timer triggers no further abort.
     await mountWithCleanup(TestComponent);
     let stepControllerAborts = 0;
     patchWithCleanup(AbortController.prototype, {
         abort() {
-            // `macro` is captured by the `Macro.prototype.start` patch above;
-            // `macro.abortController` is the (single) step's controller.
             if (macro && this === macro.abortController) {
                 stepControllerAborts++;
             }
@@ -344,17 +332,12 @@ test("macro clears the step timeout timer once the step settles", async () => {
     }).start(queryOne(".counter"));
     await waitForMacro();
     expect(queryOne("span.value")).toHaveText("1");
-    // The macro aborts its step controller exactly once, on completion.
     expect(stepControllerAborts).toBe(1);
-    // Fire every remaining timer: a leftover timeout timer would abort the
-    // step controller again here. The fix cleared it, so the count is stable.
     await runAllTimers();
     expect(stepControllerAborts).toBe(1);
 });
 
 test("a string action fails fast at construction", async () => {
-    // `action` is always CALLED, so a string action can never work; the schema
-    // must reject it up front instead of letting it die at runtime.
     expect(
         () =>
             new Macro({
@@ -371,7 +354,6 @@ test("Macro.STOP halts the macro without onComplete or onError", async () => {
     new Macro({
         name: "test",
         steps: [
-            // Returning the sentinel halts the macro before the next step.
             { action: () => Macro.STOP },
             {
                 trigger: "button.inc",
@@ -384,7 +366,6 @@ test("Macro.STOP halts the macro without onComplete or onError", async () => {
         onError: () => expect.step("onError"),
     }).start(queryOne(".counter"));
     await waitForMacro();
-    // The second step never ran and no completion/error callback fired.
     expect(span).toHaveText("0");
     expect.verifySteps([]);
 });

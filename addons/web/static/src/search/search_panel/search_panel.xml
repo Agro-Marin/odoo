@@ -92,21 +92,20 @@
                 class="o_search_panel_filter_group list-group-item p-0 border-0"
                 t-att-class="groupId_last? 'mb-0' : 'mb-3'"
                 >
-                <!-- TODO: this is a workaround for issue https://github.com/odoo/owl/issues/695 (remove when solved) -->
                 <t t-set="_section" t-value="section"/>
                 <t t-set="group" t-value="section.groups.get(groupId)"/>
+                <t t-set="groupState" t-value="getGroupState(section.id, group)"/>
                 <header class="o_search_panel_group_header pb-1">
                     <div class="form-check w-100">
-                        <!-- TODO: "indeterminate" could not be set in the template and had to be set in
-                            JS manually. See https://github.com/odoo/owl/issues/713 (adapt when solved)
-                        -->
                         <input type="checkbox"
                             class="form-check-input"
-                            t-attf-id="{{ section.id }}_input_{{ groupId }})"
+                            t-attf-id="{{ section.id }}_group_{{ groupId }}"
+                            t-att-checked="groupState.checked"
+                            t-att-indeterminate="groupState.indeterminate"
                             t-on-click="() => this.toggleFilterGroup(section.id, group)"
                         />
                         <label
-                            t-attf-for="{{ section.id }}_input_{{ groupId }})"
+                            t-attf-for="{{ section.id }}_group_{{ groupId }}"
                             class="o_search_panel_label form-check-label d-flex align-items-center justify-content-between w-100 cursor-pointer"
                             t-att-class="{ o_with_counters: group.enableCounters }"
                             t-att-title="group.tooltip or false"
@@ -122,7 +121,6 @@
                     <t t-call="{{ constructor.subTemplates.filtersGroup }}">
                         <t t-set="values" t-value="group.values"/>
                         <t t-set="isChildList" t-value="true"/>
-                        <!-- TODO: this is a workaround for issue https://github.com/odoo/owl/issues/695 (remove when solved) -->
                         <t t-set="section" t-value="_section"/>
                     </t>
                 </ul>
@@ -131,8 +129,6 @@
                 <t t-call="{{ constructor.subTemplates.filtersGroup }}">
                     <t t-set="group" t-value="section.groups.get(false)"/>
                     <t t-set="values" t-value="group.values"/>
-                    <!-- TODO: this is a workaround for issue https://github.com/odoo/owl/issues/695 (remove when solved) -->
-                    <t t-set="section" t-value="section"/>
                 </t>
             </ul>
         </t>
@@ -155,7 +151,7 @@
                     <div class="d-flex align-items-center me-2 ms-auto">All</div>
                 </button>
             </div>
-            <Dropdown t-foreach="sections" t-as="section" t-key="section.id" state="getDropdownState(section.id)" menuClass="'my-2 mx-1'" onOpened.bind="updateGroupHeadersChecked">
+            <Dropdown t-foreach="sections" t-as="section" t-key="section.id" state="getDropdownState(section.id)" menuClass="'my-2 mx-1'">
                 <span class="btn btn-secondary my-2 mx-1 o-dropdown-caret">
                     <i t-attf-class="{{ section.icon }} o_search_panel_section_icon {{!section.color &amp;&amp; section.type == 'filter' ? 'text-warning' : !section.color ? 'text-primary': ''}} me-2"
                         t-att-style="section.color and ('color: ' + section.color)"

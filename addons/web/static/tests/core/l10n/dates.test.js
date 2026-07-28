@@ -43,25 +43,20 @@ test("formatDate/formatDateTime specs", async () => {
     });
     mockDate("2009-05-04 11:34:56", +1);
 
-    const utc = DateTime.utc(); // 2009-05-04T11:34:56.000Z
-    const local = DateTime.local(); // 2009-05-04T12:34:56.000+01:00
-    const minus13FromLocalTZ = local.setZone("UTC-12"); // 2009-05-03T23:34:56.000-12:00
+    const utc = DateTime.utc();
+    const local = DateTime.local();
+    const minus13FromLocalTZ = local.setZone("UTC-12");
 
-    // For dates, regardless of the input timezone, outputs only the date
     expect(formatDate(utc)).toBe("05/04/2009");
     expect(formatDate(local)).toBe("05/04/2009");
     expect(formatDate(minus13FromLocalTZ)).toBe("05/03/2009");
 
-    // For datetimes, input timezone is taken into account, outputs in local timezone
     expect(formatDateTime(utc)).toBe("05/04/2009 12:34:56");
     expect(formatDateTime(local)).toBe("05/04/2009 12:34:56");
     expect(formatDateTime(minus13FromLocalTZ)).toBe("05/04/2009 12:34:56");
 });
 
 test("strftimeToLuxonFormat: %j is the zero-padded 3-digit day of year", () => {
-    // Python ``%j`` pads to 3 digits ("001", "065", "366"); the luxon ``o``
-    // token is unpadded, so the conversion must use ``ooo`` to stay
-    // server-consistent.
     const luxonJ = strftimeToLuxonFormat("%j");
     expect(DateTime.fromObject({ year: 2024, month: 1, day: 1 }).toFormat(luxonJ)).toBe(
         "001",
@@ -81,16 +76,14 @@ test("formatDate/formatDateTime specs, at midnight", async () => {
     });
     mockDate("2009-05-03 23:00:00", +1);
 
-    const utc = DateTime.utc(); // 2009-05-03T23:00:00.000Z
-    const local = DateTime.local(); // 2009-05-04T00:00:00.000+01:00
-    const minus13FromLocalTZ = local.setZone("UTC-12"); // 2009-05-03T11:00:00.000-12:00
+    const utc = DateTime.utc();
+    const local = DateTime.local();
+    const minus13FromLocalTZ = local.setZone("UTC-12");
 
-    // For dates, regardless of the input timezone, outputs only the date
     expect(formatDate(utc)).toBe("05/03/2009");
     expect(formatDate(local)).toBe("05/04/2009");
     expect(formatDate(minus13FromLocalTZ)).toBe("05/03/2009");
 
-    // For datetimes, input timezone is taken into account, outputs in local timezone
     expect(formatDateTime(utc)).toBe("05/04/2009 00:00:00");
     expect(formatDateTime(local)).toBe("05/04/2009 00:00:00");
     expect(formatDateTime(minus13FromLocalTZ)).toBe("05/04/2009 00:00:00");
@@ -153,19 +146,13 @@ test("parseDate with different numbering system", async () => {
 });
 
 test("formatDuration respects the unit count in an 'and'-joined locale", async () => {
-    // In Arabic, `Duration.toHuman` joins units with "و" (and), not a comma.
-    // The old comma-split therefore never separated the units, so the narrow
-    // (single-unit) form wrongly rendered *all* units.
     patchWithCleanup(Settings, { defaultLocale: "ar" });
 
     const twoHoursThreeMinutes = 2 * 3600 + 3 * 60;
-    // Narrow => a single (largest) unit only.
     expect(formatDuration(twoHoursThreeMinutes, false)).toBe("2 س");
-    // The minutes part must be dropped: same as formatting just the hours.
     expect(formatDuration(twoHoursThreeMinutes, false)).toBe(
         formatDuration(2 * 3600, false),
     );
-    // Full => the two largest units.
     expect(formatDuration(twoHoursThreeMinutes, true)).toBe("ساعتان, 3 دقائق");
 
     const threeDaysPlus = 3 * 86400 + 5 * 3600 + 9 * 60;
@@ -175,16 +162,12 @@ test("formatDuration respects the unit count in an 'and'-joined locale", async (
 test("formatDuration handles zero, sub-minute and negative durations", async () => {
     patchWithCleanup(Settings, { defaultLocale: "en" });
 
-    // Below the minute granularity => "0 minutes" (was wrongly forced to 1).
     expect(formatDuration(0, false)).toBe("0m");
     expect(formatDuration(30, false)).toBe("0m");
-    // Negative durations keep their sign (was wrongly rendered as "1 minute").
     expect(formatDuration(-90, false)).toBe("-1m");
     expect(formatDuration(-90, true)).toBe("-1 minute");
-    // Regular cases still work.
     expect(formatDuration(2 * 3600 + 3 * 60, false)).toBe("2h");
     expect(formatDuration(2 * 3600 + 3 * 60, true)).toBe("2 hours, 3 minutes");
-    // Months are disambiguated from minutes in narrow English ("1M" not "1m").
     expect(formatDuration(40 * 86400 + 3 * 3600, false)).toBe("1M");
 });
 
@@ -211,7 +194,7 @@ test("parseDateTime", async () => {
 
 test("parseDateTime (norwegian locale)", async () => {
     defineParams({
-        lang: "no", // Norwegian
+        lang: "no",
         lang_parameters: {
             date_format: "%d. %b %Y",
             time_format: "%H:%M:%S",
@@ -311,12 +294,11 @@ test("parse smart date input", async () => {
     patchWithCleanup(localization, {
         dateFormat: "MM/dd/yyyy",
         dateTimeFormat: "MM/dd/yyyy HH:mm:ss",
-        weekStart: 1, // Monday
+        weekStart: 1,
     });
     mockDate("2020-01-01 00:00:00", 0);
 
     const format = "yyyy-MM-dd HH:mm";
-    // with parseDate
     expect(parseDate("+0").toFormat(format)).toBe("2020-01-01 00:00");
     expect(parseDate("-0").toFormat(format)).toBe("2020-01-01 00:00");
     expect(parseDate("+1d").toFormat(format)).toBe("2020-01-02 00:00");
@@ -329,7 +311,6 @@ test("parse smart date input", async () => {
     expect(parseDate("-3m").toFormat(format)).toBe("2019-10-01 00:00");
     expect(parseDate("-2w").toFormat(format)).toBe("2019-12-18 00:00");
     expect(parseDate("-1d").toFormat(format)).toBe("2019-12-31 00:00");
-    // with parseDateTime
     expect(parseDateTime("+0").toFormat(format)).toBe("2020-01-01 00:00");
     expect(parseDateTime("-0").toFormat(format)).toBe("2020-01-01 00:00");
     expect(parseDateTime("+1d").toFormat(format)).toBe("2020-01-02 00:00");
@@ -343,7 +324,6 @@ test("parse smart date input", async () => {
     expect(parseDateTime("-2w").toFormat(format)).toBe("2019-12-18 00:00");
     expect(parseDateTime("-1d").toFormat(format)).toBe("2019-12-31 00:00");
 
-    // continue with only parseDateTime (which uses the same underlaying function)
     mockDate("2020-01-01 00:01:00", 0);
 
     expect(parseDateTime("=3d").toFormat(format)).toBe("2020-01-03 00:00");
@@ -361,7 +341,6 @@ test("parse smart date input", async () => {
     expect(parseDateTime("=sunday").toFormat(format)).toBe("2020-01-05 00:00");
     expect(parseDateTime("+monday").toFormat(format)).toBe("2020-01-06 00:01");
 
-    // reset after setting the day
     expect(parseDateTime("=3H =11d").toFormat(format)).toBe("2020-01-11 00:00");
     expect(parseDateTime("=3H =sunday").toFormat(format)).toBe("2020-01-05 00:00");
 
@@ -369,13 +348,13 @@ test("parse smart date input", async () => {
     expect(parseDateTime("-week_start").toFormat(format)).toBe("2019-12-30 00:01");
     expect(parseDateTime("+week_start").toFormat(format)).toBe("2020-01-06 00:01");
 
-    patchWithCleanup(localization, { weekStart: 7 }); // Sunday
+    patchWithCleanup(localization, { weekStart: 7 });
     expect(parseDateTime("=week_start").toFormat(format)).toBe("2019-12-29 00:00");
     expect(parseDateTime("-week_start").toFormat(format)).toBe("2019-12-29 00:01");
     expect(parseDateTime("+week_start").toFormat(format)).toBe("2020-01-05 00:01");
     expect(parseDateTime("=sunday").toFormat(format)).toBe("2019-12-29 00:00");
 
-    patchWithCleanup(localization, { weekStart: 3 }); // Wednesday
+    patchWithCleanup(localization, { weekStart: 3 });
     expect(parseDateTime("=week_start").toFormat(format)).toBe("2020-01-01 00:00");
     expect(parseDateTime("-week_start").toFormat(format)).toBe("2020-01-01 00:01");
     expect(parseDateTime("+week_start").toFormat(format)).toBe("2020-01-01 00:01");
@@ -388,7 +367,6 @@ test("parseDateTime ISO8601 Format", async () => {
     expect(parseDateTime("2017-05-15T12:00:00.000+06:00").toISO()).toBe(
         "2017-05-15T07:00:00.000+01:00",
     );
-    // without the 'T' separator is not really ISO8601 compliant, but we still support it
     expect(parseDateTime("2017-05-15 12:00:00.000+06:00").toISO()).toBe(
         "2017-05-15T07:00:00.000+01:00",
     );
@@ -552,7 +530,7 @@ test("parseDate (various entries)", async () => {
 
     const testSet = new Map([
         ["10101010101010", undefined],
-        ["1191111", "1191-04-21T00:00:00.000Z"], // day 111 of year 1191
+        ["1191111", "1191-04-21T00:00:00.000Z"],
         ["11911111", "1191-11-11T00:00:00.000Z"],
         ["3101", "2020-01-31T00:00:00.000Z"],
         ["310160", "2060-01-31T00:00:00.000Z"],
@@ -603,7 +581,7 @@ test("parseDate (various entries)", async () => {
         ["19991230", "1999-12-30T00:00:00.000Z"],
         ["19993012", undefined],
         ["2016-200", "2016-07-18T00:00:00.000Z"],
-        ["2016200", "2016-07-18T00:00:00.000Z"], // day 200 of year 2016
+        ["2016200", "2016-07-18T00:00:00.000Z"],
         ["2020-", undefined],
         ["2020-W2", undefined],
         ["2020W23", "2020-06-01T00:00:00.000Z"],
@@ -635,7 +613,7 @@ test("parseDate (various entries)", async () => {
         ["2013", undefined],
         ["011261", "1961-12-01T00:00:00.000Z"],
 
-        ["932-10-10", undefined], // year < 1000 are not supported
+        ["932-10-10", undefined],
         ["1932-10-10", "1932-10-10T00:00:00.000Z"],
         ["2016-01-03 09:24:15.123+06:00", "2016-01-03T00:00:00.000Z"],
         ["2016-01-03 09:24:15.123+16:00", "2016-01-02T00:00:00.000Z"],
@@ -661,7 +639,7 @@ test("parseDateTime (various entries)", async () => {
 
     const testSet = new Map([
         ["10101010101010", "1010-10-10T10:10:10.000Z"],
-        ["1191111", "1191-04-21T00:00:00.000Z"], // day 111 of year 1191
+        ["1191111", "1191-04-21T00:00:00.000Z"],
         ["11911111", "1191-11-11T00:00:00.000Z"],
         ["3101", "2020-01-31T00:00:00.000Z"],
         ["310160", "2060-01-31T00:00:00.000Z"],
@@ -707,7 +685,7 @@ test("parseDateTime (various entries)", async () => {
         ["19991230", "1999-12-30T00:00:00.000Z"],
         ["19993012", undefined],
         ["2016-200", "2016-07-18T00:00:00.000Z"],
-        ["2016200", "2016-07-18T00:00:00.000Z"], // day 200 of year 2016
+        ["2016200", "2016-07-18T00:00:00.000Z"],
         ["2020-", undefined],
         ["2020-W2", undefined],
         ["2020W23", "2020-06-01T00:00:00.000Z"],
@@ -765,12 +743,10 @@ test("parseDateTime: arab locale, latin numbering system as input", async () => 
     });
     await makeMockEnv();
 
-    // Check it works with arab
     expect(parseDateTime("١٥ يوليو, ٢٠٢٠ ١٢:٣٠:٤٣").toISO().split(".")[0]).toBe(
         "2020-07-15T12:30:43",
     );
 
-    // Check it also works with latin numbers
     expect(parseDateTime("15 07, 2020 12:30:43").toISO().split(".")[0]).toBe(
         "2020-07-15T12:30:43",
     );

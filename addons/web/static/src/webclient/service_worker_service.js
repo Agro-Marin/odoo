@@ -14,14 +14,14 @@ import { Deferred } from "@web/core/utils/concurrency";
  * the check is a conditional request the browser answers from its HTTP
  * cache / the server answers 304 to when the script is unchanged.
  */
-const SERVICE_WORKER_UPDATE_INTERVAL = 6 * 60 * 60 * 1000; // 6 hours
+const SERVICE_WORKER_UPDATE_INTERVAL = 6 * 60 * 60 * 1000;
 
 /**
  * Upper bound on how long registration waits for ``serviceWorker.ready``.
  * That promise never settles when a worker fails to activate, and it gates
  * the ``finally`` that settles ``activated`` — see the INVARIANT below.
  */
-const SERVICE_WORKER_READY_TIMEOUT = 20 * 1000; // 20 seconds
+const SERVICE_WORKER_READY_TIMEOUT = 20 * 1000;
 
 /**
  * Wires the service-worker update lifecycle onto a registration.
@@ -58,31 +58,22 @@ export function watchServiceWorkerUpdates(registration) {
             return;
         }
         const promote = () => {
-            // ``registration.active`` distinguishes an update from the very
-            // first install: on first install there is no active version to
-            // supersede and skipping the waiting state is pointless churn.
             if (worker.state === "installed" && registration.active) {
                 worker.postMessage({ type: "SKIP_WAITING" });
             }
         };
         worker.addEventListener("statechange", promote);
-        // The worker may already be past ``installing`` (e.g. it was found
-        // parked in ``registration.waiting`` on boot).
         promote();
     };
-    // An updated worker may already be waiting from a previous session.
     promoteWhenInstalled(registration.waiting);
     registration.addEventListener("updatefound", () =>
         promoteWhenInstalled(registration.installing),
     );
-    const checkForUpdate = () =>
-        registration.update().catch(() => {
-            // Offline or server unreachable — the next check will retry.
-        });
+    const checkForUpdate = () => registration.update().catch(() => {});
     browser.setInterval(checkForUpdate, SERVICE_WORKER_UPDATE_INTERVAL);
-    // ``visibilitychange`` fires on ``document`` and bubbles to ``window``,
-    // which the ``browser`` facade's ``addEventListener`` is bound to.
     browser.addEventListener("visibilitychange", () => {
+        // `document` is deliberately raw: the `browser` shim has no `document`
+        // member, and the test harness swaps the real document instead.
         if (document.visibilityState === "visible") {
             checkForUpdate();
         }
@@ -122,11 +113,6 @@ export function watchServiceWorkerUpdates(registration) {
  * @returns {Promise<ServiceWorkerRegistration | undefined>}
  */
 export async function registerServiceWorker(activatedDeferred) {
-    // ``browser.navigator`` rather than the bare global: it is the same
-    // object (the facade captures it), but going through the facade matches
-    // the rest of the codebase — mail reads
-    // ``browser.navigator.serviceWorker`` — and is patchable via
-    // ``patchWithCleanup(browser, ...)``.
     const { serviceWorker } = browser.navigator;
     try {
         if (!serviceWorker) {
@@ -141,8 +127,6 @@ export async function registerServiceWorker(activatedDeferred) {
         } else {
             const sw =
                 registration.installing || registration.waiting || registration.active;
-            // ``sw`` is null if the registration was torn down in between;
-            // the ``finally`` still settles the deferred.
             sw?.addEventListener("statechange", (e) => {
                 if (/** @type {any} */ (e.target).state === "activated") {
                     activatedDeferred.resolve();
@@ -156,15 +140,12 @@ export async function registerServiceWorker(activatedDeferred) {
             ),
         ]);
         if (!serviceWorker.controller) {
-            // https://stackoverflow.com/questions/51597231/register-service-worker-after-hard-refresh
             rpcBus.trigger(RpcEvent.CLEAR_CACHES);
         }
         return registration;
     } catch (error) {
         console.error("Service worker registration failed, error:", error);
     } finally {
-        // No-op on the happy path (already resolved above); load-bearing on
-        // every failure path. See the INVARIANT note.
         activatedDeferred.resolve();
     }
 }
@@ -186,10 +167,13 @@ export async function registerServiceWorker(activatedDeferred) {
  */
 export const serviceWorkerService = {
     start() {
+        /**
+         * `Deferred` is declared as returning `Promise<T> & {resolve, reject}`
+         * with `T = unknown` by default, so the bare `new Deferred()` does not
+         * satisfy the `Promise<void>` the `activated` property advertises.
+         * @type {Promise<void> & { resolve: (value?: any) => void, reject: (reason?: any) => void }}
+         */
         const activatedDeferred = new Deferred();
-        // Fire-and-forget: nothing may block on registration/activation. If the
-        // install stalls, awaiting it here would stall service startup and
-        // leave a blank page. ``registerServiceWorker`` catches its own errors.
         registerServiceWorker(activatedDeferred);
         return {
             /**

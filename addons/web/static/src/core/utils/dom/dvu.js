@@ -18,8 +18,25 @@ import { browser } from "@web/core/browser/browser";
 import { isVirtualKeyboardSupported } from "@web/core/browser/feature_detection";
 import { throttleForAnimation } from "@web/core/utils/timing";
 
+/**
+ * Sources are subscribed to on the first listener and released with the last,
+ * NOT at module scope.
+ *
+ * `browser` is a mutable indirection — tests swap `visualViewport`,
+ * `navigator` and the `addEventListener` implementation on it. Binding at
+ * module-evaluation time captured whichever `browser` happened to be installed
+ * when some unrelated module first pulled this one in, so the subscription
+ * could outlive the object it was made against and then never fire again. That
+ * made behaviour depend on import order, and left three global listeners and a
+ * throttle handle alive for the life of the page with no way to release them.
+ *
+ * Resolving `browser.*` at subscribe time keeps the module free of load-order
+ * side effects and makes the whole thing tear down with its last consumer.
+ */
 const viewport = {
     listeners: /** @type {Function[]} */ ([]),
+    /** @type {(() => void)[]} */
+    cleanups: [],
 
     /**
      * Register a callback for viewport changes
@@ -29,36 +46,61 @@ const viewport = {
      */
     addListener(listener) {
         this.listeners.push(listener);
+        if (this.listeners.length === 1) {
+            this.subscribe();
+        }
         return () => {
             const index = this.listeners.indexOf(listener);
             if (index !== -1) {
                 this.listeners.splice(index, 1);
             }
+            if (!this.listeners.length) {
+                this.unsubscribe();
+            }
         };
     },
 
+    subscribe() {
+        if (typeof window === "undefined") {
+            return;
+        }
+        const throttledUpdate = throttleForAnimation(() => this.notifyListeners());
+        this.cleanups.push(() => throttledUpdate.cancel());
+
+        const { visualViewport, navigator } = browser;
+        if (visualViewport) {
+            visualViewport.addEventListener("resize", throttledUpdate);
+            this.cleanups.push(() =>
+                visualViewport.removeEventListener("resize", throttledUpdate),
+            );
+        }
+
+        if (isVirtualKeyboardSupported()) {
+            const keyboard = /** @type {any} */ (navigator).virtualKeyboard;
+            keyboard.addEventListener("geometrychange", throttledUpdate);
+            this.cleanups.push(() =>
+                keyboard.removeEventListener("geometrychange", throttledUpdate),
+            );
+        }
+
+        browser.addEventListener("resize", throttledUpdate);
+        this.cleanups.push(() =>
+            browser.removeEventListener("resize", throttledUpdate),
+        );
+    },
+
+    unsubscribe() {
+        for (const cleanup of this.cleanups.splice(0)) {
+            cleanup();
+        }
+    },
+
     notifyListeners() {
-        this.listeners.forEach((listener) => listener());
+        for (const listener of [...this.listeners]) {
+            listener();
+        }
     },
 };
-
-if (typeof window !== "undefined") {
-    const throttledUpdate = throttleForAnimation(() => viewport.notifyListeners());
-
-    if (browser.visualViewport) {
-        browser.visualViewport.addEventListener("resize", throttledUpdate);
-    }
-
-    if (isVirtualKeyboardSupported()) {
-        /** @type {any} */ (browser.navigator).virtualKeyboard.addEventListener(
-            "geometrychange",
-            throttledUpdate,
-        );
-    }
-
-    // Fallback to window resize for browsers without VisualViewport or VirtualKeyboard
-    browser.addEventListener("resize", throttledUpdate);
-}
 
 /**
  * Get current viewport dimensions

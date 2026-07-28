@@ -3,9 +3,6 @@
 
 /** @module @web/model/relational_model/utils - Barrel re-export of field metadata, spec, values, and context utilities for external consumers */
 
-// Barrel re-export — preserves backward compatibility for all external consumers.
-// Internal consumers (within model/relational_model/) use direct imports.
-
 export {
     getBasicEvalContext,
     getFieldContext,
@@ -25,6 +22,7 @@ export {
 export { getFieldsSpec } from "./field_spec.js";
 export {
     AGGREGATABLE_FIELD_TYPES,
+    extractAggregatesFromGroupData,
     extractInfoFromGroupData,
     fromUnityToServerValues,
     getAggregateSpecifications,

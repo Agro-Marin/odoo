@@ -30,9 +30,7 @@ function makeSortableList() {
         fields: { name: { type: "char" } },
         model: { _patchConfig() {} },
         config: {},
-        // All values already cached => sort() loads nothing.
         _getResIdsToLoad: () => [],
-        // Use the real _load so we exercise its ``this._currentIds = nextCurrentIds``.
         _load: StaticList.prototype._load,
     };
 }
@@ -84,11 +82,8 @@ describe("StaticList._addRecord(top) command ordering", () => {
         const list = makeSortableList();
         const recV = list._cache.v;
 
-        // Default position (no position) with orderBy set => sort branch.
         await StaticList.prototype._addRecord.call(list, recV);
 
-        // sortRecords committed the sorted order (a, b, c) => ["v", 1, 2];
-        // _addRecord must NOT clobber it back to insertion order [1, 2, "v"].
         expect(list._currentIds).toEqual(["v", 1, 2]);
         expect(list.records.map((r) => r.data.name)).toEqual(["a", "b", "c"]);
         expect(list._commands).toEqual([[x2ManyCommands.CREATE, "v"]]);

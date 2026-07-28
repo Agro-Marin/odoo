@@ -62,8 +62,6 @@ describe("dirty rollback", () => {
 
         await record._update({ partner_id: { id: 7, display_name: "Partner" } });
 
-        // The no-op filter emptied the update: the provisional Invariant-1
-        // mark must be rolled back, not persist forever.
         expect(record.dirty).toBe(false);
         expect(Object.keys(record._changes)).toEqual([]);
     });
@@ -95,7 +93,6 @@ describe("dirty rollback", () => {
 
         expect(thrown).not.toBe(null);
         expect(thrown.message).toBe("onUpdate boom");
-        // undoChanges restored the value AND the pre-update dirty flag.
         expect(record.data.foo).toBe("yop");
         expect(Object.keys(record._changes)).toEqual([]);
         expect(record.dirty).toBe(false);
@@ -117,7 +114,6 @@ describe("dirty rollback", () => {
         }
 
         expect(thrown).not.toBe(null);
-        // The first (committed) edit still exists: dirty must stay up.
         expect(record.data.foo).toBe("first edit");
         expect(record._changes.foo).toBe("first edit");
         expect(record.dirty).toBe(true);
@@ -131,13 +127,10 @@ describe("undo invalid-field restore", () => {
         record.dirty = true;
 
         const undo = record._applyChanges({ foo: "fixed" }, {}, { undoable: true });
-        // _applyChanges cleared the changed field's invalid flag...
         expect(record.isFieldInvalid("foo")).toBe(false);
 
         undo();
 
-        // ...and undo restored it, along with the captured dirty state —
-        // synchronously (flag-only variant), no discard/mode-switch.
         expect(record.isFieldInvalid("foo")).toBe(true);
         expect(record.dirty).toBe(true);
         expect(record.data.foo).toBe("yop");

@@ -130,10 +130,6 @@ describe("formatAST", () => {
         expect(checkAST(String.raw`"\\abc"`, "escaped backslash AST check")).toBe(true);
         const a = String.raw`'foo\\abc"\''`;
         const b = formatAST(parseExpr(formatAST(parseExpr(a))));
-        // Our repr uses JSON.stringify which always uses double quotes,
-        // whereas Python's repr is single-quote-biased: strings are repr'd
-        // using single quote delimiters *unless* they contain single quotes and
-        // no double quotes, then they're delimited with double quotes.
         expect(b).toBe(String.raw`"foo\\abc\"'"`);
     });
 
@@ -142,9 +138,6 @@ describe("formatAST", () => {
     });
 
     test("associativity survives the round-trip", () => {
-        // Left-associative operators: an equal-precedence RIGHT child must
-        // keep its parentheses, otherwise re-parsing regroups the expression
-        // and changes its value.
         expect(checkAST("a - (b - c)", "right-nested subtraction")).toBe(true);
         expect(checkAST("a / (b / c)", "right-nested division")).toBe(true);
         expect(checkAST("a % (b % c)", "right-nested modulo")).toBe(true);
@@ -156,18 +149,13 @@ describe("formatAST", () => {
                 discount: 5,
             }),
         ).toBe(85);
-        // `**` is right-associative: an equal-precedence LEFT child must keep
-        // its parentheses.
         expect(checkAST("(a ** b) ** c", "left-nested power")).toBe(true);
         expect(evaluateExpr(formatAST(parseExpr("(2**3)**2")))).toBe(64);
         expect(evaluateExpr(formatAST(parseExpr("2**3**2")))).toBe(512);
-        // Comparators are non-associative: `(a < b) < c` and the chained
-        // `a < b < c` are different expressions.
         expect(checkAST("(a < b) < c", "nested comparison")).toBe(true);
     });
 
     test("low-precedence sub-expressions keep their parentheses", () => {
-        // A conditional expression has the lowest precedence in Python.
         expect(checkAST("1 + (2 if x else 3)", "ternary in addition")).toBe(true);
         expect(checkAST("(a if x else b) if y else c", "ternary in ternary")).toBe(
             true,
@@ -175,7 +163,6 @@ describe("formatAST", () => {
         expect(
             evaluateExpr(formatAST(parseExpr("1 + (2 if x else 3)")), { x: false }),
         ).toBe(4);
-        // Unary operators bind looser than `**`.
         expect(checkAST("(-a) ** 2", "unary minus in power")).toBe(true);
         expect(evaluateExpr(formatAST(parseExpr("(-2) ** 2")))).toBe(4);
     });
@@ -195,8 +182,6 @@ describe("formatAST", () => {
     });
 
     test("long list is not parenthesized by element position", () => {
-        // `.map(formatAST)` used to pass the array index as the binding
-        // power, parenthesizing low-bp elements past index 30 ("or" bp is 30).
         const numbers = Array.from({ length: 32 }, (_, i) => String(i));
         const expr = `[${[...numbers, "a or b"].join(", ")}]`;
         expect(checkAST(expr, "33-element list with trailing boolean op")).toBe(true);
@@ -240,9 +225,6 @@ describe("toPyValue", () => {
         expect(formatAST(ast)).toBe('{"a": 1}');
     });
 
-    // Date-like values are serialized EAGERLY: the node is a genuine string
-    // AST (it used to smuggle the Py* instance as `value`, which relied on
-    // formatAST's JSON.stringify calling toJSON). formatAST output unchanged.
     test("toPyValue a date", () => {
         const date = new Date(Date.UTC(2000, 0, 1));
         const ast = toPyValue(date);

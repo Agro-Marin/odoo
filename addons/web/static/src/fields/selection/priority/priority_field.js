@@ -30,10 +30,7 @@ export class PriorityField extends Component {
         this.state = useState({
             index: -1,
         });
-        // The selection is static: build the options list once.
         this.options = Array.from(this.props.record.fields[this.props.name].selection);
-        // The template reads `index` twice per star: compute the selected
-        // index once per render.
         onWillRender(() => {
             this._selectedIndex = this.options.findIndex(
                 (o) => o[0] === this.props.record.data[this.props.name],

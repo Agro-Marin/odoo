@@ -99,8 +99,6 @@ test("creating a field chain from scratch", async () => {
 
     expect(".o_model_field_selector_popover_item_name:first").toHaveText("Bar");
 
-    // "Bar" is a basic field, so clicking it closes the popover and sets the
-    // chain directly to "bar".
     await contains(".o_model_field_selector_popover_item_name").click();
     expect(".o_model_field_selector_popover").toHaveCount(0);
     expect(getValueFromDOM()).toBe("Bar");
@@ -128,7 +126,6 @@ test("creating a field chain from scratch", async () => {
     expect(getValueFromDOM()).toBe("Product -> Product Name");
     expect.verifySteps(["update: product_id.name"]);
 
-    // Remove the current selection and recreate it again
     await openModelFieldSelectorPopover();
     await contains(".o_model_field_selector_popover_prev_page").click();
     await contains(".o_model_field_selector_popover_close").click();
@@ -404,7 +401,7 @@ test("can follow relations", async () => {
             readonly: false,
             path: "",
             resModel: "partner",
-            followRelations: true, // default
+            followRelations: true,
             update(path) {
                 expect(path).toBe("product_id");
             },
@@ -549,31 +546,25 @@ test("start on complex path and click prev", async () => {
     });
 
     await openModelFieldSelectorPopover();
-    // Third page, with "Mother" pre-selected.
     expect(getTitle()).toBe("... > Father");
     expect(getFocusedFieldName()).toBe("Mother");
     expect(getModelFieldSelectorValues()).toEqual(["Mother", "Father", "Mother"]);
 
-    // Select "Father" and go to the fourth page: nothing is selected there,
-    // so the first item gets focused.
     await followRelation();
     expect(getTitle()).toBe("... > Father");
     expect(getFocusedFieldName()).toBe("Created on");
     expect(getModelFieldSelectorValues()).toEqual(["Mother", "Father", "Father"]);
 
-    // go back to third page. Nothing has changed
     await clickPrev();
     expect(getTitle()).toBe("... > Father");
     expect(getFocusedFieldName()).toBe("Father");
     expect(getModelFieldSelectorValues()).toEqual(["Mother", "Father", "Father"]);
 
-    // go back to second page. Nothing has changed.
     await clickPrev();
     expect(getTitle()).toBe("Mother");
     expect(getFocusedFieldName()).toBe("Father");
     expect(getModelFieldSelectorValues()).toEqual(["Mother", "Father"]);
 
-    // go back to first page. Nothing has changed.
     await clickPrev();
     expect(getTitle()).toBe("Select a field");
     expect(getFocusedFieldName()).toBe("Mother");
@@ -882,7 +873,6 @@ test("clear button (allowEmpty=true)", async () => {
     expect(".o_model_field_selector_warning").toHaveCount(1);
     expect(".o_model_field_selector .fa-solid.fa-xmark").toHaveCount(1);
 
-    // clear when popover is not open
     await contains(".o_model_field_selector .fa-solid.fa-xmark").click();
     expect(getModelFieldSelectorValues()).toEqual([]);
     expect(".o_model_field_selector_warning").toHaveCount(0);
@@ -896,7 +886,6 @@ test("clear button (allowEmpty=true)", async () => {
     expect(".o_model_field_selector .fa-solid.fa-xmark").toHaveCount(1);
     expect.verifySteps([`path is "bar"`]);
 
-    // clear when popover is open
     await openModelFieldSelectorPopover();
     await contains(".o_model_field_selector .fa-solid.fa-xmark").click();
     expect(getModelFieldSelectorValues()).toEqual([]);
@@ -968,7 +957,6 @@ test("debug input keydown does not navigate the search page", async () => {
         },
     });
     await openModelFieldSelectorPopover();
-    // We followed product_id, so the popover shows the product page.
     expect(getTitle()).toBe("Product");
     const focusedBefore = getFocusedFieldName();
 
@@ -980,15 +968,11 @@ test("debug input keydown does not navigate the search page", async () => {
         debugInput.setSelectionRange(0, 0);
     };
 
-    // ArrowUp at caret 0 in the debug input must NOT move the list's virtual
-    // focus (its keydowns previously bubbled to the root handler and were read
-    // as search-input navigation).
     focusDebugAtStart();
     await press("ArrowUp");
     await animationFrame();
     expect(getFocusedFieldName()).toBe(focusedBefore);
 
-    // ArrowLeft at caret 0 in the debug input must NOT go to the previous page.
     focusDebugAtStart();
     await press("ArrowLeft");
     await animationFrame();
@@ -1009,12 +993,8 @@ test("Enter on a relation button does not double-fire field selection", async ()
     await mountWithCleanup(Parent);
     await openModelFieldSelectorPopover();
     expect(".o_model_field_selector_popover").toHaveCount(1);
-    // Virtual focus is on the first field ("Bar").
     expect(getFocusedFieldName()).toBe("Bar");
 
-    // Move DOM focus onto the relation button (the product_id chevron) and
-    // press Enter. The virtually-focused "Bar" must NOT be selected on top of
-    // the button's own activation.
     queryOne(".o_model_field_selector_popover_item_relation").focus();
     await press("Enter");
 

@@ -44,7 +44,6 @@ export function computeResequencePlan({
     getSequence,
     asc = true,
 }) {
-    // Find indices — movedId/targetId are datapoint ids (d.id), not database ids
     const fromIndex = records.findIndex((r) => r.id === movedId);
     let toIndex = 0;
     if (targetId !== null && targetId !== undefined) {
@@ -54,10 +53,6 @@ export function computeResequencePlan({
 
     const firstIndex = Math.min(fromIndex, toIndex);
     const lastIndex = Math.max(fromIndex, toIndex) + 1;
-    // A record with no handle value (undefined) must force a full reorder:
-    // comparing a number against `undefined` yields NaN (always false), so the
-    // monotonic scan below would silently let it through and the
-    // partial-reorder branch would write colliding `offset + i` sequences.
     let reorderAll = records.some((record) => getSequence(record) === undefined);
     if (!reorderAll) {
         let lastSequence = (asc ? -1 : 1) * Infinity;
@@ -93,9 +88,6 @@ export function computeResequencePlan({
         toReorder.reverse();
     }
 
-    // NaN/null-safe minimum: records carrying no numeric sequence value must
-    // not poison the offset (``Math.min`` yields NaN as soon as one operand
-    // is NaN, and coerces ``null`` to 0).
     const sequences = toReorder.map(getSequence).filter((s) => s != null && !isNaN(s));
     const offset = sequences.length ? Math.min(...sequences) : 0;
 
@@ -136,30 +128,17 @@ export async function resequence({
         { records, movedId, targetId, getSequence, asc },
     );
 
-    // `movedId` absent from `records` (e.g. a post-save compute dropped the
-    // moved record from the target group between drop and this reorder):
-    // `fromIndex === -1` would make `splice(-1, 1)` delete the LAST record and
-    // re-insert `undefined`, corrupting the list and crashing the renderer.
-    // Match the sibling guards in static_list.js / record_lifecycle.js and
-    // no-op instead. (Same reasoning as computeResequencePlan's own reorderAll
-    // fallback for a missing handle value.)
     if (fromIndex < 0) {
         return [];
     }
 
-    // Save the original list in case of error
     const originalOrder = [...records];
-    // Perform the resequence in the list of records/groups (in place: callers
-    // hand us their live array and observe the new order through it)
     const record = records[fromIndex];
     if (fromIndex !== toIndex) {
         records.splice(fromIndex, 1);
         records.splice(toIndex, 0, record);
     }
     if (!asc && reorderAll) {
-        // Historical in-place reversal: when every record of a descending
-        // list is rewritten, the caller-visible array is reversed so its
-        // order matches the ascending sequence values the server assigns.
         records.reverse();
     }
 
@@ -173,7 +152,6 @@ export async function resequence({
             specification: { [fieldName]: {} },
         });
     } catch (error) {
-        // If the server fails to resequence, rollback the original list
         records.splice(0, records.length, ...originalOrder);
         throw error;
     }

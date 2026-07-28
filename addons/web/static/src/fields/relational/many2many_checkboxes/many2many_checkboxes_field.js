@@ -17,9 +17,6 @@ import { useSpecialData } from "../special_data.js";
 
 export class Many2ManyCheckboxesField extends Component {
     static template = "web.Many2ManyCheckboxesField";
-    // Upper bound on the pool of checkboxes offered by name_search. Currently
-    // selected records beyond this cap are still fetched and rendered (see
-    // setup) so they never become impossible to unselect.
     static RECORD_LIMIT = 100;
     static components = { CheckBox };
     static props = {
@@ -32,20 +29,11 @@ export class Many2ManyCheckboxesField extends Component {
         this.specialData = useSpecialData(async (orm, props) => {
             const { relation } = props.record.fields[props.name];
             const domain = getFieldDomain(props.record, props.name, props.domain);
-            // Use `props.context`, not `this.props.context`: useSpecialData runs
-            // this loader with the NEXT props during onWillUpdateProps, so the
-            // instance's `this.props` still holds the old context while the
-            // adjacent lines already read from `props`.
             const context = props.context || {};
             const items = await orm.call(relation, "name_search", ["", domain], {
                 context,
                 limit: Many2ManyCheckboxesField.RECORD_LIMIT,
             });
-            // name_search truncates at RECORD_LIMIT; a currently-selected record
-            // past the cutoff would otherwise render no checkbox and become
-            // impossible to unselect. Fetch any such records explicitly and
-            // append them so every selected value stays manageable. The common
-            // case (no overflow) issues no extra RPC.
             const shownIds = new Set(items.map((item) => item[0]));
             const missingSelectedIds = props.record.data[props.name].currentIds.filter(
                 (id) => !shownIds.has(id),
@@ -61,14 +49,9 @@ export class Many2ManyCheckboxesField extends Component {
             }
             return items;
         });
-        // these two sets track pending changes in the relation, and allow us to
-        // batch consecutive changes into a single replaceWith, thus saving
-        // unnecessary potential intermediate onchanges
         this.idsToAdd = new Set();
         this.idsToRemove = new Set();
         this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
-        // `isSelected` is called once per checkbox: build the set of current
-        // ids once per render instead of scanning `currentIds` per item.
         onWillRender(() => {
             this.currentIds = new Set(
                 this.props.record.data[this.props.name].currentIds,
@@ -102,12 +85,6 @@ export class Many2ManyCheckboxesField extends Component {
      * @returns {boolean}
      */
     isSelected(item) {
-        // Reflect PENDING toggles (queued in idsToAdd/idsToRemove behind the
-        // 500ms debounce), not just the committed relation. Otherwise a
-        // re-render triggered by an unrelated field's onchange within the
-        // debounce window repaints the box back to its committed state, so the
-        // checkbox visibly reverts even though the change is still queued to
-        // save.
         const id = item[0];
         if (this.idsToRemove.has(id)) {
             return false;

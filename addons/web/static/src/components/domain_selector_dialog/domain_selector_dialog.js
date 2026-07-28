@@ -101,9 +101,6 @@ export class DomainSelectorDialog extends Component {
                         domain,
                     });
                 } catch {
-                    // Validation could not be performed (e.g. network error):
-                    // treat the domain as invalid instead of leaving the
-                    // confirm button permanently disabled.
                     isValid = false;
                 }
             }

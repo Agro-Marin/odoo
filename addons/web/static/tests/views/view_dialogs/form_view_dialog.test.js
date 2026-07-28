@@ -69,7 +69,7 @@ class Product extends models.Model {
 defineModels([Partner, Instrument, Badassery, Product]);
 
 test("formviewdialog buttons in footer are positioned properly", async () => {
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form string="Partner">
             <sheet>
                 <group><field name="foo"/></group >
@@ -95,7 +95,7 @@ test("formviewdialog buttons in footer are positioned properly", async () => {
 });
 
 test("modifiers are considered on multiple <footer/> tags", async () => {
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form>
             <field name="bar"/>
             <footer invisible="not bar">
@@ -132,7 +132,7 @@ test("formviewdialog buttons in footer are not duplicated", async () => {
         relation: "partner",
     });
     Partner._records[0].poney_ids = [];
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form string="Partner">
             <field name="poney_ids"><list editable="top"><field name="name"/></list></field>
             <footer><button string="Custom Button" type="object" class="my_button"/></footer>
@@ -167,16 +167,13 @@ test("Form dialog and subview with _view_ref contexts", async () => {
 
     Instrument._records = [{ id: 1, name: "Tromblon", badassery: [1] }];
     Partner._records[0].instrument = 1;
-    // Predates get_views' automatic x2many subview inlining. We bypass the inlining via
-    // widget="many2many" to assert the correct subview is fetched when not inline
-    // (still possible in nested form views).
-    Instrument._views.form = /* xml */ `
+    Instrument._views.form = `
         <form>
             <field name="name"/>
             <field name="badassery" widget="many2many" context="{'list_view_ref': 'some_other_tree_view'}"/>
         </form>
     `;
-    Badassery._views.list = /* xml */ `<list><field name="level"/></list>`;
+    Badassery._views.list = `<list><field name="level"/></list>`;
 
     onRpc(({ kwargs, method, model }) => {
         if (method === "get_formview_id") {
@@ -218,7 +215,7 @@ test("Form dialog and subview with _view_ref contexts", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="name"/>
                 <field name="instrument" context="{'list_view_ref': 'some_tree_view'}"/>
@@ -230,7 +227,7 @@ test("Form dialog and subview with _view_ref contexts", async () => {
 });
 
 test("click on view buttons in a FormViewDialog", async () => {
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form>
             <field name="foo"/>
             <button name="method1" type="object" string="Button 1" class="btn1"/>
@@ -252,15 +249,15 @@ test("click on view buttons in a FormViewDialog", async () => {
     await click(".o_dialog .o_form_view .btn1");
     await animationFrame();
     expect(".o_dialog .o_form_view").toHaveCount(1);
-    expect.verifySteps(["method1", "web_read"]); // should re-read the record
+    expect.verifySteps(["method1", "web_read"]);
     await click(".o_dialog .o_form_view .btn2");
     await animationFrame();
     expect(".o_dialog .o_form_view").toHaveCount(0);
-    expect.verifySteps(["method2"]); // should not read as we closed
+    expect.verifySteps(["method2"]);
 });
 
 test("formviewdialog is not closed when button handlers return a rejected promise", async () => {
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form string="Partner">
             <sheet><group><field name="foo"/></group></sheet>
         </form>
@@ -281,17 +278,14 @@ test("formviewdialog is not closed when button handlers return a rejected promis
     expect(".modal-body button").not.toHaveCount();
     expect(".modal-footer button:visible").toHaveCount(2);
 
-    // Click "save" inside the dialog (with rejection)
     expect.errors(1);
     reject = true;
     await clickSave();
 
     expect.verifyErrors(["rejected"]);
 
-    // Close error modal
     await click(waitFor(".o_error_dialog .btn:contains(Close)"));
 
-    // Click "save" inside the dialog (without rejection)
     reject = false;
     await clickSave();
 
@@ -299,7 +293,7 @@ test("formviewdialog is not closed when button handlers return a rejected promis
 });
 
 test("FormViewDialog with remove button", async () => {
-    Partner._views.form = /* xml */ `<form><field name="foo"/></form>`;
+    Partner._views.form = `<form><field name="foo"/></form>`;
     await mountWithCleanup(WebClient);
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
@@ -317,7 +311,7 @@ test("FormViewDialog with remove button", async () => {
 });
 
 test("Buttons are set as disabled on click", async () => {
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form string="Partner">
             <sheet>
                 <group>
@@ -354,7 +348,7 @@ test("Buttons are set as disabled on click", async () => {
 });
 
 test("FormViewDialog with discard button", async () => {
-    Partner._views.form = /* xml */ `<form><field name="foo"/></form>`;
+    Partner._views.form = `<form><field name="foo"/></form>`;
     await mountWithCleanup(WebClient);
     getService("dialog").add(FormViewDialog, {
         resModel: "partner",
@@ -372,7 +366,7 @@ test("FormViewDialog with discard button", async () => {
 });
 
 test("Save a FormViewDialog when a required field is empty don't close the dialog", async () => {
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form string="Partner">
             <sheet>
                 <group><field name="foo" required="1"/></group>
@@ -402,7 +396,7 @@ test("Save a FormViewDialog when a required field is empty don't close the dialo
 });
 
 test("new record has an expand button", async () => {
-    Partner._views.form = /* xml */ `<form><field name="foo"/></form>`;
+    Partner._views.form = `<form><field name="foo"/></form>`;
     Partner._records = [];
     onRpc("web_save", () => {
         expect.step("save");
@@ -434,9 +428,7 @@ test("new record has an expand button", async () => {
 });
 
 test("expand after custom onRecordSave uses the persisted resId", async () => {
-    // Regression: with a custom onRecordSave that persists a create (resId
-    // false->N), the expand button must target the saved record, not res_id: false.
-    Partner._views.form = /* xml */ `<form><field name="foo"/></form>`;
+    Partner._views.form = `<form><field name="foo"/></form>`;
     Partner._records = [];
     onRpc("web_save", () => {
         expect.step("save");
@@ -468,7 +460,7 @@ test("expand after custom onRecordSave uses the persisted resId", async () => {
 });
 
 test("existing record has an expand button", async () => {
-    Partner._views.form = /* xml */ `<form><field name="foo"/></form>`;
+    Partner._views.form = `<form><field name="foo"/></form>`;
     onRpc("web_save", () => {
         expect.step("save");
     });
@@ -512,7 +504,7 @@ test("existing record has an expand button", async () => {
 });
 
 test("expand button with save and new", async () => {
-    Instrument._views.form = /* xml */ `<form><field name="name"/></form>`;
+    Instrument._views.form = `<form><field name="name"/></form>`;
     Instrument._records = [{ id: 1, name: "Violon" }];
     onRpc("web_save", () => {
         expect.step("save");
@@ -550,7 +542,7 @@ test("expand button with save and new", async () => {
 });
 
 test("FormViewDialog with canExpand set to false", async () => {
-    Partner._views.form = /* xml */ `<form><field name="foo"/></form>`;
+    Partner._views.form = `<form><field name="foo"/></form>`;
     Partner._records = [];
     await mountWithCleanup(WebClient);
     getService("dialog").add(FormViewDialog, {
@@ -572,8 +564,6 @@ test("close dialog with escape after modifying a field with onchange (no blur)",
 
     await mountWithCleanup(WebClient);
 
-    // Focus something other than body first: on dialog close the ui service needs
-    // something to refocus, which blurs the input and fires the change event.
     await contains(".o_navbar_apps_menu button").focus();
     expect(".o_navbar_apps_menu button").toBeFocused();
 

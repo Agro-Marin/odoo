@@ -108,9 +108,6 @@ export function findUnsetRequiredFields(
     return unsetRequiredFields;
 }
 
-// Orchestration helpers (mutate `record._invalidFields` /
-// `record._unsetRequiredFields` / `record._closeInvalidFieldsNotification`)
-
 /**
  * Run validation on a record and update its invalid-field state in place.
  * Optionally surface a UI notification when invalid fields are detected.
@@ -145,14 +142,6 @@ export function checkValidity(
         isInvisible: (fieldName) => record._isInvisible(fieldName),
         isRequired: (fieldName) => record._isRequired(fieldName),
         isChildListValid: (_fieldName, list) => {
-            // Validate OFF-PAGE dirty children too. A paginated x2many keeps
-            // edited off-page rows in ``_cache`` (referenced by ``_currentIds``)
-            // and still serializes them into the save payload via ``_commands``
-            // — but ``list.records`` only holds the current page. Scanning just
-            // ``list.records`` would let a required field emptied on a row that
-            // was then paged away ship unvalidated. Iterate the cache (a strict
-            // superset of ``list.records``) scoped to ``_currentIds`` membership
-            // so removed-but-unpruned cache entries are excluded.
             const membership = new Set(list._currentIds);
             return Object.values(list._cache).every((r) => {
                 if (!membership.has(r.resId || r._virtualId)) {
@@ -161,11 +150,6 @@ export function checkValidity(
                 if (!r.dirty) {
                     return true;
                 }
-                // removeInvalidOnly only prunes; an already-valid child can't
-                // become invalid on this path, so skip it — turns
-                // re-validation from O(dirtyRows × rowFields) into
-                // O(dirtyRows) plus a rescan of only the still-invalid
-                // row(s). silent/default modes need the full rescan.
                 if (removeInvalidOnly && r.isValid) {
                     return true;
                 }
@@ -175,15 +159,9 @@ export function checkValidity(
     };
 
     if (removeInvalidOnly) {
-        // Prune-only, scoped path: only already-flagged fields can be
-        // pruned, and only those whose status could have changed
-        // (scopedFields, or any x2many — conservative for parent.*
-        // dependencies) need re-evaluation.
         const candidates = [];
         for (const fieldName of Array.from(record._unsetRequiredFields)) {
             if (!(fieldName in record.activeFields)) {
-                // No longer active: the full scan (which only iterates
-                // activeFields) could never re-flag it, so preserve that pruning.
                 record._unsetRequiredFields.delete(fieldName);
                 record._invalidFields.delete(fieldName);
                 continue;
@@ -221,7 +199,6 @@ export function checkValidity(
         return isValid;
     }
 
-    // silent / default: full scan over all active fields.
     const unsetRequiredFields = findUnsetRequiredFields(
         record.activeFields,
         record.fields,
@@ -265,10 +242,6 @@ export function checkValidity(
  * @returns {Promise<void>}
  */
 export async function setInvalidField(record, fieldName) {
-    // NB: intentionally NOT awaited — the sole consumer is synchronous, and
-    // awaiting here would reorder invalid-field notifications in multi-edit
-    // (a single invalid commit would surface two). Revisit if an async veto
-    // consumer is ever added.
     const canProceed = record.model.hooks.lifecycle.onWillSetInvalidField(
         record,
         fieldName,
@@ -283,15 +256,8 @@ export async function setInvalidField(record, fieldName) {
     if (
         record.selected &&
         record.model.multiEdit &&
-        // narrow list-owned interface — don't read root._recordToDiscard
-        // directly (no-op when the root isn't a DynamicList)
         !record.model.root._isRecordToDiscard?.(record)
     ) {
-        // Deliberately do NOT store the returned closer: the immediately
-        // following discard() calls record._closeInvalidFieldsNotification(),
-        // and this multi-edit "invalid value" toast must PERSIST past that
-        // discard so the user sees why their edit was rejected (pinned by
-        // list_view.test.js multi-edit invalid-value tests).
         displayInvalidFieldNotification(record);
         await record.discard();
         record.switchMode("readonly");

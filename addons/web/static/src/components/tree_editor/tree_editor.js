@@ -149,9 +149,6 @@ export class TreeEditor extends Component {
      * @param {string} value
      */
     _updateComplexCondition(node, value) {
-        // Same validation as the complexCondition() factory: unparseable
-        // input would corrupt every later tree -> expression/domain
-        // conversion, so keep the previous value instead.
         try {
             parseExpr(value);
         } catch {
@@ -305,7 +302,7 @@ export class TreeEditor extends Component {
      * @param {string} path
      */
     async updatePath(node, path) {
-        this.updateNode(node, () => this._updatePath(node, path));
+        return this.updateNode(node, () => this._updatePath(node, path));
     }
 
     /**
@@ -354,8 +351,6 @@ export class TreeEditor extends Component {
         const previousNode = cloneTree(node);
         await operation();
         if (areEquivalentTrees(node, previousNode)) {
-            // No interesting changes for parent, so it might not re-render
-            // the domain selector — but editors still need updating.
             await this.prepareInfo(this.props);
             this.render();
         }

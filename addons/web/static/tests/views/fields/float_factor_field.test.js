@@ -26,7 +26,6 @@ test("FloatFactorField in form view", async () => {
     expect.assertions(3);
 
     onRpc("partner", "web_save", ({ args }) => {
-        // 2.3 / 0.5 = 4.6
         expect(args[1].qux).toBe(4.6, {
             message: "the correct float value should be saved",
         });
@@ -64,7 +63,6 @@ test("FloatFactorField comma as decimal point", async () => {
         },
     });
     onRpc("partner", "web_save", ({ args }) => {
-        // 2.3 / 0.5 = 4.6
         expect(args[1].qux).toBe(4.6);
         expect.step("save");
     });
@@ -90,9 +88,6 @@ test("FloatFactorField scales += operation input into storage units", async () =
     expect.assertions(2);
 
     onRpc("partner", "web_save", ({ args }) => {
-        // Displayed value is 4.55 (9.1 * 0.5); "+=1" means displayed 5.55,
-        // i.e. stored 11.1. The += operand must be scaled by 1/factor —
-        // dividing the Operation object itself would commit NaN.
         expect(args[1].qux).toBe(11.1, {
             message: "the += operand should be scaled back to storage units",
         });
@@ -119,8 +114,6 @@ test("FloatFactorField passes *= operation input through unscaled", async () => 
     expect.assertions(2);
 
     onRpc("partner", "web_save", ({ args }) => {
-        // "*=2" doubles the displayed value, which doubles the stored value
-        // identically: multiplicative operations are scale-invariant.
         expect(args[1].qux).toBe(18.2, {
             message: "the *= operand should not be scaled",
         });
@@ -144,9 +137,6 @@ test("FloatFactorField passes *= operation input through unscaled", async () => 
 });
 
 test("FloatFactorField.value passes an unset value through as false", () => {
-    // An unset float is ``false``; ``false * factor`` would coerce it to 0 and
-    // render "0.00" instead of the empty string a plain float renders. The
-    // getter must pass ``false`` through so the formatter yields "".
     const makeField = (data, factor) =>
         Object.create(FloatFactorField.prototype, {
             props: {
@@ -176,7 +166,6 @@ test("FloatFactorField guards against a zero factor", async () => {
             </form>`,
     });
 
-    // A zero factor falls back to 1 instead of rendering NaN, and warns.
     expect(".o_field_widget[name='qux'] input").toHaveValue("9.10", {
         message: "a zero factor should fall back to 1",
     });

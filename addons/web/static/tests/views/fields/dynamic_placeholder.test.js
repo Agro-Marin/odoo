@@ -37,7 +37,7 @@ class Partner extends models.Model {
     ];
 
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <field name="placeholder" invisible="1"/>
                 <sheet>
@@ -157,13 +157,9 @@ test("dynamic placeholder properties", async () => {
     await contains(".o_model_field_selector_popover button:contains('Insert')").click();
 
     const value = document.querySelector(".o_field_placeholder").value.trim();
-    // The property key is emitted via JSON.stringify (double-quoted) so names
-    // containing quotes stay valid Python literals.
     expect(value).toBe(
         `{{object.properties.get("f424643eee1f3655", env['product']).name}}`,
     );
-    // The insertion must go through the synthetic-event path so the input
-    // hook marks the field dirty (the record is committed on blur/save).
     expect(".o_form_status_indicator_buttons").toBeVisible({
         message: "inserting a placeholder must mark the field dirty",
     });

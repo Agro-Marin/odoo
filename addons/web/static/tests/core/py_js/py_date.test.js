@@ -2,6 +2,8 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { mockDate } from "@odoo/hoot-mock";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { IANAZone, Settings } from "@web/core/l10n/luxon";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { PyDate, PyDateTime, PyTimeDelta } from "@web/core/py_js/py_date";
 
@@ -14,13 +16,6 @@ const check = (expr, fn) => {
 
 const format = (n) => String(n).padStart(2, "0");
 
-// Date semantics under test (must match py_date.js / py_builtin.js):
-//   - `today` / `date.today()` / `context_today()` → USER-LOCAL date (date
-//     fields are timezone-naive; "today" is the user's today).
-//   - `now` / `datetime.now()` / `time.strftime` → UTC (datetime fields are
-//     UTC strings, so `datetime_field < now` must compare in UTC).
-// Computing expectations with the matching getters keeps these green on any
-// host timezone, not just UTC.
 const formatDate = (d) => {
     const year = d.getFullYear();
     const month = format(d.getMonth() + 1);
@@ -103,6 +98,104 @@ describe("datetime.datetime", () => {
         expect(JSON.stringify(evaluateExpr(expr))).toBe(`"2022-10-16 22:00:00"`);
     });
 
+    // The two tests above move the browser offset and luxon's zone together, so
+    // they cannot see which of the two to_utc reads. These pin the user's zone
+    // (res.users.tz, i.e. Settings.defaultZone) against a *different* browser
+    // zone: to_utc must follow the user's, since that is the zone the wall clock
+    // it converts came from. Reading the browser's instead shifted the window by
+    // the difference between the two.
+    test("to_utc converts from the user's zone, not the browser's", () => {
+        mockDate("2021-09-17 10:00:00", +0);
+        patchWithCleanup(Settings, {
+            defaultZone: IANAZone.create("America/Mexico_City"),
+        });
+
+        const expr = "datetime.datetime(2021, 9, 17).to_utc()";
+        expect(JSON.stringify(evaluateExpr(expr))).toBe(`"2021-09-17 05:00:00"`);
+    });
+
+    test("to_utc ignores the browser zone entirely", () => {
+        mockDate("2021-09-17 10:00:00", +9);
+        patchWithCleanup(Settings, { defaultZone: IANAZone.create("UTC") });
+
+        const expr = "datetime.datetime(2021, 9, 17).to_utc()";
+        expect(JSON.stringify(evaluateExpr(expr))).toBe(`"2021-09-17 00:00:00"`);
+    });
+
+    // Three agromarin views (remote_gps, delivery_tracking) filter on
+    // `.replace(hour=0, ...)`. py_js had no replace() at all, so `Domain.toList`
+    // threw InvalidDomainError and the filters were dead in the UI.
+    test("replace substitutes components, as CPython does", () => {
+        expect(
+            evaluateExpr(
+                "datetime.datetime(2024,3,15,14,22,7).replace(hour=0, minute=0, second=0).strftime('%Y-%m-%d %H:%M:%S')",
+            ),
+        ).toBe("2024-03-15 00:00:00");
+        expect(
+            evaluateExpr(
+                "datetime.date(2024,3,15).replace(day=1).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2024-03-01");
+        expect(
+            evaluateExpr(
+                "datetime.date(2024,3,15).replace(2020, 5, 6).strftime('%Y-%m-%d')",
+            ),
+        ).toBe("2020-05-06");
+        expect(
+            evaluateExpr("datetime.time(1,2,3).replace(hour=9).strftime('%H:%M:%S')"),
+        ).toBe("09:02:03");
+    });
+
+    test("replace validates the result, as CPython does", () => {
+        expect(() =>
+            evaluateExpr("datetime.date(2024,3,15).replace(month=2, day=30)"),
+        ).toThrow();
+        expect(() =>
+            evaluateExpr("datetime.date(2024,3,15).replace(month=13)"),
+        ).toThrow();
+        expect(() =>
+            evaluateExpr("datetime.datetime(2024,3,15).replace(hour=24)"),
+        ).toThrow();
+    });
+
+    // fmt4 rendered a negative year as "00-5", so date(-5,1,1) produced the
+    // string "00-5-01-01" — a malformed date flowing straight into a domain.
+    test("the year is range-checked, not just typed", () => {
+        for (const y of [0, -5, 10000]) {
+            expect(() => evaluateExpr(`datetime.date(${y},1,1)`)).toThrow();
+            expect(() => evaluateExpr(`datetime.datetime(${y},1,1)`)).toThrow();
+        }
+        expect(evaluateExpr("datetime.date(1,1,1).strftime('%Y-%m-%d')")).toBe(
+            "0001-01-01",
+        );
+        expect(evaluateExpr("datetime.date(9999,12,31).strftime('%Y-%m-%d')")).toBe(
+            "9999-12-31",
+        );
+    });
+
+    test("strftime supports the locale composites in their C-locale form", () => {
+        expect(
+            evaluateExpr("datetime.datetime(2024,1,31,23,59,59).strftime('%c')"),
+        ).toBe("Wed Jan 31 23:59:59 2024");
+        // %e space-pads the day, so a single-digit day keeps the column width
+        expect(evaluateExpr("datetime.datetime(2024,2,5,0,0,0).strftime('%c')")).toBe(
+            "Mon Feb  5 00:00:00 2024",
+        );
+        expect(evaluateExpr("datetime.date(2024,3,7).strftime('%x')")).toBe("03/07/24");
+        expect(evaluateExpr("datetime.datetime(1999,12,9,9,5,3).strftime('%X')")).toBe(
+            "09:05:03",
+        );
+    });
+
+    test("an escaped %% does not start a composite directive", () => {
+        expect(evaluateExpr("datetime.date(2024,3,7).strftime('100%%c')")).toBe(
+            "100%c",
+        );
+        expect(evaluateExpr("datetime.date(2024,3,7).strftime('%%x %x')")).toBe(
+            "%x 03/07/24",
+        );
+    });
+
     test("datetime.datetime.combine", () => {
         const expr =
             "datetime.datetime.combine(context_today(), datetime.time(23,59,59)).strftime('%Y-%m-%d %H:%M:%S')";
@@ -168,9 +261,6 @@ describe("datetime.date", () => {
     });
 
     test("strftime renders time directives as midnight (CPython parity)", () => {
-        // A datetime format string applied to a bare date must not throw — the
-        // server-side Python evaluation renders the time part as midnight, so
-        // the client must agree (a copy-pasted "%Y-%m-%d %H:%M:%S" is common).
         expect(
             evaluateExpr("datetime.date(2024,3,5).strftime('%Y-%m-%d %H:%M:%S')"),
         ).toBe("2024-03-05 00:00:00");
@@ -203,40 +293,21 @@ describe("datetime.date", () => {
         };
 
         expect(evaluateExpr("a + day == date(2002, 3, 3)", ctx)).toBe(true);
-        expect(evaluateExpr("day + a == date(2002, 3, 3)", ctx)).toBe(true); // 5
+        expect(evaluateExpr("day + a == date(2002, 3, 3)", ctx)).toBe(true);
         expect(evaluateExpr("a - day == date(2002, 3, 1)", ctx)).toBe(true);
         expect(evaluateExpr("-day + a == date(2002, 3, 1)", ctx)).toBe(true);
         expect(evaluateExpr("a + week == date(2002, 3, 9)", ctx)).toBe(true);
         expect(evaluateExpr("a - week == date(2002, 2, 23)", ctx)).toBe(true);
-        expect(evaluateExpr("a + 52*week == date(2003, 3, 1)", ctx)).toBe(true); // 10
+        expect(evaluateExpr("a + 52*week == date(2003, 3, 1)", ctx)).toBe(true);
         expect(evaluateExpr("a - 52*week == date(2001, 3, 3)", ctx)).toBe(true);
         expect(evaluateExpr("(a + week) - a == week", ctx)).toBe(true);
         expect(evaluateExpr("(a + day) - a == day", ctx)).toBe(true);
         expect(evaluateExpr("(a - week) - a == -week", ctx)).toBe(true);
-        expect(evaluateExpr("(a - day) - a == -day", ctx)).toBe(true); // 15
+        expect(evaluateExpr("(a - day) - a == -day", ctx)).toBe(true);
         expect(evaluateExpr("a - (a + week) == -week", ctx)).toBe(true);
         expect(evaluateExpr("a - (a + day) == -day", ctx)).toBe(true);
         expect(evaluateExpr("a - (a - week) == week", ctx)).toBe(true);
         expect(evaluateExpr("a - (a - day) == day", ctx)).toBe(true);
-
-        // expect(() => evaluateExpr("a + 1", ctx)).toThrow(/^Error: TypeError:/); //20
-        // expect(() => evaluateExpr("a - 1", ctx)).toThrow(/^Error: TypeError:/);
-        // expect(() => evaluateExpr("1 + a", ctx)).toThrow(/^Error: TypeError:/);
-        // expect(() => evaluateExpr("1 - a", ctx)).toThrow(/^Error: TypeError:/);
-
-        // // delta - date is senseless.
-        // expect(() => evaluateExpr("day - a", ctx)).toThrow(/^Error: TypeError:/);
-
-        // // mixing date and (delta or date) via * or // is senseless
-        // expect(() => evaluateExpr("day * a", ctx)).toThrow(/^Error: TypeError:/); // 25
-        // expect(() => evaluateExpr("a * day", ctx)).toThrow(/^Error: TypeError:/);
-        // expect(() => evaluateExpr("day // a", ctx)).toThrow(/^Error: TypeError:/);
-        // expect(() => evaluateExpr("a // day", ctx)).toThrow(/^Error: TypeError:/);
-        // expect(() => evaluateExpr("a * a", ctx)).toThrow(/^Error: TypeError:/);
-        // expect(() => evaluateExpr("a // a", ctx)).toThrow(/^Error: TypeError:/); // 30
-
-        // // date + date is senseless
-        // expect(() => evaluateExpr("a + a", ctx)).toThrow(/^Error: TypeError:/);
     });
 });
 
@@ -262,13 +333,9 @@ describe("datetime.time", () => {
     });
 
     test("strftime date directives use 1900-01-01, not the stamped today", () => {
-        // CPython: a bare time has no date, so %Y/%m/%d format against the
-        // default 1900-01-01 (the class instance internally stamps "today",
-        // which previously leaked a run-dependent current year).
         expect(evaluateExpr("datetime.time(9,7,3).strftime('%Y-%m-%d')")).toBe(
             "1900-01-01",
         );
-        // 12-hour clock + AM/PM.
         expect(evaluateExpr("datetime.time(0,7,3).strftime('%I:%M %p')")).toBe(
             "12:07 AM",
         );
@@ -318,9 +385,6 @@ describe("relativedelta relative : period is plural", () => {
     });
 
     test("date + delta type follows dateutil normalization (hours=24 stays date)", () => {
-        // dateutil normalizes the delta before deciding the type: hours=24
-        // carries into days=1 (no residual time) → stays a date, while a
-        // sub-day residual (hours=5) promotes to datetime.
         const carried = evaluateExpr(
             "datetime.date(day=3,month=4,year=2001) + relativedelta(hours=24)",
         );
@@ -362,9 +426,6 @@ describe("relativedelta relative : period is plural", () => {
     });
 
     test("month/year arithmetic clamps to the end of the target month", () => {
-        // dateutil parity: when the source day exceeds the target month's
-        // length, the day is clamped to that month's last day — it must not
-        // overflow into the following month.
         const expr1 =
             "(datetime.date(2020,1,31) + relativedelta(months=1)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr1)).toBe("2020-02-29");
@@ -391,7 +452,6 @@ describe("relativedelta relative : period is plural", () => {
     });
 
     test("day 29-31 round trip through a shorter month", () => {
-        // Forward then back: days beyond the clamp are lost (dateutil parity).
         const expr1 =
             "(datetime.date(2020,1,29) + relativedelta(months=1) - relativedelta(months=1)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr1)).toBe("2020-01-29");
@@ -404,7 +464,6 @@ describe("relativedelta relative : period is plural", () => {
             "(datetime.date(2020,1,31) + relativedelta(months=1) - relativedelta(months=1)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr3)).toBe("2020-01-29");
 
-        // Back then forward.
         const expr4 =
             "(datetime.date(2020,3,31) - relativedelta(months=1) + relativedelta(months=1)).strftime('%Y-%m-%d')";
         expect(evaluateExpr(expr4)).toBe("2020-03-29");
@@ -440,9 +499,6 @@ describe("relativedelta absolute : period is singular", () => {
     });
 
     test("throws when absolute period is out of its dateutil range", () => {
-        // dateutil/CPython reject these when the delta is applied
-        // (IllegalMonthError / ValueError from datetime.replace); the check
-        // is made eagerly here instead of silently normalizing.
         expect(() => evaluateExpr("relativedelta(month=15)")).toThrow(
             "month 15 is out of range",
         );
@@ -464,15 +520,12 @@ describe("relativedelta absolute : period is singular", () => {
         expect(() => evaluateExpr("relativedelta(year=0)")).toThrow(
             "year 0 is out of range",
         );
-        // day past month-end is VALID: dateutil clamps to the last day
         expect(
             evaluateExpr(
                 "(datetime.date(2020,2,10) + relativedelta(day=45)).strftime('%Y-%m-%d')",
             ),
         ).toBe("2020-02-29");
-        // boundary values pass
         expect(() => evaluateExpr("relativedelta(month=12, hour=23)")).not.toThrow();
-        // relative (plural) args stay unbounded
         expect(() => evaluateExpr("relativedelta(months=-15)")).not.toThrow();
     });
 
@@ -687,13 +740,8 @@ describe("misc", () => {
     });
 
     test("context_today is the client-zone date, not UTC", () => {
-        // The client zone is luxon's Settings.defaultZone, set from the user's
-        // res.users.tz at boot (boot/start.js) so the client matches the server.
-        // 18:30 at UTC-10 is 04:30 the NEXT day in UTC, so context_today() must
-        // be the local (client-zone) date 07-20, not the UTC date 07-21.
         mockDate("2026-07-20 18:30:00", -10);
         expect(evaluateExpr("context_today().strftime('%Y-%m-%d')")).toBe("2026-07-20");
-        // Same instant, a UTC+9 user: already 07-21 there.
         mockDate("2026-07-21 13:30:00", +9);
         expect(evaluateExpr("context_today().strftime('%Y-%m-%d')")).toBe("2026-07-21");
     });
@@ -714,14 +762,11 @@ describe("misc", () => {
 
 describe("relativedelta leapdays", () => {
     test("leapdays kwarg is applied (leap year, past February)", () => {
-        // dateutil: leapdays are added when the result's year is a leap year
-        // and the result is past Feb 28.
         expect(
             evaluateExpr(
                 "(datetime.date(2020,1,1) + relativedelta(months=2, leapdays=10)).strftime('%Y-%m-%d')",
             ),
         ).toBe("2020-03-11");
-        // Non-leap year: leapdays are ignored.
         expect(
             evaluateExpr(
                 "(datetime.date(2021,1,1) + relativedelta(months=2, leapdays=10)).strftime('%Y-%m-%d')",
@@ -730,9 +775,6 @@ describe("relativedelta leapdays", () => {
     });
 
     test("negation keeps leapdays unsigned (dateutil parity)", () => {
-        // dateutil's __neg__ does NOT negate leapdays: subtracting the delta
-        // still ADDS the (positive) leapdays when the result is past Feb 28
-        // of a leap year.
         expect(
             evaluateExpr(
                 "(datetime.date(2020,6,1) - relativedelta(months=1, leapdays=1)).strftime('%Y-%m-%d')",
@@ -752,7 +794,6 @@ describe("construction validation", () => {
         expect(() => evaluateExpr("datetime.date(2020, 1)")).toThrow(
             /day must be an integer/,
         );
-        // valid dates still work
         expect(evaluateExpr("datetime.date(2020, 2, 29).strftime('%Y-%m-%d')")).toBe(
             "2020-02-29",
         );
@@ -768,8 +809,6 @@ describe("construction validation", () => {
     });
 
     test("datetime()/time() reject non-integer time components", () => {
-        // CPython raises TypeError on a float hour; without an integer check
-        // the value flowed into strftime yielding garbage like "5.5:00:00".
         expect(() => evaluateExpr("datetime.datetime(2020, 1, 1, 5.5)")).toThrow(
             /hour must be an integer/,
         );

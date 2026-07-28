@@ -29,7 +29,6 @@
 
                     <div class="col">
                         <div class="o_form_sheet">
-                            <!-- Single Form -->
                             <form method="get" t-attf-action="/web/speedscope/{{profile_str}}">
                                 <h4>Speedscope</h4>
                                 <div class="form-check">
@@ -38,7 +37,6 @@
                                     <label class="form-check-label" for="constant_time">Constant
                                         Time</label>
                                 </div>
-                                <!-- add more variable here -->
                                 <div class="form-check">
                                     <input type="checkbox" class="form-check-input"
                                         id="aggregate_sql" name="aggregate_sql" value="True" />

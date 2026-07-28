@@ -288,8 +288,8 @@ const actions = [
 defineActions(actions);
 
 beforeEach(() => {
-    user.updateUserSettings("id", 1); // workaround to populate the user settings
-    user.updateUserSettings("embedded_actions_config_ids", {}); // workaround to populate the embedded user settings
+    user.updateUserSettings("id", 1);
+    user.updateUserSettings("embedded_actions_config_ids", {});
 });
 
 test("can display embedded actions linked to the current action", async () => {
@@ -464,13 +464,13 @@ test("a view coming from a embedded can be saved in the embedded actions", async
         expect(values.name).toBe("Custom Embedded Action 2");
         expect(values.action_id).toBe(3);
         expect(values).not.toInclude("python_method");
-        return [4, values.name]; // Fake new embedded action id
+        return [4, values.name];
     });
     onRpc("create_filter", ({ args }) => {
         expect(args[0].domain).toBe(`[["name", "=", "Applejack"]]`);
         expect(args[0].embedded_action_id).toBe(4);
         expect(args[0].user_ids).toEqual([]);
-        return [5]; // Fake new filter id
+        return [5];
     });
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
@@ -525,12 +525,12 @@ test("a view coming from a embedded with python_method can be saved in the embed
             expect(values.name).toBe("Custom Embedded Action 3");
             expect(values.python_method).toBe("do_python_method");
             expect(values).not.toInclude("action_id");
-            return [4, values.name]; // Fake new embedded action id
+            return [4, values.name];
         } else if (method === "create_filter") {
             expect(args[0].domain).toBe(`[["name", "=", "Applejack"]]`);
             expect(args[0].embedded_action_id).toBe(4);
             expect(args[0].user_ids).toEqual([]);
-            return 5; // Fake new filter id
+            return 5;
         } else if (method === "do_python_method") {
             return {
                 id: 4,
@@ -660,7 +660,6 @@ test("User can unselect the main (first) embedded action", async () => {
 });
 
 test("User should be redirected to the first embedded action set in user settings", async () => {
-    // set embedded action 2 in first
     user.updateUserSettings("embedded_actions_config_ids", {
         "1+": {
             embedded_actions_visibility: [102],
@@ -726,7 +725,6 @@ test("execute a regular action from an embedded action", async () => {
 });
 
 test("custom embedded action loaded first", async () => {
-    // set embedded action 4 in first
     user.updateUserSettings("embedded_actions_config_ids", {
         "4+": {
             embedded_actions_visibility: [104],
@@ -783,7 +781,6 @@ test("an action containing embedded actions should reload if the page is refresh
         const values = args[0][0];
         expect(values.name).toBe("Custom Partners Action 1");
         expect(values.action_id).toBe(1);
-        // Add the created embedded action to the actions list so that the mock server knows it when reloading (/web/action/load)
         defineActions([
             ...actions,
             {
@@ -795,16 +792,12 @@ test("an action containing embedded actions should reload if the page is refresh
                 action_id: values.action_id,
             },
         ]);
-        return [4, values.name]; // Fake new embedded action id
+        return [4, values.name];
     });
-    onRpc(
-        "create_filter",
-        () => [5], // Fake new filter id
-    );
+    onRpc("create_filter", () => [5]);
 
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
-    // First, we create a new (custom) embedded action based on the current one
     await contains(".o_control_panel_navigation > button > i.fa-sliders").click();
     await waitFor(".o_popover.dropdown-menu");
     await contains(".o_save_current_view ").click();
@@ -813,12 +806,10 @@ test("an action containing embedded actions should reload if the page is refresh
         message: "Should have 2 embedded actions in the embedded + the dropdown button",
     });
 
-    // Emulate a hard refresh of the page
     rpcBus.trigger("CLEAR-CACHES", "/web/action/load");
     routerBus.trigger("ROUTE_CHANGE");
     await animationFrame();
 
-    // Check that the created embedded action is still there, as the reload should be done
     expect(".o_embedded_actions > button").toHaveCount(3, {
         message:
             "After refresh, we should still have 2 embedded actions in the embedded + the dropdown button",

@@ -13,10 +13,6 @@ import { user } from "@web/services/user";
  * Standard way to interact with the Python ORM from the javascript codebase.
  */
 
-// -----------------------------------------------------------------------------
-// ORM
-// -----------------------------------------------------------------------------
-
 /**
  * @param {any} value
  */
@@ -93,16 +89,26 @@ export const UPDATE_METHODS = [
  * @param {object} [options]
  * @param {boolean} [options.successOnly=false] fire only when the mutation is
  *   known to have succeeded, dropping the "may have committed" failures above.
+ * @param {Iterable<string>} [options.methods] narrow (or replace) the watched
+ *   method set, which defaults to {@link UPDATE_METHODS}. Use it for consumers
+ *   that react to a subset (``result_set_cache_invalidator`` only cares about
+ *   record-REMOVING methods) or to a mutation outside the CRUD set
+ *   (``base.language.install``'s ``lang_install``). Narrowing here rather than
+ *   re-testing inside the handler keeps the error policy above — the subtle
+ *   part — in one place.
  * @returns {() => void} disposer removing the ``rpcBus`` listener. Session-lived
  *   consumers may ignore it; anything shorter-lived MUST call it (see
  *   ``installActionCacheInvalidation``).
  */
-export function onModelMutation(models, handler, { successOnly = false } = {}) {
+export function onModelMutation(
+    models,
+    handler,
+    { successOnly = false, methods = UPDATE_METHODS } = {},
+) {
     const matches =
         typeof models === "function" ? models : (model) => models.includes(model);
+    const watchedMethods = new Set(methods);
     const onResponse = (/** @type {any} */ ev) => {
-        // ``ev.detail`` may be null and ``data``/``params`` absent: synthetic
-        // fires from tests and non-call_kw routes both reach this shared bus.
         const params = ev.detail?.data?.params;
         if (!params) {
             return;
@@ -111,15 +117,10 @@ export function onModelMutation(models, handler, { successOnly = false } = {}) {
         if (typeof model !== "string" || !matches(model)) {
             return;
         }
-        if (!UPDATE_METHODS.includes(method)) {
+        if (!watchedMethods.has(method)) {
             return;
         }
         const { error } = ev.detail;
-        // ``name`` as well as ``instanceof``: an RPC error that crossed a
-        // serialization boundary (or a hand-built payload) keeps the
-        // ``"RPC_ERROR"`` marker but loses its prototype. An error matching
-        // NEITHER is not known to be a rollback, so it falls through to the
-        // handler — consistent with erring toward reacting.
         const isServerRejection =
             error instanceof RPCError || error?.name === "RPC_ERROR";
         if (error && (successOnly || isServerRejection)) {
@@ -156,19 +157,17 @@ export function onModelMutation(models, handler, { successOnly = false } = {}) {
  * out of scope here. Until then the blacklist stays authoritative; add any
  * newly-discovered mutating method here.
  */
-const NON_IDEMPOTENT_METHODS = [
+const NON_IDEMPOTENT_METHODS = new Set([
     ...UPDATE_METHODS,
     "web_resequence",
     "name_create",
     "copy",
-    // Flips ``active`` on the records (odoo/orm/models/mixins/lifecycle.py):
-    // a retry after a lost response would double-flip the archive state.
     "toggle_active",
-];
+]);
 
 export class ORM {
     constructor() {
-        this.rpc = rpc; // to be overridable by the SampleORM
+        this.rpc = rpc;
         /** @protected */
         this._silent = false;
         this._cache = false;
@@ -239,10 +238,7 @@ export class ORM {
      */
     call(model, method, args = [], kwargs = {}) {
         validateModel(model);
-        if (NON_IDEMPOTENT_METHODS.includes(method)) {
-            // Turn the "never apply to writes" docstring convention into a
-            // hard contract: fail at call time, before anything reaches the
-            // network, instead of after a double-applied mutation.
+        if (NON_IDEMPOTENT_METHODS.has(method)) {
             if (this._retry) {
                 throw new Error(
                     `orm.retry() cannot be applied to mutating method "${method}": ` +
@@ -325,19 +321,11 @@ export class ORM {
         validatePrimitiveList("groupby", "string", groupby);
         validatePrimitiveList("aggregates", "string", aggregates);
         const res = await this.call(model, "formatted_read_group", [], {
-            // Positional-wins (like searchRead/webSearchRead): the validated
-            // positional args must not be silently overridden by a stray
-            // same-named key in kwargs.
             ...kwargs,
             domain,
             groupby,
             aggregates,
         });
-        // Build ``__domain`` on a SHALLOW COPY of each group instead of mutating
-        // the RPC result in place: under ``orm.cache({immutable:true})`` the
-        // payload is deep-frozen and shared across warm hits, so an in-place
-        // ``group.__domain = ...`` throws a TypeError in strict mode (and would
-        // otherwise cross-contaminate every future cache reader).
         return res.map((group) => ({
             ...group,
             __domain: Domain.and([domain, group["__extra_domain"]]).toList(),
@@ -363,14 +351,11 @@ export class ORM {
         validateArray("grouping_sets", grouping_sets);
         validatePrimitiveList("aggregates", "string", aggregates);
         const res = await this.call(model, "formatted_read_grouping_sets", [], {
-            // Positional-wins (see formattedReadGroup).
             ...kwargs,
             domain,
             grouping_sets,
             aggregates,
         });
-        // Shallow-copy each group rather than mutate the (possibly deep-frozen,
-        // shared) RPC result in place — see ``formattedReadGroup`` above.
         return res.map((groups) =>
             groups.map((group) => ({
                 ...group,
@@ -444,13 +429,9 @@ export class ORM {
      */
     webReadGroup(model, domain, groupby, aggregates, kwargs = {}) {
         validateArray("domain", domain);
-        // `groupby` was the only read-group list left unvalidated (the
-        // formatted* siblings validate it); a non-string-list here would fail
-        // opaquely server-side.
         validatePrimitiveList("groupby", "string", groupby);
         validatePrimitiveList("aggregates", "string", aggregates);
         return this.call(model, "web_read_group", [], {
-            // Positional-wins (see formattedReadGroup).
             ...kwargs,
             domain,
             groupby,

@@ -28,10 +28,6 @@ import { SEP } from "./graph_model.js";
 
 const NO_DATA = _t("No data");
 
-// Snapshotted once at module load and used for every styling call in this
-// module: switching the color scheme always goes through a full page reload
-// (see web_enterprise's color_scheme_service), so a live cookie read would
-// never observe a different value within one page lifetime.
 const colorScheme = cookie.get("color_scheme");
 const GRAPH_LEGEND_COLOR = getCustomColor(colorScheme, "#111827", "#ffffff");
 const GRAPH_GRID_COLOR = getCustomColor(
@@ -58,7 +54,6 @@ export const gridOnTop = {
         ctx.lineWidth = 1;
         ctx.strokeStyle = GRAPH_GRID_COLOR;
 
-        // Draw Y axis scale
         yAxis.ticks.forEach((value, index) => {
             const y = yAxis.getPixelForTick(index);
             ctx.beginPath();
@@ -70,7 +65,6 @@ export const gridOnTop = {
             ctx.stroke();
         });
 
-        // Draw X axis tick marks
         xAxis.ticks.forEach((value, tickIndex) => {
             const x = xAxis.getPixelForTick(tickIndex);
             ctx.beginPath();
@@ -79,7 +73,6 @@ export const gridOnTop = {
             ctx.stroke();
         });
 
-        // Draw the X axis dashed line
         elements.forEach((point, eltIndex) => {
             xAxis.ticks.forEach((value, tickIndex) => {
                 if (point.active && eltIndex === tickIndex) {
@@ -110,7 +103,6 @@ export function getMaxWidth(chartArea) {
  * @returns {string} shortened version of the input label
  */
 function shortenLabel(label) {
-    // string returned could be wrong if a groupby value contain a " / "!
     const groups = label.toString().split(SEP);
     let shortLabel = groups.slice(0, 3).join(SEP);
     if (shortLabel.length > 30) {
@@ -145,8 +137,6 @@ function formatValue(value, allIntegers = true, formatType = "") {
     }
     return formatFloat(value);
 }
-
-/* Chart data styling */
 
 /**
  * Style bar chart datasets with colors and optional stacking/line overlay.
@@ -184,8 +174,6 @@ export function styleBarChartData(data, metaData, lineOverlayDataset) {
             borderWidth: 2,
             lineWidth: 3,
         });
-        // Don't mutate the original datasets (`this.model.data.datasets`) —
-        // other code depends on them.
         return {
             ...data,
             datasets: [...data.datasets, lineOverlayDataset],
@@ -218,11 +206,6 @@ export function styleLineChartData(data, metaData) {
         dataset.pointRadius = 3;
         dataset.pointHoverRadius = 6;
         if (cumulated && !dataset._fcCumulated) {
-            // Idempotent: mutates ``dataset.data`` in place, and lazy mount
-            // can render this dataset twice. ``_fcCumulated`` marks it done
-            // so a second pass doesn't re-accumulate on top of
-            // ``cumulatedStart``; a model reload yields a fresh array
-            // without the sentinel, so cumulation still runs on new data.
             let accumulator = dataset.cumulatedStart;
             dataset.data = dataset.data.map((value) => {
                 accumulator += value;
@@ -231,11 +214,6 @@ export function styleLineChartData(data, metaData) {
             dataset._fcCumulated = true;
         }
         if (data.labels.length === 1) {
-            // Shift values right to center the single point (see data.labels below).
-            // ``currencyIds`` is built index-aligned with these arrays
-            // (graph_model), so it must shift too — otherwise the point moves to
-            // index 1 while its currency stays at index 0 and ``buildTooltipItems``
-            // reads ``undefined``, dropping the monetary formatting.
             dataset.data.unshift(undefined);
             dataset.trueLabels.unshift(undefined);
             dataset.domains.unshift(undefined);
@@ -243,7 +221,6 @@ export function styleLineChartData(data, metaData) {
         }
         dataset.pointBackgroundColor = dataset.borderColor;
     }
-    // Pad labels so a single point is centered rather than flush left.
     data.labels = data.labels.length > 1 ? data.labels : ["", ...data.labels, ""];
     return data;
 }
@@ -254,11 +231,6 @@ export function styleLineChartData(data, metaData) {
  * @returns {Object}
  */
 export function stylePieChartData(data) {
-    // Idempotent: mutates ``data`` in place, and the component can render
-    // twice per mount. A second pass would treat the no-data placeholder
-    // pushed on the first pass as real data and recolor it. Detect that
-    // placeholder via the trailing ``NO_DATA`` label and return early to
-    // keep its existing ``[NO_DATA_COLOR]`` styling.
     const hasNoDataPlaceholder =
         data.labels.length > 0 &&
         data.labels[data.labels.length - 1] === NO_DATA &&
@@ -266,7 +238,6 @@ export function stylePieChartData(data) {
     if (hasNoDataPlaceholder) {
         return data;
     }
-    // give same color to same groups from different origins
     const colors = data.labels.map((_, index) =>
         getColor(index, colorScheme, data.labels.length),
     );
@@ -330,8 +301,6 @@ export function styleScatterChartData(data) {
     return data;
 }
 
-/* Chart option builders */
-
 /**
  * Build animation options with progressive animation for bar/line and reduced duration for pie.
  * @param {string} mode
@@ -356,8 +325,6 @@ export function buildAnimationOptions(mode, labelsCount) {
                 !delayed &&
                 labelsCount
             ) {
-                // Guard labelsCount: an empty dataset gives gap/0 = Infinity and
-                // dataIndex 0 * Infinity = NaN, which Chart.js rejects.
                 delay = context.dataIndex * (gap / labelsCount);
             }
             return delay;
@@ -437,8 +404,6 @@ export function buildScaleOptions(data, metaData) {
     return { x: xAxe, y: yAxe };
 }
 
-/* Tooltip data extraction */
-
 /**
  * Extract tooltip item data from Chart.js datapoints.
  * @param {Object} data
@@ -453,7 +418,6 @@ export function buildTooltipItems(data, metaData, tooltipModel, lineOverlayDatas
     const items = [];
     for (const item of sortedDataPoints) {
         const index = /** @type {any} */ (item).dataIndex;
-        // If `datasetIndex` is not found in the `datasets`, then it refers to the `lineOverlayDataset`.
         const dataset =
             data.datasets[/** @type {any} */ (item).datasetIndex] || lineOverlayDataset;
         let label = dataset.trueLabels[index];
@@ -491,8 +455,6 @@ export function buildTooltipItems(data, metaData, tooltipModel, lineOverlayDatas
     }
     return items;
 }
-
-/* Legend label generators */
 
 /**
  * Generate legend labels for pie charts.

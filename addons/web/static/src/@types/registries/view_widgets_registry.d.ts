@@ -10,9 +10,6 @@ declare module "registries" {
         name: string;
         options: object;
         widget: ViewWidgetsRegistryItemShape;
-        // The widget XML node carries `type="..."` for the underlying
-        // arch-emitted renderer; tests that build a `Partial<StaticWidgetInfo>`
-        // mock typically include it.
         type?: string;
     }
 

@@ -3,7 +3,9 @@
 import { expect, test } from "@odoo/hoot";
 import {
     animationFrame,
+    click,
     Deferred,
+    edit,
     hover,
     isInViewPort,
     isScrollable,
@@ -204,10 +206,6 @@ test("cancel result on escape keydown", async () => {
 });
 
 test("pending debounced input is cancelled on close (no reopen after escape)", async () => {
-    // Regression: typing schedules a debounced open; pressing Escape closes the
-    // dropdown, but the still-pending debounce used to fire afterwards and
-    // reopen a stale, unfocused dropdown (plus issue a spurious source load).
-    // close() now cancels debouncedProcessInput.
     let loadCount = 0;
     class Parent extends Component {
         static components = { AutoComplete };
@@ -224,14 +222,10 @@ test("pending debounced input is cancelled on close (no reopen after escape)", a
     expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
     const loadsAfterOpen = loadCount;
 
-    // Type without confirming: schedules debouncedProcessInput.
     await contains(".o-autocomplete input").edit("Wor", { confirm: false });
-    // Close before the debounce delay elapses.
     await contains(".o-autocomplete input").press("Escape");
     expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
 
-    // Flush timers: the cancelled debounce must NOT reopen the dropdown nor
-    // trigger another source load.
     await runAllTimers();
     await animationFrame();
     expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
@@ -376,7 +370,7 @@ test("open twice should not display previous results", async () => {
     await runAllTimers();
     expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
     expect(".o-autocomplete--dropdown-item").toHaveCount(1);
-    expect(".o-autocomplete--dropdown-item .fa-spin").toHaveCount(1); // loading
+    expect(".o-autocomplete--dropdown-item .fa-spin").toHaveCount(1);
 
     def.resolve();
     await animationFrame();
@@ -387,7 +381,7 @@ test("open twice should not display previous results", async () => {
     await contains(".o-autocomplete input").fill("A", { confirm: false });
     await runAllTimers();
     expect(".o-autocomplete--dropdown-item").toHaveCount(1);
-    expect(".o-autocomplete--dropdown-item .fa-spin").toHaveCount(1); // loading
+    expect(".o-autocomplete--dropdown-item .fa-spin").toHaveCount(1);
     def.resolve();
     await animationFrame();
     expect(".o-autocomplete--dropdown-item").toHaveCount(2);
@@ -396,13 +390,12 @@ test("open twice should not display previous results", async () => {
     await contains(queryFirst(".o-autocomplete--dropdown-item")).click();
     expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
 
-    // re-open the dropdown -> should not display the previous results
     def = new Deferred();
     await contains(".o-autocomplete input").click();
     await runAllTimers();
     expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
     expect(".o-autocomplete--dropdown-item").toHaveCount(1);
-    expect(".o-autocomplete--dropdown-item .fa-spin").toHaveCount(1); // loading
+    expect(".o-autocomplete--dropdown-item .fa-spin").toHaveCount(1);
 });
 
 test("press enter on autocomplete with empty source", async () => {
@@ -419,7 +412,6 @@ test("press enter on autocomplete with empty source", async () => {
     expect(".o-autocomplete input").toHaveValue("");
     expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
 
-    // click inside the input and press "enter"
     await contains(".o-autocomplete input").click();
     await runAllTimers();
     await contains(".o-autocomplete input").press("Enter");
@@ -430,9 +422,6 @@ test("press enter on autocomplete with empty source", async () => {
 });
 
 test("press enter on autocomplete with empty source (2)", async () => {
-    // in this test, the source isn't empty at some point, but becomes empty as the user
-    // updates the input's value.
-
     class Parent extends Component {
         static components = { AutoComplete };
         static template = xml`<AutoComplete value="''" sources="sources"/>`;
@@ -504,17 +493,14 @@ test("autocomplete in edition keep edited value before select option", async () 
     await runAllTimers();
     expect(".o-autocomplete input").toHaveValue("Yolo");
 
-    // We want to simulate an external value edition (like a delayed onChange)
     await contains(".myButton").hover();
     expect(".o-autocomplete input").toHaveValue("Yolo");
 
-    // Leave inEdition mode when selecting an option
     await contains(".o-autocomplete input").click();
     await runAllTimers();
     await contains(queryFirst(".o-autocomplete--dropdown-item")).click();
     expect(".o-autocomplete input").toHaveValue("My Selection");
 
-    // Will also trigger the hover event
     await contains(".myButton").click();
     expect(".o-autocomplete input").toHaveValue("My Click");
 });
@@ -542,15 +528,12 @@ test("autocomplete in edition keep edited value before blur", async () => {
     await runAllTimers();
     expect(".o-autocomplete input").toHaveValue("");
 
-    // We want to simulate an external value edition (like a delayed onChange)
     await contains(".myButton").hover();
     expect(".o-autocomplete input").toHaveValue("");
 
-    // Leave inEdition mode when blur the input
     await contains(document.body).click();
     expect(".o-autocomplete input").toHaveValue("");
 
-    // Will also trigger the hover event
     await contains(".myButton").click();
     expect(".o-autocomplete input").toHaveValue("My Click 1");
 });
@@ -590,7 +573,6 @@ test("correct sequence of blur, focus and select", async () => {
     expect(".o-autocomplete input").toHaveCount(1);
     await contains(".o-autocomplete input").click();
 
-    // Navigate suggestions using arrow keys
     let dropdownItemIds = queryAllAttributes(".dropdown-item", "id");
     expect(dropdownItemIds).toEqual(["autocomplete_0_0", "autocomplete_0_1"]);
     expect(queryAllAttributes(".dropdown-item", "role")).toEqual(["option", "option"]);
@@ -617,7 +599,6 @@ test("correct sequence of blur, focus and select", async () => {
         dropdownItemIds[1],
     );
 
-    // Start typing hello and click on the result
     await contains(".o-autocomplete input").edit("h", { confirm: false });
     await runAllTimers();
     expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
@@ -625,7 +606,6 @@ test("correct sequence of blur, focus and select", async () => {
     expect.verifySteps(["change", "select Hello"]);
     expect(".o-autocomplete input").toBeFocused();
 
-    // Clear input and focus out
     await contains(".o-autocomplete input").edit("", { confirm: false });
     await runAllTimers();
     await contains(document.body).click();
@@ -691,13 +671,11 @@ test("tab and shift+tab close the dropdown", async () => {
     const input = ".o-autocomplete input";
     const dropdown = ".o-autocomplete--dropdown-menu";
     expect(input).toHaveCount(1);
-    // Tab
     await contains(input).click();
     expect(dropdown).toBeVisible();
     await press("Tab");
     await animationFrame();
     expect(dropdown).not.toHaveCount();
-    // Shift + Tab
     await contains(input).click();
     expect(dropdown).toBeVisible();
     await press("Tab", { shiftKey: true });
@@ -760,12 +738,6 @@ test("selectOnBlur doesn't interfere with selecting by mouse clicking", async ()
 });
 
 test("pointerdown on an unselectable option doesn't latch ignoreBlur", async () => {
-    // Regression: onOptionPointerDown used to set ignoreBlur=true for EVERY
-    // option, then preventDefault for unselectable ones. preventDefault keeps
-    // focus on the input, so no blur fires and ignoreBlur (only cleared in
-    // onInputBlur) stayed latched forever -- swallowing the next real blur and
-    // skipping the selectOnBlur auto-selection. It must only latch for
-    // selectable options (which actually blur the input).
     class Parent extends Component {
         static template = xml`<AutoComplete value="state.value" sources="sources" selectOnBlur="true"/>`;
         static components = { AutoComplete };
@@ -788,11 +760,9 @@ test("pointerdown on an unselectable option doesn't latch ignoreBlur", async () 
     await contains(input).click();
     expect(".o-autocomplete--dropdown-menu").toBeVisible();
 
-    // Press down on the unselectable row (does not blur the input).
     await pointerDown(".o-autocomplete--dropdown-item:last");
     await pointerUp(document.body);
 
-    // A genuine blur must still auto-select the first option via selectOnBlur.
     queryFirst(input).blur();
     await animationFrame();
     expect(input).toHaveValue("World");
@@ -827,7 +797,6 @@ test("autocomplete scrolls when moving with arrows", async () => {
     const msgNotInView = "item should not be in view within dropdown";
     await mountWithCleanup(Parent);
     expect(".o-autocomplete input").toHaveCount(1);
-    // Open with arrow key.
     await contains(".o-autocomplete input").focus();
     await press("ArrowDown");
     await animationFrame();
@@ -835,14 +804,12 @@ test("autocomplete scrolls when moving with arrows", async () => {
     expect(isScrollable(dropdownSelector)).toBe(true, {
         message: "dropdown should be scrollable",
     });
-    // First element focused and visible (dropdown is not scrolled yet).
     expect(".o-autocomplete--dropdown-item:first-child a").toHaveClass(
         "ui-state-active",
     );
     expect(isInViewWithinScrollableY(activeItemSelector)).toBe(true, {
         message: msgInView,
     });
-    // Navigate with the arrow keys. Go to the last item.
     expect(
         isInViewWithinScrollableY(".o-autocomplete--dropdown-item:contains('Up')"),
     ).toBe(false, {
@@ -855,7 +822,6 @@ test("autocomplete scrolls when moving with arrows", async () => {
     expect(isInViewWithinScrollableY(activeItemSelector)).toBe(true, {
         message: msgInView,
     });
-    // Navigate to an item that is not currently visible.
     expect(
         isInViewWithinScrollableY(".o-autocomplete--dropdown-item:contains('Never')"),
     ).toBe(false, { message: "'Never' " + msgNotInView });
@@ -972,10 +938,6 @@ test("unselectable options are... not selectable", async () => {
 });
 
 test("keyboard navigation skips a loaded-but-empty source", async () => {
-    // A source that finished loading with zero options (e.g. a secondary
-    // suggestion provider with no match) must be skipped when arrow keys
-    // cross source boundaries: landing "inside" it used to point
-    // activeSourceOption at a nonexistent option, crashing Enter/Tab.
     class Parent extends Component {
         static template = xml`<AutoComplete value="''" sources="sources"/>`;
         static components = { AutoComplete };
@@ -1010,8 +972,6 @@ test("keyboard navigation skips a loaded-but-empty source", async () => {
         "autocomplete_0_1",
     );
 
-    // Crossing past the last option lands beyond the empty source: nothing
-    // is active, and Enter must be a no-op instead of a crash.
     await press("arrowdown");
     await animationFrame();
     expect(`.o-autocomplete--input`).not.toHaveAttribute("aria-activedescendant");
@@ -1020,7 +980,6 @@ test("keyboard navigation skips a loaded-but-empty source", async () => {
     await animationFrame();
     expect.verifySteps([]);
 
-    // Navigation restarts from the top and selection works again.
     await press("arrowdown");
     await animationFrame();
     expect(`.o-autocomplete--input`).toHaveAttribute(
@@ -1042,8 +1001,6 @@ test("items are selected only when the mouse moves, not just on enter", async ()
         sources = buildSources(() => [item("one"), item("two"), item("three")]);
     }
 
-    // In this test we use custom events to prevent unwanted mouseenter/mousemove events
-
     await mountWithCleanup(Parent);
     queryOne(`.o-autocomplete input`).focus();
     queryOne(`.o-autocomplete input`).click();
@@ -1055,7 +1012,6 @@ test("items are selected only when the mouse moves, not just on enter", async ()
 
     await hover(".o-autocomplete--dropdown-item:nth-child(2)");
     await animationFrame();
-    // mouseenter should be ignored
     expect(
         ".o-autocomplete--dropdown-item:nth-child(2) .dropdown-item",
     ).not.toHaveClass("ui-state-active");
@@ -1090,22 +1046,17 @@ test("keyboard-activated option survives a stray mouseleave", async () => {
         ]);
     }
 
-    // Use raw focus()/click() (no hoot pointer helpers) so no mousemove fires
-    // and mouse selection stays inactive throughout.
     await mountWithCleanup(Parent);
     queryOne(`.o-autocomplete input`).focus();
     queryOne(`.o-autocomplete input`).click();
     await animationFrame();
 
-    // Keyboard-activate the second option.
     await press("arrowdown");
     await animationFrame();
     expect(".o-autocomplete--dropdown-item:nth-child(2) .dropdown-item").toHaveClass(
         "ui-state-active",
     );
 
-    // A stray mouseleave with no preceding mousemove (mouse selection inactive)
-    // must not wipe the keyboard-activated option.
     queryOne(".o-autocomplete--dropdown-item:nth-child(2)").dispatchEvent(
         new MouseEvent("mouseleave"),
     );
@@ -1114,7 +1065,6 @@ test("keyboard-activated option survives a stray mouseleave", async () => {
         "ui-state-active",
     );
 
-    // Enter still selects the surviving option.
     await press("Enter");
     expect.verifySteps(["two"]);
 });
@@ -1151,5 +1101,77 @@ test("do not attempt to scroll if element is null", async () => {
 
     def.resolve();
     await animationFrame();
-    expect(".o-autocomplete .dropdown-item").toHaveCount(23); // + 3 items - loading
+    expect(".o-autocomplete .dropdown-item").toHaveCount(23);
+});
+
+test("a failing source clears its spinner and leaves the other sources usable", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static props = {};
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+        setup() {
+            this.sources = [
+                {
+                    placeholder: "Broken...",
+                    options: () => Promise.reject(new Error("source boom")),
+                },
+                { options: [{ label: "survivor", onSelect: () => {} }] },
+            ];
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    expect.errors(1);
+    await click(".o-autocomplete--input");
+    await animationFrame();
+    await animationFrame();
+    expect.verifyErrors(["source boom"]);
+
+    expect(".o_loading").toHaveCount(0);
+    expect(queryAllTexts(".o-autocomplete--dropdown-item")).toEqual(["survivor"]);
+});
+
+test("a failing source does not reject the fire-and-forget open()", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static props = {};
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+        setup() {
+            this.sources = [{ options: () => Promise.reject(new Error("nope")) }];
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    const autocomplete = Object.values(parent.__owl__.children)[0].component;
+
+    expect.errors(1);
+    await expect(autocomplete.open(true)).resolves.toBe(undefined);
+    await animationFrame();
+    expect.verifyErrors(["nope"]);
+});
+
+test("a new value prop is applied after the edit was abandoned with Escape", async () => {
+    let setValue;
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static props = {};
+        static template = xml`<AutoComplete value="state.value" sources="sources"/>`;
+        setup() {
+            this.state = useState({ value: "initial" });
+            this.sources = [{ options: [{ label: "alpha", onSelect: () => {} }] }];
+            setValue = (value) => (this.state.value = value);
+        }
+    }
+    await mountWithCleanup(Parent);
+    expect(".o-autocomplete--input").toHaveValue("initial");
+
+    await click(".o-autocomplete--input");
+    await edit("typed", { confirm: false });
+    await animationFrame();
+    await press("Escape");
+    await animationFrame();
+
+    setValue("external");
+    await animationFrame();
+
+    expect(".o-autocomplete--input").toHaveValue("external");
 });

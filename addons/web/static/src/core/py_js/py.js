@@ -49,7 +49,6 @@ export function parseExpr(expr) {
     const tokens = tokenize(expr);
     ast = parse(tokens);
     if (_astCache.size >= _AST_CACHE_MAX) {
-        // Evict oldest entry (first inserted — Map preserves insertion order)
         _astCache.delete(_astCache.keys().next().value);
     }
     _astCache.set(expr, ast);
@@ -142,12 +141,10 @@ function collectFreeVariables(node, acc) {
             }
             return;
         }
-        // Plain value map (Dictionary.value, FunctionCall.kwargs): traverse values.
         for (const value of Object.values(node)) {
             collectFreeVariables(value, acc);
         }
     }
-    // Primitives (strings, numbers, booleans, null) carry no free variables.
 }
 
 /**

@@ -70,35 +70,22 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-# Path math: /home/marin/Odoo/addons/odoo/addons/web/tooling/scripts/<this>
-#   parents[0] = scripts/, [1] = tooling/, [2] = web/,
-#   parents[3] = addons/ (inner), [4] = core/, [5] = addons/ (outer),
-#   parents[6] = Odoo/        ← the workspace root we want.
 REPO_ROOT = Path(__file__).resolve().parents[6]
 DEFAULT_BASELINE_PATH = (
     REPO_ROOT / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
 )
 
-# Source-file globs scanned by default.  Edits to this list belong with
-# the gate so PR review sees the scope change alongside any baseline
-# diff.  Exclusions go through the negative-glob mechanism below.
 DEFAULT_SCAN_GLOBS = [
-    # Machine-consumable docs the team treats as authoritative.
     "addons/odoo/addons/web/machine_doc_v1/*.md",
-    # CI workflows that frequently reference plan/audit docs.
     "addons/odoo/.github/workflows/*.yml",
-    # Top-level CLAUDE.md surface (workspace + repo + addon-level).
     "CLAUDE.md",
     "addons/odoo/CLAUDE.md",
     "addons/odoo/addons/web/CLAUDE.md",
-    # Knowledge tree — the most common source of dangling refs.
     "knowledge/agromarin-knowledge/research/*.md",
     "knowledge/agromarin-knowledge/plans/*.md",
     "knowledge/agromarin-knowledge/reference/**/*.md",
 ]
 
-# Negative globs — paths matching these are skipped even if they were
-# captured by a positive glob above.  Excludes generated/vendored docs.
 DEFAULT_EXCLUDES = [
     "**/node_modules/**",
     "**/venv/**",
@@ -106,34 +93,21 @@ DEFAULT_EXCLUDES = [
     "**/static/lib/**",
 ]
 
-# Reference extractors.  Each returns ``(file_offset, raw_path)`` tuples.
-# Patterns favour false-negatives over false-positives — the convention
-# is that real refs are wrapped in backticks or markdown link syntax.
 REF_PATTERNS = [
-    # Markdown links: [text](path.md) or [text](path.md#anchor)
     re.compile(r"\[[^\]]+\]\(([^)]+\.md(?:#[^)]*)?)\)"),
-    # Backtick-wrapped paths.  The ``[/.]`` anchor avoids matching bare
-    # file names like ``CONVENTIONS.md`` without a directory component
-    # (those resolve relative to source file, handled separately).
     re.compile(r"`([^`\s]+\.md)`"),
 ]
 
 
-# Placeholder markers — when a ref contains any of these, treat it as
-# documentation pseudo-syntax rather than a real path.  CLAUDE.md
-# heavily uses placeholders ("``research/YYYY-MM-DD-tXXXXX-topic.md``")
-# to describe naming conventions; flagging these as broken is noise,
-# not signal.
 PLACEHOLDER_MARKERS = (
-    "~",  # ~/Odoo/CLAUDE.md style — home-relative, not repo-relative
-    "<",  # <role>.md, <INITIALS>, etc.
-    "$",  # $PROJECT, $INITIALS environment-variable substitutions
-    "YYYY",  # YYYY-MM-DD-... date placeholders
-    "tXXXXX",  # task-id placeholders
-    "txxxxx",  # case variant
-    "{",  # {var} template substitutions
-    "*",  # *.md glob patterns (e.g. ".claude/agents/*.md") — these
-    # are documentation about file shapes, not real paths
+    "~",
+    "<",
+    "$",
+    "YYYY",
+    "tXXXXX",
+    "txxxxx",
+    "{",
+    "*",
 )
 
 
@@ -146,10 +120,10 @@ def _is_placeholder(raw_path: str) -> bool:
 class Violation:
     """One broken reference, located precisely enough to fix or whitelist."""
 
-    source_file: str  # repo-relative path of the file containing the ref
-    line: int  # 1-based line number where the ref appears
-    raw_path: str  # the path as written
-    resolved_path: str  # absolute path the gate looked for
+    source_file: str
+    line: int
+    raw_path: str
+    resolved_path: str
 
     def key(self) -> tuple[str, str]:
         """Stable key for baseline storage (file × ref-target)."""
@@ -164,15 +138,12 @@ def _strip_anchor(path: str) -> str:
 def _extract_refs(content: str) -> list[tuple[int, str]]:
     """Return (line, raw_path) for every plausible .md reference."""
     refs: list[tuple[int, str]] = []
-    # Pre-compute line offsets so each match's line number is one binary
-    # search away; cheaper than re.split on every match.
     line_starts = [0]
     for i, ch in enumerate(content):
         if ch == "\n":
             line_starts.append(i + 1)
 
     def _line_of(offset: int) -> int:
-        # Bisect via builtin — line_starts is sorted by construction.
         from bisect import bisect_right
 
         return bisect_right(line_starts, offset)
@@ -224,10 +195,6 @@ def _resolve_ref(source_file: Path, raw_path: str) -> Path | None:
         candidate = REPO_ROOT / cleaned
         return candidate if candidate.exists() else None
 
-    # Walk up source-file's ancestry trying ``<ancestor>/<cleaned>``.
-    # This captures both sibling-style refs (resolves at the source's
-    # own directory) and parent-style refs (``doc/X.md`` from a child).
-    # Stop at repo root — beyond that is escape-from-repo territory.
     current = source_file.parent
     while True:
         candidate = (current / cleaned).resolve()
@@ -236,7 +203,7 @@ def _resolve_ref(source_file: Path, raw_path: str) -> Path | None:
         if current == REPO_ROOT:
             break
         if current.parent == current:
-            break  # filesystem root reached without hitting REPO_ROOT
+            break
         current = current.parent
     return None
 
@@ -289,20 +256,10 @@ def scan(
         except OSError, UnicodeDecodeError:
             continue
         for line, raw_path in _extract_refs(content):
-            # Skip documentation pseudo-syntax: ``YYYY-MM-DD-...``,
-            # ``<role>.md``, ``~/path``, etc.  These describe naming
-            # conventions, not real files.
             if _is_placeholder(raw_path):
                 continue
             resolved = _resolve_ref(source_file, raw_path)
             if resolved is None:
-                # Best-effort diagnostic path: mirrors _resolve_ref's
-                # absolute-ref and source-relative branches.  It does NOT
-                # mirror the "looks-rooted" branch (bare ``addons/...``
-                # style refs resolve against REPO_ROOT there, not against
-                # source_file's directory), so for those refs the path
-                # shown here can differ from what _resolve_ref actually
-                # tried — still enough to point a human at the right area.
                 cleaned = _strip_anchor(raw_path)
                 attempted = (
                     str(REPO_ROOT / cleaned.lstrip("/"))
@@ -320,25 +277,6 @@ def scan(
     return violations
 
 
-# ───────────────────────────────────────────────────────────────────────
-# Baseline format
-# ───────────────────────────────────────────────────────────────────────
-#
-# {
-#   "_generated_at": "2026-05-09",
-#   "_total_violations": 3,
-#   "_generator": "...",
-#   "violations": [
-#     {"source_file": "addons/odoo/.github/workflows/lint.yml",
-#      "raw_path": "knowledge/.../audit.md"},
-#     ...
-#   ]
-# }
-#
-# Order is deterministic (sorted by source_file then raw_path) so
-# baseline diffs in PRs reflect real changes, not key reshuffling.
-# Stored fields are the violation's KEY only — line numbers drift on
-# refactor and would generate noise.
 
 
 def load_baseline(path: Path) -> set[tuple[str, str]]:
@@ -381,9 +319,7 @@ def compare(
     return new, removed
 
 
-# ───────────────────────────────────────────────────────────────────────
 # CLI
-# ───────────────────────────────────────────────────────────────────────
 
 
 VIOLATION_PRINT_LIMIT = 50

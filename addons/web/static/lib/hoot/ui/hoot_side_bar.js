@@ -25,21 +25,9 @@ import { HootJobButtons } from "./hoot_job_buttons.js";
  * }} HootSideBarProps
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const { Boolean, location: actualLocation, Object, String } = globalThis;
 
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
-
 const SUITE_CLASSNAME = "hoot-sidebar-suite";
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * @extends {Component<HootSideBarSuiteProps, import("../hoot").Environment>}
@@ -239,14 +227,8 @@ export class HootSideBar extends Component {
         runner.beforeAll(() => {
             const singleRootSuite = runner.rootSuites.filter((suite) => suite.currentJobs.length);
             if (singleRootSuite.length === 1) {
-                // Unfolds only root suite containing jobs
                 this.unfoldAndSelect(singleRootSuite[0]);
             } else {
-                // As the runner might have registered suites after the initial render,
-                // with those suites not being read by this component yet, it will
-                // not have subscribed and re-rendered automatically.
-                // This here allows the opportunity to read all suites one last time
-                // before starting the run.
                 this.render();
             }
         });
@@ -267,8 +249,6 @@ export class HootSideBar extends Component {
         let unfoldedIds;
         let rootSuites;
 
-        // Filtering suites
-
         const parsedQuery = parseQuery(this.state.filter);
         if (parsedQuery.length) {
             allowedIds = new Set();
@@ -288,16 +268,14 @@ export class HootSideBar extends Component {
             rootSuites = runner.rootSuites;
         }
 
-        // Computing unfolded suites
-
         /**
          * @param {Suite} suite
          */
         function addSuite(suite) {
             if (
-                !(suite instanceof Suite) || // Not a suite
-                (allowedIds && !allowedIds.has(suite.id)) || // Not "allowed" (by parent)
-                (hideEmpty && !(suite.reporting.tests || suite.currentJobs.length)) // Filtered because empty
+                !(suite instanceof Suite) ||
+                (allowedIds && !allowedIds.has(suite.id)) ||
+                (hideEmpty && !(suite.reporting.tests || suite.currentJobs.length))
             ) {
                 return;
             }
@@ -332,7 +310,6 @@ export class HootSideBar extends Component {
     }
 
     onClick() {
-        // Unselect suite when clicking outside of a suite & in the side bar
         this.uiState.selectedSuiteId = null;
         this.uiState.resultsPage = 0;
     }

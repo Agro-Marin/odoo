@@ -125,10 +125,8 @@ describe("new", () => {
         }
         await mountWithCleanup(WebClient);
         await getService("action").doAction(5, { onClose });
-        // a target=new action shouldn't activate the on_close
         await getService("action").doAction(5);
         expect.verifySteps([]);
-        // An act_window_close should trigger the on_close
         await getService("action").doAction({
             type: "ir.actions.act_window_close",
             infos: "smallCandle",
@@ -136,16 +134,19 @@ describe("new", () => {
         expect.verifySteps(["Close Action"]);
     });
 
-    test("dialog replacing another dialog: on_close fires once per contract", async () => {
+    test("dialog replacing another dialog: both on_close run, innermost first", async () => {
+        // A replacing dialog does not "close" the one it replaces, so the
+        // replaced dialog's on_close is carried over and fires when the chain
+        // finally closes. It used to be carried over INSTEAD of the replacing
+        // action's own on_close, which was then dropped and never fired at all
+        // — see the resolver test below for why that is not survivable.
         await mountWithCleanup(WebClient);
         await getService("action").doAction(5, {
             onClose: (infos) => expect.step(`origin on_close ${infos}`),
         });
         expect(".o_technical_modal").toHaveCount(1);
-        // Dialog B replaces dialog A: A's on_close must not fire on
-        // replacement; it transfers to B and supersedes B's own onClose.
         await getService("action").doAction(5, {
-            onClose: () => expect.step("replacement on_close"),
+            onClose: (infos) => expect.step(`replacement on_close ${infos}`),
         });
         await animationFrame();
         expect(".o_technical_modal").toHaveCount(1);
@@ -154,9 +155,35 @@ describe("new", () => {
             type: "ir.actions.act_window_close",
             infos: "closed",
         });
-        expect.verifySteps(["origin on_close closed"]);
+        // Innermost first: the order the dialogs would have unwound in had they
+        // been closed one at a time. Each still fires exactly once.
+        expect.verifySteps(["replacement on_close closed", "origin on_close closed"]);
         await animationFrame();
         expect(".o_technical_modal").toHaveCount(0);
+    });
+
+    test("a resolver on_close on a replacing dialog still settles", async () => {
+        // The motivating case. `doAction(..., { onClose: resolve })` is how the
+        // calendar controller and the view-button confirmation flow await a
+        // dialog; dropping that callback left the promise pending forever and
+        // the awaiting caller wedged. Nothing timed out — it simply never
+        // continued — so this failure mode was invisible in a passing suite.
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction(5, { onClose: () => {} });
+        expect(".o_technical_modal").toHaveCount(1);
+
+        let settled = false;
+        const awaited = new Promise((resolve) => {
+            getService("action").doAction(5, { onClose: () => resolve(undefined) });
+        }).then(() => {
+            settled = true;
+        });
+        await animationFrame();
+        expect(settled).toBe(false);
+
+        await getService("action").doAction({ type: "ir.actions.act_window_close" });
+        await awaited;
+        expect(settled).toBe(true);
     });
 
     test("two rapid dialogs over a committed dialog: on_close fires once, on final close", async () => {
@@ -176,26 +203,20 @@ describe("new", () => {
         };
 
         await mountWithCleanup(WebClient);
-        // Commit dialog A, carrying the user onClose.
         await getService("action").doAction(5, {
             onClose: (infos) => expect.step(`committed on_close ${infos}`),
         });
         expect(".o_technical_modal").toHaveCount(1);
 
-        // Dialog B dispatches (steals A's onClose) but cannot mount...
         getService("action").doAction(slowDialogRequest);
         await animationFrame();
-        // ...and dialog C dispatches before B mounted: B is discarded.
         const promC = getService("action").doAction(slowDialogRequest);
         await animationFrame();
 
-        // Discarding the pending B must neither tear down the still-visible
-        // committed dialog A nor fire (or drop) its onClose.
         expect(".o_technical_modal .o_form_view").toHaveCount(1);
         expect(".o_technical_modal").toHaveCount(1);
         expect.verifySteps([]);
 
-        // C mounts: it replaces A silently (the callback rode along to C).
         def.resolve();
         await promC;
         await animationFrame();
@@ -203,7 +224,6 @@ describe("new", () => {
         expect(".o_technical_modal").toHaveCount(1);
         expect.verifySteps([]);
 
-        // Closing the surviving dialog fires the committed onClose, once.
         await getService("action").doAction({
             type: "ir.actions.act_window_close",
             infos: "closed",
@@ -229,8 +249,6 @@ describe("new", () => {
         });
         expect(".o_technical_modal").toHaveCount(1);
 
-        // The replacement crashes before mounting: the committed dialog must
-        // survive, with its onClose handed back.
         await expect(
             getService("action").doAction({
                 type: "ir.actions.client",
@@ -252,12 +270,6 @@ describe("new", () => {
     });
 
     test("a failed replacement's pending slot is cleared by _removeDialog alone", async () => {
-        // Pins the single-owner invariant documented in ControllerComponent's
-        // onError: removing the failed dialog must, on its own, clear the
-        // pending slot and hand the stolen onClose back. A second copy of that
-        // recovery used to sit in onError and was proven unreachable; this test
-        // fails if the recovery is ever removed from `_removeDialog` and left
-        // to a caller.
         class FailingClientAction extends Component {
             static template = xml`<div/>`;
             static props = ["*"];
@@ -283,8 +295,6 @@ describe("new", () => {
         ).rejects.toThrow();
         await animationFrame();
 
-        // The pending slot is empty and the committed dialog got its callback
-        // back — both done by `_removeDialog`, with no help from onError.
         expect(actionService.nextDialog).toBe(null);
         expect(actionService.dialog).not.toBe(null);
         expect(typeof actionService.dialog.onClose).toBe("function");
@@ -295,22 +305,6 @@ describe("new", () => {
     });
 
     test("discarded pending replacement hands the committed on_close back", async () => {
-        // `_dispatchTargetNew` steals the committed dialog's onClose into
-        // `nextDialog.stolenOnClose` and deletes it, on the contract that it
-        // rides along to the replacement. But `_removeDialog`'s identity guard
-        // early-returns when the dialog being removed is the PENDING one, so
-        // the slot is never cleared and the callback never handed back.
-        //
-        // Reachable via an inline (target="current") action dispatched while
-        // the replacement is still loading: that runs `dialog.closeAll()`, so
-        // the committed dialog closes with its onClose already gone and the
-        // caller never learns the wizard flow ended.
-        //
-        // The sibling cases are covered above: B superseded by C, and B
-        // crashing. Both of those recover inside `_removeDialog` too —
-        // ControllerComponent's onError only calls the failed dialog's
-        // `remove()`, which reaches `_removeDialog` synchronously. This is the
-        // transition neither covers.
         const def = new Deferred();
         class SlowDialogAction extends Component {
             static template = xml`<div class="slow_dialog_action"/>`;
@@ -322,17 +316,11 @@ describe("new", () => {
         registry.category("actions").add("never_mounts", SlowDialogAction);
 
         await mountWithCleanup(WebClient);
-        // The point under test is that the callback RUNS at all; the close
-        // params differ by teardown route (an inline action's closeAll passes
-        // its own object, not the `infos` string an explicit act_window_close
-        // carries), so don't couple the assertion to them.
         await getService("action").doAction(5, {
             onClose: () => expect.step("committed on_close"),
         });
         expect(".o_technical_modal").toHaveCount(1);
 
-        // Dispatch a replacement that never mounts, then close everything with
-        // an inline action while it is still pending.
         getService("action").doAction({
             type: "ir.actions.client",
             tag: "never_mounts",
@@ -527,8 +515,6 @@ describe("new", () => {
         expect(".o_technical_modal .modal-footer button.infooter").toHaveCount(1);
         expect(".o_technical_modal .modal-footer button:visible").toHaveCount(1);
         await getService("action").doAction(25);
-        // The replaced dialog is removed once the new one is mounted; flush
-        // the removal render before asserting.
         await animationFrame();
         expect(".o_technical_modal .modal-body button.infooter").toHaveCount(0);
         expect(".o_technical_modal .modal-footer button.infooter").toHaveCount(0);
@@ -573,9 +559,6 @@ describe("new", () => {
         expect(".modal:last .modal-body").toHaveText("Are you sure?");
 
         await contains(".modal:last .modal-footer .btn-primary").click();
-        // needs two renderings to close the ConfirmationDialog:
-        //  - 1 to open the next dialog (the action in target="new")
-        //  - 1 to close the ConfirmationDialog, once the next action is executed
         await animationFrame();
         expect(".modal").toHaveCount(1);
         expect(".modal main .o_content").toHaveText("Another action");
@@ -592,11 +575,9 @@ describe("new", () => {
 
         await mountWithCleanup(WebClient);
 
-        // sanity check: execute an action in target="current"
         await getService("action").doAction(1);
         expect.verifySteps(["Partners Action 1"]);
 
-        // execute an action in target="new"
         await getService("action").doAction(5);
         expect.verifySteps([]);
     });
@@ -680,11 +661,9 @@ describe("new", () => {
     test('breadcrumbs of actions in target="new"', async () => {
         await mountWithCleanup(WebClient);
 
-        // execute an action in target="current"
         await getService("action").doAction(1);
         expect(queryAllTexts(".o_breadcrumb span")).toEqual(["Partners Action 1"]);
 
-        // execute an action in target="new" and a list view (s.t. there is a control panel)
         await getService("action").doAction({
             xml_id: "action_5",
             name: "Create a Partner",
@@ -699,11 +678,9 @@ describe("new", () => {
     test('call switchView in an action in target="new"', async () => {
         await mountWithCleanup(WebClient);
 
-        // execute an action in target="current"
         await getService("action").doAction(4);
         expect(".o_kanban_view").toHaveCount(1);
 
-        // execute an action in target="new" and a list view (s.t. we can call switchView)
         await getService("action").doAction({
             xml_id: "action_5",
             name: "Create a Partner",
@@ -715,8 +692,6 @@ describe("new", () => {
         expect(".modal .o_list_view").toHaveCount(1);
         expect(".o_kanban_view").toHaveCount(1);
 
-        // click on a record in the dialog -> should do nothing as we can't switch view
-        // in the dialog, and we don't want to switch view behind the dialog
         await contains(".modal .o_data_row .o_data_cell").click();
         expect(".modal .o_list_view").toHaveCount(1);
         expect(".o_kanban_view").toHaveCount(1);
@@ -735,9 +710,6 @@ describe("new", () => {
         await getService("action").doAction(action);
         expect(".o_dialog .modal-dialog").toHaveClass("modal-lg");
 
-        // Each doAction below replaces the current dialog; the replaced one
-        // is removed once the new one is mounted, so flush that render
-        // before asserting.
         await getService("action").doAction({
             ...action,
             context: { dialog_size: "small" },
@@ -782,7 +754,6 @@ describe("new", () => {
 
         expect(".o_dialog .modal-dialog .o_list_view").toHaveCount(1);
 
-        // click on a record in the dialog -> should do nothing as we can't switch view in the dialog
         await contains(".modal .o_data_row .o_data_cell").click();
         expect(".o_dialog .modal-dialog .o_list_view").toHaveCount(1);
         expect(".o_form_view").toHaveCount(0);
@@ -793,7 +764,7 @@ describe("fullscreen", () => {
     test('correctly execute act_window actions in target="fullscreen"', async () => {
         await mountWithCleanup(WebClient);
         await getService("action").doAction(15);
-        await animationFrame(); // wait for the webclient template to be re-rendered
+        await animationFrame();
         expect(".o_control_panel").toHaveCount(1, {
             message: "should have rendered a control panel",
         });
@@ -806,11 +777,10 @@ describe("fullscreen", () => {
     test('action after another in target="fullscreen" is not displayed in fullscreen mode', async () => {
         await mountWithCleanup(WebClient);
         await getService("action").doAction(15);
-        await animationFrame(); // wait for the webclient template to be re-rendered
+        await animationFrame();
         expect(".o_main_navbar").toHaveCount(0);
         await getService("action").doAction(1);
-        await animationFrame(); // wait for the webclient template to be re-rendered
-        // The navbar should be displayed again
+        await animationFrame();
         expect(".o_main_navbar").toHaveCount(1);
     });
 
@@ -837,11 +807,11 @@ describe("fullscreen", () => {
         expect(".o_main_navbar").toHaveCount(1);
 
         await contains("button[name='15']").click();
-        await animationFrame(); // wait for the webclient template to be re-rendered
+        await animationFrame();
         expect(".o_main_navbar").toHaveCount(0);
 
         await contains(".breadcrumb li a").click();
-        await animationFrame(); // wait for the webclient template to be re-rendered
+        await animationFrame();
         expect(".o_main_navbar").toHaveCount(1);
     });
 
@@ -865,7 +835,7 @@ describe("fullscreen", () => {
 
         await mountWithCleanup(WebClient);
         await getService("action").doAction(6);
-        await animationFrame(); // for the webclient to react and remove the navbar
+        await animationFrame();
         expect(".o_main_navbar").not.toHaveCount();
 
         await contains("button[name='15']").click();
@@ -913,21 +883,21 @@ describe("fullscreen", () => {
             </form>`;
 
         await mountWithCleanup(WebClient);
-        await animationFrame(); // wait for the load state (default app)
-        await animationFrame(); // wait for the action to be mounted
+        await animationFrame();
+        await animationFrame();
         expect("nav .o_menu_brand").toHaveCount(1);
         expect("nav .o_menu_brand").toHaveText("MAIN APP");
 
         await contains("button[name='24']").click();
-        await animationFrame(); // wait for the webclient template to be re-rendered
+        await animationFrame();
         expect("nav .o_menu_brand").toHaveCount(1);
 
         await contains("button[name='15']").click();
-        await animationFrame(); // wait for the webclient template to be re-rendered
+        await animationFrame();
         expect("nav.o_main_navbar").toHaveCount(0);
 
         await contains(queryAll(".breadcrumb li a")[1]).click();
-        await animationFrame(); // wait for the webclient template to be re-rendered
+        await animationFrame();
         expect("nav .o_menu_brand").toHaveCount(1);
         expect("nav .o_menu_brand").toHaveText("MAIN APP");
     });
@@ -971,7 +941,6 @@ describe("main", () => {
         expect(".o_breadcrumb span").toHaveCount(1);
         expect(".o_control_panel .o_breadcrumb").toHaveText("Partner Action");
 
-        // open first record
         await contains(".o_data_row .o_data_cell").click();
         expect(".o_form_view").toHaveCount(1);
         expect("ol.breadcrumb").toHaveCount(1);
@@ -998,7 +967,6 @@ describe("main", () => {
         expect(".o_breadcrumb span").toHaveCount(1);
         expect(".o_control_panel .o_breadcrumb").toHaveText("Partner Action");
 
-        // open first record
         await contains(".o_data_row .o_data_cell").click();
         expect(".o_form_view").toHaveCount(1);
         expect("ol.breadcrumb").toHaveCount(1);
@@ -1012,7 +980,6 @@ describe("main", () => {
         expect("ol.breadcrumb").toHaveCount(1);
         expect(".o_breadcrumb span").toHaveCount(1);
 
-        // go back to form view
         await contains("ol.breadcrumb .o_back_button").click();
         expect(".o_form_view").toHaveCount(1);
         expect("ol.breadcrumb").toHaveCount(1);

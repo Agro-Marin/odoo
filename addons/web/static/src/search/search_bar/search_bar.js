@@ -21,8 +21,6 @@ import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 import { useNavigation } from "@web/services/navigation/navigation";
 
 const parseValue = (value, fieldType) => {
-    // Registered parser for the type, else identity for parserless types —
-    // exactly what @web/core/field_codec's parse provides.
     const parser = getFieldCodec(fieldType).parse;
     switch (fieldType) {
         case "date": {
@@ -90,14 +88,12 @@ export class SearchBar extends Component {
             this.props.toggler?.state || { showSearchBar: true },
         );
 
-        // core state
         this.state = useState({
             expanded: [],
             query: "",
             subItemsLimits: {},
         });
 
-        // derived state
         this.items = useState([]);
         this.subItems = {};
 
@@ -111,24 +107,15 @@ export class SearchBar extends Component {
 
         this.orm = useService("orm");
 
-        // rejectSuperseded: an outdated expansion's wrapper rejects with a
-        // SupersededError (swallowed in computeState) instead of hanging
-        // forever, so no superseded async frame leaks.
         this.keepLast = new KeepLast({ rejectSuperseded: true });
-        // In-flight sub-item fetches keyed by (searchItemId, query, limit): lets
-        // an overlapping computeState reuse a pending name_search instead of
-        // firing a duplicate RPC when the previous call's subItems write was
-        // dropped by supersession.
         this._pendingSubItems = new Map();
 
         this.inputRef =
             this.env.config.disableSearchBarAutofocus || !this.props.autofocus
                 ? useRef("autofocus")
-                : useAutofocus({ mobile: this.ui.isSmall }); // only force the focus on touch devices on small screens
+                : useAutofocus({ mobile: this.ui.isSmall });
 
         useBus(this.env.searchModel, SearchModelEvent.FOCUS_SEARCH, () => {
-            // The input may not be rendered (e.g. collapsed search bar on
-            // small screens).
             this.inputRef.el?.focus();
         });
 
@@ -155,7 +142,7 @@ export class SearchBar extends Component {
      * @param {Object} [options={}]
      * @param {number[]} [options.expanded]
      * @param {string} [options.query]
-     * @param {Object[]} [options.subItems]
+     * @param {Record<number, Object[]>} [options.subItems]
      * @returns {Promise<void>}
      */
     async computeState(options = {}) {
@@ -169,9 +156,6 @@ export class SearchBar extends Component {
             if (searchItem.type === "field" && searchItem.fieldType === "properties") {
                 tasks.push({
                     id,
-                    // Degrade to an empty expansion on a transient
-                    // property-definition fetch failure rather than letting the
-                    // rejection escape computeState (callers don't catch it).
                     prom: Promise.resolve(
                         this.getSearchItemsProperties(searchItem),
                     ).catch(() => []),
@@ -187,12 +171,6 @@ export class SearchBar extends Component {
             }
         }
 
-        // Always enter the keepLast, even with no async work: a newer
-        // computeState with nothing to fetch must still supersede an in-flight
-        // expansion, otherwise that stale frame resumes on resolution and
-        // overwrites this newer query/expanded state and the input value. The
-        // per-request dedup in `_pendingSubItems` means superseding the frame no
-        // longer wastes the underlying fetch.
         let taskResults;
         try {
             taskResults = await this.keepLast.add(
@@ -200,7 +178,6 @@ export class SearchBar extends Component {
             );
         } catch (error) {
             if (error instanceof SupersededError) {
-                // A newer computeState superseded this one — drop silently.
                 return;
             }
             throw error;
@@ -213,10 +190,6 @@ export class SearchBar extends Component {
         this.state.query = query;
         this.subItems = subItems;
 
-        // The input may not be rendered (e.g. collapsed search bar on small
-        // screens, or a resize that collapsed the bar while a loadMore promise
-        // was still resolving), so `inputRef.el` can be null here — guard it,
-        // like the FOCUS_SEARCH handler does.
         if (this.inputRef.el) {
             /** @type {HTMLInputElement} */ (this.inputRef.el).value = query;
         }
@@ -233,6 +206,7 @@ export class SearchBar extends Component {
         }
 
         this.items.push({
+            id: nextItemId++,
             title: _t("Add a custom filter"),
             isAddCustomFilterButton: true,
         });
@@ -256,8 +230,6 @@ export class SearchBar extends Component {
             (isFieldProperty && FOLDABLE_TYPES.includes(fieldType)) ||
             fieldType === "properties"
         ) {
-            // Do not chose preposition for foldable properties
-            // or the properties item itself
             preposition = null;
         }
         if (
@@ -433,9 +405,6 @@ export class SearchBar extends Component {
                     name: query.trim(),
                 });
             } catch {
-                // A transient autocomplete fetch failure must not escape
-                // computeState (whose callers neither await nor catch it) and
-                // crash the whole client. Degrade to an inline failure sub-item.
                 return [
                     {
                         id: nextItemId++,
@@ -495,33 +464,16 @@ export class SearchBar extends Component {
     }
 
     /**
-     * @param {number} [index]
-     */
-    focusFacet(index) {
-        const facets = this.root.el.getElementsByClassName("o_searchview_facet");
-        if (facets.length) {
-            if (index === undefined) {
-                /** @type {HTMLElement} */ (facets[facets.length - 1]).focus();
-            } else {
-                /** @type {HTMLElement} */ (facets[index]).focus();
-            }
-        }
-    }
-
-    /**
      * @param {Object} facet
      */
     removeFacet(facet) {
         this.env.searchModel.deactivateGroup(facet.groupId);
-        // Guard el like the FOCUS_SEARCH handler / computeState: the input may
-        // not be rendered (collapsed search bar on small screens), so a bare
-        // .focus() would throw. ``?.`` no-ops when there is nothing to focus.
         this.inputRef.el?.focus();
     }
 
     resetState(options = { focus: true }) {
         this.state.subItemsLimits = {};
-        this.computeState({ expanded: [], query: "", subItems: [] });
+        this.computeState({ expanded: [], query: "", subItems: {} });
         if (options.focus) {
             this.inputRef.el?.focus();
         }
@@ -553,14 +505,15 @@ export class SearchBar extends Component {
                 this.state.query !== label &&
                 !item.isChild
             ) {
-                // The query changed but the items haven't re-rendered yet, so select the
-                // item but use the current query (e.g. when scanning a barcode: keystrokes
-                // arrive faster than a rendering cycle).
-                label = this.state.query;
                 try {
+                    // Label and value are one unit: adopting the newer query as
+                    // the label while its parse fails leaves the facet naming a
+                    // value the domain does not use. Rapid typing gets here —
+                    // the item was built for an earlier query.
                     value = parseValue(this.state.query.trim(), fieldType);
+                    label = this.state.query;
                 } catch {
-                    // Rapid typing produced an unparseable intermediate value — keep original
+                    // keep the pair the item was built with
                 }
             }
             this.env.searchModel.addAutoCompletionValues(searchItemId, {
@@ -743,20 +696,15 @@ export class SearchBar extends Component {
                             this.items.findIndex(
                                 (item) => item.isParent && item.searchItemId === id,
                             );
-                        if (item?.isParent && item.isExpanded) {
+                        // `isAvailable` already established that `item` is one
+                        // of these three; there is no fourth case to handle.
+                        if (item.isParent && item.isExpanded) {
                             this.toggleItem(item, false);
-                        } else if (item?.isChild) {
+                        } else if (item.isChild) {
                             navigator.items[findIndex(item.searchItemId)]?.setActive();
-                        } else if (item?.isFieldProperty) {
+                        } else {
                             navigator.items[
                                 findIndex(item.propertyItemId)
-                            ]?.setActive();
-                        } else if (
-                            /** @type {HTMLInputElement} */ (this.inputRef.el)
-                                .selectionStart === 0
-                        ) {
-                            navigator.items[
-                                this.env.searchModel.facets.length - 1
                             ]?.setActive();
                         }
                     },
@@ -764,10 +712,6 @@ export class SearchBar extends Component {
             },
         };
     }
-
-    //---------------------------------------------------------------------
-    // Handlers
-    //---------------------------------------------------------------------
 
     onFacetLabelClick(target, facet) {
         const { domain, groupId } = facet;
@@ -822,15 +766,10 @@ export class SearchBar extends Component {
         const query = /** @type {HTMLInputElement} */ (ev.target).value;
         if (query.trim()) {
             if (!ev.isComposing) {
-                // Protection for IME input
                 this.inputDropdownState.open();
             }
-            this.computeState({ query, expanded: [], subItems: [] });
+            this.computeState({ query, expanded: [], subItems: {} });
         } else {
-            // Reset unconditionally (cheap and idempotent): gating on
-            // `this.items.length` only worked because computeState always
-            // appends the custom-filter pseudo-item, and a stale state.query
-            // would make onClickSearchIcon select a stale suggestion.
             this.inputDropdownState.close();
             this.resetState();
         }
@@ -842,7 +781,6 @@ export class SearchBar extends Component {
     onCompositionEnd(ev) {
         const query = /** @type {HTMLInputElement} */ (ev.target).value;
         if (query.trim()) {
-            // Open dropdown after IME composition is complete
             this.inputDropdownState.open();
         }
     }

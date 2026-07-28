@@ -59,7 +59,6 @@ from odoo.tools import mute_logger
 
 _logger = logging.getLogger(__name__)
 
-# Optional: when absent, diagnostics fall back to top-N absolute contributors.
 _BASELINE_PATH = (
     Path(__file__).resolve().parents[1]
     / "tooling"
@@ -82,90 +81,15 @@ _UPDATE_ENV_VAR = "ODOO_BUNDLE_SIZE_UPDATE_BASELINE"
 class TestWebBundleSize(TransactionCase):
     """Pin upper-bound byte sizes for ESM bundles to catch regressions."""
 
-    # Calibrated 2026-05-10 against the marin190 database (see module
-    # docstring for the calibration workflow). Bump entries here when
-    # intentional growth lands; leave them as-is otherwise so accidental
-    # regressions trip the test.
     BUDGETS = {
-        # Primary backend entry — every backend page load pays this
-        # bundle's TTI cost. 2026-05-13 actual: 3,940,406 bytes.
-        # Recalibrated after web/mail/html_editor IMP wave landed
-        # between 2026-05-10 and 2026-05-13 (FullCalendar v7 RC,
-        # useRenderCounter, aria-live, RPC dedup, save coordinator
-        # guards, ControllerComponent decomposition). Top contributors
-        # remain pre-existing heavy files (emoji_data 461 KB, odoo_sfu
-        # 232 KB) inlined because esbuild here runs without
-        # ``--splitting``; per-view code-splitting is tracked as the
-        # long-term fix (see ``machine_doc_v1/ARCHITECTURE.md``).
         "web.assets_web": 4_335_000,
-        # Public-facing bundle — mobile + cold-cache visitors,
-        # higher cost-per-byte than backend. 2026-05-10 actual:
-        # 1,311,942 bytes.
         "web.assets_frontend": 1_445_000,
-        # Extended frontend bundle — full set of public components.
-        # Loaded after assets_frontend; cumulative cost matters for
-        # public-page UX. 2026-05-10 actual: 1,311,064 bytes.
         "web.assets_frontend_lazy": 1_445_000,
-        # Emoji data shipped lazily by the emoji picker. Sole content
-        # is `emoji_data.js` (~36k lines of generated emoji metadata);
-        # bytes matter because every chat / textarea / mail composer
-        # triggers a load. 2026-05-10 actual: 464,735 bytes.
         "web.assets_emoji": 515_000,
-        # Minimal bootstrap bundle — session.js + cookie + minimal DOM
-        # + lazyloader. First JS every public visitor sees; LCP-critical
-        # on cold cache. Tight budget is intentional: this bundle should
-        # NEVER grow significantly, any growth here is a real regression
-        # to investigate. 2026-05-10 actual: 6,270 bytes.
-        # 2026-07-21 actual: 7,061 bytes — recalibrated after auditing
-        # the 727-byte growth since 2026-06-08 commit by commit: all of
-        # it is correctness fixes to the member files themselves, with
-        # membership unchanged (still the same 5 modules + asset_log
-        # transitively). Notably: lazyloader watchdog for never-settling
-        # scripts + error-path continuation and allSettled retrigger
-        # (97dae36d233, e04f193f5af), cookie.js value escaping +
-        # SameSite=Lax + undefined-value deletion (96c327e9696,
-        # 97dae36d233), upstream 19.0 button-loading-effect race port in
-        # minimal_dom (d482db1b729), a[href] focusability fix in dom/ui
-        # (97dae36d233). Budget = actual + ~10%, same headroom policy as
-        # the original calibration (6,270 → 7,000).
         "web.assets_frontend_minimal": 7_800,
-        # CANARY (not a user-perf budget): dark-mode bundle ships only
-        # CSS to users (template uses ``t-js="false"``). The ~2.83 MB
-        # of JS that esbuild produces here is build artifact and never
-        # reaches a browser — it exists because the manifest does
-        # ``("include", "web.assets_web")`` to inherit SCSS variable
-        # scope, and the include pulls JS along for the ride. Budget
-        # pinned at assets_web's footprint catches the case where a
-        # future change accidentally adds JS contributions unique to
-        # the dark bundle (which would be wrong — dark only ships CSS).
-        # 2026-05-13 actual: 3,940,406 bytes (recalibrated with
-        # assets_web; canary tracks the parent bundle's footprint).
-        #
-        # Stripping the JS via ``("remove", "web/static/**/*.js")`` was
-        # attempted and reverted: the asset pipeline's REMOVE directive
-        # resolves globs against the filesystem, then requires every
-        # matched file to be in the bundle — too strict for a "strip
-        # all JS" use case. The cleanest path forward is restructuring
-        # ``web._assets_core`` (currently mixed JS+SCSS) into a parallel
-        # ``web._assets_core_scss`` sub-bundle so dark/print can inherit
-        # SCSS variable scope without the JS payload. Tracked as future
-        # work; not blocking.
         "web.assets_web_dark": 4_335_000,
-        # CANARY: same shape as assets_web_dark — print bundle ships
-        # only CSS (webclient_templates.xml loads it with
-        # ``t-js="false"``). Build-only JS, pinned to assets_web's
-        # footprint to catch unexpected JS contributions.
-        # 2026-05-13 actual: 3,939,148 bytes (recalibrated with
-        # assets_web; canary tracks the parent bundle's footprint).
         "web.assets_web_print": 4_335_000,
-        # Common report assets — loaded for every PDF/HTML report
-        # render. Regression here slows every printout. 2026-05-10
-        # actual: 88,046 bytes.
         "web.report_assets_common": 97_000,
-        # PDF-specific report assets — extends report_assets_common
-        # for PDF-only renders. Currently skipped on this install
-        # (no native modules); the budget caps the upper bound when
-        # PDF-bundle JS contributions appear in a richer install.
         "web.report_assets_pdf": 1_000_000,
     }
 
@@ -226,13 +150,6 @@ class TestWebBundleSize(TransactionCase):
             js=True,
         )
         if not bundle.native_modules:
-            # Some bundles' contents depend on which addons are
-            # installed (e.g. ``assets_inside_builder_iframe`` only
-            # has content when website/web_studio is around).  Skip
-            # rather than fail so the test stays useful across
-            # different installations: a regression in a sibling
-            # bundle still trips its own assertion, and a bundle that
-            # shows up on a richer install will get measured there.
             self.skipTest(
                 f"Bundle {bundle_name!r} has no native modules in "
                 f"this installation; nothing to measure."
@@ -272,7 +189,6 @@ class TestWebBundleSize(TransactionCase):
             "_total_bytes": total_bytes,
             "inputs": dict(sorted(inputs_map.items())),
         }
-        # Sort top-level bundle keys too for stable output.
         baseline["bundles"] = dict(sorted(bundles.items()))
         _BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
         _BASELINE_PATH.write_text(
@@ -309,8 +225,6 @@ class TestWebBundleSize(TransactionCase):
                     deltas.append((path, base, cur, cur - base))
             deltas.sort(key=lambda t: -t[3])
             if not deltas:
-                # Bundle grew but no per-input regressed — likely a
-                # new input that the baseline doesn't yet know about.
                 new_inputs = [
                     (p, b) for p, b in inputs_map.items() if p not in bundle_baseline
                 ]
@@ -515,7 +429,6 @@ class TestParseMetafileInputs(TransactionCase):
         self.assertEqual(self._parse(""), {})
 
     def test_malformed_json_returns_empty(self):
-        # Defensive: never let a diagnostic helper crash the budget check.
         self.assertEqual(self._parse("not-json"), {})
         self.assertEqual(self._parse("{partial"), {})
 
@@ -542,9 +455,6 @@ class TestParseMetafileInputs(TransactionCase):
         )
 
     def test_sourcemap_output_is_skipped(self):
-        # Only ``.js`` outputs contribute meaningful per-input bytes;
-        # ``.js.map`` entries should be ignored so input bytes aren't
-        # double-counted across map+bundle.
         meta = json.dumps(
             {
                 "outputs": {
@@ -560,8 +470,6 @@ class TestParseMetafileInputs(TransactionCase):
         self.assertEqual(self._parse(meta), {"a.js": 100})
 
     def test_missing_outputs_key_returns_empty(self):
-        # Defensive: shape might drift in a future esbuild release; an
-        # incomplete metafile must not crash the diagnostic.
         self.assertEqual(self._parse(json.dumps({})), {})
         self.assertEqual(self._parse(json.dumps({"outputs": {}})), {})
 

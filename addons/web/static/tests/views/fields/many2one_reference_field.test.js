@@ -177,13 +177,13 @@ test("Many2OneReferenceField set value with search more", async () => {
     expect(".o_dialog .o_list_view").toHaveCount(0);
     expect(".o_field_widget input").toHaveValue("type 7");
     expect.verifySteps([
-        "get_views", // form view
-        "web_read", // partner id 1
-        "web_name_search", // many2one
-        "get_views", // Search more...
-        "web_search_read", // SelectCreateDialog
+        "get_views",
+        "web_read",
+        "web_name_search",
+        "get_views",
+        "web_search_read",
         "has_group",
-        "web_read", // read selected value
+        "web_read",
     ]);
 });
 

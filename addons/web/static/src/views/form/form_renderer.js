@@ -27,6 +27,7 @@ import { ViewButton } from "@web/views/view_button/view_button";
 import { useViewCompiler } from "@web/views/view_compiler";
 import { Widget } from "@web/views/widgets/widget";
 
+import { useFieldIsDirty } from "./field_is_dirty_hook.js";
 import { FormCompiler } from "./form_compiler.js";
 import { FormLabel } from "./form_label.js";
 import { Setting } from "./setting/setting.js";
@@ -57,7 +58,6 @@ export class FormRenderer extends Component {
         archInfo: Object,
         Compiler: { type: Function, optional: true },
         record: Object,
-        // Template props : added by the FormCompiler
         class: { type: String, optional: 1 },
         onNotebookPageChange: { type: Function, optional: true },
         activeNotebookPages: { type: Object, optional: true },
@@ -75,12 +75,11 @@ export class FormRenderer extends Component {
         this.evaluateBooleanExpr = evaluateBooleanExpr;
         const { archInfo, Compiler, record } = this.props;
         const templates = { FormRenderer: archInfo.xmlDoc };
-        this.state = useState(/** @type {any} */ ({})); // Used by Form Compiler
+        this.state = useState(/** @type {any} */ ({}));
         this.templates = useViewCompiler(Compiler || FormCompiler, templates);
+        this.hasUnsavedEdits = useFieldIsDirty(record.model);
         useSubEnv({ model: record.model });
         this.uiService = useService("ui");
-        // The template only reads breakpoint-level sizes (e.g. uiService.size),
-        // so re-render on breakpoint changes only, not on every resize event.
         useBus(this.uiService.bus, AppEvent.RESIZE, /** @type {any} */ (this.render));
         this.onScrollThrottled = useThrottleForAnimation(this.onScroll);
 
@@ -113,10 +112,6 @@ export class FormRenderer extends Component {
                                     .join(", "),
                             );
                     }
-                    // Don't steal focus the user has already placed inside the
-                    // form content — a re-render can re-fire this effect while
-                    // they're typing. Same guard form_controller uses when
-                    // focusing the primary button on leaving edition.
                     if (
                         elementToFocus &&
                         !rootEl
@@ -131,18 +126,12 @@ export class FormRenderer extends Component {
         }
 
         if (this.env.inDialog) {
-            // Ensure id uniqueness by temporarily removing ids that already exist
-            // elsewhere in the DOM (e.g. a form view displayed below this dialog
-            // with the same field names).
             const fieldNodeIds = new Set(Object.keys(this.props.archInfo.fieldNodes));
             const elementsByNodeIds = {};
             onMounted(() => {
                 if (!rootRef.el) {
-                    // t-ref is sometimes set on a <t> node, resulting in a null ref (e.g. footer case)
                     return;
                 }
-                // Single DOM pass: querying `[id=...]` once per field id would
-                // rescan the whole document for each field.
                 for (const el of document.querySelectorAll("[id]")) {
                     const id = el.getAttribute("id");
                     if (id === null) {
@@ -176,10 +165,7 @@ export class FormRenderer extends Component {
     }
 
     async onWillChangeNotebookPage(_notebookId, _page) {
-        // Hack to force _askChanges
         await this.props.record.isDirty();
-        // Notebook.activatePage vetoes the switch only on an explicit `false`
-        // return (`canProceed !== false`); return true to allow the page change.
         return true;
     }
 }

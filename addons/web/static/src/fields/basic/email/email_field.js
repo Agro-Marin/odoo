@@ -3,13 +3,13 @@
 
 /** @module @web/fields/basic/email/email_field - Email input field with mailto link in readonly mode */
 
-import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
+import { TextInputFieldBase } from "@web/fields/basic/text_input_field_base";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class EmailField extends Component {
+export class EmailField extends TextInputFieldBase {
     static template = "web.EmailField";
     static props = {
         ...standardFieldProps,
@@ -20,6 +20,7 @@ export class EmailField extends Component {
     setup() {
         useInputField({
             getValue: () => this.props.record.data[this.props.name] || "",
+            parse: (v) => this.parse(v),
         });
     }
 }

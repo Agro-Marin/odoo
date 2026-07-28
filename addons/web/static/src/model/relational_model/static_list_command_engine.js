@@ -23,6 +23,36 @@ import { getId, isX2Many } from "./field_context.js";
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
 
 /**
+ * Rewrite ``SET`` as the ``CLEAR`` + ``LINK`` sequence it means.
+ *
+ * ``[6, false, ids]`` says "the relation is exactly ``ids``", which is a reset
+ * of membership followed by a link per id — precisely what the CLEAR and LINK
+ * cases already implement. Expanding here keeps one implementation of each
+ * effect instead of a third branch duplicating both.
+ *
+ * @param {[number, any, any][]} commands
+ * @returns {[number, any, any][]}
+ */
+function expandSetCommands(commands) {
+    const { LINK, SET, CLEAR } = x2ManyCommands;
+    if (!commands.some((command) => command[0] === SET)) {
+        return commands;
+    }
+    const expanded = [];
+    for (const command of commands) {
+        if (command[0] !== SET) {
+            expanded.push(command);
+            continue;
+        }
+        expanded.push([CLEAR, false, false]);
+        for (const resId of command[2] || []) {
+            expanded.push([LINK, resId, false]);
+        }
+    }
+    return expanded;
+}
+
+/**
  * Apply a sequence of x2many commands to the list.
  *
  * Splits commands by record id for efficient lookup, handles CREATE/UPDATE/DELETE/UNLINK/LINK,
@@ -38,7 +68,8 @@ export function applyCommands(
     commands,
     /** @type {{ canAddOverLimit?: boolean }} */ { canAddOverLimit } = {},
 ) {
-    const { CREATE, UPDATE, DELETE, UNLINK, LINK } = x2ManyCommands;
+    const { CREATE, UPDATE, DELETE, UNLINK, LINK, CLEAR } = x2ManyCommands;
+    commands = expandSetCommands(commands);
 
     // Split commands by record id for O(1) lookup; re-built into the final list below.
     let lastCommandIndex = -1;
@@ -62,15 +93,88 @@ export function applyCommands(
     const removedIds = {};
     const currentIdsSet = new Set(list._currentIds);
     const recordsToLoad = [];
+    // Ids dropped by a CLEAR in THIS batch. A CLEAR only resets membership:
+    // the commands after it re-declare the list, so an UPDATE/CREATE naming one
+    // of these ids means "still a member, with these values" and must revive it
+    // in place rather than be applied to a row that is about to be filtered out.
+    const clearedIds = new Set();
+
+    /**
+     * Undo a CLEAR's removal for one id, keeping its current position.
+     * @param {string | number} id
+     * @returns {boolean} whether the id was cleared by this batch
+     */
+    function reviveClearedMember(id) {
+        if (!clearedIds.has(id)) {
+            return false;
+        }
+        clearedIds.delete(id);
+        delete removedIds[id];
+        currentIdsSet.add(id);
+        return true;
+    }
+
     for (const command of commands) {
         switch (command[0]) {
+            case CLEAR: {
+                // Membership only: the datapoints stay cached so the commands
+                // that follow can revive them without a reload. Staged commands
+                // described the list just discarded, so they go with it — the
+                // CLEAR itself is staged in their place and serializes through
+                // to the write (see serializeCommands).
+                const hadContent =
+                    list._currentIds.length > 0 ||
+                    Object.keys(commandsByIds).length > 0;
+                for (const id of list._currentIds) {
+                    removedIds[id] = true;
+                    clearedIds.add(id);
+                    delete list._unknownRecordCommands[id];
+                    list._loadingStubIds.delete(id);
+                }
+                currentIdsSet.clear();
+                for (const key of Object.keys(commandsByIds)) {
+                    delete commandsByIds[key];
+                }
+                if (hadContent) {
+                    // Nothing to reset on an untouched empty list (a new record
+                    // whose onchange answers with the conventional leading [5]);
+                    // staging the command there would only prepend a no-op [5]
+                    // to the create payload.
+                    addOwnCommand([CLEAR, false, false]);
+                }
+                break;
+            }
             case CREATE: {
-                const virtualId = getId("virtual");
-                const record = list._createRecordDatapoint(command[2], {
-                    virtualId,
-                });
+                // An onchange echoes the client's own ``[0, virtualId, ...]``
+                // back for a row the user may still be editing. Minting a fresh
+                // id for it strands that datapoint — the open row loses its
+                // input — and stages a second CREATE, so the save writes two
+                // records where the user made one. Reuse the id we already own.
+                const echoedId = command[1];
+                const isEcho = Boolean(echoedId) && echoedId in list._cache;
+                const virtualId = isEcho ? echoedId : getId("virtual");
+                let record;
+                if (isEcho) {
+                    // Merge into the LIVE datapoint rather than rebuilding it:
+                    // a freshly added row is not yet dirty, so
+                    // ``_createRecordDatapoint`` would replace it with a
+                    // readonly one and the row being edited would lose its
+                    // input. Server slot, like the UPDATE case.
+                    record = list._cache[virtualId];
+                    record._applyChanges({}, command[2]);
+                } else {
+                    record = list._createRecordDatapoint(command[2], { virtualId });
+                }
+                if (
+                    !getOwnCommands(virtualId).some((own) => own.command[0] === CREATE)
+                ) {
+                    addOwnCommand([CREATE, virtualId]);
+                }
+                if (reviveClearedMember(virtualId) || currentIdsSet.has(virtualId)) {
+                    break; // already a member, at its current position
+                }
                 list.records.push(record);
-                addOwnCommand([CREATE, virtualId]);
+                currentIdsSet.add(virtualId);
                 const index = list.offset + list.limit;
                 list._currentIds.splice(index, 0, virtualId);
                 if (list.records.length > list.limit) {
@@ -80,6 +184,16 @@ export function applyCommands(
                 break;
             }
             case UPDATE: {
+                if (reviveClearedMember(command[1])) {
+                    // ``[[5], [1, id, vals]]`` is the conventional "here is the
+                    // whole list" answer: the UPDATE re-declares membership, so
+                    // the staged commands need the link the CLEAR dropped.
+                    addOwnCommand(
+                        typeof command[1] === "number"
+                            ? [LINK, command[1], false]
+                            : [CREATE, command[1]],
+                    );
+                }
                 if (!isUpdateRedundant(getOwnCommands(command[1]))) {
                     addOwnCommand([UPDATE, command[1]]);
                 }
@@ -204,6 +318,12 @@ export function applyCommands(
                 if (currentIdsSet.has(record.resId) && !removedIds[record.resId]) {
                     break;
                 }
+                // Re-declares membership after a CLEAR by appending at the
+                // payload's position; the pre-CLEAR copy is dropped by the
+                // removedIds filter below. Drop it from ``clearedIds`` so a
+                // later UPDATE for the same id does not ALSO revive the stale
+                // copy in place — that would leave the row duplicated.
+                clearedIds.delete(record.resId);
                 const displayed =
                     !list.limit || list.records.length < list.limit || canAddOverLimit;
                 if (displayed) {
@@ -234,11 +354,9 @@ export function applyCommands(
                 break;
             }
             default: {
-                // SET (6) / CLEAR (5) are routed around the engine in normal
-                // flows (preprocessX2manyChanges → _replaceWith), but raw
-                // server command lists (parseServerValues, initial commands)
-                // land here — surface a protocol drift loudly instead of
-                // silently keeping stale rows.
+                // Every command the x2many protocol defines has a case above
+                // (SET is expanded into CLEAR + LINK on the way in), so this is
+                // a malformed payload, not a gap — surface it loudly.
                 console.warn(
                     `applyCommands: unhandled x2many command ${command[0]} on ${list.resModel}; command ignored`,
                 );
@@ -275,6 +393,11 @@ export function applyCommands(
         list._currentIds = nextCurrentIds;
         list.count = list._currentIds.length;
     }
+
+    // Membership is settled: re-anchor the page window before filling it, so a
+    // batch that emptied the current page renders the last page with data
+    // instead of a blank one.
+    list._clampOffset();
 
     // Fill the page if it's below the limit — can happen when records were removed while not
     // on the last page, or when removals/additions land exactly at the limit.

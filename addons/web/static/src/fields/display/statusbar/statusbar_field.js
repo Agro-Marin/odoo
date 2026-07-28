@@ -56,8 +56,6 @@ const show = (...els) => els.forEach((el) => el.classList.remove("d-none"));
 /** @extends {Component<StatusBarFieldProps>} */
 export class StatusBarField extends Component {
     static template = "web.StatusBarField";
-    // Upper bound on stages fetched for the many2one variant: a status bar is a
-    // pipeline widget, never a full-relation picker.
     static RELATION_LIMIT = 100;
     static components = {
         Dropdown,
@@ -74,7 +72,6 @@ export class StatusBarField extends Component {
     };
 
     setup() {
-        // Properties
         this.items = {};
         /** @type {StatusBarItem[]} */
         this.allItems = [];
@@ -83,7 +80,6 @@ export class StatusBarField extends Component {
         this.afterRef = useRef("after");
         this.dropdownRef = useRef("dropdown");
 
-        // Resize listeners
         let status = "idle";
         const adjust = () => {
             status = "adjusting";
@@ -99,8 +95,6 @@ export class StatusBarField extends Component {
 
         let forceRecomputeItems = false;
         onWillRender(() => {
-            // Cache the item list once per render: it is read by
-            // getSortedItems, getCurrentLabel and the template.
             this.allItems = this.getAllItems();
             if (status !== "adjusting" || forceRecomputeItems) {
                 Object.assign(this.items, this.getSortedItems());
@@ -115,7 +109,6 @@ export class StatusBarField extends Component {
         useExternalListener(window, "resize", this.throttledAdjust);
         onWillUnmount(() => this.throttledAdjust.cancel());
 
-        // Special data
         if (this.field.type === "many2one") {
             this.specialData = useSpecialData(async (orm, props) => {
                 const { foldField, name: fieldName, record, context } = props;
@@ -134,10 +127,6 @@ export class StatusBarField extends Component {
                 }
                 const res = await orm.searchRead(relation, domain, fieldNames, {
                     context,
-                    // A status bar renders a bounded pipeline of stages; without
-                    // a cap a cold form pulls the ENTIRE relation for the handful
-                    // of arrows it shows. The current value is already OR'd into
-                    // `domain` above, so it survives the cap even past the limit.
                     limit: StatusBarField.RELATION_LIMIT,
                 });
                 forceRecomputeItems = true;
@@ -145,7 +134,6 @@ export class StatusBarField extends Component {
             });
         }
 
-        // Command palette
         if (this.props.withCommand) {
             const moveToCommandName = _t("Move to %s...", this.field.string);
             useCommand(
@@ -231,7 +219,6 @@ export class StatusBarField extends Component {
         const itemsBefore = itemEls.slice(selectedIndex + 2).reverse();
         const itemsAfter = itemEls.slice(0, Math.max(selectedIndex - 1, 0)).reverse();
 
-        // Reset hidden elements
         show(...itemEls);
         hide(this.dropdownRef.el, this.beforeRef.el);
         if (this.items.folded.length) {
@@ -242,13 +229,11 @@ export class StatusBarField extends Component {
             itemEls[0]?.classList.add("o_first");
         }
 
-        // Reset items variables
         this.items.before = [];
         this.items.after = [...this.items.folded];
         const itemsToAssign = this.allItems.filter((item) => !item.isFolded);
 
         if (this.env.isSmall && this.items.inline.length) {
-            // Small screen case: only a single dropdown
             show(this.dropdownRef.el);
             hide(this.beforeRef.el, this.afterRef.el, ...itemEls);
             return;
@@ -256,17 +241,14 @@ export class StatusBarField extends Component {
 
         while (this.areItemsWrapping()) {
             if (itemsBefore.length) {
-                // Case 1: elements before can be hidden
                 show(this.beforeRef.el);
                 hide(itemsBefore.shift());
                 this.items.before.push(itemsToAssign.shift());
             } else if (itemsAfter.length) {
-                // Case 2: elements before are hidden, elements after can be hidden
                 show(this.afterRef.el);
                 hide(itemsAfter.pop());
                 this.items.after.unshift(itemsToAssign.pop());
             } else {
-                // Last resort: no elements can be hidden => fallback to single dropdown
                 show(this.dropdownRef.el);
                 hide(this.beforeRef.el, this.afterRef.el, ...itemEls);
                 break;
@@ -292,7 +274,6 @@ export class StatusBarField extends Component {
         const { foldField, name, record } = this.props;
         const currentValue = record.data[name];
         if (this.field.type === "many2one") {
-            // Many2one
             return this.specialData.data.map((option) => ({
                 value: option.id,
                 label: option.display_name,
@@ -300,7 +281,6 @@ export class StatusBarField extends Component {
                 isSelected: Boolean(currentValue && option.id === currentValue.id),
             }));
         } else {
-            // Selection
             let { selection } = this.field;
             const { visibleSelection } = this.props;
             if (visibleSelection?.length) {
@@ -347,7 +327,7 @@ export class StatusBarField extends Component {
                 /** @type {any} */ ((item) => item.isSelected || !item.isFolded),
             )
         );
-        inline.reverse(); // CSS rules account for this list to be reversed
+        inline.reverse();
         after.push(...folded);
         return { inline, before, after, folded };
     }
@@ -397,8 +377,6 @@ export const statusBarField = {
     isEmpty: (record, fieldName) => !record.data[fieldName],
     extractProps: ({ attrs, options, viewType }, dynamicInfo) => ({
         isDisabled: !options.clickable || dynamicInfo.readonly,
-        // An empty attribute must mean "no restriction", not `[""]` (which
-        // would filter the selection down to the current value only).
         visibleSelection: attrs.statusbar_visible?.trim()
             ? attrs.statusbar_visible.trim().split(/\s*,\s*/g)
             : undefined,

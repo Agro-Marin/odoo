@@ -32,9 +32,6 @@ export const slowRpcService = {
     start(_env, { notification }) {
         /** @type {Map<number, { timeoutId: any, isSlow: boolean }>} */
         const pending = new Map();
-        // One shared toast, refcounted: N concurrent slow RPCs must not stack
-        // N identical notifications. Shown on the first threshold crossing,
-        // closed when the last slow request settles.
         let slowCount = 0;
         /** @type {(() => void) | null} */
         let closeNotification = null;
@@ -45,9 +42,6 @@ export const slowRpcService = {
                 return;
             }
             const { data, settings } = detail;
-            // Same silent opt-out as the loading indicator (the only other
-            // RPC:REQUEST consumer that honors it). Note ``silent`` does NOT
-            // suppress error dialogs — the error service ignores it.
             if (settings?.silent) {
                 return;
             }
@@ -92,10 +86,6 @@ export const slowRpcService = {
         rpcBus.addEventListener(RpcEvent.RESPONSE, onResponse);
 
         return {
-            // ``rpcBus`` is a module-singleton: without teardown every started
-            // env leaves a permanent REQUEST/RESPONSE listener that keeps
-            // popping toasts for a dead env (and amplifies across test suites
-            // that create many envs). Called by ``env.destroy()``.
             destroy() {
                 rpcBus.removeEventListener(RpcEvent.REQUEST, onRequest);
                 rpcBus.removeEventListener(RpcEvent.RESPONSE, onResponse);

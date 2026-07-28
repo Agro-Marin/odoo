@@ -64,7 +64,6 @@ function replaceNotificationService() {
 }
 
 test("The domain editor should not crash the view when given a dynamic filter (allow_expressions=False)", async function () {
-    // dynamic filters (variables like uid, parent, today) are handled by the domain editor
     Partner._records[0].foo = `[("int", "=", uid)]`;
 
     replaceNotificationService();
@@ -173,10 +172,8 @@ test("basic domain field usage is ok", async function () {
             </form>`,
     });
 
-    // As the domain is empty, there should be a button to add a new rule
     expect(SELECTORS.addNewRule).toHaveCount(1);
 
-    // Clicking the button adds the [["id", "=", "1"]] domain, revealing a field selector.
     await addNewRule();
     expect(".o_model_field_selector").toHaveCount(1, {
         message: "there should be a field selector",
@@ -186,10 +183,8 @@ test("basic domain field usage is ok", async function () {
     expect(".o_model_field_selector_popover").toHaveCount(1);
     expect(".o_model_field_selector_popover_search input").toHaveCount(1);
 
-    // partner.type's fields include "Color index"
     expect(".o_model_field_selector_popover_item_name:first").toHaveText("Color index");
 
-    // Selecting the field closes the popover; setting color=2 should match one record.
     await contains(".o_model_field_selector_popover_item_name").click();
 
     await editValue(2);
@@ -198,7 +193,6 @@ test("basic domain field usage is ok", async function () {
         message: "changing color value to 2 should reveal only one record",
     });
 
-    // Saving should show a readonly domain containing the "color" field
     await contains(".o_form_button_save").click();
     expect(getCurrentPath()).toBe("Color index");
 });
@@ -253,7 +247,6 @@ test("domain field is correctly reset on every view change", async function () {
             </form>`,
     });
 
-    // Domain is [["id", "=", 1]] so there should be a field selector to change it
     expect(".o_field_domain .o_model_field_selector").toHaveCount(1, {
         message: "there should be a field selector",
     });
@@ -263,7 +256,6 @@ test("domain field is correctly reset on every view change", async function () {
         message: "field selector popover should be visible",
     });
 
-    // "bar" is "product", so the popover should list "product" fields
     expect(".o_model_field_selector_popover_item").toHaveCount(7, {
         message: "field selector popover should contain only one non-default field",
     });
@@ -278,7 +270,6 @@ test("domain field is correctly reset on every view change", async function () {
         message: "field selector popover should be visible",
     });
 
-    // Now the list of fields should be the ones of the "partner.type" model
     expect(".o_model_field_selector_popover_item").toHaveCount(6, {
         message: "field selector popover should contain two non-default fields",
     });
@@ -310,7 +301,6 @@ test("domain field can be reset with a new domain (from onchange)", async functi
         message: "the domain being empty, there should be 3 records",
     });
 
-    // update name to trigger the onchange and reset foo
     await contains(".o_field_widget[name='name'] input").edit("new value");
     await animationFrame();
     expect(".o_domain_show_selection_button").toHaveText("1 record(s)", {
@@ -382,8 +372,6 @@ test("basic domain field: show the selection", async function () {
         message: "should have open a list view with 2 records in a dialog",
     });
 
-    // Clicking a record should not open it; not asserted directly, but if it
-    // tried to it would crash since this test defines no arch.
     await contains(
         ".modal .o_list_view .o_data_row .o_data_cell[data-tooltip='gold']",
     ).click();
@@ -450,7 +438,6 @@ test("domain field: manually edit domain with textarea", async function () {
     expect(".o_domain_show_selection_button").toHaveText("2 record(s)");
 
     await contains(SELECTORS.debugArea).edit("[['id', '<', 40]]");
-    // the count should not be re-computed when editing with the textarea
     expect(".o_domain_show_selection_button").toHaveText("2 record(s)");
     expect.verifySteps([]);
 
@@ -509,7 +496,6 @@ test("domain field: manually set an invalid domain with textarea", async functio
 
     await contains(SELECTORS.debugArea).edit("[['abc', '=', 1]]");
     await animationFrame();
-    // the count should not be re-computed when editing with the textarea
     expect(".o_domain_show_selection_button").toHaveText("2 record(s)");
     expect.verifySteps([]);
 
@@ -563,7 +549,6 @@ test("domain field: reload count by clicking on the refresh button", async funct
     expect(".o_domain_show_selection_button").toHaveText("2 record(s)");
 
     await contains(SELECTORS.debugArea).edit("[['id', '<', 40]]");
-    // the count should not be re-computed when editing with the textarea
     expect(".o_domain_show_selection_button").toHaveText("2 record(s)");
 
     await contains(".o_refresh_count").click();
@@ -780,10 +765,6 @@ test("domain field: edit through selector (dynamic content)", async function () 
     };
 
     onRpc(({ method }) => {
-        // ``lazy_session_info`` is a fork-local boilerplate RPC fired on
-        // WebClient bootstrap (see ir_http.lazy_session_info hook); it is
-        // unrelated to the domain-widget behavior under test, so we filter
-        // it out of the step trace to keep the assertion focused.
         if (method !== "lazy_session_info") {
             expect.step(method);
         }
@@ -810,7 +791,6 @@ test("domain field: edit through selector (dynamic content)", async function () 
     });
     expect.verifySteps(["search_count"]);
 
-    // Open and close the datepicker
     await contains(".o_datetime_input").click();
     expect(".o_datetime_picker").toHaveCount(1);
     await scroll(getFixture(), { top: 10 }, { scrollable: false });
@@ -818,7 +798,6 @@ test("domain field: edit through selector (dynamic content)", async function () 
     expect(SELECTORS.debugArea).toHaveValue(rawDomain);
     expect.verifySteps([]);
 
-    // Manually input a date
     rawDomain = `[("date", ">=", "2020-09-09")]`;
     await contains(".o_datetime_input").edit("09/09/2020");
     expect.verifySteps(["search_count"]);
@@ -1056,15 +1035,12 @@ test("domain field can be foldable", async function () {
             </form>`,
     });
 
-    // As the domain is empty, the "Match all records" span should be visible
     expect(".o_field_domain span").toHaveText("Match all records");
 
-    // Unfold the domain
     await contains(".o_field_domain > div > div").click();
 
     expect(SELECTORS.addNewRule).toHaveCount(1);
 
-    // Clicking the button adds the [["id", "=", "1"]] domain, revealing a field selector.
     await addNewRule();
     expect(".o_model_field_selector").toHaveCount(1);
 
@@ -1072,10 +1048,8 @@ test("domain field can be foldable", async function () {
     expect(".o_model_field_selector_popover").toHaveCount(1);
     expect(".o_model_field_selector_popover_search input").toHaveCount(1);
 
-    // partner.type's fields include "Color index"
     expect(".o_model_field_selector_popover_item_name:first").toHaveText("Color index");
 
-    // Selecting the field closes the popover; setting color=2 should match one record.
     await contains(".o_model_field_selector_popover_item_name").click();
 
     await editValue(2);
@@ -1084,11 +1058,9 @@ test("domain field can be foldable", async function () {
         message: "changing color value to 2 should reveal only one record",
     });
 
-    // Saving should show a readonly domain containing the "color" field
     await contains(".o_form_button_save").click();
     expect(getCurrentPath()).toBe("Color index");
 
-    // Fold domain selector
     await contains(".o_field_domain a i").click();
 
     expect(".o_field_domain .o_facet_values:contains('Color index = 2')").toHaveCount(
@@ -1113,21 +1085,16 @@ test("add condition in empty foldable domain", async function () {
                 </sheet>
             </form>`,
     });
-    // As the domain is not empty, the "Add condition" button should not be available
     expect(".o_domain_add_first_node_button").toHaveCount(0);
 
-    // Unfold the domain and delete the condition
     await contains(".o_field_domain > div > div").click();
     await clickOnButtonDeleteNode();
 
-    // Fold domain selector
     await contains(".o_field_domain a i").click();
 
-    // As the domain is empty, the "Add condition" button should now be available
     expect(".o_domain_add_first_node_button").toHaveCount(1);
 
     await contains(".o_domain_add_first_node_button").click();
-    // Domain is now unfolded with the default condition
     expect(".o_model_field_selector").toHaveCount(1);
     expect(SELECTORS.debugArea).toHaveValue('[("id", "=", 1)]');
 });
@@ -1300,8 +1267,6 @@ test("allow_expressions = false (default)", async function () {
 });
 
 test("domain field: out-of-order counts, only the latest is shown (KeepLast)", async function () {
-    // Two rapid domain changes fire two un-awaited search_count RPCs. If the
-    // stale one resolves last, it must not overwrite the count of the latest.
     Partner._fields.name = fields.Char({
         onChange: (obj) => {
             obj.foo = `[("id", "=", 1)]`;
@@ -1328,17 +1293,14 @@ test("domain field: out-of-order counts, only the latest is shown (KeepLast)", a
             </form>`,
     });
 
-    // Initial load queues a first (empty domain) count, still pending.
     expect(defs).toHaveLength(1);
 
-    // Trigger the onchange: foo changes, queuing a second count, also pending.
     await contains(".o_field_widget[name='name'] input").edit("new value");
     await animationFrame();
     expect(defs).toHaveLength(2);
 
-    // Resolve the latest first, then the stale one.
-    defs[1].resolve(1); // latest edit -> 1 record
-    defs[0].resolve(3); // stale initial load -> 3 records (must be discarded)
+    defs[1].resolve(1);
+    defs[0].resolve(3);
     await animationFrame();
 
     expect(".o_domain_show_selection_button").toHaveText("1 record(s)");

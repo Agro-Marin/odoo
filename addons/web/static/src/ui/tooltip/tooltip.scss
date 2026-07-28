@@ -12,8 +12,6 @@
     animation: o-fadeIn $o-duration-fast $o-easing-standard;
     border-radius: $o-border-radius;
 
-    // Note: Not cross-browser but not such a big deal since it's
-    // needed for minor aesthetic adaptations only.
     &:has(.o-tooltip--technical) {
         max-width: $tooltip-max-width * 2;
 

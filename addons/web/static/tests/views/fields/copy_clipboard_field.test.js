@@ -29,7 +29,7 @@ class Partner extends models.Model {
     ];
 
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <sheet>
                     <group>

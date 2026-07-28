@@ -35,11 +35,6 @@ class Partner(http.Controller):
                     used_names = set()
                     for p in partners:
                         label = p.name or p.email or f"contact_{p.id}"
-                        # Sanitize: a partner named e.g. "../../../evil" would
-                        # otherwise write a traversing zip entry (zip-slip against
-                        # a non-hardening extractor). De-duplicate too: two
-                        # partners sharing a name collide into one entry, which
-                        # zipfile silently keeps the last of — dropping records.
                         name = osutil.clean_filename(f"{label}.vcf")
                         candidate, i = name, 1
                         while candidate in used_names:

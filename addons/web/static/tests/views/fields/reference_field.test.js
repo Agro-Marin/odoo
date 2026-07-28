@@ -135,7 +135,7 @@ test("ReferenceField can quick create models", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="reference" /></form>`,
+        arch: `<form><field name="reference" /></form>`,
     });
 
     await click("select");
@@ -152,8 +152,8 @@ test("ReferenceField can quick create models", async () => {
     expect.verifySteps([
         "get_views",
         "onchange",
-        "web_name_search", // for the select
-        "web_name_search", // for the spawned many2one
+        "web_name_search",
+        "web_name_search",
         "name_create",
         "web_save",
     ]);
@@ -163,7 +163,7 @@ test("ReferenceField respects no_quick_create", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="reference" options="{'no_quick_create': 1}" /></form>`,
+        arch: `<form><field name="reference" options="{'no_quick_create': 1}" /></form>`,
     });
 
     await click("select");
@@ -185,13 +185,13 @@ test("ReferenceField in modal readonly mode", async () => {
     Partner._records[1].trululu = 1;
     Partner._records[1].reference = "product,41";
 
-    Partner._views[["form", false]] = /* xml */ `
+    Partner._views[["form", false]] = `
         <form>
             <field name="display_name" />
             <field name="reference" />
         </form>
     `;
-    Partner._views[["list", false]] = /* xml */ `
+    Partner._views[["list", false]] = `
         <list>
             <field name="display_name"/>
             <field name="reference" />
@@ -202,7 +202,7 @@ test("ReferenceField in modal readonly mode", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form edit="0">
                 <field name="reference" />
                 <field name="p" />
@@ -210,7 +210,6 @@ test("ReferenceField in modal readonly mode", async () => {
         `,
     });
 
-    // Current Form
     expect(".o_field_widget[name=reference] .o_form_uri").toHaveText("xphone", {
         message: "the field reference of the form should have the right value",
     });
@@ -220,7 +219,6 @@ test("ReferenceField in modal readonly mode", async () => {
     await click(".o_data_cell");
     await animationFrame();
 
-    // In modal
     expect(".modal-lg").toHaveCount(1);
     expect(".modal-lg .o_field_widget[name=reference] .o_form_uri").toHaveText("xpad", {
         message: "The field reference in the modal should have the right value",
@@ -232,13 +230,13 @@ test("ReferenceField in modal write mode", async () => {
     Partner._records[1].trululu = 1;
     Partner._records[1].reference = "product,41";
 
-    Partner._views[["form", false]] = /* xml */ `
+    Partner._views[["form", false]] = `
         <form>
             <field name="display_name" />
             <field name="reference" />
         </form>
     `;
-    Partner._views[["list", false]] = /* xml */ `
+    Partner._views[["list", false]] = `
         <list>
             <field name="display_name"/>
             <field name="reference" />
@@ -249,7 +247,7 @@ test("ReferenceField in modal write mode", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="reference" />
                 <field name="p" />
@@ -257,7 +255,6 @@ test("ReferenceField in modal write mode", async () => {
         `,
     });
 
-    // Current Form
     expect(".o_field_widget[name=reference] option:checked").toHaveText("Product", {
         message: "The reference field's model should be Product",
     });
@@ -271,7 +268,6 @@ test("ReferenceField in modal write mode", async () => {
     await click(".o_data_cell");
     await animationFrame();
 
-    // In modal
     expect(".modal-lg").toHaveCount(1, { message: "there should be one modal opened" });
     expect(".modal-lg .o_field_widget[name=reference] option:checked").toHaveText(
         "Product",
@@ -289,7 +285,7 @@ test("ReferenceField in modal write mode", async () => {
 test("reference in form view", async () => {
     expect.assertions(11);
 
-    Product._views[["form", false]] = /* xml */ `
+    Product._views[["form", false]] = `
         <form>
             <field name="display_name" />
         </form>
@@ -340,7 +336,7 @@ test("reference in form view", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -401,10 +397,8 @@ test("reference in form view", async () => {
 test("Many2One 'Search more...' updates on resModel change", async () => {
     onRpc("has_group", () => true);
 
-    Product._views[["list", false]] =
-        /* xml */ `<list><field name="display_name"/></list>`;
-    Product._views[["search", false]] = /* xml */ `<search/>`;
-    // more records than the search limit, so "Search more..." shows up
+    Product._views[["list", false]] = `<list><field name="display_name"/></list>`;
+    Product._views[["search", false]] = `<search/>`;
     for (let i = 0; i < 8; i++) {
         Product._records.push({ id: 100 + i, name: `zzz ${i}` });
     }
@@ -412,19 +406,16 @@ test("Many2One 'Search more...' updates on resModel change", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="reference"/></form>`,
+        arch: `<form><field name="reference"/></form>`,
     });
 
-    // Selecting a relation
     await click("div.o_field_reference select.o_input");
     await select("partner.type");
 
-    // Selecting another relation
     await click("div.o_field_reference select.o_input");
     await select("product");
     await animationFrame();
 
-    // Opening the Search more... option
     await click("div.o_field_reference input.o_input");
     await animationFrame();
     await click("div.o_field_reference .o_m2o_dropdown_option_search_more");
@@ -452,7 +443,7 @@ test("computed reference field changed by onchange to 'False,0' value", async ()
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="bar"/>
                 <field name="reference_char" widget="reference"/>
@@ -460,7 +451,6 @@ test("computed reference field changed by onchange to 'False,0' value", async ()
         `,
     });
 
-    // trigger the onchange to set a value for the reference field
     await click(".o_field_boolean input");
     await animationFrame();
 
@@ -484,7 +474,7 @@ test("interact with reference field changed by onchange", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="bar"/>
                 <field name="reference"/>
@@ -492,20 +482,17 @@ test("interact with reference field changed by onchange", async () => {
         `,
     });
 
-    // trigger the onchange to set a value for the reference field
     await click(".o_field_boolean input");
     await animationFrame();
 
     expect(".o_field_widget[name=reference] select").toHaveValue("partner");
 
-    // manually update reference field
     queryFirst(".o_field_widget[name=reference] input").tabIndex = 0;
     await click(".o_field_widget[name=reference] input");
     await edit("aaa");
     await runAllTimers();
     await click(".ui-autocomplete .ui-menu-item");
 
-    // save
     await clickSave();
 });
 
@@ -527,7 +514,7 @@ test("default_get and onchange with a reference field", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -546,7 +533,6 @@ test("default_get and onchange with a reference field", async () => {
         message: "reference field value should be correctly set",
     });
 
-    // trigger onchange
     await click(".o_field_widget[name=int_field] input");
     await edit(12, { confirm: "enter" });
     await animationFrame();
@@ -565,7 +551,7 @@ test("default_get a reference field in a x2m", async () => {
         relation_field: "turtle_trululu",
         default: [[0, 0, { turtle_ref: "product,37" }]],
     });
-    Turtle._views[["form", false]] = /* xml */ `
+    Turtle._views[["form", false]] = `
         <form>
             <field name="display_name" />
             <field name="turtle_ref" />
@@ -575,7 +561,7 @@ test("default_get a reference field in a x2m", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <field name="turtles">
@@ -594,12 +580,6 @@ test("default_get a reference field in a x2m", async () => {
 });
 
 test("ReferenceField on char field: editing writes the 'model,id' string", async () => {
-    // Regression: a char-backed reference must persist the wire-format
-    // "model,id" STRING, not the {resModel, resId, displayName} object used for
-    // real reference fields. Writing the object crashed the record observer
-    // (_fetchReferenceCharData does recordData.split(",")) and sent the wrong
-    // shape to the server. This test drives the editable path the readonly
-    // char-reference tests never exercised.
     expect.assertions(2);
     Partner._records[0].reference_char = "product,37";
     onRpc("web_save", ({ args }) => {
@@ -609,15 +589,13 @@ test("ReferenceField on char field: editing writes the 'model,id' string", async
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="reference_char" widget="reference"/>
             </form>
         `,
     });
 
-    // model select is already "product"; change the referenced record via the
-    // autocomplete input, which routes through updateM2O (the fixed write path).
     queryFirst(".o_field_widget[name=reference_char] input").tabIndex = 0;
     await click(".o_field_widget[name=reference_char] input");
     await edit("xpad");
@@ -642,7 +620,7 @@ test("ReferenceField on char field, reset by onchange", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -658,7 +636,6 @@ test("ReferenceField on char field, reset by onchange", async () => {
     expect(".o_field_widget[name=foo]").toHaveText("xphone", {
         message: "foo field should be correctly set",
     });
-    // trigger onchange
     await click(".o_field_widget[name=int_field] input");
     await edit(41, { confirm: "enter" });
     await runAllTimers();
@@ -675,14 +652,13 @@ test("reference and list navigation", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list editable="bottom">
                 <field name="reference" />
             </list>
         `,
     });
 
-    // edit first row
     await click(".o_data_row .o_data_cell");
     await animationFrame();
     expect(".o_data_row [name='reference'] input").toBeFocused();
@@ -702,7 +678,7 @@ test("ReferenceField with model_field option", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="model_id" />
                 <field name="reference" options="{'model_field': 'model_id'}" />
@@ -746,8 +722,6 @@ test("ReferenceField with model_field option", async () => {
 });
 
 test("ReferenceField with model_field option (model_field not synchronized with reference)", async () => {
-    // Checks that the data is not modified even though it is not synchronized.
-    // Not synchronized = model_id contains a different model than the one used in reference.
     Partner._records[0].reference = "partner,1";
     Partner._records[0].model_id = 20;
     Partner._records[0].name = "John Smith";
@@ -756,7 +730,7 @@ test("ReferenceField with model_field option (model_field not synchronized with 
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="model_id" />
                 <field name="reference" options="{'model_field': 'model_id'}" />
@@ -796,7 +770,7 @@ test("Reference field with default value in list view", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list string="Test" editable="top">
                 <field name="reference"/>
                 <field name="name"/>
@@ -821,7 +795,7 @@ test("ReferenceField with model_field option (tree list in form view)", async ()
         type: "form",
         resModel: "turtle",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="partner_ids">
                     <list editable="bottom">
@@ -836,14 +810,12 @@ test("ReferenceField with model_field option (tree list in form view)", async ()
 
     expect(".reference_field").toHaveText("xpad");
 
-    // Select the second product without changing the model
     await click(".o_list_table .reference_field");
     await animationFrame();
 
     await click(".o_list_table .reference_field input");
     await animationFrame();
 
-    // Enter to select it
     await press("Enter");
     await animationFrame();
 
@@ -861,7 +833,7 @@ test("edit a record containing a ReferenceField with model_field option (list in
         type: "form",
         resModel: "turtle",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="partner_ids">
                     <list editable="bottom">
@@ -899,7 +871,7 @@ test("Change model field of a ReferenceField then select an invalid value (tree 
         type: "form",
         resModel: "turtle",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="partner_ids">
                     <list editable="bottom">
@@ -919,7 +891,6 @@ test("Change model field of a ReferenceField then select an invalid value (tree 
     await animationFrame();
     await click(".o_list_table .o_list_many2one input");
     await animationFrame();
-    //Select the "Partner" option, different from original "Product"
     await click(
         ".o_list_table .o_list_many2one .o_input_dropdown .dropdown-item:contains(Partner)",
     );
@@ -927,7 +898,6 @@ test("Change model field of a ReferenceField then select an invalid value (tree 
     await animationFrame();
     expect(".reference_field input").toHaveValue("");
     expect(".o_list_many2one input").toHaveValue("Partner");
-    //Void the associated, required, "reference" field and make sure the form marks the field as required
     await click(".o_list_table .reference_field input");
     const textInput = queryFirst(".o_list_table .reference_field input");
     textInput.setSelectionRange(0, textInput.value.length);
@@ -940,13 +910,11 @@ test("Change model field of a ReferenceField then select an invalid value (tree 
 });
 
 test("model selector is displayed only when it should be", async () => {
-    //The model selector should be only displayed if
-    //there is no hide_model=True options AND no model_field specified
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <group>
                     <field name="reference" options="{'model_field': 'model_id'}" />
@@ -989,11 +957,13 @@ test("reference field should await fetch model before render", async () => {
     onRpc("ir.model", "read", async () => {
         await def;
     });
-    mountView({
+    // Not awaited yet: the view stays blocked on `def` (the model read), which
+    // is the state under test.
+    const mounted = mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="model_id" invisible="1"/>
                 <field name="reference" options="{'model_field': 'model_id'}" />
@@ -1005,6 +975,7 @@ test("reference field should await fetch model before render", async () => {
     expect(".o_form_view").toHaveCount(0);
     def.resolve();
 
+    await mounted;
     await animationFrame();
     expect(".o_form_view").toHaveCount(1);
 });
@@ -1045,12 +1016,6 @@ test("reference char with list view pager navigation", async () => {
 });
 
 test("reference write uses the picker's model, not a stale currentRelation", async () => {
-    // Mismatch state: the model select was touched (currentRelation) to one
-    // model while the value still points at another (e.g. an onchange kept it),
-    // so getRelation() — which the autocomplete searches with — returns the
-    // value's model. updateM2O must record the picked id against THAT model,
-    // otherwise it persists "modelA,<id-from-modelB>" — a pair that never
-    // co-existed.
     let ref;
     patchWithCleanup(ReferenceField.prototype, {
         setup() {
@@ -1062,11 +1027,9 @@ test("reference write uses the picker's model, not a stale currentRelation", asy
     await mountView({
         type: "form",
         resModel: "partner",
-        resId: 1, // reference: "product,37"
-        arch: /* xml */ `<form><field name="reference"/></form>`,
+        resId: 1,
+        arch: `<form><field name="reference"/></form>`,
     });
-    // The autocomplete searched getRelation() === "product" (the value's model),
-    // but currentRelation drifted to "partner".
     ref.state.currentRelation = "partner";
     await ref.updateM2O({ id: 41, display_name: "xpad" });
     await clickSave();

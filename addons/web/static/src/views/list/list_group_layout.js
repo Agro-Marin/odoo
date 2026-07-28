@@ -85,18 +85,15 @@ export function getGroupNameCellColSpan(columns, fields, aggregates, { hasSelect
  * @param {{ hasOpenFormViewColumn?: boolean }} [options]
  * @returns {number}
  */
-// TODO: rename in master
 export function getGroupPagerCellColspan(
     columns,
     fields,
     aggregates,
     { hasOpenFormViewColumn } = {},
 ) {
-    // this colspan is the number of columns after the last column with aggregates
     const lastIndex = getLastAggregateIndex(columns, fields, aggregates);
     let colspan = lastIndex > -1 ? columns.length - lastIndex - 1 : 0;
     if (hasOpenFormViewColumn) {
-        // the header row must also span the open-form-view button column
         colspan++;
     }
     return colspan;

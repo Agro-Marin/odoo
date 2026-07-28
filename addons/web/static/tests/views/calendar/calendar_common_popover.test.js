@@ -174,9 +174,6 @@ test(`click on edit button`, async () => {
 
 test(`pointerdown outside the calendar keeps its default (input focus not suppressed)`, async () => {
     await start();
-    // An input in unrelated UI (e.g. the side-panel autocomplete) must keep its
-    // default behavior so the first click focuses it — the popover's window
-    // pointerdown guard used to preventDefault on every outside pointerdown.
     const input = document.createElement("input");
     getFixture().appendChild(input);
     const ev = new PointerEvent("pointerdown", { bubbles: true, cancelable: true });
@@ -196,7 +193,7 @@ test(`pointerdown on another calendar event is intercepted (closes popover)`, as
 });
 
 test(`pointerdown on the popover's own event keeps its default (drag & drop)`, async () => {
-    await start(); // FAKE_RECORD.id === 5
+    await start();
     const widget = document.createElement("div");
     widget.className = "o_calendar_widget";
     widget.innerHTML = `<div class="fc-event" data-event-id="5"></div>`;

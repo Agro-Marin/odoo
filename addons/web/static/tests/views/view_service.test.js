@@ -14,7 +14,7 @@ describe.current.tags("headless");
 class TakeFive extends models.Model {
     _name = "take.five";
     _views = {
-        "list,99": /* xml */ `<list><field name="display_name" /></list>`,
+        "list,99": `<list><field name="display_name" /></list>`,
     };
 }
 
@@ -95,11 +95,11 @@ test("clear cache when updating ir.ui.view", async () => {
     await loadView();
     expect.verifySteps(["get_views"]);
     await loadView();
-    expect.verifySteps([]); // cache works => no actual rpc
+    expect.verifySteps([]);
     await getService("orm").unlink("ir.ui.view", [3]);
     await loadView();
-    expect.verifySteps(["get_views"]); // cache was invalidated
+    expect.verifySteps(["get_views"]);
     await getService("orm").unlink("take.five", [3]);
     await loadView();
-    expect.verifySteps([]); // cache was not invalidated
+    expect.verifySteps([]);
 });

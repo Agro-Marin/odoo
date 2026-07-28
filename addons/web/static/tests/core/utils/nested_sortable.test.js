@@ -48,7 +48,6 @@ test("Parameters error handling", async () => {
         await mountWithCleanup(NestedSortable);
     };
 
-    // Incorrect params
     await mountNestedSortableAndAssert(() => {
         expect(() => useNestedSortable({})).toThrow(
             `Error in hook useNestedSortable: missing required property "ref" in parameter`,
@@ -65,7 +64,6 @@ test("Parameters error handling", async () => {
         );
     });
 
-    // Correct params
     await mountNestedSortableAndAssert(() => {
         useNestedSortable({
             ref: useRef("root"),
@@ -184,7 +182,6 @@ test("Sorting in a single group without nesting", async () => {
     expect(".o_dragged").toHaveCount(0);
     expect.verifySteps([]);
 
-    // Move first item after second item
     const { drop, moveUnder } = await sortableDrag(
         ".sortable_list > .item:first-child",
     );
@@ -302,7 +299,6 @@ test("Sorting in groups without nesting", async () => {
     expect(".sortable_list").toHaveCount(3);
     expect(".item").toHaveCount(18);
     expect.verifySteps([]);
-    // Append second item of second list to first list
     await dragAndDrop(
         "section:nth-child(2) > ul > .item:nth-child(2)",
         "section:first-child",
@@ -399,7 +395,6 @@ test("Sorting with nesting - move right", async () => {
         },
         relative: true,
     });
-    // No move if row is already child
     await moveTo(movedEl, {
         position: {
             x: queryRect(movedEl).width / 2 + 45,
@@ -481,7 +476,6 @@ test("Sorting with nesting - move left", async () => {
 
     const movedEl = queryOne(".item#dragged");
     const { drop, moveTo } = await sortableDrag(movedEl);
-    // No move if distance traveled is smaller than the nest interval
     await moveTo(movedEl, {
         position: {
             x: queryRect(movedEl).width / 2 - 10,
@@ -492,7 +486,6 @@ test("Sorting with nesting - move left", async () => {
             x: queryRect(movedEl).width / 2 - 20,
         },
     });
-    // No move if there is one element before and one after
     await moveTo(movedEl, {
         position: {
             x: queryRect(movedEl).width / 2 - 40,
@@ -583,7 +576,6 @@ test("Sorting with nesting - move root down", async () => {
 
     const { drop, moveUnder } = await sortableDrag(".item#dragged");
     await moveUnder(".item#noChild");
-    // Move under the content of the row, not under the rows nested inside the row
     await moveUnder(".item#parent > span");
     await drop();
 
@@ -874,7 +866,6 @@ test("Dynamically disable NestedSortable feature", async () => {
     expect.verifySteps([]);
 
     await dragAndDrop(".item:first-child", ".item:last-child");
-    // Drag should have occurred
     expect.verifySteps(["start"]);
 
     state.enableNestedSortable = false;
@@ -882,7 +873,6 @@ test("Dynamically disable NestedSortable feature", async () => {
 
     await dragAndDrop(".item:first-child", ".item:last-child");
 
-    // Drag shouldn't have occurred
     expect.verifySteps([]);
 });
 
@@ -914,7 +904,7 @@ test("Drag has a default tolerance of 10 pixels before initiating the dragging",
 
     const listItem = queryFirst(".item");
     const { cancel, moveTo } = await sortableDrag(listItem, {
-        position: { x: 0, y: 0 }, // Move the element from only 5 pixels
+        position: { x: 0, y: 0 },
         relative: true,
     });
     await moveTo(listItem, {
@@ -925,7 +915,7 @@ test("Drag has a default tolerance of 10 pixels before initiating the dragging",
     expect.verifySteps([]);
 
     await moveTo(listItem, {
-        position: { x: 10, y: 10 }, // Move the element from more than 10 pixels
+        position: { x: 10, y: 10 },
         relative: true,
     });
 
@@ -985,7 +975,6 @@ test("shouldn't drag above max level", async () => {
 
     await mountWithCleanup(NestedSortable);
 
-    // cant move draggable under parent
     await contains(".item#dragged").dragAndDrop("#parent", {
         position: "right",
     });
@@ -1071,25 +1060,21 @@ test("shouldn't drag outside a nest level", async () => {
 
     const dragged = queryOne("#D");
     let drop, moveAbove, moveUnder;
-    // Move before a sibling (success)
     dragged.id = "D1";
     ({ drop, moveAbove } = await sortableDrag("#D1"));
     await moveAbove("#C > span");
     await drop();
     expect.verifySteps(["start", "move", "drop", "end"]);
-    // Move after a sibling (success)
     dragged.id = "D2";
     ({ drop, moveUnder } = await sortableDrag("#D2"));
     await moveUnder("#E > span");
     await drop();
     expect.verifySteps(["start", "move", "drop", "end"]);
-    // Attempt to change parent by going above the current parent (fail)
     dragged.id = "D3";
     ({ drop, moveAbove } = await sortableDrag("#D3"));
     await moveAbove("#B > span");
     await drop();
     expect.verifySteps(["start", "end"]);
-    // Attempt to change parent by becoming the child of a sibling (fail)
     dragged.id = "D4";
     ({ drop, moveUnder } = await sortableDrag("#D4"));
     await moveUnder("#F > span");
@@ -1122,11 +1107,9 @@ test("shouldn't drag when not allowed", async () => {
                 isAllowed() {
                     expect.step("allowed_check");
                     if (firstAllowedCheck) {
-                        // 1st check is used by internal nested_sortable hooks "onMove"
                         firstAllowedCheck = false;
                         expect(".o_nested_sortable_placeholder.d-none").toHaveCount(0);
                     } else {
-                        // 2e check is used by internal nested_sortable hooks "onDrop"
                         expect(".o_nested_sortable_placeholder.d-none").toHaveCount(1);
                     }
                     return false;
@@ -1233,7 +1216,6 @@ test("Ignore specified elements", async () => {
     await mountWithCleanup(NestedSortable);
 
     expect.verifySteps([]);
-    // Drag root item element
     await dragAndDrop(".item:first-child", ".item:nth-child(2)");
     expect.verifySteps(["drag"]);
     await dragAndDrop(".item:first-child .not-ignored", ".item:nth-child(2)");
@@ -1243,8 +1225,6 @@ test("Ignore specified elements", async () => {
 });
 
 test("works in a non-webclient container and honors inertSelectors", async () => {
-    // Regression: this util used to hardcode `.o_navbar`/`.o_action_manager`
-    // (webclient chrome), matching nothing outside a webclient. Callers now pass `inertSelectors`.
     class NestedSortable extends Component {
         static props = ["*"];
         static template = xml`
@@ -1274,7 +1254,6 @@ test("works in a non-webclient container and honors inertSelectors", async () =>
     }
 
     await mountWithCleanup(NestedSortable);
-    // No webclient chrome exists in this embedding.
     expect(".o_navbar").toHaveCount(0);
     expect(".o_action_manager").toHaveCount(0);
 
@@ -1282,11 +1261,9 @@ test("works in a non-webclient container and honors inertSelectors", async () =>
         ".sortable_list > .item:first-child",
     );
     await moveUnder(".sortable_list > .item:nth-child(2)");
-    // The caller-provided inert zone is made non-interactive during the drag...
     expect(queryOne(".custom-inert-zone").style.pointerEvents).toBe("none");
 
     await drop();
-    // ...and restored afterwards (cleanup).
     expect(queryOne(".custom-inert-zone").style.pointerEvents).toBe("");
     expect.verifySteps(["drop"]);
 });

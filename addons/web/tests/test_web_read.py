@@ -34,7 +34,7 @@ class TestWebReadRelational(common.TransactionCase):
             {"name": "Orphan", "parent_id": parent.id}
         )
         self.env.flush_all()
-        parent.unlink()  # parent_id ondelete='set null'
+        parent.unlink()
         child.invalidate_recordset()
         res = child.web_read(
             {"name": {}, "parent_id": {"fields": {"display_name": {}}}}
@@ -64,7 +64,6 @@ class TestWebReadRelational(common.TransactionCase):
             len(resolved), 2, "only `limit` co-records get fields resolved"
         )
         self.assertEqual(len(stubs), 3, "the rest are {id} stubs")
-        # the resolved records are the first `limit` of the desc-sorted full list
         first_two = [c["name"] for c in child_ids[:2]]
         self.assertEqual(first_two, sorted(first_two, reverse=True), "order honored")
 
@@ -90,7 +89,6 @@ class TestWebReadRelational(common.TransactionCase):
         )
         self.env.flush_all()
 
-        # Global record rule hiding ZZSECRET* partners from every non-superuser.
         self.env["ir.rule"].create(
             {
                 "name": "test hide secret partners",
@@ -106,10 +104,8 @@ class TestWebReadRelational(common.TransactionCase):
                 "group_ids": [(6, 0, [self.env.ref("base.group_user").id])],
             }
         )
-        # Sanity: the user genuinely cannot see the secret co-record.
         self.assertNotIn(secret.id, Partner.with_user(user).search([]).ids)
 
-        # No 'order' in the spec — the path that previously raised AccessError.
         res = parent.with_user(user).web_read({"child_ids": {"fields": {"name": {}}}})
 
         returned_ids = [c["id"] for c in res[0]["child_ids"]]
@@ -135,7 +131,7 @@ class TestWebResequence(common.TransactionCase):
     def test_resequence_calls_write_on_overriding_model(self):
         from unittest.mock import patch
 
-        Partner = self.env["res.partner"]  # overrides write()
+        Partner = self.env["res.partner"]
         recs = Partner.create([{"name": f"P{i}", "color": 9} for i in range(3)])
         self.env.flush_all()
 
@@ -150,8 +146,6 @@ class TestWebResequence(common.TransactionCase):
         with patch.object(type(Partner), "write", counting_write):
             recs.web_resequence({"id": {}}, field_name="color")
 
-        # res.partner overrides write, so the fallback path must run it once
-        # per record — the whole point of the fix.
         self.assertEqual(
             len(calls), 3, "write() must fire once per record on an overriding model"
         )
@@ -172,9 +166,6 @@ class TestWebReadFieldContext(common.TransactionCase):
     """
 
     def test_ordered_x2many_with_active_test_context(self):
-        # res.partner.child_ids declares context={'active_test': ...}; a caller
-        # passing active_test in context previously triggered
-        # "with_context() got multiple values for keyword argument 'active_test'".
         parent = self.env["res.partner"].create({"name": "Parent"})
         self.env["res.partner"].create(
             [
@@ -186,6 +177,5 @@ class TestWebReadFieldContext(common.TransactionCase):
         res = parent.with_context(active_test=False).web_read(
             {"child_ids": {"fields": {"display_name": {}}, "order": "id desc"}}
         )
-        # Must return without raising; ordering honored.
         child_ids = [c["id"] for c in res[0]["child_ids"]]
         self.assertEqual(child_ids, sorted(child_ids, reverse=True))

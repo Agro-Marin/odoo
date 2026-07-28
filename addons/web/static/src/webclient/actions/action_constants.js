@@ -38,11 +38,11 @@ export const EMBEDDED_ACTIONS_CTX_KEYS = [
  * to declare the shared baseline alongside their own specific props.
  */
 export const standardActionServiceProps = {
-    action: Object, // prop added by _getActionInfo
-    actionId: { type: Number, optional: true }, // prop added by _getActionInfo
-    className: { type: String, optional: true }, // prop added by the ActionContainer
-    globalState: { type: Object, optional: true }, // prop added by _updateUI
-    state: { type: Object, optional: true }, // prop added by _updateUI
+    action: Object,
+    actionId: { type: Number, optional: true },
+    className: { type: String, optional: true },
+    globalState: { type: Object, optional: true },
+    state: { type: Object, optional: true },
     resId: { type: [Number, Boolean], optional: true },
     updateActionState: { type: Function, optional: true },
 };

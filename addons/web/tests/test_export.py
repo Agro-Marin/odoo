@@ -166,9 +166,7 @@ class TestNamelistStaleTemplate(HttpCase):
                 "resource": "res.partner",
                 "export_fields": [
                     Command.create({"name": "name"}),
-                    # Base field does not exist (e.g. module removed).
                     Command.create({"name": "vanished_field_zzz/name"}),
-                    # Base field exists but is not relational.
                     Command.create({"name": "phone/name"}),
                     Command.create({"name": "email"}),
                 ],
@@ -221,9 +219,6 @@ class TestXlsxRowLimit(ExportControllerCase):
 
     @mute_logger("odoo.addons.web.controllers.export")
     def test_flat_export_at_row_limit_fails_loudly(self):
-        # limit=5 → rows 0..4: header + 4 data rows fit, 5 records do not.
-        # Before the fix the pre-guard let ``row_count == xls_rowmax`` through
-        # and xlsxwriter dropped the last record silently (write() returns -1).
         with _tiny_rowmax(5):
             response = self._export("xlsx", domain=self.domain)
         self.assertEqual(response.status_code, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -231,7 +226,6 @@ class TestXlsxRowLimit(ExportControllerCase):
         self.assertIn("too many rows", response.text)
 
     def test_flat_export_at_exact_capacity_succeeds(self):
-        # limit=6 → header + 5 data rows exactly fit: no error, no truncation.
         with _tiny_rowmax(6):
             response = self._export("xlsx", domain=self.domain)
         self.assertEqual(response.status_code, HTTPStatus.OK)
@@ -241,10 +235,6 @@ class TestXlsxRowLimit(ExportControllerCase):
 
     @mute_logger("odoo.addons.web.controllers.export")
     def test_grouped_export_header_overflow_fails_loudly(self):
-        # 5 records in 2 groups, limit=7: header(1) + group headers(2) +
-        # records(5) = 8 rows needed. The grouped pre-guard only budgets the
-        # 5 leaves (5 + 1 <= 7 passes); before the fix the tail was silently
-        # dropped — now the checked write() raises a clean UserError.
         with _tiny_rowmax(7):
             response = self._export("xlsx", domain=self.domain, groupby=["is_company"])
         self.assertEqual(response.status_code, HTTPStatus.INTERNAL_SERVER_ERROR)
@@ -252,7 +242,6 @@ class TestXlsxRowLimit(ExportControllerCase):
         self.assertIn("too many rows", response.text)
 
     def test_grouped_export_within_limit_succeeds(self):
-        # header(1) + group headers(2) + records(5) = 8 rows exactly fit.
         with _tiny_rowmax(8):
             response = self._export("xlsx", domain=self.domain, groupby=["is_company"])
         self.assertEqual(response.status_code, HTTPStatus.OK)

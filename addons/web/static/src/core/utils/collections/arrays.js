@@ -86,10 +86,6 @@ export function ensureArray(value) {
  * @returns {T[]}
  */
 export function intersection(iter1, iter2) {
-    // Preserve first-argument order. Set.prototype.intersection iterates the
-    // SMALLER set, so it would order the result by whichever input is shorter
-    // (intersection([1, 2, 3, 4], [3, 1]) -> [3, 1]); many callers rely on the
-    // result following iter1's order.
     const s2 = new Set(iter2);
     return [...new Set(iter1)].filter((x) => s2.has(x));
 }
@@ -135,10 +131,6 @@ export function groupBy(iterable, criterion) {
 export function sortBy(iterable, criterion, order = "asc") {
     const extract = _getExtractorFrom(criterion);
     const sign = order === "asc" ? 1 : -1;
-    // Schwartzian transform: extract each element's key ONCE (n calls) rather
-    // than inside the comparator (~2·n·log n calls). Load-bearing when the
-    // extractor is expensive — e.g. pivot's key is a Map.get + JSON.stringify,
-    // so a 20k-row sort dropped from ~101 ms to ~17 ms. Ordering is unchanged.
     return [...iterable]
         .map((el) => ({ el, key: extract(el) }))
         .sort((x, y) => {
@@ -146,18 +138,10 @@ export function sortBy(iterable, criterion, order = "asc") {
             const b = y.key;
             let result;
             if (typeof a === "number" && typeof b === "number") {
-                // Both numbers: subtract — but NaN is also `typeof "number"`
-                // and `a - b` would return NaN, leaving the engine's sort order
-                // undefined (neighbors left unsorted). Give NaN a consistent
-                // rank (last in ascending order) so the comparator stays total:
-                // `aNaN - bNaN` is 0 when both/neither are NaN, +1 when only `a`
-                // is, -1 when only `b` is.
                 const aNaN = Number.isNaN(a);
                 const bNaN = Number.isNaN(b);
                 result = aNaN || bNaN ? aNaN - bNaN : a - b;
             } else {
-                // Comparison operators handle strings, dates, and mixed types
-                // without the NaN-returning subtraction above.
                 result = a > b ? 1 : a < b ? -1 : 0;
             }
             return sign * result;
@@ -195,9 +179,6 @@ export function cartesian(...args) {
     if (!args.length) {
         return [undefined];
     } else if (args.length === 1) {
-        // Return a copy, not the caller's array by reference — every other
-        // arity produces a fresh array, so callers must be able to mutate the
-        // result without corrupting their input.
         return [...args[0]];
     } else {
         return _cartesian(...args);
@@ -289,7 +270,5 @@ export function rotate(i, arr, inc = 1) {
     if (!arr.length) {
         throw new Error("Cannot rotate on an empty array");
     }
-    // JS % preserves sign of dividend — double-mod ensures non-negative result
-    // even when (i + inc) is more negative than arr.length.
     return (((i + inc) % arr.length) + arr.length) % arr.length;
 }

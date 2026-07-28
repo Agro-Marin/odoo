@@ -1,6 +1,6 @@
 import collections
 import logging
-from collections.abc import Iterator  # runtime import required (PEP 649)
+from collections.abc import Iterator
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -16,11 +16,6 @@ from odoo.tools.translate import JAVASCRIPT_TRANSLATION_COMMENT
 _logger = logging.getLogger(__name__)
 
 
-# ASCII tab / CR / LF are stripped from a URL *anywhere in the string* by the
-# WHATWG URL parser every browser implements, before any other parsing happens.
-# ``urlsplit`` strips them too, so any guard that inspects the RAW string must
-# strip them first or it inspects a different URL than both the browser and
-# ``urlsplit`` will see.
 _URL_IGNORED_CHARS = ("\t", "\r", "\n")
 
 
@@ -32,25 +27,10 @@ def _is_local_url(url: str | None) -> bool:
     """
     if not url or not isinstance(url, str):
         return False
-    # Normalize FIRST, then guard. The raw-string guards below (backslash,
-    # leading "//") used to run before this strip, so embedded tabs/newlines
-    # hid the very pattern they look for: "/\t\t//evil.com" passed the
-    # ``startswith("//")`` check, and ``urlsplit`` — which strips the tabs —
-    # then reported an empty netloc for the resulting "///evil.com", so the URL
-    # was judged local. A browser resolves "///evil.com" to the host evil.com
-    # (its "special authority ignore slashes" state skips *any* run of leading
-    # slashes, unlike RFC-3986 ``urlsplit``, which reports an empty authority).
     for char in _URL_IGNORED_CHARS:
         url = url.replace(char, "")
     if not url:
         return False
-    # Browsers normalize a leading "\" or "\\" to "//", turning it into a
-    # protocol-relative open redirect; urlsplit (RFC 3986) does not perform
-    # that normalization, so backslashes must be rejected explicitly here.
-    #
-    # ``startswith("//")`` also covers the "///host" divergence noted above:
-    # any URL beginning with two or more slashes is authority-bearing to a
-    # browser regardless of what ``urlsplit`` reports.
     if "\\" in url or url.startswith("//"):
         return False
     parsed = urlsplit(url)
@@ -78,7 +58,6 @@ def clean_action(action: dict, env: Any) -> dict:
 
     action_name = action.get("name") or action
     custom_properties = action.keys() - readable_fields - action_type_fields
-    # Custom properties work but are discouraged in favor of `params`/`context`.
     if custom_properties:
         _logger.warning(
             "Action %r contains custom properties %s. Passing them "
@@ -112,14 +91,9 @@ def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -
         db = None
 
     if db and not request.session.db:
-        # An explicit db on a session with none set means the nodb router
-        # resolved this route, but page rendering may depend on data injected
-        # by the db-aware router. Redirect to the same URL with the session
-        # cookie set so the next request goes through that router instead.
         r = request.httprequest
         url_redirect = urlsplit(r.base_url)
         if r.query_string:
-            # query_string is bytes, the rest is text — decode before joining
             query_string = iri_to_uri(r.query_string.decode())
             url_redirect = url_redirect._replace(query=query_string)
         request.session.db = db
@@ -129,7 +103,6 @@ def ensure_db(redirect: str = "/web/database/selector", db: str | None = None) -
         db = request.session.db
 
     if not db:
-        # Single-database install: no need to ask, there is only one choice.
         all_dbs = http.db_list(force=True)
         if len(all_dbs) == 1:
             db = all_dbs[0]
@@ -161,7 +134,6 @@ def generate_views(action: dict) -> None:
     if isinstance(view_id, (list, tuple)):
         view_id = view_id[0]
 
-    # No default: a missing view_mode is a caller bug, let it raise KeyError.
     view_modes = action["view_mode"].split(",")
 
     if len(view_modes) > 1:
@@ -196,9 +168,9 @@ def get_action(env: Any, path_part: str) -> Any:
 
     if path_part.startswith("action-"):
         someid = path_part.removeprefix("action-")
-        if someid.isdigit():  # record id
+        if someid.isdigit():
             action = Actions.sudo().browse(int(someid)).exists()
-        elif "." in someid:  # xml id
+        elif "." in someid:
             action = env.ref(someid, False)
             if not action or not action._name.startswith("ir.actions"):
                 action = Actions
@@ -269,7 +241,7 @@ def get_action_triples(
 
         yield (active_id, action, record_id)
 
-        if len(parts) > 1 and parts[0].isdigit():  # new active id
+        if len(parts) > 1 and parts[0].isdigit():
             active_id = int(parts.popleft())
         elif record_id:
             active_id = record_id
@@ -277,7 +249,7 @@ def get_action_triples(
 
 def _get_login_redirect_url(uid: int, redirect: str | None = None) -> str:
     """Return the post-login redirect URL, accounting for a partial (MFA) session."""
-    if request.session.uid:  # fully logged
+    if request.session.uid:
         if redirect and _is_local_url(redirect):
             return redirect
         return (
@@ -286,7 +258,6 @@ def _get_login_redirect_url(uid: int, redirect: str | None = None) -> str:
             else "/web/login_successful"
         )
 
-    # partial session (MFA)
     url = request.env(user=uid)["res.users"].browse(uid)._mfa_url()
     if not redirect or not _is_local_url(redirect):
         return url

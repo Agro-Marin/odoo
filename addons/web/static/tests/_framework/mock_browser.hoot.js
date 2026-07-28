@@ -1,12 +1,6 @@
 // @ts-check
 
-// ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
-
 import { mockHistory, mockLocation } from "@odoo/hoot";
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * Timer/animation primitives that HOOT already mocks (via its virtual clock:
@@ -26,10 +20,6 @@ const READONLY_PROPERTIES = [
     "setInterval",
     "setTimeout",
 ];
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * Patch the live ``browser`` singleton so ``browser.location``/``browser.history``

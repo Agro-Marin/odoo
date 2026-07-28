@@ -31,8 +31,6 @@
  * ``@web/core/utils/pdfjs``.
  */
 
-// Identifier names that can appear as ``export const <name>``.  Non-identifier
-// keys (none in practice for ESM namespaces, but guarded) are skipped.
 const VALID_EXPORT_NAME = /^[a-zA-Z_$][\w$]*$/;
 
 /**
@@ -126,8 +124,6 @@ export function makeLazyFacade(getValue, { constructable = false } = {}) {
             if (value === undefined) {
                 return Reflect.ownKeys(t);
             }
-            // Proxy invariant: the target's non-configurable own keys (a
-            // function target's "prototype") must always be reported.
             const keys = new Set(Reflect.ownKeys(value));
             for (const key of Reflect.ownKeys(t)) {
                 const desc = Reflect.getOwnPropertyDescriptor(t, key);
@@ -149,13 +145,8 @@ export function makeLazyFacade(getValue, { constructable = false } = {}) {
             }
             const targetDesc = Reflect.getOwnPropertyDescriptor(t, p);
             if (!targetDesc || targetDesc.configurable) {
-                // Proxy invariant: a property may only be reported
-                // non-configurable if the target's own property is.
                 desc.configurable = true;
             } else {
-                // Non-configurable on the target (function "prototype"):
-                // report it non-configurable but writable, since the
-                // forwarded value may differ from the target's.
                 desc.configurable = false;
                 if ("writable" in desc) {
                     desc.writable = true;

@@ -11,8 +11,6 @@ import {
     resequence,
 } from "@web/model/relational_model/resequence";
 
-// Helpers
-
 /**
  * Create a simple mock ORM that records the last webResequence call.
  * @param {{ reject?: boolean }} [opts]
@@ -26,7 +24,6 @@ function makeMockOrm({ reject = false } = {}) {
                 throw new Error("Server error");
             }
             calls.push({ model, resIds, params });
-            // Return sequence values as if server assigned them
             return resIds.map((id, i) => ({
                 id,
                 [params.field_name]: params.offset + i,
@@ -39,8 +36,6 @@ function makeMockOrm({ reject = false } = {}) {
 function makeRecords(specs) {
     return specs.map(([id, sequence]) => ({ id, sequence }));
 }
-
-// Basic resequence — move forward
 
 describe("resequence — move forward", () => {
     test("moves a record from index 0 to index 2", async () => {
@@ -57,7 +52,7 @@ describe("resequence — move forward", () => {
             orm,
             fieldName: "sequence",
             movedId: 1,
-            targetId: 3, // move after record 3
+            targetId: 3,
         });
 
         expect(records[2].id).toBe(1);
@@ -79,7 +74,7 @@ describe("resequence — move forward", () => {
             orm,
             fieldName: "sequence",
             movedId: 3,
-            targetId: null, // move to first position
+            targetId: null,
         });
 
         expect(records[0].id).toBe(3);
@@ -93,9 +88,6 @@ describe("resequence — move forward", () => {
             [3, 30],
         ]);
 
-        // movedId 99 was dropped from this list (e.g. a post-save compute
-        // moved it out of the target group). fromIndex === -1 previously made
-        // splice(-1, 1) delete the LAST record and insert undefined.
         const result = await resequence({
             records,
             resModel: "product.product",
@@ -107,12 +99,9 @@ describe("resequence — move forward", () => {
 
         expect(result).toEqual([]);
         expect(orm.calls.length).toBe(0);
-        // The list is untouched: same ids, in order, no undefined entries.
         expect(records.map((r) => r.id)).toEqual([1, 2, 3]);
     });
 });
-
-// ORM call parameters
 
 describe("resequence — ORM call parameters", () => {
     test("passes fieldName as field_name param", async () => {
@@ -142,7 +131,6 @@ describe("resequence — ORM call parameters", () => {
             [3, 15],
         ]);
 
-        // Move record 3 before record 1 (targetId = null)
         await resequence({
             records,
             resModel: "product.product",
@@ -152,7 +140,6 @@ describe("resequence — ORM call parameters", () => {
             targetId: null,
         });
 
-        // Moving to position 0 reorders all 3 records; offset = min sequence = 5.
         expect(orm.calls[0].params.offset).toBe(5);
     });
 
@@ -178,12 +165,9 @@ describe("resequence — ORM call parameters", () => {
     });
 });
 
-// Custom getSequence / getResId callbacks
-
 describe("resequence — custom callbacks", () => {
     test("uses custom getSequence to read sequence", async () => {
         const orm = makeMockOrm();
-        // Records where sequence is nested under .data
         const records = [
             { id: 1, data: { order: 10 } },
             { id: 2, data: { order: 20 } },
@@ -205,7 +189,6 @@ describe("resequence — custom callbacks", () => {
 
     test("uses custom getResId to extract id", async () => {
         const orm = makeMockOrm();
-        // Records with res_id instead of id
         const records = [
             { id: 1, res_id: 100, sequence: 1 },
             { id: 2, res_id: 200, sequence: 2 },
@@ -221,12 +204,9 @@ describe("resequence — custom callbacks", () => {
             getResId: (r) => r.res_id,
         });
 
-        // resIds passed to ORM should use res_id values
         expect(orm.calls[0].resIds).toInclude(100);
     });
 });
-
-// Rollback on error
 
 describe("resequence — rollback on ORM error", () => {
     test("restores original order when ORM throws", async () => {
@@ -257,8 +237,6 @@ describe("resequence — rollback on ORM error", () => {
     });
 });
 
-// computeResequencePlan — shared pure plan (also consumed by static_list_sort)
-
 describe("computeResequencePlan", () => {
     const getSequence = (r) => r.sequence;
 
@@ -273,17 +251,15 @@ describe("computeResequencePlan", () => {
         const plan = computeResequencePlan({
             records,
             movedId: 1,
-            targetId: 3, // move record 1 after record 3
+            targetId: 3,
             getSequence,
         });
 
         expect(plan.reorderAll).toBe(false);
-        // Only records 2, 3 and the moved record 1 are rewritten — 4 is untouched
         expect(plan.toReorder.map((r) => r.id)).toEqual([2, 3, 1]);
         expect(plan.offset).toBe(10);
         expect(plan.fromIndex).toBe(0);
         expect(plan.toIndex).toBe(2);
-        // Pure: the input array is not mutated
         expect(records.map((r) => r.id)).toEqual([1, 2, 3, 4]);
     });
 
@@ -306,11 +282,7 @@ describe("computeResequencePlan", () => {
     });
 
     test("a record with an undefined sequence forces a full reorder", () => {
-        const records = [
-            { id: 1, sequence: 10 },
-            { id: 2 }, // no sequence value
-            { id: 3, sequence: 30 },
-        ];
+        const records = [{ id: 1, sequence: 10 }, { id: 2 }, { id: 3, sequence: 30 }];
 
         const plan = computeResequencePlan({
             records,
@@ -337,8 +309,6 @@ describe("computeResequencePlan", () => {
             getSequence,
         });
 
-        // null coerces to 0 in Math.min — it must be filtered out, so the
-        // offset comes from the real numeric sequences (7), not 0.
         expect(plan.offset).toBe(7);
     });
 
@@ -365,20 +335,16 @@ describe("computeResequencePlan", () => {
         const plan = computeResequencePlan({
             records,
             movedId: 1,
-            targetId: 2, // move first record after the second one
+            targetId: 2,
             getSequence,
             asc: false,
         });
 
         expect(plan.reorderAll).toBe(false);
-        // Visual order after the move is [2, 1, 3]; writes are emitted in
-        // ascending sequence order, i.e. reversed for a descending list.
         expect(plan.toReorder.map((r) => r.id)).toEqual([1, 2]);
         expect(plan.offset).toBe(20);
     });
 });
-
-// Descending order
 
 describe("resequence — descending order", () => {
     test("asc=false reverses the sequence direction", async () => {

@@ -101,7 +101,6 @@ export const listStylingMixin = {
         if (record.selected) {
             classNames.push("table-info", "o_data_row_selected");
         }
-        // "o_selected_row" classname for the potential row in edition
         if (record.isInEdition) {
             classNames.push("o_selected_row");
         }
@@ -132,7 +131,6 @@ export const listStylingMixin = {
             return "";
         }
 
-        // Per-render cache for the full cell class string (column + record dependent)
         const cacheKey = `cell:${column.id}`;
         let recordCache = this._readonlyCache?.get(String(record.id));
         const cached = recordCache?.get(cacheKey);
@@ -147,9 +145,6 @@ export const listStylingMixin = {
             } else if (column.type === "field") {
                 classNames.push("o_field_cell");
                 if (column.attrs && column.attrs.class && !column.widget) {
-                    // When a widget is used, arch classes go only to the <Field>
-                    // component (via getFieldClass) so layout classes like d-flex
-                    // don't conflict with the cell layout.
                     classNames.push(column.attrs.class);
                 }
                 const typeClass = FIELD_CLASSES[this.fields[column.name].type];
@@ -195,9 +190,14 @@ export const listStylingMixin = {
             }
         }
         if (this._readonlyCache) {
+            // Re-read: the isCellReadonly / canUseFormatter calls above may have
+            // created this record's Map, and reusing the stale local would
+            // replace it — dropping the entries they just cached.
+            const key = String(record.id);
+            recordCache = this._readonlyCache.get(key);
             if (!recordCache) {
                 recordCache = new Map();
-                this._readonlyCache.set(String(record.id), recordCache);
+                this._readonlyCache.set(key, recordCache);
             }
             recordCache.set(cacheKey, result);
         }
@@ -322,8 +322,6 @@ export const listStylingMixin = {
             record.isInEdition &&
             (record.model.multiEdit || this.isInlineEditable(record))
         ) {
-            // In a non-editable x2many list a record may be "in edition" because
-            // it's opened in a dialog, but the list should still render readonly.
             return false;
         }
         return true;

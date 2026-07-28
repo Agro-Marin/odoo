@@ -18,7 +18,6 @@ import { NavBar } from "@web/webclient/navbar/navbar";
 
 const systrayRegistry = registry.category("systray");
 
-// Debounce time for Adaptation (`debouncedAdapt`) on resize event in navbar
 const waitNavbarAdaptation = () => advanceTime(500);
 
 class MySystrayItem extends Component {
@@ -182,7 +181,6 @@ test("navbar can display systray items ordered based on their sequence", async (
         static template = xml`<li class="my-item-4">my item 4</li>`;
     }
 
-    // Remove systray added by beforeEach
     systrayRegistry.remove("addon.myitem");
 
     systrayRegistry.add("addon.myitem2", { Component: MyItem2 });
@@ -208,7 +206,6 @@ test("navbar updates after adding a systray item", async () => {
         static template = xml`<li class="my-item-1">my item 1</li>`;
     }
 
-    // Remove systray added by beforeEach
     systrayRegistry.remove("addon.myitem");
 
     systrayRegistry.add("addon.myitem1", { Component: MyItem1 });
@@ -259,11 +256,8 @@ test("can adapt with 'more' menu sections behavior", async () => {
         },
     ]);
 
-    // Force the parent width, to make this test independent of screen size
     await resize({ width: 1080 });
 
-    // TODO: this test case doesn't make sense since it relies on small widths
-    // with `env.isSmall` still returning `false`.
     const env = await makeMockEnv();
     Object.defineProperty(env, "isSmall", { get: () => false });
 
@@ -333,11 +327,8 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
         },
     ]);
 
-    // Force the parent width, to make this test independent of screen size
     await resize({ width: 600 });
 
-    // TODO: this test case doesn't make sense since it relies on small widths
-    // with `env.isSmall` still returning `false`.
     const env = await makeMockEnv();
     Object.defineProperty(env, "isSmall", { get: () => false });
 
@@ -405,7 +396,6 @@ test("'more' menu sections adaptations do not trigger render in some cases", asy
 test.tags("desktop");
 test("'more' menu sections properly updated on app change", async () => {
     defineMenus([
-        // First App
         {
             id: 1,
             children: [
@@ -422,7 +412,6 @@ test("'more' menu sections properly updated on app change", async () => {
                 },
             ],
         },
-        // Second App
         {
             id: 2,
             children: [
@@ -441,11 +430,8 @@ test("'more' menu sections properly updated on app change", async () => {
         },
     ]);
 
-    // Force the parent width, to make this test independent of screen size
     await resize({ width: 1080 });
 
-    // TODO: this test case doesn't make sense since it relies on small widths
-    // with `env.isSmall` still returning `false`.
     const env = await makeMockEnv();
     Object.defineProperty(env, "isSmall", { get: () => false });
 
@@ -494,9 +480,6 @@ test("'more' menu sections properly updated on app change", async () => {
 
 test.tags("desktop");
 test("'more' menu keeps a valid access key with 9 visible sections", async () => {
-    // Boundary case: 10 sections, 1 pushed into the "More" dropdown → 9 visible.
-    // The hotkey is ((9 + 1) % 10) = "0". The operator-precedence bug computed
-    // (9 + (1 % 10)) = "10", which is never a valid single-key access key.
     class MyNavbar extends NavBar {
         get currentAppSections() {
             return Array.from({ length: 10 }, (_, i) => ({
@@ -509,7 +492,6 @@ test("'more' menu keeps a valid access key with 9 visible sections", async () =>
         }
         set currentAppSections(_) {}
         async adapt() {
-            // Deterministically push exactly one section into "More".
             this.currentAppSectionsExtra = [this.currentAppSections.at(-1)];
             return this.render();
         }

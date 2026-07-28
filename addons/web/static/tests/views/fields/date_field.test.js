@@ -36,7 +36,7 @@ class Partner extends models.Model {
     ];
 
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <sheet>
                     <group>
@@ -77,7 +77,6 @@ test("datepicker is automatically closed after selecting a value", async () => {
 
     await contains(getPickerCell(22)).click();
     await animationFrame();
-    // The picker shouldn't be reopened, even if the onChange RPC is slow.
     expect(".o_datetime_picker").toHaveCount(0);
     def.resolve();
 });
@@ -202,7 +201,7 @@ test("value should not set on first click", async () => {
 });
 
 test("date field in form view (with positive time zone offset)", async () => {
-    mockTimeZone(2); // should be ignored by date fields
+    mockTimeZone(2);
     await mountView({ type: "form", resModel: "res.partner", resId: 1 });
 
     onRpc("web_save", ({ args }) => {
@@ -229,7 +228,7 @@ test("date field in form view (with positive time zone offset)", async () => {
 });
 
 test("date field in form view (with negative time zone offset)", async () => {
-    mockTimeZone(-2); // should be ignored by date fields
+    mockTimeZone(-2);
     await mountView({ type: "form", resModel: "res.partner", resId: 1 });
 
     expect(".o_field_date button").toHaveText("Feb 3, 2017");
@@ -304,7 +303,6 @@ test("date field with warn_future option: do not overwrite datepicker option", a
         type: "form",
         resModel: "res.partner",
         resId: 1,
-        // Do not let the date field get the focus in the first place
         arch: `
                 <form>
                     <group>
@@ -480,7 +478,6 @@ test("date field with min_precision option", async () => {
         type: "form",
         resModel: "res.partner",
         resId: 1,
-        // Do not let the date field get the focus in the first place
         arch: `
                 <form>
                     <group>
@@ -510,7 +507,6 @@ test("date field with min_precision option", async () => {
 
     await click(getPickerCell("Jan"));
     await animationFrame();
-    // The picker should be closed
     expect(".o_date_item_cell").toHaveCount(0);
     expect(".o_field_widget[name='date']").toHaveText("Jan 1, 2017");
 });
@@ -520,7 +516,6 @@ test("date field with max_precision option", async () => {
         type: "form",
         resModel: "res.partner",
         resId: 1,
-        // Do not let the date field get the focus in the first place
         arch: `
                 <form>
                     <group>
@@ -531,12 +526,9 @@ test("date field with max_precision option", async () => {
 
     await click(".o_field_date button");
     await animationFrame();
-    // Try to zoomOut twice to be in the year selector
     await zoomOut();
-    // Currently in the month selector
     expect(".o_datetime_picker_header").toHaveText("2017");
     await zoomOut();
-    // Stay in the month selector according to the max precision value
     expect(".o_datetime_picker_header").toHaveText("2017");
     expect(".o_date_item_cell.o_selected").toHaveText("Feb");
 
@@ -559,7 +551,7 @@ test("DateField with onchange forcing a specific date", async () => {
     await mountView({
         type: "form",
         resModel: "res.partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="char_field"/>
                 <field name="date"/>
@@ -568,20 +560,17 @@ test("DateField with onchange forcing a specific date", async () => {
 
     expect(".o_field_date input").toHaveValue("");
 
-    // enable the onchange
     await contains(".o_field_widget[name=char_field] input").edit("force today");
 
-    // open the picker and try to set a value different from today
     await click(".o_field_date input");
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(1);
-    await contains(getPickerCell("22")).click(); // 22 May 2009
-    expect(".o_field_date").toHaveText("May 4"); // value forced by the onchange
+    await contains(getPickerCell("22")).click();
+    expect(".o_field_date").toHaveText("May 4");
 
-    // do it again (the technical flow is a bit different as now the current value is already today)
     await click(".o_field_date button");
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(1);
-    await contains(getPickerCell("22")).click(); // 22 May 2009
-    expect(".o_field_date").toHaveText("May 4"); // value forced by the onchange
+    await contains(getPickerCell("22")).click();
+    expect(".o_field_date").toHaveText("May 4");
 });

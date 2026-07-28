@@ -8,11 +8,11 @@ class TestWebRouter(TransactionCase):
     def test_router_get_action_exist(self):
         ir_cron_act = self.env.ref("base.ir_cron_act")
         valid_actions = [
-            f"action-{ir_cron_act.id}",  # record id
-            "action-base.ir_cron_act",  # xml id
-            "m-ir.cron",  # m- model name (for website)
-            "ir.cron",  # dotted model name
-            "crons",  # action path
+            f"action-{ir_cron_act.id}",
+            "action-base.ir_cron_act",
+            "m-ir.cron",
+            "ir.cron",
+            "crons",
         ]
         for action in valid_actions:
             with self.subTest(action=action):
@@ -23,7 +23,7 @@ class TestWebRouter(TransactionCase):
         missing_actions = [
             "action-999999999",
             "action-base.idontexist",
-            "m-base",  # abstract model
+            "m-base",
             "m-idontexist",
             "base.idontexist",
             "idontexist",
@@ -38,27 +38,19 @@ class TestWebRouter(TransactionCase):
         ir_cron_act = self.env.ref("base.ir_cron_act")
 
         matrix = {
-            # single action
             f"action-{ir_cron_act.id}": [(None, ir_cron_act, None)],
             "action-base.ir_cron_act": [(None, ir_cron_act, None)],
             "m-ir.cron": [(None, ir_cron_act, None)],
             "ir.cron": [(None, ir_cron_act, None)],
             "crons": [(None, ir_cron_act, None)],
-            # multiple actions, all are accessible by clicking in the web client
-            # Apps > Base > Module info
             f"apps/{base.id}/ir.module.module/{base.id}": [
                 (None, self.env.ref("base.open_module_tree"), base.id),
                 (base.id, self.env.ref("base.open_module_tree"), base.id),
             ],
-            # Settings > Users & Companies > Users > Marc Demo > Related Partner
-            # Use get_action() to resolve the expected action for res.partner
-            # because multiple modules install actions for this model, and
-            # search(..., limit=1) may not return base.action_partner_form.
             f"users/{user.id}/res.partner/{user.partner_id.id}": [
                 (None, self.env.ref("base.action_res_users"), user.id),
                 (user.id, get_action(self.env, "res.partner"), user.partner_id.id),
             ],
-            # Settings > Users & Companies > Users > Marc Demo > Access Right > TOTP
             f"users/{user.id}/ir.model.access/ir.model.access/146": [
                 (None, self.env.ref("base.action_res_users"), user.id),
                 (user.id, self.env.ref("base.ir_access_act"), None),
@@ -70,7 +62,6 @@ class TestWebRouter(TransactionCase):
                 self.assertEqual(list(get_action_triples(self.env, path)), triples)
 
     def test_router_get_action_triples_missing(self):
-        # single unknown action
         missing_actions = [
             "action-999999999",
             "action-base.idontexist",

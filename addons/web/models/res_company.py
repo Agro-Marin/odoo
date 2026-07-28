@@ -8,7 +8,6 @@ from odoo.api import ValuesType
 class ResCompany(models.Model):
     _inherit = "res.company"
 
-    # Fields whose changes require regenerating the company report stylesheet.
     _REPORT_STYLE_FIELDS: frozenset[str] = frozenset(
         {
             "external_report_layout_id",
@@ -19,9 +18,6 @@ class ResCompany(models.Model):
         }
     )
 
-    # Report skin (typography, density, shape). Orthogonal to the structural
-    # layout (external_report_layout_id) and to the brand colors. Emitted as
-    # --rp-* tokens by web.styles_company_report. Empty = built-in defaults.
     report_theme_id = fields.Many2one(
         "report.theme",
         string="Report Theme",
@@ -49,8 +45,6 @@ class ResCompany(models.Model):
 
     def _get_asset_style_b64(self) -> bytes:
         """Render the company-report stylesheet for all companies."""
-        # One shared asset bundle serves every company, so it must be
-        # regenerated from all companies at once, not just the changed ones.
         company_ids = self.sudo().search([])
         company_styles = self.env["ir.qweb"]._render(
             "web.styles_company_report",

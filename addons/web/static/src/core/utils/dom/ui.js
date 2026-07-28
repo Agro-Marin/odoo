@@ -46,7 +46,6 @@ export function isVisible(el) {
     if ("offsetWidth" in el && "offsetHeight" in el) {
         _isVisible = el.offsetWidth > 0 && el.offsetHeight > 0;
     } else if ("getBoundingClientRect" in el) {
-        // for example, svgelements
         const rect = el.getBoundingClientRect();
         _isVisible = rect.width > 0 && rect.height > 0;
     }
@@ -115,16 +114,8 @@ export function touching(elements, targetRect) {
     });
 }
 
-// Get Tabable Elements
-// TODISCUSS:
-//  - leave the following in this file ?
-//  - redefine this selector in tests env with ":not(#qunit *)" ?
-
-// Following selector is based on this spec: https://html.spec.whatwg.org/multipage/interaction.html#dom-tabindex
 const FOCUSABLE_SELECTORS = [
     "[tabindex]",
-    // Only anchors/areas with an `href` are focusable / in the tab order; a
-    // bare `<a>`/`<area>` has tabIndex -1 and `.focus()` is a no-op on it.
     "a[href]",
     "area[href]",
     "button",
@@ -161,14 +152,7 @@ export function isFocusable(el) {
 export function getTabableElements(container = document.body) {
     const elements = /** @type {HTMLElement[]} */ ([
         ...container.querySelectorAll(TABABLE_SELECTORS.join(",")),
-    ]).filter(
-        // `el.tabIndex < 0` catches elements the `:not([tabindex="-1"])` attribute
-        // guard misses (e.g. an anchor whose href was removed) — otherwise they'd
-        // survive in a negative-key group as a `.focus()`-noop dead spot.
-        (el) => el.tabIndex >= 0 && isVisible(el) && !el.closest("[inert]"),
-    );
-    // Object.groupBy is typed Partial<Record<…>>, but it only creates a key
-    // when ≥1 element falls in it, so the values are never undefined.
+    ]).filter((el) => el.tabIndex >= 0 && isVisible(el) && !el.closest("[inert]"));
     const byTabIndex = /** @type {Record<number, HTMLElement[]>} */ (
         Object.groupBy(elements, (el) => el.tabIndex)
     );
@@ -207,8 +191,6 @@ export function getPreviousTabableElement(container = document.body) {
  *         initial state
  */
 export function addLoadingEffect(btnEl) {
-    // pe-none is used alongside "disabled" so the behavior is the same on
-    // links not using the "btn" class -> pointer-events disabled.
     btnEl.classList.add("o_btn_loading", "disabled", "pe-none");
     btnEl.disabled = true;
     const loaderEl = document.createElement("span");

@@ -19,7 +19,6 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 
-// Shared model definitions
 class Partner extends models.Model {
     _name = "res.partner";
     _inherit = [];
@@ -32,7 +31,6 @@ class Partner extends models.Model {
 
 defineModels([Partner]);
 
-// Helper: standard two-language mock setup
 function setupTranslationMocks({ translations = null, type = "char" } = {}) {
     onRpc("res.lang", "get_installed", () => [
         ["en_US", "English"],
@@ -48,7 +46,6 @@ function setupTranslationMocks({ translations = null, type = "char" } = {}) {
     ]);
 }
 
-// Translate button presence
 describe("translate button", () => {
     test("translate button appears on a translatable char field when multiLang is on", async () => {
         Partner._fields.name.translate = true;
@@ -69,7 +66,6 @@ describe("translate button", () => {
     });
 
     test("no translate button on a non-translatable char field", async () => {
-        // translate is false by default
         serverState.lang = "en_US";
         serverState.multiLang = true;
 
@@ -84,7 +80,6 @@ describe("translate button", () => {
     });
 });
 
-// Dialog open / close
 describe("dialog open / close", () => {
     test("clicking the translate button opens TranslationDialog with correct title", async () => {
         Partner._fields.name.translate = true;
@@ -100,12 +95,10 @@ describe("dialog open / close", () => {
             arch: `<form><field name="name"/></form>`,
         });
 
-        // Focus the input first so the translate button becomes visible (CSS: focus-within)
         await contains("[name=name] input").click();
         await contains(".o_field_char .btn.o_field_translate").click();
 
         expect(".modal").toHaveCount(1, { message: "dialog should be open" });
-        // Title format: "Translate: <field_string>"
         expect(".modal .modal-title").toHaveText("Translate: name");
     });
 
@@ -130,16 +123,13 @@ describe("dialog open / close", () => {
         await contains(".o_field_char .btn.o_field_translate").click();
         expect(".modal").toHaveCount(1);
 
-        // Close without saving (use Discard footer button — works on desktop and mobile/fullscreen)
         await contains(".modal-footer .btn:not(.btn-primary)").click();
 
         expect(".modal").toHaveCount(0, { message: "dialog should be closed" });
-        // update_field_translations must NOT have been called
         expect.verifySteps([]);
     });
 });
 
-// Language rows
 describe("language rows", () => {
     test("dialog renders one input row per installed language", async () => {
         Partner._fields.name.translate = true;
@@ -161,7 +151,6 @@ describe("language rows", () => {
         expect(".modal .o_translation_dialog .translation").toHaveCount(2);
 
         const inputs = queryAll(".modal .o_translation_dialog .translation input");
-        // Values should match the mock translations (sorted by language name)
         const values = inputs.map((el) => el.value);
         expect(values).toInclude("yop");
         expect(values).toInclude("yop français");
@@ -183,12 +172,10 @@ describe("language rows", () => {
 
         await fieldInput("name").edit("modified english");
 
-        // Re-focus the input so the translate button becomes visible (CSS: focus-within)
         await contains("[name=name] input").click();
         await contains(".o_field_char .btn.o_field_translate").click();
 
         const inputs = queryAll(".modal .o_translation_dialog .translation input");
-        // English (user's lang) row should show the current edited value
         const enInput = inputs.find((el) => el.value === "modified english");
         expect(enInput).not.toBe(undefined, {
             message:
@@ -197,7 +184,6 @@ describe("language rows", () => {
     });
 });
 
-// Save payload
 describe("save payload", () => {
     test("saving changed translations calls update_field_translations with correct args", async () => {
         Partner._fields.name.translate = true;
@@ -207,7 +193,6 @@ describe("save payload", () => {
         setupTranslationMocks();
 
         onRpc("res.partner", "update_field_translations", ({ args }) => {
-            // args: [resIds, fieldName, translations]
             expect(args[0]).toEqual([1]);
             expect(args[1]).toBe("name");
             expect(args[2].fr_BE).toBe("nouveau");

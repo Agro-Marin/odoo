@@ -6,11 +6,15 @@ from io import BytesIO
 from unittest.mock import patch
 
 import requests
+from lxml import html
 
 import odoo
 from odoo.modules.registry import Registry
+from odoo.service.db import DBNAME_PATTERN
 from odoo.tests.common import BaseCase, HttpCase, tagged
 from odoo.tools import config
+
+from odoo.addons.web.controllers.database import render_database_manager
 
 
 @tagged("web_http", "web_db")
@@ -21,14 +25,64 @@ class TestDatabaseManager(HttpCase):
         res = self.url_open("/web/database/manager")
         self.assertEqual(res.status_code, 200)
 
-        # Actions scoped to an existing database
+        # a doctype written in the template does not survive the lxml round
+        # trip; without one the page renders in quirks mode, where <body>
+        # stretches to the viewport and Bootstrap is unsupported
+        self.assertTrue(
+            res.text.startswith("<!DOCTYPE html>"),
+            "the database manager must not be served in quirks mode",
+        )
+
         self.assertIn(".o_database_backup", res.text)
         self.assertIn(".o_database_duplicate", res.text)
         self.assertIn(".o_database_delete", res.text)
 
-        # Actions not tied to an existing database
         self.assertIn(".o_database_create", res.text)
         self.assertIn(".o_database_restore", res.text)
+
+
+@tagged("web_db")
+class TestDatabaseManagerMarkup(BaseCase):
+    """The page's JS addresses fields by id and its labels by ``for``, while the
+    same partials (``master_input``, ``create_form``) are included once per
+    form: both have to stay unambiguous in every combination of values."""
+
+    def _render(self, **overrides):
+        values = {
+            "manage": True,
+            "insecure": False,
+            "list_db": True,
+            "langs": [("en_US", "English")],
+            "countries": [("us", "United States")],
+            "pattern": DBNAME_PATTERN,
+            "databases": ["db1"],
+            "incompatible_databases": [],
+            "error": None,
+        }
+        values.update(overrides)
+        return html.document_fromstring(render_database_manager(values))
+
+    def test_ids_are_unique_and_labels_resolve(self):
+        for insecure in (False, True):
+            # no database at all renders the create form twice: inline, and in
+            # the create modal
+            for databases in ([], ["db1"]):
+                with self.subTest(insecure=insecure, databases=databases):
+                    doc = self._render(insecure=insecure, databases=databases)
+                    ids = doc.xpath("//*/@id")
+                    self.assertCountEqual(ids, set(ids), "duplicate element ids")
+                    targets = set(ids)
+                    for label_for in doc.xpath("//label/@for"):
+                        self.assertIn(label_for, targets, "label points at no element")
+
+    def test_master_password_input_is_hidden_only_in_the_master_form(self):
+        doc = self._render(insecure=True)
+        hidden = doc.xpath("//input[@name='master_pwd'][@type='hidden']")
+        self.assertEqual(len(hidden), 1)
+        self.assertEqual(
+            hidden[0].xpath("ancestor::form/@action"),
+            ["/web/database/change_password"],
+        )
 
 
 @tagged("-at_install", "post_install", "-standard", "database_operations")
@@ -36,14 +90,6 @@ class TestDatabaseOperations(BaseCase):
     def setUp(self):
         self.password = secrets.token_hex()
 
-        # monkey-patch password verification. ``verify_admin_password`` is a
-        # method on the ``configmanager`` class (the ``config`` singleton's
-        # type) — patching the bare module path ``odoo.tools.config`` fails
-        # because the module never had a top-level ``verify_admin_password``
-        # function; the same name on ``odoo.tools.config`` resolves to the
-        # singleton only via the ``from .config import config`` rebinding in
-        # ``odoo/tools/__init__.py``, which ``mock.patch``'s importlib lookup
-        # does not honor.
         self.verify_admin_password_patcher = patch(
             "odoo.tools.config.configmanager.verify_admin_password",
             self.password.__eq__,
@@ -53,8 +99,6 @@ class TestDatabaseOperations(BaseCase):
         self.assertEqual(len(config["db_name"]), 1)
         self.db_name = config["db_name"][0]
 
-        # Restrict dbfilter to this db's family so list_dbs_filtered() only
-        # ever sees databases this test itself creates/drops.
         self.addCleanup(operator.setitem, config, "dbfilter", config["dbfilter"])
         config["dbfilter"] = self.db_name + ".*"
 
@@ -163,13 +207,6 @@ class TestDatabaseOperations(BaseCase):
         backup_file.write(res.content)
         self.assertGreater(backup_file.tell(), 0, "The backup seems corrupted")
 
-        # Restore the backup under a different name (i.e. a duplicate)
-        # Patch the CONSUMING namespace (``odoo.http.wrappers`` binds the
-        # constant at import time to set ``HTTPRequest.max_content_length``);
-        # patching the ``odoo.http`` re-export never reaches it, so the
-        # 1024-byte subtest below silently ran with the real 128MiB limit and
-        # could not detect a broken per-route ``max_content_length=None``
-        # override on /web/database routes.
         with (
             self.subTest(DEFAULT_MAX_CONTENT_LENGTH=None),
             patch.object(odoo.http.wrappers, "DEFAULT_MAX_CONTENT_LENGTH", None),
@@ -190,8 +227,6 @@ class TestDatabaseOperations(BaseCase):
             self.assertDbs([test_db_name])
             self.url_open_drop(test_db_name)
 
-        # /web/database routes set max_content_length=None, so the global
-        # DEFAULT_MAX_CONTENT_LENGTH must not reject this upload.
         with (
             self.subTest(DEFAULT_MAX_CONTENT_LENGTH=1024),
             patch.object(odoo.http.wrappers, "DEFAULT_MAX_CONTENT_LENGTH", 1024),
@@ -233,20 +268,17 @@ class TestDatabaseOperations(BaseCase):
             data={
                 "master_pwd": self.password,
                 "name": self.db_name,
-                "backup_format": "exe",  # not in {"zip", "dump"}
+                "backup_format": "exe",
             },
             allow_redirects=False,
         )
-        self.assertEqual(res.status_code, 200)  # Error page, not streaming response
+        self.assertEqual(res.status_code, 200)
         self.assertIn("error", res.text.lower())
 
     def test_database_http_registries(self):
         """Dropping a database's connection in one worker must not break
         other workers that still hold a (now stale) registry for it."""
 
-        #
-        # Setup
-        #
 
         test_db_name = self.db_name + "-test-database-duplicate"
         res = self.session.post(
@@ -263,31 +295,21 @@ class TestDatabaseOperations(BaseCase):
         cr = registry.cursor()
         self.assertIn(test_db_name, Registry.registries)
 
-        # Drop the database, but stub out close_db so our cursor/registry
-        # objects survive to simulate a worker that still holds them.
         with patch("odoo.db.close_db") as close_db:
             res = self.url_open_drop(test_db_name)
         close_db.assert_called_once_with(test_db_name)
 
-        # Simulate a client session that was connected to the now-dropped db.
         session_store = odoo.http.root.session_store
         session = session_store.new()
         session.update(odoo.http.get_default_session(), db=test_db_name)
         session.context["lang"] = odoo.http.DEFAULT_LANG
         self.session.cookies["session_id"] = session.sid
 
-        # Reinject the stale registry into the LRU cache to simulate the
-        # other worker still holding it after the drop.
         patcher = patch.dict(Registry.registries, {test_db_name: registry})
         registries = patcher.start()
         self.addCleanup(patcher.stop)
 
-        #
-        # Tests
-        #
 
-        # The other worker doesn't have a registry in its LRU cache for
-        # that session database.
         with self.subTest(msg="Registry.init() fails"):
             session_store.save(session)
             registries.pop(test_db_name, None)
@@ -302,9 +324,6 @@ class TestDatabaseOperations(BaseCase):
                 ],
             )
 
-        # The other worker has a registry in its LRU cache for that
-        # session database. But it doesn't have a connection to the sql
-        # database.
         with self.subTest(msg="Registry.cursor() fails"):
             session_store.save(session)
             registries[test_db_name] = registry
@@ -322,9 +341,6 @@ class TestDatabaseOperations(BaseCase):
                 ],
             )
 
-        # The other worker has a registry in its LRU cache for that
-        # session database. It also has a (now broken) connection to the
-        # sql database.
         with self.subTest(msg="Registry.check_signaling() fails"):
             session_store.save(session)
             registries[test_db_name] = registry

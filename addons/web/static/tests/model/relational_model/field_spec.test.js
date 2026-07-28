@@ -15,8 +15,6 @@ function makeActiveFields(defs) {
     return activeFields;
 }
 
-// Scalar fields
-
 describe("getFieldsSpec — scalar fields", () => {
     test("char field produces empty spec object", () => {
         const activeFields = makeActiveFields([["name", {}]]);
@@ -47,8 +45,6 @@ describe("getFieldsSpec — scalar fields", () => {
     });
 });
 
-// many2one / reference
-
 describe("getFieldsSpec — many2one", () => {
     test("includes display_name in fields", () => {
         const activeFields = makeActiveFields([["partner_id", {}]]);
@@ -61,7 +57,6 @@ describe("getFieldsSpec — many2one", () => {
         const activeFields = { partner_id: makeActiveField({ invisible: true }) };
         const fields = { partner_id: { type: "many2one" } };
         const result = getFieldsSpec(activeFields, fields, {});
-        // Always invisible → only { fields: {} }
         expect(Object.keys(result.partner_id.fields).length).toBe(0);
     });
 
@@ -90,8 +85,6 @@ describe("getFieldsSpec — reference", () => {
         expect(result.category.fields.display_name).toEqual({});
     });
 });
-
-// x2many
 
 describe("getFieldsSpec — one2many / many2many", () => {
     test("empty spec when no related defined", () => {
@@ -166,8 +159,6 @@ describe("getFieldsSpec — one2many / many2many", () => {
     });
 });
 
-// properties
-
 describe("getFieldsSpec — properties", () => {
     test("adds display_name to definition_record field spec", () => {
         const activeFields = {
@@ -179,8 +170,6 @@ describe("getFieldsSpec — properties", () => {
             task_id: { type: "many2one" },
         };
         const result = getFieldsSpec(activeFields, fields, {});
-        // task_id is many2one, so it has fields.display_name already
-        // The properties handler adds display_name to the definition record spec
         expect("display_name" in result.task_id.fields).toBe(true);
     });
 });

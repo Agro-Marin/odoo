@@ -107,9 +107,6 @@ declare module "@web/@types/models/_runtime" {
  */
 declare module "@web/@types/models/_runtime" {
     export interface Models {
-        // Populated via declaration merging by per-model generated files.
-        // Empty here so untyped access (``Models[string]``) resolves to
-        // ``unknown`` rather than ``never``.
         [model: string]: Record<string, unknown>;
     }
 }

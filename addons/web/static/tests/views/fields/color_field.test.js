@@ -29,13 +29,13 @@ class Color extends models.Model {
     ];
 
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <group>
                     <field name="hex_color" widget="color"/>
                 </group>
             </form>`,
-        list: /* xml */ `
+        list: `
             <list editable="bottom">
                 <field name="hex_color" widget="color" />
             </list>`,
@@ -85,8 +85,6 @@ test("swatch live-previews while dragging in the picker (input event)", async ()
 
     expect(".o_field_color div").toHaveStyle({ backgroundColor: "rgb(255, 68, 68)" });
 
-    // A native color picker fires "input" on every move and "change" only on
-    // close: the swatch must follow "input" without touching the record.
     const input = queryOne(".o_field_color input");
     input.value = "#00ff00";
     input.dispatchEvent(new Event("input", { bubbles: true }));

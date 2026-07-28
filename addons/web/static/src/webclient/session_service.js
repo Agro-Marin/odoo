@@ -48,8 +48,6 @@ export const lazySession = {
                     const promise = fetchServerData();
                     lazyConfigPromise = promise;
                     promise.catch((error) => {
-                        // Don't cache a failed fetch forever: let the next
-                        // getValue call retry (unless a retry already started).
                         if (lazyConfigPromise === promise) {
                             lazyConfigPromise = null;
                         }
@@ -60,15 +58,8 @@ export const lazySession = {
                     deepCopy(config[key]),
                 );
                 if (callback) {
-                    // Back-compat: fire the callback on success only. The `() =>
-                    // {}` reject arm keeps this branch from surfacing an
-                    // unhandled rejection when the caller ignores the promise.
                     valuePromise.then(callback, () => {});
                 } else {
-                    // Promise-form callers own error handling (await/catch);
-                    // attach a no-op so an ignored promise never leaks an
-                    // unhandled rejection, without stopping the caller's own
-                    // catch from seeing it.
                     valuePromise.catch(() => {});
                 }
                 return valuePromise;

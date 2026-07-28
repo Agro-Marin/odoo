@@ -81,17 +81,18 @@ export class AutoComplete extends Component {
     setup() {
         this.nextSourceId = 0;
         this.nextOptionId = 0;
-        this.sources = [];
+        this._loadId = 0;
         this.inEdition = false;
         this.mouseSelectionActive = false;
         this.isOptionSelected = false;
 
         this.state = useState({
             navigationRev: 0,
-            optionsRev: 0,
             open: false,
             activeSourceOption: null,
             value: this.props.value,
+            /** @type {any[]} */
+            sources: [],
         });
 
         this.inputRef = /** @type {any} */ (useForwardRefToParent("input"));
@@ -119,21 +120,13 @@ export class AutoComplete extends Component {
             }
         }, this.timeout);
 
-        // Listeners are registered only while the dropdown is open, to avoid
-        // firing on every mouse move / scroll while closed. Arrow functions
-        // capture `this` since addEventListener won't do it for us.
         this._externalClose = (/** @type {Event} */ ev) => this.externalClose(ev);
-        // One-shot latch: the first mousemove flips mouseSelectionActive and
-        // removes itself; re-armed on close/keyboard nav so hover keeps working.
         this._onMouseMove = () => {
             this._mouseMoveCleanup = null;
             this.mouseSelectionActive = true;
         };
         this._globalCleanups = [];
         this._mouseMoveCleanup = null;
-        // onWillDestroy (not onWillUnmount): a component destroyed before
-        // "mounted" never runs willUnmount, which would leak the capture-phase
-        // window listeners and let them fire against a null root ref.
         onWillDestroy(() => this._removeGlobalListeners());
 
         onWillUpdateProps((nextProps) => {
@@ -143,20 +136,13 @@ export class AutoComplete extends Component {
                     this.state.value = nextProps.value;
                     this.inputRef.el.value = nextProps.value;
                 }
-                // A prop value change means the owner replaced the value out from
-                // under us; close so the next interaction re-opens a fresh dropdown
-                // instead of a stale one that would toggle shut on click.
                 this.close();
             }
         });
 
-        // position and size
         if (this.props.dropdown) {
             usePosition("sourcesList", () => this.targetDropdown, this.dropdownOptions);
         } else {
-            // Open eagerly so sources start loading on first render (quick-add
-            // flows type immediately). Window listeners are deferred to mount
-            // though, since a pre-mount destroy would leak them permanently.
             this.state.open = true;
             this.loadSources(false);
             onMounted(() => {
@@ -169,6 +155,15 @@ export class AutoComplete extends Component {
 
     get targetDropdown() {
         return this.inputRef.el;
+    }
+
+    /**
+     * Loaded sources are reactive state: a source that resolves late (or fails)
+     * repaints by mutating its own `options` / `isLoading`, instead of relying
+     * on an unrelated `state` write happening to land in the same tick.
+     */
+    get sources() {
+        return this.state.sources;
     }
 
     get activeSourceOptionId() {
@@ -219,15 +214,7 @@ export class AutoComplete extends Component {
     close() {
         this.state.open = false;
         this.state.activeSourceOption = null;
-        // Cancel any pending debounced input. A keystroke landing just before a
-        // deliberate close (Escape, option select, a prop-driven value change)
-        // would otherwise fire *after* the close and force the dropdown back
-        // open — unfocused and stale — while issuing a spurious name_search.
-        // SelectMenu already guards this class of race (its
-        // debouncedOnInput.cancel() in onStateChanged); AutoComplete didn't.
         this.debouncedProcessInput.cancel();
-        // The cancelled debounce never resolves its pending deferred; settle it
-        // here so a later Enter/Tab that awaits loadingPromise can't hang.
         this.pendingPromise?.resolve();
         this.pendingPromise = null;
         this.loadingPromise = null;
@@ -237,7 +224,7 @@ export class AutoComplete extends Component {
 
     _addGlobalListeners() {
         if (this._globalCleanups.length) {
-            return; // already registered
+            return;
         }
         const add = (target, event, handler, capture = false) => {
             target.addEventListener(event, handler, capture);
@@ -262,7 +249,7 @@ export class AutoComplete extends Component {
     /** Arm the one-shot mousemove latch: first move sets mouseSelectionActive then self-removes. */
     _armMouseMove() {
         if (this._mouseMoveCleanup) {
-            return; // already armed
+            return;
         }
         window.addEventListener("mousemove", this._onMouseMove, {
             capture: true,
@@ -289,43 +276,57 @@ export class AutoComplete extends Component {
                 this.props.onCancel();
             }
         }
+        // Escaping (or clicking away) ends the edit session, like blurring and
+        // selecting already do. Leaving `inEdition` set made `onWillUpdateProps`
+        // treat every later `value` prop as "the user is still typing" and
+        // refuse to sync it, so the input kept showing abandoned text forever.
+        this.inEdition = false;
         this.close();
     }
 
+    /**
+     * Never rejects: a source that fails is reported once (see
+     * {@link reportSourceError}) and then treated as having returned no
+     * options, so one broken source cannot strand the whole dropdown on a
+     * spinner nor turn the fire-and-forget `open()` call sites into unhandled
+     * rejections.
+     *
+     * @param {boolean} useInput
+     */
     async loadSources(useInput) {
-        // Order guard for overlapping loads (fast typing over a slow async
-        // source): only the most recent invocation may mutate state, so a
-        // stale resolution can't bump optionsRev or run navigate()/scroll()
-        // out of order. SearchBar wraps calls in KeepLast; other consumers
-        // (record selectors, many2one widgets) rely on this guard directly.
-        const loadId = (this._loadId = (this._loadId ?? 0) + 1);
-        // The query these options are being built for. Recorded once they are
-        // all in place (below) so ``onOptionClick`` can tell whether what is on
-        // screen still matches the input. ``null`` means "not input-driven",
-        // in which case no such correspondence exists.
+        const loadId = ++this._loadId;
         const request = useInput ? this.inputRef.el.value.trim() : null;
-        this.sources = [];
+        this.state.sources = this.props.sources.map((pSource) =>
+            this.makeSource(pSource),
+        );
         this.state.activeSourceOption = null;
-        const proms = [];
-        for (const pSource of this.props.sources) {
-            const source = this.makeSource(pSource);
-            this.sources.push(source);
 
-            const options = this.loadOptions(
-                pSource.options,
-                useInput ? this.inputRef.el.value.trim() : "",
-            );
+        const proms = [];
+        for (const [index, pSource] of this.props.sources.entries()) {
+            const source = this.state.sources[index];
+            const options = this.loadOptions(pSource.options, request ?? "");
             if (options instanceof Promise) {
                 source.isLoading = true;
-                const prom = options.then((options) => {
-                    if (loadId !== this._loadId) {
-                        return; // superseded by a newer load
-                    }
-                    source.options = options.map((option) => this.makeOption(option));
-                    source.isLoading = false;
-                    this.state.optionsRev++;
-                });
-                proms.push(prom);
+                proms.push(
+                    options.then(
+                        (options) => {
+                            if (loadId !== this._loadId) {
+                                return;
+                            }
+                            source.options = options.map((option) =>
+                                this.makeOption(option),
+                            );
+                            source.isLoading = false;
+                        },
+                        (error) => {
+                            if (loadId !== this._loadId) {
+                                return;
+                            }
+                            source.isLoading = false;
+                            this.reportSourceError(error);
+                        },
+                    ),
+                );
             } else {
                 source.options = options.map((option) => this.makeOption(option));
             }
@@ -333,13 +334,25 @@ export class AutoComplete extends Component {
 
         await Promise.all(proms);
         if (loadId !== this._loadId) {
-            return; // a newer load is in flight; let it finalize navigation
+            return;
         }
-        // Every source has its options now, so the rendered list corresponds to
-        // `request` until the next load finalizes.
         this._loadedRequest = request;
         this.navigate(0);
         this.scroll();
+    }
+
+    /**
+     * Surfaces a source failure to the global error service without coupling it
+     * to whichever call site happened to trigger the load. A failing search is
+     * a real error and must stay visible; it just must not also break the
+     * dropdown.
+     *
+     * @param {any} error
+     */
+    reportSourceError(error) {
+        Promise.resolve().then(() => {
+            throw error;
+        });
     }
     get displayOptions() {
         return !this.props.dropdown || (this.isOpened && this.hasOptions);
@@ -394,8 +407,6 @@ export class AutoComplete extends Component {
     }
 
     navigate(direction) {
-        // Navigation takes over from the mouse: disarm hover selection and
-        // re-arm the latch so the next real mousemove re-enables it.
         this._resetMouseSelection();
         let step = Math.sign(direction);
         if (!step) {
@@ -416,10 +427,6 @@ export class AutoComplete extends Component {
                     sourceIndex += step;
                     source = this.sources[sourceIndex];
 
-                    // Skip loaded-but-empty sources too (same predicate as the
-                    // initial-selection branch below): landing on one would set
-                    // activeSourceOption on a nonexistent option, crashing
-                    // Enter/Tab and emitting a dangling aria-activedescendant.
                     while (source && (source.isLoading || !source.options.length)) {
                         sourceIndex += step;
                         source = this.sources[sourceIndex];
@@ -457,9 +464,6 @@ export class AutoComplete extends Component {
             this.ignoreBlur = false;
             return;
         }
-        // selectOnBlur: auto-select the first suggestion, if any, on blur.
-        // Skip while a load is in flight: the displayed options belong to a
-        // previous search string and would auto-select a stale option.
         if (
             this.props.selectOnBlur &&
             !this.isOptionSelected &&
@@ -502,8 +506,6 @@ export class AutoComplete extends Component {
         this.inEdition = true;
         if (!this.pendingPromise) {
             this.pendingPromise = new Deferred();
-            // Nothing necessarily awaits this promise: swallow the rejection
-            // to avoid an unhandled rejection when a source fails to load.
             this.pendingPromise.catch(() => {});
         }
         this.loadingPromise = this.pendingPromise;
@@ -612,27 +614,12 @@ export class AutoComplete extends Component {
         }
     }
     onOptionMouseLeave() {
-        // Mirror onOptionMouseEnter's gate: only clear an activation the mouse
-        // set, else a stray mouseleave after keyboard nav could wipe it out.
         if (!this.mouseSelectionActive) {
             return;
         }
         this.state.activeSourceOption = null;
     }
     async onOptionClick(option) {
-        // Same invariant the keydown path already enforces (see
-        // ``onInputKeydown``): an option may only be selected against the query
-        // that produced it. Type "ab", keep typing, and click "Create ab" while
-        // the input already reads "abcdefgh" — the option is still on screen
-        // because ``onInput`` only arms the debounce, and selecting it
-        // quick-creates against the superseded text.
-        //
-        // Test on the CORRESPONDENCE (do the rendered options match the current
-        // input?) rather than on ``loadingPromise`` alone: a load may be in
-        // flight whose options already match what the user typed, and rejecting
-        // those would break the ordinary "type, then click the matching row"
-        // flow. ``_loadedRequest`` is null for non-input-driven sources, where
-        // no such correspondence exists.
         const staleOptions =
             typeof this._loadedRequest === "string" &&
             this._loadedRequest !== this.inputRef.el.value.trim();
@@ -642,9 +629,6 @@ export class AutoComplete extends Component {
             } catch {
                 // Sources failed to load: proceed as if there were no options.
             }
-            // The options have been rebuilt, so the clicked object is stale.
-            // Leave the refreshed list open rather than silently selecting a
-            // different row than the one under the cursor.
             this.inputRef.el.focus();
             return;
         }
@@ -653,10 +637,6 @@ export class AutoComplete extends Component {
     }
     onOptionPointerDown(option, ev) {
         if (option.unselectable) {
-            // preventDefault keeps focus on the input, so NO blur fires for an
-            // unselectable row. Setting ignoreBlur here would latch it forever
-            // (onInputBlur is the only place that clears it), corrupting the
-            // next real blur/change. Only selectable options blur the input.
             ev.preventDefault();
             return;
         }
@@ -674,8 +654,6 @@ export class AutoComplete extends Component {
             return;
         }
         if (isScrollableY(this.listRef.el)) {
-            // props.id is embedded verbatim in the option ids: escape it so
-            // CSS-significant characters can't break the selector.
             const element = this.listRef.el.querySelector(
                 `#${CSS.escape(this.activeSourceOptionId)}`,
             );

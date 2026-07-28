@@ -5,7 +5,7 @@
     flex-flow: row wrap;
     margin-top: calc(
         var(--img-text-gap-v) * -0.5
-    ); // using transform conflicts with dropdown position
+    );
 
     .o_field_many2many_selection {
         flex: 1 0 50px;

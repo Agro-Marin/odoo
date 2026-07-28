@@ -12,7 +12,6 @@ import {
     toOperator,
 } from "@web/core/tree/operator_labels";
 
-// Re-export getOperatorLabel for backward compatibility
 export { getOperatorLabel };
 
 /**
@@ -55,7 +54,7 @@ export function getOperatorEditorInfo(operators, fieldDef) {
         },
         defaultValue: () => defaultOperator,
         isSupported: ([operator]) =>
-            typeof operator === "string" && operator in OPERATOR_DESCRIPTIONS, // should depend on fieldDef too... (e.g. parent_id does not always make sense)
+            typeof operator === "string" && operator in OPERATOR_DESCRIPTIONS,
         message: _t("Operator not supported"),
         stringify: ([operator, negate]) =>
             getOperatorLabel(operator, fieldDef?.type, negate),

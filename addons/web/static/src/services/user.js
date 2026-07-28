@@ -19,6 +19,30 @@ import { session } from "@web/session";
  */
 
 /**
+ * One entry of ``session_info``'s ``user_companies``.
+ *
+ * Shape is fixed by the server (see ``web/tests/test_session_info.py``):
+ * ``allowed_companies`` carries id/name/sequence/child_ids/currency_id/parent_id,
+ * ``disallowed_ancestor_companies`` carries the same minus ``currency_id`` —
+ * which is why that one key is optional here. ``parent_id`` is the raw id (0 /
+ * falsy at the root), not a many2one pair.
+ *
+ * Only `id` is guaranteed. The rest are optional on purpose: the session
+ * payload varies by source (`disallowed_ancestor_companies` carries no
+ * `currency_id`), `patchWithCleanup` in tests installs `{id}`-only stubs, and
+ * the implementation types its own backing arrays `any[]` for exactly this
+ * reason. Requiring them would make correct call sites and fixtures fail.
+ *
+ * @typedef {Object} UserCompany
+ * @property {number} id
+ * @property {string} [name]
+ * @property {number} [sequence]
+ * @property {number[]} [child_ids]
+ * @property {number} [parent_id] - falsy for a root company
+ * @property {number} [currency_id] - absent on disallowed ancestors
+ */
+
+/**
  * @typedef {Object} UserObject
  * @property {string} name - display name
  * @property {string} login - username / email
@@ -36,14 +60,14 @@ import { session } from "@web/session";
  * @property {Record<string, any>} settings - res.users.settings snapshot
  * @property {(update: Object) => void} updateContext - merge keys into the user context
  * @property {(group: string) => Promise<boolean>} hasGroup - check group membership (cached)
- * @property {(model: string, operation: string, ids?: number[]) => Promise<boolean>} checkAccessRight - check model ACL (cached)
+ * @property {(model: string, operation: string, ids?: number[]|number, options?: {context?: Object}) => Promise<boolean>} checkAccessRight - check model ACL. `ids` accepts a scalar (the implementation runs it through `ensureArray`). Cached by [model, operation, ids] ONLY; passing `options.context` bypasses the cache entirely because the key omits the context and a company-dependent answer would otherwise poison it. Do not drop the 4th argument at a call site to satisfy a type — it is load-bearing (see `user.test.js` "explicit context bypasses the cache").
  * @property {(key: string, value: any) => Promise<void>} setUserSettings - persist a setting to the server
  * @property {(key: string, value: any) => void} updateUserSettings - update a setting locally (no RPC)
- * @property {{id: number} | undefined} defaultCompany - fallback company from session
- * @property {Array<{id: number, child_ids: number[]}>} allowedCompanies - authorized companies
- * @property {Array<{id: number}>} allowedCompaniesWithAncestors - includes disallowed ancestors
- * @property {Array<{id: number}>} activeCompanies - currently selected companies
- * @property {{id: number, currency_id: number}} activeCompany - primary active company
+ * @property {UserCompany | undefined} defaultCompany - fallback company from session
+ * @property {UserCompany[]} allowedCompanies - authorized companies
+ * @property {UserCompany[]} allowedCompaniesWithAncestors - includes disallowed ancestors
+ * @property {UserCompany[]} activeCompanies - currently selected companies
+ * @property {UserCompany} activeCompany - primary active company
  * @property {(companyIds: number[], options?: {includeChildCompanies?: boolean, reload?: boolean}) => Promise<void>} activateCompanies - switch active companies
  */
 
@@ -55,8 +79,6 @@ function getCookieCompanyIds() {
     if (typeof cids === "string") {
         return cids.split("-").map(Number);
     }
-    // cookie.get() only ever returns string | undefined (core/browser/cookie.js),
-    // so no numeric branch is reachable here.
     return [];
 }
 
@@ -95,21 +117,15 @@ export function _makeUser(session) {
      * @param {{id: number} | undefined} defaultCompany
      */
     function updateActiveCompanies(cids, allowedCompanies, defaultCompany) {
+        const previousIds = activeCompanies.map((c) => c.id).join("-");
         activeCompanies = cids
             .map((cid) => allowedCompanies.find((c) => c.id === cid))
-            // Narrow out the `undefined` from `.find` (TS 5.5+ infers the predicate).
             .filter((c) => c !== undefined);
         if (!activeCompanies.length) {
-            // Fall back to the default company, or the first allowed one if
-            // default is undefined (e.g. current_company not in the allowed
-            // list). Guard against both being absent so the subsequent
             // .map((c) => c.id) never receives undefined elements.
             const fallback = defaultCompany || allowedCompanies[0];
             activeCompanies = fallback ? [fallback] : [];
         }
-        // Sort all but the first company (whose status differs) to reduce
-        // entropy of allowed_company_ids — the stringified context is part
-        // of every rpc cache key.
         if (activeCompanies.length) {
             activeCompanies = [
                 activeCompanies[0],
@@ -117,16 +133,21 @@ export function _makeUser(session) {
             ];
         }
 
-        cookie.set("cids", activeCompanies.map((c) => c.id).join("-"));
-        Object.assign(context, {
-            allowed_company_ids: activeCompanies.map((c) => c.id),
-        });
+        const activeIds = activeCompanies.map((c) => c.id);
+        cookie.set("cids", activeIds.join("-"));
+        Object.assign(context, { allowed_company_ids: activeIds });
 
-        userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
+        // Every listener of this event does expensive invalidation work: the
+        // group and access-right caches are dropped and reseeded here, and the
+        // whole display-name cache is dropped in `name_service`. Re-selecting
+        // the companies already active (re-clicking the same entry in the
+        // company switcher, a recovery path that adds an id already present)
+        // must not pay for that.
+        if (activeIds.join("-") !== previousIds) {
+            userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
+        }
     }
 
-    // Companies information. Session data with heterogeneous shapes (call sites
-    // build varying subsets of id/child_ids/currency_id), so typed `any[]`.
     /** @type {any[]} */
     let allowedCompanies = [];
     /** @type {any[]} */
@@ -148,11 +169,10 @@ export function _makeUser(session) {
         }
         defaultCompany = allowedCompanies.find(
             (c) => c.id === userCompanies.current_company,
-        ); // TODO: change the name in the session current_company to default_company
+        );
         updateActiveCompanies(getCookieCompanyIds(), allowedCompanies, defaultCompany);
     }
 
-    // Delete user-related information from the session, s.t. there's a single source of truth
     delete session.home_action_id;
     delete session.is_admin;
     delete session.is_internal_user;
@@ -168,7 +188,6 @@ export function _makeUser(session) {
     delete session.user_companies;
     delete session.groups;
 
-    // Generate caches for has_group and has_access calls
     /** @type {(group: string, context: Object) => Promise<boolean>} */
     const getGroupCacheValue = (group, context) => {
         if (!userId) {
@@ -184,20 +203,20 @@ export function _makeUser(session) {
     const getGroupCacheKey = (/** @type {string} */ group) => group;
     const groupCache = new Cache(getGroupCacheValue, getGroupCacheKey);
     const seedGroupCache = () => {
-        if (isInternalUser !== undefined) {
-            groupCache.cache["base.group_user"] = Promise.resolve(isInternalUser);
-        }
-        if (isSystem !== undefined) {
-            groupCache.cache["base.group_system"] = Promise.resolve(isSystem);
-        }
-        if (isAdmin !== undefined) {
-            groupCache.cache["base.group_erp_manager"] = Promise.resolve(isAdmin);
-        }
-        if (isPublic !== undefined) {
-            groupCache.cache["base.group_public"] = Promise.resolve(isPublic);
+        /** @type {[string, boolean | undefined][]} */
+        const seeded = [
+            ["base.group_user", isInternalUser],
+            ["base.group_system", isSystem],
+            ["base.group_erp_manager", isAdmin],
+            ["base.group_public", isPublic],
+        ];
+        for (const [group, value] of seeded) {
+            if (value !== undefined) {
+                groupCache.set(Promise.resolve(value), group);
+            }
         }
         for (const [group, value] of Object.entries(groups)) {
-            groupCache.cache[group] = Promise.resolve(!!value);
+            groupCache.set(Promise.resolve(!!value), group);
         }
     };
     seedGroupCache();
@@ -220,9 +239,6 @@ export function _makeUser(session) {
         getAccessRightCacheValue,
         getAccessRightCacheKey,
     );
-    // Cached answers depend on the active companies (record rules): flush
-    // both caches on company switches that don't reload the page, and re-seed
-    // the group cache from the (company-independent) session values.
     userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
         groupCache.invalidate();
         seedGroupCache();
@@ -239,7 +255,7 @@ export function _makeUser(session) {
         partnerId,
         homeActionId,
         showEffect,
-        userId, // TODO: rename into id?
+        userId,
         writeDate,
         get context() {
             return { ...context, uid: this.userId };
@@ -248,7 +264,9 @@ export function _makeUser(session) {
             return lang;
         },
         get tz() {
-            return this.context.tz;
+            // Read the closure directly: `this.context` builds a fresh spread
+            // of the whole context object just to pluck one key.
+            return context.tz;
         },
         get settings() {
             return { ...settings };
@@ -266,11 +284,6 @@ export function _makeUser(session) {
             { context } = /** @type {{ context?: object }} */ ({}),
         ) {
             if (context) {
-                // Explicit context (e.g. probing access under a company set the
-                // user has NOT switched to yet): bypass the company-dependent
-                // cache — its key is [model, operation, ids] and omits the
-                // context, so a cached entry would answer for the wrong
-                // companies and a write would poison it. Direct, uncached RPC.
                 return getAccessRightCacheValue(
                     model,
                     operation,
@@ -293,7 +306,10 @@ export function _makeUser(session) {
                 {
                     model,
                     method,
-                    args: [[this.settings.id]],
+                    // Closure, not `this.settings`: the getter spreads the whole
+                    // settings object just to read one key (same reason the `tz`
+                    // getter reads `context` directly).
+                    args: [[settings.id]],
                     kwargs: {
                         new_settings: {
                             [key]: value,
@@ -307,60 +323,50 @@ export function _makeUser(session) {
         updateUserSettings(key, value) {
             settings[key] = value;
         },
-        defaultCompany, // default company of the user, used if no cookie set
-        allowedCompanies, // list of authorized companies for the user
+        defaultCompany,
+        allowedCompanies,
         allowedCompaniesWithAncestors,
-        // list of companies the user is currently logged into
         get activeCompanies() {
             return activeCompanies;
         },
-        // main company the user is currently logged into (default company for created records)
         get activeCompany() {
             return activeCompanies?.[0];
         },
         async activateCompanies(
             companyIds,
-            // Per-key defaults: a partial options object (e.g. `{ reload: false }`)
-            // must not drop the other defaults.
             { includeChildCompanies = true, reload = true } = {},
         ) {
-            // Fall back to the current primary company when no ids are given
-            // (guard against the degenerate no-company case). Copy the caller's
-            // array: ``addCompanies`` below pushes child-company ids onto it, and
-            // aliasing ``companyIds`` would mutate the caller's own data (e.g. a
-            // tax-unit record's ``company_ids``) — silently corrupting it on any
-            // ``reload: false`` path.
             const newCompanyIds = companyIds.length
                 ? [...companyIds]
                 : activeCompanies[0]
                   ? [activeCompanies[0].id]
                   : [];
 
+            /**
+             * `child_ids` is optional on a UserCompany (see the typedef:
+             * `disallowed_ancestor_companies` omits keys, and test fixtures
+             * install `{id}`-only stubs), so it must never be spread or
+             * iterated raw — `for…of undefined` throws.
+             * @param {number} companyId
+             * @returns {number[]}
+             */
+            function childIdsOf(companyId) {
+                return (
+                    allowedCompanies.find((c) => c.id === companyId)?.child_ids ?? []
+                );
+            }
+
             function addCompanies(/** @type {number[]} */ companyIds) {
                 for (const companyId of companyIds) {
                     if (!newCompanyIds.includes(companyId)) {
                         newCompanyIds.push(companyId);
-                        // A child_id might not be in allowedCompanies (e.g. the
-                        // user has no access to it). Skip rather than crash.
-                        const company = allowedCompanies.find(
-                            (c) => c.id === companyId,
-                        );
-                        if (company) {
-                            addCompanies(company.child_ids);
-                        }
+                        addCompanies(childIdsOf(companyId));
                     }
                 }
             }
 
             if (includeChildCompanies) {
-                addCompanies(
-                    companyIds.flatMap((companyId) => {
-                        const company = allowedCompanies.find(
-                            (c) => c.id === companyId,
-                        );
-                        return company ? company.child_ids : [];
-                    }),
-                );
+                addCompanies(companyIds.flatMap(childIdsOf));
             }
 
             updateActiveCompanies(newCompanyIds, allowedCompanies, defaultCompany);
@@ -383,9 +389,16 @@ export const getLastConnectedUsers = () => {
         return [];
     }
     try {
-        return JSON.parse(raw);
+        const users = JSON.parse(raw);
+        // `JSON.parse` happily returns a number, string or object here; every
+        // caller then does `.filter` / `.slice` on it and throws, bricking the
+        // quick-login list until localStorage is cleared by hand.
+        if (!Array.isArray(users)) {
+            browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
+            return [];
+        }
+        return users;
     } catch {
-        // Corrupted entry — discard it.
         browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
         return [];
     }
@@ -399,19 +412,8 @@ export const setLastConnectedUsers = (users) => {
     );
 };
 
-// Idempotent: ``session`` is a shared global (``odoo.__session_info__``),
-// and ``user.js`` is bundled into both ``web.assets_frontend_lazy`` and
-// ``web.assets_tests`` (transitively via mail tours → store_service).
-// Without the sentinel, the first bundle's module evaluation deletes
-// ``quick_login`` and the second bundle's evaluation interprets the
-// missing key as "quick login disabled" — wiping out the saved-user
-// list that the first evaluation just populated.
 if (!session._quick_login_processed) {
     if (!session.quick_login) {
-        // Only remove if the key exists — an unconditional call fires on
-        // every page load and leaks a storage I/O step into tests that patch
-        // localStorage.removeItem (real localStorage no-ops on missing keys,
-        // but patched versions log the call).
         if (browser.localStorage.getItem(LAST_CONNECTED_USER_KEY) !== null) {
             browser.localStorage.removeItem(LAST_CONNECTED_USER_KEY);
         }

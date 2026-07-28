@@ -9,17 +9,9 @@ import { Job } from "./job.js";
  * @typedef {import("./test").Test} Test
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Object: { freeze: $freeze },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 class MinimalCallbacks extends Callbacks {
     add() {}
@@ -30,10 +22,6 @@ class MinimalCallbacks extends Callbacks {
 
 const SHARED_CALLBACKS = new MinimalCallbacks();
 const SHARED_CURRENT_JOBS = $freeze([]);
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * @param {Pick<Suite, "name" | "parent">} suite

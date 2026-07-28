@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { keyDown, pointerDown, queryOne } from "@odoo/hoot-dom";
+import { keyDown, keyUp, pointerDown, queryOne } from "@odoo/hoot-dom";
 import {
     setupInteractionWhiteList,
     startInteractions,
@@ -20,6 +20,9 @@ const template = `
         </div>
     </div>`;
 
+/** @param {boolean} on */
+const caps = (on) => ({ modifierCapsLock: on });
+
 test("caps_lock_warning is started when there is a presence of password input field inside `.o_caps_lock_warning`", async () => {
     const { core } = await startInteractions(template);
     expect(core.interactions).toHaveLength(1);
@@ -28,6 +31,43 @@ test("caps_lock_warning is started when there is a presence of password input fi
 test("caps lock alert is displayed when CapsLock is turned on", async () => {
     await startInteractions(template);
     await pointerDown(queryOne("#password"));
-    await keyDown("CapsLock");
+    // the keyup is what settles it: browsers disagree on the state reported by
+    // the CapsLock keydown, so the interaction deliberately ignores that one
+    await keyDown("CapsLock", caps(true));
+    await keyUp("CapsLock", caps(true));
+    expect(".o_caps_lock_warning_text").toBeVisible();
+});
+
+test("caps lock alert is hidden again when CapsLock is turned off", async () => {
+    await startInteractions(template);
+    await pointerDown(queryOne("#password"));
+    await keyUp("CapsLock", caps(true));
+    expect(".o_caps_lock_warning_text").toBeVisible();
+
+    await keyDown("CapsLock", caps(false));
+    await keyUp("CapsLock", caps(false));
+    expect(".o_caps_lock_warning_text").not.toBeVisible();
+});
+
+test("typing an ordinary key reflects the current CapsLock state", async () => {
+    await startInteractions(template);
+    await pointerDown(queryOne("#password"));
+
+    await keyDown("a", caps(true));
+    expect(".o_caps_lock_warning_text").toBeVisible();
+
+    await keyDown("a", caps(false));
+    expect(".o_caps_lock_warning_text").not.toBeVisible();
+});
+
+test("the ambiguous CapsLock keydown never flips the warning on its own", async () => {
+    await startInteractions(template);
+    await pointerDown(queryOne("#password"));
+    await keyUp("CapsLock", caps(true));
+    expect(".o_caps_lock_warning_text").toBeVisible();
+
+    // a browser reporting the pre-toggle state here would otherwise hide a
+    // warning that is still accurate
+    await keyDown("CapsLock", caps(false));
     expect(".o_caps_lock_warning_text").toBeVisible();
 });

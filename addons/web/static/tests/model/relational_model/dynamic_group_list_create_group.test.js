@@ -17,10 +17,6 @@ function makeList(groups = []) {
     const list = Object.create(DynamicGroupList.prototype);
     list.groups = [...groups];
     list.count = groups.length;
-    // domain / orderBy / groupBy / context / resModel / fields / activeFields /
-    // groupByField are read-only getters backed by `_config` (DataPoint /
-    // DynamicList / DynamicGroupList); set the config, not the getters.
-    // groupByField derives from `fields[groupBy[0]]`.
     list._config = {
         domain: [],
         orderBy: [],
@@ -40,12 +36,9 @@ function makeList(groups = []) {
     };
     list.model = {
         initialLimit: 80,
-        // name_create returns [id]; write is a no-op stub for the fold path.
         orm: { call: async () => [42], write: async () => {} },
         _patchConfig: () => {},
     };
-    // Stub datapoint creation / resequence so the test exercises only the
-    // count bookkeeping, not the ORM / server-side plumbing.
     list._createGroupDatapoint = (data) => ({
         id: `g-${data.value}`,
         value: data.value,
@@ -72,8 +65,6 @@ describe("DynamicGroupList._createGroup count integrity", () => {
 
         await list._createGroup("Foo");
 
-        // A 3rd group was appended, and count must track it (was previously
-        // left at 2, making the grouped pager total one short).
         expect(list.groups.length).toBe(3);
         expect(list.count).toBe(3);
     });

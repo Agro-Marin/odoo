@@ -68,8 +68,6 @@ export function convertRgbToHsl(r, g, b) {
         if (maxColor === blue) {
             hue = 4 + (red - green) / delta;
         }
-        // Inside `if (delta)` we have delta = maxColor - minColor > 0 with
-        // minColor >= 0, so maxColor is always > 0 here — no guard needed.
         saturation = delta / (1 - Math.abs(2 * lightness - 1));
     }
     hue = 60 * hue;
@@ -222,7 +220,6 @@ export function convertRgbaToCSSColor(r, g, b, a) {
  *          - opacity [0, 100.0] (float)
  */
 export function convertCSSColorToRgba(cssColor = "") {
-    // Check if cssColor is a rgba() or rgb() color
     const rgba = cssColor.match(
         /^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*(\d*(?:\.\d+)?))?\)$/,
     );
@@ -236,8 +233,6 @@ export function convertCSSColorToRgba(cssColor = "") {
         };
     }
 
-    // Otherwise, check if cssColor is an hexadecimal code color
-    // first check if it's in its compact form (e.g. #FFF)
     if (/^#([0-9a-f]{3})$/i.test(cssColor)) {
         return {
             red: Number.parseInt(cssColor[1] + cssColor[1], 16),
@@ -259,12 +254,6 @@ export function convertCSSColorToRgba(cssColor = "") {
         };
     }
 
-    // TODO maybe support css color names like 'red' or 'transparent' (currently
-    // treated as non-css colors by isCSSColor). If implemented, watch out for
-    // 'white'/'black', which are also names in our own color system.
-
-    // Check for the color() functional notation (implicit sRGB colorspace),
-    // e.g. color(srgb 1 0 0 / 0.5).
     if (/color\(.+\)/.test(cssColor)) {
         const canvasEl = document.createElement("canvas");
         canvasEl.height = 1;
@@ -277,7 +266,7 @@ export function convertCSSColorToRgba(cssColor = "") {
             red: data[0],
             green: data[1],
             blue: data[2],
-            opacity: data[3] / 2.55, // Convert 0-255 to percentage
+            opacity: data[3] / 2.55,
         };
     }
     return false;
@@ -357,10 +346,6 @@ export function standardizeGradient(gradient) {
     return gradient;
 }
 
-// Matches one numeric component (integer or decimal) of an rgb()/rgba()
-// string. The old `/[\d.]{1,5}/g` capped each match at 5 chars, so a long
-// component such as the alpha in "rgba(255,255,255,0.12345)" split into two
-// matches ("0.123" + "45"), corrupting the parsed value.
 export const RGBA_REGEX = /\d+(?:\.\d+)?/g;
 
 /**
@@ -383,7 +368,6 @@ export function rgbToHex(rgb = "", node = null) {
         if (node) {
             let bgColor = getComputedStyle(node).backgroundColor;
             if (bgColor.startsWith("rgba")) {
-                // Background itself has alpha: recurse using the parent's background.
                 bgColor = rgbToHex(bgColor, node.parentElement);
             }
             if (bgColor?.startsWith("#")) {
@@ -396,7 +380,7 @@ export function rgbToHex(rgb = "", node = null) {
                 );
             }
         }
-        bgRgbValues = bgRgbValues.length ? bgRgbValues : [255, 255, 255]; // Default to white.
+        bgRgbValues = bgRgbValues.length ? bgRgbValues : [255, 255, 255];
 
         return (
             "#" +
@@ -463,7 +447,6 @@ export function blendColors(color, node) {
         let bgColor = getComputedStyle(node).backgroundColor;
 
         if (bgColor.startsWith("rgba")) {
-            // Background itself has alpha: recurse using the parent's background.
             bgColor = blendColors(bgColor, node.parentElement);
         }
         if (bgColor.startsWith("#")) {

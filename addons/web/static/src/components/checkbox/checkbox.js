@@ -67,23 +67,16 @@ export class CheckBox extends Component {
         this.id = `checkbox-comp-${CheckBox.nextId++}`;
         this.rootRef = useRef("root");
 
-        // Toggle via Enter when focus is inside the root element.
         useHotkey(
             "Enter",
             ({ area }) => {
-                // Match onClick/onChange: a disabled checkbox must not toggle.
                 if (this.props.disabled) {
                     return;
                 }
                 const input = /** @type {HTMLInputElement} */ (
                     area.querySelector("input")
                 );
-                // Derive the next value from props (the source of truth for
-                // controlled parents) and mirror it on the DOM like onClick
-                // does, so the keyboard toggle is visible immediately.
-                const newValue = !(this.props.value ?? input.checked);
-                input.checked = newValue;
-                this.props.onChange(newValue);
+                this.toggle(input, !(this.props.value ?? input.checked));
             },
             {
                 area: () => /** @type {HTMLElement} */ (this.rootRef.el),
@@ -92,28 +85,47 @@ export class CheckBox extends Component {
         );
     }
 
+    /**
+     * Applies `checked` to the DOM, notifies the parent, and — when the parent
+     * owns the value — re-asserts `props.value` onto the input.
+     *
+     * The re-render is what keeps a controlled checkbox honest: a click writes
+     * `input.checked` out of band, and owl only rewrites that property while
+     * patching this component. A parent that rejects the change (validation,
+     * failed save, access rule) changes no prop, so owl skips re-rendering the
+     * child entirely and the box keeps showing a value the model never took.
+     *
+     * @param {HTMLInputElement} input
+     * @param {boolean} checked
+     */
+    toggle(input, checked) {
+        input.checked = checked;
+        this.props.onChange(checked);
+        if (this.props.value !== undefined) {
+            this.render();
+        }
+    }
+
     onClick(ev) {
         if (ev.composedPath().find((el) => ["INPUT", "LABEL"].includes(el.tagName))) {
-            // The onChange will handle these cases.
             ev.stopPropagation();
             return;
         }
 
-        // Reproduce the click event behavior as if it comes from the input element.
         const input = /** @type {HTMLInputElement} */ (
             /** @type {HTMLElement} */ (this.rootRef.el).querySelector("input")
         );
         input.focus();
         if (!this.props.disabled) {
             ev.stopPropagation();
-            input.checked = !input.checked;
-            this.props.onChange(input.checked);
+            this.toggle(input, !input.checked);
         }
     }
 
     onChange(ev) {
-        if (!this.props.disabled) {
-            this.props.onChange(ev.target.checked);
+        if (this.props.disabled) {
+            return;
         }
+        this.toggle(/** @type {HTMLInputElement} */ (ev.target), ev.target.checked);
     }
 }

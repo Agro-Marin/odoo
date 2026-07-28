@@ -25,8 +25,6 @@
 function _makeNamespacedLog(prefix, flagSubstring, extraGlobalFlag) {
     const flagKey = `debug.${flagSubstring}`;
     const enabled = () => {
-        // Not cached: debug flag can flip at runtime (menu toggle, DevTools
-        // edit). Check is O(1) string ops, run only when something logs.
         try {
             const o = /** @type {any} */ (globalThis).odoo;
             if (o && typeof o.debug === "string" && o.debug.includes(flagSubstring)) {
@@ -48,15 +46,11 @@ function _makeNamespacedLog(prefix, flagSubstring, extraGlobalFlag) {
         if (!enabled()) {
             return;
         }
-        // Use console.debug so devtools hides this behind "Verbose".
-        // The prefix makes logs greppable; console does its own formatting.
         console.debug(`[${prefix}.${category}]`, ...parts);
     };
     log.enabled = enabled;
     return log;
 }
-
-// Public namespace logs
 
 /** Asset / bundle / ESM tracing — the historical surface. Flag: ``assets``, also ``window.__ODOO_ASSET_TRACE__``. */
 export const assetLog = _makeNamespacedLog("asset", "assets", "__ODOO_ASSET_TRACE__");
@@ -72,8 +66,6 @@ export const modelLog = _makeNamespacedLog("model", "model");
 
 /** Localization tracing — translation fetch, cache hits, application. Flag: ``l10n``. */
 export const l10nLog = _makeNamespacedLog("l10n", "l10n");
-
-// Scoped logger factories (partial application by category)
 
 /**
  * @param {string} category

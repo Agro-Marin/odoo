@@ -24,21 +24,10 @@ from odoo.tools import config
 
 _logger = logging.getLogger(__name__)
 
-# Per-client rate limit for the public CWV beacon.  The endpoint is
-# ``auth="public"`` + ``csrf=False`` and persists a row per (novel)
-# ``pageview_id``, so an anonymous caller forging fresh ids could amplify
-# ``INSERT``s without bound.  A cheap in-process fixed-window counter caps how
-# many beacons one client (keyed by remote address) may turn into DB writes per
-# window.  The window is generous relative to real traffic — ``web_vitals``
-# sends only a small burst per pageview via ``navigator.sendBeacon`` on
-# ``pagehide`` — so legitimate beacons are never dropped; only abusive volume is.
-# The state is per worker process (best-effort DoS mitigation, not a hard global
-# quota) and self-prunes to stay bounded.
 _RATE_LIMIT_WINDOW_S = 60
 _RATE_LIMIT_MAX = 120
 _RATE_LIMIT_MAX_KEYS = 10_000
 _rate_lock = threading.Lock()
-# key -> [window_start_monotonic, count_in_window]
 _rate_state: dict[str, list[float]] = {}
 
 
@@ -46,28 +35,10 @@ def _rate_limited(key: str) -> bool:
     """Return ``True`` when *key* has exceeded its beacon budget this window."""
     now = time.monotonic()
     with _rate_lock:
-        # Opportunistic prune so a churn of distinct client keys (e.g. spoofed
-        # sources) can't grow the map without bound.
         if len(_rate_state) > _RATE_LIMIT_MAX_KEYS:
             cutoff = now - _RATE_LIMIT_WINDOW_S
             for stale in [k for k, v in _rate_state.items() if v[0] < cutoff]:
                 del _rate_state[stale]
-            # Pruning stale entries is not enough on its own: a flood of
-            # distinct *fresh* keys (e.g. spoofed X-Forwarded-For, all within
-            # the window) leaves nothing stale to evict. Hard-cap by dropping
-            # the oldest windows so the map size is bounded unconditionally.
-            # Evicting a live key merely resets that client's counter — an
-            # acceptable trade for a best-effort limiter that must stay bounded.
-            #
-            # Evict a *batch* down to a low-water mark (90% of the cap) rather
-            # than the exact overflow: dropping only the overflow leaves the map
-            # pinned at the cap, so this eviction path would then run on *every*
-            # subsequent beacon. And use ``heapq.nsmallest`` (O(n)) instead of a
-            # full ``sorted`` (O(n log n)) — under the very key-flood this
-            # mitigates, re-sorting 10k entries on each beacon while holding
-            # ``_rate_lock`` is a self-inflicted latency amplifier (measured
-            # ~1.25 ms/call vs ~0.42 ms). Together this makes the scan amortise
-            # over ~1k inserts instead of firing per request.
             if len(_rate_state) > _RATE_LIMIT_MAX_KEYS:
                 low_water = _RATE_LIMIT_MAX_KEYS * 9 // 10
                 evict_n = len(_rate_state) - low_water
@@ -100,11 +71,8 @@ def _client_rate_key(prefix: str) -> str:
     return f"{prefix}:{ident}"
 
 
-# Sanity bounds — values outside these are dropped as garbage (typically from
-# bots, devtools-paused tabs, or buggy browsers).  The thresholds are well
-# above any reasonable real-user metric.
-_MAX_LATENCY_MS = 60_000  # 60 s — anything longer is a stuck page or bot
-_MAX_CLS = 5.0  # Lighthouse "poor" is 0.25; > 5 is wildly broken
+_MAX_LATENCY_MS = 60_000
+_MAX_CLS = 5.0
 _MAX_URL_LEN = 500
 _MAX_UA_LEN = 500
 _MAX_ERROR_MSG_LEN = 1_000
@@ -117,9 +85,6 @@ def _clamp_latency(value):
     if not isinstance(value, (int, float)) or isinstance(value, bool):
         return None
     if not math.isfinite(value):
-        # NaN slips past the range check below (every comparison with NaN is
-        # False), and the model now rejects non-finite values at the DB level —
-        # drop them here so a bogus beacon is silently ignored, not a 500.
         return None
     if value < 0 or value > _MAX_LATENCY_MS:
         return None
@@ -189,12 +154,6 @@ class Observability(Controller):
         ttfb = _clamp_latency(payload.get("ttfb"))
         inp = _clamp_latency(payload.get("inp"))
         cls = _clamp_cls(payload.get("cls"))
-        # Strip the query string before logging/persisting: ``location.search``
-        # can carry record ids and other PII that RUM does not need — only the
-        # route/path is useful for Web-Vitals aggregation. The first-party
-        # client (web_vitals_service) already sends ``location.pathname`` only;
-        # this strip is defense-in-depth for stale cached clients and
-        # hand-crafted beacons (the endpoint is CSRF-exempt and public).
         raw_url = payload.get("url")
         if isinstance(raw_url, str):
             url = raw_url.split("?", 1)[0][:_MAX_URL_LEN]
@@ -208,12 +167,9 @@ class Observability(Controller):
         raw_pageview = payload.get("pageview_id")
         pageview_id = raw_pageview[:64] if isinstance(raw_pageview, str) else ""
 
-        # Drop completely empty beacons (no metric survived validation).
         if lcp is None and fcp is None and ttfb is None and cls is None and inp is None:
             return Response("", status=204)
 
-        # ``url`` is required by the model.  Drop a beacon without one — should
-        # never happen from our own service but cheap to guard against.
         if not url:
             return Response("", status=204)
 
@@ -229,8 +185,6 @@ class Observability(Controller):
             inp,
             user_agent,
         )
-        # sudo() — anonymous frontend traffic has no write access on
-        # web.cwv.metric.  RUM beacons should not be lost based on caller ACL.
         Metric = request.env["web.cwv.metric"].sudo()
         values = {
             "url": url,
@@ -243,13 +197,6 @@ class Observability(Controller):
             "user_agent": user_agent or False,
             "pageview_id": pageview_id or False,
         }
-        # Upsert on pageview_id: a single pageview beacons several times as
-        # INP/CLS keep growing (web_vitals_service), so the latest values
-        # replace the existing row instead of accumulating one row per beacon.
-        # ``_record_beacon`` does this atomically (INSERT ... ON CONFLICT on the
-        # partial unique index), so two workers beaconing the same pageview
-        # cannot race into duplicate rows. Empty pageview_id (old clients)
-        # stores NULL and never conflicts, so it always inserts as before.
         Metric._record_beacon(values)
         return Response("", status=204)
 
@@ -305,7 +252,6 @@ class Observability(Controller):
 
         message = _str_field(payload.get("message"), _MAX_ERROR_MSG_LEN)
         if not message:
-            # Empty-message beacons carry no signal; drop silently.
             return Response("", status=204)
 
         kind = (
@@ -326,11 +272,6 @@ class Observability(Controller):
         col = _int_field(payload.get("col"))
 
         uid = request.session.uid or False
-        # A module-rebind beacon is production telemetry for accidental bundle
-        # duplication (a real signal → WARNING). Under tests the test-asset
-        # overlay legitimately rebinds prod modules onto the same names, so those
-        # beacons are expected noise (DEBUG) — while genuine JS errors stay loud
-        # even in tests.
         in_test = bool(modules.module.current_test) or config["test_enable"]
         level = (
             logging.DEBUG if kind == "module_rebind" and in_test else logging.WARNING

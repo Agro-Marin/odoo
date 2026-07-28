@@ -27,9 +27,6 @@ export function areDatesEqual(d1, d2) {
         );
     }
     if (!d1 && !d2) {
-        // Both values are "unset". The model's empty sentinel is `false` while a
-        // parsed-empty input yields `null`, so a strict `===` here would treat
-        // `null` vs `false` as a change and spuriously dirty an untouched field.
         return true;
     }
     if (d1 instanceof DateTime && d2 instanceof DateTime && d1 !== d2) {
@@ -69,18 +66,15 @@ export function getLocalYearAndWeek(date) {
         date = DateTime.fromJSDate(date);
     }
     const { weekStart } = localization;
-    // go to start of week
     const startDate = date.minus({ days: (date.weekday + 7 - weekStart) % 7 });
-    // go to nearest Monday, up to 3 days back- or forwards
     date =
-        weekStart > 1 && weekStart < 5 // if firstDay after Mon & before Fri
-            ? startDate.minus({ days: (startDate.weekday + 6) % 7 }) // then go back 1-3 days
-            : startDate.plus({ days: (8 - startDate.weekday) % 7 }); // else go forwards 0-3 days
-    date = date.plus({ days: 6 }); // go to last weekday of ISO week
+        weekStart > 1 && weekStart < 5
+            ? startDate.minus({ days: (startDate.weekday + 6) % 7 })
+            : startDate.plus({ days: (8 - startDate.weekday) % 7 });
+    date = date.plus({ days: 6 });
     const jan4 = DateTime.local(date.year, 1, 4);
     let diffDays, year;
     if (date < jan4) {
-        // count from previous year if week falls before Jan 4
         diffDays = date.diff(jan4.minus({ years: 1 }), "day").days;
         year = date.year - 1;
     } else {
@@ -128,8 +122,6 @@ export function isInRange(value, range) {
         return false;
     }
     if (Array.isArray(value)) {
-        // Sort by instant (valueOf()), not string form — a plain .sort() would
-        // compare ISO strings and misorder DateTimes with differing UTC offsets.
         const actualValues = value.filter(Boolean).sort((x, y) => x - y);
         if (actualValues.length < 2) {
             return isInRange(actualValues[0], range);

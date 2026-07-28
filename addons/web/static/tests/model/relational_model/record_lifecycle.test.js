@@ -20,8 +20,6 @@ import {
     unarchive,
 } from "@web/model/relational_model/record_lifecycle";
 
-// Mock factory
-
 /**
  * Builds the minimal record mock shape required by the lifecycle helpers.
  *
@@ -55,14 +53,10 @@ function makeRecord({
         resModel: "res.partner",
         context: { uid: 1 },
         config: { resId, resIds, context: { uid: 1 } },
-        // Three-layer state (Invariant I7 — see plan §3). deleteRecord
-        // resets _values / _textValues / data when the deleted record
-        // was the last in resIds.
         _values: markRaw({ id: resId, name: "Test" }),
         _textValues: markRaw({ name: "Test" }),
         _changes: markRaw({}),
         data: { id: resId, name: "Test" },
-        // Protected methods deleteRecord calls when resetting state.
         _parseServerValues(defaults) {
             return { ...defaults };
         },
@@ -70,7 +64,6 @@ function makeRecord({
             return { id: false, name: false };
         },
         _clearChanges() {
-            // Invariant I3 — pair _changes={} with dirty=false atomically.
             this._changes = markRaw({});
             this.dirty = false;
         },
@@ -83,10 +76,9 @@ function makeRecord({
                     call ??
                     (async (model, method) => {
                         if (method === "copy") {
-                            return [resId * 10]; // synthetic new id
+                            return [resId * 10];
                         }
-                        // action_archive / action_unarchive
-                        return false; // no follow-up action
+                        return false;
                     }),
             },
             load: load ?? (async () => {}),
@@ -102,8 +94,6 @@ function makeRecord({
     };
     return record;
 }
-
-// archive() / unarchive() — ORM method routing
 
 describe("archive / unarchive ORM method routing", () => {
     test("archive() calls orm.call with 'action_archive'", async () => {
@@ -148,8 +138,6 @@ describe("archive / unarchive ORM method routing", () => {
     });
 });
 
-// archive() — hook routing
-
 describe("archive hook routing", () => {
     test("server action result is forwarded to hooks.ui.onDisplayArchiveAction", async () => {
         const serverAction = { type: "ir.actions.act_window", res_id: 99 };
@@ -178,8 +166,6 @@ describe("archive hook routing", () => {
         expect(loadCalled).toBe(true);
     });
 });
-
-// deleteRecord() — veto + navigation + state-reset paths
 
 describe("deleteRecord veto", () => {
     test("returns false when orm.unlink returns falsy and does not mutate state", async () => {
@@ -212,8 +198,6 @@ describe("deleteRecord navigation", () => {
             },
         });
         await deleteRecord(rec);
-        // After deleting 5, resIds becomes [3, 7, 9]; index was 1, so we
-        // navigate to position 1 of the new list — which is 7.
         expect(loadArgs).toEqual({ resId: 7, resIds: [3, 7, 9] });
     });
 
@@ -227,29 +211,19 @@ describe("deleteRecord navigation", () => {
             },
         });
         await deleteRecord(rec);
-        // After deleting 9, resIds becomes [3, 5, 7]; index was 3, clamped to
-        // length-1=2, so we navigate to 7.
         expect(loadArgs).toEqual({ resId: 7, resIds: [3, 5, 7] });
     });
 
     test("resId absent from resIds: navigates to the first remaining record, no data loss", async () => {
-        // Config drift / a standalone Record built with caller-supplied ids
-        // that don't actually include its own resId. Pre-fix:
-        // `resIds.splice(-1, 1)` silently dropped the LAST id (unrelated to
-        // the deleted record) and `resIds[min(-1, n)]` (-1) resolved to the
-        // last element too, so the form blanked to a record that still
-        // existed instead of navigating to a real remaining one.
         let loadArgs = null;
         const rec = makeRecord({
-            resId: 999, // not present in resIds
+            resId: 999,
             resIds: [3, 5, 7],
             load: async (args) => {
                 loadArgs = args;
             },
         });
         await deleteRecord(rec);
-        // No id was dropped from resIds (999 wasn't in it to begin with);
-        // navigation lands on the first remaining record.
         expect(loadArgs).toEqual({ resId: 3, resIds: [3, 5, 7] });
     });
 });
@@ -273,26 +247,17 @@ describe("deleteRecord state reset (last record)", () => {
             setEvalContextCalled = true;
         };
         await deleteRecord(rec);
-        // Navigation MUST NOT occur — instead local state is reset in place.
         expect(loadCalled).toBe(false);
-        // _patchConfig (sync, no reload by construction) must clear the resId.
         expect(patchConfigArgs).toEqual({
             patch: { resId: false },
         });
-        // State reset:
         expect(rec._textValues).toEqual({});
-        // _values is re-derived from _getDefaultValues() through _parseServerValues
         expect(rec._values).toEqual({ id: false, name: false });
-        // data is rebuilt from _values
         expect(rec.data).toEqual({ id: false, name: false });
-        // dirty was reset by _clearChanges (Invariant I3)
         expect(rec.dirty).toBe(false);
-        // Eval context refreshed
         expect(setEvalContextCalled).toBe(true);
     });
 });
-
-// duplicateRecord() — copy + resIds insertion + navigation
 
 describe("duplicateRecord", () => {
     test("calls orm.call with 'copy' passing [[resId]]", async () => {
@@ -327,7 +292,6 @@ describe("duplicateRecord", () => {
             },
         });
         await duplicateRecord(rec);
-        // 5 is at index 1 → new id 42 inserted at index 2 → [3, 5, 42, 7, 9]
         expect(loadArgs).toEqual({
             resId: 42,
             resIds: [3, 5, 42, 7, 9],

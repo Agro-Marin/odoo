@@ -96,20 +96,17 @@ const hookParams = {
         followingElementClasses: [],
     },
 
-    // Build steps
     onComputeParams(
         /** @type {{ ctx: Record<string, any>, params: Record<string, any> }} */ {
             ctx,
             params,
         },
     ) {
-        // Group selector
         ctx.groupSelector = params.groups || null;
         if (ctx.groupSelector) {
             ctx.fullSelector = [ctx.groupSelector, ctx.fullSelector].join(" ");
         }
 
-        // Connection accross groups
         ctx.connectGroups = params.connectGroups;
 
         ctx.placeholderClone = params.clone;
@@ -118,7 +115,6 @@ const hookParams = {
         ctx.followingElementClasses = params.followingElementClasses;
     },
 
-    // Runtime steps
     onDragStart(
         /** @type {{ ctx: Record<string, any>, addListener: Function, addStyle: Function, callHandler: Function }} */ {
             ctx,
@@ -167,7 +163,6 @@ const hookParams = {
                 return;
             }
             const siblingArray = [
-                // The dragged/target item is always attached to its list here.
                 .../** @type {HTMLElement} */ (element.parentElement).children,
             ].filter(
                 (el) =>
@@ -217,14 +212,12 @@ const hookParams = {
             }
             const relatedElement = /** @type {HTMLElement} */ (relatedTarget);
             if (!relatedElement) {
-                // Pointer left the browser window — no sibling comparison possible.
                 return;
             }
             const elementRect = element.getBoundingClientRect();
             const relatedElementRect = relatedElement.getBoundingClientRect();
 
             const siblingArray = [
-                // The dragged/target item is always attached to its list here.
                 .../** @type {HTMLElement} */ (element.parentElement).children,
             ].filter(
                 (el) =>
@@ -275,7 +268,6 @@ const hookParams = {
         if (ctx.placeholderClone) {
             const { width, height } = current.elementRect;
 
-            // Adjusts size for the placeholder element
             addStyle(current.placeHolder, {
                 visibility: "hidden",
                 display: "block",
@@ -329,8 +321,6 @@ const hookParams = {
             return group && ref.el.contains(group) ? group : null;
         };
 
-        // Group transitions are only tracked if the elements are not confined
-        // to their parents and a 'groupSelector' has been provided.
         const trackGroups = Boolean(connectGroups && groupSelector);
 
         /**
@@ -371,13 +361,6 @@ const hookParams = {
             }
         };
 
-        // A single delegated "pointerover"/"pointerout" pair replaces the
-        // previous per-element/per-group "pointerenter"/"pointerleave"
-        // listeners, avoiding O(N) listener additions and O(N) inline
-        // "pointer-events: auto" writes per drag start. `addListener`
-        // restores pointer events on the whole ref subtree via one
-        // container-level style, needed since the body is "pe-none" during
-        // the drag sequence.
         addListener(ref.el, "pointerover", onPointerOver);
         addListener(ref.el, "pointerout", onPointerOut);
 
@@ -398,7 +381,6 @@ const hookParams = {
         if (previous !== current.element && next !== current.element) {
             const element = current.element;
             if (ctx.applyChangeOnDrop) {
-                // Apply to the DOM the result of sortable()
                 if (previous) {
                     previous.after(element);
                 } else if (next) {

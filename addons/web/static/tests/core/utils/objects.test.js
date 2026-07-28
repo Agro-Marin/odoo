@@ -45,9 +45,6 @@ describe("shallowEqual", () => {
     });
 
     test("different key sets with undefined values", () => {
-        // Same key COUNT but different key SETS: missing keys read as
-        // ``undefined``, which must not compare equal to an explicit
-        // ``undefined`` value.
         expect(shallowEqual({ a: undefined }, { b: undefined })).toBe(false);
         expect(shallowEqual({ a: undefined }, { a: undefined })).toBe(true);
         expect(shallowEqual({ a: undefined, b: 1 }, { b: 1, c: undefined })).toBe(
@@ -82,30 +79,30 @@ test("deepEqual", () => {
     expect(deepEqual(obj1, obj3)).toBe(false);
     expect(deepEqual(obj2, obj3)).toBe(false);
 
-    // primitives, incl. NaN
     expect(deepEqual(1, 1)).toBe(true);
     expect(deepEqual(1, 2)).toBe(false);
     expect(deepEqual(NaN, NaN)).toBe(true);
 
-    // arrays
     expect(deepEqual([1, [2, 3]], [1, [2, 3]])).toBe(true);
     expect(deepEqual([1, 2], [1, 2, 3])).toBe(false);
 
-    // Date / RegExp (no own keys — must compare by value, not be "always equal")
-    expect(deepEqual(new Date(2020, 0, 1), new Date(2020, 0, 1))).toBe(true);
-    expect(deepEqual(new Date(2020, 0, 1), new Date(2021, 0, 1))).toBe(false);
+    // Epoch timestamps, not (year, month, day): hoot's MockDate fills the
+    // components a multi-arg construction omits from the mocked clock, whose
+    // millisecond term drifts with real time while time is not frozen — so two
+    // `new Date(2020, 0, 1)` a millisecond apart are not equal, and this
+    // assertion failed intermittently.
+    const jan2020 = Date.UTC(2020, 0, 1);
+    const jan2021 = Date.UTC(2021, 0, 1);
+    expect(deepEqual(new Date(jan2020), new Date(jan2020))).toBe(true);
+    expect(deepEqual(new Date(jan2020), new Date(jan2021))).toBe(false);
     expect(deepEqual(/a/gi, /a/gi)).toBe(true);
     expect(deepEqual(/a/g, /a/i)).toBe(false);
     expect(deepEqual(new Date(0), {})).toBe(false);
 
-    // Map / Set
     expect(deepEqual(new Map([[1, 2]]), new Map([[1, 2]]))).toBe(true);
     expect(deepEqual(new Map([[1, 2]]), new Map([[1, 3]]))).toBe(false);
     expect(deepEqual(new Set([1, 2, 3]), new Set([3, 2, 1]))).toBe(true);
     expect(deepEqual(new Set([1, 2]), new Set([1, 9]))).toBe(false);
-    // Object elements: matched-element accounting — two elements of one set
-    // must not both "consume" the same element of the other, and the
-    // relation must be symmetric.
     expect(
         deepEqual(new Set([{ x: 1 }, { x: 1 }]), new Set([{ x: 1 }, { y: 2 }])),
     ).toBe(false);
@@ -116,17 +113,12 @@ test("deepEqual", () => {
         deepEqual(new Set([{ x: 1 }, { y: 2 }]), new Set([{ y: 2 }, { x: 1 }])),
     ).toBe(true);
 
-    // cycle-safe (must not stack-overflow)
     const a = { x: 1 };
     a.self = a;
     const b = { x: 1 };
     b.self = b;
     expect(deepEqual(a, b)).toBe(true);
 
-    // divergent cycles: a 1-cycle vs a 2-cycle — one node is compared against
-    // two counterpart nodes alternately, so the guard must be keyed on the
-    // pair (a single-slot guard flip-flopped and stack-overflowed). Both
-    // unfold to {x: {x: {x: ...}}}, hence structurally equal.
     const one = {};
     one.x = one;
     const twoA = {};
@@ -134,12 +126,26 @@ test("deepEqual", () => {
     twoA.x = twoB;
     expect(deepEqual(one, twoA)).toBe(true);
 
-    // structurally unequal cyclic pairs stay unequal
     const c = { v: 1 };
     c.self = c;
     const d = { v: 2 };
     d.self = d;
     expect(deepEqual(c, d)).toBe(false);
+
+    // The Set branch probes candidate counterparts and discards the ones that
+    // do not match. Those rejected pairs must not survive in the cycle guard:
+    // `p` is compared against `r`, fails, then matches `u` — and the later
+    // `[p]` vs `[r]` comparison must still be able to say they differ.
+    const p = { v: 1 };
+    const u = { v: 1 };
+    const r = { v: 999 };
+    const q = { v: 999 };
+    expect(
+        deepEqual({ s: new Set([p, q]), t: [p] }, { s: new Set([r, u]), t: [r] }),
+    ).toBe(false);
+    expect(
+        deepEqual({ s: new Set([p, q]), t: [p] }, { s: new Set([r, u]), t: [u] }),
+    ).toBe(true);
 });
 
 test("deepCopy", () => {
@@ -156,9 +162,6 @@ test("deepCopy", () => {
     expect(copy.a).not.toBe(obj.a);
     expect(copy.o).not.toBe(obj.o);
 
-    // structuredClone preserves Date, Set, and Map (unlike JSON round-trip).
-    // It uses the native Date constructor, so instanceof checks fail when
-    // the test runner patches Date with MockDate.
     const date = new Date();
     const dateCopy = deepCopy(date);
     expect(Object.prototype.toString.call(dateCopy)).toBe("[object Date]");
@@ -178,10 +181,6 @@ test("deepCopy", () => {
     expect(mapCopy).not.toBe(map);
     expect(mapCopy.get("a")).toBe(1);
 
-    // OWL reactive proxies: structuredClone can't clone Proxy objects (no
-    // internal slots), so deepCopy pre-unwraps via toRawDeep before
-    // re-attempting structuredClone, preserving Date/Map/Set instead of
-    // dropping them via the JSON fallback.
     const reactiveObj = reactive({
         ids: [1, 2, 3],
         name: "test",
@@ -196,8 +195,6 @@ test("deepCopy", () => {
     expect(reactiveCopy).not.toBe(reactiveObj);
     expect(reactiveCopy.ids).not.toBe(reactiveObj.ids);
 
-    // Reproduces the project subtask bug: a plain object containing a reactive
-    // array (Many2many field IDs wrapped by OWL reactivity).
     const context = { default_tag_ids: reactive([4, 5, 6]), default_name: "subtask" };
     const contextCopy = deepCopy(context);
     expect(contextCopy).toEqual({
@@ -208,8 +205,6 @@ test("deepCopy", () => {
 });
 
 test("deepCopy preserves structured types through reactive wrapper", () => {
-    // Pre-toRawDeep, this fell through to JSON.parse(JSON.stringify(...)) on
-    // reactive input, silently mangling Date/Map/Set.
     const date = new Date("2026-05-12T00:00:00Z");
     const set = new Set(["urgent", "billable"]);
     const map = new Map([["k", 1]]);
@@ -271,9 +266,6 @@ describe("toRawDeep", () => {
     });
 
     test("passes Date, RegExp by reference", () => {
-        // toRawDeep intentionally doesn't clone Date/RegExp — the trailing
-        // structuredClone in deepCopy handles that; toRawDeep only needs the
-        // slot to be non-reactive.
         const date = new Date();
         const regex = /foo/g;
         const r = reactive({ date, regex });
@@ -340,7 +332,6 @@ test("pick", () => {
         c: [],
     });
 
-    // Non enumerable property
     class MyClass {
         get a() {
             return 1;
@@ -399,7 +390,6 @@ test("deepMerge", () => {
     const f = () => {};
     expect(deepMerge({ a: undefined }, { a: f })).toEqual({ a: f });
 
-    // There's no current use for arrays, support can be added if needed
     expect(deepMerge({ a: [1, 2, 3] }, { a: [4] })).toEqual({ a: [4] });
 
     const symbolA = Symbol("A");
@@ -419,23 +409,17 @@ test("deepMerge", () => {
         [symbolB]: 2,
     });
 
-    // Extension wins for non-object primitives
     expect(deepMerge(0, 1)).toBe(1);
     expect(deepMerge("a", "b")).toBe("b");
     expect(deepMerge(false, true)).toBe(true);
 
-    // Extension undefined falls back to target
     expect(deepMerge(42, undefined)).toBe(42);
     expect(deepMerge("keep", undefined)).toBe("keep");
 
-    // Nested primitive values are preserved through recursive merge
     expect(deepMerge({ a: { x: 1 } }, { a: { x: 2, y: 3 } })).toEqual({
         a: { x: 2, y: 3 },
     });
 
-    // A keyed `undefined` in the extension leaves the target's value intact
-    // (same rule as a top-level `undefined` extension), so layering a partial
-    // options object with unset fields never wipes the base values.
     expect(deepMerge({ icon: "x", keep: 1 }, { icon: undefined })).toEqual({
         icon: "x",
         keep: 1,
@@ -443,6 +427,5 @@ test("deepMerge", () => {
     expect(deepMerge({ a: { b: 2 } }, { a: { b: undefined, c: 3 } })).toEqual({
         a: { b: 2, c: 3 },
     });
-    // `null` still overrides (explicit "empty"), unlike `undefined`.
     expect(deepMerge({ a: 1 }, { a: null })).toEqual({ a: null });
 });

@@ -32,8 +32,6 @@ export class BadgeField extends Component {
 
     /** @returns {string} Bootstrap badge CSS class based on color field or decoration rules. */
     get badgeClass() {
-        // A real integer color index wins; a null/false color field falls
-        // through to the decoration/default rules below (see badgeColorClass).
         const colorClass = badgeColorClass(this.props.record, this.props.colorField);
         if (colorClass) {
             return colorClass;
@@ -43,7 +41,6 @@ export class BadgeField extends Component {
             if (
                 evaluateBooleanExpr(this.props.decorations[decorationName], evalContext)
             ) {
-                // fallback case for text-bg-muted
                 if (decorationName === "muted") {
                     return "text-bg-300";
                 }

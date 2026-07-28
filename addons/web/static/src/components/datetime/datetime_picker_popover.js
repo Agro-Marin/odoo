@@ -18,13 +18,11 @@ export class DateTimePickerPopover extends Component {
     static components = { DateTimePicker };
 
     static props = {
-        close: Function, // Given by the Popover service
+        close: Function,
         pickerProps: { type: Object, shape: DateTimePicker.props },
     };
 
     static template = "web.DateTimePickerPopover";
-
-    // Lifecycle
 
     setup() {
         useHotkey("enter", () => this.props.close());

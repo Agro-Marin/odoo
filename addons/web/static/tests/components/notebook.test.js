@@ -183,7 +183,7 @@ test("notebook pages rendered by a template component", async () => {
                 },
                 {
                     Component: NotebookPageRenderer,
-                    id: "page_three", // required to be set as default page
+                    id: "page_three",
                     index: 2,
                     title: "Page 3",
                     props: {
@@ -212,8 +212,6 @@ test("notebook pages rendered by a template component", async () => {
 });
 
 test("a programmatic page with index 0 is ordered first", async () => {
-    // index 0 must sort before an unindexed page — the old `if (v.index)` check
-    // treated 0 as falsy and dropped it into the unordered bucket.
     class Page extends Component {
         static template = xml`<h3 t-esc="props.heading"/>`;
         static props = ["*"];

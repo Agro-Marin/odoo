@@ -39,7 +39,6 @@ const viewRegistry = registry.category("views");
  * @returns {{ name: string, type: string, viewType: string, widget: string | null, field: ReturnType<typeof getFieldFromRegistry>, context: string, string?: string, help?: string, onChange: boolean, forceSave: boolean, options: Object, decorations: Record<string, string>, attrs: Record<string, string>, domain?: string, readonly?: string | null, required?: string | null, invisible?: string | null, column_invisible?: string | null, viewMode?: string, views?: Object, relatedFields?: Object, isHandle?: boolean }}
  */
 export function parseFieldNode(node, models, modelName, viewType, jsClass) {
-    // A `<field>` node always carries a name; the throw below guards the rest.
     const name = /** @type {string} */ (node.getAttribute("name"));
     const widget = node.getAttribute("widget");
     const fields = models[modelName].fields;
@@ -71,9 +70,6 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
 
     for (const attr of ["invisible", "column_invisible", "readonly", "required"]) {
         fieldInfo[attr] = node.getAttribute(attr);
-        // Both static-true spellings ("True" and "1") must be normalized: an
-        // always-hidden `column_invisible="1"` field otherwise stays visible
-        // as a plain invisible modifier and still gets its subviews fetched (L2).
         if (fieldInfo[attr] === "True" || fieldInfo[attr] === "1") {
             if (attr === "column_invisible") {
                 fieldInfo.invisible = "True";
@@ -85,7 +81,6 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
 
     for (const { name, value } of node.attributes) {
         if (["name", "widget"].includes(name)) {
-            // avoid adding name and widget to attrs
             continue;
         }
         if (["context", "string", "help", "domain"].includes(name)) {
@@ -99,7 +94,6 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
         } else if (name.startsWith("decoration-")) {
             fieldInfo.decorations[name.replace("decoration-", "")] = value;
         } else if (!name.startsWith("t-att")) {
-            // all other (non dynamic) attributes
             fieldInfo.attrs[name] = value;
         }
     }
@@ -137,16 +131,11 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
         }
         for (const child of node.children) {
             const viewType = child.tagName;
-            // ``viewRegistry`` entries carry ``ArchParser`` on the descriptor
-            // object; cast the lookup so the destructure typechecks without
             // a ``/** @type {any} */`` escape on the call. The runtime
-            // shape is enforced by the views-registry validator.
             const { ArchParser } =
                 /** @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }} */ (
                     viewRegistry.get(viewType)
                 );
-            // Copy to isolate the subview's tree from the main view, so its
-            // CSS selectors work normally
             const childCopy = /** @type {Element} */ (child.cloneNode(true));
             const archInfo = new ArchParser().parse(
                 childCopy,

@@ -36,8 +36,6 @@ export class SwitchCompanyMenu extends Component {
         SwitchCompanyItem,
     };
     static props = {};
-    // Exposed as a static so subclasses/patches can swap the model, and so
-    // tests can drive it without mounting the component.
     static CompanySelector = CompanySelector;
 
     setup() {
@@ -59,19 +57,9 @@ export class SwitchCompanyMenu extends Component {
         );
         this.resetState();
 
-        // Both the confirm hotkey and the "Switch Company" command act on
-        // this.dropdown, which only the desktop template renders. On small
-        // screens the switcher is the MobileSwitchCompanyMenu subclass, whose
-        // visibility is driven by its own collapsible (state.isOpen), so these
-        // would register a dead command-palette entry and a hotkey whose
-        // isAvailable (this.dropdown.isOpen) can never become true. Skip them
-        // there instead of shipping silent no-ops.
         if (!this.env.isSmall) {
             useHotkey("control+enter", () => this.confirm(), {
                 bypassEditableProtection: true,
-                // The hotkey lives for the component's lifetime: without the
-                // isOpen guard, a draft selection surviving a close could be
-                // applied by a later Ctrl+Enter pressed anywhere in the app.
                 isAvailable: () =>
                     this.dropdown.isOpen && this.companySelector.hasSelectionChanged,
             });
@@ -216,7 +204,6 @@ export class SwitchCompanyMenu extends Component {
             }
 
             if (/** @type {any} */ (this.containerRef).el) {
-                // Fixes the container width so it doesn't change when searching.
                 const currentWidth = /** @type {any} */ (
                     this.containerRef
                 ).el.getBoundingClientRect().width;
@@ -225,18 +212,20 @@ export class SwitchCompanyMenu extends Component {
             }
         } else {
             this.resetState();
-            // Closing without confirming discards the draft selection:
-            // reset() re-seeds it from the currently active companies, so
-            // pending toggles cannot be applied by a later confirm.
             this.companySelector.reset();
         }
     }
 
     confirm() {
-        // Apply before closing (as the "loginto" path does): closing
-        // triggers handleDropdownChange(false), which resets the draft
-        // selection that apply() must still read.
-        this.companySelector.apply();
+        // `apply()` is intentionally not awaited: it ends in a reloading
+        // `router.pushState`, and the dropdown must close now rather than after
+        // an access-rights round trip. It captures the selection synchronously,
+        // so the `close()` below (which resets the draft on desktop) cannot race
+        // it. Catch, because an unawaited rejection here would surface as an
+        // unhandled promise rejection with no context.
+        Promise.resolve(this.companySelector.apply()).catch((error) => {
+            console.warn("Failed to apply the company selection", error);
+        });
         this.dropdown.close();
     }
 

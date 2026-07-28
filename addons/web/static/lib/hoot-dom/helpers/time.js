@@ -14,10 +14,6 @@ import { isInstanceOf } from "../hoot_dom_utils.js";
  * }} WaitOptions
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     cancelAnimationFrame,
     clearInterval,
@@ -32,19 +28,11 @@ const {
     setTimeout,
 } = globalThis;
 
-// Native (un-mocked) timer functions.  These are now captured in
-// module_loader.js (odoo.__nativeTimers) which runs as the very first
-// synchronous script, before any mock can replace globalThis.setTimeout.
-// Kept here for backward compatibility with any code that imports them.
 export const nativeSetTimeout = setTimeout;
 export const nativeClearTimeout = clearTimeout;
 
 /** @type {Performance["now"]} */
 const $performanceNow = performance.now.bind(performance);
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {number} id
@@ -132,10 +120,6 @@ let frameDelay = 1000 / 60;
 let nextDummyId = 1;
 let timeOffset = 0;
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 /**
  * @param {number} [frameCount]
  * @param {AdvanceTimeOptions} [options]
@@ -221,7 +205,6 @@ export function cleanupTime() {
 
     cancelAllTimers();
 
-    // Wait for remaining async code to run
     return delay();
 }
 
@@ -420,7 +403,6 @@ export function tick() {
 export async function waitUntil(predicate, options) {
     await Promise.resolve();
 
-    // Early check before running the loop
     const result = predicate(false);
     if (result) {
         return result;

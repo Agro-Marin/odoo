@@ -33,9 +33,6 @@ export class RemainingDaysField extends Component {
     static template = "web.RemainingDaysField";
 
     setup() {
-        // `diffDays` is read several times per render (diffString, classNames,
-        // template) and each computation allocates luxon objects: compute it
-        // once per render.
         onWillRender(() => {
             this._diffDays = this.computeDiffDays();
         });

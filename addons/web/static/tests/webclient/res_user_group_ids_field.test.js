@@ -22,14 +22,6 @@ import {
 const { ResCompany, ResGroups, ResPartner, ResUsers } = webModels;
 
 defineModels([ResCompany, ResGroups, ResPartner, ResUsers]);
-// NOTE — 5 tests here fail with "Cannot find a definition for model
-// 'mail.thread'" since res.users/res.partner inherit it server-side. Tried:
-// (1) a hand-rolled MailThread stub — passes the definition check but
-// breaks on inherited-method calls; (2) importing the real mock from
-// @mail/../tests/mock_server/mock_models/mail_thread — fixes these 5 but
-// regresses 20+ others via registry side effects. Right fix: a curated
-// mail-mock subset in webModels, or splitting these into a file with the
-// full mail-test fixture. Deferred until that scope is justified.
 
 beforeEach(() => {
     ResPartner._records = [{ id: 1, name: "Partner" }];
@@ -257,11 +249,9 @@ test("simple rendering", async () => {
         resId: 1,
     });
 
-    // 1 group with 2 inner groups
     expect(".o_field_widget[name=group_ids] .o_group").toHaveCount(1);
     expect(".o_field_widget[name=group_ids] .o_group .o_inner_group").toHaveCount(2);
 
-    // first group has one privilege
     expect(
         ".o_field_widget[name=group_ids] .o_inner_group:eq(0) .o_horizontal_separator",
     ).toHaveText("ADMINISTRATION (CATEGORY)");
@@ -276,7 +266,6 @@ test("simple rendering", async () => {
         "Access Rights",
     );
 
-    // second group has 2 privileges
     expect(
         ".o_field_widget[name=group_ids] .o_inner_group:eq(1) .o_horizontal_separator",
     ).toHaveText("PROJECT (CATEGORY)");
@@ -297,14 +286,10 @@ test("simple rendering", async () => {
         ),
     ).toEqual(["Project User", ""]);
 
-    expect(".o_group_info_button").toHaveCount(0); // not displayed in non debug mode
+    expect(".o_group_info_button").toHaveCount(0);
 });
 
 test("names with XML special characters do not break the arch", async () => {
-    // Category, privilege and group names are user-editable server data that end
-    // up in a dynamically generated arch: they must be XML-escaped, otherwise a
-    // name like `R&D "special" <dept>` crashes parseXML (and is an attribute
-    // injection vector).
     const hierarchy = ResUsers._records[0].view_group_hierarchy;
     hierarchy.categories[1].name = `R&D "special" <dept>`;
     hierarchy.privileges[222].name = `Proj & "co" <priv>`;
@@ -322,7 +307,6 @@ test("names with XML special characters do not break the arch", async () => {
         resId: 1,
     });
 
-    // the form rendered (no XML parse error) and names display literally
     expect(".o_field_widget[name=group_ids] .o_group .o_inner_group").toHaveCount(2);
     expect(
         ".o_field_widget[name=group_ids] .o_inner_group:eq(1) .o_horizontal_separator",
@@ -337,7 +321,6 @@ test("names with XML special characters do not break the arch", async () => {
             ".o_field_widget[name=group_ids] .o_inner_group:eq(1) .o_wrap_input input",
         ),
     ).toHaveValue(`User & "co" <grp>`);
-    // no element was injected through the group name attribute
     expect("dept").toHaveCount(0);
 });
 
@@ -357,11 +340,8 @@ test("extra rights groups with XML special characters do not break the arch (deb
         resId: 1,
     });
 
-    // the debug-only "Extra Rights" arch rendered and the group label is literal
     expect(".o_field_widget[name=group_ids] .o_group").toHaveCount(2);
     expect(".o_group:eq(1) .o_inner_group input[type=checkbox]").toHaveCount(4);
-    // "Geo…" sorts first (localeCompare) so it is the first label of column 1
-    // (the trailing "?" is the label's help marker)
     expect(".o_group:eq(1) .o_inner_group:eq(0) .o_form_label:eq(0)").toHaveText(
         `Geo & "raw" <ext>?`,
     );
@@ -402,7 +382,6 @@ test("simple rendering (debug)", async () => {
         resId: 1,
     });
 
-    // 2 group and 4 inner groups
     expect(".o_field_widget[name=group_ids] .o_group").toHaveCount(2);
     expect(".o_field_widget[name=group_ids] .o_group .o_inner_group").toHaveCount(4);
     expect(".o_group:eq(1) .o_horizontal_separator").toHaveText("EXTRA RIGHTS");

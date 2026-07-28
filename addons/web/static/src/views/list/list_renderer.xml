@@ -113,12 +113,9 @@
 
  <t t-name="web.ListRenderer.Rows">
  <t t-if="virt and virt.isActive">
- <!-- Virtualized path: render only visible rows + spacers -->
  <tr t-if="virt.topSpacerHeight > 0" class="o_virtual_spacer">
  <td t-att-colspan="nbCols" t-attf-style="height: {{ virt.topSpacerHeight }}px;"/>
  </tr>
- <!-- Rows keyed by stable identity (record/group id), not position: inserts
-      and resequences above a row must patch it in place, not recreate it. -->
  <t t-foreach="virt.visibleFlatRows" t-as="flatRow" t-key="flatRow.type === 'record' ? flatRow.record.id : (flatRow.type === 'group' ? 'group:' + flatRow.group.id : 'addline:' + (flatRow.parentGroup ? flatRow.parentGroup.id : flatRow.globalIndex))">
  <t t-if="flatRow.type === 'record'">
  <t t-component="rowComponent" t-props="getRowProps(flatRow.record, flatRow.parentGroup, flatRow.parentGroup ? flatRow.parentGroup.id : undefined)"/>
@@ -144,14 +141,9 @@
  <tr t-if="virt.bottomSpacerHeight > 0" class="o_virtual_spacer">
  <td t-att-colspan="nbCols" t-attf-style="height: {{ virt.bottomSpacerHeight }}px;"/>
  </tr>
- <!-- Same trailer as the non-virtualized branch. Virtualization decides
-      WHICH rows render; it must not decide WHETHER the x2many create
-      controls exist. Grouped lists instead get their add-line rows
-      materialized as flat rows by ListGridState. -->
  <t t-if="!props.list.isGrouped" t-call="{{ constructor.createControlsTemplate }}"/>
  </t>
  <t t-else="">
- <!-- Non-virtualized path -->
  <t t-if="!list.isGrouped">
  <t t-foreach="list.records" t-as="record" t-key="record.id">
  <t t-component="rowComponent" t-props="getRowProps(record, group, groupId)"/>
@@ -193,11 +185,6 @@
  </t>
  </t>
 
- <!-- x2many create controls ("Add a line" + arch <control> buttons). Shared by
-      the virtualized and non-virtualized row paths so the two cannot drift:
-      this trailer used to live only in the non-virtualized branch, so a
-      one2many past the virtualization threshold lost its only way to add a
-      line. -->
  <t t-name="web.ListRenderer.CreateControls">
  <tr t-if="displayRowCreates" class="d-print-none">
  <td t-if="withHandleColumn"/>
@@ -320,7 +307,7 @@
  t-att-class="this.getCellClass(column, record)"
  t-att-name="column.name"
  t-att-colspan="column.colspan"
- t-att-data-col-index="column_index + (hasSelectors ? 1 : 0)"
+ t-att-data-col-index="gridState.getColIndexOfColumn(column)"
  t-att-data-tooltip="!isInvisible ? getCellTitle(column, record, formattedValue) : false"
  data-tooltip-delay="1000"
  t-custom-click="(ev, isMiddleClick) => this.onCellClicked(record, column, ev, isMiddleClick)"
@@ -332,7 +319,7 @@
  </td>
  </t>
  <t t-if="column.type === 'button_group'">
- <td t-on-keydown="(ev) => this.onCellKeydown(ev, group, record)" class="o_data_cell w-print-0 p-print-0 cursor-pointer" t-att-class="this.getCellClass(column, record)" t-att-data-col-index="column_index + (hasSelectors ? 1 : 0)" t-on-click="(ev) => this.onButtonCellClicked(record, column, ev)" tabindex="-1">
+ <td t-on-keydown="(ev) => this.onCellKeydown(ev, group, record)" class="o_data_cell w-print-0 p-print-0 cursor-pointer" t-att-class="this.getCellClass(column, record)" t-att-data-col-index="gridState.getColIndexOfColumn(column)" t-on-click="(ev) => this.onButtonCellClicked(record, column, ev)" tabindex="-1">
  <div class="d-flex flex-wrap gap-1">
  <t t-foreach="column.buttons" t-as="button" t-key="button.id">
  <ViewButton t-if="!evalInvisible(button.invisible, record)"
@@ -352,7 +339,8 @@
  </td>
  </t>
  <t t-if="column.type === 'widget'">
- <td class="o_data_cell" t-att-class="this.getCellClass(column, record)">
+ <td class="o_data_cell" t-att-class="this.getCellClass(column, record)"
+ t-att-data-col-index="gridState.getColIndexOfColumn(column)">
  <Widget t-props="column.props" record="record"/>
  </td>
  </t>

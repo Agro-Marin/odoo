@@ -69,8 +69,6 @@ export const BACKEND_INTERVAL_OPTIONS = {
     hour: { description: _t("Hour"), id: "hour" },
 };
 
-// Functions
-
 /**
  * Constructs the string representation of a domain and its description. The
  * domain is of the form:
@@ -87,10 +85,15 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
         selectedOptionIds,
     );
     if ("withDomain" in selectedOptions) {
+        // OR'd like every other multi-selection. `toggleDateFilter` keeps at
+        // most one custom option in the query, so this normally has a single
+        // entry — but silently honouring only the first would make the function
+        // lie about any state it is handed (imported query, direct caller).
+        const customOptions = /** @type {any[]} */ (selectedOptions.withDomain);
         return {
-            description: /** @type {any} */ (selectedOptions.withDomain)[0].description,
+            description: customOptions.map((o) => o.description).join("/"),
             domain: Domain.and([
-                /** @type {any} */ (selectedOptions.withDomain)[0].domain,
+                Domain.or(customOptions.map((o) => o.domain)),
                 searchItem.domain,
             ]),
         };
@@ -100,10 +103,6 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
         ...(selectedOptions.quarter || []),
         ...(selectedOptions.month || []),
     ];
-    // A quarter/month with no year yields no ranges below → an empty (match-all)
-    // domain under an innocuous facet. toggleDateFilter now auto-selects a year
-    // to avoid this, but unvalidated generatorIds (arch/context strings) can
-    // still reach here; warn loudly like toggleDateFilter does.
     if (!yearOptions.length && otherOptions.length) {
         console.warn(
             `[search] date filter "${
@@ -160,17 +159,12 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
  */
 export function constructDateRange(params) {
     const { referenceMoment, fieldName, fieldType, granularity, plusParam } = params;
-    // Copy: the caller's setParam may be a shared constant (getSetParam
-    // returns QUARTER_OPTIONS[*].setParam by reference) and must not be
-    // mutated by the quarter translation below.
     const setParam = { ...params.setParam };
     if ("quarter" in setParam) {
-        // Luxon does not consider quarter key in setParam (like moment did)
         setParam.month = QUARTERS[setParam.quarter].coveredMonths[0];
         delete setParam.quarter;
     }
     const date = referenceMoment.set(setParam).plus(plusParam || {});
-    // compute domain
     const leftDate = date.startOf(granularity);
     const rightDate = date.endOf(granularity);
     let leftBound;
@@ -187,7 +181,6 @@ export function constructDateRange(params) {
         [fieldName, ">=", leftBound],
         [fieldName, "<=", rightBound],
     ]);
-    // compute description
     const descriptions = [date.toFormat("yyyy")];
     const method = localization.direction === "rtl" ? "push" : "unshift";
     if (granularity === "month") {
@@ -269,12 +262,6 @@ export function getMonthPeriodOptions(referenceMoment, optionsParams) {
             const yearOffset = date.year - referenceMoment.year;
             return {
                 id: toGeneratorId("month", monthOffset),
-                // Snap the month's natural year into the arch's year window:
-                // start_year/end_year is authoritative (a fully future/past
-                // window must still default to a year option that exists),
-                // and the effective year is displayed by the auto-selected
-                // year option. Pinned by the filter_menu "startYear in the
-                // future" test.
                 defaultYearId: toGeneratorId(
                     "year",
                     clamp(yearOffset, startYear, endYear),

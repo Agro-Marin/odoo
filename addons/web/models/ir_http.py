@@ -7,18 +7,6 @@ from odoo.http import DEFAULT_LANG, DEFAULT_MAX_CONTENT_LENGTH, request
 from odoo.tools import config, ormcache
 from odoo.tools.misc import hmac, str2bool
 
-# Debug mode is stored in session and should always be a string.
-# It can be activated with an URL query string `debug=<mode>` where mode
-# is either:
-# - 'tests' to load tests assets
-# - 'assets' to load assets non minified
-# - any other truthy value to enable simple debug mode (to show some
-#   technical feature, to show complete traceback in frontend error..)
-# - any falsy value to disable debug mode
-#
-# You can use any truthy/falsy value from `str2bool` (eg: 'on', 'f'..)
-# Multiple debug modes can be activated simultaneously, separated with a
-# comma (eg: 'tests, assets').
 ALLOWED_DEBUG_MODES = ["", "1", "assets", "tests"]
 
 CRAWLER_USER_AGENTS = (
@@ -44,7 +32,6 @@ class IrHttp(models.AbstractModel):
     @classmethod
     def is_a_bot(cls) -> bool:
         user_agent = request.httprequest.user_agent.string.lower()
-        # Substring matching benchmarked faster than regexp for this use case
         return any(bot in user_agent for bot in CRAWLER_USER_AGENTS)
 
     @classmethod
@@ -117,9 +104,6 @@ class IrHttp(models.AbstractModel):
         :meth:`_base_session_info` instead.
         """
         return {
-            # Profiling state — consumed by ``@web/webclient/debug/profiling/profiling_service``
-            # which only activates in debug mode.  Null defaults fall back to ``false`` /
-            # the collector list defined JS-side.
             "profile_session": request.session.get("profile_session"),
             "profile_collectors": request.session.get("profile_collectors"),
             "profile_params": request.session.get("profile_params"),
@@ -139,11 +123,6 @@ class IrHttp(models.AbstractModel):
         session_uid = request.session.uid
         ir_config_sudo = self.env["ir.config_parameter"].sudo()
 
-        # ``web.cwv.sample_rate`` controls the share of sessions that emit
-        # Core Web Vitals beacons.  Default 1.0 (capture all) for dev; lower
-        # in prod (e.g. 0.1 = 10%) to bound traffic to /web/observability/cwv
-        # and ``web.cwv.metric`` row volume.  Decision is per-session; the
-        # JS service samples once at start, not per beacon.
         try:
             cwv_sample_rate = float(
                 ir_config_sudo.get_param("web.cwv.sample_rate", default="1.0"),
@@ -209,16 +188,6 @@ class IrHttp(models.AbstractModel):
         """
         return dict(self._resolve_feature_flags_cached())
 
-    # INVALIDATION CONTRACT: this cache MUST live in the "stable" cache group.
-    # ir.config_parameter's create()/write()/unlink() invalidate exactly that
-    # group (``self.env.registry.clear_cache("stable")`` — same group as its
-    # own ``_get_param`` ormcache), and clear_cache signals the invalidation
-    # to every other worker on commit. Any other group would leave stale flags
-    # served after a ``web.feature.*`` parameter changes (worst on multi-worker
-    # deployments, where only the writing worker would ever notice).
-    # The cached method deliberately takes NO arguments: the flag set is
-    # deployment-wide (independent of uid/context/companies), so the cache key
-    # is just the registry + method.
     @ormcache(cache="stable")
     def _resolve_feature_flags_cached(self) -> tuple[tuple[str, Any], ...]:
         """Return ``((name, parsed_value), ...)`` for every ``web.feature.*``
@@ -238,13 +207,6 @@ class IrHttp(models.AbstractModel):
             for row in rows
         )
 
-    # Numeric pattern intentionally mirrors the JS regex in
-    # ``feature_flags.js:_parseValue`` exactly: signed integer or decimal,
-    # NO scientific notation, NO inf/nan.  Python's float() would accept
-    # ``1.5e2`` / ``inf`` / ``nan`` and ``Number()`` in JS would too, but
-    # the JS regex gate blocks them — we replicate that gate here so a
-    # value set via ir.config_parameter resolves to the same type as the
-    # same string set via URL or localStorage.
     _NUMERIC_RE = re.compile(r"^-?(\d+\.?\d*|\.\d+)$")
 
     @classmethod
@@ -264,11 +226,9 @@ class IrHttp(models.AbstractModel):
             return None
         trimmed = raw.strip() if raw else ""
         if not trimmed:
-            return True  # bare ``name:`` was treated as truthy on the JS side
+            return True
         if not cls._NUMERIC_RE.match(trimmed):
             return raw
-        # Integer fast-path so ``1`` stays int not 1.0; the regex above
-        # already guarantees one of int() / float() succeeds.
         if "." in trimmed:
             return float(trimmed)
         return int(trimmed)
@@ -316,8 +276,6 @@ class IrHttp(models.AbstractModel):
         disallowed_ancestors = user_companies.parent_ids - user_companies
         full_hierarchy = disallowed_ancestors + user_companies
 
-        # Pre-compute visible IDs and each company's filtered child_ids
-        # in one pass, avoiding N recordset intersections below.
         hierarchy_ids = set(full_hierarchy._ids)
         children_in_hierarchy = {
             comp.id: [cid for cid in comp.child_ids._ids if cid in hierarchy_ids]
@@ -367,10 +325,6 @@ class IrHttp(models.AbstractModel):
         info = self._base_session_info()
         ir_config_sudo = self.env["ir.config_parameter"].sudo()
 
-        # _base_session_info() already sets the server version, but only for an
-        # authenticated session; the backend session_info always exposes it.
-        # Fill it in only when absent so exp_version() runs at most once and the
-        # two paths can't diverge.
         if "server_version" not in info:
             version_info = odoo.service.common.exp_version()
             info["server_version"] = version_info.get("server_version")
@@ -415,14 +369,6 @@ class IrHttp(models.AbstractModel):
         """
         info = self._base_session_info()
         info.update(
-            # ``is_website_user`` means "the current user is the public/website
-            # visitor" — True precisely for an ANONYMOUS request (no session
-            # uid). Gating on ``session_uid`` inverted it (returned False for the
-            # public user, contradicting ``is_public`` in the same payload);
-            # ``_is_public()`` is already correct for both the authed and
-            # anonymous cases. (``website`` overrides this with its own
-            # website-scoped notion; this base value serves website-less
-            # frontends.)
             is_website_user=self.env.user._is_public(),
             is_frontend=True,
         )

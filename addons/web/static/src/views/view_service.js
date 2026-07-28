@@ -52,11 +52,6 @@ export const viewService = {
     dependencies: ["orm"],
     async: ["loadViews"],
     start(env, { orm }) {
-        // Models whose mutation invalidates the cached get_views payload: the
-        // arch and filters, but also the embedded toolbar (ir.actions.*
-        // bindings — creating/removing a bound action never touches
-        // ir.ui.view) and the field definitions (Studio/dev-mode custom
-        // fields on ir.model.fields).
         const GET_VIEWS_MODELS = [
             "ir.ui.view",
             "ir.filters",
@@ -65,10 +60,6 @@ export const viewService = {
             "ir.actions.server",
             "ir.model.fields",
         ];
-        // A write REFUSED by the server (RPCError) is filtered out by
-        // ``onModelMutation`` — nothing changed, so dropping the whole
-        // get_views cache would just force needless refetches. A write whose
-        // response was lost still fires, since the arch may have committed.
         onModelMutation(GET_VIEWS_MODELS, () => {
             rpcBus.trigger(RpcEvent.CLEAR_CACHES, "get_views");
         });
@@ -116,10 +107,6 @@ export const viewService = {
                 ),
             );
 
-            // get_views failure blocks every view (form/list/kanban/...) for the
-            // model, so retry(1) smooths cold-cache misses. NOT ``immutable``:
-            // consumers (addFieldDependencies, addPropertyFieldDefs, ...) mutate
-            // the returned field dicts in place, so each hit must stay a copy.
             const result = await orm
                 .cache({ type: "disk" })
                 .retry(1)

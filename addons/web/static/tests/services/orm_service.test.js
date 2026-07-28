@@ -32,7 +32,7 @@ test("add user context to a simple read request", async () => {
             method: "read",
             model: "res.partner",
         });
-        return false; // Don't want to call the actual read method
+        return false;
     });
 
     const { services } = await makeMockEnv();
@@ -557,13 +557,9 @@ test("retry, dedup and cache are rejected on mutating methods", async () => {
     expect(() => orm.retry(1).call("res.partner", "web_resequence", [[3]])).toThrow(
         /mutating method "web_resequence"/,
     );
-    // ``copy`` duplicates records: a retry after a lost response would create
-    // duplicates, so it must be rejected despite not being in UPDATE_METHODS.
     expect(() => orm.retry(1).call("res.partner", "copy", [[3]])).toThrow(
         /mutating method "copy"/,
     );
-    // ``toggle_active`` flips the archive state: a retry after a lost
-    // response would double-flip it.
     expect(() => orm.retry(1).call("res.partner", "toggle_active", [[3]])).toThrow(
         /mutating method "toggle_active"/,
     );
@@ -576,14 +572,12 @@ test("retry, dedup and cache are rejected on mutating methods", async () => {
     expect(() => orm.cache().call("res.partner", "copy", [[3]])).toThrow(
         /mutating method "copy"/,
     );
-    // Caching a write would serve a stale result for a later identical write.
     expect(() =>
         orm.cache({ type: "ram" }).write("res.partner", [3], { name: "x" }),
     ).toThrow(/cannot be applied to mutating method "write"/);
     expect(() => orm.cache().create("res.partner", [{ name: "x" }])).toThrow(
         /mutating method "create"/,
     );
-    // Composing with other modifiers must not bypass the guard.
     expect(() => orm.silent.retry(1).webSave("res.partner", [3], {})).toThrow(
         /mutating method "web_save"/,
     );

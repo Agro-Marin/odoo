@@ -20,7 +20,7 @@ defineModels([ResConfigSettings]);
 test("widget upgrade_boolean in a form view - dialog", async () => {
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <field name="bar" widget="upgrade_boolean"/>
@@ -39,7 +39,7 @@ test("widget upgrade_boolean in a form view - dialog", async () => {
 test("widget upgrade_boolean in a form view - label", async () => {
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <setting string="Coucou">
@@ -65,7 +65,7 @@ test("widget upgrade_boolean in a form view - dialog (enterprise version)", asyn
     patchWithCleanup(odoo, { info: { isEnterprise: 1 } });
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <field name="bar" widget="upgrade_boolean"/>
@@ -86,7 +86,7 @@ test("widget upgrade_boolean in a form view - label (enterprise version)", async
     patchWithCleanup(odoo, { info: { isEnterprise: 1 } });
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="CRM" name="crm">
                     <setting string="Coucou">

@@ -153,9 +153,6 @@ export class FormController extends Component {
             this.display.controlPanel = false;
         }
 
-        // Wait until mounted to show onchange warnings: avoids a double-show if the
-        // component is destroyed/recreated first, and avoids an infinite loop for
-        // form views in dialogs (willStart calling dialog.add).
         const mountedProm = new Promise((r) => onMounted(/** @type {any} */ (r)));
         this.onWillDisplayOnchangeWarning = () => mountedProm;
 
@@ -183,24 +180,10 @@ export class FormController extends Component {
         this.model = useState(
             useModel(this.props.Model, this.modelParams, { beforeFirstLoad }),
         );
-        // Centralizes the 9 historical save-related entry points
-        // (onPagerUpdate / beforeVisibilityChange / beforeLeave /
-        // beforeUnload / shouldExecuteAction / beforeExecuteActionButton /
-        // create / save / saveButtonClicked) into one observable surface.
-        // See ``form_save_coordinator.js`` for the full rationale and the
-        // public API.
         this.saveCoordinator = useState(
             new FormSaveCoordinator(this.model, {
                 onSaveError: (error, callbacks) =>
                     this._renderSaveErrorDialog(error, callbacks),
-                // No pre/post-save hooks here: pre-save vetoes belong to the
-                // model-level ``onWillSaveRecord`` hook (fires after validation,
-                // before web_save — a coordinator hook would double-fire and
-                // run pre-validation). Post-save ``props.onSave`` is invoked
-                // explicitly by the 4 call sites that historically called it
-                // (beforeLeave, beforeExecuteActionButton, save,
-                // saveButtonClicked), not by every requestSave. The old unwired
-                // onWillSave/onSaved hooks here were removed as dead code.
                 onUrgentSaveFailed: () => this._onUrgentSaveFailed(),
                 recoverFromSaveError: (error, model) =>
                     this.multiCompanyRecovery.recoverFromSaveError(error, model),
@@ -232,22 +215,7 @@ export class FormController extends Component {
             throw error;
         });
 
-        // select footers that are not in subviews and move them to another arch
-        // that will be moved to the dialog's footer (if we are in a dialog)
         if (this.archInfo.xmlDoc.querySelector("footer:not(field footer)")) {
-            // Work on clones: the shared props.archInfo (and its xmlDoc) must
-            // stay untouched — it can feed another controller instantiation
-            // (remount with identical props, error-recovery re-render), which
-            // would otherwise find its footers already stripped. The
-            // controller keeps its own footer-less copy on this.archInfo.
-            //
-            // Memoize the footer-stripped clone per props.archInfo: a fresh
-            // clone is a brand-new Element, so ``useViewCompiler``'s
-            // ``archKeyCache`` (WeakMap keyed by Element identity) would miss
-            // and re-serialize + recompile the whole arch on every dialog open.
-            // The clone is only mutated once (footers moved out during this
-            // block) and thereafter read-only (compiled by value), so it is
-            // safe to share the same stripped Element across instantiations.
             let cached = footerArchInfoCache.get(this.props.archInfo);
             if (!cached) {
                 const xmlDoc = this.archInfo.xmlDoc.cloneNode(true);
@@ -256,7 +224,6 @@ export class FormController extends Component {
                 for (const footer of xmlDoc.querySelectorAll(
                     "footer:not(field footer)",
                 )) {
-                    // append() moves the node out of the cloned doc
                     footerArchInfo.xmlDoc.append(footer);
                 }
                 footerArchInfo.arch = footerArchInfo.xmlDoc.outerHTML;
@@ -387,7 +354,7 @@ export class FormController extends Component {
                 resIds:
                     this.props.resIds || (this.props.resId ? [this.props.resId] : []),
                 fields: this.props.fields,
-                activeFields: {}, // will be generated after loading sub views (see willStart)
+                activeFields: {},
                 isMonoRecord: true,
                 mode: this.props.readonly ? "readonly" : "edit",
                 context: this.props.context,
@@ -523,8 +490,6 @@ export class FormController extends Component {
             }
         } catch (e) {
             if (e instanceof FetchRecordError) {
-                // await the recovery load before rethrowing, to avoid an
-                // unhandled rejection interleaving with subsequent loads
                 await this.model.load({
                     resIds: this.model.config.resIds.filter(
                         (id) => !e.resIds.includes(id),
@@ -541,10 +506,6 @@ export class FormController extends Component {
             this.formDialogStack.isEmpty &&
             !this.model.root.isNew
         ) {
-            // checkDirty: a clean record must short-circuit BEFORE the save
-            // pipeline runs — without it, every tab-hide on a dirty-but-
-            // invalid record re-fires the "Missing required fields" toast
-            // and churns the status indicator through saving→clean.
             return this.saveCoordinator
                 .requestSave({ errorMode: "silent", checkDirty: true })
                 .catch((e) => console.warn("Auto-save on tab switch failed:", e));
@@ -557,12 +518,6 @@ export class FormController extends Component {
             return;
         }
         if (!(await this.model.root.isDirty())) {
-            // Nothing to save. Hoisted out of the coordinator (instead of
-            // ``checkDirty: true``) because that short-circuit resolves
-            // ``true`` and would fire ``props.onSave`` below: embedders hang
-            // "record persisted" side effects on it (e.g. stock_barcode
-            // closes its line-edit pane), which must not run on a clean
-            // leave.
             return true;
         }
         const saved = await this.saveCoordinator.requestSave({
@@ -645,7 +600,6 @@ export class FormController extends Component {
         );
     }
 
-    // enable the archive feature in Actions menu only if the active field is in the view
     get archiveEnabled() {
         return computeArchiveEnabled(this.props.fields, this.model.root.activeFields);
     }
@@ -654,9 +608,6 @@ export class FormController extends Component {
         const dirty = await this.model.root.isDirty();
         if ((dirty || this.model.root.isNew) && !item.skipSave) {
             const saved = await this.saveCoordinator.requestSave();
-            // Block the menu action if the save errored, even if the dialog
-            // UX resolved it via "discard": action menus (Duplicate, Archive,
-            // etc.) never run after an in-flight save hit a server error.
             return saved !== false && !this.saveCoordinator.lastError;
         }
         return true;
@@ -689,23 +640,11 @@ export class FormController extends Component {
         if (clickParams.special !== "cancel") {
             let saved;
             if (clickParams.special === "save" && this.props.saveRecord) {
-                // The embedder's saveRecord owns the save itself for
-                // special="save" buttons, but the dispatch still goes through
-                // the coordinator so ``status`` / ``lastError`` reflect the
-                // dialog's Save like every other entry point. With a
-                // saveOverride the coordinator injects no onError and
-                // rethrows any escaped error (see ``requestSave``), matching
-                // the historical direct-call semantics.
                 saved = await this.saveCoordinator.requestSave({
                     saveOverride: (r) => this.props.saveRecord(r, clickParams),
                     errorMode: "rethrow",
                 });
             } else {
-                // Plain save, no dirty pre-check, no error dialog (the caller
-                // handles errors via ``useViewButtons``): errors must propagate
-                // so ``executeButtonCallback`` can release the UI lock and show
-                // a server-error notification. Reload only if we won't close
-                // the embedding dialog afterwards.
                 saved = await this.saveCoordinator.requestSave({
                     reload: !(this.env.inDialog && clickParams.close),
                     errorMode: "rethrow",
@@ -726,7 +665,6 @@ export class FormController extends Component {
         const canProceed = await this.saveCoordinator.requestSave({
             checkDirty: true,
         });
-        // TODO: UI should be blocked during pager navigation (disable/enable not done in onPagerUpdate)
         if (canProceed) {
             await executeButtonCallback(
                 /** @type {any} */ (this.ui.activeElement),

@@ -59,10 +59,6 @@ onRpc("ir.attachment", "regenerate_assets_bundles", () => {
     return true;
 });
 beforeEach(() => {
-    // Remove these services so the debug menu only carries items the test
-    // explicitly inserts — their `start()` populates
-    // debug.category("default") (profiling toggle, tour's "Onboarding" item),
-    // which mountWithCleanup would otherwise re-add to the cleared registry.
     registry.category("services").remove("profiling");
     registry.category("services").remove("tour_service");
     clearRegistry(debugRegistry.category("default"));
@@ -217,7 +213,6 @@ describe("DebugMenu", () => {
         expect(".o_dialog .o_debug_manager .fa-bug").toHaveCount(1);
         await contains(".o_dialog .o_debug_manager button").click();
         expect(".dropdown-menu .dropdown-item").toHaveCount(2);
-        // Check that global debugManager elements are not displayed (global_1)
         const items = queryAll(".dropdown-menu .dropdown-item");
         expect(queryAllTexts(items)).toEqual(["Item 1", "Item 2"]);
         for (const item of items) {
@@ -432,8 +427,6 @@ describe("DebugMenu", () => {
     });
 
     test("set defaults: dialog opens with an orphaned selection value", async () => {
-        // A stored selection value no longer present in the field's options
-        // (e.g. removed/renamed by a module upgrade) must not crash the dialog.
         serverState.debug = "1";
 
         class Partner extends models.Model {
@@ -449,7 +442,7 @@ describe("DebugMenu", () => {
             _records = [{ id: 1, display_name: "p1", state: "obsolete" }];
 
             _views = {
-                "form,30": /* xml */ `
+                "form,30": `
                     <form>
                         <field name="state"/>
                     </form>
@@ -479,7 +472,6 @@ describe("DebugMenu", () => {
         await contains(
             ".dropdown-menu .dropdown-item:contains('Set Default Values')",
         ).click();
-        // Dialog opens instead of throwing, and the raw value is shown verbatim.
         expect(".modal").toHaveCount(1);
         expect(
             ".modal #formview_default_fields option:contains('obsolete')",
@@ -699,7 +691,7 @@ describe("DebugMenu", () => {
             ];
 
             _views = {
-                "form,18": /* xml */ `
+                "form,18": `
                     <form>
                         <field name="datetime"/>
                         <field name="reference"/>

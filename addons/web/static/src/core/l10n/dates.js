@@ -10,7 +10,6 @@ import { memoize } from "@web/core/utils/functions";
 
 import { isInRange, today } from "./date_utils.js";
 
-// Re-export extracted modules for backward compatibility
 export {
     deserializeDate,
     deserializeDateTime,
@@ -67,7 +66,6 @@ const nonDigitRegex = /[^\d]/g;
 
 /** @type {Record<string, string>} */
 const normalizeFormatTable = {
-    // Python strftime to luxon.js conversion table
     a: "ccc",
     A: "cccc",
     b: "MMM",
@@ -75,8 +73,6 @@ const normalizeFormatTable = {
     d: "dd",
     H: "HH",
     I: "hh",
-    // Python ``%j`` is the zero-padded 3-digit day of year ("065", "005");
-    // luxon ``o`` is unpadded ("65", "5"), so pad it with ``ooo``.
     j: "ooo",
     m: "MM",
     M: "mm",
@@ -115,10 +111,6 @@ const smartWeekdays = {
 export class ConversionError extends Error {
     name = "ConversionError";
 }
-
-//-----------------------------------------------------------------------------
-// Helpers
-//-----------------------------------------------------------------------------
 
 /**
  * Returns whether the given DateTime is valid (between 1000-01-01 and 9999-12-31).
@@ -269,12 +261,6 @@ export const strftimeToLuxonFormat = memoize(function strftimeToLuxonFormat(form
     return output.join("");
 });
 
-//-----------------------------------------------------------------------------
-// Formatting
-//-----------------------------------------------------------------------------
-
-// Base locale format objects, precomputed once instead of spread + mutated on
-// every toLocaleDateString/toLocaleDateTimeString call.
 const DATE_MED_NO_YEAR = { ...DateTime.DATE_MED };
 delete DATE_MED_NO_YEAR.year;
 const DATETIME_MED_NO_SECONDS = { ...DateTime.DATETIME_MED_WITH_SECONDS };
@@ -392,9 +378,6 @@ export function formatDuration(seconds, showFullDuration) {
         minutes: "minute",
     };
 
-    // Work on the magnitude and remember the sign separately. The minimum
-    // granularity is one minute: sub-minute durations (including negative or
-    // zero ones) are floored to whole minutes.
     const sign = seconds < 0 ? -1 : 1;
     let magnitude = Math.abs(Math.trunc(seconds));
     magnitude -= magnitude % 60;
@@ -402,10 +385,6 @@ export function formatDuration(seconds, showFullDuration) {
     const duration = Duration.fromObject({ seconds: magnitude }).shiftTo(
         ...durationKeys,
     );
-    // Use luxon's public default-locale setting instead of reaching into the
-    // private `duration.loc.locale`. `Duration.fromObject` above carried no
-    // explicit locale, so it resolves to exactly this value (or, when unset,
-    // the runtime default — which `undefined` also selects for Intl).
     const locale = Settings.defaultLocale || undefined;
 
     /**
@@ -424,18 +403,12 @@ export function formatDuration(seconds, showFullDuration) {
             unit: intlUnitByKey[key],
             unitDisplay: displayStyle,
         }).format(value);
-        // In narrow English, both "month" and "minute" render as "…m"; the
-        // original code disambiguated months as "…M". Only uppercase the
-        // trailing unit letter — a blanket replace of the first "m" could hit
-        // the value part or a wider unit spelling (e.g. "5 mo" in some CLDR
-        // variants).
         if (!showFullDuration && key === "months" && (locale || "").includes("en")) {
             formatted = formatted.replace(/m(?=\W*$)/, "M");
         }
         return formatted;
     };
 
-    // Take the first N non-zero units, largest first.
     /** @type {Array<["years" | "months" | "days" | "hours" | "minutes", number]>} */
     const parts = [];
     for (const key of durationKeys) {
@@ -449,21 +422,15 @@ export function formatDuration(seconds, showFullDuration) {
     }
 
     if (!parts.length) {
-        // Below the minimum granularity: report "0 minutes".
         return formatUnit(0, "minutes");
     }
 
-    // Carry the sign on the leading (largest) unit only.
     return parts
         .map(([key, value], index) =>
             formatUnit(index === 0 ? sign * value : value, key),
         )
         .join(", ");
 }
-
-//-----------------------------------------------------------------------------
-// Parsing
-//-----------------------------------------------------------------------------
 
 /**
  * @param {string} value
@@ -503,12 +470,6 @@ export function parseDateTime(value, options = {}) {
         parseOpts.numberingSystem = "latn";
     }
 
-    // Annotated, not inferred: TS would type this from the FIRST assignment
-    // only (``DateTime<true> | DateTime<false>``), but the fallback chain below
-    // reassigns it from ``parseSmartDateInput``, which returns
-    // ``NullableDateTime``. Widening here matches both what the variable really
-    // holds between the ``isValidDate`` re-checks and this function's own
-    // declared ``@returns {NullableDateTime}``.
     /** @type {NullableDateTime} */
     let result = DateTime.fromFormat(value, fmt, parseOpts);
 

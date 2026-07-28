@@ -244,16 +244,10 @@ export const FAKE_MODEL = {
     updateRecord() {},
 };
 
-// DOM Utils
-//------------------------------------------------------------------------------
-
 /**
  * @param {HTMLElement} element
  */
 function instantScrollTo(element) {
-    // Guard so a missing element (selector mismatch in a v7 migration
-    // pocket we haven't covered yet) surfaces a clear test error from
-    // the caller, rather than ``Cannot read properties of null``.
     element?.scrollIntoView({ behavior: "instant", block: "center" });
 }
 
@@ -262,9 +256,6 @@ function instantScrollTo(element) {
  * @returns {HTMLElement}
  */
 export function findAllDaySlot(date) {
-    // v7 dropped the ``.fc-daygrid-body`` wrapper; the all-day strip is
-    // just a ``[data-date=...]`` cell with no unique container. Exclude the
-    // column-header cell (the only other match in day/week views).
     return queryFirst(`.fc-day[data-date="${date}"]:not(.fc-col-header-cell)`);
 }
 
@@ -273,9 +264,6 @@ export function findAllDaySlot(date) {
  * @returns {HTMLElement}
  */
 export function findDateCell(date) {
-    // Our ``dayHeaderClassNames`` injects ``.fc-day`` on column headers
-    // too (so compound selectors like ``.fc-col-header-cell.fc-day``
-    // keep working).  Exclude headers here so callers get the body cell.
     return queryFirst(`.fc-day[data-date="${date}"]:not(.fc-col-header-cell)`);
 }
 
@@ -300,8 +288,6 @@ export function findDateColumn(date) {
  * @returns {HTMLElement}
  */
 export function findTimeRow(time) {
-    // v7 splits the v6 ``.fc-timegrid-slot`` into label + lane cells.
-    // The clickable drop target is the lane.
     return queryFirst(`.fc-timegrid-slot-lane[data-time="${time}"]:eq(0)`);
 }
 
@@ -381,7 +367,7 @@ export async function clickEvent(eventId) {
     instantScrollTo(eventEl);
 
     await click(eventEl);
-    await advanceTime(500); // wait for the popover to open (debounced)
+    await advanceTime(500);
 }
 
 export function expandCalendarView() {
@@ -401,7 +387,6 @@ export async function selectTimeRange(startDateTime, endDateTime) {
     const [startDate, startTime] = startDateTime.split(" ");
     const [endDate, endTime] = endDateTime.split(" ");
 
-    // Try to display both rows on the screen before drag'n'drop.
     const startHour = Number(startTime.slice(0, 2));
     const endHour = Number(endTime.slice(0, 2));
     const midHour = Math.floor((startHour + endHour) / 2);
@@ -413,20 +398,6 @@ export async function selectTimeRange(startDateTime, endDateTime) {
         }),
     );
 
-    // FC v7 renders ``.fc-timegrid-slot-lane`` elements as visual
-    // BACKGROUND rows OUTSIDE the interactive ``TimeGridCols`` subtree.
-    // Mousedown on a slot lane reaches only FC's document-level
-    // ``PointerDragging`` (unselect tracking) — never the component-level
-    // ``DateSelecting`` handler, so ``select``/``createRecord`` never fire.
-    //
-    // The real interactive element per date is the ``TimeGridCol`` with
-    // ``role='gridcell'`` and ``data-date`` (``fullcalendar.esm.js:12137``).
-    // Week/day view has three per date — header (columnheader), all-day
-    // strip (gridcell + .fc-daygrid-day), time-grid body (gridcell only).
-    // Filter to the time-grid body by excluding the all-day class.
-    //
-    // Y position still comes from the slot lane's rect, kept non-zero by
-    // the ``computeSlatHeight`` fork-patch's ``slotMinHeight``.
     const startCol = queryFirst(
         `[data-date="${startDate}"][role="gridcell"]:not(.fc-daygrid-day)`,
     );
@@ -665,11 +636,6 @@ export async function moveEventToAllDaySlot(eventId, date) {
  * @returns {Promise<void>}
  */
 export async function resizeEventToTime(eventId, dateTime) {
-    // FC v7 only attaches ``fc-event-resizer-end`` to the segment whose
-    // ``isEnd && eventUi.durationEditable`` are both true (see FC's
-    // ``isEndResizable``). Mirror ``resizeEventToDate``'s defensive pattern:
-    // query all segments, take the last, and throw a diagnostic naming the
-    // FC fields to check instead of a bare null dereference.
     const allSegments = queryAll(`.o_event[data-event-id="${eventId}"]`);
     const eventEl = allSegments[allSegments.length - 1] || findEvent(eventId);
 
@@ -714,15 +680,6 @@ export async function resizeEventToTime(eventId, dateTime) {
  * @returns {Promise<void>}
  */
 export async function resizeEventToDate(eventId, date) {
-    // FC v7 splits multi-day all-day events into one DOM node per day row
-    // (same ``data-event-id``). The ``isEnd`` flag — and hence the
-    // ``fc-event-resizer-end`` class (``fullcalendar.esm.js:8945``:
-    // ``isEndResizable = !disableResizing && props.isEnd &&
-    // eventUi.durationEditable``) — only sits on the LAST segment.
-    // ``findEvent`` returned the FIRST, so the resizer was null, throwing
-    // on ``style`` — seen in the "Resizing Pill of Multiple Days(Allday)"
-    // and "create event and resize to next day (24h) on week mode" tests.
-    // Query all segments and take the last for the resizer search.
     const allSegments = queryAll(`.o_event[data-event-id="${eventId}"]`);
     const eventEl = allSegments[allSegments.length - 1] || findEvent(eventId);
     const slot = findAllDaySlot(date);
@@ -732,7 +689,6 @@ export async function resizeEventToDate(eventId, date) {
     await hover(".fc-event-main", { root: eventEl });
     await animationFrame();
 
-    // Show the resizer
     const resizer = queryFirst(".fc-event-resizer-end", { root: eventEl });
     if (!resizer) {
         throw new Error(
@@ -747,11 +703,9 @@ export async function resizeEventToDate(eventId, date) {
 
     const rowRect = queryRect(resizer);
 
-    // Find the date cell and calculate the positions for dragging
     const dateCell = findDateCell(date);
     const columnRect = queryRect(dateCell);
 
-    // Perform the drag-and-drop operation
     await hover(resizer, {
         position: { x: 0 },
         relative: true,

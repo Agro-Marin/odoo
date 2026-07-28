@@ -6,7 +6,6 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { contains, mountWithCleanup, onRpc } from "@web/../tests/web_test_helpers";
 import { NameAndSignature } from "@web/components/signature/name_and_signature";
 
-// Tiny valid 1x1 transparent PNG.
 const TINY_PNG =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+BCQAHBQICJmhD1AAAAABJRU5ErkJggg==";
 
@@ -138,14 +137,13 @@ test("printImage serializes concurrent calls with KeepLast (only the last draws)
     const res = await mountWithCleanup(NameAndSignature, {
         props: {
             signature: { name: "Test Owner" },
-            mode: "draw", // avoid the auto-mode drawing that runs on mount
+            mode: "draw",
         },
     });
 
     let firstResolved = false;
     let secondResolved = false;
 
-    // Fire two draws back-to-back without awaiting the first.
     const p1 = res.printImage(TINY_PNG).then(() => {
         firstResolved = true;
     });
@@ -156,8 +154,6 @@ test("printImage serializes concurrent calls with KeepLast (only the last draws)
     await p2;
     await animationFrame();
 
-    // The superseded call is abandoned (KeepLast never resolves it), preventing
-    // overlapping draws from producing "ghost" renders.
     expect(secondResolved).toBe(true);
     expect(firstResolved).toBe(false);
     void p1;

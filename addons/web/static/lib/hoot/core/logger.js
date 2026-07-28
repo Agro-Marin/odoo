@@ -4,10 +4,6 @@ import { getColorHex } from "../../hoot-dom/hoot_dom_utils.js";
 import { isNil, stringify } from "../hoot_utils.js";
 import { urlParams } from "./url.js";
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     console: {
         debug: $debug,
@@ -22,10 +18,6 @@ const {
     },
     Object: { entries: $entries, getOwnPropertyDescriptors: $getOwnPropertyDescriptors },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {any[]} args
@@ -68,7 +60,6 @@ class Logger {
         this.logLevel = logLevel;
         this.issueLevel = issueLevel;
 
-        // Pre-bind all methods for ease of use
         for (const [key, desc] of $entries($getOwnPropertyDescriptors(Logger.prototype))) {
             if (key !== "constructor" && typeof desc.value === "function") {
                 this[key] = this[key].bind(this);
@@ -79,8 +70,6 @@ class Logger {
     get global() {
         return new Logger(this.logLevel, ISSUE_LEVELS.global);
     }
-
-    // Standard console methods
 
     /**
      * @param {...any} args
@@ -155,8 +144,6 @@ class Logger {
             }
         }
     }
-
-    // Level-specific methods
 
     /**
      * @param {...any} args
@@ -237,8 +224,6 @@ class Logger {
         $dir(...unstyledArguments(args));
     }
 
-    // Other methods
-
     /**
      * @param {keyof typeof LOG_LEVELS} level
      */
@@ -274,10 +259,6 @@ const DEFAULT_PREFIX = ["HOOT", getColorHex("primary")];
 const ERROR_PREFIX = ["ERROR", getColorHex("rose")];
 const WARNING_PREFIX = ["WARNING", getColorHex("amber")];
 let nextNetworkLogId = 1;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * @param {string} prefix
@@ -397,5 +378,5 @@ export const LOG_LEVELS = {
 
 export const logger = new Logger(
     urlParams.loglevel ?? LOG_LEVELS.runner,
-    ISSUE_LEVELS.critical // by default, all errors are "critical", i.e. should abort the whole run
+    ISSUE_LEVELS.critical
 );

@@ -38,12 +38,11 @@ export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
 export const many2ManyTagsAvatarField = {
     ...many2ManyTagsField,
     component: Many2ManyTagsAvatarField,
-    extractProps({ viewType }, dynamicInfo) {
-        const props = many2ManyTagsField.extractProps(...arguments);
-        props.withCommand = viewType === "form" || viewType === "list";
-        props.domain = dynamicInfo.domain;
-        return props;
-    },
+    extractProps: (fieldInfo, dynamicInfo) => ({
+        ...many2ManyTagsField.extractProps(fieldInfo, dynamicInfo),
+        withCommand: ["form", "list"].includes(fieldInfo.viewType),
+        domain: dynamicInfo.domain,
+    }),
 };
 
 registerField("many2many_tags_avatar", many2ManyTagsAvatarField);
@@ -84,9 +83,7 @@ export class Many2ManyTagsAvatarFieldPopover extends Many2ManyTagsAvatarField {
     /** Persists changes and re-renders the popover dropdown */
     async _saveUpdate() {
         await this.props.record.save({ reload: false });
-        // manual render to dirty record
         this.render();
-        // update dropdown
         this.autoCompleteRef.el?.querySelector("input")?.click();
     }
 
@@ -162,11 +159,10 @@ export class KanbanMany2ManyTagsAvatarField extends Many2ManyTagsAvatarField {
 export const kanbanMany2ManyTagsAvatarField = {
     ...many2ManyTagsAvatarField,
     component: KanbanMany2ManyTagsAvatarField,
-    extractProps(fieldInfo, dynamicInfo) {
-        const props = many2ManyTagsAvatarField.extractProps(...arguments);
-        props.isEditable = !dynamicInfo.readonly;
-        return props;
-    },
+    extractProps: (fieldInfo, dynamicInfo) => ({
+        ...many2ManyTagsAvatarField.extractProps(fieldInfo, dynamicInfo),
+        isEditable: !dynamicInfo.readonly,
+    }),
 };
 
 registerField(

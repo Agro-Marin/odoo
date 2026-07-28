@@ -1,15 +1,26 @@
 // @ts-check
 
 /**
- * Pure unit tests for the EmbeddedActions model and its config handler.
+ * Unit tests for the EmbeddedActions model and its config handler.
  *
- * The tested methods are plain (async) functions that only touch this.orm,
- * this.configHandler and this.embeddedInfos, so tests build a minimal `this`
- * and invoke them directly (EmbeddedActions.prototype.<method>.call) rather
- * than mounting the full OWL component tree.
+ * Most tested methods are plain (async) functions that only touch this.orm,
+ * this.configHandler and this.embeddedInfos, so those tests build a minimal
+ * `this` and invoke them directly (EmbeddedActions.prototype.<method>.call)
+ * rather than mounting the full OWL component tree. The last describe block is
+ * the exception: it mounts a real ControlPanel, because what it guards is a
+ * reactive subscription that only exists once components are rendering.
  */
 
 import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame } from "@odoo/hoot-mock";
+import {
+    defineModels,
+    fields,
+    models,
+    mountWithSearch,
+    onRpc,
+} from "@web/../tests/web_test_helpers";
+import { ControlPanel } from "@web/search/control_panel/control_panel";
 import {
     EmbeddedActions,
     EmbeddedActionsConfigHandler,
@@ -68,8 +79,6 @@ describe("EmbeddedActions.deleteAction", () => {
             EmbeddedActions.prototype.deleteAction.call(self, { id: 7 }),
         ).rejects.toThrow();
 
-        // unlink is refused before any local mutation or persistence: the tab
-        // stays and res.users.settings is never written.
         expect(self.embeddedInfos.visibleEmbeddedActions).toEqual([7, 8]);
         expect(self.embeddedInfos.embeddedActions.map((a) => a.id)).toEqual([7, 8]);
         expect(settingsCalls).toBe(0);
@@ -151,11 +160,6 @@ describe("EmbeddedActionsConfigHandler.setEmbeddedActionsConfig", () => {
     });
 
     test("overlapping writes: an earlier failure does not wipe a later success", async () => {
-        // Two writes are queued back-to-back (last-write-wins). The FIRST RPC
-        // fails, the SECOND succeeds. The snapshot/merge/revert must run in
-        // commit order inside the queue, so the first's revert only undoes its
-        // own change and the second's value survives in the cache — rather than
-        // the first's deferred revert deleting the shared key the second wrote.
         let call = 0;
         const handler = makeConfigHandler({
             orm: {
@@ -283,7 +287,6 @@ describe("EmbeddedActions.toggleBar", () => {
         expect(self.embeddedInfos.showEmbedded).toBe(false);
         expect(self._togglingBar).toBe(false);
 
-        // The guard is released: a retry goes through.
         self._applyBarVisibility = async () => {};
         await EmbeddedActions.prototype.toggleBar.call(self);
         expect(self.embeddedInfos.showEmbedded).toBe(true);
@@ -380,7 +383,6 @@ describe("EmbeddedActions.saveNewAction", () => {
                     return [123];
                 },
             },
-            // Synthetic parent entry built by executeActionButton: bare ids.
             currentEmbeddedAction: {
                 parent_action_id: 1,
                 action_id: 42,
@@ -391,5 +393,63 @@ describe("EmbeddedActions.saveNewAction", () => {
         await EmbeddedActions.prototype.saveNewAction.call(self);
 
         expect(createdValues.action_id).toBe(42);
+    });
+});
+
+describe("EmbeddedActionsBar rendering", () => {
+    class EmbeddedActionsFoo extends models.Model {
+        _name = "embedded.actions.foo";
+        name = fields.Char();
+        _records = [{ id: 1, name: "r1" }];
+    }
+    defineModels([EmbeddedActionsFoo]);
+
+    const embeddedAction = (id, name) => ({
+        id,
+        name,
+        parent_action_id: [7, "Parent"],
+        parent_res_model: "embedded.actions.foo",
+        action_id: [10 + id, `A${id}`],
+        user_id: 2,
+        is_deletable: true,
+        context: {},
+    });
+
+    test.tags("desktop");
+    test("toggling a tab's visibility re-renders the desktop bar", async () => {
+        // Guards the discarded `includes` read in `_isEmbeddedActionVisible`:
+        // it is the bar's only subscription to the contents of
+        // `visibleEmbeddedActions`, which `toggleActionVisibility` splices in
+        // place. Without it both tabs stay on screen after hiding one.
+        onRpc("res.users.settings", "set_embedded_actions_setting", () => true);
+        onRpc("res.users.settings", "get_embedded_actions_settings", () => ({}));
+
+        const controlPanel = await mountWithSearch(
+            ControlPanel,
+            { resModel: "embedded.actions.foo" },
+            {
+                embeddedActions: [
+                    embeddedAction(1, "Tab One"),
+                    embeddedAction(2, "Tab Two"),
+                ],
+                parentActionId: 7,
+                currentEmbeddedActionId: 1,
+                actionId: 7,
+            },
+        );
+
+        const embeddedActions = controlPanel.embeddedActions;
+        embeddedActions.embeddedInfos.showEmbedded = true;
+        embeddedActions.embeddedInfos.visibleEmbeddedActions = [1, 2];
+        await animationFrame();
+        expect(".o_embedded_actions button.o_draggable").toHaveCount(2);
+
+        await embeddedActions.toggleActionVisibility(2);
+        await animationFrame();
+        expect(".o_embedded_actions button.o_draggable").toHaveCount(1);
+
+        await embeddedActions.toggleActionVisibility(2);
+        await animationFrame();
+        expect(".o_embedded_actions button.o_draggable").toHaveCount(2);
     });
 });

@@ -119,13 +119,10 @@ export class Pager extends Component {
         let minimum = this.props.offset + this.props.limit * direction;
         let total = this.props.total;
         if (this.props.updateTotal && minimum < 0) {
-            // we must know the real total to be able to loop by doing "previous"
             total = await this.props.updateTotal();
         }
         if (minimum >= total) {
             if (!this.props.updateTotal) {
-                // only loop forward if we know the real total, otherwise let the minimum
-                // go out of range
                 minimum = 0;
             }
         } else if (minimum < 0 && this.props.limit === 1) {
@@ -144,9 +141,6 @@ export class Pager extends Component {
         const minimum = Number.parseInt(minStr, 10);
         const maximum = maxStr ? Number.parseInt(maxStr, 10) : minimum;
         if (this.props.updateTotal) {
-            // We don't know the real total, so we can't clamp the upper
-            // bound — but the lower bound must still be floored: typing "0"
-            // would otherwise send offset -1 (a negative SQL OFFSET).
             return { minimum: Math.max(minimum - 1, 0), maximum: Math.max(maximum, 1) };
         }
         return {
@@ -190,8 +184,6 @@ export class Pager extends Component {
         try {
             await this.props.updateTotal();
         } finally {
-            // Always re-enable the pager, even if the count RPC rejects, so a
-            // transient failure doesn't leave navigation permanently disabled.
             this.state.isDisabled = false;
         }
     }
@@ -232,8 +224,6 @@ export class Pager extends Component {
     }
     onValueClick() {
         if (this.props.isEditable && !this.state.isEditing && !this.state.isDisabled) {
-            // The input only exists once `isEditing` is true; useAutofocus then
-            // focuses it on mount, so there is nothing to focus here.
             this.state.isEditing = true;
         }
     }

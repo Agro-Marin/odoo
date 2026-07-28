@@ -1,7 +1,5 @@
 // @ts-check
 
-// Pure unit tests for Operation's arithmetic, without OWL or DOM.
-
 import { describe, expect, test } from "@odoo/hoot";
 import { Operation } from "@web/model/relational_model/operation";
 

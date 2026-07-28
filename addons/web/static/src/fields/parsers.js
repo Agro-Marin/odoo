@@ -8,12 +8,7 @@ import { localization } from "@web/core/l10n/localization";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { escapeRegExp } from "@web/core/utils/format/strings";
-// Helpers
-/**
- * @param {string} expr
- * @param {object} [context]
- * @returns {any}
- */
+import { ParseError } from "@web/fields/parse_error";
 import { Operation } from "@web/model/relational_model/operation";
 
 /**
@@ -56,18 +51,56 @@ const getMonetaryStartRegex = memoizeRegex(
     (decimalPoint) => new RegExp(`[\\d\\-+=]|${escapeRegExp(decimalPoint)}`),
 );
 
-// A whitespace thousands separator matches any run of whitespace, so it needs
-// no per-separator compilation.
 const WHITESPACE_THOUSANDS_SEP_REGEX = /\s+/g;
+
+/**
+ * A decimal number literal, as produced by ``parseNumber`` once the locale's
+ * thousands separator has been removed and its decimal point normalised to
+ * ".". Anything else is rejected instead of being handed to ``Number()``.
+ *
+ * ``Number()`` also accepts the other JS numeric literal syntaxes, so without
+ * this every parser silently read non-decimal input as a number:
+ * ``"0x10" -> 16``, ``"0b11" -> 3``, ``"0o17" -> 15``. A user typing those into
+ * a float field means none of them. Scientific notation IS kept — ``"1e5"`` is
+ * a decimal literal people legitimately type.
+ */
+const DECIMAL_LITERAL_REGEX = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+
+/**
+ * Accounting notations for a negative amount, both of which the lenient
+ * extraction in ``parseMonetary`` would otherwise discard along with the
+ * currency decoration — silently turning -1,234.50 into +1,234.50:
+ *
+ * - parentheses, as used by IFRS/GAAP statements and spreadsheet exports;
+ *   the capture groups keep any currency decoration around them so
+ *   ``"USD (99)"`` still reaches the numeric extraction as ``"USD 99"``.
+ * - a trailing minus, as emitted by SAP and mainframe exports.
+ */
+const PARENTHESISED_NEGATIVE_REGEX = /^(\D*)\((.*)\)(\D*)$/;
+const TRAILING_MINUS_REGEX = /-\s*$/;
+
+/**
+ * Splits an ``=``-expression into operators and operand literals.
+ *
+ * A bare ``[-+*\/()^]`` class would also split the sign of an exponent, so
+ * ``1e-5`` became ``["1e", "-", "5"]`` and the operand parse of ``"1e"``
+ * failed — making ``=1e-5`` an error while ``=1e5`` parsed fine. The
+ * lookbehind keeps a ``+``/``-`` attached when it directly follows the ``e``
+ * of a numeric literal (``1e-5``, ``2E+3``) and splits it everywhere else
+ * (``1-2``, ``1.5-2``).
+ */
+const EXPRESSION_TOKEN_REGEX = /([*/()^]|(?<![\d.,][eE])[-+])/;
+const EXPRESSION_OPERATORS = ["+", "-", "*", "/", "(", ")", "^"];
 
 function evaluateMathematicalExpression(expr, context = {}) {
     const val = expr.replaceAll(" ", "");
     let safeEvalString = "";
-    for (const part of val.split(/([-+*/()^])/g)) {
+    for (const part of val.split(EXPRESSION_TOKEN_REGEX)) {
         /** @type {any} */
         let v = part;
-        if (!["+", "-", "*", "/", "(", ")", "^"].includes(v) && v.length) {
-            // check if this is a float and take into account user delimiter preference
+        if (!EXPRESSION_OPERATORS.includes(v) && v.length) {
+            // Operands are locale-formatted ("1.000,1"), so they go through
+            // this module's locale-aware parseFloat — NOT the global one.
             v = parseFloat(v);
         }
         if (v === "^") {
@@ -102,30 +135,40 @@ function parseOperation(value, parseValueFn) {
  */
 function parseNumber(value, options = /** @type {any} */ ({})) {
     if (value.startsWith("=")) {
-        // Return the un-truncated result: integer callers (parseInteger)
-        // validate integrality themselves, so "=5/2" is rejected like "2.5"
-        // instead of being silently floored to 2.
-        return Number(evaluateMathematicalExpression(value.slice(1)));
+        try {
+            return Number(evaluateMathematicalExpression(value.slice(1)));
+        } catch (error) {
+            if (error instanceof InvalidNumberError) {
+                throw error;
+            }
+            // A malformed expression ("=(", "=1+*2") makes the python
+            // evaluator raise its own error type. That is still rejected user
+            // input, so it must surface as one — otherwise the input hook
+            // would report it as a widget defect.
+            throw new InvalidNumberError(`"${value}" is not a valid expression`, {
+                cause: error,
+            });
+        }
     } else {
-        // A whitespace thousands separator is equivalent to any whitespace character.
-        // E.g. "1  000 000" should be parsed as 1000000 even if the
-        // thousands separator is nbsp.
         const thousandsSepRegex = options.thousandsSep.match(/\s+/)
             ? WHITESPACE_THOUSANDS_SEP_REGEX
             : getThousandsSepRegex(options.thousandsSep);
 
-        // a number can have the thousand separator multiple times. ex: 1,000,000.00
         value = value.replaceAll(thousandsSepRegex, "");
-        // a number only have one decimal separator
         value = value.replace(getDecimalPointRegex(options.decimalPoint), ".");
+        if (!DECIMAL_LITERAL_REGEX.test(value)) {
+            return NaN;
+        }
     }
 
     return Number(value);
 }
 
-// Exports
-
-class InvalidNumberError extends Error {}
+/**
+ * Rejected numeric user input. Exported so call sites can tell it apart from a
+ * parser defect reaching the same ``catch`` (see {@link ParseError}).
+ */
+export class InvalidNumberError extends ParseError {}
 
 /**
  * Try to extract a float from a string. The localization is considered in the process.
@@ -188,14 +231,12 @@ export function parseFloatTime(value) {
     const hours = parseInteger(values[0]);
     const minutes = parseInteger(values[1]);
     if (minutes < 0 || minutes >= 60) {
-        // The minutes component must be in [0, 59]; "1:90" is not 2.5 hours.
         throw new InvalidNumberError(`"${value}" is not a correct number`);
     }
     let seconds = 0;
     if (values.length === 3) {
         seconds = parseInteger(values[2]);
         if (seconds < 0 || seconds >= 60) {
-            // The seconds component must be in [0, 59]; "1:00:90" is invalid.
             throw new InvalidNumberError(`"${value}" is not a correct number`);
         }
     }
@@ -222,11 +263,6 @@ export function parseInteger(value, { allowOperation = false } = {}) {
         thousandsSep: localization.thousandsSep || "",
         decimalPoint: localization.decimalPoint,
     });
-    // Only fall back to the English separators when the locale parse could not
-    // interpret the input at all (NaN). Falling back on a valid-but-non-integer
-    // result (e.g. "2,5" -> 2.5 in a comma-decimal locale) would silently
-    // reinterpret "," as a thousands separator and yield 25 — a 10x error.
-    // A finite non-integer is a genuine parse; reject it instead.
     if (Number.isNaN(parsed)) {
         parsed = parseNumber(value, {
             thousandsSep: ",",
@@ -268,8 +304,6 @@ export function parsePercentage(value, { allowOperation = false } = {}) {
     if (value.at(-1) === "%") {
         value = value.slice(0, -1);
     }
-    // parseFloat's declared return type omits the Operation it yields when
-    // allowOperation is set, hence the widening cast.
     const parsed = /** @type {number | Operation} */ (
         parseFloat(value, { allowOperation })
     );
@@ -299,24 +333,36 @@ export function parseMonetary(value, { allowOperation = false } = {}) {
         return operation;
     }
     value = value.trim();
+
+    // Recognise the negative notations before the lenient extraction below
+    // strips them as if they were currency decoration. Skipped for an
+    // ``=``-expression, whose own operators must reach parseFloat untouched.
+    let sign = 1;
+    if (!value.startsWith("=")) {
+        const parenthesised = value.match(PARENTHESISED_NEGATIVE_REGEX);
+        if (parenthesised) {
+            sign = -sign;
+            value = `${parenthesised[1]}${parenthesised[2]}${parenthesised[3]}`;
+        }
+        if (/\d/.test(value) && TRAILING_MINUS_REGEX.test(value)) {
+            sign = -sign;
+            value = value.replace(TRAILING_MINUS_REGEX, "");
+        }
+    }
+
     const startRegex = getMonetaryStartRegex(localization.decimalPoint);
     const startMatch = value.match(startRegex);
     if (startMatch) {
         value = value.slice(startMatch.index);
     }
-    // A prefix currency symbol sitting BETWEEN the sign and the digits (e.g.
-    // "-$5.00") survives the slice above because the leading sign is the first
-    // matched char. Re-locate the numeric start after the sign so the symbol is
-    // dropped, otherwise Number("-$5.00") is NaN and the field is flagged
-    // invalid (while "$-5.00" already parsed fine).
     if (value[0] === "-" || value[0] === "+") {
-        const sign = value[0];
+        const leadingSign = value[0];
         const rest = value.slice(1);
         const restMatch = rest.match(startRegex);
-        value = sign + (restMatch ? rest.slice(restMatch.index) : rest);
+        value = leadingSign + (restMatch ? rest.slice(restMatch.index) : rest);
     }
     value = value.replace(/\D*$/, "");
-    return parseFloat(value);
+    return sign * parseFloat(value);
 }
 
 registry
@@ -330,11 +376,4 @@ registry
     .add("monetary", parseMonetary)
     .add("percentage", parsePercentage);
 
-// Same contract as the ``formatters`` registry: every parser must be a
-// callable. Predicate runs against existing entries and any third-party
-// additions; throws in debug, warns in production. Field arch parsers
-// (e.g. domain editor, search bar) invoke entries as
-// ``parsers.get(type)(value)`` so non-function entries would surface
-// downstream as ``TypeError: parser is not a function``; the predicate
-// catches the bad registration earlier with a more specific message.
 registry.category("parsers").addValidation((v) => typeof v === "function");

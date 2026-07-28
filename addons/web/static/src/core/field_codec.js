@@ -59,11 +59,6 @@ import { registry } from "@web/core/registry";
 
 const formatters = registry.category("formatters");
 const parsers = registry.category("parsers");
-// Transport conversion (server <-> client), registered by the model layer
-// (`@web/model/relational_model/field_values` + `record_value_transforms`).
-// The registry is the neutral interface both sides read, so they can never
-// diverge. DISTINCT from format/parse: serialize(many2one) is the id,
-// format(many2one) is the name.
 const serializers = registry.category("serializers");
 const deserializers = registry.category("deserializers");
 
@@ -112,8 +107,6 @@ export function getFieldCodec(type) {
         parse: (value, options) =>
             parsers.contains(type) ? parsers.get(type)(value, options) : value,
         extractOptions: (fieldInfo) => {
-            // Formatters may carry an optional `extractOptions`; the registry
-            // item shape types them as bare functions, so reach for it via any.
             const fn = /** @type {any} */ (formatters.get(type, formatUnknown));
             return fn.extractOptions ? fn.extractOptions(fieldInfo) : {};
         },

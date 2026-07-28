@@ -12,6 +12,11 @@ import { isBinarySize } from "@web/core/utils/format/binary";
 import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
+import {
+    convertUploadToWebp,
+    createWebpVariantAttachments,
+    ImageDecodeError,
+} from "@web/fields/media/image/image_variants";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export const fileTypeMagicWordMap = {
@@ -62,20 +67,11 @@ export class ImageField extends Component {
                 "ImageField: previewImage must be provided when set on a many2one field",
             );
         }
-        // Cache-busting key: write_date snapshotted when the binary value
-        // itself (bin_size string or base64 payload) or the record changes.
-        // Reading write_date live instead would bust every image URL on any
-        // save of any field of the record.
         const field = this.props.record.fields[this.props.name];
-        // A dotted related field can change without this record's write_date
-        // moving, so bust those with a fresh timestamp instead.
         const isDottedRelated = field.related?.includes(".");
         this.uniqueId = this.props.record.data.write_date;
         let resId = this.props.record.resId;
         let value = this.props.record.data[this.props.name];
-        // Many2one values are fresh `{id, display_name}` objects on every
-        // record reload: compare by content, not identity, so an unrelated
-        // reload doesn't mint a new cache-busting URL and force a refetch.
         const valueChanged = (value, nextValue) =>
             this.fieldType === "many2one"
                 ? value?.id !== nextValue?.id ||
@@ -86,25 +82,11 @@ export class ImageField extends Component {
             const nextValue = record.data[this.props.name];
             if (record.resId !== resId) {
                 this.uniqueId = record.data.write_date;
-                // Bust the memoized URL too: with reload:false the short-circuit
-                // in getUrl() would otherwise keep serving the previous
-                // record's/value's image after a remove or replace.
                 this.lastURL = undefined;
-                // Reset the validity latch: a load failure on the previous
-                // record must not keep forcing the placeholder here — getUrl()
-                // short-circuits on !isValid, so without this a single 404
-                // poisons every record paged to on this component instance.
                 this.state.isValid = true;
             } else if (valueChanged(value, nextValue)) {
                 this.lastURL = undefined;
-                // A fresh value (e.g. an onchange delivering a valid image, or
-                // a replace) must clear a stale invalid latch too.
                 this.state.isValid = true;
-                // A many2one image URL targets the RELATED record, so neither
-                // a dotted-related change nor an m2o dialog edit (which only
-                // refreshes display_name) moves this record's write_date —
-                // the URL would stay byte-identical and serve a stale image,
-                // so bust with a fresh timestamp instead.
                 this.uniqueId =
                     isDottedRelated || this.fieldType === "many2one"
                         ? DateTime.now()
@@ -163,9 +145,6 @@ export class ImageField extends Component {
     }
 
     getUrl(imageFieldName) {
-        // Check emptiness/validity BEFORE the memoized-URL short-circuit so a
-        // removed or invalid value falls back to the placeholder even when a
-        // stale ``lastURL`` is still cached (reload:false path).
         if (!this.props.record.data[this.props.name] || !this.state.isValid) {
             return placeholder;
         }
@@ -187,7 +166,6 @@ export class ImageField extends Component {
                 { unique: this.rawCacheKey },
             );
         } else {
-            // Use magic-word technique for detecting image type
             const magic =
                 fileTypeMagicWordMap[this.props.record.data[this.props.name][0]] ||
                 "png";
@@ -200,137 +178,23 @@ export class ImageField extends Component {
         this.props.record.update({ [this.props.name]: false });
     }
     async onFileUploaded(info) {
-        // Capture the record at entry: the handler awaits image.decode() and up
-        // to three create_unique RPCs below, during which the user may page to
-        // another record (reusing this component instance). The final update
-        // must land on the record the upload was started for — bail if it
-        // changed or the component was destroyed in the meantime.
         const record = this.props.record;
         this.state.isValid = true;
-        if (
-            this.props.convertToWebp &&
-            !["image/gif", "image/svg+xml", "image/webp"].includes(info.type)
-        ) {
-            const image = document.createElement("img");
-            image.src = `data:${info.type};base64,${info.data}`;
-            try {
-                await image.decode();
-            } catch {
-                // Corrupt/invalid image data: abort the upload instead of
-                // hanging forever on a "load" event that never fires.
-                this.notification.add(_t("Could not display the selected image"), {
-                    type: "danger",
-                });
-                return;
+        try {
+            if (this.props.convertToWebp) {
+                info = await convertUploadToWebp(info);
             }
-
-            const canvas = document.createElement("canvas");
-            canvas.width = image.width;
-            canvas.height = image.height;
-            const ctx = canvas.getContext("2d");
-            ctx.drawImage(image, 0, 0);
-
-            const dataURL = canvas.toDataURL("image/webp");
-            // Browsers without webp encoding support (e.g. old Safari) fall
-            // back to PNG: keep the original format rather than storing
-            // PNG bytes labeled as webp.
-            if (dataURL.startsWith("data:image/webp")) {
-                info.data = dataURL.split(",")[1];
-                info.type = "image/webp";
-                info.name = info.name.replace(/\.[^/.]+$/, ".webp");
+            if (info.type === "image/webp") {
+                await createWebpVariantAttachments(this.orm, info);
             }
-        }
-        if (info.type === "image/webp") {
-            // Generate alternate sizes and format for reports.
-            const image = document.createElement("img");
-            image.src = `data:image/webp;base64,${info.data}`;
-            try {
-                await image.decode();
-            } catch {
-                // Corrupt/invalid image data: abort the upload instead of
-                // hanging forever on a "load" event that never fires.
-                this.notification.add(_t("Could not display the selected image"), {
-                    type: "danger",
-                });
-                return;
+        } catch (error) {
+            if (!(error instanceof ImageDecodeError)) {
+                throw error;
             }
-            const originalSize = Math.max(image.width, image.height);
-            // Resized variants need webp re-encoding: skip them on browsers
-            // without webp encoding support (the canvas falls back to PNG).
-            const canEncodeWebp = document
-                .createElement("canvas")
-                .toDataURL("image/webp")
-                .startsWith("data:image/webp");
-            const smallerSizes = canEncodeWebp
-                ? [1920, 1024, 512, 256, 128].filter((size) => size < originalSize)
-                : [];
-            const variants = [originalSize, ...smallerSizes].map((size) => {
-                const ratio = size / originalSize;
-                const canvas = document.createElement("canvas");
-                canvas.width = image.width * ratio;
-                canvas.height = image.height * ratio;
-                const ctx = canvas.getContext("2d");
-                ctx.fillStyle = "transparent";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                ctx.imageSmoothingEnabled = true;
-                ctx.imageSmoothingQuality = "high";
-                ctx.drawImage(
-                    image,
-                    0,
-                    0,
-                    image.width,
-                    image.height,
-                    0,
-                    0,
-                    canvas.width,
-                    canvas.height,
-                );
-                return { size, canvas };
+            this.notification.add(_t("Could not display the selected image"), {
+                type: "danger",
             });
-            // The original must be created first: the resized variants
-            // reference its id. Batch the rest (create_unique returns ids in
-            // input order) instead of two sequential RPCs per size.
-            const [originalId] = await this.orm.call("ir.attachment", "create_unique", [
-                [
-                    {
-                        name: info.name,
-                        description: "",
-                        datas: info.data,
-                        res_model: "ir.attachment",
-                        mimetype: "image/webp",
-                    },
-                ],
-            ]);
-            const resizedVariants = variants.filter(
-                ({ size }) => size !== originalSize,
-            );
-            const resizedIds = resizedVariants.length
-                ? await this.orm.call("ir.attachment", "create_unique", [
-                      resizedVariants.map(({ size, canvas }) => ({
-                          name: info.name,
-                          description: `resize: ${size}`,
-                          datas: canvas.toDataURL("image/webp").split(",")[1],
-                          res_id: originalId,
-                          res_model: "ir.attachment",
-                          mimetype: "image/webp",
-                      })),
-                  ])
-                : [];
-            const idBySize = new Map([
-                [originalSize, originalId],
-                ...resizedVariants.map(({ size }, index) => [size, resizedIds[index]]),
-            ]);
-            // Converted to JPEG for use in PDF files, alpha values will default to white
-            await this.orm.call("ir.attachment", "create_unique", [
-                variants.map(({ size, canvas }) => ({
-                    name: info.name.replace(/\.webp$/, ".jpg"),
-                    description: "format: jpeg",
-                    datas: canvas.toDataURL("image/jpeg").split(",")[1],
-                    res_id: idBySize.get(size),
-                    res_model: "ir.attachment",
-                    mimetype: "image/jpeg",
-                })),
-            ]);
+            return;
         }
         if (record !== this.props.record || status(this) === "destroyed") {
             return;

@@ -50,12 +50,10 @@ function makeError(mode) {
         return undefined;
     }
     if (mode === "rpc") {
-        // Server raised (AccessError/ValidationError): transaction rolled back.
         const error = new RPCError("Access denied");
         error.exceptionName = "odoo.exceptions.AccessError";
         return error;
     }
-    // Response lost in transit: the write may nevertheless have committed.
     return new ConnectionLostError("/web/dataset/call_kw");
 }
 
@@ -121,8 +119,6 @@ describe("action_cache_invalidation", () => {
     });
 
     test("the returned disposer really detaches the rpcBus listener", async () => {
-        // Proves the assertions above pass because the listener is live, not
-        // because CLEAR-CACHES leaks from elsewhere.
         const uninstall = installActionCacheInvalidation(makeFakeActionManager());
         uninstall();
         const seen = await recordClearCaches(() =>
@@ -216,8 +212,6 @@ describe("reload_company_service (successOnly)", () => {
     });
 
     test("skips a lost response: a page reload would discard user input", async () => {
-        // The deliberate exception to the shared policy -- reacting here is
-        // destructive, not merely costly.
         await setupReloadTracking();
         fireWrite("res.company", "lost");
         await animationFrame();

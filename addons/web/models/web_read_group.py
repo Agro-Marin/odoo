@@ -22,19 +22,8 @@ from odoo.tools.cache_version import versioned
 
 from .web_read_group_helpers import AND
 
-# Cap on groups opened AUTOMATICALLY (auto_unfold / __fold defaults): the
-# server decides to open these, so it must bound its own fan-out aggressively.
 MAX_NUMBER_OPENED_GROUPS = 10
 
-# Cap on groups restored from an EXPLICIT ``opening_info`` entry with
-# ``folded: False``. This bound is deliberately much higher than
-# MAX_NUMBER_OPENED_GROUPS: each entry corresponds to a group the user
-# manually opened (the client saves that state and replays it on reload), so
-# the per-group record ``search()`` fan-out is inherently bounded by real user
-# actions. The cap only guards against abusive/hand-crafted payloads opening
-# thousands of groups in one RPC. Truncating the restore path at 10 (as the
-# auto-unfold cap once did) silently force-folded groups the user had opened,
-# and the client permanently adopted the forced fold.
 MAX_NUMBER_RESTORED_GROUPS = 200
 
 
@@ -116,15 +105,6 @@ class Base(models.AbstractModel):
             raise ValueError(msg)
 
         if (limit or offset) and "fill_temporal" in self.env.context:
-            # Temporal hole-filling is meaningless on a PAGINATED group set
-            # (the filled buckets would shift the page window arbitrarily), so
-            # ``formatted_read_group`` rejects the combination with ValueError.
-            # But web_read_group is the list/kanban entry point and the client
-            # paginates groups: a real action context carrying ``fill_temporal``
-            # (shipped archs defensively set it to 0; a truthy leak from e.g. a
-            # graph action) used to kill the whole view. Ignore the key here —
-            # graph/pivot call formatted_read_group / grouping-sets directly and
-            # keep the strict behavior.
             self = self.with_context(
                 {k: v for k, v in self.env.context.items() if k != "fill_temporal"}
             )
@@ -132,11 +112,10 @@ class Base(models.AbstractModel):
         aggregates = list(aggregates)
         if (
             "__count" not in aggregates
-        ):  # needed to detect empty/stale-offset groups when opening them
+        ):
             aggregates.append("__count")
         domain = Domain(domain).optimize(self)
 
-        # Order spec shared by _read_group and search(): {fname_and_property: "<direction> <nulls>"}
         dict_order: dict[str, str] = {}
         for order_part in order.split(",") if order else ():
             order_match = regex_order.match(order_part)
@@ -163,9 +142,6 @@ class Base(models.AbstractModel):
             order=read_group_order,
         )
 
-        # Filled by _open_groups (passed by reference) with one entry per leaf
-        # group whose records still need to be searched:
-        # [{limit: int, offset: int, domain: domain, group: <group>}]
         records_opening_info: list[dict[str, Any]] = []
 
         self._open_groups(
@@ -182,41 +158,17 @@ class Base(models.AbstractModel):
             parent_group_domain=Domain.TRUE,
         )
 
-        # Fetch and format the records for every leaf group collected above.
         if records_opening_info:
             if dict_order:
-                # Within-group order CONTRACT with the webclient: when the
-                # caller provides an order, records inside a group are fetched
-                # with exactly ``user order + "id"`` (final tiebreaker). The
-                # client's group pagination sends user order + id for page 2+
-                # (web_search_read; see relational_model _loadUngroupedList),
-                # so both sides must resolve ties identically. Appending the
-                # model ``_order`` residue here (as before) ordered tied
-                # records differently on page 1 than on later pages, which
-                # duplicated some records across pages and lost others.
-                # Group-level-only terms (groupby fields, ``__count``) are
-                # constant/meaningless within one group, so dropping them
-                # server-side cannot disagree with the client's order.
                 order_specs = [
                     f"{fname} {direction}"
                     for fname, direction in dict_order.items()
-                    # A field already in groupby has one value per group, so
-                    # ordering records by it is redundant; skipping it avoids an
-                    # extra join. (Doesn't match when the groupby uses a
-                    # granularity suffix.)
                     if fname not in groupby
                     if fname != "__count"
                 ]
                 if "id" not in dict_order:
-                    # Dedupe: a user order already sorting by id needs no
-                    # second tiebreaker term.
                     order_specs.append("id")
             else:
-                # Empty caller order: keep the model ``_order`` fallback
-                # (minus redundant groupby terms) unchanged. The client sends
-                # no order for page 2+ either in that case, so both sides
-                # already use ``_order`` consistently; do NOT append "id" here
-                # — that would silently change the established semantics.
                 order_specs = [
                     order_str
                     for order_str in self._order.split(",")
@@ -229,10 +181,6 @@ class Base(models.AbstractModel):
             )
 
             all_records = self.browse().union(*recordset_groups)
-            # Key on each dict's own id rather than zipping against ``_ids``:
-            # a record unlinked concurrently between the search and this
-            # web_read drops out of the result, so a strict zip would raise
-            # ValueError. Missing ids are simply skipped below.
             record_mapped = {
                 values["id"]: values
                 for values in all_records.web_read(unfold_read_specification or {})
@@ -247,7 +195,6 @@ class Base(models.AbstractModel):
                     if record_id in record_mapped
                 ]
 
-        # Read additional info of grouped field record and add it to specific groups
         self._add_groupby_values(groupby_read_specification, groupby, groups)
 
         return {
@@ -291,8 +238,6 @@ class Base(models.AbstractModel):
         before the append, so no reordering step sits between the sort and the
         numbering.
         """
-        # One un-batched search is already one round trip: batching a single
-        # group only adds a subquery wrapper. Keep the plain path.
         to_fetch = [
             (index, sub_search)
             for index, sub_search in enumerate(records_opening_info)
@@ -344,18 +289,9 @@ class Base(models.AbstractModel):
                 ids_by_index.setdefault(group_index, []).append(record_id)
 
         for index, record_ids in ids_by_index.items():
-            # ``browse`` on the batched ids: the plain ``search()`` path builds
-            # the same recordset, and every consumer below either unions these
-            # or walks ``_ids``.
             result[index] = self.browse(record_ids)
         return result
 
-    # Number of per-group subqueries combined into one statement. Unbounded
-    # batching would hand PostgreSQL a statement with one subquery per opened
-    # group (up to 100000 with the account_reports context), whose parse/plan
-    # cost grows with the statement rather than with the data. Chunking keeps
-    # the statement bounded while still removing all but 1/CHUNK of the round
-    # trips.
     _OPENED_GROUPS_SQL_CHUNK = 50
 
     def _chunk_opened_groups(self, to_fetch: list) -> Iterator[list]:
@@ -375,16 +311,6 @@ class Base(models.AbstractModel):
         if not groups:
             length = 0
         elif limit and len(groups) == limit:
-            # A full page may hide further groups. Count the total number of
-            # groups with a single COUNT(*) over the grouped sub-query rather
-            # than fetching every remaining group as a row and taking len():
-            # the old form materialised (and post-processed — incl. building a
-            # recordset for a relational groupby) all trailing groups just to
-            # count them, which is O(number of groups) rows on the wire.
-            # ``_read_group_count`` only counts REAL DB groups, but group_expand
-            # can pad ``groups`` up to exactly ``limit`` with empty groups (which
-            # ARE returned/rendered); take the max so the pager never reports
-            # fewer groups than were handed back.
             length = max(self._read_group_count(domain, groupby), len(groups) + offset)
         else:
             length = len(groups) + offset
@@ -405,15 +331,11 @@ class Base(models.AbstractModel):
         if query.is_empty():
             return 0
         if not groupby:
-            # Without a GROUP BY, PostgreSQL returns exactly one aggregate row
-            # (mirrors _read_group's single-row contract).
             return 1
         groupby_terms = {
             spec: self._read_group_groupby(self._table, spec, query) for spec in groupby
         }
         query.groupby = SQL(", ").join(groupby_terms.values())
-        # SELECT 1 keeps the GROUP BY (one row per group) while selecting
-        # nothing to post-process; the outer COUNT(*) tallies those group rows.
         grouped = query.select(SQL("1"))
         [(count,)] = self.env.execute_query(SQL("SELECT COUNT(*) FROM (%s) t", grouped))
         return count
@@ -445,12 +367,6 @@ class Base(models.AbstractModel):
                 ]
                 records = self.env[relational_field.comodel_name].browse(group_ids)
 
-                # web_read enforces the co-model's own access rules. A target
-                # hidden by a record rule would otherwise abort the whole group
-                # read (AccessError) or drop out of the result (tripping a
-                # strict zip). Read defensively and degrade per-record to the
-                # label already carried in the group tuple — mirroring the
-                # many2one fallback in models/web_read.py.
                 spec = groupby_read_specification[groupby_spec]
                 try:
                     result_read = records.web_read(spec)
@@ -469,9 +385,6 @@ class Base(models.AbstractModel):
                     elif id_label[0] in result_read_map:
                         group["__values"] = result_read_map[id_label[0]]
                     else:
-                        # Inaccessible / concurrently-removed target: expose only
-                        # the id and the already-known label, never the extra
-                        # spec fields the user cannot read.
                         group["__values"] = {
                             "id": id_label[0],
                             "display_name": (
@@ -507,11 +420,6 @@ class Base(models.AbstractModel):
                     order_spec.append(f"{group} {direction}")
                     break
             else:
-                # ``for/else``: only reached when NO groupby key matched. Without
-                # it, the aggregate loop ran even after a groupby match (emitting
-                # a duplicate, conflicting ORDER BY term), and ordering by an
-                # aggregatable field absent from both groupby and aggregates was
-                # silently dropped instead of falling back to its aggregator.
                 for agg_spec in aggregates:
                     if agg_spec.startswith(f"{fname}:"):
                         order_spec.append(f"{agg_spec} {direction}")
@@ -543,9 +451,6 @@ class Base(models.AbstractModel):
         max_number_opened_group = (
             MAX_NUMBER_OPENED_GROUPS if ctx_max is None else ctx_max
         )
-        # A caller raising the cap via context (e.g. enterprise account_reports
-        # sets 100000 and reloads through opening_info) historically raised it
-        # for BOTH paths, so the restore bound honors the override as a floor.
         max_number_restored_group = max(MAX_NUMBER_RESTORED_GROUPS, ctx_max or 0)
 
         parent_opening_info_dict = {
@@ -563,14 +468,10 @@ class Base(models.AbstractModel):
             )
 
         for group in groups:
-            # Drop __fold: the webclient infers a group's open state from the
-            # presence of __groups/__records instead.
             fold_info = "__fold" in group
             fold = group.pop("__fold", False)
 
             groupby_value = group[groupby_spec]
-            # Relational/date/datetime/property fields report (value, label)
-            # tuples; unwrap to the raw value.
             raw_groupby_value = (
                 groupby_value[0] if isinstance(groupby_value, tuple) else groupby_value
             )
@@ -580,71 +481,33 @@ class Base(models.AbstractModel):
             progressbar_domain = subgroup_opening_info = None
             if opening_info and raw_groupby_value in parent_opening_info_dict:
                 group_info = parent_opening_info_dict[raw_groupby_value]
-                # ``opening_info`` is raw client JSON: read defensively. A missing
-                # ``limit``/``offset``/``folded`` key must not KeyError-500 the
-                # read, and a negative ``offset`` must not reach SQL — psycopg
-                # raises ``OFFSET must not be negative`` there, which aborts the
-                # whole request transaction rather than degrading one group.
                 if group_info.get("folded"):
                     continue
                 if nb_opened_group >= max_number_restored_group:
-                    # Saved-state RELOAD path: honor explicit ``folded: False``
-                    # entries up to the generous MAX_NUMBER_RESTORED_GROUPS
-                    # bound — NOT the tight auto-unfold cap below. Each entry
-                    # is a group the user manually opened, so the per-group
-                    # ``search()`` fan-out is already bounded by user actions;
-                    # this cap only guards against abusive payloads. Applying
-                    # the auto-unfold cap here silently force-folded groups
-                    # past the 10th and the client permanently adopted the
-                    # forced fold (see the constants' comment).
                     continue
                 limit = group_info.get("limit", limit)
                 offset = max(0, int(group_info.get("offset") or 0))
                 progressbar_domain = group_info.get("progressbar_domain")
                 subgroup_opening_info = group_info.get("groups")
 
-            elif nb_opened_group >= max_number_opened_group:
-                # AUTO-unfold cap: the server decides to open these groups on
-                # its own, so it bounds its own fan-out tightly (each opened
-                # last-level group triggers its own un-batched ``search()``).
-                continue
             elif (
-                # Auto Fold/unfold. The auto-opened-group cap is enforced just
-                # above; the reload path enforces its own separate bound.
-                (not auto_unfold and not fold_info)
+                nb_opened_group >= max_number_opened_group
+                or (not auto_unfold and not fold_info)
                 or fold
-                # Empty recordset is folded by default
                 or (field.relational and not group[groupby_spec])
             ):
                 continue
 
-            # => Open group
             nb_opened_group += 1
-            if last_level:  # Open records
+            if last_level:
                 records_domain = parent_group_domain & Domain(group["__extra_domain"])
 
-                # when we click on a part of the progress bar, we force a domain
-                # for a specific open column/group, we want to keep this for the next reload
                 if progressbar_domain:
                     records_domain &= Domain(progressbar_domain)
-                    # AGGREGATE CONTRACT for progress-bar-filtered groups: the
-                    # displayed aggregates (sum fields, ...) must describe the
-                    # same FILTERED record set returned in ``__records`` —
-                    # otherwise the column header renders an unfiltered sum
-                    # (e.g. 70) next to the filtered cards (summing 35). The
-                    # group's ``__count`` stays UNFILTERED on purpose: it feeds
-                    # the client's "Other"-bar remainder math (unfiltered total
-                    # minus the colored bars), the group pager total, and the
-                    # stale-offset reset below — filtering it would corrupt all
-                    # three.
                     self._replace_progressbar_aggregates(
                         group, aggregates, domain & records_domain
                     )
 
-                # TODO also for groups ?
-                # Simulate the same behavior than in relational_model.js
-                # If the offset is bigger than the number of record (a record has been deleted)
-                # reset the offset to 0 and add the information to the group to update the webclient too
                 if offset and offset >= group["__count"]:
                     group["__offset"] = offset = 0
 
@@ -657,13 +520,10 @@ class Base(models.AbstractModel):
                     }
                 )
 
-            else:  # Open subgroups
+            else:
                 subgroup_domain = parent_group_domain
                 if group["__extra_domain"]:
                     subgroup_domain &= Domain(group["__extra_domain"])
-                # One query per subgroup (can't batch limit/offset across
-                # subgroups), but acceptable: the user opens groups manually,
-                # so there are few of them.
                 subgroups, length = self._formatted_read_group_with_length(
                     domain=(subgroup_domain & domain),
                     groupby=[groupby[1]],
@@ -707,7 +567,6 @@ class Base(models.AbstractModel):
         agg_specs = [spec for spec in aggregates if spec != "__count"]
         if not agg_specs:
             return
-        # Empty groupby: one aggregate row over the whole filtered domain.
         [filtered_group] = self.formatted_read_group(filtered_domain, (), agg_specs)
         for spec in agg_specs:
             group[spec] = filtered_group[spec]
@@ -817,9 +676,6 @@ class Base(models.AbstractModel):
             if groupby and (fill_temporal or isinstance(fill_temporal, dict)):
                 if not isinstance(fill_temporal, dict):
                     fill_temporal = {}
-                # Assumes groups_list[groups_index] is already ordered by the
-                # groupby fields (the default order); ties on the same filled
-                # bucket keep that relative order.
                 groups_list[groups_index] = self._web_read_group_fill_temporal(
                     groups_list[groups_index],
                     groupby,
@@ -930,22 +786,15 @@ class Base(models.AbstractModel):
             order=order,
         )
 
-        # group_expand only runs when the limit isn't reached and offset == 0,
-        # to avoid inconsistencies in the web client pager. In practice this
-        # feature is used with few groups (or without a limit, e.g. kanban view).
         if (
             not offset
             and (not limit or len(groups) < limit)
             and self._web_read_group_field_expand(groupby)
         ):
-            # Expansion doesn't respect an `order` that references aggregates.
             expand_groups = self._web_read_group_expand(
                 domain, groups, groupby[0], aggregates, order
             )
             if not limit or len(expand_groups) <= limit:
-                # Adopt the expanded groups only while they still respect the
-                # limit; beyond that, keep the un-expanded `groups` so the
-                # count stays consistent with web_read_group's length.
                 groups = expand_groups
 
         fill_temporal = self.env.context.get("fill_temporal")
@@ -955,8 +804,6 @@ class Base(models.AbstractModel):
                 raise ValueError(msg)
             if not isinstance(fill_temporal, dict):
                 fill_temporal = {}
-            # Assumes `groups` is already ordered by the groupby fields (the
-            # default order); ties on the same filled bucket keep that order.
             groups = self._web_read_group_fill_temporal(
                 groups, groupby, aggregates, **fill_temporal
             )
@@ -977,12 +824,7 @@ class Base(models.AbstractModel):
         column_iterator = zip(*groups, strict=True)
 
         expand_field = self._web_read_group_field_expand(groupby)
-        # Intentionally non-strict: column_iterator may yield fewer columns than
-        # groupby specs when groups are empty.
         for groupby_spec, values in zip(groupby, column_iterator, strict=False):
-            # Fields other than many2one/many2many/date/datetime/properties (and
-            # not "id") format as identity + equality domain; skip building a
-            # formatter closure for them to save the call overhead.
             field_path = groupby_spec.split(":")[0]
             field_name = field_path.split(".")[0]
             field = self._fields[field_name]
@@ -1010,7 +852,6 @@ class Base(models.AbstractModel):
                     dict_group[groupby_spec], additional_domain = formatter(value)
                     dict_group["__extra_domains"].append(additional_domain)
 
-            # __fold is only meaningful when read_group_expand is active (kanban/list).
             if expand_field and expand_field.relational:
                 model = self.env[expand_field.comodel_name]
                 fold_name = model._fold_name
@@ -1019,7 +860,6 @@ class Base(models.AbstractModel):
                 for value, dict_group in zip(values, result, strict=True):
                     dict_group["__fold"] = value.sudo()[fold_name]
 
-        # Flatten each group's collected __extra_domains into one __extra_domain.
         for dict_group in result:
             dict_group["__extra_domain"] = AND(dict_group.pop("__extra_domains"))
 
@@ -1046,21 +886,12 @@ class Base(models.AbstractModel):
         """
 
         def adapt(value):
-            # ``formatted_read_group`` returns relational and date(time) group
-            # keys as ``(server_value, label)`` tuples; the kanban client keys
-            # its progress-bar lookup on that ``server_value``. Grouping by
-            # granularity, the server_value for a datetime is the UTC string.
             if isinstance(value, tuple):
                 return value[0]
             return value
 
         result = defaultdict(lambda: dict.fromkeys(progress_bar["colors"], 0))
 
-        # Must use ``formatted_read_group`` (not ``_read_group``): it produces the
-        # exact same group keys the kanban client derives from ``web_read_group``,
-        # so the two sides match for every field type. ``_read_group`` returns raw
-        # local-naive datetime buckets whose ``str()`` does NOT match the client's
-        # UTC keys, which zeroed every progress bar for non-UTC users.
         for group in self.formatted_read_group(
             domain,
             [group_by, progress_bar["field"]],

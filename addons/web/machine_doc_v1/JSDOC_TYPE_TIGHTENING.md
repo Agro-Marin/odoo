@@ -268,7 +268,7 @@ constructor already assigned:
 
 | base class | when `setup()` runs | class field safe? |
 |---|---|---|
-| OWL `Component` | AFTER construction — `owl.js` does `new C(...)` then `component.setup()` | **yes** |
+| OWL `Component` | AFTER construction — `owl.es.js` does `new C(...)` then `component.setup()` | **yes** |
 | `Model` (`model/model.js`) | INSIDE its own constructor (`this.setup(params, services)`) | **no — would overwrite with `undefined`** |
 
 Prefer deriving the type over restating it, so it cannot drift:
@@ -363,11 +363,15 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
 - ~~**CI gating**~~ — no longer a gap: `.github/workflows/typecheck.yml`
   runs `npx tsc --project tsconfig.json --noEmit` on every PR touching
   JS/TS (and on every push to `19.0-marin` / `19.0`) as a **blocking
-  drift-zero ratchet** (no `continue-on-error`). The committed floor lives
-  in `tooling/ratchet/baselines/tsc.json` (**1917** errors as of
-  2026-07-02 — down from 2002 on 2026-06-25 and from the stale ~6,575 the
-  old warn-only gate hardcoded and never enforced) and only moves one way. To lower it after a fix
-  wave: run tsc locally, count `error TS` lines, then
+  drift-zero ratchet** (no `continue-on-error`). The committed floor and its
+  full history live in `tooling/ratchet/baselines/tsc.json` — read the value
+  there rather than from this page, which previously carried a stale copy.
+  The floor is normally monotonic downward, but it is not guaranteed to be:
+  it was corrected **upward** on 2026-07-24 to absorb 357 errors that
+  accumulated while CI was off (ADR-0009 sets the precedent). Note the gate
+  fails on *improvement* too — an actual count below the floor exits 1 to
+  force a lock-in, so a fix wave that is not committed back leaves mainline
+  red. To move it: run tsc locally, count `error TS` lines, then
   `python tooling/ratchet/ratchet.py tsc --count "$N" --update` and commit
   the baseline. See `tooling/ratchet/README.md`.
 - **The `@types/registries` / `@types/models` ambient typeRoots** — declare

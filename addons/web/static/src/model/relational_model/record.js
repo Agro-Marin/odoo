@@ -70,6 +70,19 @@ import {
 /** Shared no-op returned by ``_applyChanges`` when the caller opts out of undo. */
 const NO_UNDO = () => {};
 
+/**
+ * Wrapper marking the multi-edit flow's answer on its way out of ``_update``.
+ *
+ * ``update`` has to tell "these changes went to the multi-edit flow" from
+ * "nothing was dispatched", and it cannot read that off the value: ``_multiSave``
+ * answers ``undefined`` whenever it declines — an empty changeset (a property
+ * edit dropped by ``preprocessPropertiesChanges``) or a record already being
+ * discarded. Reading that ``undefined`` as "not dispatched" made
+ * ``update({save: true})`` fall through and individually save the very record
+ * the multi-edit flow had just refused to touch.
+ */
+const MULTI_EDIT_RESULT = Symbol("multiEditResult");
+
 export class RelationalRecord extends DataPoint {
     static type = "Record";
 
@@ -89,34 +102,10 @@ export class RelationalRecord extends DataPoint {
         this._virtualId = options.virtualId || false;
         this._isEvalContextReady = false;
 
-        // Owner of the editable-state layer: the pending-edit change set, the
-        // reactive ``dirty`` signal, the field-validity sets, char/text/html
-        // false-vs-"" tracking, and the savepoint. Constructed first so the
-        // delegating accessors below (``dirty``, ``_changes``, ``_invalidFields``,
-        // ``_textValues``, ``_savePoint`` …) are usable for the rest of setup.
-        // NOT ``markRaw``: reached through the record's reactive proxy it keeps
-        // ``dirty``/``invalidFields`` reactive, while ``toRaw(record)._editState``
-        // gives the raw owner for the raw reads in ``_update``. See
-        // ``record_edit_state.js`` for the full reactivity + invariant contract.
-        //
-        // The (dirty, changes) invariants (documented at length in
-        // ``STATE_MANAGEMENT.md``): (1) ``_update`` marks dirty before async
-        // preprocessors populate ``_changes``; (2) ``setInvalidField`` marks
-        // dirty even with an empty change set; (3) clearing the change set must
-        // reset ``dirty`` atomically — always via ``_clearChanges()``
-        // (``RecordEditState.clearChanges``). The ``keepChanges`` reload path in
-        // ``_setData`` instead derives ``dirty`` from the preserved edit state.
         this._editState = new RecordEditState();
 
         this.selected = false;
-        // True while a save's web_save RPC (and post-RPC state cleanup) is
-        // on the wire — set/cleared by ``record_save.save``. ``urgentSave()``
-        // reads it to skip the tab-close beacon when the same changes are
-        // already being persisted.
         this._saveInFlight = false;
-        // Raised by the tab-close beacon (``record_save``, sendBeacon success)
-        // and consumed by a normal save parked at its onWillSaveRecord hook,
-        // so the resumed save doesn't re-send the already-persisted change set.
         this._urgentBeaconFired = false;
 
         const parentRecord = this._parentRecord;
@@ -135,23 +124,12 @@ export class RelationalRecord extends DataPoint {
             this.evalContext = {};
             this.evalContextWithVirtualIds = {};
         }
-        // Field names whose values were genuinely provided (server rows or
-        // caller values), as opposed to backfilled defaults below. Consumers
-        // (``StaticList._getResIdsToLoad``) use it to decide whether a cached
-        // record actually holds fetched values for a set of fields —
-        // ``fieldNames``/``activeFields`` cannot tell: they describe what the
-        // view wants, not what was loaded.
         /** @type {Set<string>} */
         this._loadedFieldNames = markRaw(new Set(Object.keys(data)));
         const missingFields = this.fieldNames.filter(
             (fieldName) => !(fieldName in data),
         );
         data = { ...this._getDefaultValues(missingFields), ...data };
-        // ``_textValues`` (owned by ``this._editState``) tracks the raw server
-        // value (false or string) of char/text/html fields: in the DB they can
-        // be NULL or the empty string, indistinguishable in the UI but not in
-        // the eval context. It lets us build the eval context correctly and
-        // always expose string values (false → "") in ``this.data``.
         this._setData(data);
     }
 
@@ -162,18 +140,11 @@ export class RelationalRecord extends DataPoint {
     _setData(data, { orderBys, keepChanges } = {}) {
         this._isEvalContextReady = false;
         if (this.data) {
-            // Not the constructor call (whose ``data`` includes backfilled
-            // defaults — setup seeds ``_loadedFieldNames`` from the pre-merge
-            // keys): every later call passes genuine server rows.
             for (const fieldName of Object.keys(data)) {
                 this._loadedFieldNames.add(fieldName);
             }
         }
         if (this.resId) {
-            // markRaw like the new-record branch below and every other _values
-            // writer: without it, `data = {...this._values}` reads _values through
-            // the reactive proxy and eagerly wraps every relational sub-value
-            // (even undisplayed fields) on every existing-record load.
             this._values = markRaw(this._parseServerValues(data, { orderBys }));
             Object.assign(this._textValues, this._getTextValues(data));
         } else {
@@ -184,54 +155,12 @@ export class RelationalRecord extends DataPoint {
         if (!keepChanges) {
             this._clearChanges();
         } else {
-            // ``keepChanges`` preserves the whole pending-edit layer across
-            // a server reload (stale-while-revalidate cache callbacks in
-            // ``relational_model.js``) — only the server layer (``_values``)
-            // is refreshed:
-            //  - ``dirty`` must be derived from the preserved edit state,
-            //    not reset: ``_changes`` non-empty OR pending invalid input
-            //    (Invariant 2 — invalid input never reaches ``_changes``,
-            //    but ``setInvalidField`` marked the record dirty, so
-            //    ``dirty && _invalidFields.size`` is the evidence; testing
-            //    ``_invalidFields`` alone would falsely flag a pristine
-            //    record whose unset-required fields were flagged by
-            //    ``_checkValidity``). A user edit racing the network
-            //    revalidation would otherwise end up with ``dirty=false``,
-            //    and every ``isDirty()`` gate (pager, action buttons)
-            //    would silently discard it.
-            //  - ``_invalidFields`` must survive (see below): the DOM input
-            //    still holds the rejected text, so wiping the flags would
-            //    let a save proceed without the value the user typed.
-            //  - ``_savePoint`` must survive (see below): it snapshots that
-            //    same pending-edit layer (see ``record_savepoint.js``),
-            //    e.g. when an x2many form dialog opens; wiping it while
-            //    keeping ``_changes`` would send a later Discard through
-            //    the no-savepoint branch, clearing pre-dialog edits too.
-            //  - a keepChanges reload must NEVER lower the flag: save and
-            //    discard are the only legitimate lowering points. During the
-            //    Invariant-1 window of an in-flight ``_update()`` (dirty=true,
-            //    ``_changes`` still empty, no invalid fields — the record is
-            //    between ``_markDirty()`` and ``_applyChanges()``), deriving
-            //    dirty from ``_changeSet``/``_invalidFields`` alone would
-            //    clear it and the pending edit would be silently discarded
-            //    by the next ``isDirty()`` gate.
-            this.dirty = this.dirty || !this._changeSet.isEmpty;
+            this.dirty = this.dirty || !this._editState.isChangeSetEmpty;
             this._assertChangeSetInvariant();
         }
         this.data = { ...this._values, ...this._changes };
-        // ``_initialTextValues`` is the server-truth snapshot a no-savepoint
-        // discard reverts to, so capture it from the freshly merged server text
-        // values BEFORE overlaying any pending edit. markRaw for parity with
-        // ``_textValues`` (both are non-reactive bags; the wholesale writers in
-        // record_save.js also markRaw).
         this._initialTextValues = markRaw({ ...this._textValues });
         if (keepChanges) {
-            // The server text values merged into ``_textValues`` above clobbered
-            // the pending-edit layer's char/text/html values (this reload path
-            // — stale-while-revalidate cache callbacks — refreshes only the
-            // server layer). Re-overlay the pending edits so the eval context
-            // matches what the user still sees in the inputs (mirrors
-            // ``_applyValues``); ``_initialTextValues`` above stays server-truth.
             Object.assign(this._textValues, this._getTextValues(this._changes));
         }
         this._setEvalContext();
@@ -244,10 +173,6 @@ export class RelationalRecord extends DataPoint {
             this._checkValidity();
         }
     }
-
-    // -------------------------------------------------------------------------
-    // Getter
-    // -------------------------------------------------------------------------
 
     get canBeAbandoned() {
         return this.isNew && !this.dirty && this._manuallyAdded;
@@ -291,10 +216,6 @@ export class RelationalRecord extends DataPoint {
         return this.config.resIds;
     }
 
-    // -------------------------------------------------------------------------
-    // Public
-    // -------------------------------------------------------------------------
-
     archive(reload) {
         return this.model.mutex.exec(() => archive(this, reload));
     }
@@ -303,15 +224,8 @@ export class RelationalRecord extends DataPoint {
     async checkValidity({ displayNotification } = {}) {
         await this.model.urgentSave.awaitUnlessUrgent(this.model._askChanges());
         if (this.model.urgentSave.isActive) {
-            // Tab-close path must not queue behind ``model.mutex`` — it may be
-            // held by the very save urgent mode is bypassing (mirrors
-            // ``dynamic_list.leaveEditMode``).
             return this._checkValidity({ displayNotification });
         }
-        // Serialize the mutating validity scan on the model mutex like every
-        // other public verb: a queued ``_update`` applying an onchange must not
-        // interleave with the scan and leave invalid flags on half-applied
-        // data (which spuriously aborts a concurrent pager load).
         return this.model.mutex.exec(() =>
             this._checkValidity({ displayNotification }),
         );
@@ -374,10 +288,6 @@ export class RelationalRecord extends DataPoint {
      * @param {string} fieldName
      */
     async setInvalidField(fieldName) {
-        // Invariant 2: invalid input never reaches ``_changes`` (the user's
-        // value failed type validation), but the record is still considered
-        // modified — the form should show "Unsaved changes" and block
-        // navigation. Standalone dirty mark, no ``_changes`` reset.
         this._markDirty();
         return this._setInvalidField(fieldName);
     }
@@ -413,14 +323,8 @@ export class RelationalRecord extends DataPoint {
         }
         return this.model.mutex.exec(async () => {
             const dispatched = await this._update(changes, { withoutOnchange: save });
-            if (dispatched !== undefined) {
-                // multiEditDispatch already handled the save for the whole
-                // selection; its result (false on validation failure or a
-                // declined confirmation) must reach callers like
-                // dynamic_group_list.moveRecord, whose revert logic keys on
-                // it. Running _save() on top would hit the no-changes early
-                // return and mask the failure as `true`.
-                return dispatched;
+            if (dispatched && MULTI_EDIT_RESULT in dispatched) {
+                return dispatched[MULTI_EDIT_RESULT];
             }
             if (save && this.canSaveOnUpdate) {
                 return this._save();
@@ -429,36 +333,11 @@ export class RelationalRecord extends DataPoint {
     }
 
     urgentSave() {
-        // Raw read: ``this`` can be a component-bound reactive proxy
-        // (controllers call ``editedRecord.urgentSave()``); reading the
-        // flag through it would subscribe that component to a marker that
-        // ``record_save.save`` toggles around every RPC.
         if (toRaw(this)._saveInFlight) {
-            // A normal save for this record is already on the wire: firing
-            // the beacon would re-serialize the same ``_changes`` — x2many
-            // CREATE commands included, which are not idempotent — and
-            // duplicate child rows. The in-flight save either lands or the
-            // server-side concurrency check rejects it; nothing is lost by
-            // skipping.
             return true;
         }
         return this.model.urgentSave.run(() => this._save({ reload: false }));
     }
-
-    // -------------------------------------------------------------------------
-    // Protected
-    // -------------------------------------------------------------------------
-
-    // -------------------------------------------------------------------------
-    // Editable-state accessors — the state lives in ``this._editState``
-    // ({@link RecordEditState}); these record-level getters/setters keep every
-    // existing consumer working unchanged (``record.dirty``,
-    // ``record._invalidFields.add(…)``, ``record._changes[f] = v``, the sibling
-    // helpers, the test mocks). Reactivity is preserved because ``_editState``
-    // is not ``markRaw``: through the reactive record proxy these read/write
-    // reactive owner fields, while ``toRaw(record)._editState`` gives the raw
-    // owner for the raw reads in ``_update``.
-    // -------------------------------------------------------------------------
 
     /** Reactive "record has unsaved edits" signal. @returns {boolean} */
     get dirty() {
@@ -467,11 +346,6 @@ export class RelationalRecord extends DataPoint {
 
     set dirty(value) {
         this._editState.dirty = value;
-    }
-
-    /** The pending-edit change set. @returns {import("./change_set").ChangeSet} */
-    get _changeSet() {
-        return this._editState.changeSet;
     }
 
     /**
@@ -491,7 +365,7 @@ export class RelationalRecord extends DataPoint {
      * Write-accessor for wholesale bag replacement (the undo path in
      * ``_applyChanges`` and the savepoint-restore path each capture and
      * later reinstall a snapshot). Preserves the ``markRaw`` invariant via
-     * {@link ChangeSet#replace}. Single-field writes
+     * the owner's ``changes`` setter. Single-field writes
      * (``record._changes[fieldName] = value``) still go through the
      * underlying markRaw bag returned by the getter.
      */
@@ -602,7 +476,7 @@ export class RelationalRecord extends DataPoint {
         if (!odoo.debug) {
             return;
         }
-        if (!this.dirty && !this._changeSet.isEmpty) {
+        if (!this.dirty && !this._editState.isChangeSetEmpty) {
             console.warn(
                 `[record] ChangeSet invariant violated on ${this.resModel}` +
                     `${this.resId ? `/${this.resId}` : "/new"}: ` +
@@ -611,7 +485,7 @@ export class RelationalRecord extends DataPoint {
                     `This pair must be cleared atomically — see ` +
                     `record.js _clearChanges() and the field-level ` +
                     `docstring in setup(). Likely cause: a new code path ` +
-                    `mutated _changes through the ChangeSet.raw getter ` +
+                    `mutated the _changes bag directly ` +
                     `without going through _update() (which calls _markDirty).`,
             );
         }
@@ -622,31 +496,14 @@ export class RelationalRecord extends DataPoint {
     }
 
     _applyChanges(changes, serverChanges = {}, { undoable = false } = {}) {
-        // The undo snapshot is only consumed on error/render-force paths
-        // (``_update``'s catch, ``_onchange``'s onError); the hot paths that
-        // ignore the return — x2many command replay
-        // (``static_list_command_engine``) and ``_applyDefaultValues`` — run
-        // this per row per onchange wave, so building four shallow copies plus
-        // deep x2many command snapshots there is pure churn. Opt in only when
-        // a caller will actually undo.
         let undoChanges = NO_UNDO;
         if (undoable) {
-            // We need to generate the undo function before applying the changes
             const initialTextValues = { ...this._textValues };
             const initialChanges = { ...this._changes };
             const initialData = { ...toRaw(this.data) };
             const initialDirty = this.dirty;
             const invalidFields = [...toRaw(this._invalidFields)];
-            // x2many onchange values are command lists that ``parseServerValues``
-            // replays into the EXISTING StaticList IN PLACE (``_applyCommands``),
-            // so the shallow ``initialData`` snapshot restores the SAME, already
-            // mutated list reference — the staged commands would survive the undo
-            // and ship on the next web_save. Snapshot each such list's command
-            // state here (deep-copying the tuples like ``_addSavePoint`` does) and
-            // restore it in ``undoChanges``. Done WITHOUT the list's ``_savePoint``
-            // slot on purpose: that slot belongs to the record-level discard flow
-            // (e.g. an open x2many sub-dialog), so touching it here could clobber a
-            // live savepoint.
+            const unsetRequiredFields = [...toRaw(this._unsetRequiredFields)];
             const listSnapshots = [];
             for (const fieldName of new Set([
                 ...Object.keys(changes),
@@ -654,34 +511,34 @@ export class RelationalRecord extends DataPoint {
             ])) {
                 const value = toRaw(this.data)[fieldName];
                 if (isX2Many(this.fields[fieldName]) && value?._commands) {
-                    listSnapshots.push({
-                        list: value,
-                        _commands: value._commands.map((c) =>
-                            c.map((el) => (Array.isArray(el) ? [...el] : el)),
-                        ),
-                        _currentIds: [...value._currentIds],
-                        count: value.count,
-                    });
+                    listSnapshots.push({ list: value, snapshot: value._snapshot() });
                 }
             }
             undoChanges = () => {
                 for (const fieldName of invalidFields) {
-                    // Flag-only restore: the async setInvalidField re-takes the
-                    // mutex through discard() in multi-edit, and these flags
-                    // already passed the lifecycle hook when first raised.
                     this._setInvalidFieldFlag(fieldName);
                 }
+                // ``_checkValidity({removeInvalidOnly})`` prunes BOTH sets, and
+                // the two must stay paired: ``_unsetRequiredFields`` is the
+                // candidate list a later prune iterates, so restoring only
+                // ``_invalidFields`` leaves a field flagged invalid that no
+                // prune can ever revisit.
+                for (const fieldName of unsetRequiredFields) {
+                    this._unsetRequiredFields.add(fieldName);
+                }
+                // Keys ADDED during the change must go, not just be
+                // overwritten: a rolled-back onchange carrying a properties
+                // field left its per-property ``<field>.<name>`` entries
+                // behind, so the record kept data for properties the undone
+                // change invented.
+                for (const fieldName of Object.keys(toRaw(this.data))) {
+                    if (!(fieldName in initialData)) {
+                        delete this.data[fieldName];
+                    }
+                }
                 Object.assign(this.data, initialData);
-                for (const snap of listSnapshots) {
-                    // Mirror ``StaticList._discard``'s savepoint branch: restore the
-                    // command log + membership, then rebuild the displayed window
-                    // from ``_currentIds`` (records are derived, not snapshotted).
-                    snap.list._commands = snap._commands;
-                    snap.list._currentIds = snap._currentIds;
-                    snap.list.count = snap.count;
-                    snap.list.records = snap.list._currentIds
-                        .slice(snap.list.offset, snap.list.offset + snap.list.limit)
-                        .map((resId) => snap.list._cache[resId]);
+                for (const { list, snapshot } of listSnapshots) {
+                    list._restore(snapshot);
                 }
                 this._changes = markRaw(initialChanges);
                 Object.assign(this._textValues, initialTextValues);
@@ -716,11 +573,6 @@ export class RelationalRecord extends DataPoint {
 
         this._setEvalContext();
 
-        // mark changed fields as valid if they were not, and re-evaluate required attributes
-        // for the fields whose unset-required status could actually change with those changes
-        // (the changed fields plus those whose invisible/required/readonly modifier references
-        // one of them). ``removeInvalidOnly`` only *prunes* newly-valid fields, so scoping the
-        // scan cannot miss a field: a field outside the scope cannot have flipped status.
         const changedFieldNames = [
             ...Object.keys(changes),
             ...Object.keys(serverChanges),
@@ -747,12 +599,6 @@ export class RelationalRecord extends DataPoint {
     }
 
     _applyValues(values) {
-        // X2many pending-edit lists must not be wholesale-replaced by a
-        // freshly parsed StaticList: the replacement has empty ``_commands``,
-        // silently dropping the user's pending sub-edits from the next save
-        // (extendRecord's first-extension load, m2m-grouped sibling updates).
-        // Merge the fresh server rows into the existing list instead, and
-        // parse only the other fields.
         const x2manyMerges = [];
         for (const fieldName of Object.keys(values)) {
             const field = this.fields[fieldName];
@@ -823,7 +669,7 @@ export class RelationalRecord extends DataPoint {
             limit:
                 limit ||
                 (Object.keys(relatedActiveFields).length ? Number.MAX_SAFE_INTEGER : 1),
-            context: {}, // will be set afterwards, see "_updateContext" in "_setEvalContext"
+            context: {},
         };
         const options = {
             onUpdate: (
@@ -852,13 +698,6 @@ export class RelationalRecord extends DataPoint {
      * @returns {Record<string, any>}
      */
     _getChanges(changes = this._changes, { withReadonly } = {}) {
-        // Delegate to the pure ``computeChangeset`` (record_utils.js): the two
-        // used to carry identical hand-inlined copies of this algorithm — the
-        // duplication rotted (``computeChangeset`` had no live caller and was
-        // only exercised by its own unit tests). ``_isReadonly`` /
-        // ``_formatServerValue`` / ``isNew`` are thin delegators to the same
-        // primitives ``computeChangeset`` uses, so behaviour is unchanged; the
-        // existing changeset unit-tests now cover the live path.
         return computeChangeset({
             changes,
             values: this._values,
@@ -1047,9 +886,6 @@ export class RelationalRecord extends DataPoint {
             this.selected = !this.selected;
         }
         if (!this.selected) {
-            // Deselecting invalidates a "whole domain selected" state; the
-            // bookkeeping is owned by the root list (no-op when the root
-            // isn't a list, e.g. form views).
             this.model.root._onRecordDeselected?.();
         }
     }
@@ -1059,11 +895,6 @@ export class RelationalRecord extends DataPoint {
      * @returns {Promise<Record<string, any>>}
      */
     async _getOnchangeValues(changes) {
-        // Compute Operations (multi-edit "+5"/"-5" inputs) into a LOCAL copy:
-        // rewriting this `changes` in place would replay an absolute number if
-        // it were re-fed to onchange, and `_applyChanges` must still see the
-        // original Operation to compute off the same base. (`_update` already
-        // hands us its private clone, but this method defends its own boundary.)
         const originalChanges = changes;
         for (const fieldName of Object.keys(originalChanges)) {
             if (originalChanges[fieldName] instanceof Operation) {
@@ -1101,8 +932,17 @@ export class RelationalRecord extends DataPoint {
             changes: localChanges,
             fieldNames: onChangeFields,
             evalContext: toRaw(this.evalContext),
+            // Apply-then-undo looks like a no-op on STATE — and it is: the
+            // changes have not been committed yet, so the undo restores what
+            // was already there (``_update``'s ``rollbackLists`` owns the real
+            // rollback, snapshotting before the preprocessors ran). What it is
+            // NOT a no-op on is REACTIVITY: the field component is bound to
+            // ``record.data``, and the user's rejected input lives only in the
+            // DOM. Writing the new value and writing the old one back is what
+            // notifies the subscriber, so the input re-renders from model truth
+            // instead of keeping the value the server just refused.
+            // Pinned by form_view.test.js "onchange returns an error".
             onError: (e) => {
-                // We apply changes and revert them after to force a render of the Field components
                 const undoChanges = this._applyChanges(
                     changes,
                     {},
@@ -1123,85 +963,27 @@ export class RelationalRecord extends DataPoint {
             withoutParentUpdate,
         } = {},
     ) {
-        // Finding 6: the preprocessors below rewrite ``changes[fieldName]`` in
-        // place (e.g. ``preprocessX2manyChanges`` replaces a command array with
-        // a StaticList). Shallow-clone the caller's object ONCE here and mutate
-        // only the private copy: a caller that re-dispatches the same ``changes``
-        // (e.g. an x2many command array) must not find it silently turned into a
-        // StaticList — the next ``for (const command of value)`` over a
-        // non-iterable list would throw. Downstream lazy clones become redundant.
         changes = { ...changes };
-        // Invariant 1: race-protection. ``_changes`` is populated by
-        // ``_applyChanges`` further below, after async preprocessors and
-        // (optional) onchange RPC complete. Setting ``dirty`` synchronously
-        // here means UI bindings reflect "modified" the moment a field
-        // update is dispatched, not after a network round-trip.
-        //
-        // Snapshot through the RAW datapoint: ``this`` may be a
-        // component-bound reactive proxy (field components dispatch
-        // ``record.update(...)`` on their own ``props.record``), and reading
-        // ``dirty`` through it would SUBSCRIBE that component to the very
-        // flag ``_markDirty()`` writes on the next line — re-rendering the
-        // dispatching field mid-update, whose ``useInputField`` effect then
-        // resyncs the input to the stale pre-onchange model value (lost
-        // keystrokes under a slow onchange, wrong urgent-save payloads on
-        // tab close).
         const raw = toRaw(this);
         const wasDirty = raw.dirty;
         this._markDirty();
-        // Invariant 1's provisional mark must not outlive an update that
-        // turns out to be a no-op or fails — otherwise ``isDirty()`` gates
-        // (pager, breadcrumbs, beforeLeave) chase changes that don't exist.
-        // Only lower the flag when nothing else keeps the record modified
-        // (pending changes or invalid input). Same raw-read rule as above:
-        // ``_invalidFields`` is a reactive Set, and probing its ``size``
-        // through the caller's proxy would subscribe the dispatching
-        // component to every validity change of the record.
         const restoreDirty = () => {
-            if (raw._changeSet.isEmpty && !raw._invalidFields.size) {
+            if (raw._editState.isChangeSetEmpty && !raw._invalidFields.size) {
                 this.dirty = wasDirty;
             }
         };
-        // Finding 3: ``preprocessX2manyChanges`` mutates the LIVE StaticLists in
-        // place (``_applyCommands``/``_replaceWith``) during the Promise.all
-        // below — BEFORE the ``_applyChanges`` commit point records the list
-        // into ``_changes``. If a sibling preprocessor (m2o name_create
-        // AccessError, reference webRead failure) or the onchange RPC then
-        // rejects, ``_update`` throws before ``_applyChanges`` runs and
-        // ``restoreDirty()`` lowers the flag: the UI shows rows added/removed
-        // with staged commands on the list, but ``_getChanges()`` never
-        // serializes them (the next save silently drops what the user sees).
-        // Snapshot each touched list's command log + membership up front and
-        // roll it back on any throw, mirroring ``_applyChanges``' listSnapshots
-        // restore. RESIDUAL RISK: on a preprocessor rejection, a still-in-flight
-        // ``_applyCommands`` on the SAME list can re-mutate it after the
-        // rollback (preprocessors are deliberately fire-and-forget, see below);
-        // the onchange-rejection path has no such race (all preprocessors have
-        // already settled).
         const listSnapshots = [];
         for (const fieldName of Object.keys(changes)) {
             if (isX2Many(this.fields[fieldName])) {
                 const list = toRaw(this.data)[fieldName];
                 if (list?._commands) {
-                    listSnapshots.push({
-                        list,
-                        _commands: list._commands.map((c) =>
-                            c.map((el) => (Array.isArray(el) ? [...el] : el)),
-                        ),
-                        _currentIds: [...list._currentIds],
-                        count: list.count,
-                    });
+                    listSnapshots.push({ list, snapshot: list._snapshot() });
                 }
             }
         }
         const rollbackLists = () => {
-            for (const snap of listSnapshots) {
-                snap.list._commands = snap._commands;
-                snap.list._currentIds = snap._currentIds;
-                snap.list.count = snap.count;
-                snap.list.records = snap.list._currentIds
-                    .slice(snap.list.offset, snap.list.offset + snap.list.limit)
-                    .map((resId) => snap.list._cache[resId]);
+            for (const { list, snapshot } of listSnapshots) {
+                list._restore(snapshot);
             }
         };
         const prom = Promise.all([
@@ -1212,67 +994,35 @@ export class RelationalRecord extends DataPoint {
             preprocessPropertiesChanges(this, changes),
             preprocessHtmlChanges(this, changes),
         ]);
-        // The preprocessors are kicked off above so their fire-and-forget
-        // bookkeeping happens; on the tab-close path we skip awaiting them
-        // because the browser may kill us before they settle.
-        // A preprocessor CAN reject (m2o quick-create AccessError, webRead
-        // failure completing a reference): the change never stuck, so lower
-        // the provisional dirty mark before rethrowing — otherwise the record
-        // shows "unsaved changes" forever and pager/breadcrumb gates chase an
-        // edit that isn't in the model. (The no-op / _onUpdate-failure paths
-        // below already restore for the same reason.)
         try {
             await this.model.urgentSave.awaitUnlessUrgent(prom);
         } catch (e) {
-            // The change never stuck: roll back any x2many commands already
-            // applied to live lists (finding 3) before lowering the flag.
             rollbackLists();
             restoreDirty();
             throw e;
         }
         if (this.selected && this.model.multiEdit) {
-            // Model-level dispatch installed by the root DynamicList — a
-            // record must not reach into the list's protected ``_multiSave``.
-            return this.model.multiEditDispatch(this, changes);
+            const result = await this.model.multiEditDispatch(this, changes);
+            // The multi-edit flow owns the cohort's state from here — it saves,
+            // discards or declines. Drop the optimistic dirty mark taken above
+            // if it left nothing pending on this record, so a declined dispatch
+            // doesn't strand it as "modified" with an empty changeset.
+            restoreDirty();
+            return { [MULTI_EDIT_RESULT]: result };
         }
         let onchangeServerValues = {};
         if (!withoutOnchange) {
-            // ``unlessUrgent`` (not ``awaitUnlessUrgent``): the onchange
-            // RPC must NOT fire on tab close — sending it would race the
-            // sendBeacon save, queueing a server-side computation against
-            // a session that is about to disappear.
-            // A failed onchange (e.g. a ValidationError raised by the server)
-            // is deliberately NOT caught to restore the dirty flag: the user's
-            // edit is real and still pending, so the record must stay dirty —
-            // the Save button remains available for a retry and the edit isn't
-            // silently discarded. (Lowering the provisional dirty mark here
-            // would hide the Save button after the very edit that triggered the
-            // error.) The no-op / _onUpdate-failure paths below still restore,
-            // since there the change never stuck.
             try {
                 onchangeServerValues =
                     (await this.model.urgentSave.unlessUrgent(() =>
                         this._getOnchangeValues(changes),
                     )) ?? {};
             } catch (e) {
-                // The onchange rejected before ``_applyChanges`` recorded the
-                // x2many lists into ``_changes`` (finding 3). Roll back the
-                // in-place list mutations so the list state matches the (empty)
-                // change bag — same net effect the scalar path already has (the
-                // model reverts, ``_getOnchangeValues``' onError forces a render
-                // then undoes it). Do NOT restore ``dirty``: the user's edit is
-                // real and still pending, so the Save button stays available for
-                // a retry (see the note above).
                 rollbackLists();
+                restoreDirty();
                 throw e;
             }
         }
-        // A many2one re-set to its CURRENT value must still trigger the onchange
-        // (that already ran above), but must NOT be recorded as a parent change.
-        // Drop such no-op m2o entries directly from our private ``changes`` copy
-        // (finding 6: shallow-cloned at entry, so this can't surprise the
-        // caller — the earlier lazy re-clone here is now redundant). The result
-        // feeds both ``_applyChanges`` and the "did anything change?" gate below.
         for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2one") {
                 const curVal = toRaw(this.data[fieldName]);
@@ -1301,9 +1051,6 @@ export class RelationalRecord extends DataPoint {
                 restoreDirty();
                 throw e;
             }
-            // Only serialize the changeset when a real consumer is listening;
-            // the default hook is a no-op and ``_getChanges()`` (recursive x2many
-            // command build for new records / dirty x2many) would be discarded.
             if (this.model.hasOnRecordChangedHook) {
                 await this.model.hooks.lifecycle.onRecordChanged(
                     this,
@@ -1311,8 +1058,6 @@ export class RelationalRecord extends DataPoint {
                 );
             }
         } else {
-            // The m2o no-op filter emptied the update (a many2one re-set to
-            // its current value): nothing was applied, so nothing is dirty.
             restoreDirty();
         }
     }

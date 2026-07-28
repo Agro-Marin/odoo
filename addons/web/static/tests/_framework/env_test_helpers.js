@@ -25,10 +25,6 @@ import { makeMockServer, MockServer } from "./mock_server/mock_server.js";
  * @typedef {import("services").ServiceFactories} Services
  */
 
-//-----------------------------------------------------------------------------
-// Internals
-//-----------------------------------------------------------------------------
-
 /**
  * TODO: remove when services do not have side effects anymore
  * This forsaken block of code ensures that all are properly cleaned up after each
@@ -52,15 +48,8 @@ const registriesContent = new WeakMap();
 /** @type {OdooEnv | null} */
 let currentEnv = null;
 
-// Registers all registries for cleanup in all tests.
-// { global: true } is required because this runs at module top-level
-// (outside any describe() suite) in ESM native mode.
 beforeEach(() => registerRegistryForCleanup(registry), { global: true });
 afterEach(() => restoreRegistry(registry), { global: true });
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * Empties the given registry.
@@ -96,9 +85,6 @@ export function getService(name) {
  */
 export async function makeMockEnv(partialEnv, options) {
     if (currentEnv && !options?.makeNew) {
-        // Previous test's after() cleanup didn't run (e.g. failed before
-        // registering it). Reset instead of throwing so this dangling
-        // reference doesn't cascade into every subsequent test.
         currentEnv = null;
     }
 
@@ -107,7 +93,7 @@ export async function makeMockEnv(partialEnv, options) {
     }
 
     const env = makeEnv();
-    Object.assign(env, partialEnv, createDebugContext(/** @type {any} */ (env))); // This is needed if the views are in debug mode
+    Object.assign(env, partialEnv, createDebugContext(/** @type {any} */ (env)));
 
     registerDebugInfo("env", env);
 
@@ -117,11 +103,6 @@ export async function makeMockEnv(partialEnv, options) {
         after(() => {
             currentEnv = null;
 
-            // Ideally this belongs in a patch of the localization service, but this is
-            // less intrusive for now. Clear cached translations for the next test but
-            // KEEP [translationLoaded] = true: setupTestEnvironment sets it once at
-            // bundle load and lazy _t(...) calls (e.g. html_editor's movenode_plugin
-            // tooltip) expect it to stay truthy, or every test after the first throws.
             if (translatedTerms[translationLoaded]) {
                 for (const key in translatedTerms) {
                     delete translatedTerms[key];
@@ -134,11 +115,13 @@ export async function makeMockEnv(partialEnv, options) {
         });
     }
 
-    // Drop the per-env UPDATE listener startServices installs on the singleton
-    // service registry. Registered before the await so cleanup still runs even
-    // if startServices throws (it assigns disposeServiceRegistryListener before
-    // the point where it can reject).
-    after(() => env.disposeServiceRegistryListener?.());
+    // `env.destroy()` — not just `disposeServiceRegistryListener()`, which is
+    // only the first half of what destroy() does. Skipping the second half (the
+    // per-service `destroy()` loop) left every service teardown in the codebase
+    // unreachable: `env.destroy` had no caller anywhere, so the disposers in
+    // name/slow_rpc/hotkey/error/result_set_cache_invalidator were dead code
+    // that could never be verified.
+    after(() => env.destroy?.());
 
     await startServices(env);
 
@@ -173,18 +156,6 @@ export async function makeDialogMockEnv(partialEnv) {
 export function mockService(name, serviceFactory) {
     const serviceRegistry = registry.category("services");
     const originalService = serviceRegistry.get(name, null);
-    // ``patch()`` extensions are single-use: it mutates the extension in place
-    // (re-parenting it via ``setPrototypeOf`` to wire the ``super`` chain), and
-    // that re-parenting is precisely what makes ``super.method(...)`` inside an
-    // object-literal mock resolve to the original service. So the extension
-    // MUST be ``serviceFactory`` itself — a descriptor-clone would carry the
-    // methods (whose ``[[HomeObject]]`` is the original literal) but leave their
-    // ``super`` pointing at the un-reparented original, silently breaking it.
-    // The start wrapper can still run more than once for the same factory (the
-    // forced registry entry outlives its test; later ``startServices`` calls
-    // replay it), so instead of cloning we release the previous application
-    // before re-patching and register a test-teardown ``after`` — a
-    // single-use extension is fine as long as it is unpatched between uses.
     let unpatch = null;
     const applyMock = (service) => {
         unpatch?.();
@@ -217,7 +188,6 @@ export function mockService(name, serviceFactory) {
         { force: true },
     );
 
-    // Patch already initialized service
     if (currentEnv?.services?.[name]) {
         if (typeof serviceFactory === "function") {
             const dependencies = pick(

@@ -47,13 +47,6 @@ export class CalendarModel extends Model {
      * @param {{ notification: Object }} services
      */
     setup(params, { notification }) {
-        // Monotonic load epoch. Every load() captures the current value and
-        // only applies its result if it is still the latest when it settles.
-        // Superseding a load (a newer load() or an explicit filter mutation)
-        // just bumps this counter, so the superseded load resolves normally
-        // instead of hanging — unlike KeepLast, whose wrapper for a superseded
-        // task never settles and would leave `await this.load()` callers
-        // (createRecord/updateRecord/multiCreateRecords/quick-create) stuck.
         /** @protected */
         this.currentLoadId = 0;
         this.notification = notification;
@@ -95,10 +88,6 @@ export class CalendarModel extends Model {
 
         this._unusualDaysCache = new Cache(
             (data) => this.fetchUnusualDays(data),
-            // Keyed by range AND a context fingerprint: get_unusual_days
-            // results can depend on context that changes without a model
-            // rebuild (company switch, employee-dependent overrides), and the
-            // cache lives for the model's lifetime.
             (data) =>
                 `${serializeDateTime(data.range.start)},${serializeDateTime(data.range.end)},${JSON.stringify(this.meta.context ?? {})}`,
         );
@@ -109,13 +98,6 @@ export class CalendarModel extends Model {
      * @param {Object} [params] - overrides for date, scale, context, etc.
      */
     async load(params = {}) {
-        // updateData reads this.meta (range, domain, fields...), so the next
-        // meta must be committed before the fetch — but keep a snapshot to
-        // roll back if the fetch fails while this load is still the latest,
-        // so meta (header state) can't point at a position this.data never
-        // reached. The localStorage scale write moves after the epoch check
-        // for the same reason. The meta object identity never changes:
-        // subclasses hold references to it.
         const previousMeta = { ...this.meta };
         Object.assign(this.meta, params);
         if (!this.meta.date) {
@@ -124,7 +106,6 @@ export class CalendarModel extends Model {
                     ? deserializeDateTime(params.context.initial_date).startOf("day")
                     : DateTime.local().startOf("day");
         }
-        // Prevent picking a scale that is not supported by the view
         if (!this.meta.scales.includes(this.meta.scale)) {
             this.meta.scale = this.meta.scales[0];
         }
@@ -140,20 +121,12 @@ export class CalendarModel extends Model {
             }
         }
         if (loadId !== this.currentLoadId) {
-            // Superseded by a newer load() or by an explicit filter mutation
-            // while updateData was in flight: resolve normally without applying
-            // this now-stale data (and without notifying), so awaiting callers
-            // are released instead of hanging forever.
             return;
         }
         browser.localStorage.setItem(this.storageKey, this.meta.scale);
         this.data = data;
         this.notify();
     }
-
-    //--------------------------------------------------------------------------
-    // Public
-    //--------------------------------------------------------------------------
 
     get aggregate() {
         return this.meta.aggregate;
@@ -328,14 +301,7 @@ export class CalendarModel extends Model {
         const values = await multiCreateData.record.getChanges();
         const timeRange = multiCreateData.timeRange;
 
-        // we deliberately only use the values of the first filter section, to avoid combinatorial explosion
         const [section] = this.filterSections;
-        // "user" is the auto-added current-user filter: it carries a real
-        // value and is often the ONLY active one — excluding it made
-        // multi-create a silent no-op in the common case. "dynamic" filters
-        // are NOT assignment targets (they mirror the values found in the
-        // displayed records), so a dynamic-only section must not fan out —
-        // it falls back to one bare record per date below.
         const assignableFilters = section
             ? section.filters.filter((filter) =>
                   ["record", "user"].includes(filter.type),
@@ -351,9 +317,6 @@ export class CalendarModel extends Model {
             }
             const rawRecord = this.buildRawRecord(initialRecordValue);
             if (!assignableFilters.length) {
-                // No section, or a section without record/user filters (e.g.
-                // a dynamic-only section): create one bare record per date
-                // instead of silently creating nothing + warning.
                 records.push({
                     ...rawRecord,
                     ...values,
@@ -371,8 +334,6 @@ export class CalendarModel extends Model {
             }
         }
         if (!records.length && dates.length) {
-            // Nothing matched (e.g. no filter checked): tell the user instead
-            // of silently clearing their selection.
             this.notification.add(
                 _t(
                     "Activate at least one record in the side panel to assign the new events to.",
@@ -395,9 +356,6 @@ export class CalendarModel extends Model {
         const info = this.meta.filtersInfo[fieldName];
         const section = this.data.filterSections[fieldName];
         if (section) {
-            // remove the filter immediately, for instant feedback to the user
-            // Cancel any in-flight load so it won't overwrite this optimistic
-            // update; bumping the epoch releases its awaiting caller cleanly.
             this.currentLoadId++;
             section.filters = section.filters.filter((f) => f.recordId !== recordId);
         }
@@ -405,12 +363,6 @@ export class CalendarModel extends Model {
             try {
                 await this.orm.unlink(info.writeResModel, [recordId]);
             } finally {
-                // Reload even on failure: the filter was removed optimistically
-                // and the epoch bump discarded any in-flight load, so without a
-                // reload the panel stays desynced from the server (mirrors
-                // updateRecord). The rejection still propagates for the
-                // standard error dialog; catch the reload so a reload failure
-                // can't mask the original unlink error.
                 await this.debouncedLoad().catch((error) => console.error(error));
             }
         }
@@ -430,9 +382,6 @@ export class CalendarModel extends Model {
     }
 
     async updateFilters(fieldName, filters, active) {
-        // update filters immediately, for instant feedback to the user
-        // Cancel any in-flight load so it won't overwrite this optimistic
-        // update; bumping the epoch releases its awaiting caller cleanly.
         this.currentLoadId++;
         for (const filter of filters) {
             filter.active = active;
@@ -463,32 +412,17 @@ export class CalendarModel extends Model {
                 }
             }
         } finally {
-            // Reload even on failure: the filters were flipped optimistically
-            // and the epoch bump discarded any in-flight load, so without a
-            // reload the UI stays desynced from the server (mirrors
-            // updateRecord). The rejection still propagates for the standard
-            // error dialog; catch the reload so a reload failure can't mask
-            // the original write error.
             await this.debouncedLoad().catch((error) => console.error(error));
         }
     }
     async updateRecord(record, options = {}) {
         const rawRecord = this.buildRawRecord(record, options);
-        // The name is immutable here: buildRawRecord maps the title onto
-        // create_name_field when the arch defines one, so delete the mapped
-        // key — deleting only the literal "name" key would let a title
-        // overwrite the record name on such views.
         delete rawRecord[this.meta.fieldMapping.create_name_field || "name"];
         try {
             await this.orm.write(this.meta.resModel, [record.id], rawRecord, {
                 context: this.meta.context,
             });
         } finally {
-            // Reload even on failure: drag/drop and resize already rendered the
-            // event client-side, so only a reload re-syncs with server state.
-            // The rejection still propagates for the standard error dialog.
-            // Catch the reload so a reload failure can't mask the original write
-            // error (which is what the user needs to see).
             this.invalidateUnusualDays();
             await this.load().catch((error) => console.error(error));
         }
@@ -516,17 +450,13 @@ export class CalendarModel extends Model {
             if (partialRecord.isAllDay) {
                 end = start;
             } else {
-                // in week mode or day mode, convert allday event to event
                 end = start.plus({ hours: options.duration_hour || 1 });
             }
         }
 
         const isDateEvent = this.dateStartType === "date";
-        // An "all day" event without the "all_day" option is not considered
-        // as a 24h day. It's just a part of the day (by default: 7h-19h).
         if (partialRecord.isAllDay) {
             if (!this.hasAllDaySlot && !isDateEvent && !partialRecord.id) {
-                // default hours in the user's timezone
                 [start, end] = this.getAllDayDates(start, end);
             }
         }
@@ -579,7 +509,6 @@ export class CalendarModel extends Model {
             fieldMapping.all_day || "allday",
         ];
         for (const fieldName of fieldNames) {
-            // fieldName could be in rawRecord but not defined
             if (rawRecord[fieldName] !== undefined) {
                 context[`default_${fieldName}`] = rawRecord[fieldName];
             }
@@ -590,10 +519,6 @@ export class CalendarModel extends Model {
 
         return context;
     }
-
-    //--------------------------------------------------------------------------
-    // Protected
-    //--------------------------------------------------------------------------
 
     /**
      * @protected
@@ -609,15 +534,12 @@ export class CalendarModel extends Model {
 
         const { sections, dynamicFiltersInfo } = await this.loadFilters(data);
 
-        // Load records and dynamic filters only with fresh filters
         data.filterSections = sections;
         data.records = await this.loadRecords(data);
         const dynamicSections = await this.loadDynamicFilters(data, dynamicFiltersInfo);
 
-        // Apply newly computed filter sections
         Object.assign(data.filterSections, dynamicSections);
 
-        // Remove records that don't match dynamic filters
         for (const [fieldName, filterInfo] of Object.entries(dynamicSections)) {
             const field = this.meta.fields[fieldName];
             if (!field) {
@@ -634,10 +556,6 @@ export class CalendarModel extends Model {
                 const rawValue = record.rawRecord[fieldName];
                 let remove;
                 if (["many2many", "one2many"].includes(field.type)) {
-                    // An empty x2many belongs to the `false` ("Undefined")
-                    // bucket, like an unset many2one — `every` is vacuously
-                    // true on [], which used to remove such records as soon
-                    // as ANY dynamic filter was unchecked.
                     remove = rawValue.length
                         ? rawValue.every((value) => inactiveFilterVals.has(value))
                         : inactiveFilterVals.has(false);
@@ -655,7 +573,6 @@ export class CalendarModel extends Model {
 
         await unusualDaysProm;
 
-        // Compute aggregate values
         if (this.aggregate) {
             for (const [fieldName, { filters }] of Object.entries(
                 data.filterSections,
@@ -667,8 +584,6 @@ export class CalendarModel extends Model {
             }
         }
     }
-
-    //--------------------------------------------------------------------------
 
     /**
      * @protected
@@ -688,7 +603,6 @@ export class CalendarModel extends Model {
         const fieldType = this.meta.fields[fieldName].type;
         const groups = groupBy(records, ({ rawRecord }) => {
             const rawValue = rawRecord[fieldName];
-            // FIXME: many2many not supported, but not supported for filters either
             return fieldType === "many2one" ? rawValue?.[0] || false : rawValue;
         });
         const aggregates = {};
@@ -737,10 +651,6 @@ export class CalendarModel extends Model {
      * @protected
      */
     fetchUnusualDays(data) {
-        // Pass the context: get_unusual_days results can depend on it
-        // (e.g. hr_leave reads employee_id), and the cache key already
-        // fingerprints it — without sending it here the cache pretends the
-        // context matters while every fetch runs context-free.
         return this.orm.call(
             this.meta.resModel,
             "get_unusual_days",
@@ -855,7 +765,6 @@ export class CalendarModel extends Model {
         const rawFilters = await this.fetchFilters(writeResModel, fields);
         const previousFilters = previousSection ? previousSection.filters : [];
 
-        // Index previous record filters by id to avoid a find() per raw filter
         const previousRecordFilters = new Map();
         for (const filter of previousFilters) {
             if (filter.type === "record") {
@@ -931,16 +840,12 @@ export class CalendarModel extends Model {
         const field = fields[fieldName];
         const previousFilters = previousSection ? previousSection.filters : [];
 
-        // Dedupe by id with a Map: a find() per value would be O(records × values)
         const rawFiltersById = new Map();
         for (const record of Object.values(data.records)) {
             let rawValues = ["many2many", "one2many"].includes(field.type)
                 ? record.rawRecord[fieldName]
                 : [record.rawRecord[fieldName]];
             if (!rawValues.length) {
-                // Empty x2many: emit the same `false` bucket as an unset
-                // many2one so these records get an "Undefined" side-panel
-                // filter instead of no checkbox at all.
                 rawValues = [false];
             }
 
@@ -1000,7 +905,6 @@ export class CalendarModel extends Model {
             }
         }
 
-        // Index previous dynamic filters by value to avoid a find() per raw filter
         const previousDynamicFilters = new Map();
         for (const filter of previousFilters) {
             if (filter.type === "dynamic") {

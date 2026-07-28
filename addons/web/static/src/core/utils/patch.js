@@ -87,11 +87,6 @@ function getPatchDescription(objToPatch) {
  * @returns {boolean}
  */
 function isClassPrototype(objToPatch) {
-    // class A {}
-    // isClassPrototype(A) === false
-    // isClassPrototype(A.prototype) === true
-    // isClassPrototype(new A()) === false
-    // isClassPrototype({}) === false
     return (
         Object.hasOwn(objToPatch, "constructor") &&
         objToPatch.constructor?.prototype === objToPatch
@@ -142,9 +137,6 @@ export function patch(objToPatch, extension) {
     }
 
     if (usedExtensions.has(extension)) {
-        // Reusing an extension would corrupt the `super` chain (shared target)
-        // or throw an opaque "Cyclic __proto__" error (same target) — see
-        // `usedExtensions` above. Fail clearly instead.
         throw new Error(
             "patch(): extension object already used in a patch. Each patch() call " +
                 "needs its own fresh extension object (it is mutated to build the `super` chain).",
@@ -163,27 +155,31 @@ export function patch(objToPatch, extension) {
     if (!extensionDeclaredKeys.has(extension)) {
         extensionDeclaredKeys.set(extension, Object.keys(properties));
     }
-    for (const [key, newProperty] of Object.entries(properties)) {
+    // Only the keys the extension DECLARED, not its current own keys. An
+    // extension that has served as a skeleton carries descriptors copied onto
+    // it by later patches (see `extensionDeclaredKeys`), and re-applying those
+    // would reinstate a foreign key's ORIGINAL value — silently reverting the
+    // patch that owns it. Reachable whenever an extension is unpatched and
+    // patched again, which the unpatch closure explicitly allows.
+    for (const key of /** @type {string[]} */ (extensionDeclaredKeys.get(extension))) {
+        const newProperty = properties[key];
+        if (!newProperty) {
+            continue;
+        }
         const oldProperty = Object.getOwnPropertyDescriptor(objToPatch, key);
         if (oldProperty) {
             Object.defineProperty(description.skeleton, key, oldProperty);
         }
 
         if (!description.originalProperties.has(key)) {
-            // Keep a trace of original property (prop before first patch), useful for unpatching.
             description.originalProperties.set(key, oldProperty);
         }
 
         if (isClassPrototype(objToPatch)) {
-            // A property is enumerable on POJO ({ prop: 1 }) but not on classes (class A {}).
-            // Here, we only check if we patch a class prototype.
             newProperty.enumerable = false;
         }
 
         if (Boolean(newProperty.get) !== Boolean(newProperty.set)) {
-            // get/set are defined together; if only one is present on the
-            // new descriptor, inherit the other from the previous one so it
-            // isn't clobbered to undefined.
             const ancestorProperty = findAncestorPropertyDescriptor(objToPatch, key);
             newProperty.get = newProperty.get ?? ancestorProperty?.get;
             newProperty.set = newProperty.set ?? ancestorProperty?.set;
@@ -192,51 +188,28 @@ export function patch(objToPatch, extension) {
         Object.defineProperty(objToPatch, key, newProperty);
     }
 
-    // Sets the current skeleton as the extension's prototype to make
-    // `super` keyword working and then set extension as the new skeleton.
     description.skeleton = Object.setPrototypeOf(extension, description.skeleton);
 
     return () => {
-        // Remove the description to start with a fresh base.
         patchDescriptions.delete(objToPatch);
 
         for (const [key, property] of description.originalProperties) {
             if (property) {
                 Object.defineProperty(objToPatch, key, property);
             } else {
-                // `property` is undefined when the key didn't exist before patching.
                 delete (/** @type {Record<string, any>} */ (objToPatch)[key]);
             }
         }
 
-        // Re-apply the patches without the current one.
         description.extensions.delete(extension);
         usedExtensions.delete(extension);
         for (const extension of description.extensions) {
-            // Release each surviving extension so patch() can legitimately
-            // re-consume it against the fresh description built above.
             usedExtensions.delete(extension);
             patch(objToPatch, extension);
         }
     };
 }
 
-/**
- * Diagnostic read accessor for the patch graph: reports how an object has
- * been patched so operators triaging a bug like "form_controller saves
- * twice" can answer "which addons override that method, and in which
- * order" without instrumenting the running session. DevTools/test helper
- * only — no production code path calls it.
- *
- * Returns ``null`` for unpatched targets. ``extensions`` is the array of
- * patch objects in ``patch()`` call order (a fresh copy — mutating it never
- * affects the patch graph); ``patchedKeys`` is the union of keys any
- * extension has touched.
- *
- * @param {object} target Same object handed to ``patch()`` (class
- *   prototype, class constructor, or plain object).
- * @returns {{ extensions: object[], patchedKeys: string[] } | null}
- */
 /**
  * Diagnostic companion to ``patchInfo``: enumerate every object that
  * currently has at least one live patch. Backed by weak references, so it
@@ -278,6 +251,22 @@ export function patchDeclaredKeys(extension) {
     return keys ? [...keys] : null;
 }
 
+/**
+ * Diagnostic read accessor for the patch graph: reports how an object has
+ * been patched so operators triaging a bug like "form_controller saves
+ * twice" can answer "which addons override that method, and in which
+ * order" without instrumenting the running session. DevTools/test helper
+ * only — no production code path calls it.
+ *
+ * Returns ``null`` for unpatched targets. ``extensions`` is the array of
+ * patch objects in ``patch()`` call order (a fresh copy — mutating it never
+ * affects the patch graph); ``patchedKeys`` is the union of keys any
+ * extension has touched.
+ *
+ * @param {object} target Same object handed to ``patch()`` (class
+ *   prototype, class constructor, or plain object).
+ * @returns {{ extensions: object[], patchedKeys: string[] } | null}
+ */
 export function patchInfo(target) {
     const description = patchDescriptions.get(target);
     if (!description) {

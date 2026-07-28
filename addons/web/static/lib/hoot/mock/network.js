@@ -34,10 +34,6 @@ import { ensureTest } from "../main_runner.js";
  *  | ServerWebSocket} NetworkInstance
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     AbortController,
     Blob,
@@ -66,10 +62,6 @@ const {
     XMLHttpRequest,
 } = globalThis;
 const { parse: $parse, stringify: $stringify } = globalThis.JSON;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {EventTarget} target
@@ -270,17 +262,11 @@ let mockWebSocketConnection = null;
 /** @type {((worker: MockSharedWorker | MockWorker) => any)[]} */
 const mockWorkerConnections = [];
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export function cleanupNetwork() {
-    // Mocked functions
     mockFetchFn = null;
     mockWebSocketConnection = null;
     mockWorkerConnections.length = 0;
 
-    // Network instances
     for (const instance of openNetworkInstances) {
         if (isInstanceOf(instance, AbortController)) {
             instance.abort();
@@ -292,22 +278,19 @@ export function cleanupNetwork() {
         ) {
             instance.close();
         } else if (instance instanceof MockSharedWorker) {
-            instance.port.close(); // Will also close `MockMessageChannel` instances
+            instance.port.close();
         } else if (instance instanceof MockWorker) {
             instance.terminate();
         }
     }
     openNetworkInstances.clear();
 
-    // Cookie
     mockCookie._jar = $create(null);
 
-    // History
     mockHistory._index = 0;
     mockHistory._stack = [];
     mockHistory.pushState(null, "", mockHistory._location.href);
 
-    // Location
     mockLocation.href = DEFAULT_URL;
 }
 
@@ -317,7 +300,6 @@ export async function mockedFetch(input, init) {
     const isInternalUrl = R_INTERNAL_URL.test(strInput);
     if (!mockFetchFn) {
         if (isInternalUrl) {
-            // Internal URL without mocked 'fetch': directly handled by the browser
             return fetch(input, init);
         }
         throw new Error(
@@ -330,7 +312,6 @@ export async function mockedFetch(input, init) {
     init.headers = getHeaders(init, init.body);
     init.method = init.method?.toUpperCase() || (isNil(init.body) ? "GET" : "POST");
 
-    // Allows 'signal' to not be logged with 'logRequest'.
     $defineProperty(init, "signal", {
         value: controller.signal,
         enumerable: false,
@@ -341,7 +322,6 @@ export async function mockedFetch(input, init) {
     logRequest(() => {
         const readableInit = {
             ...init,
-            // Make headers easier to read in the console
             headers: new Map(init.headers),
         };
         if (init.headers.get(HEADER.contentType) === MIME_TYPE.json) {
@@ -355,8 +335,6 @@ export async function mockedFetch(input, init) {
         await getNetworkDelay();
     }
 
-    // keep separate from 'error', as it can be null or undefined even though the
-    // callback has thrown an error.
     let failed = false;
     let error, result;
     try {
@@ -375,15 +353,12 @@ export async function mockedFetch(input, init) {
     }
 
     if (isInternalUrl && isNil(result)) {
-        // Internal URL without mocked result: directly handled by the browser
         return fetch(input, init);
     }
 
-    // Result can be a request or the final request value
     const responseHeaders = getHeaders(result, result);
 
     if (result instanceof MockResponse) {
-        // Mocked response
         logResponse(() => {
             const textValue = getSyncValue(result, true);
             return [
@@ -397,17 +372,11 @@ export async function mockedFetch(input, init) {
     }
 
     if (isInstanceOf(result, Response)) {
-        // Actual fetch
         logResponse(() => ["(go to network tab for request content)", result]);
         return result;
     }
 
-    // Not a response object:
-    // Determine the return type based on:
-    // - the content type header
-    // - or the type of the returned value
     if (responseHeaders.get(HEADER.contentType) === MIME_TYPE.json) {
-        // JSON response
         const strBody = $stringify(result ?? null);
         const response = new MockResponse(strBody, {
             headers: responseHeaders,
@@ -419,7 +388,6 @@ export async function mockedFetch(input, init) {
         return response;
     }
 
-    // Any other type
     const response = new MockResponse(result, {
         headers: responseHeaders,
         statusText: "OK",
@@ -810,7 +778,6 @@ export class MockMessagePort extends MockEventTarget {
 
     /** @type {MessagePort["close"]} */
     close() {
-        // Closing a message port also closes its sibling port & parent channel.
         markClosed(this, this._target, this._owner);
     }
 
@@ -947,7 +914,6 @@ export class MockSharedWorker extends MockEventTarget {
         this.url = String(scriptURL);
         this.name = options?.name || "";
 
-        // First port has to be started manually
         this._messageChannel.port2.start();
 
         for (const onWorkerConnected of mockWorkerConnections) {
@@ -1088,7 +1054,6 @@ export class MockWorker extends MockEventTarget {
 export class MockXMLHttpRequest extends MockEventTarget {
     static publicListeners = ["error", "load"];
     static {
-        // Assign status codes
         Object.assign(this, XMLHttpRequest);
     }
 
@@ -1224,16 +1189,12 @@ export class MockXMLHttpRequest extends MockEventTarget {
                 }
             }
             if (this._response instanceof MockResponse) {
-                // Mock response: get bound value (synchronously)
                 this._responseValue = getSyncValue(this._response, false);
             } else if (this._responseMimeType === MIME_TYPE.blob) {
-                // Actual "blob:" response: get array buffer
                 this._responseValue = await this._response.arrayBuffer();
             } else if (this._responseMimeType === MIME_TYPE.json) {
-                // JSON response: get parsed JSON value
                 this._responseValue = await this._response.json();
             } else {
-                // Anything else: parse response body as text
                 this._responseValue = await this._response.text();
             }
             this.dispatchEvent(new ProgressEvent("load"));

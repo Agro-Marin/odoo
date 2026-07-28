@@ -7,12 +7,10 @@
         class="o_main_navbar d-print-none"
         data-command-category="disabled"
       >
-        <!-- Apps Menu -->
         <t t-call="web.NavBar.AppsMenu">
           <t t-set="apps" t-value="menuService.getApps()" />
         </t>
 
-        <!-- App Brand -->
         <DropdownItem
           t-if="!env.isSmall and currentApp"
           t-esc="currentApp.name"
@@ -24,16 +22,13 @@
         <div class="o_navbar_breadcrumbs d-contents"/>
 
         <t t-if="!env.isSmall">
-          <!-- Current App Sections -->
           <t t-if="currentAppSections.length" t-call="web.NavBar.SectionsMenu">
             <t t-set="sections" t-value="currentAppSections" />
           </t>
         </t>
 
-        <!-- Systray -->
         <div class="o_menu_systray d-flex flex-shrink-0 ms-auto bg-inherit" role="menu">
           <t t-foreach="systrayItems" t-as="item" t-key="item.key">
-            <!-- This ensures the correct order of the systray items -->
             <div t-att-data-index="item.index"/>
             <ErrorHandler onError="error => this.handleItemError(error, item)">
                 <t t-component="item.Component" t-props="item.props"/>

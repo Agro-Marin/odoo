@@ -12,11 +12,6 @@ import { Colibri } from "./colibri.js";
 import { Interaction } from "./interaction.js";
 import { PairSet } from "./utils.js";
 
-// Public-frontend interactions are either subclasses of `Interaction`
-// (declarative dom manipulation + event handlers, owl-free) or Owl
-// `Component` subclasses. `_startInteraction` dispatches on the prototype
-// chain: Interactions are instantiated through `Colibri`, Components are
-// mounted through `_mountComponent`. The validator mirrors that dispatch.
 registry
     .category("public.interactions")
     .addValidation(
@@ -39,15 +34,18 @@ class InteractionService {
     constructor(el, env) {
         this.Interactions = [];
         this.el = el;
-        this.isActive = false;
-        // relation el <--> Interaction
         this.activeInteractions = new PairSet();
         this.env = env;
         this.interactions = [];
         this.roots = [];
         this.owlApp = null;
         this.proms = [];
-        this.registry = null;
+        /** @type {WeakSet<Object>} */
+        this.reportedErrors = new WeakSet();
+        // set by website_edit_service, which also patches shouldStop() to read
+        // isRefreshing; declared here so the contract is visible from the class
+        this.editMode = false;
+        this.isRefreshing = false;
     }
 
     /**
@@ -64,11 +62,12 @@ class InteractionService {
     }
 
     /**
-     * Tracks a pending promise for `isReady`, and drops it once fulfilled so
-     * that `this.proms` does not grow forever. Rejected promises are kept:
-     * they are the record of interaction crashes, and `isReady` must reject
-     * for them (the no-op rejection handler below only prevents the derived
-     * promise from reporting an unhandled rejection of its own).
+     * Tracks a pending promise for `isReady`. A fulfilled one is dropped at
+     * once; a rejected one is held until an `isReady` read has surfaced it,
+     * then dropped there — keeping it forever made every later read reject
+     * long after the failing scan was history, and grew `this.proms` without
+     * bound. The rejection handler here also keeps the derived promise from
+     * reporting an unhandled rejection of its own.
      *
      * @param {Promise<any>} prom
      * @returns {void}
@@ -76,14 +75,31 @@ class InteractionService {
     _trackProm(prom) {
         this.proms.push(prom);
         prom.then(
-            () => {
-                const index = this.proms.indexOf(prom);
-                if (index !== -1) {
-                    this.proms.splice(index, 1);
+            () => this._forgetProm(prom),
+            (error) => {
+                // a scan is tracked both on its own and through the promise
+                // `activate` derives from it, so one failure reaches this
+                // handler twice; identity keeps it a single report
+                if (error instanceof Object) {
+                    if (this.reportedErrors.has(error)) {
+                        return;
+                    }
+                    this.reportedErrors.add(error);
                 }
+                this.reportError(error);
             },
-            (error) => this._reportInteractionError(error),
         );
+    }
+
+    /**
+     * @param {Promise<any>} prom
+     * @returns {void}
+     */
+    _forgetProm(prom) {
+        const index = this.proms.indexOf(prom);
+        if (index !== -1) {
+            this.proms.splice(index, 1);
+        }
     }
 
     /**
@@ -97,7 +113,7 @@ class InteractionService {
      * @param {unknown} error
      * @returns {void}
      */
-    _reportInteractionError(error) {
+    reportError(error) {
         console.error("[public.interactions] interaction failed:", error);
     }
 
@@ -121,10 +137,6 @@ class InteractionService {
                 warnIfNoStaticProps: this.env.debug,
                 translatableAttributes: ["data-tooltip"],
             };
-            // App is typed for ComponentConstructor as first arg, but each
-            // interaction mounts its own root via createRoot() afterwards —
-            // the null root here is intentional; the cast keeps the call
-            // type-clean.
             this.owlApp = new App(null, /** @type {any} */ (appConfig));
         }
         const root = /** @type {any} */ (this.owlApp).createRoot(C, {
@@ -136,15 +148,18 @@ class InteractionService {
         rootEl.dataset.oeProtected = "true";
         rootEl.style.display = "contents";
         el.insertAdjacentElement(position, rootEl);
+        let isDestroyed = false;
         return {
             C,
             root,
             el: rootEl,
-            // The MATCHED host element — activeInteractions is keyed on it
-            // (not on the created <owl-root>), so cleanup must use it too.
             hostEl: el,
             mount: () => root.mount(rootEl),
             destroy: () => {
+                if (isDestroyed) {
+                    return;
+                }
+                isDestroyed = true;
                 root.destroy();
                 rootEl.remove();
             },
@@ -159,7 +174,16 @@ class InteractionService {
     async _mountComponent(el, C) {
         const root = this.prepareRoot(el, C);
         this.roots.push(root);
-        return root.mount();
+        try {
+            return await root.mount();
+        } catch (error) {
+            // a half-mounted root and its <owl-root> host must not survive:
+            // they would linger in the DOM and be destroyed a second time by
+            // the next stopInteractions()
+            this.roots = this.roots.filter((r) => r !== root);
+            root.destroy();
+            throw error;
+        }
     }
 
     /**
@@ -174,11 +198,6 @@ class InteractionService {
         }
         const proms = /** @type {Array<Promise<void>>} */ ([]);
         for (const I of this.Interactions) {
-            // A single misdeclared interaction must not abort the whole scan.
-            // These two used to throw synchronously, killing every interaction
-            // AFTER the offending one page-wide; the invalid-selector branch
-            // below already isolates its failure with Promise.reject + continue,
-            // so mirror that here.
             if (I.selector === "") {
                 proms.push(
                     Promise.reject(
@@ -232,12 +251,20 @@ class InteractionService {
                 this._startInteraction(_el, I, proms);
             }
         }
-        if (el === this.el) {
-            this.isActive = true;
-        }
-        const prom = /** @type {Promise<void>} */ (
-            /** @type {unknown} */ (Promise.all(proms))
-        );
+        // allSettled and not all: `all` settles on the first rejection and
+        // discards every other one, so a scan in which several interactions
+        // crashed only ever reported one of them
+        const prom = Promise.allSettled(proms).then((results) => {
+            const errors = results
+                .filter((result) => result.status === "rejected")
+                .map((result) => result.reason);
+            if (errors.length === 1) {
+                throw errors[0];
+            }
+            if (errors.length) {
+                throw new AggregateError(errors, "Could not start some interactions");
+            }
+        });
         this._trackProm(prom);
         return prom;
     }
@@ -257,13 +284,6 @@ class InteractionService {
             try {
                 const interaction = new Colibri(this, I, el);
                 this.interactions.push(interaction);
-                // The try/catch only guards SYNCHRONOUS setup failures (setup()
-                // runs in the Colibri constructor). Colibri.start() is async
-                // (it awaits willStart()), so an async willStart()/start()
-                // rejection surfaces here instead. Mirror the Component branch:
-                // drop the half-initialized Colibri and forget the (el, I) pair
-                // so a later startInteractions() may retry it and `el` is not
-                // retained forever.
                 proms.push(
                     interaction.start().catch((e) => {
                         this.interactions = this.interactions.filter(
@@ -274,10 +294,11 @@ class InteractionService {
                     }),
                 );
             } catch (e) {
-                // Forget the (el, I) pair: a later startInteractions() may
-                // retry it, and keeping it would retain `el` forever.
                 this.activeInteractions.delete(el, I);
-                this._trackProm(Promise.reject(e));
+                // reported through the scan like any other start failure: sent
+                // to `_trackProm` directly, it stayed invisible to whoever
+                // awaited that very scan's promise
+                proms.push(Promise.reject(e));
             }
         } else {
             proms.push(
@@ -287,11 +308,6 @@ class InteractionService {
                         /** @type {unknown} */ (I)
                     ),
                 ).catch((e) => {
-                    // Mirror the Interaction branch: forget the (el, I) pair
-                    // when preparing/mounting fails (prepareRoot and
-                    // root.mount() both reject through here), so a later
-                    // startInteractions() may retry it and `el` is not
-                    // retained forever.
                     this.activeInteractions.delete(el, I);
                     throw e;
                 }),
@@ -312,7 +328,6 @@ class InteractionService {
             return true;
         }
         return (
-            el === interaction.el ||
             el.contains(interaction.el) ||
             (selectorHas && !interaction.el.querySelector(selectorHas)) ||
             (selectorNotHas && !!interaction.el.querySelector(selectorNotHas))
@@ -327,8 +342,6 @@ class InteractionService {
      */
     stopInteractions(el = this.el) {
         const errors = [];
-        // Destroy in reverse start order, but keep survivors in their
-        // original order.
         const stoppedInteractions = new Set();
         for (const interaction of this.interactions.toReversed()) {
             if (this.shouldStop(el, interaction)) {
@@ -349,21 +362,13 @@ class InteractionService {
         );
         const stoppedRoots = new Set();
         for (const root of this.roots.toReversed()) {
-            if (el === root.el || el.contains(root.el)) {
+            if (el.contains(root.el)) {
                 stoppedRoots.add(root);
                 root.destroy();
-                // The pair was registered with the matched HOST element in
-                // _startInteraction — deleting with the created <owl-root>
-                // was a silent no-op, permanently blocking a restart of the
-                // component interaction on the same element (and retaining
-                // the host element in the PairSet).
                 this.activeInteractions.delete(root.hostEl ?? root.el, root.C);
             }
         }
         this.roots = this.roots.filter((root) => !stoppedRoots.has(root));
-        if (el === this.el) {
-            this.isActive = false;
-        }
         if (errors.length) {
             throw new AggregateError(
                 errors.map(
@@ -378,21 +383,42 @@ class InteractionService {
     }
 
     /**
-     * @returns { Promise } resolves once all current interactions are
-     * started; does not track future ones.
+     * @returns { Promise } settles once all current interactions have started;
+     * does not track future ones. Rejects if any of them failed, and forgets
+     * those failures afterwards so a later read reflects the scans it awaited
+     * rather than every crash the page ever had.
      */
     get isReady() {
         const proms = this.proms.slice();
-        return Promise.all(proms);
+        return Promise.allSettled(proms).then((results) => {
+            // a scan is tracked both on its own and through the promise
+            // `activate` derives from it, so one failure surfaces on two
+            // promises; identity keeps it a single error
+            const errors = new Set();
+            for (const [index, result] of results.entries()) {
+                if (result.status === "rejected") {
+                    errors.add(result.reason);
+                    this._forgetProm(proms[index]);
+                }
+            }
+            if (errors.size === 1) {
+                throw [...errors][0];
+            }
+            if (errors.size) {
+                throw new AggregateError(
+                    [...errors],
+                    "Could not start some interactions",
+                );
+            }
+        });
     }
 }
 
 export const publicInteractionService = {
     dependencies: ["localization"],
     async start(env) {
-        // fallback if #wrapwrap is not present in the dom
         const el = /** @type {HTMLElement} */ (
-            document.querySelector("#wrapwrap") || document.querySelector("body")
+            document.getElementById("wrapwrap") || document.body
         );
         const Interactions = /** @type {(typeof Interaction)[]} */ (
             registry.category("public.interactions").getAll()

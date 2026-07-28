@@ -9,7 +9,6 @@
         );
         padding: map-get($spacers, 2) $table-cell-padding-y;
 
-        // In pdf it overlaps with existing margin, set to 0 to replicate in HTML
         div:first-child {
             padding-left: 0;
         }

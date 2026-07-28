@@ -21,11 +21,6 @@
 
 const ENDPOINT = "/web/observability/js_error";
 
-// Throttle: one beacon per ``(message, line, col)`` per page lifetime,
-// shared across every ESM caller of ``reportJsError``.  Mirrors the
-// server's documented dedup expectation and the shim's own ``seenErrors``
-// set.  The accompanying always-on signal (e.g. ``console.warn``) is the
-// caller's responsibility — the beacon is the best-effort upgrade.
 const seen = new Set();
 
 const MAX_MESSAGE = 4096;
@@ -51,7 +46,6 @@ const MAX_STACK = 4096;
 export function reportJsError(info) {
     const message = String(info?.message ?? "");
     if (!message) {
-        // Empty-message beacons carry no signal (the server drops them too).
         return false;
     }
     const line = info.line | 0;
@@ -79,8 +73,6 @@ export function reportJsError(info) {
         const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
         return Boolean(globalThis.navigator?.sendBeacon?.(ENDPOINT, blob));
     } catch {
-        // ``sendBeacon`` absent (sandboxed iframe / headless) or payload over
-        // the UA quota — telemetry must never raise a secondary error.
         return false;
     }
 }

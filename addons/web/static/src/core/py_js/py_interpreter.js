@@ -25,10 +25,6 @@ import {
 } from "./py_date.js";
 import { PY_DICT, toPyDict } from "./py_utils.js";
 
-// -----------------------------------------------------------------------------
-// Types
-// -----------------------------------------------------------------------------
-
 /**
  * AST node walked by the interpreter — a discriminated union keyed on the
  * literal ``type`` tag (see {@link ASTType}); ``switch (ast.type)`` narrows each
@@ -36,12 +32,6 @@ import { PY_DICT, toPyDict } from "./py_utils.js";
  * @typedef {import("./ast_type.js").AST} AST
  */
 
-// -----------------------------------------------------------------------------
-// Constants and helpers
-// -----------------------------------------------------------------------------
-
-// Lazy-initialized on first call to evaluate() — avoids TDZ when
-// py_builtin.js hasn't finished executing yet (native ESM circular import).
 /** @type {(value?: any) => boolean} */
 let isTrue;
 
@@ -56,11 +46,6 @@ const BLOCKED_PROPERTIES = new Set([
     "__lookupSetter__",
 ]);
 
-// Maximum AST evaluation depth to prevent stack overflow from crafted
-// expressions. Kept in lock-step with MAX_PARSE_DEPTH (py_parser.js): the
-// evaluator walks the AST recursively, so anything the parser's own recursion
-// guard accepts (≤ MAX_PARSE_DEPTH nested nodes) must also be evaluable — a
-// lower cap here would reject genuinely nested input the parser produced.
 const MAX_EVAL_DEPTH = 200;
 
 /**
@@ -88,9 +73,6 @@ const DICT = {
     },
 };
 
-// Read-only string methods mirroring the safe-eval-legal subset of Python's
-// str API. Every method receives the interpreter's trailing kwargs object as
-// its last argument (see the FunctionCall case), hence the bindArgs calls.
 const STRING = {
     /** @this {string} */
     lower() {
@@ -184,9 +166,6 @@ const STRING = {
         if (count === undefined || count === null || count < 0) {
             return this.replaceAll(oldStr, newStr);
         }
-        // CPython requires an int count; a float raises TypeError. Guard before
-        // the loop so ``'aaa'.replace('a','b',2.5)`` can't over-replace (the
-        // ``k < 2.5`` loop ran 3 times).
         if (!Number.isInteger(count) && typeof count !== "boolean") {
             throw new EvaluationError(
                 `replace() count must be an integer, not '${pyTypeName(count)}'`,
@@ -202,8 +181,6 @@ const STRING = {
             out += rest.slice(0, idx) + newStr;
             rest = rest.slice(idx + oldStr.length);
             if (oldStr === "") {
-                // Empty pattern matches between every char; advance one char
-                // per replacement, as Python does.
                 if (!rest) {
                     break;
                 }
@@ -225,7 +202,6 @@ const STRING = {
                 : Math.trunc(maxsplit);
         const str = String(this);
         if (sep === undefined || sep === null) {
-            // Python split(): split on whitespace runs, dropping empty parts.
             const result = [];
             let rest = str.replace(/^\s+/, "");
             while (rest && result.length < max) {
@@ -251,7 +227,6 @@ const STRING = {
         if (parts.length - 1 <= max) {
             return parts;
         }
-        // Python keeps the un-split remainder; JS's split limit drops it.
         return [...parts.slice(0, max), parts.slice(max).join(sep)];
     },
     /**
@@ -284,7 +259,7 @@ const STRING = {
         const kwargs = args.at(-1) ?? {};
         const positional = args.slice(0, -1);
         let auto = 0;
-        let mode = null; // "auto" ({}) | "manual" ({0}) — CPython forbids mixing
+        let mode = null;
         return this.replace(/\{\{|\}\}|\{([^{}]*)\}/g, (m, field) => {
             if (m === "{{") {
                 return "{";
@@ -299,9 +274,6 @@ const STRING = {
             }
             if (field === "" || /^\d+$/.test(field)) {
                 const isAuto = field === "";
-                // CPython raises ValueError on ``'{}{0}'.format(...)``: auto and
-                // manual positional numbering cannot be mixed. Named fields
-                // ({name}) are independent and don't set the mode.
                 if (mode === null) {
                     mode = isAuto ? "auto" : "manual";
                 } else if ((mode === "auto") !== isAuto) {
@@ -335,7 +307,6 @@ const STRING = {
  * @returns {any}
  */
 function applyFunc(key, func, set, ...args) {
-    // we always receive at least one argument: kwargs (return fnValue(...args, kwargs); in FunctionCall case)
     if (args.length === 1) {
         return new Set(set);
     }
@@ -413,8 +384,6 @@ function _applyUnaryOp(ast, recurse) {
     const value = recurse(ast.right);
     switch (ast.op) {
         case "-":
-            // typeof guard: a plain data dict may carry a `negate` KEY (a
-            // data value, not a method) — same precedent as `isEqual` above.
             if (value instanceof Object && typeof value.negate === "function") {
                 return value.negate();
             }
@@ -425,7 +394,6 @@ function _applyUnaryOp(ast, recurse) {
             }
             return -value;
         case "+":
-            // Python defines __pos__ for numbers, bools and timedelta only.
             if (
                 typeof value !== "number" &&
                 typeof value !== "boolean" &&
@@ -439,10 +407,6 @@ function _applyUnaryOp(ast, recurse) {
         case "not":
             return !isTrue(value);
         case "~": {
-            // Python's ``~`` is integer-only (floats have no ``__invert__``)
-            // and arbitrary-precision. Reject floats, and do the maths in
-            // BigInt so ``~5000000000`` stays exact instead of being wrapped to
-            // 32 bits by JS ``~`` — matching the binary bitwise ops below.
             const isInt =
                 typeof value === "boolean" ||
                 (typeof value === "number" && Number.isInteger(value));
@@ -539,11 +503,28 @@ function pyFloorDiv(a, b) {
         div -= 1;
     }
     const floordiv = Math.floor(div);
-    // ``div`` can land just under an integer boundary from representation
-    // error; CPython nudges it up when it is within half a unit.
     const result = div - floordiv > 0.5 ? floordiv + 1 : floordiv;
-    // Normalize -0 (Math.floor of a small negative) to 0.
     return result === 0 ? 0 : result;
+}
+
+/**
+ * Python modulo (``a % b``). Mirrors CPython's ``float_divmod``, like
+ * {@link pyFloorDiv}: take the ``fmod`` remainder (JS ``%`` already is fmod) and
+ * correct its sign only when it disagrees with the divisor.
+ *
+ * The shorter ``((a % b) + b) % b`` gets the sign right but not the value: for
+ * operands that already agree in sign it adds ``b`` and takes it back out, and
+ * that round trip is not exact in binary floating point — ``0.1 % 1`` came out
+ * as ``0.10000000000000009`` where CPython gives ``0.1``. Exact for integers
+ * either way; this form is exact for floats too.
+ *
+ * @param {number} a
+ * @param {number} b nonzero
+ * @returns {number}
+ */
+function pyMod(a, b) {
+    const mod = a % b;
+    return mod !== 0 && mod < 0 !== b < 0 ? mod + b : mod;
 }
 
 /**
@@ -666,14 +647,6 @@ export function isPyTuple(value) {
  */
 function pyStringFormat(fmt, value) {
     const values = isPyTuple(value) ? value.slice() : [value];
-    // A mapping right operand is exempt from the "all arguments consumed"
-    // rule below: CPython lets ``'abc' % {'a': 1}`` through untouched, since a
-    // mapping is addressed by key, not position.
-    //
-    // "Mapping" means a dict literal specifically — a plain (or null-proto,
-    // see the Dictionary case in ``evaluate``) object. A Set or a typed Py*
-    // value (PyDate, PyTimeDelta, …) is a single positional argument, and
-    // CPython does raise for ``'abc' % datetime.date(...)``.
     const proto =
         value !== null && typeof value === "object" && !Array.isArray(value)
             ? Object.getPrototypeOf(value)
@@ -681,11 +654,6 @@ function pyStringFormat(fmt, value) {
     const isMapping = proto === Object.prototype || proto === null;
     let i = 0;
     const formatted = fmt.replace(
-        // The conversion char is captured broadly (any ASCII letter, plus the
-        // ``%`` literal) so unsupported conversions (``%c``, ``%a``, …) still
-        // MATCH — and thus consume their argument and reach the ``default``
-        // arm below, which raises like CPython — instead of being left verbatim
-        // in the output while silently desyncing subsequent positional args.
         /%(?:\((\w+)\))?([-+ #0]*)(\d+)?(?:\.(\d+))?([a-zA-Z%])/g,
         (m, mapKey, flags, width, prec, conv) => {
             if (conv === "%") {
@@ -711,9 +679,6 @@ function pyStringFormat(fmt, value) {
                 arg = values[i++];
             }
             if (conv !== "s" && conv !== "r" && !"diufeEgGxXo".includes(conv)) {
-                // Any letter that reached here is a conversion CPython supports
-                // but py_js does not (``%c``, ``%a``, …). Raise like CPython
-                // rather than emit garbage / a stray literal.
                 throw new EvaluationError(
                     `unsupported format character '${conv}' (0x${conv
                         .charCodeAt(0)
@@ -724,8 +689,6 @@ function pyStringFormat(fmt, value) {
             const w = width ? Number(width) : 0;
             const leftAlign = flags.includes("-");
 
-            // String conversions: precision truncates the result, width pads;
-            // the sign/#/0 flags do not apply. ('%.3s' % 'hello' → "hel").
             if (conv === "s" || conv === "r") {
                 let str = conv === "s" ? pyStr(arg) : pyRepr(arg);
                 if (precision != null) {
@@ -737,22 +700,12 @@ function pyStringFormat(fmt, value) {
                 return str;
             }
 
-            // Numeric conversions. A POSITIVE type check is required: the
-            // previous ``Number.isNaN(Number(arg))`` guard let ``null``,
-            // ``[]``, ``""`` and ``false`` through (they all coerce to 0), so
-            // ``'%d' % None`` and an unset field (``false``) silently rendered
-            // "0" instead of raising. Booleans are accepted because Python
-            // bools ARE ints (``'%d' % True`` → "1").
             if (typeof arg !== "number" && typeof arg !== "boolean") {
                 throw new EvaluationError(
                     `%${conv} format: a number is required, not '${pyTypeName(arg)}'`,
                 );
             }
             const num = Number(arg);
-            // Split the rendered number into sign / radix-prefix / digit body
-            // so precision (min digits), the # prefix, the sign flags and
-            // zero-padding compose in CPython's order: sign, prefix, zeros,
-            // digits.
             const sign =
                 num < 0
                     ? "-"
@@ -766,20 +719,27 @@ function pyStringFormat(fmt, value) {
             let zeroPad = flags.includes("0");
             const isIntConv = "diuxXo".includes(conv);
             if (isIntConv) {
+                // d/i/u truncate a float, but the radix conversions are
+                // integer-only in CPython: `'%x' % 3.14` is a TypeError, not
+                // "3". Booleans are ints, as everywhere else.
+                if (
+                    "xXo".includes(conv) &&
+                    typeof arg !== "boolean" &&
+                    !Number.isInteger(num)
+                ) {
+                    throw new EvaluationError(
+                        `%${conv} format: an integer is required, not ${pyTypeName(arg)}`,
+                    );
+                }
                 const base = conv === "o" ? 8 : conv === "x" || conv === "X" ? 16 : 10;
                 body = Math.trunc(Math.abs(num)).toString(base);
                 if (conv === "X") {
                     body = body.toUpperCase();
                 }
                 if (precision != null) {
-                    // Precision = MINIMUM digit count, zero-padded independently
-                    // of the field width. '%.3d' % 5 → "005". CPython ignores
-                    // the field-width 0 flag when a precision is given.
                     body = body.padStart(precision, "0");
                     zeroPad = false;
                 }
-                // Alternate form (#): 0x/0o/0X radix prefix, kept even for zero
-                // ('%#x' % 0 → "0x0"). No prefix for decimal.
                 if (flags.includes("#")) {
                     prefix =
                         conv === "o"
@@ -813,8 +773,6 @@ function pyStringFormat(fmt, value) {
                 if (leftAlign) {
                     str = str.padEnd(w);
                 } else if (zeroPad) {
-                    // Zero-pad AFTER sign+prefix: '%05d' % -3 → "-0003",
-                    // '%#06x' % 255 → "0x00ff".
                     const head = sign + prefix;
                     str = head + body.padStart(w - head.length, "0");
                 } else {
@@ -825,10 +783,6 @@ function pyStringFormat(fmt, value) {
         },
     );
     if (!isMapping && i < values.length) {
-        // CPython raises when the operand supplies more values than the format
-        // string consumes (``'%s' % (1, 2)``, ``'abc' % 5``). Without this the
-        // extra arguments were silently dropped — the mirror image of the
-        // "not enough arguments" error already raised above.
         throw new EvaluationError(
             "not all arguments converted during string formatting",
         );
@@ -877,8 +831,6 @@ function _applyBinaryOp(ast, recurse) {
             if (Array.isArray(left) && Array.isArray(right)) {
                 return [...left, ...right];
             }
-            // str + str and numeric + numeric only. Python raises TypeError on
-            // ``'a' + 1``; JS would silently coerce to "a1", so reject it.
             if (typeof left === "string" && typeof right === "string") {
                 return left + right;
             }
@@ -886,7 +838,6 @@ function _applyBinaryOp(ast, recurse) {
             const rightNumeric =
                 typeof right === "number" || typeof right === "boolean";
             if (leftNumeric && rightNumeric) {
-                // Booleans intentionally coerce (Python: True + 1 == 2).
                 return /** @type {number} */ (left) + /** @type {number} */ (right);
             }
             throw new EvaluationError(
@@ -913,6 +864,9 @@ function _applyBinaryOp(ast, recurse) {
             if (left instanceof PyDate || left instanceof PyDateTime) {
                 return left.subtract(right);
             }
+            if (left instanceof Set && right instanceof Set) {
+                return left.difference(right);
+            }
             assertNumericOperands("-", left, right);
             return left - right;
         }
@@ -921,32 +875,21 @@ function _applyBinaryOp(ast, recurse) {
             const timeDeltaOnRight = right instanceof PyTimeDelta;
             if (timeDeltaOnLeft || timeDeltaOnRight) {
                 if (timeDeltaOnLeft && timeDeltaOnRight) {
-                    // Python: timedelta * timedelta is a TypeError (only
-                    // timedelta * number is defined). Reject instead of feeding
-                    // a timedelta into multiply() as the scalar factor.
                     throw new EvaluationError(
                         "unsupported operand type(s) for *: 'timedelta' and 'timedelta'",
                     );
                 }
                 const number = timeDeltaOnLeft ? right : left;
                 const delta = timeDeltaOnLeft ? left : right;
-                // A non-numeric factor (e.g. td * "x") must raise, not coerce
-                // to NaN inside multiply().
                 assertNumericOperand("*", number);
                 return delta.multiply(number);
             }
 
-            // Python sequence repetition: str * int and list * int (either
-            // order). ``'ab' * 2`` → "abab", ``[1] * 3`` → [1, 1, 1].
             const leftSeq = typeof left === "string" || Array.isArray(left);
             const rightSeq = typeof right === "string" || Array.isArray(right);
             if (leftSeq !== rightSeq) {
                 const seq = leftSeq ? left : right;
                 const count = leftSeq ? right : left;
-                // CPython allows only int (and bool) repetition counts; a float
-                // raises TypeError rather than silently truncating
-                // (``'x' * 2.5`` must not become ``'xx'``). This mirrors the
-                // strict type-checking every other branch of ``*`` already does.
                 if (!Number.isInteger(count) && typeof count !== "boolean") {
                     throw new EvaluationError(
                         `can't multiply sequence by non-int of type '${pyTypeName(count)}'`,
@@ -969,7 +912,6 @@ function _applyBinaryOp(ast, recurse) {
         case "/":
             if (left instanceof PyTimeDelta) {
                 if (right instanceof PyTimeDelta) {
-                    // Python: td / td → float ratio.
                     const divisor = right.toMicroseconds();
                     if (divisor === 0) {
                         throw new EvaluationError(
@@ -982,39 +924,34 @@ function _applyBinaryOp(ast, recurse) {
                 if (Number(right) === 0) {
                     throw new EvaluationError("ZeroDivisionError: division by zero");
                 }
-                // Python: td / n → timedelta (rounded to the microsecond).
                 return left.divideTrue(Number(right));
             }
             assertNumericOperands("/", left, right);
-            // Number(): Python bools are ints, so `1 / False` divides by zero.
             if (Number(right) === 0) {
                 throw new EvaluationError("ZeroDivisionError: division by zero");
             }
             return left / right;
         case "%": {
             if (typeof left === "string") {
-                // printf-style string formatting: ``'%s' % 5`` → "5".
                 return pyStringFormat(left, right);
             }
             if (left instanceof PyTimeDelta && right instanceof PyTimeDelta) {
-                // Python: td % td → timedelta (sign follows the divisor).
                 const rus = right.toMicroseconds();
                 if (rus === 0) {
                     throw new EvaluationError("ZeroDivisionError: modulo by zero");
                 }
                 const lus = left.toMicroseconds();
-                return PyTimeDelta.create({ microseconds: ((lus % rus) + rus) % rus });
+                return PyTimeDelta.create({ microseconds: pyMod(lus, rus) });
             }
             assertNumericOperands("%", left, right);
             if (Number(right) === 0) {
                 throw new EvaluationError("ZeroDivisionError: modulo by zero");
             }
-            return ((left % right) + right) % right;
+            return pyMod(Number(left), Number(right));
         }
         case "//":
             if (left instanceof PyTimeDelta) {
                 if (right instanceof PyTimeDelta) {
-                    // Python: td // td → int.
                     const divisor = right.toMicroseconds();
                     if (divisor === 0) {
                         throw new EvaluationError(
@@ -1038,33 +975,15 @@ function _applyBinaryOp(ast, recurse) {
                 );
             }
             return pyFloorDiv(Number(left), Number(right));
-        // KNOWN LIMITATION (Python 3 divergence): integer arithmetic (``+``,
-        // ``-``, ``*``, ``**``) is done with JS doubles, which are exact only up
-        // to 2**53. Python 3 ints are arbitrary precision, so large results lose
-        // accuracy silently — ``2 ** 60`` → 1152921504606847000 (Python:
-        // ...6976), ``999999999999 * 999999999999`` → a float. Note the
-        // inconsistency with the bitwise ops below (``|``/``&``/``<<``/…), which
-        // already do the maths in BigInt and RAISE on overflow. A proper fix
-        // carries integer operands as BigInt through arithmetic too — deferred
-        // because the result type would change (Number → BigInt) and every
-        // downstream consumer (JSON, comparisons, field values) expects Number;
-        // that is a focused, cross-cutting change. Rarely hit in domains/context.
         case "**": {
             assertNumericOperands("**", left, right);
             if (Number(left) === 0 && Number(right) < 0) {
-                // Python: 0 ** negative → ZeroDivisionError (JS yields
-                // Infinity), matching the guards on / // %.
                 throw new EvaluationError(
                     "ZeroDivisionError: 0.0 cannot be raised to a negative power",
                 );
             }
             const power = left ** right;
             if (!Number.isNaN(left) && !Number.isNaN(right) && Number.isNaN(power)) {
-                // Negative base with a non-integer exponent → a complex number
-                // in Python, which this evaluator does not model; JS yields NaN.
-                // Raise instead of letting NaN flow silently through the rest of
-                // the expression (the guard only fires when the NaN is produced
-                // by ** itself, not when an operand was already NaN).
                 throw new EvaluationError(
                     "negative number cannot be raised to a fractional power",
                 );
@@ -1088,14 +1007,6 @@ function _applyBinaryOp(ast, recurse) {
             return isIn(left, right);
         case "not in":
             return !isIn(left, right);
-        // KNOWN LIMITATION (Python 3 divergence): ``is``/``is not`` are
-        // implemented as JS ``===``/``!==``. Python's ``is`` tests object
-        // identity with small-int interning, so ``1 is 1.0`` is False (int vs
-        // float) and ``1000 is 1000`` is not guaranteed True — here both return
-        // true. The common real-world uses (``x is None``, ``x is False``,
-        // ``x is True``) are correct; only numeric identity is wrong, and that
-        // essentially never appears in domains/modifiers. Not fixed because JS
-        // cannot replicate CPython interning and there is no practical payoff.
         case "is":
             return left === null ? right === null : left === right;
         case "is not":
@@ -1105,12 +1016,25 @@ function _applyBinaryOp(ast, recurse) {
         case "&":
         case "<<":
         case ">>": {
+            // Sets carry their own algebra in Python — and so does the
+            // server's ``safe_eval``, which evaluates ``set(a) | set(b)``
+            // fine. Only the client rejected it, because these operators fell
+            // straight through to the integer-only path.
+            if (left instanceof Set && right instanceof Set) {
+                switch (ast.op) {
+                    case "|":
+                        return left.union(right);
+                    case "&":
+                        return left.intersection(right);
+                    case "^":
+                        return left.symmetricDifference(right);
+                    default:
+                        throw new EvaluationError(
+                            `unsupported operand type(s) for ${ast.op}: 'set' and 'set'`,
+                        );
+                }
+            }
             assertIntegerOperands(ast.op, left, right);
-            // JS ``|`` ``^`` ``&`` ``<<`` ``>>`` coerce operands to 32-bit
-            // signed ints, so ``1 << 40`` wrapped to 256 and ``4294967296 | 1``
-            // truncated to 1 — silently wrong versus Python's arbitrary-precision
-            // ints. Do the maths in BigInt, then narrow back, raising if the
-            // exact result no longer fits a JS safe integer.
             const l = BigInt(left);
             const r = BigInt(right);
             if ((ast.op === "<<" || ast.op === ">>") && r < 0n) {
@@ -1147,10 +1071,6 @@ function _applyBinaryOp(ast, recurse) {
     throw new EvaluationError(`Unknown binary operator: ${ast.op}`);
 }
 
-// -----------------------------------------------------------------------------
-// Evaluate function
-// -----------------------------------------------------------------------------
-
 /**
  * @param {Function} _class the class whose methods we want
  * @returns {Function[]} an array containing the methods defined on the class,
@@ -1162,8 +1082,6 @@ function methods(_class) {
     );
 }
 
-// Lazy-initialized on first call to evaluate() — avoids TDZ when
-// py_builtin.js hasn't finished executing yet (native ESM circular import).
 /** @type {Set<any>} */
 let allowedFns;
 
@@ -1175,7 +1093,6 @@ const unboundFn = Symbol("unbound function");
  * @returns {any}
  */
 export function evaluate(ast, context = {}) {
-    // Lazy-init on first call (after all modules have settled)
     if (!isTrue) {
         isTrue = BUILTINS.bool;
         allowedFns = new Set([
@@ -1205,20 +1122,6 @@ export function evaluate(ast, context = {}) {
     /** @type {any} */
     let pyContext;
     let evalDepth = 0;
-    // Name resolution reads directly from ``context`` rather than a null-proto
-    // *copy* of it — the previous ``Object.assign(Object.create(null), context)``
-    // per ``evaluate`` call was O(fields), and a record's eval context carries
-    // every field (see ``RelationalRecord._setEvalContext``), so a single
-    // modifier like ``state == 'draft'`` paid to copy ~50 unrelated fields per
-    // render. Reading ``context`` directly is O(1) with no per-call allocation.
-    //
-    // Two invariants of the old copy are preserved explicitly in the Name case:
-    //   • null-proto semantics — ``Object.hasOwn`` so a name like
-    //     ``toString``/``constructor`` never resolves via ``Object.prototype``;
-    //     it falls through to a builtin or raises, as before.
-    //   • the lazy ``context`` self-reference — referencing ``context`` yields
-    //     ``toPyDict(context)`` unless the caller supplied its own ``context``
-    //     key, in which case the caller's value wins.
     const callerProvidesContext = Object.hasOwn(context, "context");
 
     /**
@@ -1269,18 +1172,11 @@ export function evaluate(ast, context = {}) {
                 case ASTType.List:
                     return ast.value.map(_evaluate);
                 case ASTType.Tuple:
-                    // Same runtime representation as a list (a plain array),
-                    // plus a non-enumerable marker so ``%`` formatting can
-                    // apply Python's tuple-vs-list rule. See ``PY_TUPLE``.
                     return markPyTuple(ast.value.map(_evaluate));
                 case ASTType.Dictionary: {
                     /** @type {Record<string, any>} */
                     const dict = {};
                     for (const key of Object.keys(ast.value || {})) {
-                        // defineProperty: keeps a literal '__proto__' key as a
-                        // plain OWN entry (matching the parser side) while the
-                        // dict stays a regular Object for downstream consumers
-                        // (OWL props validation, deepCopy, ...).
                         Object.defineProperty(dict, key, {
                             value: _evaluate(ast.value[key]),
                             writable: true,
@@ -1321,18 +1217,8 @@ export function evaluate(ast, context = {}) {
                         key < 0 &&
                         (typeof dict === "string" || Array.isArray(dict))
                     ) {
-                        // Python negative indexing (``lst[-1]`` → last element). JS
-                        // bracket access returns undefined for negative indices, so
-                        // use ``.at`` which counts from the end.
                         return dict.at(key);
                     }
-                    // KNOWN LIMITATION (Python 3 divergence): a Python dict is a
-                    // plain JS object, so numeric and string keys collide —
-                    // ``{1: 'a'}[1]`` and ``{'1': 'a'}[1]`` both return 'a'
-                    // (Python distinguishes int 1 from str '1'). Same root cause
-                    // as the dict-membership note in py_compare.js:isIn; a proper
-                    // fix backs dicts with a real ``Map``. Rare in practice
-                    // (domains/context dicts are string-keyed).
                     return dict[key];
                 }
                 case ASTType.If: {
@@ -1346,7 +1232,6 @@ export function evaluate(ast, context = {}) {
                     let left = _evaluate(ast.obj);
                     let result;
                     if (dicts.has(left) || Object.isPrototypeOf.call(PY_DICT, left)) {
-                        // this is a dictionary => need to apply dict methods
                         result = /** @type {Record<string, any>} */ (DICT)[ast.key];
                     } else if (typeof left === "string") {
                         result = /** @type {Record<string, any>} */ (STRING)[ast.key];
@@ -1358,8 +1243,6 @@ export function evaluate(ast, context = {}) {
                         left !== null &&
                         !Array.isArray(left)
                     ) {
-                        // dict-style .get on generic objects; lists have no
-                        // .get in Python, so let them fall through and fail.
                         result = /** @type {Record<string, any>} */ (DICT)[ast.key];
                         left = toPyDict(left);
                     } else {

@@ -1,16 +1,10 @@
-// = Icons
-// ============================================================================
 
-// Sizes
-// ----------------------------------------------------------------------------
-
-$oi-default-size: 1em; // Normally 13px
-$oi-fw-ratio: 1.28571429; // Matches .
+$oi-default-size: 1em;
+$oi-fw-ratio: 1.28571429;
 
 $oi-sizes: (
     "small": (
         "font-size": 0.769em,
-        // ~ 10px
         "vertical-align": 10%,
     ),
     "normal": (
@@ -18,18 +12,14 @@ $oi-sizes: (
     ),
     "large": (
         "font-size": 1.315em,
-        // ~ 17px
         "vertical-align": -6%,
     ),
     "larger": (
         "font-size": 1.462em,
-        // ~ 19px
         "vertical-align": -10%,
     ),
 );
 
-// Force font-weight to normal
-// ----------------------------------------------------------------------------
 .oi,
 .fa,
 .fa-solid,
@@ -38,10 +28,6 @@ $oi-sizes: (
     font-weight: $font-weight-normal;
 }
 
-// Define base-classes' properties using CSS variables.
-// Allows to dinamically update rules according to the context and eventual
-// utility classes.
-// ----------------------------------------------------------------------------
 .oi,
 .fa,
 .fa-solid,
@@ -59,12 +45,6 @@ $oi-sizes: (
     text-align: center;
 }
 
-// Icon-only buttons carry the icon family class on the button itself, so the
-// glyph is the button's ::before rather than a child element. FontAwesome 7
-// glyphs have asymmetric side-bearings, so the default text flow leaves them
-// off-centre inside the button box (visible against the active-state
-// background). Center the glyph explicitly. Scoped to the family class on the
-// button to avoid touching buttons that wrap an <i> icon child.
 .btn.oi,
 .btn.fa,
 .btn.fa-solid,
@@ -75,8 +55,6 @@ $oi-sizes: (
     justify-content: center;
 }
 
-// Print CSS variables for each size/breakpoint
-// ----------------------------------------------------------------------------
 @each $breakpoint in map-keys($grid-breakpoints) {
     @include media-breakpoint-up($breakpoint) {
         $-infix: breakpoint-infix($breakpoint, $grid-breakpoints);
@@ -91,8 +69,6 @@ $oi-sizes: (
     }
 }
 
-// Rely on animations already defined by FontAwesome
-// ----------------------------------------------------------------------------
 .oi-spin {
     animation: fa-spin 2s infinite linear;
 }

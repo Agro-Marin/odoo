@@ -16,6 +16,15 @@
  * Grouped lists are unaffected — their add-line row is materialized by
  * `ListGridState` as a flat row (see V7 in list_virtualization.test.js) — which
  * is why this went unnoticed.
+ *
+ * Engaging the virtualized branch requires a bounded viewport. `useVirtualGrid`
+ * reads its span from `scrollableRef.el.clientHeight`, and an x2many's
+ * `.o_list_renderer` grows to fit its content (the form is the scroller), so
+ * that span equals the content and every row falls inside the window. The
+ * height cap below is what makes `.o_list_renderer` a real viewport, and hence
+ * what keeps this guard pointed at the virtualized branch rather than the
+ * `t-else`. See `list_virtualization_x2many.test.js` for the reachability
+ * consequences of the unbounded case.
  */
 
 import { expect, test } from "@odoo/hoot";
@@ -52,7 +61,7 @@ function seedLines(count) {
     Parent._records[0].line_ids = Line._records.map((r) => r.id);
 }
 
-const ARCH = /*xml*/ `
+const ARCH = `
     <form>
         <field name="line_ids">
             <list editable="bottom" limit="200"><field name="name"/></list>
@@ -64,17 +73,32 @@ test("x2many below the virtualization threshold shows 'Add a line' (control)", a
     seedLines(5);
     await mountView({ resModel: "parent", type: "form", resId: 1, arch: ARCH });
 
-    expect(".o_virtual_spacer").toHaveCount(0); // not virtualized
+    expect(".o_virtual_spacer").toHaveCount(0);
     expect(".o_field_x2many_list_row_add").toHaveCount(1);
 });
 
+/** Cap the x2many list to a real viewport so virtualization can engage. */
+function capListViewport(px) {
+    const style = document.createElement("style");
+    style.textContent = `.o_field_x2many .o_list_renderer {
+        height: ${px}px !important;
+        max-height: ${px}px !important;
+        overflow-y: auto !important;
+    }`;
+    document.head.appendChild(style);
+    return () => style.remove();
+}
+
 test.tags("desktop");
 test("x2many above the virtualization threshold still shows 'Add a line'", async () => {
-    seedLines(150);
-    await mountView({ resModel: "parent", type: "form", resId: 1, arch: ARCH });
+    const restore = capListViewport(300);
+    try {
+        seedLines(150);
+        await mountView({ resModel: "parent", type: "form", resId: 1, arch: ARCH });
 
-    // Virtualization is engaged...
-    expect(".o_virtual_spacer").toHaveCount(1);
-    // ...and the create control must survive it.
-    expect(".o_field_x2many_list_row_add").toHaveCount(1);
+        expect(".o_virtual_spacer").toHaveCount(1);
+        expect(".o_field_x2many_list_row_add").toHaveCount(1);
+    } finally {
+        restore();
+    }
 });

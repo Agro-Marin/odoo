@@ -9,7 +9,6 @@ import {
     onWillUnmount,
     onWillUpdateProps,
     useComponent,
-    useEffect,
     useExternalListener,
     useRef,
 } from "@odoo/owl";
@@ -60,21 +59,11 @@ function useResizable({
     });
 
     let docDirection;
-    useEffect(
-        (container) => {
-            if (container) {
-                docDirection = getComputedStyle(container).direction;
-            }
-        },
-        () => [containerRef.el],
-    );
 
     onMounted(() => {
         if (handleRef.el) {
-            resize(initialWidth);
+            resize(clampWidth(initialWidth));
             handleRef.el.addEventListener("pointerdown", onPointerDown);
-            // Without this the browser claims a touch drag for scrolling and
-            // fires pointercancel, killing the resize gesture on touch.
             handleRef.el.style.touchAction = "none";
         }
     });
@@ -88,8 +77,6 @@ function useResizable({
         if (handleRef.el) {
             handleRef.el.removeEventListener("pointerdown", onPointerDown);
         }
-        // Safety: end the drag if unmounted mid-drag — restores the body
-        // classes and drops the document-level drag listeners.
         if (isChangingSize) {
             onPointerUp();
         }
@@ -107,6 +94,13 @@ function useResizable({
      */
     function onPointerDown(ev) {
         isChangingSize = true;
+        // Read the direction per drag rather than caching it from a mount-time
+        // effect: that made correctness depend on hook registration order (the
+        // effect had to be registered before the onMounted that resizes), and
+        // it never picked up a direction flipped after mount.
+        if (containerRef.el) {
+            docDirection = getComputedStyle(containerRef.el).direction;
+        }
         document.body.classList.add("pe-none", "user-select-none");
         try {
             handleRef.el?.setPointerCapture(ev.pointerId);
@@ -148,39 +142,43 @@ function useResizable({
         resize(computeFinalWidth(newWidth));
     }
 
+    /** @returns {number} half the handle's width, the gap it needs to stay grabbable */
+    function getHandlerSpacing() {
+        return handleRef.el ? handleRef.el.offsetWidth / 2 : 10;
+    }
+
     /**
-     * Clamp target width between minimum width and available parent space,
-     * accounting for handle spacing.
+     * Clamp a width between the minimum width and the available parent space.
+     *
+     * @param {number} width - desired container width in pixels
+     * @returns {number} clamped width in pixels
+     */
+    function clampWidth(width) {
+        return Math.min(
+            Math.max(minWidth, width),
+            getLimitWidth() - getHandlerSpacing(),
+        );
+    }
+
+    /**
+     * Clamp a drag target, offsetting it by the handle spacing so the handle
+     * stays under the cursor.
      *
      * @param {number} targetContainerWidth - desired container width in pixels
      * @returns {number} clamped width in pixels
      */
     function computeFinalWidth(targetContainerWidth) {
-        const handlerSpacing = handleRef.el ? handleRef.el.offsetWidth / 2 : 10;
-        const w = Math.max(minWidth, targetContainerWidth + handlerSpacing);
-        const limit = getLimitWidth();
-        return Math.min(w, limit - handlerSpacing);
+        return clampWidth(targetContainerWidth + getHandlerSpacing());
     }
 
     /**
-     * Get the container's positional rect, using offset-based values when
-     * an offsetParent exists (more stable during drag), falling back to
-     * getBoundingClientRect otherwise.
+     * Get the container's positional rect in viewport coordinates -- the same
+     * space as `PointerEvent.clientX`, which `onPointerMove` subtracts it from.
      *
      * @returns {{ left: number, right: number, width: number }}
      */
     function getContainerRect() {
-        const container = containerRef.el;
-        const offsetParent = container.offsetParent;
-        let containerRect = {};
-        if (!offsetParent) {
-            containerRect = container.getBoundingClientRect();
-        } else {
-            containerRect.left = container.offsetLeft;
-            containerRect.right = container.offsetLeft + container.offsetWidth;
-            containerRect.width = container.offsetWidth;
-        }
-        return containerRect;
+        return containerRef.el.getBoundingClientRect();
     }
 
     /**

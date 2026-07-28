@@ -33,8 +33,6 @@ export class RadioField extends SelectionLikeField {
     };
 
     setup() {
-        // Reuses SelectionLikeField's name_search-backed data, bounded by the
-        // ORM's default limit (unlike the previous unbounded web_search_read).
         super.setup();
         this.id = `radio_field_${nextId++}`;
     }
@@ -45,8 +43,6 @@ export class RadioField extends SelectionLikeField {
             case "selection":
                 return this.props.record.fields[this.props.name].selection;
             case "many2one":
-                // specialData is set in the base setup() whenever type is
-                // "many2one", so it can't be undefined on this branch.
                 return /** @type {any} */ (this.specialData).data;
             default:
                 return [];

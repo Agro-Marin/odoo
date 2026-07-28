@@ -59,23 +59,18 @@ describe("concurrent properties mutations", () => {
     test("a value edit survives a fold issued before it applied", async () => {
         const { field, record } = makeField(PROPERTIES.map((p) => ({ ...p })));
 
-        // The user types into a property, then folds a group before that write
-        // has applied. Both mutations are issued in the same tick.
         const edit = field.onPropertyValueChange("a", "Acme");
         const fold = field._toggleSeparators(["sep"]);
         await Promise.all([edit, fold]);
 
         const saved = record.data.properties;
         expect(saved.find((p) => p.name === "sep").value).toBe(true);
-        // Pre-fix `false`: the fold snapshotted the list before the edit landed
-        // and its whole-array write reverted it.
         expect(saved.find((p) => p.name === "a").value).toBe("Acme");
     });
 
     test("a fold survives a value edit issued before it applied", async () => {
         const { field, record } = makeField(PROPERTIES.map((p) => ({ ...p })));
 
-        // Same collision, opposite order.
         const fold = field._toggleSeparators(["sep"]);
         const edit = field.onPropertyValueChange("a", "Acme");
         await Promise.all([fold, edit]);
@@ -88,8 +83,6 @@ describe("concurrent properties mutations", () => {
     test("mutations awaited one at a time both survive (control)", async () => {
         const { field, record } = makeField(PROPERTIES.map((p) => ({ ...p })));
 
-        // Sequential, fully awaited: never raced even before the fix. This is
-        // the control isolating the defect to mutations issued concurrently.
         await field.onPropertyValueChange("a", "Acme");
         await field._toggleSeparators(["sep"]);
 
@@ -99,15 +92,9 @@ describe("concurrent properties mutations", () => {
     });
 
     test("harness sanity: the mock defers writes like model.mutex", async () => {
-        // Exercises the MOCK alone, not the component, so it holds before and
-        // after the fix. The race tests above are only meaningful if
-        // `record.update` really is asynchronous — if this ever fails, they are
-        // artefacts of the harness rather than statements about the component.
         const { record } = makeField(PROPERTIES.map((p) => ({ ...p })));
 
         record.update({ properties: [{ name: "x", value: 1 }] });
-        // Not applied synchronously: this is what makes a caller's pre-read
-        // snapshot go stale.
         expect(record.data.properties.find((p) => p.name === "x")).toBe(undefined);
 
         await record._queue;
@@ -115,8 +102,6 @@ describe("concurrent properties mutations", () => {
     });
 
     test("mutation handlers return an awaitable promise", async () => {
-        // Callers could not sequence these mutations even when they wanted to:
-        // the handlers issued the update and returned undefined.
         const { field } = makeField(PROPERTIES.map((p) => ({ ...p })));
         expect(field.onPropertyValueChange("a", "Acme")).toBeInstanceOf(Promise);
         expect(field._toggleSeparators(["sep"])).toBeInstanceOf(Promise);

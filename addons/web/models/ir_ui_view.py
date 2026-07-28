@@ -7,10 +7,6 @@ from odoo.tools import ormcache
 class IrUiView(models.Model):
     _inherit = "ir.ui.view"
 
-    # NB: the cache key MUST include the language. ``display_name`` below comes
-    # from the ``type`` field's selection labels, which ``fields_get`` returns
-    # translated per ``env.lang`` -- a bare ``@ormcache()`` would serve the first
-    # caller's language to everyone until the cache is invalidated.
     @ormcache("self.env.lang")
     def get_view_info(self) -> dict[str, dict[str, Any]]:
         _view_info = self._get_view_info()

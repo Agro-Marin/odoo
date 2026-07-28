@@ -19,21 +19,9 @@ export class IframeWrapperField extends Component {
 
         useEffect(
             (value) => {
-                // document.write over DOM methods: this iframe has no src, so the
-                // usual appendChild approach would need head/body metadata fed in
-                // piece by piece (extra record data or RPCs); write() sets the
-                // full document in one call.
-                //
-                // Writing raw field content is only safe because the template's
-                // iframe is sandboxed WITHOUT allow-scripts — pinned by the
-                // "IframeWrapperField does not execute injected scripts" test
-                // (iframe_wrapper_field.test.js). Keep both in sync when
-                // inheriting/overriding the template.
                 const iframeDoc = /** @type {HTMLIFrameElement} */ (this.iframeRef.el)
                     .contentDocument;
                 iframeDoc.open();
-                // `|| ""`: an empty field value is `false` and would render
-                // the literal text "false".
                 iframeDoc.write(value || "");
                 iframeDoc.close();
             },
@@ -45,7 +33,6 @@ export class IframeWrapperField extends Component {
 export const iframeWrapperField = {
     component: IframeWrapperField,
     displayName: _t("Wrap raw html within an iframe"),
-    // If HTML, don't forget to adjust the sanitize options to avoid stripping most of the metadata
     supportedTypes: ["text", "html"],
 };
 

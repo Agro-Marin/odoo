@@ -28,9 +28,6 @@ class Partner extends models.Model {
 defineModels([Partner]);
 
 test("attach document widget calls action with attachment ids", async () => {
-    // FIXME: This ugly hack is needed because the input is not attached in the DOM
-    // The input should be attached to the component and hidden in some way to make
-    // the interaction easier and more natural.
     let fileInput;
     patchWithCleanup(AttachDocumentWidget.prototype, {
         setup() {
@@ -69,7 +66,7 @@ test("attach document widget calls action with attachment ids", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
         <form>
             <widget name="attach_document" action="my_action" string="Attach document"/>
             <field name="display_name" required="1"/>
@@ -87,9 +84,6 @@ test("attach document widget calls action with attachment ids", async () => {
 });
 
 test("attach document widget calls action with attachment ids on a new record", async () => {
-    // FIXME: This ugly hack is needed because the input is not attached in the DOM
-    // The input should be attached to the component and hidden in some way to make
-    // the interaction easier and more natural.
     let fileInput;
     patchWithCleanup(AttachDocumentWidget.prototype, {
         setup() {
@@ -127,7 +121,7 @@ test("attach document widget calls action with attachment ids on a new record", 
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <widget name="attach_document" action="my_action" string="Attach document"/>
             <field name="display_name" required="1"/>

@@ -37,7 +37,6 @@ class Product extends models.Model {
             barcode: "601647855633",
         },
     ];
-    // to allow the search in barcode too
     name_search() {
         const result = super.name_search(...arguments);
         const kwargs = getKwArgs(arguments, "name", "domain", "operator", "limit");
@@ -234,7 +233,6 @@ test("many2one with barcode show all records", async () => {
 
     await contains(".o_barcode").click();
 
-    // Click on the input to show all records
     await contains(".o_input_dropdown > input").click();
 
     expect(".modal-dialog.modal-lg").toHaveCount(1, {

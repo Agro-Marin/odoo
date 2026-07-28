@@ -33,9 +33,6 @@ function makeList({ resIds = [], limit = 2, deleted = new Set() } = {}) {
     const model = {
         Class: { Record: RelationalRecord, StaticList },
         _patchConfig: (config, patch) => Object.assign(config, patch),
-        // A concurrently-deleted id is silently omitted (fewer rows than
-        // requested) — never returns `undefined` entries, exactly like the
-        // real server + web_read.
         _loadRecords: async ({ resIds: ids }) => {
             loadedResIds.push([...ids]);
             return ids.filter((id) => !deleted.has(id)).map((id) => SERVER_ROWS[id]);
@@ -67,7 +64,6 @@ function makeList({ resIds = [], limit = 2, deleted = new Set() } = {}) {
 
 describe("StaticList._load partial server response", () => {
     test("a concurrently-deleted id is dropped, not left as an undefined hole", async () => {
-        // Page 1 = [1, 2]; ids 3 and 99 are on page 2.
         const { list } = makeList({
             resIds: [1, 2, 3, 99],
             limit: 2,
@@ -75,10 +71,8 @@ describe("StaticList._load partial server response", () => {
         });
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
 
-        // Navigate to page 2: the load returns only [3] (99 was unlinked).
         await list._load({ offset: 2 });
 
-        // No `undefined` hole, and _currentIds no longer references the ghost.
         expect(list.records.includes(undefined)).toBe(false);
         expect(list.records.map((r) => r.resId)).toEqual([3]);
         expect(list.records[0].data.display_name).toBe("Rec 3");

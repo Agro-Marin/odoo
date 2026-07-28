@@ -15,16 +15,12 @@ import {
 } from "@web/core/utils/format/colors";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
-// `color_picker_tabs` registers each tab of the color picker. `id` is
-// matched against `props.enabledTabs` (see `getAll().filter` below) and
-// `component` is rendered when the tab is active.
 registry.category("color_picker_tabs").addValidation({
     id: String,
     name: { type: [String, Object] },
     component: { validate: (c) => typeof c === "function" },
 });
 
-// These colors are pre-normalized CSS hex strings — no further normalization needed.
 export const DEFAULT_COLORS = [
     [
         "#000000",
@@ -112,8 +108,6 @@ const DEFAULT_GRAYSCALES = {
     solid: ["black", "900", "800", "600", "400", "200", "100", "white"],
 };
 
-// These CSS variables are defined in html_editor.
-// Using ColorPicker without html_editor installed is extremely unlikely.
 export const DEFAULT_THEME_COLOR_VARS = [
     "o-color-1",
     "o-color-2",
@@ -134,7 +128,6 @@ export class ColorPicker extends Component {
                 getTargetedElements: { type: Function, optional: true },
                 defaultTab: String,
                 selectedTab: { type: String, optional: true },
-                // todo: remove the `mode` prop in master
                 mode: { type: String, optional: true },
             },
         },
@@ -192,7 +185,6 @@ export class ColorPicker extends Component {
         this.usedCustomColors = this.props.getUsedCustomColors();
         useEffect(
             () => {
-                // Recompute the positioning of the popover if any.
                 /** @type {any} */ (this.env)[POSITION_BUS]?.trigger("update");
             },
             () => [this.state.activeTab],
@@ -216,7 +208,6 @@ export class ColorPicker extends Component {
 
     setTab(tab) {
         this.state.activeTab = tab;
-        // Reset the preview revert callback, as it is tab-specific.
         this.setOperationCallbacks({ onPreviewRevertCallback: () => {} });
         this.resetColorPreview();
     }
@@ -239,9 +230,6 @@ export class ColorPicker extends Component {
      * @param {Function} [cbs.getPreviewColor]
      */
     setOperationCallbacks(cbs) {
-        // The gradient colorpicker has a nested ColorPicker. We need to use the
-        // `setOperationCallbacks` from the parent ColorPicker for it to be
-        // impacted.
         if (this.props.setOperationCallbacks) {
             this.props.setOperationCallbacks(cbs);
         }
@@ -303,10 +291,6 @@ export class ColorPicker extends Component {
     }
 
     onColorFocusin(ev) {
-        // In the editor color picker, the preview and reset reapply the
-        // selection, which can remove the focus from the current button (if the
-        // node is recreated). We need to force the focus and break the infinite
-        // loop that it could trigger.
         if (this.focusedBtn === ev.target) {
             this.focusedBtn = null;
             return;
@@ -314,22 +298,17 @@ export class ColorPicker extends Component {
         this.focusedBtn = ev.target;
         this.onColorHover(ev);
         if (document.activeElement !== ev.target) {
-            // The focus was lost during revert. Reset it where it should be.
             ev.target.focus();
         }
     }
 
     onColorFocusout(ev) {
         if (!ev.relatedTarget || !this.isColorButton(ev.relatedTarget)) {
-            // Do not trigger a revert if we are in the focus loop (i.e. focus
-            // a button > selection is reset > focusout). Otherwise, the
-            // relatedTarget should always be one of the colorpicker's buttons.
             return;
         }
         const activeEl = document.activeElement;
         this.resetColorPreview();
         if (document.activeElement !== activeEl) {
-            // The focus was lost during revert. Reset it where it should be.
             ev.relatedTarget.focus();
         }
     }
@@ -409,14 +388,10 @@ export class ColorPicker extends Component {
 }
 
 export function useColorPicker(refName, props, options = {}) {
-    // Callback to be overridden by child components (e.g. custom color picker).
     let onCloseCallback = () => {};
     const setOnCloseCallback = (cb) => {
         onCloseCallback = cb;
     };
-    // Always run the close callback (e.g. the custom tab commits or reverts the
-    // previewed color on close), even when the caller gave no `onClose`. Copy the
-    // options instead of mutating the caller's object.
     const userOnClose = options.onClose;
     const popoverOptions = {
         ...options,
@@ -433,8 +408,6 @@ export function useColorPicker(refName, props, options = {}) {
         if (colorPicker.isOpen) {
             colorPicker.close();
         } else {
-            // Forward setOnCloseCallback at open time instead of assigning it
-            // into the caller's props object (OWL props are not ours to mutate).
             colorPicker.open(root.el, { ...props, setOnCloseCallback });
             popoverOptions.onOpen?.();
         }

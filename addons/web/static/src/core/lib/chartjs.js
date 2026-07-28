@@ -5,11 +5,6 @@
 
 import { makeLazyFacade } from "@web/core/module_bridge";
 
-// Chart.js (`static/lib/Chart/Chart.js`, upstream v4 auto-registering build)
-// is resolved as an ES module through the `chart.js` import-map entry,
-// replacing the old `web.chartjs_lib` <script> bundle that assigned
-// `window.Chart`.
-
 /** @type {any} the loaded Chart constructor, null until {@link loadChartJS} resolves */
 let _chart = null;
 
@@ -66,9 +61,6 @@ export async function loadChartJS() {
             _tooltip = chartModule.Tooltip;
             return Chart;
         })().catch((error) => {
-            // Never cache a rejection: a transient fetch failure would
-            // otherwise disable every future chart until a full page
-            // reload (the pre-ESM loadJS path also allowed retries).
             loadPromise = null;
             throw error;
         });

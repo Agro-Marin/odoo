@@ -54,8 +54,6 @@ import { registerInlineViewArchs } from "./mock_server/mock_model.js";
  * @typedef {import("./mock_server/mock_model").ViewType} ViewType
  */
 
-// Internals
-
 /**
  * FIXME: isolate to external helper in @web?
  *
@@ -84,8 +82,6 @@ class ViewDialog extends Component {
         onMounted(() => this.props.onMounted());
     }
 }
-
-// Exports
 
 /**
  *
@@ -278,7 +274,6 @@ export function parseViewProps(props) {
                 viewProps.searchViewArch,
         });
     } else {
-        // Force `get_views` call
         viewProps.viewId = false;
         viewProps.searchViewId = false;
     }
@@ -354,8 +349,6 @@ export async function editSelectMenu(
         return await contains(`.o_select_menu_item:nth-of-type(${index + 1})`).click();
     }
     if (value === "") {
-        // Because this helper must work even when no input is editable (searchable=false),
-        // we unselect the currently selected value with the 'X' button
         const clearButton = queryFirst(
             `.o_select_menu[data-id='${selectMenuId}'] .o_select_menu_toggler_clear, .o_select_menu_menu .o_clear_button`,
         );

@@ -26,7 +26,7 @@ function compileTemplate(arch) {
 
 describe("label/field association by id", () => {
     test("label BEFORE field, for= matches id (control)", () => {
-        const arch = /*xml*/ `<form>
+        const arch = `<form>
             <label for="float_field2"/>
             <field field_id="float_field" name="float_field" id="float_field2"/>
         </form>`;
@@ -34,7 +34,7 @@ describe("label/field association by id", () => {
     });
 
     test("label BEFORE field, for= matches name (control)", () => {
-        const arch = /*xml*/ `<form>
+        const arch = `<form>
             <label for="float_field"/>
             <field field_id="float_field" name="float_field"/>
         </form>`;
@@ -42,7 +42,7 @@ describe("label/field association by id", () => {
     });
 
     test("label AFTER field, for= matches name (control)", () => {
-        const arch = /*xml*/ `<form>
+        const arch = `<form>
             <field field_id="float_field" name="float_field"/>
             <label for="float_field"/>
         </form>`;
@@ -50,11 +50,10 @@ describe("label/field association by id", () => {
     });
 
     test("label AFTER field, for= matches id", () => {
-        const arch = /*xml*/ `<form>
+        const arch = `<form>
             <field field_id="float_field" name="float_field" id="float_field2"/>
             <label for="float_field2"/>
         </form>`;
-        // Currently emits a bare <label/> instead of a <FormLabel/>.
         expect(compileTemplate(arch).outerHTML).toInclude("FormLabel");
     });
 });

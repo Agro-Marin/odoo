@@ -107,53 +107,29 @@ export class UrgentSaveCoordinator extends SignalStore {
      */
     async run(fn) {
         if (this.isActive) {
-            // Re-entrant call: a second ``urgentSave()`` on the SAME model
-            // (e.g. an edited row and a running timer datapoint both calling
-            // ``.urgentSave()`` inside a ``Promise.all`` on tab close) arrives
-            // while urgent mode is already active. The mode flag is set and
-            // ``WILL_SAVE_URGENTLY`` already fired for the outermost entry, so
-            // just run ``fn`` under the active mode. Re-transitioning ``begin``
-            // would throw {@link InvalidUrgentSaveTransitionError}, rejecting
-            // this call so its beacon never fires (lost edits) and failing the
-            // whole ``Promise.all`` during unload. Only the outermost entry
-            // owns the try/finally that resets the flag.
-            //
-            // Track this promise so the outermost entry's ``finally`` awaits it
-            // before transitioning to ``idle``: if this re-entrant save has
-            // awaits (inDialog, or the new-record webSave path with a hook) and
-            // the outer ``fn`` resolves first, the flag would drop mid-flight
-            // and remaining ``isActive`` checks would flip to non-urgent (e.g.
-            // an onchange RPC could then fire during unload).
             const prom = fn();
             this._reentrantProms.push(prom);
             return prom;
         }
         this._transition("begin");
-        // Fresh collector for this urgent-mode window (only one outermost entry
-        // is ever active at a time — the status guard above serializes them).
         this._reentrantProms = [];
-        // Await consumer flushes BEFORE ``fn`` runs: a field whose onchange is
-        // still in flight re-commits its value on this event, but async (mutex-
-        // bypassed ``update`` -> ``_update``); without awaiting it, the save would
-        // read empty ``_changes`` and silently drop the pending edit on tab close.
-        // We await only these flush promises, NOT ``model.mutex`` — it may be held
-        // by the very onchange we're bypassing, which would deadlock.
         const proms = [];
         this._bus?.trigger(ModelEvent.WILL_SAVE_URGENTLY, { proms });
         try {
-            // Best-effort: a rejecting flush must not abort the tab-close save
-            // (that would drop other consumers' already-committed edits).
             await Promise.allSettled(proms);
             return await fn();
         } finally {
-            // Best-effort: keep urgent mode active until every re-entrant save
-            // kicked off under this entry has settled, so none of them observe
-            // ``isActive === false`` mid-flight. A rejecting re-entrant save
-            // must not abort the transition (its own caller already owns the
-            // rejection), hence ``allSettled``.
-            const reentrant = this._reentrantProms;
-            this._reentrantProms = [];
-            await Promise.allSettled(reentrant);
+            // Drain to a fixed point, not once: ``isActive`` stays true for the
+            // whole drain, so a ``run()`` arriving while we await the current
+            // batch is still accepted as re-entrant — and lands in the array
+            // the snapshot below already swapped out. Draining once lowered the
+            // flag with that save still in flight (audit_challenge_model_claims
+            // pins the exact ordering).
+            while (this._reentrantProms.length) {
+                const reentrant = this._reentrantProms;
+                this._reentrantProms = [];
+                await Promise.allSettled(reentrant);
+            }
             this._transition("end");
         }
     }
@@ -181,10 +157,6 @@ export class UrgentSaveCoordinator extends SignalStore {
      */
     async awaitUnlessUrgent(promise) {
         if (this.isActive) {
-            // The caller stops awaiting, so a later rejection of `promise`
-            // would surface as an unhandled rejection (→ an error dialog on
-            // tab close). Attach a no-op catch: the work is intentionally
-            // fire-and-forget here.
             Promise.resolve(promise).catch(() => {});
             return undefined;
         }

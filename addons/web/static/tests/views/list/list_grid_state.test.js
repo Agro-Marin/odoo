@@ -5,8 +5,6 @@ import { ListGridState } from "@web/views/list/list_grid_state";
 
 describe.current.tags("headless");
 
-// Mock helpers
-
 function mockRecord(id) {
     return { id: String(id), resId: id, selected: false };
 }
@@ -52,12 +50,10 @@ function makeGridState(options = {}) {
         hasOpenFormViewColumn: options.hasOpenFormViewColumn ?? false,
         hasActionsColumn: options.hasActionsColumn ?? false,
         isRTL: options.isRTL ?? false,
-        showAddLine: options.showAddLine ?? false,
+        showGroupAddLine: options.showGroupAddLine ?? false,
         isCellReadonly: options.isCellReadonly ?? (() => false),
     });
 }
-
-// Flat row materialization
 
 describe("flat row materialization", () => {
     test("ungrouped: 5 records produce 5 flat rows of type 'record'", () => {
@@ -74,9 +70,8 @@ describe("flat row materialization", () => {
         const records2 = [4, 5].map(mockRecord);
         const groups = [mockGroup(10, records1), mockGroup(20, records2)];
         const list = mockList([], groups);
-        const gs = makeGridState({ list, showAddLine: true });
+        const gs = makeGridState({ list, showGroupAddLine: true });
 
-        // group1 header, 3 records, add-line, group2 header, 2 records, add-line
         expect(gs.rowCount).toBe(9);
         expect(gs.flatRows[0].type).toBe("group");
         expect(gs.flatRows[0].group.id).toBe("10");
@@ -101,9 +96,8 @@ describe("flat row materialization", () => {
             mockGroup(20, [3].map(mockRecord)),
         ];
         const list = mockList([], groups);
-        const gs = makeGridState({ list, showAddLine: true });
+        const gs = makeGridState({ list, showGroupAddLine: true });
 
-        // folded group header only, then open group header + 1 record + add-line
         expect(gs.rowCount).toBe(4);
         expect(gs.flatRows[0].type).toBe("group");
         expect(gs.flatRows[0].group.isFolded).toBe(true);
@@ -118,9 +112,8 @@ describe("flat row materialization", () => {
         const innerGroup = mockGroup(100, innerRecords);
         const outerGroup = mockGroup(10, [], false, [innerGroup]);
         const list = mockList([], [outerGroup]);
-        const gs = makeGridState({ list, showAddLine: true });
+        const gs = makeGridState({ list, showGroupAddLine: true });
 
-        // outer header (depth 0), inner header (depth 1), 2 records (depth 2), add-line (depth 2)
         expect(gs.rowCount).toBe(5);
         expect(gs.flatRows[0].depth).toBe(0);
         expect(gs.flatRows[0].type).toBe("group");
@@ -137,8 +130,6 @@ describe("flat row materialization", () => {
         expect(gs.rowCount).toBe(0);
     });
 });
-
-// moveFocus
 
 describe("moveFocus", () => {
     test("up/down ungrouped: correct index arithmetic", () => {
@@ -162,16 +153,15 @@ describe("moveFocus", () => {
         const list = mockList([], groups);
         const gs = makeGridState({ list });
 
-        // flatRows: [group(0), record(1), record(2)]
         const up = gs.moveFocus(1, 2, "up");
-        expect(up).toEqual({ rowIndex: 0, colIndex: 0 }); // group is single-cell
+        expect(up).toEqual({ rowIndex: 0, colIndex: 0 });
 
         const down = gs.moveFocus(0, 0, "down");
-        expect(down).toEqual({ rowIndex: 1, colIndex: 2 }); // restores lastColIndex
+        expect(down).toEqual({ rowIndex: 1, colIndex: 2 });
     });
 
     test("left/right: correct bounds", () => {
-        const gs = makeGridState(); // 3 columns, no selectors
+        const gs = makeGridState();
         const right = gs.moveFocus(0, 0, "right");
         expect(right).toEqual({ rowIndex: 0, colIndex: 1 });
 
@@ -184,7 +174,6 @@ describe("moveFocus", () => {
 
     test("left/right RTL: direction is swapped", () => {
         const gs = makeGridState({ isRTL: true });
-        // "right" in RTL becomes "left" internally
         const result = gs.moveFocus(0, 1, "right");
         expect(result).toEqual({ rowIndex: 0, colIndex: 0 });
 
@@ -198,14 +187,11 @@ describe("moveFocus", () => {
             hasOpenFormViewColumn: true,
             hasActionsColumn: true,
         });
-        // 3 field columns + 3 extra = 6
         expect(gs.colCount).toBe(6);
         expect(gs.moveFocus(0, 4, "right")).toEqual({ rowIndex: 0, colIndex: 5 });
         expect(gs.moveFocus(0, 5, "right")).toBe(null);
     });
 });
-
-// findNextEditableCell
 
 describe("findNextEditableCell", () => {
     test("skips readonly columns", () => {
@@ -214,7 +200,6 @@ describe("findNextEditableCell", () => {
             columns,
             isCellReadonly: (col) => col.name === "email",
         });
-        // From col 0 (name), skip col 1 (email, readonly), land on col 2 (phone)
         const next = gs.findNextEditableCell(0, 0, true);
         expect(next).toEqual({ rowIndex: 0, colIndex: 2 });
     });
@@ -230,7 +215,6 @@ describe("findNextEditableCell", () => {
             columns,
             isCellReadonly: (col) => col.name === "email",
         });
-        // From col 2 (phone), skip col 1 (email, readonly), land on col 0 (name)
         const prev = gs.findNextEditableCell(0, 2, false);
         expect(prev).toEqual({ rowIndex: 0, colIndex: 0 });
     });
@@ -250,19 +234,15 @@ describe("findNextEditableCell", () => {
         const groups = [mockGroup(10, [1].map(mockRecord))];
         const list = mockList([], groups);
         const gs = makeGridState({ list });
-        // Row 0 is a group header
         expect(gs.findNextEditableCell(0, 0, true)).toBe(null);
     });
 
     test("with selectors: column indices are offset by 1", () => {
         const gs = makeGridState({ hasSelectors: true });
-        // With selectors, field columns start at index 1
         const next = gs.findNextEditableCell(0, 1, true);
         expect(next).toEqual({ rowIndex: 0, colIndex: 2 });
     });
 });
-
-// isCellEditable
 
 describe("isCellEditable", () => {
     test("returns true for editable field cells", () => {
@@ -288,8 +268,6 @@ describe("isCellEditable", () => {
         expect(gs.isCellEditable(0, 99)).toBe(false);
     });
 });
-
-// Reverse lookup
 
 describe("reverse lookup", () => {
     test("findRowByRecordId returns correct flat row", () => {
@@ -332,22 +310,18 @@ describe("reverse lookup", () => {
     });
 });
 
-// Rebuild after structural change
-
 describe("rebuild", () => {
     test("rebuild after group toggle changes row count", () => {
         const records = [1, 2].map(mockRecord);
         const group = mockGroup(10, records);
         const list = mockList([], [group]);
-        const gs = makeGridState({ list, showAddLine: true });
+        const gs = makeGridState({ list, showGroupAddLine: true });
 
-        // Open: group header + 2 records + add-line = 4
         expect(gs.rowCount).toBe(4);
 
         group.isFolded = true;
         gs.rebuild();
 
-        // Folded: group header only = 1
         expect(gs.rowCount).toBe(1);
         expect(gs.flatRows[0].type).toBe("group");
     });
@@ -373,9 +347,88 @@ describe("rebuild", () => {
         records.push(mockRecord(4));
         gs.rebuild();
 
-        // Record "2" should still be findable (with same index since insertion is at end)
         const after = gs.findRowByRecordId("2");
         expect(after).not.toBe(undefined);
         expect(after.record.id).toBe("2");
+    });
+});
+
+describe("origin row index validation", () => {
+    // `data-row-index` is read off the DOM, which can be one rebuild behind
+    // this state (or malformed). moveFocus must answer "no move" rather than
+    // throw out of the list's keydown handler.
+    test("a rowIndex one past the end yields no move", () => {
+        const gs = makeGridState({ records: [1, 2, 3].map(mockRecord) });
+        expect(gs.moveFocus(3, 0, "up")).toBe(null);
+        expect(gs.moveFocus(3, 0, "down")).toBe(null);
+    });
+
+    test("a negative rowIndex yields no move", () => {
+        const gs = makeGridState({ records: [1, 2, 3].map(mockRecord) });
+        expect(gs.moveFocus(-1, 0, "down")).toBe(null);
+        expect(gs.moveFocus(-1, 0, "up")).toBe(null);
+    });
+
+    test("a non-numeric rowIndex yields no move", () => {
+        const gs = makeGridState({ records: [1, 2, 3].map(mockRecord) });
+        expect(gs.moveFocus(Number.NaN, 0, "down")).toBe(null);
+        expect(gs.moveFocus(Number.NaN, 0, "up")).toBe(null);
+    });
+});
+
+describe("canonical column index", () => {
+    // A row may render a per-record SUBSET of the grid's columns: the section
+    // renderers (account/sale order lines, resource, survey, website_slides)
+    // override `ListRenderer.getColumns(record)` to collapse a section row down
+    // to a handle + title pair. The cell's position inside its own row is then
+    // NOT its position in the grid, so `data-col-index` has to be resolved
+    // through the column's identity for arrow navigation to stay on-column.
+    test("resolves a column to its position in the full column set", () => {
+        const columns = [
+            mockColumn("handle"),
+            mockColumn("product"),
+            mockColumn("name"),
+            mockColumn("qty"),
+        ];
+        const gs = makeGridState({ columns });
+        expect(columns.map((c) => gs.getColIndexOfColumn(c))).toEqual([0, 1, 2, 3]);
+    });
+
+    test("a section row's truncated subset keeps each column's grid index", () => {
+        const columns = [
+            mockColumn("handle"),
+            mockColumn("product"),
+            mockColumn("name"),
+            mockColumn("qty"),
+        ];
+        const gs = makeGridState({ columns });
+        // what getSectionColumns() builds: a filtered subset, title spread into
+        // a clone carrying a colspan — same `id`, new object identity.
+        const sectionColumns = [columns[0], { ...columns[2], colspan: 2 }];
+        expect(sectionColumns.map((c) => gs.getColIndexOfColumn(c))).toEqual([0, 2]);
+    });
+
+    test("the selector column shifts every index by one", () => {
+        const columns = [mockColumn("a"), mockColumn("b")];
+        const gs = makeGridState({ columns, hasSelectors: true });
+        expect(columns.map((c) => gs.getColIndexOfColumn(c))).toEqual([1, 2]);
+    });
+
+    test("a column outside the grid yields undefined, not a bogus index", () => {
+        const gs = makeGridState({ columns: [mockColumn("a")] });
+        expect(gs.getColIndexOfColumn(mockColumn("gone"))).toBe(undefined);
+        expect(gs.getColIndexOfColumn(undefined)).toBe(undefined);
+    });
+
+    test("the lookup follows an update() that swaps the columns", () => {
+        const first = [mockColumn("a"), mockColumn("b")];
+        const second = [mockColumn("b"), mockColumn("a")];
+        const gs = makeGridState({ columns: first });
+        expect(gs.getColIndexOfColumn(first[0])).toBe(0);
+        gs.update({ columns: second });
+        gs.rebuild();
+        expect(gs.getColIndexOfColumn(second[0])).toBe(0);
+        // same id as second[1] -> resolves to its NEW position
+        expect(gs.getColIndexOfColumn(first[0])).toBe(1);
     });
 });

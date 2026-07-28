@@ -184,11 +184,6 @@ export class ListArchParser {
                         buttonGroup = undefined;
                     }
                 }
-                // A button owns its children (icon, nested markup); do not let
-                // visitXML descend into them. Otherwise an element child (e.g.
-                // <i>) hits the tagName !== "button" reset above and splits
-                // adjacent buttons into separate button_group columns, and a
-                // nested <field> would be parsed as a top-level column (M9).
                 return false;
             } else if (node.tagName === "field") {
                 const fieldInfo = this.parseFieldNode(node, models, modelName);
@@ -205,7 +200,7 @@ export class ListArchParser {
                 columns.push({
                     ...fieldInfo,
                     id: `column_${nextId++}`,
-                    className: node.getAttribute("class"), // for oe_edit_only and oe_read_only
+                    className: node.getAttribute("class"),
                     optional: node.getAttribute("optional") || false,
                     type: "field",
                     fieldType: fieldInfo.type,
@@ -226,8 +221,6 @@ export class ListArchParser {
 
                 const widgetProps = {
                     name: widgetInfo.name,
-                    // FIXME: encoded into a weird object so the widget can decode it
-                    // later...
                     node: encodeObjectForTemplate({
                         attrs: widgetInfo.attrs,
                     }).slice(1, -1),
@@ -335,7 +328,6 @@ export class ListArchParser {
                     xmlDoc.getAttribute("default_order") || null,
                 );
 
-                // custom open action when clicking on record row
                 const action = xmlDoc.getAttribute("action");
                 const type = xmlDoc.getAttribute("type");
                 treeAttr.openAction = action && type ? { action, type } : null;

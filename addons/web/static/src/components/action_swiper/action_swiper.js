@@ -3,7 +3,14 @@
 
 /** @module @web/components/action_swiper/action_swiper - Touch swipe component that triggers actions on left/right swipe gestures */
 
-import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onMounted,
+    onWillUnmount,
+    status,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { localization } from "@web/core/l10n/localization";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -27,9 +34,6 @@ export class ActionSwiper extends Component {
     static props = {
         onLeftSwipe: {
             type: Object,
-            // `shape` (not `args`, which OWL ignores) validates the sub-props.
-            // icon/bgColor are optional: some callers (e.g. the settings page)
-            // pass only an action, and the template already guards on them.
             shape: {
                 action: Function,
                 icon: { type: String, optional: true },
@@ -81,9 +85,6 @@ export class ActionSwiper extends Component {
                 this.state.width =
                     this.targetContainer.el.getBoundingClientRect().width;
             }
-            // Forward classes set on component to slot, as we only want to wrap an
-            // existing component without altering the DOM structure any more than
-            // strictly necessary
             if (this.props.onLeftSwipe || this.props.onRightSwipe) {
                 const classes = new Set(this.root.el.classList);
                 classes.delete("o_actionswiper");
@@ -165,13 +166,9 @@ export class ActionSwiper extends Component {
                 onLeftSwipe ? -this.state.width : 0,
                 onRightSwipe ? this.state.width : 0,
             );
-            // Prevent the browser to navigate back/forward when using swipe
-            // gestures while still allowing to scroll vertically.
             if (Math.abs(this.swipedDistance) > 40) {
                 ev.preventDefault();
             }
-            // If there are scrollable elements under touch pressure,
-            // they must be at their limits to allow swiping.
             if (
                 !this.isScrollValidated &&
                 this.scrollables &&
@@ -208,7 +205,7 @@ export class ActionSwiper extends Component {
         );
         if (!this.state.width) {
             this.state.width =
-                this.targetContainer &&
+                this.targetContainer.el &&
                 this.targetContainer.el.getBoundingClientRect().width;
         }
         this.state.isSwiping = true;
@@ -228,17 +225,15 @@ export class ActionSwiper extends Component {
     }
 
     handleSwipe(action) {
-        // A completed swipe schedules the action up to 500ms later (while the
-        // CSS animation runs) but leaves the touch listeners live, so a second
-        // gesture can complete within that window and re-enter here. Cancel any
-        // action/reset still pending from a previous swipe, otherwise both
-        // timers fire and the (possibly destructive) action runs twice.
         browser.clearTimeout(this.actionTimeoutId);
         browser.clearTimeout(this.resetTimeoutId);
         if (this.props.animationType === "bounce") {
             this.state.containerStyle = `transform: translateX(${this.swipedDistance}px)`;
             this.actionTimeoutId = browser.setTimeout(async () => {
                 await action(Promise.resolve());
+                if (status(this) === "destroyed") {
+                    return;
+                }
                 this._reset();
             }, 500);
         } else if (this.props.animationType === "forwards") {
@@ -246,6 +241,14 @@ export class ActionSwiper extends Component {
             this.actionTimeoutId = browser.setTimeout(async () => {
                 const prom = new Deferred();
                 await action(prom);
+                // The action can outlive the swiper (it usually reloads the
+                // list that owns it). `onWillUnmount` already ran, so anything
+                // scheduled past this point escapes teardown entirely — but the
+                // deferred still has to settle or its awaiter hangs forever.
+                if (status(this) === "destroyed") {
+                    prom.resolve();
+                    return;
+                }
                 this.state.isSwiping = true;
                 this.state.containerStyle = `transform: translateX(${-this.swipedDistance}px)`;
                 this.resetTimeoutId = browser.setTimeout(() => {

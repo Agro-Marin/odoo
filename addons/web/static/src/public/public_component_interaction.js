@@ -7,8 +7,6 @@ import { registry } from "@web/core/registry";
 
 import { Interaction } from "./interaction.js";
 
-// `public_components` holds OWL Component classes mountable inside frontend
-// `<owl-component name="…">` elements; lookup happens in `get Component()` below.
 registry
     .category("public_components")
     .addValidation((entry) => typeof entry === "function");
@@ -17,10 +15,20 @@ export class PublicComponentInteraction extends Interaction {
     static selector = "owl-component[name]";
 
     setup() {
-        const props = JSON.parse(this.el.getAttribute("props") || "{}");
-        // Clear leftover html from a previous page edit whose owl-components
-        // weren't properly cleaned up on save.
-        this.el.replaceChildren();
+        const rawProps = this.el.getAttribute("props") || "{}";
+        let props;
+        try {
+            props = JSON.parse(rawProps);
+        } catch (error) {
+            throw new Error(
+                `Invalid props on <owl-component name="${this.el.getAttribute("name")}">: ${rawProps}`,
+                { cause: error },
+            );
+        }
+        // the placeholder markup an owl-component wraps may itself carry
+        // interactions; dropping the nodes without stopping them would leave
+        // those running on elements no longer in the document
+        this.removeChildren(this.el, false);
         this.mountComponent(
             this.el,
             /** @type {import("@odoo/owl").ComponentConstructor} */ (this.Component),
@@ -30,7 +38,15 @@ export class PublicComponentInteraction extends Interaction {
 
     get Component() {
         const name = this.el.getAttribute("name");
-        return registry.category("public_components").get(name);
+        const components = registry.category("public_components");
+        if (!components.contains(name)) {
+            // the registry's own message names neither the element nor the
+            // registry, which is all a template author has to go on
+            throw new Error(
+                `No public component registered as "${name}" (declared by an <owl-component name="${name}"> element)`,
+            );
+        }
+        return components.get(name);
     }
 }
 

@@ -2,8 +2,8 @@
 
 import "@web/fields/formatters";
 import "@web/fields/parsers";
-import "@web/model/relational_model/field_values"; // registers deserializers
-import "@web/model/relational_model/record_value_transforms"; // registers serializers
+import "@web/model/relational_model/field_values";
+import "@web/model/relational_model/record_value_transforms";
 
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
@@ -17,7 +17,7 @@ test("every formatter type yields a complete {format, parse} codec", () => {
         .category("formatters")
         .getEntries()
         .map(([key]) => key);
-    expect(types.length).toBeGreaterThan(8); // many more formatters than the 8 parsers
+    expect(types.length).toBeGreaterThan(8);
     for (const type of types) {
         const codec = getFieldCodec(type);
         expect(typeof codec.format).toBe("function");
@@ -32,8 +32,6 @@ test("parse delegates to the registered parser when one exists", () => {
 });
 
 test("free-text types (char/text/html) parse as identity and are parseable", () => {
-    // Identity parse: the string IS the value. Whitespace handling (char's
-    // `trim` option) is a widget concern, deliberately not done by the codec.
     for (const type of ["char", "text", "html"]) {
         const codec = getFieldCodec(type);
         expect(codec.parse("  hi  ")).toBe("  hi  ");
@@ -42,7 +40,6 @@ test("free-text types (char/text/html) parse as identity and are parseable", () 
 });
 
 test("non-text types parse as identity and are not parseable", () => {
-    // a native (non-string) value such as a many2one tuple/record — parse is identity
     /** @type {any} */
     const value = { id: 1, display_name: "Rec" };
     for (const type of ["selection", "boolean", "many2one", "many2many"]) {
@@ -70,28 +67,25 @@ test("unknown type is total: string format, identity parse, no codec coverage", 
 
 test("codec reads the registries live — later registrations are honored", () => {
     const parsers = registry.category("parsers");
-    expect(getFieldCodec("char").parse("  x  ")).toBe("  x  "); // identity fallback
+    expect(getFieldCodec("char").parse("  x  ")).toBe("  x  ");
     parsers.add("char", (value) => `PARSED:${value}`);
     try {
         expect(getFieldCodec("char").parse("  x  ")).toBe("PARSED:  x  ");
     } finally {
         parsers.remove("char");
     }
-    expect(getFieldCodec("char").parse("  x  ")).toBe("  x  "); // back to identity
+    expect(getFieldCodec("char").parse("  x  ")).toBe("  x  ");
 });
 
 test("extractOptions delegates to the formatter static, {} when none/unknown", () => {
     const fieldInfo = { attrs: {}, options: {} };
-    // numeric/text formatters declare an extractOptions static -> object
     expect(typeof getFieldCodec("integer").extractOptions(fieldInfo)).toBe("object");
     expect(typeof getFieldCodec("char").extractOptions(fieldInfo)).toBe("object");
-    // formatters without the static, and unknown types -> {}
     expect(getFieldCodec("boolean").extractOptions(fieldInfo)).toEqual({});
     expect(getFieldCodec("totally_made_up_type").extractOptions(fieldInfo)).toEqual({});
 });
 
 test("serialize/deserialize are transport conversion shared with the model layer", () => {
-    // read-rich / write-lean asymmetry for relational types
     const m2o = getFieldCodec("many2one");
     expect(m2o.deserialize([5, "Partner X"], { type: "many2one" })).toEqual({
         id: 5,
@@ -112,17 +106,14 @@ test("serialize/deserialize are transport conversion shared with the model layer
     });
     expect(ref.serialize({ resModel: "res.users", resId: 7 })).toBe("res.users,7");
 
-    // scalar round-trips, incl. the empty-char → false normalization
     const c = getFieldCodec("char");
     expect(c.serialize(c.deserialize("Hi", { type: "char" }))).toBe("Hi");
     expect(c.serialize(c.deserialize("", { type: "char" }))).toBe(false);
 
-    // transport (serialize) is DISTINCT from UI (format) for the same value
     expect(m2o.serialize({ id: 5, display_name: "Partner X" })).not.toBe(
         m2o.format({ id: 5, display_name: "Partner X" }),
     );
 
-    // unknown type: identity both directions
     expect(getFieldCodec("zzz").serialize(9)).toBe(9);
     expect(getFieldCodec("zzz").deserialize(9)).toBe(9);
 });

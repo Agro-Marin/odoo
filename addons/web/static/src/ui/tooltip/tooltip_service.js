@@ -62,6 +62,14 @@ export const tooltipService = {
         let showTimer;
         /** @type {HTMLElement | null} */
         let target = null;
+        /**
+         * `title` of the current target, suppressed while a custom tooltip is
+         * pending or open so the native one does not show alongside it. Screen
+         * readers fall back to `title` for the accessible name, so it must be
+         * put back on cleanup instead of being destroyed by the first hover.
+         * @type {string | null}
+         */
+        let suppressedTitle = null;
         const elementsWithTooltips = new WeakMap();
 
         /**
@@ -81,12 +89,14 @@ export const tooltipService = {
          * Closes the currently opened tooltip if any, or prevent it from opening.
          */
         function cleanup() {
+            if (target && suppressedTitle !== null) {
+                target.setAttribute("title", suppressedTitle);
+            }
+            suppressedTitle = null;
             target = null;
             stopCleanupInterval();
             browser.clearTimeout(openTooltipTimeout);
             openTooltipTimeout = null;
-            // Also clear the touch pre-delay: rapid touchstarts would
-            // otherwise stack multiple pending openElementsTooltip calls.
             browser.clearTimeout(showTimer);
             if (closeTooltip) {
                 closeTooltip();
@@ -155,11 +165,12 @@ export const tooltipService = {
 
             target = el;
             startCleanupInterval();
-            // Prevent title from showing on a parent at the same time
-            target.title = "";
+            suppressedTitle = target.getAttribute("title");
+            if (suppressedTitle !== null) {
+                target.removeAttribute("title");
+            }
             const timeoutDelay = isHelpNode(el) ? 0 : delay;
             openTooltipTimeout = browser.setTimeout(() => {
-                // verify that the element is still in the DOM
                 if (target.isConnected) {
                     closeTooltip = popover.add(
                         target,
@@ -167,16 +178,6 @@ export const tooltipService = {
                         { tooltip, template, info },
                         {
                             position,
-                            // The popover can close through its own mechanisms
-                            // (escape hotkey, click-away) without a mouseleave
-                            // ever reaching the target. Without this callback the
-                            // service is never notified, so target/closeTooltip
-                            // stay set and the cleanup interval keeps polling an
-                            // already-closed tooltip. Null closeTooltip first so
-                            // cleanup() doesn't call the (already invoked) remover
-                            // again; the `target === el` guard makes this a no-op
-                            // when cleanup() itself triggered the removal (it
-                            // clears target before invoking closeTooltip).
                             onClose: () => {
                                 if (target === el) {
                                     closeTooltip = null;
@@ -194,8 +195,6 @@ export const tooltipService = {
          * @param {HTMLElement} el
          */
         function openElementsTooltip(el) {
-            // Fix weird behavior in Firefox where MouseEvent can be dispatched
-            // from TEXT_NODE, even if they shouldn't...
             if (el.nodeType === Node.TEXT_NODE) {
                 return;
             }
@@ -248,7 +247,29 @@ export const tooltipService = {
         }
 
         /**
-         * Clean up any tooltip registered on the event target.
+         * Whether `el` sits inside a tooltip holder that opted into
+         * "tap-to-show". Such a holder deliberately opens its tooltip from the
+         * tap itself, so the `click` that ends the tap must not cancel it.
+         *
+         * @param {HTMLElement} el
+         * @returns {boolean}
+         */
+        function isTapToShow(el) {
+            const holder = /** @type {HTMLElement | null} */ (
+                el.closest?.("[data-tooltip], [data-tooltip-template]")
+            );
+            return Boolean(holder?.dataset.tooltipTouchTapToShow);
+        }
+
+        /**
+         * Close the tooltip of the clicked element, and cancel any tooltip that
+         * is still only pending. A click means the user is done reading the
+         * hover help, wherever inside the tooltipped element it landed — the
+         * previous "outside the target only" test let a click on a *child* of
+         * the target (the label inside a button, an icon inside a cell) leave
+         * the timeout armed, so the tooltip popped up on top of whatever the
+         * click had just triggered.
+         *
          * @param {MouseEvent} ev a "click" event
          */
         function onClick(ev) {
@@ -257,17 +278,7 @@ export const tooltipService = {
                 ev.preventDefault();
             }
             cleanupTooltip(ev);
-            if (
-                openTooltipTimeout &&
-                !closeTooltip &&
-                target &&
-                !target.contains(/** @type {Node} */ (ev.target))
-            ) {
-                // A tooltip is pending and the click landed outside its target: cancel
-                // it. A real pointer never hits this (mouseleave fires first), but
-                // synthetic pointers (tours, tests) skip mouseleave when the hovered
-                // element disappears (e.g. a popover this click just closed), which
-                // would otherwise let a stale tooltip open after the click.
+            if (openTooltipTimeout && !closeTooltip && !isTapToShow(el)) {
                 cleanup();
             }
         }
@@ -300,12 +311,6 @@ export const tooltipService = {
                 ev.preventDefault();
                 return;
             }
-            // Read the tap-to-show flag from the REGISTERED tooltip holder
-            // (the ancestor carrying data-tooltip), not the raw touch target:
-            // a tap landing on a child element (e.g. an inner <span> or <i>)
-            // has no ``tooltipTouchTapToShow`` in its own dataset, so reading
-            // from ``el`` silently cancelled the pending tooltip and broke
-            // tap-to-show for any tooltip holder with nested content.
             const holder = /** @type {HTMLElement | null} */ (
                 el.closest("[data-tooltip], [data-tooltip-template]")
             );
@@ -343,11 +348,8 @@ export const tooltipService = {
                 addBodyListener("touchcancel", onTouchEnd);
             }
 
-            // Delegate "mouseenter" to open tooltips
             addBodyListener("mouseenter", onMouseenter, { capture: true });
-            // Delegate "mouseleave" to close tooltips
             addBodyListener("mouseleave", cleanupTooltip, { capture: true });
-            // Keyboard parity (WCAG 1.4.13): focus opens, blur closes.
             addBodyListener("focusin", onFocusin, { capture: true });
             addBodyListener("focusout", cleanupTooltip, { capture: true });
             addBodyListener("click", onClick, { capture: true });
@@ -371,9 +373,6 @@ export const tooltipService = {
                 stopCleanupInterval();
                 browser.clearTimeout(openTooltipTimeout);
                 browser.clearTimeout(showTimer);
-                // Detach the body listeners: a destroyed service (env
-                // teardown in embedded/public contexts) must not keep
-                // handling events against a dead popover service.
                 for (const dispose of listenerDisposers) {
                     dispose();
                 }

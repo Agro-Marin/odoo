@@ -15,7 +15,7 @@ export class DocumentationLink extends Component {
     static template = "web.DocumentationLink";
     static props = {
         ...standardWidgetProps,
-        record: { type: Object, optional: 1 }, // The record is not needed in this widget
+        record: { type: Object, optional: 1 },
         path: { type: String },
         label: { type: String, optional: 1 },
         icon: { type: String, optional: 1 },

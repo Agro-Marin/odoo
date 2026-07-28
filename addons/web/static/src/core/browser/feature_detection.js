@@ -5,12 +5,6 @@
 
 import { browser } from "./browser.js";
 
-// UA-based detection cache
-//
-// UA-based checks are pure functions of a single immutable input (navigator.userAgent).
-// Results are computed once per unique UA string and cached; the cache only
-// invalidates in tests that patch browser.navigator to a different UA.
-
 /** @type {string | undefined} */
 let _cachedUA;
 
@@ -28,10 +22,6 @@ function _computeUAResults(ua) {
         chrome,
         firefox: /Firefox/i.test(ua),
         edge: /Edg/i.test(ua),
-        // Apple mandates WebKit on iOS, so iOS Chrome/Firefox/Edge/Opera all
-        // carry "Safari" in their UA and none carries "Chrome". Excluding their
-        // in-app markers keeps them from being misdetected as Safari (which
-        // drives e.g. the PWA "add to home screen" instructions).
         safari:
             !chrome && !/(CriOS|FxiOS|EdgiOS|OPiOS)/i.test(ua) && ua.includes("Safari"),
         android: /Android/i.test(ua),
@@ -56,8 +46,6 @@ function _getUA() {
     }
     return /** @type {NonNullable<typeof _uaResults>} */ (_uaResults);
 }
-
-// Feature detection
 
 /**
  * True if the browser is based on Chromium (Google Chrome, Opera, Edge).
@@ -109,7 +97,6 @@ export function isIOS() {
     if (_getUA().iosUA) {
         return true;
     }
-    // iPad Safari reports as "MacIntel" — detect via touch capability
     if ("platform" in browser.navigator) {
         return browser.navigator.platform === "MacIntel" && maxTouchPoints() > 1;
     }

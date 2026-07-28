@@ -1,21 +1,3 @@
-// Extend utilities
-//
-// CSS Cascade Layers: the CSS-rule section at the bottom of this file
-// is wrapped in ``@layer app`` to establish explicit cascade precedence
-// for future migration of Odoo's full override stack.  Sass-only
-// declarations (variable maps, ``@for`` / ``@each`` setup) remain
-// OUTSIDE the layer block — libsass scope-traps Sass variables defined
-// inside ``@layer`` blocks, and later files (Bootstrap's ``_api.scss``,
-// ``bootstrap_review.scss``) consume ``$utilities`` / ``$rounded-sizes``
-// from this file.  Cascade behaviour is unchanged today: layered
-// ``!important`` rules still beat unlayered ``!important`` rules (CSS
-// cascade-layer ordering reverses for ``!important``), and unlayered
-// normal rules continue to win over layered normal rules.
-//
-// Future work: wrap Bootstrap's compiled output in ``@layer vendor``
-// and progressively layer the remaining Odoo override files, after
-// which ``!important`` flags here can be removed.  See
-// ``machine_doc_v1/CONVENTIONS.md`` (when added).
 
 $rounded-sizes: () !default;
 $rounded-sizes: map-merge(
@@ -170,7 +152,6 @@ $utilities: map-merge(
     )
 );
 
-// Odoo Custom Utility Classes
 $utilities: map-merge(
     $utilities,
     (
@@ -204,28 +185,24 @@ $utilities: map-merge(
     )
 );
 
-@layer app {
-    // Define opacity:hover classes while defining the triggerer behavior.
-    // Use'.opacity-trigger-hover' class to allow hovered parents to
-    // trigger their children ':hover' and ':focus-visible' opacity states.
-    @each $-opacity-key, $-opacity-level in $utilities-opacity {
-        .opacity-#{$-opacity-key}-hover {
-            &:hover,
-            &:focus-visible,
-            .opacity-trigger-hover:hover &,
-            .opacity-trigger-hover:focus-visible & {
-                opacity: $-opacity-level !important;
-            }
+@each $-opacity-key, $-opacity-level in $utilities-opacity {
+    .opacity-#{$-opacity-key}-hover {
+        &:hover,
+        &:focus-visible,
+        .opacity-trigger-hover:hover &,
+        .opacity-trigger-hover:focus-visible & {
+            opacity: $-opacity-level !important;
         }
     }
+}
 
-    // Hide empty elements
-    .d-empty-none:empty {
-        display: none !important;
-    }
+.d-empty-none:empty {
+    display: none !important;
+}
 
-    // Define a smaller font-size
-    .smaller {
-        font-size: $o-font-size-base-smaller;
-    }
+// A utility, like its neighbours above: without `!important` it loses to any
+// component rule emitted later in the bundle that also sets `font-size`
+// (`.badge`, `.btn`, `small`), which is every real use of it.
+.smaller {
+    font-size: $o-font-size-base-smaller !important;
 }

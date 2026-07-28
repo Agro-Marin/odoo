@@ -18,8 +18,6 @@ import { describe, expect, test } from "@odoo/hoot";
 import { SearchPanelMixin } from "@web/search/search_panel/search_panel_mixin";
 import { hasValues } from "@web/search/search_state";
 
-// Helpers
-
 /** Concrete class exercising the mixin methods in isolation. */
 const PanelModel = SearchPanelMixin(class {});
 
@@ -76,8 +74,6 @@ function makeFilter(id, valueEntries = [], overrides = {}) {
     };
 }
 
-// toggleCategoryValue
-
 describe("toggleCategoryValue", () => {
     test("sets activeValueId on the category", () => {
         const cat = makeCategory(1, { activeValueId: false });
@@ -108,8 +104,6 @@ describe("toggleCategoryValue", () => {
         expect(model._notifications.length).toBe(1);
     });
 });
-
-// toggleFilterValues
 
 describe("toggleFilterValues", () => {
     test("toggles checked state of given value IDs", () => {
@@ -171,8 +165,6 @@ describe("toggleFilterValues", () => {
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
-        // Value 20 was rendered but a counter refetch rebuilt `values`
-        // without it: the click must not throw and 10 still toggles.
         model.toggleFilterValues(1, [10, 20]);
 
         expect(filter.values.get(10).checked).toBe(true);
@@ -180,8 +172,6 @@ describe("toggleFilterValues", () => {
         expect(model._notifications.length).toBe(1);
     });
 });
-
-// clearSections
 
 describe("clearSections", () => {
     test("resets category activeValueId to false", () => {
@@ -224,8 +214,6 @@ describe("clearSections", () => {
     });
 });
 
-// getSections
-
 describe("getSections", () => {
     test("returns sections in Map insertion order (arch order)", () => {
         const sections = new Map([
@@ -241,7 +229,6 @@ describe("getSections", () => {
     });
 
     test("marks category as empty when values.size <= 1", () => {
-        // Only 1 value (the 'false' root) → considered empty
         const cat = makeCategory(1);
         cat.values.set(false, { id: false });
         const sections = new Map([[1, cat]]);
@@ -253,7 +240,7 @@ describe("getSections", () => {
     });
 
     test("marks filter as empty when values.size is 0", () => {
-        const filter = makeFilter(1, []); // no values
+        const filter = makeFilter(1, []);
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
@@ -291,9 +278,8 @@ describe("getSections", () => {
         const model = makeSearchModel(sections);
 
         const result = model.getSections();
-        result[0].activeValueId = 999; // mutate the copy
+        result[0].activeValueId = 999;
 
-        // Original is unchanged
         expect(cat.activeValueId).toBe(false);
     });
 
@@ -318,8 +304,6 @@ describe("getSections", () => {
     });
 });
 
-// _ensureCategoryValue
-
 describe("_ensureCategoryValue", () => {
     test("keeps activeValueId when it is in valueIds", () => {
         const cat = makeCategory(1, { activeValueId: 5 });
@@ -336,7 +320,7 @@ describe("_ensureCategoryValue", () => {
 
         model._ensureCategoryValue(cat, [false, 5, 10]);
 
-        expect(cat.activeValueId).toBe(false); // first element
+        expect(cat.activeValueId).toBe(false);
     });
 
     test("resets to false when valueIds contains only [false]", () => {
@@ -348,8 +332,6 @@ describe("_ensureCategoryValue", () => {
         expect(cat.activeValueId).toBe(false);
     });
 });
-
-// _createCategoryTree
 
 describe("_createCategoryTree", () => {
     test("populates values Map from server result", () => {
@@ -379,11 +361,10 @@ describe("_createCategoryTree", () => {
             values: [
                 { id: 10, parent_id: false },
                 { id: 20, parent_id: false },
-                { id: 30, parent_id: 10 }, // child of 10
+                { id: 30, parent_id: 10 },
             ],
         });
 
-        // rootIds should be [false, 10, 20] — only top-level parents
         expect(cat.rootIds).toEqual([false, 10, 20]);
     });
 
@@ -424,13 +405,10 @@ describe("_createCategoryTree", () => {
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        // First fetch fails (server-side error or stamped by the client-side
-        // catch in _fetchCategories): the section becomes an error tile.
         model._createCategoryTree(1, { values: [], error_msg: "Network error" });
         expect(cat.errorMsg).toBe("Network error");
-        expect(hasValues(cat)).toBe(true); // error tile rendered
+        expect(hasValues(cat)).toBe(true);
 
-        // A later refetch succeeds: the section must render its values again.
         model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [{ id: 10, parent_id: false }],
@@ -438,17 +416,15 @@ describe("_createCategoryTree", () => {
 
         expect("errorMsg" in cat).toBe(false);
         expect(cat.values.has(10)).toBe(true);
-        expect(hasValues(cat)).toBe(true); // now from actual values
+        expect(hasValues(cat)).toBe(true);
     });
 
     test("drops values removed server-side on a subsequent fetch", () => {
         const cat = makeCategory(1, { hierarchize: false });
-        // Seed the synthetic "All" root as the arch parser does.
         cat.values.set(false, { id: false, childrenIds: [], parentId: false });
         const sections = new Map([[1, cat]]);
         const model = makeSearchModel(sections);
 
-        // First fetch returns two values.
         model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [
@@ -459,20 +435,17 @@ describe("_createCategoryTree", () => {
         expect(cat.values.has(10)).toBe(true);
         expect(cat.values.has(20)).toBe(true);
 
-        // A narrower domain reload no longer returns value 20.
         model._createCategoryTree(1, {
             parent_field: "parent_id",
             values: [{ id: 10, parent_id: false }],
         });
 
-        expect(cat.values.has(20)).toBe(false); // removed server-side → gone
+        expect(cat.values.has(20)).toBe(false);
         expect(cat.values.has(10)).toBe(true);
-        expect(cat.values.has(false)).toBe(true); // "All" root preserved
+        expect(cat.values.has(false)).toBe(true);
         expect(cat.rootIds).toEqual([false, 10]);
     });
 });
-
-// _createFilterTree
 
 describe("_createFilterTree", () => {
     test("populates values from flat server result", () => {
@@ -492,7 +465,7 @@ describe("_createFilterTree", () => {
     });
 
     test("restores checked state for values that were previously checked", () => {
-        const filter = makeFilter(1, [[10, true]]); // value 10 was checked
+        const filter = makeFilter(1, [[10, true]]);
         const sections = new Map([[1, filter]]);
         const model = makeSearchModel(sections);
 
@@ -527,7 +500,7 @@ describe("_createFilterTree", () => {
 
         model._createFilterTree(1, { values: [], error_msg: "Network error" });
         expect(filter.errorMsg).toBe("Network error");
-        expect(hasValues(filter)).toBe(true); // error tile rendered
+        expect(hasValues(filter)).toBe(true);
 
         model._createFilterTree(1, {
             values: [{ id: 10, display_name: "Tag A" }],
@@ -535,11 +508,9 @@ describe("_createFilterTree", () => {
 
         expect("errorMsg" in filter).toBe(false);
         expect(filter.values.has(10)).toBe(true);
-        expect(hasValues(filter)).toBe(true); // now from actual values
+        expect(hasValues(filter)).toBe(true);
     });
 });
-
-// _fetchCategories — per-section load id
 
 describe("_fetchCategories per-section stale guard", () => {
     /** A resolvable promise. */
@@ -596,32 +567,23 @@ describe("_fetchCategories per-section stale guard", () => {
             trigger() {},
         });
 
-        // First fetch of BOTH sections (their in-flight responses are pending).
         const p1 = model._fetchCategories([catA, catB]);
-        // A later fetch of ONLY section B (e.g. a counter-only reload) bumps
-        // just B's load id — A's in-flight fetch must survive.
         const p2 = model._fetchCategories([catB]);
 
         const resultA = { values: [{ id: 10 }], _tag: "A" };
         const resultB1 = { values: [{ id: 20 }], _tag: "B1" };
         const resultB2 = { values: [{ id: 30 }], _tag: "B2" };
         deferredsByField.get("a")[0].resolve(resultA);
-        deferredsByField.get("b")[0].resolve(resultB1); // stale (load id 1)
-        deferredsByField.get("b")[1].resolve(resultB2); // current (load id 2)
+        deferredsByField.get("b")[0].resolve(resultB1);
+        deferredsByField.get("b")[1].resolve(resultB2);
         await Promise.all([p1, p2]);
 
-        // Exactly two applications: section A's only fetch, and section B's
-        // newest fetch. The superseded B response (resultB1) was discarded, and
-        // — the actual regression — section A's response was NOT dropped by B's
-        // later fetch (a model-wide load id used to discard it).
         expect(created.length).toBe(2);
         const applied = new Map(created);
         expect(applied.get(1)).toBe(resultA);
         expect(applied.get(2)).toBe(resultB2);
     });
 });
-
-// _shouldWaitForData
 
 describe("_shouldWaitForData", () => {
     test("returns true when categories exist AND any filter has non-empty domain", () => {
@@ -679,7 +641,69 @@ describe("_shouldWaitForData", () => {
             searchDomain: [["active", "=", true]],
         });
 
-        // searchDomainChanged = false → section.expand is irrelevant
         expect(model._shouldWaitForData(false)).toBe(false);
+    });
+});
+
+describe("a failing section fetch leaves a usable section", () => {
+    /** An orm whose cached call always rejects. */
+    function makeThrowingOrm(error) {
+        return {
+            cache() {
+                return this;
+            },
+            call() {
+                return Promise.reject(error);
+            },
+        };
+    }
+
+    /**
+     * @param {Object} section
+     * @param {Object} overrides
+     */
+    function makeFetchModel(section, overrides) {
+        return makeSearchModel(new Map([[section.id, section]]), {
+            _sectionLoadIds: new Map(),
+            orm: makeThrowingOrm(new Error("boom")),
+            globalContext: {},
+            resModel: "res.partner",
+            searchDomain: [],
+            _getFilterDomain: () => [],
+            _getCategoryDomain: () => [],
+            _getGroupDomain: () => null,
+            _reset() {},
+            trigger() {},
+            ...overrides,
+        });
+    }
+
+    test("a thrown category fetch still builds the tree the panel reads", async () => {
+        const category = makeCategory(1, { fieldName: "a", activeValueId: 42 });
+        category.values.set(false, { id: false, childrenIds: [], parentId: false });
+        const model = makeFetchModel(category, { categories: [category] });
+
+        await model._fetchCategories([category]);
+
+        expect(category.errorMsg).toBe("boom");
+        // SearchPanel.expandValues iterates rootIds; getAncestorValueIds and
+        // getCategorySelection look activeValueId up in values.
+        expect(category.rootIds).toEqual([false]);
+        expect(category.activeValueId).toBe(false);
+        expect(category.values.get(category.activeValueId)).toBeOfType("object");
+    });
+
+    test("a thrown filter fetch clears the section instead of half-updating it", async () => {
+        const filter = makeFilter(1, [[7, true]], {
+            fieldName: "a",
+            groupBy: "group_id",
+        });
+        const model = makeFetchModel(filter, { filters: [filter] });
+
+        await model._fetchFilters([filter]);
+
+        expect(filter.errorMsg).toBe("boom");
+        expect(filter.values.size).toBe(0);
+        expect([...filter.groups.keys()]).toEqual([]);
     });
 });

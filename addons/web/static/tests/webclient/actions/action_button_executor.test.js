@@ -49,8 +49,6 @@ function makeFakeAm(overrides = {}) {
     return am;
 }
 
-// ── P03: block-ui overlay must always be released ──────────────────────────
-
 test("block-ui: overlay is released after a successful action", async () => {
     const am = makeFakeAm();
     await executeActionButton(am, { name: 1, type: "action", "block-ui": "1" });
@@ -68,12 +66,10 @@ test("block-ui: overlay is released when the action load rejects", async () => {
         executeActionButton(am, { name: 1, type: "action", "block-ui": "1" }),
     ).rejects.toThrow(/load failed/);
     expect(am.__ui.blocked).toBe(1);
-    expect(am.__ui.count).toBe(0); // P03: a rejected RPC must not strand the overlay
+    expect(am.__ui.count).toBe(0);
 });
 
 test("block-ui: overlay is released on the embedded-action early return", async () => {
-    // The embedded branch is gated on user settings pointing at an existing
-    // embedded action; populate them locally (no RPC).
     user.updateUserSettings("id", 1);
     user.updateUserSettings("embedded_actions_config_ids", {
         "7+1": { embedded_actions_order: [42] },
@@ -98,19 +94,14 @@ test("block-ui: overlay is released on the embedded-action early return", async 
             resId: 1,
             "block-ui": "1",
         });
-        expect(embeddedCalled).toBe(true); // took the embedded early-return path
-        expect(am.__ui.count).toBe(0); // P03: the early return must still unblock
+        expect(embeddedCalled).toBe(true);
+        expect(am.__ui.count).toBe(0);
     } finally {
         user.updateUserSettings("embedded_actions_config_ids", {});
     }
 });
 
 test("block-ui: overlay is released when the RPC phase is superseded", async () => {
-    // A03: a programmatic doAction firing while the button RPC is still in
-    // flight bumps the shared (rejectSuperseded) KeepLast, so the button's
-    // wrapper now REJECTS with a SupersededError instead of hanging forever.
-    // executeActionButton lets it propagate — the `finally` still releases the
-    // block-ui overlay, and the error service swallows the SupersededError.
     const keepLast = new KeepLast({ rejectSuperseded: true });
     const loadDef = new Deferred();
     const am = makeFakeAm({
@@ -124,25 +115,16 @@ test("block-ui: overlay is released when the RPC phase is superseded", async () 
     });
     await Promise.resolve();
     expect(am.__ui.blocked).toBe(1);
-    expect(am.__ui.count).toBe(1); // overlay up while the RPC is pending
+    expect(am.__ui.count).toBe(1);
 
-    // A newer task on the shared KeepLast supersedes the button task.
     keepLast.add(Promise.resolve());
-    // The button's RPC still settles server-side afterwards.
     loadDef.resolve({ type: "ir.actions.act_window" });
 
-    // The wrapper rejects with SupersededError; the overlay is still released.
     await expect(prom).rejects.toBeInstanceOf(SupersededError);
-    expect(am.__ui.count).toBe(0); // the `finally` ran → overlay released
+    expect(am.__ui.count).toBe(0);
 });
 
 test("block-ui: overlay is released when the doAction phase is superseded", async () => {
-    // A03: when the dispatched action is superseded before its controller
-    // mounts, the action service rejects doAction's promise with a
-    // SupersededError (ControllerComponent.onWillDestroy rejects the
-    // currentActionProm). executeActionButton awaits doAction plainly now — the
-    // `finally` releases the overlay and the rejection propagates to be
-    // swallowed by the error service.
     const am = makeFakeAm({
         doAction: async () => {
             throw new SupersededError();
@@ -154,12 +136,10 @@ test("block-ui: overlay is released when the doAction phase is superseded", asyn
         "block-ui": "1",
     });
     await expect(prom).rejects.toBeInstanceOf(SupersededError);
-    expect(am.__ui.count).toBe(0); // the `finally` ran → overlay released
+    expect(am.__ui.count).toBe(0);
 });
 
 test("block-ui: the close flow runs when doAction resolves normally", async () => {
-    // The non-superseded happy path: doAction resolves, so the post-doAction
-    // close flow still runs and the overlay is released.
     let closed = false;
     const am = makeFakeAm({
         doAction: async () => {},
@@ -192,8 +172,6 @@ test("no block-ui: the overlay is never raised", async () => {
     expect(am.__ui.count).toBe(0);
 });
 
-// ── P11: malformed object-button `args` must fail loudly, not silently ──────
-
 test("args: an unparseable expression raises InvalidButtonParamsError (and unblocks)", async () => {
     const am = makeFakeAm();
     let error;
@@ -203,14 +181,14 @@ test("args: an unparseable expression raises InvalidButtonParamsError (and unblo
             type: "object",
             resModel: "res.partner",
             resId: 1,
-            args: "[1, 2", // unterminated list → evaluateExpr throws
+            args: "[1, 2",
             "block-ui": "1",
         });
     } catch (e) {
         error = e;
     }
     expect(error).toBeInstanceOf(InvalidButtonParamsError);
-    expect(am.__ui.count).toBe(0); // composes with P03's finally
+    expect(am.__ui.count).toBe(0);
 });
 
 test("args: a non-list value raises InvalidButtonParamsError", async () => {
@@ -221,12 +199,10 @@ test("args: a non-list value raises InvalidButtonParamsError", async () => {
             type: "object",
             resModel: "res.partner",
             resId: 1,
-            args: "5", // valid expression, but not a list
+            args: "5",
         }),
     ).rejects.toThrow(/must evaluate to a list/);
 });
-
-// ── T2: extracted pure units (no fake am needed) ───────────────────────────
 
 test("buildCallButtonArgs: record id(s) then the parsed args list", () => {
     expect(buildCallButtonArgs({ resId: 5 })).toEqual([[5]]);
@@ -236,7 +212,6 @@ test("buildCallButtonArgs: record id(s) then the parsed args list", () => {
         1,
         "x",
     ]);
-    // apostrophe inside a string round-trips (the L2 contract via evaluateExpr)
     expect(buildCallButtonArgs({ resId: 5, name: "a", args: `["it's"]` })).toEqual([
         [5],
         "it's",
@@ -261,7 +236,6 @@ test("buildCallButtonArgs: a non-list value is rejected with a descriptive error
 
 test("filterActionContext: strips action-specific keys, keeps the rest", () => {
     const filtered = filterActionContext({
-        // stripped (match CTX_KEY_REGEX):
         default_name: "x",
         search_default_partner_id: 1,
         show_address: true,
@@ -270,7 +244,6 @@ test("filterActionContext: strips action-specific keys, keeps the rest", () => {
         active_id: 1,
         active_ids: [1, 2],
         orderedBy: [{ name: "x" }],
-        // kept:
         lang: "en_US",
         active_model: "res.partner",
         uid: 2,

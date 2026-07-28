@@ -67,7 +67,6 @@ function makeList(records, steps, { mutex = new Mutex() } = {}) {
             }
         },
     });
-    // `records` is a getter-only prototype property — override per instance.
     Object.defineProperty(list, "records", { get: () => records });
     return list;
 }
@@ -81,11 +80,6 @@ describe("leaveEditMode save path", () => {
         const result = await list.leaveEditMode();
 
         expect(result).toBe(true);
-        // Two flushes: the historical prelude was public checkValidity()
-        // followed by public save(), EACH running model._askChanges — the
-        // gap between them lets reactions from the first flush (multi-edit
-        // setInvalidField -> notification + discard) settle, and re-commits
-        // late 'change' events before the save decision.
         expect(steps).toEqual([
             "askChanges:none",
             "askChanges:none",
@@ -160,8 +154,6 @@ describe("leaveEditMode discard path", () => {
         const result = await list.leaveEditMode({ discard: true });
 
         expect(result).toBe(true);
-        // _recordToDiscard was already set during the _askChanges flush, so a
-        // drained field commit can't multi-edit-dispatch the discarded edits.
         expect(steps).toEqual(["askChanges:r1", "r1:discard", "remove:r1"]);
         expect(list._recordToDiscard).toBe(null);
     });
@@ -191,8 +183,6 @@ describe("leaveEditMode concurrency", () => {
         mutex.exec(() => gate);
 
         const prom = list.leaveEditMode();
-        // Let the prelude (both flushes) run: the mutex-held critical section
-        // must not have started while another job holds the mutex.
         for (let i = 0; i < 4; i++) {
             await Promise.resolve();
         }
@@ -218,14 +208,11 @@ describe("leaveEditMode concurrency", () => {
         const list = makeList([rec], steps, { mutex });
         list.model.urgentSave.isActive = true;
 
-        // The mutex is wedged (e.g. by the very save urgent mode bypasses):
-        // leaveEditMode must still complete.
         mutex.exec(() => new Deferred());
 
         const result = await list.leaveEditMode();
 
         expect(result).toBe(true);
-        // No _askChanges prelude and no validity check on the urgent path.
         expect(steps).toEqual(["r1:save"]);
     });
 });

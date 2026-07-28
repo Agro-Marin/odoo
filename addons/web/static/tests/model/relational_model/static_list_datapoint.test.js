@@ -19,8 +19,6 @@ import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { StaticList } from "@web/model/relational_model/static_list";
 import { sort } from "@web/model/relational_model/static_list_sort";
 
-// extendRecord — config.fields identity
-
 describe("extendRecord fields identity", () => {
     test("keeps the extended record's config.fields === list.fields", async () => {
         const listFields = { display_name: { type: "char", name: "display_name" } };
@@ -39,9 +37,6 @@ describe("extendRecord fields identity", () => {
             },
         });
 
-        // A record that has already been extended once (case 1.1: the simplest
-        // path — patch config + savepoint). Its config.fields starts as a
-        // DIFFERENT object from the list's.
         const record = {
             id: 1,
             config: {
@@ -52,7 +47,6 @@ describe("extendRecord fields identity", () => {
         };
         list._extendedRecords.add(record.id);
 
-        // The caller passes its OWN fields snapshot (yet another object).
         const paramsFields = { display_name: { type: "char", name: "display_name" } };
         await list.extendRecord(
             {
@@ -62,13 +56,10 @@ describe("extendRecord fields identity", () => {
             record,
         );
 
-        // config.fields must be the list's live merged object, not the snapshot.
         expect(record.config.fields).toBe(list.fields);
         expect(record.config.fields).not.toBe(paramsFields);
     });
 });
-
-// _createRecordDatapoint — dirty datapoints are merged, not replaced
 
 /** Minimal fake Record class for the clean-replacement path. */
 class FakeRecord {
@@ -121,12 +112,9 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
             { activeFields: {} },
         );
 
-        // Same datapoint returned & still cached — NOT replaced.
         expect(out).toBe(dirty);
         expect(list._cache[1]).toBe(dirty);
-        // Its pending _changes survive (so serializeCommands still emits them).
         expect(dirty._changes.child_ids).toBe("PENDING_UPDATE");
-        // The freshly-loaded values were merged via _applyValues.
         expect(dirty.appliedWith).toEqual({ id: 1, name: "reloaded" });
     });
 
@@ -150,8 +138,6 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
     });
 });
 
-// sort() — a dirty datapoint survives a restricted-field reload
-
 describe("sort restricted-field reload preserves dirty datapoint", () => {
     test("dirty record keeps its _changes across a sort reload", async () => {
         const list = Object.create(StaticList.prototype);
@@ -168,13 +154,11 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
             _parent: {},
             _needsReordering: true,
             model: {
-                // Restricted-field load returns only the orderBy field.
                 _loadRecords: async () => [{ id: 1, name: "A" }],
             },
             _load: async () => {
                 list._loadCalled = true;
             },
-            // Force the dirty record to be (re)loaded: it lacks the sort field.
             _getResIdsToLoad: () => [1],
         });
 
@@ -192,19 +176,12 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
 
         await sort(list, [1], [{ name: "name", asc: true }]);
 
-        // The dirty datapoint was merged, not replaced.
         expect(list._cache[1]).toBe(dirty);
-        // Its pending command survives → would still serialize on save.
         expect(dirty._changes.other).toBe("PENDING_UPDATE");
-        // The freshly-loaded sort value was merged in.
         expect(dirty.data.name).toBe("A");
         expect(list._loadCalled).toBe(true);
     });
 });
-
-// ---------------------------------------------------------------------------
-// _duplicateRecords — early-return guards
-// ---------------------------------------------------------------------------
 
 /**
  * Bare StaticList with no collaborator methods defined at all: if
@@ -222,14 +199,6 @@ function makeBareStaticList({ records = [], handleField = "sequence" } = {}) {
 describe("_duplicateRecords early-return guards", () => {
     test("no records to duplicate: returns without touching any collaborator", async () => {
         const list = makeBareStaticList({ records: [] });
-        // Pre-fix: `records.at(-1)` on [] is undefined, so
-        // `this.records.indexOf(undefined) + 1` silently computed 0 instead
-        // of crashing — the guard exists for the *next* line, where
-        // `records.map(...)` over an empty array is harmless but the
-        // sequence read below (targetIndex 0 branch) still touches
-        // `this.records[0]`, which is unsafe when `this.records` is also
-        // empty. Guarding on `!records.length` short-circuits before any of
-        // that runs.
         await list._duplicateRecords([], {});
         expect(list.records).toEqual([]);
     });
@@ -237,9 +206,6 @@ describe("_duplicateRecords early-return guards", () => {
     test("no handleField to sequence on: returns without touching any collaborator", async () => {
         const records = [{ data: { sequence: 1 } }];
         const list = makeBareStaticList({ records, handleField: false });
-        // Pre-fix, with no handleField the sequence arithmetic read
-        // `data[undefined]` (NaN) and then wrote NaN into every following
-        // record's handle field instead of failing loudly or skipping.
         await list._duplicateRecords(records, {});
         expect(list.records).toBe(records);
     });

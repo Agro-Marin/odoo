@@ -45,11 +45,16 @@ describe("PairSet", () => {
 
         const a = {};
         const b = {};
-        expect(pairSet.map.size).toBe(0);
+        expect(pairSet.has(a, b)).toBe(false);
         pairSet.add(a, b);
-        expect(pairSet.map.size).toBe(1);
         pairSet.add(a, b);
-        expect(pairSet.map.size).toBe(1);
+        expect(pairSet.map.get(a).size).toBe(1);
+        pairSet.delete(a, b);
+        expect(pairSet.has(a, b)).toBe(false);
+    });
+
+    test("does not keep its first elements alive", () => {
+        expect(new PairSet().map).toBeInstanceOf(WeakMap);
     });
 });
 
@@ -154,9 +159,7 @@ describe("patch dynamic content", () => {
     });
 
     test("patch t-on-... does not require knowledge about there being a super", () => {
-        const parent = {
-            // No t-on-click here.
-        };
+        const parent = {};
         const patch = {
             somewhere: {
                 "t-on-click": (el, oldFn) => {

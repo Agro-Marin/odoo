@@ -116,17 +116,10 @@ test("displays the loading indicator for multi rpc in debug mode", async () => {
 });
 
 test("malformed rpcBus events are ignored, not thrown", async () => {
-    // A synthetic/malformed event on the shared rpcBus must not throw inside the
-    // bus dispatch (the pre-fix code read `detail.settings.silent`, which threw
-    // on a missing `settings`), matching the sibling listeners on the same bus.
     await mountWithCleanup(LoadingIndicator, { noMainContainer: true });
-    // Guard-ignored shapes: null detail and a missing `data` are dropped outright.
     rpcBus.trigger("RPC:REQUEST", null);
-    rpcBus.trigger("RPC:RESPONSE", { settings: {} }); // no data
-    // A missing `settings` must not throw. It IS a valid (non-silent) request,
-    // so it would legitimately show the indicator — pair it with its response so
-    // the tracked count returns to 0 and the indicator stays hidden.
-    rpcBus.trigger("RPC:REQUEST", { data: { id: 1 } }); // no settings
+    rpcBus.trigger("RPC:RESPONSE", { settings: {} });
+    rpcBus.trigger("RPC:REQUEST", { data: { id: 1 } });
     rpcBus.trigger("RPC:RESPONSE", { data: { id: 1 } });
     await runAllTimers();
     await animationFrame();

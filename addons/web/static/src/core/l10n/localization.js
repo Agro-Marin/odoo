@@ -17,11 +17,21 @@
  * @property {string} code
  */
 
-// Protocol probes that must not throw before the localization data is
-// loaded: "then" is read implicitly when the object is returned from an
-// `async` function; the others are probed by JSON.stringify, devtools
-// formatters, and assertion/inspection libraries.
-const ALLOWED_PROTOCOL_KEYS = new Set(["then", "toJSON", "constructor", "inspect"]);
+/**
+ * Keys that generic machinery probes on any value it is handed, and which must
+ * therefore answer `undefined` instead of throwing: promise resolution reads
+ * `then`, serialization reads `toJSON`, console inspection reads `inspect` and
+ * `constructor`, and the service-teardown protocol (`env.destroy`) reads
+ * `destroy` on every started service — this object being the value of the
+ * `localization` service.
+ */
+const ALLOWED_PROTOCOL_KEYS = new Set([
+    "then",
+    "toJSON",
+    "constructor",
+    "inspect",
+    "destroy",
+]);
 
 /**
  * Main object holding user-specific localization data (JS counterpart of "res.lang").

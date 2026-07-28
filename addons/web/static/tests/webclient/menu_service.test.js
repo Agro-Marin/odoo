@@ -83,7 +83,6 @@ test(`use stored menus, and don't update on load_menus return (if identical)`, a
     redirect("/odoo/action-666");
     onRpc("/web/webclient/load_menus", () => def);
 
-    // Initial Stored values
     browser.localStorage.webclient_menus_version =
         "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
     browser.localStorage.webclient_menus = JSON.stringify({
@@ -113,11 +112,9 @@ test(`send stored hash and keep stored menus on 304 not modified`, async () => {
     onRpc("/web/webclient/load_menus", async (request) => {
         expect.step(`hash=${new URL(request.url).searchParams.get("hash")}`);
         await def;
-        // Server-side payload hash matches: 304-equivalent, empty body.
         return new Response(null, { status: 304 });
     });
 
-    // Initial stored values, including the persisted X-Menus-Hash value
     browser.localStorage.webclient_menus_version =
         "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
     browser.localStorage.webclient_menus_hash = "abcdef123456";
@@ -159,7 +156,6 @@ test(`update menus and persist new hash on changed payload`, async () => {
         );
     });
 
-    // Stored copy contains an extra menu (Test2): the server payload differs
     browser.localStorage.webclient_menus_version =
         "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
     browser.localStorage.webclient_menus_hash = "oldhash123";
@@ -174,7 +170,6 @@ test(`update menus and persist new hash on changed payload`, async () => {
     webClient.env.bus.addEventListener("MENUS:APP-CHANGED", () =>
         expect.step("Update Menus"),
     );
-    // Stored copy is rendered without waiting for the revalidation
     expect(".o_menu_sections").toHaveText("Test1\nTest2");
     expect.verifySteps(["hash=oldhash123"]);
     def.resolve();
@@ -190,8 +185,6 @@ test(`use stored menus, and update on load_menus return`, async () => {
     redirect("/odoo/action-666");
     onRpc("/web/webclient/load_menus", () => def);
 
-    // Initial Stored values
-    // There is no menu "Test2" in the initial values
     browser.localStorage.webclient_menus_version =
         "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
     browser.localStorage.webclient_menus = JSON.stringify({
@@ -249,8 +242,6 @@ test(`stale background revalidation cannot overwrite a fresher reload()`, async 
     redirect("/odoo/action-666");
     onRpc("/web/webclient/load_menus", async (request) => {
         if (new URL(request.url).searchParams.get("hash")) {
-            // Boot-time background revalidation: resolves late, with a
-            // payload/hash that predate the reload() below.
             await def;
             return new Response(
                 JSON.stringify({
@@ -266,7 +257,6 @@ test(`stale background revalidation cannot overwrite a fresher reload()`, async 
                 { headers: { "X-Menus-Hash": "stalehash" } },
             );
         }
-        // reload(): full fetch, no conditional hash.
         return new Response(
             JSON.stringify({
                 1: { appID: 1, children: [], name: "FreshApp", id: 1, actionID: 666 },
@@ -288,9 +278,6 @@ test(`stale background revalidation cannot overwrite a fresher reload()`, async 
     await getService("menu").reload();
     expect(getService("menu").getMenu(1).name).toBe("FreshApp");
 
-    // The stale revalidation resolves after the reload committed: it must
-    // neither overwrite the menus nor persist its stale hash (which would
-    // 304-pin the stale payload on the next boots).
     def.resolve();
     await animationFrame();
     expect(getService("menu").getMenu(1).name).toBe("FreshApp");
@@ -300,11 +287,8 @@ test(`stale background revalidation cannot overwrite a fresher reload()`, async 
 
 test.tags("desktop");
 test(`total menu fetch failure falls back to an empty root`, async () => {
-    // Cold boot (no stored copy), preload and refetch both fail: the menu
-    // service must still expose a usable (empty) tree instead of leaving
-    // menusData undefined and throwing on the first getAll()/getApps().
     const preload = Promise.reject(new Error("preload failed"));
-    preload.catch(() => {}); // pre-handled: the service awaits it later
+    preload.catch(() => {});
     patchWithCleanup(odoo, { loadMenusPromise: preload });
     onRpc("/web/webclient/load_menus", () => {
         throw new Error("load_menus unavailable");
@@ -317,10 +301,6 @@ test(`total menu fetch failure falls back to an empty root`, async () => {
 
 test.tags("desktop");
 test(`corrupt stored menus are discarded and refetched (no boot brick)`, async () => {
-    // A corrupt localStorage payload (interrupted write, extension, manual
-    // edit) used to make JSON.parse throw synchronously in start(): the menu
-    // service — and everything depending on it — failed on EVERY boot until
-    // the user manually cleared storage.
     browser.localStorage.webclient_menus_version =
         "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
     browser.localStorage.webclient_menus = '{"1": {"appID": 1, TRUNCATED';
@@ -328,15 +308,11 @@ test(`corrupt stored menus are discarded and refetched (no boot brick)`, async (
 
     await makeMockEnv();
 
-    // The corrupt copy was treated as a cold boot: the server payload is
-    // served instead of an exception.
     expect(
         getService("menu")
             .getApps()
             .map((app) => app.name),
     ).toEqual(["App1"]);
-    // The fetched payload was re-persisted over the corrupt one, so the next
-    // boot starts from a valid copy.
     const stored = browser.localStorage.getItem("webclient_menus");
     expect(stored).not.toBe('{"1": {"appID": 1, TRUNCATED');
     expect(JSON.parse(stored).root.id).toBe("root");
@@ -344,14 +320,8 @@ test(`corrupt stored menus are discarded and refetched (no boot brick)`, async (
 
 test.tags("desktop");
 test(`cold boot: a null parse-time preload refetches menus (no blank client)`, async () => {
-    // No stored menus for this registry version → cold path. The bootstrap
-    // preload resolves null (a 304 the server computed against a stale
-    // localStorage copy), which must NOT leave menusData undefined. The
-    // service should refetch the full payload from the server instead.
     patchWithCleanup(odoo, { loadMenusPromise: Promise.resolve(null) });
     await makeMockEnv();
-    // getApps() dereferences menusData.root — it throws if the cold boot left
-    // it undefined (the blank-webclient bug).
     expect(
         getService("menu")
             .getApps()
@@ -361,9 +331,6 @@ test(`cold boot: a null parse-time preload refetches menus (no blank client)`, a
 
 test.tags("desktop");
 test(`cold boot: falls back to stored menus when preload is null and refetch fails`, async () => {
-    // Version-mismatched stored copy present (still the cold path), the preload
-    // resolves null, AND the server refetch rejects. Rather than a blank
-    // client, the stale stored copy is served.
     browser.localStorage.webclient_menus_version = "stale-version-hash";
     browser.localStorage.webclient_menus = JSON.stringify({
         1: { appID: 1, children: [], name: "StoredApp", id: 1, actionID: 666 },
@@ -381,20 +348,7 @@ test(`cold boot: falls back to stored menus when preload is null and refetch fai
     ).toEqual(["StoredApp"]);
 });
 
-// ---------------------------------------------------------------------------
-// getAppIdByAction — the action -> app index behind the URL/menu resolution
-// ---------------------------------------------------------------------------
-
 test("getAppIdByAction prefers the given app when several share the action", async () => {
-    // The pre-existing "menu jumping fix" integration test cannot discriminate
-    // a working tie-break from "pick the first match": its preferred app (100)
-    // is also the first match, so both behaviours agree.
-    //
-    // Iteration order here is NOT declaration order: `menusData` is a plain
-    // object keyed by menu id, and integer-like keys iterate in ascending
-    // NUMERIC order. So app 100 is always the first match and app 200 is the
-    // discriminating case — `getAppIdByAction(9001, 200)` must return 200,
-    // which a tie-break that just took apps[0] would get wrong.
     defineMenus([
         { id: 0 },
         { id: 200, name: "Accounting", appID: 200, children: [201] },
@@ -405,14 +359,10 @@ test("getAppIdByAction prefers the given app when several share the action", asy
     const env = await makeMockEnv();
     const menuService = env.services.menu;
 
-    // Preferred app wins even though it is not the first match.
     expect(menuService.getAppIdByAction(9001, 100)).toBe(100);
     expect(menuService.getAppIdByAction(9001, 200)).toBe(200);
-    // No preference (or an app that doesn't expose the action): first match,
-    // i.e. the lowest app id.
     expect(menuService.getAppIdByAction(9001)).toBe(100);
     expect(menuService.getAppIdByAction(9001, 999)).toBe(100);
-    // Unknown action resolves to nothing rather than throwing.
     expect(menuService.getAppIdByAction(4242)).toBe(undefined);
 });
 
@@ -436,8 +386,6 @@ test("getAppIdByAction matches an action path, not just an id", async () => {
 });
 
 test("the action index is rebuilt when the menu tree is reloaded", async () => {
-    // The index is lazy and memoized; a reload() that swapped the tree without
-    // dropping it would answer from menus that no longer exist.
     defineMenus([
         { id: 0 },
         { id: 100, name: "Sale", appID: 100, children: [101] },
@@ -446,7 +394,6 @@ test("the action index is rebuilt when the menu tree is reloaded", async () => {
     const env = await makeMockEnv();
     const menuService = env.services.menu;
 
-    // Populate the index BEFORE the reload, so a stale one would survive it.
     expect(menuService.getAppIdByAction(9001)).toBe(100);
 
     onRpc("/web/webclient/load_menus", () => ({
@@ -463,30 +410,14 @@ test("the action index is rebuilt when the menu tree is reloaded", async () => {
     }));
     await menuService.reload();
 
-    // The old app is gone; the action now belongs to the new one.
     expect(menuService.getAppIdByAction(9001)).toBe(500);
 });
-
-// ---------------------------------------------------------------------------
-// menu_storage.js invariants
-//
-// The cached trio (payload / version / hash) is only safe to resume from
-// because of two ordering rules, both of which were previously unpinned.
-// ---------------------------------------------------------------------------
 
 const CURRENT_REGISTRY_HASH =
     "05500d71e084497829aa807e3caa2e7e9782ff702c15b2f57f87f2d64d049bd0";
 
 test.tags("desktop");
 test(`a version-mismatched cache is not served, even though it parses`, async () => {
-    // The version gate is what makes an upgrade take effect: the stored payload
-    // is perfectly valid JSON, it just describes the PREVIOUS registry.
-    //
-    // The discriminator is the REQUEST, not the rendered brand: a warm boot
-    // replays the stored hash (`?hash=`) and paints the cached menus first,
-    // while a cold boot fetches unconditionally. Asserting on the brand alone
-    // cannot tell the two apart, because the warm path's background
-    // revalidation repairs the display before the assertion runs.
     redirect("/odoo/action-666");
     browser.localStorage.webclient_menus_version = "a-previous-registry-hash";
     browser.localStorage.webclient_menus_hash = "stale-hash-abc";
@@ -504,8 +435,6 @@ test(`a version-mismatched cache is not served, even though it parses`, async ()
 
     await mountWebClient();
 
-    // Cold boot: no conditional hash replayed, so the server cannot 304 us back
-    // onto the stale copy.
     expect.verifySteps(["hash=null"]);
     expect(`.o_menu_brand`).toHaveText("FreshApp");
     expect(browser.localStorage.webclient_menus_version).toBe(CURRENT_REGISTRY_HASH);
@@ -513,10 +442,6 @@ test(`a version-mismatched cache is not served, even though it parses`, async ()
 
 test.tags("desktop");
 test(`a failed payload write closes the version gate`, async () => {
-    // The version is written LAST so a quota failure cannot leave a CURRENT
-    // stamp over a stale payload. The discriminator therefore needs the stamp
-    // to already be current — otherwise "gate closed" and "gate never opened"
-    // look identical.
     redirect("/odoo/action-666");
     browser.localStorage.webclient_menus_version = CURRENT_REGISTRY_HASH;
     browser.localStorage.webclient_menus = JSON.stringify({
@@ -539,9 +464,6 @@ test(`a failed payload write closes the version gate`, async () => {
     await mountWebClient();
     await animationFrame();
 
-    // The stale payload is still in storage and still stamped current unless
-    // the gate is explicitly shut — which would make the NEXT boot serve
-    // "StaleApp" forever.
     expect(browser.localStorage.webclient_menus_version).not.toBe(
         CURRENT_REGISTRY_HASH,
     );

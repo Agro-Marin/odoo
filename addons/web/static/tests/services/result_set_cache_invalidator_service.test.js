@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { RpcEvent } from "@web/core/events";
-import { rpcBus } from "@web/core/network/rpc";
+import { ConnectionLostError, rpcBus, RPCError } from "@web/core/network/rpc";
 import { RESULT_SET_REMOVING_METHODS } from "@web/services/result_set_cache_invalidator_service";
 
 describe.current.tags("headless");
@@ -126,5 +126,58 @@ test("malformed payloads do not throw", async () => {
 
     expect(captured).toHaveLength(0);
 
+    stop();
+});
+
+/**
+ * As {@link fireResponse}, but for a mutation whose RPC failed.
+ * @param {string} method
+ * @param {any} error
+ * @param {string} [model]
+ */
+function fireFailedResponse(method, error, model = "res.partner") {
+    rpcBus.dispatchEvent(
+        new CustomEvent(RpcEvent.RESPONSE, {
+            detail: { data: { params: { method, model } }, settings: {}, error },
+        }),
+    );
+}
+
+test("a server-rejected unlink does NOT emit", async () => {
+    // The server raised, so the transaction rolled back and nothing was
+    // deleted. Dropping a cache here is pure waste right after the user
+    // already got an error dialog.
+    await makeMockEnv();
+    const { captured, stop } = captureClearCaches();
+
+    fireFailedResponse("unlink", new RPCError("denied"));
+
+    expect(captured).toHaveLength(0);
+    stop();
+});
+
+test("an unlink whose response was LOST still emits", async () => {
+    // A ConnectionLostError/timeout may have committed server-side: only the
+    // response was lost. Skipping here (what this service used to do for every
+    // failure) leaves the result-set caches serving deleted rows for the rest
+    // of the session, with no other trigger.
+    await makeMockEnv();
+    const { captured, stop } = captureClearCaches();
+
+    fireFailedResponse("unlink", new ConnectionLostError("/web/dataset/call_kw"));
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0].model).toBe("res.partner");
+    stop();
+});
+
+test("a failed write-class method still does NOT emit", async () => {
+    // The method filter must keep applying regardless of the error policy.
+    await makeMockEnv();
+    const { captured, stop } = captureClearCaches();
+
+    fireFailedResponse("web_save", new ConnectionLostError("/web/dataset/call_kw"));
+
+    expect(captured).toHaveLength(0);
     stop();
 });

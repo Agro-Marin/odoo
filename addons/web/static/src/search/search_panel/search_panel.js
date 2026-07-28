@@ -5,7 +5,6 @@
 
 import {
     Component,
-    onMounted,
     onWillStart,
     onWillUnmount,
     onWillUpdateProps,
@@ -20,10 +19,6 @@ import { browser } from "@web/core/browser/browser";
 import { SearchModelEvent } from "@web/core/events";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useBus } from "@web/core/utils/hooks";
-
-//-------------------------------------------------------------------------
-// Helpers
-//-------------------------------------------------------------------------
 
 const isFilter = (s) => s.type === "filter";
 const isActiveCategory = (s) => s.type === "category" && s.activeValueId;
@@ -83,11 +78,7 @@ export class SearchPanel extends Component {
         useBus(this.env.searchModel, SearchModelEvent.UPDATE, async () => {
             await this.env.searchModel.sectionsPromise;
             this.updateActiveValues();
-            // Group headers are managed imperatively (OWL can't template
-            // `indeterminate`), so model-driven changes (clearSelection,
-            // refetches, state import) must resync them after the re-render.
             await this.render();
-            this.updateGroupHeadersChecked();
         });
 
         useEffect(
@@ -118,31 +109,15 @@ export class SearchPanel extends Component {
             this.updateActiveValues();
         });
 
-        onMounted(() => {
-            this.updateGroupHeadersChecked();
-        });
-
-        // If the panel unmounts mid-drag (programmatic action/reload with no
-        // intervening pointerup/keydown), tear down the global resize listeners
-        // so an orphaned capture-phase pointermove handler can't keep firing on
-        // a null root ref across the whole app.
         onWillUnmount(() => {
             this._removeResizeListeners?.();
         });
     }
 
-    //---------------------------------------------------------------------
-    // Getters
-    //---------------------------------------------------------------------
-
     /** @returns {Object[]} non-empty search panel sections from the search model */
     get sections() {
         return this.env.searchModel.getSections((s) => !s.empty);
     }
-
-    //---------------------------------------------------------------------
-    // Public
-    //---------------------------------------------------------------------
 
     /** @returns {string} JSON-serialized panel state (expanded nodes, scroll, width) */
     exportState() {
@@ -166,10 +141,6 @@ export class SearchPanel extends Component {
         }
     }
 
-    //---------------------------------------------------------------------
-    // Protected
-    //---------------------------------------------------------------------
-
     /**
      * Get or create a reactive dropdown state for a section (mobile mode).
      * @param {number} sectionId
@@ -187,8 +158,25 @@ export class SearchPanel extends Component {
         return this.dropdownStates[sectionId];
     }
 
+    /**
+     * Give every category an expansion map. Seeding is separate from computing
+     * the default expansions because the latter is skipped for an imported
+     * state, while the map itself is not optional: the Category template reads
+     * `state.expanded[section.id][valueId]` for any value with children, and an
+     * imported state only carries the categories that existed when it was
+     * exported — `{}` when it was exported before the sections had loaded.
+     */
+    ensureExpansionState() {
+        for (const category of this.env.searchModel.getSections(
+            (s) => s.type === "category",
+        )) {
+            this.state.expanded[category.id] ??= {};
+        }
+    }
+
     /** Expand category values holding a category's default (active) value. */
     expandDefaultValue() {
+        this.ensureExpansionState();
         if (this.hasImportedState) {
             return;
         }
@@ -196,7 +184,6 @@ export class SearchPanel extends Component {
             (s) => s.type === "category",
         );
         for (const category of categories) {
-            this.state.expanded[category.id] = {};
             if (category.activeValueId) {
                 const ancestorIds = this.getAncestorValueIds(
                     category,
@@ -222,7 +209,6 @@ export class SearchPanel extends Component {
                 continue;
             }
 
-            this.state.expanded[category.id] ||= {};
             const expand = (id, level) => {
                 if (!level) {
                     return;
@@ -355,8 +341,6 @@ export class SearchPanel extends Component {
 
     /** Toggle sidebar expanded/collapsed and persist preference to localStorage. */
     toggleSidebar() {
-        // An explicit toggle is a real preference; drop any pending
-        // auto-collapse restore so it can't override this choice later.
         this._sidebarAutoCollapsed = false;
         this.state.sidebarExpanded = !this.state.sidebarExpanded;
         browser.localStorage.setItem(
@@ -388,19 +372,34 @@ export class SearchPanel extends Component {
      */
     toggleFilterValue(filterId, valueId, { currentTarget }) {
         this.state.active[filterId][valueId] = currentTarget.checked;
-        this.updateGroupHeadersChecked();
         this.env.searchModel.toggleFilterValues(filterId, [valueId]);
+    }
+
+    /**
+     * Checked / indeterminate state of a filter group's header, derived from
+     * the same `state.active` the value checkboxes render from.
+     * @param {number} sectionId
+     * @param {{ values: Map<any, Object> }} group
+     * @returns {{ checked: boolean, indeterminate: boolean }}
+     */
+    getGroupState(sectionId, group) {
+        const activeValues = this.state.active[sectionId] || {};
+        let checkedCount = 0;
+        for (const valueId of group.values.keys()) {
+            if (activeValues[valueId]) {
+                checkedCount++;
+            }
+        }
+        return {
+            checked: checkedCount > 0 && checkedCount === group.values.size,
+            indeterminate: checkedCount > 0 && checkedCount < group.values.size,
+        };
     }
 
     /** Sync component state with the SearchModel's current section values. */
     updateActiveValues() {
         const sections = this.sections;
         if (!sections.length) {
-            // Sections can transiently empty (mid-reload, filtered to nothing).
-            // Auto-collapse the sidebar but remember we did so, so it re-expands
-            // when sections return instead of permanently overriding the stored
-            // preference. Only collapse from an expanded state — never touch a
-            // sidebar the user already collapsed.
             if (this.state.sidebarExpanded) {
                 this._sidebarAutoCollapsed = true;
                 this.state.sidebarExpanded = false;
@@ -430,43 +429,12 @@ export class SearchPanel extends Component {
         }
     }
 
-    /** Update each group header's checked/indeterminate state from its values. */
-    updateGroupHeadersChecked() {
-        // On desktop the group headers render inline under root.el, but on
-        // mobile each section is mounted in a Dropdown popover in the overlay
-        // container, OUTSIDE root.el — so scanning root.el would miss them and
-        // the header checkbox would never reflect its selection. Scan the owning
-        // document instead. Each header's state is derived solely from its own
-        // descendant value inputs, so scanning unrelated groups is harmless.
-        const container = this.root.el?.ownerDocument;
-        if (!container) {
-            return;
-        }
-        const groups = container.querySelectorAll(".o_search_panel_filter_group");
-        for (const group of groups) {
-            const header = /** @type {HTMLInputElement} */ (
-                group.querySelector(":scope .o_search_panel_group_header input")
-            );
-            const vals = /** @type {HTMLInputElement[]} */ ([
-                ...group.querySelectorAll(":scope .o_search_panel_filter_value input"),
-            ]);
-            header.checked = false;
-            header.indeterminate = false;
-            if (vals.every((v) => v.checked)) {
-                header.checked = true;
-            } else if (vals.some((v) => v.checked)) {
-                header.indeterminate = true;
-            }
-        }
-    }
-
     /**
      * Start the sidebar resize drag.
      * @private
      * @param {PointerEvent} ev
      */
     _onStartResize(ev) {
-        // Only triggered by left mouse button
         if (ev.button !== 0) {
             return;
         }
@@ -482,14 +450,9 @@ export class SearchPanel extends Component {
             });
             this._removeResizeListeners = null;
         };
-        // Exposed so onWillUnmount can tear the drag down if the panel is
-        // destroyed before a pointerup/keydown ends it.
         this._removeResizeListeners = removeListeners;
 
         const resizePanel = (ev) => {
-            // The panel can be unmounted while the drag is still active; the
-            // stale listener would then hit a null root ref. Self-clean instead
-            // of throwing.
             if (!this.root.el) {
                 removeListeners();
                 return;
@@ -505,7 +468,6 @@ export class SearchPanel extends Component {
         document.addEventListener("pointermove", resizePanel, true);
 
         const stopResize = (ev) => {
-            // Ignore the initial mousedown so the listener isn't removed instantly.
             if (ev.type === "pointerdown" && ev.button === 0) {
                 return;
             }
@@ -513,19 +475,11 @@ export class SearchPanel extends Component {
             ev.stopPropagation();
 
             removeListeners();
-            // Remove focus from inside the panel: a lingering focus triggers a
-            // CSS darken-on-hover style that looks wrong here. Guard on containment
-            // so the resize never blurs focus that legitimately sits outside the
-            // panel (e.g. an input the user was typing in).
             const active = /** @type {HTMLElement} */ (document.activeElement);
             if (active && this.root.el?.contains(active)) {
                 active.blur();
             }
         };
-        // Listen for several events to reliably stop resizing:
-        // - pointerdown (e.g. pressing right click)
-        // - pointerup : logical flow of the resizing feature (drag & drop)
-        // - keydown : (e.g. pressing 'Alt' + 'Tab' or 'Windows' key)
         resizeStoppingEvents.forEach((stoppingEvent) => {
             document.addEventListener(stoppingEvent, stopResize, true);
         });

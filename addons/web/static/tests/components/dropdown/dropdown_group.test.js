@@ -60,7 +60,6 @@ test("DropdownGroup: when one Dropdown is open, others with same group name can 
     }
     await mountWithCleanup(Parent);
 
-    // Click on ONE
     await click(queryOne(".one"));
     await animationFrame();
 
@@ -68,7 +67,6 @@ test("DropdownGroup: when one Dropdown is open, others with same group name can 
     expect(DROPDOWN_MENU).toHaveCount(1);
     expect(".one").toHaveClass("show");
 
-    // Hover on TWO
     await hover(".two");
     await animationFrame();
     expect.verifySteps(["beforeOpen"]);
@@ -80,13 +78,11 @@ test("DropdownGroup: when one Dropdown is open, others with same group name can 
     expect(DROPDOWN_MENU).toHaveCount(1);
     expect(".menu-two").toHaveCount(1);
 
-    // Hover on THREE
     await hover(".three");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
     expect(".menu-three").toHaveCount(1);
 
-    // Hover on FOUR (Should not open)
     expect(".menu-four").toHaveCount(0);
     await hover(".four");
     await animationFrame();
@@ -94,12 +90,10 @@ test("DropdownGroup: when one Dropdown is open, others with same group name can 
     expect(".menu-three").toHaveCount(1);
     expect(".menu-four").toHaveCount(0);
 
-    // Click on OUTSIDE
     await click("div.outside");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
 
-    // Hover on ONE, TWO, THREE
     await hover(".one");
     await hover(".two");
     await hover(".three");
@@ -130,12 +124,10 @@ test("DropdownGroup: when non-sibling Dropdown is open, other must not be toggle
         static props = [];
     }
     await mountWithCleanup(Parent);
-    // Click on One
     await click(".one");
     await animationFrame();
     expect(getDropdownMenu(".one")).toHaveCount(1);
 
-    // Hover on Two
     await hover(".two");
     await animationFrame();
     expect(getDropdownMenu(".one")).toHaveCount(1);
@@ -171,17 +163,14 @@ test("DropdownGroup: when one is open, then non-sibling toggled, siblings must n
                 `;
     }
     await mountWithCleanup(Parent);
-    // Click on BAR1
     await click(".two");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // Click on FOO
     await click(".one");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // Hover on BAR1
     await hover(".two");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
@@ -212,13 +201,11 @@ test("DropdownGroup: toggler focused on mouseenter", async () => {
     }
     await mountWithCleanup(Parent);
 
-    // Click on one
     await click("button.one");
     await animationFrame();
     expect("button.one").toBeFocused();
     expect(DROPDOWN_MENU).toHaveText("One Content");
 
-    // Hover on two
     await hover("button.two");
     await animationFrame();
     expect("button.two").toBeFocused();
@@ -253,14 +240,11 @@ test("DropdownGroup: keyboard close returns focus to the toggler, not <body>", a
     await animationFrame();
     expect("button.one").toBeFocused();
 
-    // Move focus into the open menu, then close it with the keyboard.
     await press("ArrowDown");
     await animationFrame();
     expect(".item-one").toBeFocused();
 
     await press("Escape");
     await animationFrame();
-    // Focus must return to the menu button (menu-button a11y), not be dropped
-    // to <body> — the bug the old `!group.isInGroup` restore skip caused.
     expect("button.one").toBeFocused();
 });

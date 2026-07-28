@@ -54,7 +54,6 @@ class IrModelAccessTest(TransactionCase):
         )
 
     def test_display_name_for(self):
-        # Internal user with read access: gets the real display name.
         result = (
             self.env["ir.model"]
             .with_user(self.spreadsheet_user)
@@ -63,9 +62,6 @@ class IrModelAccessTest(TransactionCase):
         self.assertEqual(
             result, [{"display_name": "Companies", "model": "res.company"}]
         )
-        # Portal user: has perm_read=True on res.company, but
-        # _is_valid_for_model_selector() requires an internal user, so the
-        # real name is still withheld.
         result = (
             self.env["ir.model"]
             .with_user(self.portal_user)
@@ -74,7 +70,6 @@ class IrModelAccessTest(TransactionCase):
         self.assertEqual(
             result, [{"display_name": "res.company", "model": "res.company"}]
         )
-        # Public user: neither internal nor perm_read, same fallback as above.
         result = (
             self.env["ir.model"]
             .with_user(self.public_user)
@@ -83,17 +78,14 @@ class IrModelAccessTest(TransactionCase):
         self.assertEqual(
             result, [{"display_name": "res.company", "model": "res.company"}]
         )
-        # Admin (default env user): internal, sees the real name.
         result = self.env["ir.model"].display_name_for(["res.company"])
         self.assertEqual(
             result, [{"display_name": "Companies", "model": "res.company"}]
         )
-        # A non-existent model falls back the same way as an inaccessible one.
         result = self.env["ir.model"].display_name_for(["unexistent"])
         self.assertEqual(
             result, [{"display_name": "unexistent", "model": "unexistent"}]
         )
-        # Non-existent models are appended after existent ones, not interleaved.
         result = self.env["ir.model"].display_name_for(["res.company", "unexistent"])
         self.assertEqual(
             result,
@@ -102,8 +94,6 @@ class IrModelAccessTest(TransactionCase):
                 {"display_name": "unexistent", "model": "unexistent"},
             ],
         )
-        # Transient models are excluded by _is_valid_for_model_selector(),
-        # so they fall back to their raw name like an inaccessible model.
         result = self.env["ir.model"].display_name_for(
             ["res.company", "base.language.export"]
         )
@@ -118,7 +108,6 @@ class IrModelAccessTest(TransactionCase):
             ],
         )
 
-        # Same exclusion applies to get_available_models().
         result = self.env["ir.model"].get_available_models()
         result = {values["model"] for values in result}
         self.assertIn("res.company", result)
@@ -130,34 +119,22 @@ class IrModelAccessTest(TransactionCase):
         """
         IrModel = self.env["ir.model"]
 
-        # Internal user with read access: gets the definition.
         result = IrModel.with_user(self.spreadsheet_user)._get_definitions(
             ["res.company"]
         )
         self.assertIn("res.company", result)
         self.assertIn("fields", result["res.company"])
 
-        # Portal user (has perm_read on res.company but is not internal): the
-        # schema is withheld entirely — previously it leaked to any user.
         result = IrModel.with_user(self.portal_user)._get_definitions(["res.company"])
         self.assertEqual(result, {})
 
-        # Public user: same withholding.
         result = IrModel.with_user(self.public_user)._get_definitions(["res.company"])
         self.assertEqual(result, {})
 
-        # Transient models the internal user may read ARE introspectable here:
-        # their schema is already visible through the wizard views the user
-        # opens, so withholding it adds no protection. (The stricter selector
-        # gate in display_name_for/get_available_models still hides them from a
-        # model-selector dropdown — see test_display_name_for above.)
         result = IrModel._get_definitions(["res.company", "base.language.export"])
         self.assertIn("res.company", result)
         self.assertIn("base.language.export", result)
 
-        # A relational cross-reference to a model NOT in the request set is not
-        # resolved: only the (access-filtered) requested models appear, so no
-        # inaccessible model leaks through a relation.
         self.assertEqual(set(result), {"res.company", "base.language.export"})
 
 
@@ -167,10 +144,6 @@ class TestIrModel(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
 
-        # Test mode is required here: each test's cleanup calls
-        # registry.reset_changes(), which opens a new cursor to retrieve the
-        # custom models/fields created below. A regular cursor would see the
-        # database state from before setUpClass() instead of cls.cr's state.
         cls.registry_enter_test_mode_cls()
 
         cls.env["ir.model"].create(
@@ -188,7 +161,6 @@ class TestIrModel(TransactionCase):
                 ],
             }
         )
-        # stage values are pairs (id, display_name)
         cls.ripeness_green = cls.env["x_banana_ripeness"].name_create("Green")
         cls.ripeness_okay = cls.env["x_banana_ripeness"].name_create("Okay, I guess?")
         cls.ripeness_gone = cls.env["x_banana_ripeness"].name_create(
@@ -233,8 +205,6 @@ class TestIrModel(TransactionCase):
                 ],
             }
         )
-        # Non-stored field; test_model_order_constraint's INVALID_ORDERS
-        # uses it as an order-by target that must be rejected.
         cls.env["ir.model.fields"].create(
             {
                 "name": "x_is_yellow",
@@ -268,10 +238,6 @@ class TestIrModel(TransactionCase):
         )
 
     def setUp(self):
-        # Registered before super().setUp() so it runs last: addCleanup
-        # callbacks fire LIFO, and TransactionCase.setUp() registers its own
-        # cache-clearing cleanups afterwards, which must run before this one
-        # resets the registry.
         self.addCleanup(self.registry.reset_changes)
         super().setUp()
 
@@ -297,8 +263,6 @@ class TestIrModel(TransactionCase):
             with self.assertRaises(ValidationError):
                 self.bananas_model.order = order
 
-        # The order constraint must also be enforced at model creation time,
-        # not just when assigning .order on an existing model.
         fields_value = [
             Command.create(
                 {"name": "x_name", "ttype": "char", "field_description": "Name"}
@@ -322,7 +286,7 @@ class TestIrModel(TransactionCase):
             {
                 "name": "MegaBananas",
                 "model": "x_mega_bananas",
-                "order": "x_name asc, id desc",  # valid order
+                "order": "x_name asc, id desc",
                 "field_id": fields_value,
             }
         )
@@ -331,14 +295,13 @@ class TestIrModel(TransactionCase):
                 {
                     "name": "GigaBananas",
                     "model": "x_giga_bananas",
-                    "order": "x_name asc, x_wat",  # invalid order
+                    "order": "x_name asc, x_wat",
                     "field_id": fields_value,
                 }
             )
 
-        # ensure we can order by a stored field via inherits
         user_model = self.env["ir.model"].search([("model", "=", "res.users")])
-        user_model._check_order()  # must not raise
+        user_model._check_order()
 
     def test_model_order_search(self):
         """Check that custom orders are applied when querying a model."""
@@ -399,8 +362,6 @@ class TestIrModel(TransactionCase):
         )
         self.assertEqual(record.display_name, "Ifan Ben-Mezd")
 
-        # _rec_name and display_name's dependency must be cleared, not left
-        # dangling on the removed field.
         self.env["ir.model.fields"]._get("x_bananas", "x_name").unlink()
         record = self.env["x_bananas"].browse(record.id)
         self.assertEqual(record._rec_name, None)
@@ -525,7 +486,7 @@ class TestIrModel(TransactionCase):
         )
 
         valid_domain = "[('x_name', '=', 'Green')]"
-        invalid_domain = "[('x_name', '=', Green)]"  # Green without quotes
+        invalid_domain = "[('x_name', '=', Green)]"
 
         field_ripeness_id.domain = valid_domain
 

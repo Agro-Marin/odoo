@@ -3,12 +3,8 @@
 
 /** @module @web/core/py_js/py_date_helpers - Calendar arithmetic: ordinal conversion, leap year, day-in-month, and overflow normalization */
 
-// ─── Error types ─────────────────────────────────────────────────────────────
-
 class AssertionError extends Error {}
 export class ValueError extends Error {}
-
-// ─── Formatting ──────────────────────────────────────────────────────────────
 
 /** @param {number} n */
 export function fmt2(n) {
@@ -19,8 +15,6 @@ export function fmt2(n) {
 export function fmt4(n) {
     return String(n).padStart(4, "0");
 }
-
-// ─── Math primitives ─────────────────────────────────────────────────────────
 
 /**
  * Python-style divmod: computes (floor(a/b), a%b) and passes to callback.
@@ -34,8 +28,6 @@ export function fmt4(n) {
  */
 export function divmod(a, b, fn) {
     let mod = a % b;
-    // in python, sign(a % b) === sign(b). Not in JS. If wrong side, add a
-    // round of b
     if ((mod > 0 && b < 0) || (mod < 0 && b > 0)) {
         mod += b;
     }
@@ -52,8 +44,6 @@ export function assert(bool, message = "AssertionError") {
     }
 }
 
-// ─── Calendar constants ──────────────────────────────────────────────────────
-
 /** @type {(number | null)[]} */
 const DAYS_IN_MONTH = [null, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
@@ -63,8 +53,6 @@ for (let dbm = 0, i = 1; i < DAYS_IN_MONTH.length; ++i) {
     DAYS_BEFORE_MONTH.push(dbm);
     dbm += /** @type {number} */ (DAYS_IN_MONTH[i]);
 }
-
-// ─── Calendar functions ──────────────────────────────────────────────────────
 
 /**
  * @param {number} year
@@ -97,8 +85,6 @@ function daysBeforeMonth(year, month) {
     const postLeapFeb = month > 2 && isLeap(year);
     return /** @type {number} */ (DAYS_BEFORE_MONTH[month]) + (postLeapFeb ? 1 : 0);
 }
-
-// ─── Ordinal conversion ─────────────────────────────────────────────────────
 
 /**
  * @param {number} year
@@ -175,8 +161,6 @@ function ord2ymd(n) {
     };
 }
 
-// ─── Overflow normalization ──────────────────────────────────────────────────
-
 /**
  * Converts date/time components into valid values, applying overflows as needed.
  *
@@ -219,27 +203,14 @@ export function tmxxx(year, month, day, hour, minute, second, microsecond) {
             day += carry;
         });
     }
-    // That was easy.  Now it gets muddy:  the proper range for day
-    // can't be determined without knowing the correct month and year,
-    // but if day is, e.g., plus or minus a million, the current month
-    // and year values make no sense (and may also be out of bounds
-    // themselves).
-    // Saying 12 months == 1 year should be non-controversial.
     if (month < 1 || month > 12) {
         divmod(month - 1, 12, function (carry, m) {
             month = m + 1;
             year += carry;
         });
     }
-    // Now only day can be out of bounds (year may also be out of bounds
-    // for a datetime object, but we don't care about that here).
-    // If day is out of bounds, what to do is arguable, but at least the
-    // method here is principled and explainable.
     const dim = daysInMonth(year, month);
     if (day < 1 || day > dim) {
-        // Move day-1 days from the first of the month.  First try to
-        // get off cheap if we're only one day out of range (adjustments
-        // for timezone alone can't be worse than that).
         if (day === 0) {
             --month;
             if (month > 0) {

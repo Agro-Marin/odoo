@@ -31,9 +31,6 @@ export class DebugMenu extends DebugMenuBasic {
                     const items = await debugContext.getItems(
                         /** @type {import("@web/env").OdooEnv} */ (this.env),
                     );
-                    // Debug factories only ever emit `type: "item"` descriptors
-                    // (grouping is expressed via the `section` field, not
-                    // "separator" items), so the palette shows a flat command list.
                     const provider = {
                         async provide() {
                             /** @type {{ name: string, action: any }[]} */

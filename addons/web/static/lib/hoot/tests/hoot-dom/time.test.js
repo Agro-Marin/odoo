@@ -14,7 +14,6 @@ import {
 } from "@odoo/hoot";
 import { parseUrl } from "../local_helpers.js";
 
-// timeout of 1 second to ensure all timeouts are actually mocked
 describe.timeout(1_000);
 describe(parseUrl(import.meta.url), () => {
     test("advanceTime", async () => {
@@ -34,7 +33,7 @@ describe(parseUrl(import.meta.url), () => {
         expect(animationHandle).toBeGreaterThan(0);
         expect.verifySteps([]);
 
-        await advanceTime(10_000); // 10 seconds
+        await advanceTime(10_000);
 
         expect.verifySteps(["animation", "timeout", "interval", "interval", "interval"]);
 

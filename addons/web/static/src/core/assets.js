@@ -27,43 +27,12 @@ const log = makeAssetLog("js");
  * }} BundleFileNames
  */
 
-// ── Cross-bundle singleton state ─────────────────────────────────────────
-//
-// esbuild inlines this core module into EVERY asset bundle, so plain
-// module-level state would give each bundle its own private copy of the
-// caches below. That fragments the dedup guarantees these caches exist for:
-// a second ``loadBundle`` from a satellite bundle would re-inject (and
-// re-EXECUTE) classic scripts, re-declare import-map rules Chromium then
-// warns about, and mint colliding cross-document event names. Anchor one
-// shared instance on ``globalThis`` (same ``??=`` idiom as ``rpc.js``'s
-// ``__odoo_rpc_state__``, ``registry.js``'s ``__odooRegistry__``,
-// ``templates.js``'s ``__odooTemplates__``, ``translation.js`` and
-// ``functions.js``); the FIRST bundle to run wins and stays authoritative.
 const __odoo_assets_state__ = /** @type {any} */ (
     globalThis.__odoo_assets_state__ ??= {
         globalBundleCache: new Map(),
         assetCacheByDocument: new WeakMap(),
-        // Per-document cache of cross-document ESM bundle loads, keyed by the
-        // specifier signature. Dedups repeated ``loadESMBundle`` calls into the
-        // SAME foreign document so import-map keys aren't re-injected and the
-        // module graph isn't re-imported; a rejected load is evicted so a later
-        // call may retry. Main-document loads are excluded — deduped upstream via
-        // ``getBundle``/``injectedImportMapKeys``, which mutate global state this
-        // cache doesn't model.
         crossDocESMBundleCache: new WeakMap(),
-        // Specifiers already resolvable by the page's *existing* import maps —
-        // injected by this module or rendered server-side into the initial HTML.
-        // Chromium merges multi-importmap rules by appending, but a later rule for
-        // an already-defined spec is dropped with "An import map rule for
-        // specifier '<spec>' was removed, as it conflicted with an existing rule"
-        // — so treat every spec already present as off-limits for lazy
-        // ``loadBundle`` re-declaration.
         injectedImportMapKeys: new Set(),
-        // Monotonic token for cross-document ``loadESMBundle`` done/error event
-        // names. Deterministic (vs ``Math.random``), collision-proof across
-        // concurrent calls, and predictable for tests. Shared across bundles so
-        // two copies can't mint the same ``__odoo_esm_bundle_loaded_1`` name and
-        // cross-resolve each other's promises.
         crossDocLoadSeq: 0,
     }
 );
@@ -142,7 +111,6 @@ function getAssetCache(targetDoc) {
 function computeBundleCacheMap(targetDoc) {
     const cacheMap = getAssetCache(targetDoc);
     for (const script of targetDoc.head.querySelectorAll("script[src]")) {
-        // The `[src]` selector guarantees the attribute is present.
         cacheMap.set(
             /** @type {string} */ (script.getAttribute("src")),
             Promise.resolve(),
@@ -173,6 +141,13 @@ whenReady(() => {
  *  path may retry, and an interrupted load must not be retried — it must reject.
  */
 const onLoadAndError = (el, onLoad, onError, onPageHideCleanup, onInterrupt) => {
+    // The interrupt guard has to watch the window the ELEMENT lives in. For a
+    // cross-document load (`targetDoc` = an iframe document) that is not the
+    // top-level window, so watching `window` never fired: the iframe could
+    // unload mid-load, leaving the caller's promise pending forever and the
+    // cache entry poisoned with it.
+    const view = el.ownerDocument?.defaultView ?? window;
+
     const onLoadListener = (/** @type {Event} */ event) => {
         removeListeners();
         onLoad(event);
@@ -183,20 +158,9 @@ const onLoadAndError = (el, onLoad, onError, onPageHideCleanup, onInterrupt) => 
         onError(/** @type {any} */ (error));
     };
 
-    // Cleans up the load/error listeners if the page is unloaded before the asset
-    // settles. It MUST itself be removed once the asset loads/errors, otherwise
-    // every loadJS/loadCSS over a session leaks a permanent `pagehide` listener
-    // (and retained closures) on `window`.
     const onPageHide = () => {
         removeListeners();
-        // On bfcache restore (Safari back-nav) the JS heap, including the asset
-        // cache, comes back intact, but this promise can never settle (listeners
-        // gone, request aborted). Evict the cache entry so a post-restore load
-        // re-injects instead of returning a dead promise forever...
         onPageHideCleanup?.();
-        // ...and settle the promise the caller is already holding, otherwise a
-        // component suspended in `onWillStart` resumes stuck in its loading
-        // state for the rest of the session. `loadESMBundle` already does this.
         onInterrupt?.(
             new AssetsLoadingError(
                 `The loading of ${el.getAttribute("src") || el.getAttribute("href")} was interrupted: the page was hidden`,
@@ -207,12 +171,12 @@ const onLoadAndError = (el, onLoad, onError, onPageHideCleanup, onInterrupt) => 
     const removeListeners = () => {
         el.removeEventListener("load", onLoadListener);
         el.removeEventListener("error", onErrorListener);
-        window.removeEventListener("pagehide", onPageHide);
+        view.removeEventListener("pagehide", onPageHide);
     };
 
     el.addEventListener("load", onLoadListener);
     el.addEventListener("error", onErrorListener);
-    window.addEventListener("pagehide", onPageHide);
+    view.addEventListener("pagehide", onPageHide);
 };
 
 /**
@@ -252,12 +216,30 @@ export function loadCSS(url, options) {
 
 export class AssetsLoadingError extends Error {}
 
-// Entries are OWL Component classes — ``LazyComponent`` below resolves the
-// registered class via ``registry.category("lazy_components").get(name)`` and
-// mounts it via ``<t t-component="Component" .../>``. Validate at ``add()`` time
-// so a non-Component entry surfaces here instead of failing deep inside OWL at
-// mount with an unhelpful error (same pattern as the ``dialogs`` registry, see
-// ``ui/dialog/dialog_service.js``).
+/**
+ * Drop ``url`` from ``cacheMap``, but only if it still holds the promise the
+ * caller owns.
+ *
+ * Every eviction here races a replacement: an entry is removed on failure or on
+ * a page-hide interrupt, and a later ``loadJS``/``loadCSS`` for the same url
+ * immediately installs a fresh promise — while the older load's listeners are
+ * still attached, because ``pagehide`` fires for every live element at once.
+ * An unconditional ``delete`` then evicts the NEWER, healthy entry, and the
+ * asset is re-injected (and re-executed) on the next request.
+ *
+ * ``getOwn`` is a thunk because the promise is not yet bound when the listeners
+ * are registered (it is the value being constructed).
+ *
+ * @param {Map<string, Promise<any>>} cacheMap
+ * @param {string} url
+ * @param {() => Promise<any>} getOwn
+ */
+function evictIfCurrent(cacheMap, url, getOwn) {
+    if (cacheMap.get(url) === getOwn()) {
+        cacheMap.delete(url);
+    }
+}
+
 registry
     .category("lazy_components")
     .addValidation((entry) => entry?.prototype instanceof Component);
@@ -316,8 +298,6 @@ export const assets = {
         for (const [key, value] of Object.entries(session.bundle_params || {})) {
             url.searchParams.set(key, value);
         }
-        // The promise is stored in the cache synchronously (before it resolves)
-        // so concurrent calls for the same bundle share a single fetch.
         const promise = (async () => {
             const response = await fetch(url);
             if (!response.ok) {
@@ -336,14 +316,8 @@ export const assets = {
                 );
             }
             if (result.is_esm) {
-                // ESM bundle: native modules are loaded via import().
-                // Skip .esm.js files (esbuild output) — they have
-                // import statements that fail as regular <script>.
-                // Keep .min.js (UMD libs like Bootstrap).
                 esmSpecifiers = result.specifiers || [];
                 esmImportMap = result.import_map || null;
-                // Include ESM template URL so templates self-register
-                // via registerTemplate() when imported.
                 if (result.template_url) {
                     esmSpecifiers.push(result.template_url);
                 }
@@ -359,17 +333,6 @@ export const assets = {
                     if (type === "link" && src) {
                         cssLibs.push(src);
                     } else if (type === "script" && src && !src.includes(".esm.")) {
-                        // Same ``.esm.`` skip as the ``is_esm`` branch above,
-                        // and for the same reason. A bundle outside
-                        // ``dynamic_bundle_names`` is served as this flat node
-                        // list, yet it can still carry the esbuild ESM output:
-                        // ``web.assets_frontend`` does, and the website builder
-                        // tests lazy-load it into the editor iframe. The node
-                        // list drops the node's ``type="module"``, so without
-                        // this guard the URL reached ``loadJS``, was injected as
-                        // a classic <script>, and threw an uncaught "Cannot use
-                        // import statement outside a module" — which aborts the
-                        // whole page, not merely the caller.
                         jsLibs.push(src);
                     }
                 }
@@ -384,7 +347,7 @@ export const assets = {
             });
             return { cssLibs, jsLibs, esmSpecifiers, esmImportMap };
         })().catch((reason) => {
-            cacheMap.delete(bundleName);
+            evictIfCurrent(cacheMap, bundleName, () => promise);
             log("getBundle:error", bundleName, reason);
             if (reason instanceof AssetsLoadingError) {
                 throw reason;
@@ -433,8 +396,6 @@ export const assets = {
             promises.push(...cssLibs.map((url) => assets.loadCSS(url, { targetDoc })));
         }
         if (js && esmSpecifiers) {
-            // ESM bundle: use dynamic import() which respects the
-            // page's import map for specifier resolution.
             promises.push(
                 assets.loadESMBundle(esmSpecifiers, {
                     targetDoc,
@@ -442,8 +403,6 @@ export const assets = {
                 }),
             );
         }
-        // Also load non-ESM files (XML template bundles, legacy JS)
-        // via the classic path — these are still needed alongside ESM.
         if (js && jsLibs && jsLibs.length) {
             promises.push(...jsLibs.map((url) => assets.loadJS(url, { targetDoc })));
         }
@@ -476,17 +435,7 @@ export const assets = {
             !(targetDoc === document || targetDoc.defaultView === window),
         );
         if (targetDoc === document || targetDoc.defaultView === window) {
-            // Inject the bundle's import map entries before the dynamic imports.
-            // Required when specifiers aren't already pre-registered in the page's
-            // main import map (e.g. ``loadBundle("web.assets_emoji")`` from the
-            // unit-test page, whose setup bundle only pre-registers
-            // ``web.assets_web``'s specifiers). Browsers support multiple
-            // ``<script type="importmap">`` tags per document, merging maps as
-            // long as no conflicting keys redefine an entry.
             if (importMap) {
-                // Re-seed in case another async flow appended an import map between
-                // whenReady and this call. Idempotent and cheap vs. the injection it
-                // prevents.
                 seedInjectedImportMapKeys(document);
                 /** @type {Record<string, any>} */
                 const freshEntries = {};
@@ -520,15 +469,8 @@ export const assets = {
             const results = await Promise.all(
                 specifiers.map(async (specifier) => {
                     const mod = await import(specifier);
-                    // The specifier may already be import-mapped to another
-                    // module (first injection wins for the whole session, e.g.
-                    // a test stub claimed it first). Delegating shims expose
-                    // ``__setImplUrl`` so a later load of the same bundle can
-                    // still route them to this bundle's actual module.
                     const mappedUrl = importMap?.[specifier];
                     if (mappedUrl && typeof mod.__setImplUrl === "function") {
-                        // Absolutize: the shim may live in a data: module,
-                        // where path-relative imports cannot be resolved.
                         await mod.__setImplUrl(
                             new URL(mappedUrl, document.baseURI).href,
                         );
@@ -549,11 +491,6 @@ export const assets = {
             }
             return;
         }
-        // Cross-document dedup: a repeated load of the same specifier set into the
-        // same foreign document must NOT re-inject import-map keys nor re-import
-        // the graph. Everything to the terminal ``new Promise`` below runs
-        // synchronously, so the cache entry is installed before any concurrent
-        // caller can observe a miss.
         const cacheKey = JSON.stringify(specifiers);
         if (!crossDocESMBundleCache.has(targetDoc)) {
             crossDocESMBundleCache.set(targetDoc, new Map());
@@ -563,19 +500,6 @@ export const assets = {
             log("loadESMBundle:crossDoc cache-hit", "specs=", specifiers.length);
             return bundleCache.get(cacheKey);
         }
-        // Cross-document: run the imports inside targetDoc so they use its import
-        // map and register into its own odoo.loader. Build an extra import map
-        // combining bridge entries for every module already registered in the
-        // target's odoo.loader — so transitive ``@web/*`` imports resolve to
-        // data: URIs re-exporting the SAME instance instead of re-evaluating and
-        // splitting the registry singleton — with the bundle-specific import map
-        // from the caller. Reuse the server-provided map's bridges where a
-        // specifier is already covered, synthesising a runtime ``data:`` bridge
-        // only where the server couldn't statically predict it; bridge sources
-        // are built by ``@web/core/module_bridge`` in the SAME format as the
-        // server-side generator (``esm_graph.py::_bridge_shim_source``). Browsers
-        // accept multiple import maps as long as rules don't conflict — rules
-        // already present in targetDoc are kept.
         const targetWin = /** @type {any} */ (targetDoc.defaultView);
         const serverMap = importMap || {};
         /** @type {Record<string, any>} */
@@ -594,9 +518,6 @@ export const assets = {
                 if (!mod || typeof mod !== "object") {
                     continue;
                 }
-                // Reuse the server's cacheable bridge if it already provides one for
-                // ``spec``, else synthesise a runtime data: bridge. NEVER a raw source
-                // file — that would re-evaluate the module and split the singleton.
                 const bridgeTarget = isLoaderBridgeUrl(serverMap[spec])
                     ? serverMap[spec]
                     : toDataModuleUrl(buildBridgeModuleSource(spec, Object.keys(mod)));
@@ -609,8 +530,6 @@ export const assets = {
                 }
             }
         }
-        // Server-provided entries (real URLs + targeted bridges) win for any
-        // overlapping keys.
         Object.assign(extraMap, serverMap);
         if (Object.keys(extraMap).length) {
             log(
@@ -647,12 +566,6 @@ export const assets = {
         scriptEl.textContent = scriptText;
         const win = /** @type {Window} */ (targetDoc.defaultView);
         const settlePromise = new Promise((resolve, reject) => {
-            // Done/error are paired listeners on the target window: whichever fires
-            // must remove ALL (`{once: true}` alone would leak the others). The
-            // script "error" listener covers the injected module never running
-            // (e.g. parse failure); ``pagehide`` covers targetDoc being navigated
-            // away or torn down before done/error fires — both would otherwise hang
-            // the promise forever (mirrors ``onLoadAndError``'s ``pagehide`` cleanup).
             const settle = (/** @type {() => void} */ fn) => {
                 win.removeEventListener(doneEvent, onDone);
                 win.removeEventListener(errorEvent, onError);
@@ -690,10 +603,10 @@ export const assets = {
             scriptEl.addEventListener("error", onScriptError);
             (targetDoc.head || targetDoc.documentElement).appendChild(scriptEl);
         });
-        // Keep the shared promise in the per-document cache; evict on failure so
-        // a later call may retry (a resolved load stays cached — dedup hit).
         bundleCache.set(cacheKey, settlePromise);
-        settlePromise.catch(() => bundleCache.delete(cacheKey));
+        settlePromise.catch(() =>
+            evictIfCurrent(bundleCache, cacheKey, () => settlePromise),
+        );
         return settlePromise;
     },
 
@@ -709,12 +622,6 @@ export const assets = {
         if (cacheMap.has(url)) {
             return /** @type {Promise<void>} */ (cacheMap.get(url));
         }
-        // Cache the WHOLE retry chain up front and keep it cached until the chain
-        // settles. The previous code deleted the entry inside each error handler
-        // and only re-populated it after the backoff, leaving a window where a
-        // concurrent ``loadCSS(url)`` missed the cache and started an independent
-        // parallel retry chain (duplicate <link>s). A single ``attempt`` recursion
-        // that never touches the cache closes that window.
         /**
          * @param {number} attempt
          * @returns {Promise<void>}
@@ -734,13 +641,6 @@ export const assets = {
                     linkEl,
                     resolve,
                     async (error) => {
-                        // Content-addressed bundle URLs (``/web/assets/...``)
-                        // can never succeed by re-requesting the same URL — a
-                        // 404 means the attachment was GC-swept and only a
-                        // page reload (see the loader shim's
-                        // ``handleAssetLoadError``) mints a fresh URL. Retry
-                        // only external/plain URLs, where transient failures
-                        // are plausible.
                         const retryable = !url.includes("/web/assets/");
                         if (retryable && attempt < assets.retries.count) {
                             const delay =
@@ -757,7 +657,7 @@ export const assets = {
                             );
                         }
                     },
-                    () => cacheMap.delete(url),
+                    () => evictIfCurrent(cacheMap, url, () => promise),
                     reject,
                 ),
             );
@@ -766,8 +666,7 @@ export const assets = {
         };
         const promise = /** @type {Promise<void>} */ (
             runAttempt(retryCount).catch((reason) => {
-                // Terminal failure: evict so a future caller can retry fresh.
-                cacheMap.delete(url);
+                evictIfCurrent(cacheMap, url, () => promise);
                 throw reason;
             })
         );
@@ -791,28 +690,20 @@ export const assets = {
         const scriptEl = targetDoc.createElement("script");
         scriptEl.setAttribute("src", url);
         scriptEl.type = "text/javascript";
-        // Dynamically-inserted scripts default to async=true, i.e. they execute
-        // in COMPLETION order. Classic multi-file bundles rely on insertion
-        // order (e.g. web.ace_lib mode files calling `ace.define` must run
-        // after ace.js), so opt back into ordered execution.
         scriptEl.async = false;
         const promise = new Promise((resolve, reject) =>
             onLoadAndError(
                 scriptEl,
                 resolve,
                 (error) => {
-                    cacheMap.delete(url);
+                    evictIfCurrent(cacheMap, url, () => promise);
                     reject(
                         new AssetsLoadingError(`The loading of ${url} failed`, {
                             cause: error,
                         }),
                     );
                 },
-                () => {
-                    if (cacheMap.get(url) === promise) {
-                        cacheMap.delete(url);
-                    }
-                },
+                () => evictIfCurrent(cacheMap, url, () => promise),
                 reject,
             ),
         );

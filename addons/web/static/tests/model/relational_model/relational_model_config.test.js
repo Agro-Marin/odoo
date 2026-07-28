@@ -23,17 +23,12 @@ describe("RelationalModel._patchConfig", () => {
             mode: "edit",
             resId: 42,
         });
-        // The patched values MUST be readable in the very next statement
-        // (call sites do not await).
         expect(config.mode).toBe("edit");
         expect(config.resId).toBe(42);
-        // No promise is returned — there is nothing to await.
         expect(result).toBe(undefined);
     });
 
     test("is not an async function (guard against reintroducing await)", () => {
-        // Guard against turning this async: every non-awaiting call site
-        // would break silently as the config write moves to a later microtask.
         expect(RelationalModel.prototype._patchConfig.constructor.name).toBe(
             "Function",
         );

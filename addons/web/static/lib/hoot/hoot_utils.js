@@ -73,10 +73,6 @@ import { getRunner } from "./main_runner.js";
  * @typedef {T | PromiseLike<T>} MaybePromise
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Array: { from: $from, isArray: $isArray },
     BigInt,
@@ -128,10 +124,6 @@ const $setItem = localStorage.setItem.bind(localStorage);
 const $removeItem = localStorage.removeItem.bind(localStorage);
 /** @type {Clipboard["writeText"]} */
 const $writeText = $clipboard?.writeText.bind($clipboard);
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {(...args: any[]) => any} fn
@@ -239,19 +231,15 @@ function _deepCopy(value, cache) {
             return value;
         }
         if (isNode(value)) {
-            // Nodes
             return value.cloneNode(true);
         } else if (isInstanceOf(value, Date, RegExp)) {
-            // Dates & regular expressions
             return new (getConstructor(value))(value);
         } else if (isIterable(value)) {
             const isArray = $isArray(value);
             const valueArray = isArray ? value : [...value];
-            // Iterables
             const values = valueArray.map((item) => _deepCopy(item, cache));
             return $isArray(value) ? values : new (getConstructor(value))(values);
         } else {
-            // Other objects
             if (cache.has(value)) {
                 return S_CIRCULAR;
             }
@@ -271,7 +259,6 @@ function _deepCopy(value, cache) {
  * @returns {boolean}
  */
 function _deepEqual(a, b, ignoreOrder, partial, cache) {
-    // Primitives
     if (strictEqual(a, b)) {
         return true;
     }
@@ -280,24 +267,19 @@ function _deepEqual(a, b, ignoreOrder, partial, cache) {
         return false;
     }
 
-    // Objects
     if (cache.has(a, b)) {
         return true;
     }
     cache.add(a, b);
 
-    // Nodes
     if (isNode(a)) {
         return isNode(b) && a.isEqualNode(b);
     }
 
-    // Files
     if (isInstanceOf(a, File)) {
-        // Files
         return a.name === b.name && a.size === b.size && a.type === b.type;
     }
 
-    // Generic objects
     const serialize = getGenericSerializer(a);
     if (serialize) {
         return strictEqual(serialize(a), serialize(b));
@@ -308,7 +290,6 @@ function _deepEqual(a, b, ignoreOrder, partial, cache) {
         return false;
     }
 
-    // Non-iterable objects
     if (!aIsIterable) {
         const bKeys = $ownKeys(b);
         const diff = $ownKeys(a).length - bKeys.length;
@@ -323,7 +304,6 @@ function _deepEqual(a, b, ignoreOrder, partial, cache) {
         return true;
     }
 
-    // Iterable objects
     const aIsArray = $isArray(a);
     if (aIsArray !== $isArray(b)) {
         return false;
@@ -336,10 +316,7 @@ function _deepEqual(a, b, ignoreOrder, partial, cache) {
         return false;
     }
 
-    // Unordered iterables
     if (ignoreOrder) {
-        // Needs a different cache since the deepEqual calls here are not "definitive",
-        // meaning that values may need to be re-evaluated later.
         const comparisonCache = makeObjectCache();
         for (let i = 0; i < a.length; i++) {
             const bi = b.findIndex((bValue) =>
@@ -351,7 +328,6 @@ function _deepEqual(a, b, ignoreOrder, partial, cache) {
             b.splice(bi, 1);
         }
     } else {
-        // Ordered iterables
         for (let i = 0; i < a.length; i++) {
             if (!_deepEqual(a[i], b[i], ignoreOrder, partial, cache)) {
                 return false;
@@ -372,7 +348,6 @@ function _formatHumanReadable(value, length, cache) {
     if (!isSafe(value)) {
         return `<cannot read value of ${getConstructor(value).name}>`;
     }
-    // Primitives
     switch (typeof value) {
         case "function": {
             return getFunctionString(value);
@@ -395,23 +370,19 @@ function _formatHumanReadable(value, length, cache) {
         return String(value);
     }
 
-    // Objects
     if (cache.has(value)) {
         return ELLIPSIS;
     }
     cache.add(value);
 
-    // Generic objects
     const serialize = getGenericSerializer(value);
     if (serialize) {
         return truncate(serialize(value));
     }
 
-    // Iterable objects
     if (isIterable(value)) {
         const values = [...value];
         if (values.length === 1 && isNode(values[0])) {
-            // Special case for single-element nodes arrays
             return _formatHumanReadable(values[0], length, cache);
         }
         const constructor = getConstructor(value);
@@ -435,7 +406,6 @@ function _formatHumanReadable(value, length, cache) {
         return `${constructorPrefix}[${truncate(content.join(", "))}]`;
     }
 
-    // Non-iterable objects
     const keys = $keys(value);
     const constructor = getConstructor(value);
     const constructorPrefix = constructor.name === "Object" ? "" : `${constructor.name} `;
@@ -477,11 +447,9 @@ function _formatTechnical(value, depth, isObjectValue, cache) {
         return `<cannot read value of ${getConstructor(value).name}>`;
     }
     if (value === S_ANY || value === S_NONE) {
-        // Special case: internal symbols
         return "";
     }
 
-    // Primitives
     const baseIndent = isObjectValue ? "" : " ".repeat(depth * 2);
     switch (typeof value) {
         case "function": {
@@ -498,7 +466,6 @@ function _formatTechnical(value, depth, isObjectValue, cache) {
         return `${baseIndent}${String(value)}`;
     }
 
-    // Objects
     if (cache.has(value)) {
         return `${baseIndent}${$isArray(value) ? `[${ELLIPSIS}]` : `{ ${ELLIPSIS} }`}`;
     }
@@ -513,7 +480,6 @@ function _formatTechnical(value, depth, isObjectValue, cache) {
         return `${baseIndent}${serialize(value)}`;
     }
 
-    // Iterable objects
     if (isIterable(value)) {
         const proto = constructor.name === "Array" ? "" : `${constructor.name} `;
         const content = [...value].map(
@@ -524,7 +490,6 @@ function _formatTechnical(value, depth, isObjectValue, cache) {
         }]`;
     }
 
-    // Non-iterable objects
     const proto = !constructor.name || constructor.name === "Object" ? "" : `${constructor.name} `;
     const content = $ownKeys(value)
         .sort(stringSort)
@@ -628,10 +593,6 @@ const windowTarget = {
  */
 let fuzzyScoreMap = null;
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 /**
  * @param {string} text
  */
@@ -689,14 +650,6 @@ export function createJobScopedGetter(instanceGetter, afterCallback) {
 
         const currentJob = runner.state.currentTest || runner.suiteStack.at(-1) || runner;
         if (!instances.has(currentJob)) {
-            // Async continuations (e.g. in-flight mock RPCs) may resume during
-            // the after-test phase, *after* this job's instance was cleaned
-            // up. Rebuilding a fresh instance at that point loses everything
-            // applied to the cleaned one (e.g. server model definitions merged
-            // by the mock server), producing broken half-built state. Serve
-            // the just-cleaned instance instead, strictly confined to the same
-            // run of the same *test* (``runCount`` is bumped after the
-            // "after-test" callbacks, so a re-run rebuilds normally).
             if (
                 cleanedInstance &&
                 cleanedInstance.job === currentJob &&
@@ -795,7 +748,6 @@ export function createMock(target, descriptors) {
         keys = $ownKeys(owner);
     }
 
-    // Copy original descriptors
     const mock = $assign($create(owner), target);
     for (const property of keys) {
         $defineProperty(mock, property, {
@@ -809,7 +761,6 @@ export function createMock(target, descriptors) {
         });
     }
 
-    // Apply new descriptors
     for (const [property, descriptor] of $entries(descriptors)) {
         $defineProperty(mock, property, descriptor);
     }
@@ -1011,8 +962,6 @@ export function generateHash(...strings) {
         hash |= 0;
     }
 
-    // Convert the possibly negative number hash code into an 8 character
-    // hexadecimal string
     return (hash + 16 ** 8).toString(16).slice(-8);
 }
 
@@ -1036,7 +985,6 @@ export function getConstructor(value) {
         return constructor;
     }
 
-    // Custom constructor
     const className = match[1];
     if (!objectConstructors.has(className)) {
         objectConstructors.set(
@@ -1353,11 +1301,6 @@ export function makeRuntimeHook(name) {
                 isGlobal = Boolean(last.global);
                 valid ||= isGlobal;
             }
-            // During module initialization (before the runner starts),
-            // hooks called outside a suite are treated as global.
-            // This supports framework helpers that register global
-            // before/after/beforeEach/afterEach at module top-level
-            // (e.g. registry cleanup, mock server routes).
             if (!valid && runner.state?.status !== "running") {
                 valid = true;
             }
@@ -1366,15 +1309,6 @@ export function makeRuntimeHook(name) {
                     level: "critical",
                 });
             }
-            // ``{ global: true }`` hooks must register against the runner's
-            // top-level callback list so they apply to every test, not just
-            // the tests in whichever suite happened to be on top of the
-            // stack at registration time. Without this, framework helpers
-            // imported transitively (e.g. env_test_helpers via web_test_helpers)
-            // get scoped to the first test file that pulls them in, and
-            // every other file's tests silently lose their cleanup hooks —
-            // observable as cross-file state leakage (registries, services,
-            // mock routes, etc.).
             if (isGlobal && runner.suiteStack.length) {
                 const saved = runner.suiteStack.splice(0);
                 try {
@@ -1464,15 +1398,12 @@ export function parseQuery(query) {
     }
     const regex = parseRegExp(nQuery, { safe: true });
     if (isInstanceOf(regex, RegExp)) {
-        // Do not go further: the entire query is treated as a regular expression
         return [new QueryRegExp(regex)];
     }
 
     /** @type {QueryPart[]} */
     const parsedQuery = [];
 
-    // Step 1: remove "exact" parts of the string query and add them as exact string
-    // matchers
     const nQueryPartial = nQuery
         .replaceAll(R_QUERY_EXACT, (...args) => {
             const { content, exclude } = args.at(-1);
@@ -1481,11 +1412,8 @@ export function parseQuery(query) {
             }
             return "";
         })
-        .toLowerCase(); // Lower-cased *after* extracting the exact matches
+        .toLowerCase();
 
-    // Step 2: split remaining string query on white spaces and:
-    //  - add all excluding parts as separate partial matchers
-    //  - aggregate non-excluding parts as one partial matcher
     const partialIncludeParts = [];
     for (const part of nQueryPartial.split(R_WHITE_SPACE)) {
         if (!part) {
@@ -1733,7 +1661,6 @@ export class Callbacks {
         }
 
         if (once) {
-            // Convert callback to be automatically removed
             const originalCallback = callback;
             callback = (...args) => {
                 this._callbacks.set(
@@ -1911,7 +1838,6 @@ export class HootError extends Error {
     constructor(message, options) {
         super(message, options);
 
-        // See 'logger.js' for details on each issue level
         this.level = options?.level;
     }
 }
@@ -1946,7 +1872,6 @@ export class Markup {
         }
         const eType = typeof expected;
         if (eType !== typeof actual || !((expected && eType === "object") || eType === "string")) {
-            // Cannot diff
             return null;
         }
         let hasDiff = false;

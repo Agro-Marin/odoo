@@ -4,7 +4,11 @@ import { beforeEach, expect, test } from "@odoo/hoot";
 import { click, press, queryAll, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { getService, mountWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    getService,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -46,7 +50,6 @@ test("Simple rendering and close a single dialog", async () => {
     await animationFrame();
     expect(".o_dialog").toHaveCount(0);
 
-    // Calling close again on an already-closed dialog is a no-op, not an error.
     removeDialog();
     expect(".o_dialog").toHaveCount(0);
 });
@@ -98,11 +101,6 @@ test("multiple dialogs can become the UI active element", async () => {
     );
 });
 
-// Desktop-only: ``Dialog`` sets ``bodyTabIndex="0"`` on touch (dialog.js), making
-// ``<main.modal-body>`` the first tabbable element instead of ``.btn.test``; and
-// ``useAutofocus`` skips focus on touch to avoid popping the keyboard, so
-// ``.o_popover input`` isn't auto-focused. Both are correct mobile behavior —
-// these focus assertions only hold on desktop.
 test.tags("desktop");
 test("a popover with an autofocus child can become the UI active element", async () => {
     class TestPopover extends Component {
@@ -233,13 +231,9 @@ test("throwing onClose still cleans up stack and body class", async () => {
     expect(".o_dialog").toHaveCount(1);
     expect(document.body).toHaveClass("modal-open");
 
-    // ``close`` returns the (rejected) removal promise; swallow the error so the
-    // test asserts the bookkeeping ran despite the throwing onClose.
     await close().catch((error) => expect.step(error.message));
     await animationFrame();
 
-    // Even though onClose threw, the dialog left the stack and the body scroll
-    // lock was released (no dialog stuck with ``modal-open`` on <body>).
     expect(".o_dialog").toHaveCount(0);
     expect(document.body).not.toHaveClass("modal-open");
     expect.verifySteps(["onClose", "onClose failed"]);
@@ -314,4 +308,37 @@ test("two dialogs, close the first one twice, then closeAll", async () => {
     await animationFrame();
     expect(".o_dialog").toHaveCount(0);
     expect.verifySteps(["close dialog 1"]);
+});
+
+test.tags("mobile");
+test("closing stacked dialogs restores the scroll position from before the first one", async () => {
+    const scrollCalls = [];
+    patchWithCleanup(window, {
+        scrollTo: (arg) => scrollCalls.push(arg),
+    });
+    const setScrollY = (value) =>
+        Object.defineProperty(window, "scrollY", { value, configurable: true });
+
+    class DialogComp extends Component {
+        static template = xml`<Dialog><div class="mydialog">dialog</div></Dialog>`;
+        static components = { Dialog };
+        static props = ["*"];
+    }
+
+    setScrollY(500);
+    const closeFirst = getService("dialog").add(DialogComp, {});
+    await animationFrame();
+
+    // Whatever the page scrolled to once the first dialog took over.
+    setScrollY(0);
+    const closeSecond = getService("dialog").add(DialogComp, {});
+    await animationFrame();
+
+    closeFirst();
+    await animationFrame();
+    closeSecond();
+    await animationFrame();
+
+    expect(scrollCalls).toHaveLength(1);
+    expect(scrollCalls[0].top).toBe(500);
 });

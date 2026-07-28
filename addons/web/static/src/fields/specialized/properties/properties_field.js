@@ -59,11 +59,9 @@ export class PropertiesField extends Component {
             onClose: () => this.onCloseCurrentPopover?.(),
             fixedPosition: true,
             arrow: false,
-            setActiveElement: false, // make tag navigation work when adding a tag property
+            setActiveElement: false,
         });
         this.propertiesRef = useRef("properties");
-        // Prefix used to build stable DOM ids for the properties (one uuid
-        // per component instance instead of one per property per render).
         this.domIdPrefix = `property_${uuid()}`;
 
         let currentResId;
@@ -83,7 +81,6 @@ export class PropertiesField extends Component {
             movedPropertyName: null,
         });
 
-        // Properties can be added from the cog menu of the form controller
         if (this.env.config?.viewType === "form") {
             useBus(this.env.model.bus, ModelEvent.PROPERTY_FIELD_EDIT, async () => {
                 if (this.props.readonly || this.state.isInEditMode) {
@@ -112,7 +109,6 @@ export class PropertiesField extends Component {
 
         useEffect(
             () => {
-                // when the field has a new definition record:
                 if (
                     this.props.readonly ||
                     (!this.state.isInEditMode && !this.props.editMode)
@@ -165,10 +161,6 @@ export class PropertiesField extends Component {
         });
     }
 
-    /* --------------------------------------------------------
-     * Public methods / Getters
-     * -------------------------------------------------------- */
-
     /**
      * Return the number of columns to render (properties can be split
      * across columns to follow the form view's layout).
@@ -200,7 +192,6 @@ export class PropertiesField extends Component {
             .map((definition) => ({ ...definition }));
     }
 
-    // for overrides
     get additionalPropertyDefinitionProps() {
         return {};
     }
@@ -214,7 +205,6 @@ export class PropertiesField extends Component {
      */
     get groupedPropertiesList() {
         const propertiesList = this.propertiesList;
-        // default invisible group
         const groupedProperties =
             propertiesList[0]?.type !== "separator"
                 ? [
@@ -243,9 +233,6 @@ export class PropertiesField extends Component {
         });
 
         if (groupedProperties.length === 1 && !groupedProperties[0].isFolded) {
-            // only one group, split this group in the columns to take the entire width
-            // (unless it is folded: its properties are hidden, so keep them in the
-            // single folded group instead of leaking them into synthetic columns)
             const invisibleLabel = propertiesList[0]?.type !== "separator";
             groupedProperties[0].elements = [];
             groupedProperties[0].invisibleLabel = invisibleLabel;
@@ -278,11 +265,6 @@ export class PropertiesField extends Component {
      * @returns {integer}
      */
     get definitionRecordId() {
-        // The definition-record field is a many2one; when it is unset the
-        // relational model stores `false` (not a record object), so guard with
-        // optional chaining. All three call sites already treat a falsy id as
-        // "no parent yet" (they show an "A parent is needed" notification), so
-        // an unguarded `false.id` here would crash those guards instead.
         return this.props.record.data[this.definitionRecordField]?.id;
     }
 
@@ -306,22 +288,18 @@ export class PropertiesField extends Component {
      */
     checkPopoverClose(target) {
         if (target.closest(".o_datetime_picker")) {
-            // selected a datetime, do not close the definition popover
             return false;
         }
 
         if (target.closest(".modal")) {
-            // close a many2one modal
             return false;
         }
 
         if (target.closest(".o_tag_popover")) {
-            // tag color popover
             return false;
         }
 
         if (target.closest(".o_model_field_selector_popover")) {
-            // domain selector
             return false;
         }
 
@@ -352,10 +330,6 @@ export class PropertiesField extends Component {
         return name;
     }
 
-    /* --------------------------------------------------------
-     * Event handlers
-     * -------------------------------------------------------- */
-
     /**
      * Move the given property up or down in the list.
      *
@@ -363,9 +337,6 @@ export class PropertiesField extends Component {
      * @param {string} direction, either "up" or "down"
      */
     async onPropertyMove(propertyName, direction) {
-        // Indices are resolved against the list as it stands when the mutation
-        // runs, not against a snapshot taken here — a mutation queued ahead of
-        // this one may have reordered or removed rows.
         let movedValues = null;
         let movedTargetIndex = -1;
         await this._updateRecordProperties((propertiesValues) => {
@@ -401,7 +372,6 @@ export class PropertiesField extends Component {
         }
         await this._unfoldPropertyGroup(movedTargetIndex, movedValues);
 
-        // move the popover once the DOM is updated
         this.movePopoverToProperty = propertyName;
     }
 
@@ -421,15 +391,12 @@ export class PropertiesField extends Component {
                 (property) => property.name === toPropertyName,
             );
             if (fromIndex < 0) {
-                // Removed by a mutation queued ahead of this one.
                 return null;
             }
             const columnSize = Math.ceil(
                 propertiesValues.length / this.renderedColumnsCount,
             );
 
-            // Create separators to preserve the initial column split, but only
-            // when moving across columns (moving inside the same column is a no-op).
             if (
                 this.renderedColumnsCount > 1 &&
                 !propertiesValues.some(
@@ -437,9 +404,6 @@ export class PropertiesField extends Component {
                 ) &&
                 Math.floor(fromIndex / columnSize) !== Math.floor(toIndex / columnSize)
             ) {
-                // Unfold the separators directly on the working copy
-                // (`value: false`): they are spliced in below and are not in the
-                // record data yet, so `_toggleSeparators` could not find them.
                 const newSeparators = [];
                 for (let col = 0; col < this.renderedColumnsCount; ++col) {
                     const separatorIndex = columnSize * col + newSeparators.length;
@@ -460,7 +424,6 @@ export class PropertiesField extends Component {
                 }
                 toPropertyName = toPropertyName || propertiesValues.at(-1).name;
 
-                // indexes might have changed
                 fromIndex = propertiesValues.findIndex(
                     (property) => property.name === propertyName,
                 );
@@ -473,7 +436,6 @@ export class PropertiesField extends Component {
                 toIndex--;
             }
             if (toIndex < fromIndex) {
-                // the first splice operation will change the index
                 toIndex++;
             }
             propertiesValues.splice(
@@ -502,7 +464,6 @@ export class PropertiesField extends Component {
                 (property) => property.name === toPropertyName,
             );
             if (fromIndex < 0) {
-                // Removed by a mutation queued ahead of this one.
                 return null;
             }
             if (
@@ -524,8 +485,6 @@ export class PropertiesField extends Component {
             const groupSize = getNextSeparatorIndex(fromIndex) - fromIndex;
             let targetIndex = getNextSeparatorIndex(toIndex);
             if (targetIndex > fromIndex) {
-                // the size of the array will change after the first splice
-                // so we need to correct the index
                 targetIndex -= groupSize;
             }
             propertiesValues.splice(
@@ -551,7 +510,6 @@ export class PropertiesField extends Component {
                 (property) => property.name === propertyName,
             );
             if (!property) {
-                // Removed by a mutation queued ahead of this one.
                 return null;
             }
             property.value = propertyValue;
@@ -571,8 +529,6 @@ export class PropertiesField extends Component {
         event.preventDefault();
         const target = /** @type {HTMLElement} */ (event.target);
         if (target.classList.contains("disabled")) {
-            // remove the glitch if we click on the edit button
-            // while the popover is already opened
             return;
         }
 
@@ -588,7 +544,6 @@ export class PropertiesField extends Component {
     async onPropertyDefinitionChange(propertyDefinition) {
         propertyDefinition["definition_changed"] = true;
         if (propertyDefinition.type === "separator") {
-            // remove all other keys
             const separatorKeys = new Set([
                 "definition_changed",
                 "fold_by_default",
@@ -597,8 +552,6 @@ export class PropertiesField extends Component {
                 "type",
                 "value",
             ]);
-            // remove all other keys in place, since propertyDefinition instance
-            // will be used as a PropertyDefinition component state value.
             for (const key of Object.keys(propertyDefinition)) {
                 if (!separatorKeys.has(key)) {
                     delete propertyDefinition[key];
@@ -606,9 +559,6 @@ export class PropertiesField extends Component {
             }
         }
         const newType = propertyDefinition.type;
-        // Resolved inside the mutation so the index and the previous type are
-        // read from the list as it stands then, not from a snapshot that a
-        // queued mutation may already have invalidated.
         let oldType;
         let applied = false;
         let previousSeparatorName = null;
@@ -621,8 +571,6 @@ export class PropertiesField extends Component {
             }
             oldType = propertiesValues[propertyIndex].type;
             if (oldType === "separator" && newType !== "separator") {
-                // Resolve the preceding separator here, while the list and the
-                // index are still in scope and consistent with each other.
                 previousSeparatorName =
                     propertiesValues.findLast(
                         (property, index) =>
@@ -642,22 +590,18 @@ export class PropertiesField extends Component {
         }
 
         if (newType === "separator" && oldType !== "separator") {
-            // unfold automatically the new separator
             await this._toggleSeparators(
                 [propertyDefinition.name],
                 propertyDefinition.fold_by_default,
             );
-            // layout has been changed, move the definition popover
             this.movePopoverToProperty = propertyDefinition.name;
         } else if (oldType === "separator" && newType !== "separator") {
-            // unfold automatically the previous separator
             if (previousSeparatorName) {
                 await this._toggleSeparators(
                     [previousSeparatorName],
                     propertyDefinition.fold_by_default,
                 );
             }
-            // layout has been changed, move the definition popover
             this.movePopoverToProperty = propertyDefinition.name;
         }
     }
@@ -715,9 +659,6 @@ export class PropertiesField extends Component {
             );
             return;
         }
-        // The incomplete-label check and the append both run against the list
-        // as it stands when the mutation executes, so a property added by a
-        // queued mutation is taken into account.
         let newName = null;
         let insertedAt = -1;
         let appliedValues = null;
@@ -730,7 +671,6 @@ export class PropertiesField extends Component {
                         (!prop.string || !prop.string.length),
                 )
             ) {
-                // do not allow to add new field until we set a label on the previous one
                 this.propertiesRef.el
                     .closest(".o_field_properties")
                     .classList.add("o_field_invalid");
@@ -815,10 +755,6 @@ export class PropertiesField extends Component {
         this.onPropertyDefinitionChange(propertyDefinition);
     }
 
-    /* --------------------------------------------------------
-     * Private methods
-     * -------------------------------------------------------- */
-
     /**
      * Update the record with the given properties values, preserving the
      * properties already staged for deletion.
@@ -834,25 +770,7 @@ export class PropertiesField extends Component {
      * @returns {Promise}
      */
     _updateRecordProperties(mutate) {
-        // Mutations are DELTAS applied to the list as it stands when they run,
-        // never whole arrays snapshotted by the caller beforehand.
-        //
-        // ``record.update`` defers into ``model.mutex``, so ``record.data`` is
-        // not updated synchronously and most callers here do not await. Two
-        // handlers issued before the first write applied would therefore both
-        // snapshot the same stale array, and the second — being a whole-array
-        // write — silently reverted the first (type into a property, then fold
-        // a group or drag a row before the onchange lands, and the typed value
-        // is gone with no error). Drag-and-drop self-triggered this by firing
-        // a separator toggle per group crossed and then a reorder.
-        //
-        // Serialising on ``_propertiesMutation`` and re-deriving from
-        // ``propertiesList`` inside the chain makes the stale-snapshot state
-        // unrepresentable rather than something each call site must remember.
-        // A mutator returning a falsy value declines the write.
         this._propertiesMutation = (this._propertiesMutation ?? Promise.resolve())
-            // A failed mutation must not cancel the ones queued behind it; the
-            // caller that issued it still sees its own rejection.
             .catch(() => {})
             .then(() => {
                 const propertiesValues = mutate(this.propertiesList);
@@ -972,18 +890,11 @@ export class PropertiesField extends Component {
             newDefinition.type === initialValues.type &&
             newDefinition.comodel === initialValues.comodel
         ) {
-            // restore the original name (so the value on other records are not set to false)
             newDefinition.name = initialValues.name;
         } else if (
             oldDefinition.type !== newDefinition.type ||
-            // Definitions carry the target relation as ``comodel`` (see the
-            // ``comodel`` branch above and propertiesValues.comodel). ``.model``
-            // is always undefined here, so a comodel change (e.g. m2o retargeted
-            // to another model) never reset values on other records.
             oldDefinition.comodel !== newDefinition.comodel
         ) {
-            // Regenerate the name so other records' stale values (keyed by
-            // the old name) are ignored; keep the mapping to restore it later.
             const newName = this.generatePropertyName(newDefinition.type);
             this.initialValues[newName] = initialValues;
             newDefinition.name = newName;
@@ -1033,8 +944,6 @@ export class PropertiesField extends Component {
             (property) => property.name === propertyName,
         );
 
-        // maybe the property has been renamed because the type / model
-        // changed, retrieve the new one
         const currentName = (propertyName) => {
             const propertiesList = this.propertiesList;
             for (const [newName, initialValue] of Object.entries(this.initialValues)) {

@@ -44,7 +44,6 @@ class IrActionsReport extends models.Model {
             validActionIds.push(3);
         }
         if (!recordIds.includes(1) && !recordIds.includes(2)) {
-            // new record are initialized with value=False so domain of action 3 is satisfied
             validActionIds.push(3);
         }
         return validActionIds;
@@ -90,7 +89,7 @@ test("render ActionMenus in list view", async () => {
             print: printItems,
         },
         loadActionMenus: true,
-        arch: /* xml */ `
+        arch: `
               <list>
                   <field name="value"/>
               </list>
@@ -118,10 +117,8 @@ test("render ActionMenus in list view", async () => {
         "Some Report with domain 2",
     ]);
 
-    // the last RPC call to retrieve print items only happens when the dropdown is clicked
     expect.verifySteps(["get_valid_action_reports"]);
 
-    // select only the record that satisfies domain 1
     await contains(`.o_data_row:eq(1) input`).click();
     await contains(`.o_cp_action_menus .dropdown-toggle:eq(0)`).click();
     expect(`.o-dropdown--menu .o-dropdown-item`).toHaveCount(2);
@@ -144,7 +141,7 @@ test("render ActionMenus in form view", async () => {
             print: printItems,
         },
         loadActionMenus: true,
-        arch: /* xml */ `
+        arch: `
               <form>
                   <field name="value"/>
               </form>
@@ -165,7 +162,6 @@ test("render ActionMenus in form view", async () => {
         "Some Report with domain 1",
     ]);
 
-    // the RPC call to retrieve print items only happens when the dropdown is clicked
     expect.verifySteps(["get_valid_action_reports"]);
 
     await contains(`button.o_form_button_create`).click();
@@ -245,10 +241,8 @@ test("render ActionMenus in list view with extraPrintItems", async () => {
         "Some Report with domain 2",
     ]);
 
-    // the last RPC call to retrieve print items only happens when the dropdown is clicked
     expect.verifySteps(["get_valid_action_reports"]);
 
-    // select only the record that satisfies domain 1
     await contains(`.o_data_row:eq(1) input`).click();
     await contains(`.o_cp_action_menus .dropdown-toggle:eq(0)`).click();
     expect(`.o-dropdown--menu .o-dropdown-item`).toHaveCount(3);
@@ -270,7 +264,7 @@ test("static action items are properly ordered and styled", async () => {
             print: [],
         },
         loadActionMenus: true,
-        arch: /* xml */ `
+        arch: `
               <list>
                   <field name="value"/>
               </list>

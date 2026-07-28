@@ -56,7 +56,7 @@ test("PriorityField when not set", async () => {
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -87,7 +87,7 @@ test("PriorityField tooltip", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -98,7 +98,6 @@ test("PriorityField tooltip", async () => {
         resId: 1,
     });
 
-    // check data-tooltip attribute (used by the tooltip service)
     const stars = queryAll(".o_field_widget .o_priority a.o_priority_star");
     expect(stars[0]).toHaveAttribute("data-tooltip", "Selection: Blocked");
     expect(stars[1]).toHaveAttribute("data-tooltip", "Selection: Done");
@@ -114,7 +113,7 @@ test("PriorityField in form view", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -144,7 +143,7 @@ test("PriorityField hover a star in form view", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -189,14 +188,14 @@ test("PriorityField can write after adding a record -- kanban", async () => {
         ],
     });
     Partner._records[0].selection = "0";
-    Partner._views[["form", "myquickview"]] = /* xml */ `<form/>`;
+    Partner._views[["form", "myquickview"]] = `<form/>`;
     onRpc("web_save", ({ args }) => expect.step(`web_save ${JSON.stringify(args)}`));
     await mountView({
         type: "kanban",
         resModel: "partner",
         domain: [["id", "=", 1]],
         groupBy: ["foo"],
-        arch: /* xml */ `
+        arch: `
             <kanban on_create="quick_create" quick_create_view="myquickview">
                 <templates>
                     <t t-name="card">
@@ -208,7 +207,6 @@ test("PriorityField can write after adding a record -- kanban", async () => {
     expect(".o_kanban_record .fa-solid").toHaveCount(0);
 
     await click(".o_priority a.o_priority_star.fa-regular");
-    // wait for web_save
     await animationFrame();
     expect.verifySteps(['web_save [[1],{"selection":"1"}]']);
     expect(".o_kanban_record .fa-solid").toHaveCount(1);
@@ -229,7 +227,7 @@ test("PriorityField in editable list view", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list editable="bottom"><field name="selection" widget="priority" /></list>`,
+        arch: `<list editable="bottom"><field name="selection" widget="priority" /></list>`,
     });
 
     expect(".o_data_row:first-child .o_priority:not(.o_field_empty)").toHaveCount(1);
@@ -301,7 +299,6 @@ test("PriorityField in editable list view", async () => {
         message: "should now have two empty stars since the value is the first value",
     });
 
-    // re-enter edit mode to force a re-render and verify the value persisted
     await click("tbody td:not(.o_list_record_selector)");
     await animationFrame();
 
@@ -364,7 +361,7 @@ test("PriorityField hover in editable list view", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list editable="bottom"><field name="selection" widget="priority" /></list>`,
+        arch: `<list editable="bottom"><field name="selection" widget="priority" /></list>`,
     });
 
     expect(".o_data_row:first-child .o_priority:not(.o_field_empty)").toHaveCount(1);
@@ -449,7 +446,7 @@ test('PriorityField edited by the smart action "Set priority..."', async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="selection" widget="priority"/></form>`,
+        arch: `<form><field name="selection" widget="priority"/></form>`,
         resId: 1,
     });
 
@@ -472,7 +469,7 @@ test('PriorityField readonly hides the smart action "Set priority..."', async ()
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="selection" widget="priority" readonly="1"/></form>`,
+        arch: `<form><field name="selection" widget="priority" readonly="1"/></form>`,
     });
 
     await press(["control", "k"]);
@@ -488,7 +485,7 @@ test("PriorityField - auto save record when field toggled", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -508,7 +505,7 @@ test("PriorityField - prevent auto save with autosave option", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>

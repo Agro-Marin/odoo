@@ -107,11 +107,6 @@ export function copyAttributes(el, compiled) {
     if (classes) {
         if (isComponent) {
             const cls = compiled.className;
-            // Route the literal class string through toStringExpression (the
-            // single codegen-escaping seam) instead of hand-rolling single
-            // quotes: a raw `'`, backtick or `${` in a class attribute would
-            // otherwise break compilation of the whole view (M8). Mirrors the
-            // `style` branch below.
             compiled.setAttribute(
                 "class",
                 cls
@@ -337,10 +332,6 @@ export class ViewCompiler {
         return compiledNode;
     }
 
-    //-----------------------------------------------------------------------------
-    // Compilers
-    //-----------------------------------------------------------------------------
-
     /**
      * @param {Element} el
      * @param {Record<string, any>} params
@@ -375,9 +366,6 @@ export class ViewCompiler {
             if (BUTTON_CLICK_PARAMS.includes(name)) {
                 clickParams[name] = value;
             } else if (name === "disabled") {
-                // ViewButton.disabled is a Boolean prop; view-arch buttons carry an
-                // HTML-style string ("disabled", "1", ...). Coerce to a boolean literal
-                // here, preserving the historical truthiness where empty means "not disabled".
                 button.setAttribute("disabled", value ? "true" : "false");
             } else if (BUTTON_STRING_PROPS.includes(name)) {
                 button.setAttribute(name, toStringExpression(value));
@@ -389,7 +377,6 @@ export class ViewCompiler {
         button.setAttribute("clickParams", JSON.stringify(clickParams));
         button.setAttribute("attrs", JSON.stringify(attrs));
 
-        // Button's body
         const buttonContent = [];
         for (const child of el.childNodes) {
             const compiled = this.compileNode(child, params);
@@ -477,7 +464,6 @@ export class ViewCompiler {
     }
 
     validateNode(node) {
-        // detect attributes not in whitelist, starting with t-
         const attributes = Object.values(node.attributes).map((attr) => attr.name);
         const regexes = this.owlDirectiveRegexesWhitelist;
         for (const attr of attributes) {
@@ -536,17 +522,12 @@ export function useViewCompiler(ViewCompiler, templates, params) {
     /** @type {Record<string, string>} */
     const compiledTemplates = {};
     let compiler;
-    // Stable stringify (params are small plain objects): sort entries so key
-    // order can't produce distinct keys for equal params.
     const paramsKey = params
         ? JSON.stringify(Object.entries(params).sort(([a], [b]) => a.localeCompare(b)))
         : "";
     for (const tname of Object.keys(templates)) {
         let archKey = archKeyCache.get(templates[tname]);
         if (archKey === undefined) {
-            // Collapse newlines to spaces so the key is always a single-line string.
-            // Owl embeds the template name in a // JS comment during code generation;
-            // a multi-line name would break the comment and cause "Unexpected token '<'".
             archKey = templates[tname].outerHTML.replace(/[\n\r]+/g, " ");
             archKeyCache.set(templates[tname], archKey);
         }
@@ -554,8 +535,6 @@ export function useViewCompiler(ViewCompiler, templates, params) {
         if (!templateCache[key]) {
             compiler = compiler || new ViewCompiler(templates);
             const compiledOuterHTML = compiler.compile(tname, params).outerHTML;
-            // Deterministic name: same arch always maps to the same globalTemplates
-            // slot, so re-registering after a cache reset overwrites rather than accumulates.
             /** @type {any} */ (App).registerTemplate(key, compiledOuterHTML);
             templateCache[key] = key;
         }

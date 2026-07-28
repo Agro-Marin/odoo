@@ -25,8 +25,6 @@ import {
     URL_REGEX,
 } from "./sample_data.js";
 
-// ─── Random primitives ──────────────────────────────────────────────────────
-
 /** @param {any[]} array */
 export function getRandomArrayEl(array) {
     return array[Math.floor(Math.random() * array.length)];
@@ -72,8 +70,6 @@ export function getRandomSubRecordId() {
 export function sanitizeNumber(value) {
     return parseFloat(value.toFixed(FLOAT_PRECISION));
 }
-
-// ─── Field value generation ─────────────────────────────────────────────────
 
 /**
  * @typedef {{

@@ -46,8 +46,3 @@ registry
     .category("error_notifications")
     .add("odoo.http.SessionExpiredException", sessionExpired)
     .add("werkzeug.exceptions.Forbidden", forbidden);
-// No "504" notification entry: it shadowed the dedicated Error504Dialog
-// (error_dialogs.js) — the error service checks this notification registry
-// before the dialog registry — while being near-unreachable itself (a 504
-// gateway timeout surfaces as a ConnectionLostError via http_service/rpc, not
-// as an RPCError named "504"). The dialog is the single chosen 504 surface.
