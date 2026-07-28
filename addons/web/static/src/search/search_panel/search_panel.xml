@@ -94,7 +94,7 @@
                 >
                 <t t-set="_section" t-value="section"/>
                 <t t-set="group" t-value="section.groups.get(groupId)"/>
-                <t t-set="groupState" t-value="getGroupState(section.id, group)"/>
+                <t t-set="groupState" t-value="getGroupState(group)"/>
                 <header class="o_search_panel_group_header pb-1">
                     <div class="form-check w-100">
                         <input type="checkbox"
@@ -156,7 +156,7 @@
                     <i t-attf-class="{{ section.icon }} o_search_panel_section_icon {{!section.color &amp;&amp; section.type == 'filter' ? 'text-warning' : !section.color ? 'text-primary': ''}} me-2"
                         t-att-style="section.color and ('color: ' + section.color)"
                     />
-                    <b class="pe-2" t-if="section.type !== 'category' || !state.active[section.id]" t-esc="section.description"/>
+                    <b class="pe-2" t-if="section.type !== 'category' || !section.activeValueId" t-esc="section.description"/>
                     <b class="pe-2" t-else="" t-esc="section.values.get(section.activeValueId)['display_name']"/>
                 </span>
                 <t t-set-slot="content">
@@ -181,7 +181,7 @@
             >
             <header
                 class="list-group-item list-group-item-action d-flex align-items-center px-0 py-lg-0 border-0"
-                t-att-class="{'active text-black fw-bold': state.active[section.id] === valueId}"
+                t-att-class="{'active text-black fw-bold': section.activeValueId === valueId}"
                 t-on-click="() => this.toggleCategory(section, value)"
                 >
                 <div
@@ -231,9 +231,9 @@
         <div class="form-check w-100">
             <input type="checkbox"
                 t-attf-id="{{ section.id }}_input_{{ valueId }}"
-                t-att-checked="state.active[section.id][valueId]"
+                t-att-checked="value.checked"
                 class="form-check-input"
-                t-on-click="ev => this.toggleFilterValue(section.id, valueId, ev)"
+                t-on-click="() => this.toggleFilterValue(section.id, valueId)"
             />
             <label class="o_search_panel_label form-check-label d-flex align-items-center justify-content-between w-100 cursor-pointer"
                 t-attf-for="{{ section.id }}_input_{{ valueId }}"

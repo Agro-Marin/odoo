@@ -355,20 +355,27 @@ export class EmbeddedActions {
      * list (avoids re-parsing user settings on every access) and persists it.
      * On persistence failure the visible UI is restored too, so it cannot
      * silently diverge from the cache and the server.
+     *
+     * The rollback undoes THIS toggle against the current list rather than
+     * restoring a snapshot: the save is awaited, so a second toggle (of any
+     * action) can land in between, and putting the pre-toggle array back would
+     * silently discard it.
      * @param {number|false} actionId
      * @returns {Promise<void>}
      */
     async toggleActionVisibility(actionId) {
-        const previousVisible = this.embeddedInfos.visibleEmbeddedActions;
-        const isVisible = previousVisible.includes(actionId);
-        this.embeddedInfos.visibleEmbeddedActions = isVisible
-            ? previousVisible.filter((id) => id !== actionId)
-            : [...previousVisible, actionId];
+        const wasVisible = this.embeddedInfos.visibleEmbeddedActions.includes(actionId);
+        this.embeddedInfos.visibleEmbeddedActions = wasVisible
+            ? this.embeddedInfos.visibleEmbeddedActions.filter((id) => id !== actionId)
+            : [...this.embeddedInfos.visibleEmbeddedActions, actionId];
         const saved = await this.configHandler.setEmbeddedActionsConfig({
             embedded_actions_visibility: [...this.embeddedInfos.visibleEmbeddedActions],
         });
         if (!saved) {
-            this.embeddedInfos.visibleEmbeddedActions = previousVisible;
+            const current = this.embeddedInfos.visibleEmbeddedActions;
+            this.embeddedInfos.visibleEmbeddedActions = wasVisible
+                ? [...current, actionId]
+                : current.filter((id) => id !== actionId);
         }
     }
 

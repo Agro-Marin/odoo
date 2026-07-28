@@ -21,11 +21,36 @@ function enrichOptions(options, selectedIds) {
 }
 
 /**
+ * Index the query elements by the search item they belong to.
+ *
+ * Enrichment is a whole-model pass, so scanning the query once here beats
+ * re-filtering it inside every item (`items × query` comparisons per query
+ * cycle, on a hot render path).
+ *
+ * @param {Object[]} query
+ * @returns {Map<number, Object[]>}
+ */
+export function indexQueryBySearchItem(query) {
+    /** @type {Map<number, Object[]>} */
+    const index = new Map();
+    for (const queryElem of query) {
+        const elements = index.get(queryElem.searchItemId);
+        if (elements) {
+            elements.push(queryElem);
+        } else {
+            index.set(queryElem.searchItemId, [queryElem]);
+        }
+    }
+    return index;
+}
+
+/**
  * Return an enriched copy of `searchItem` with activation status and
  * type-specific metadata (options, autocomplete values), or `null` if hidden.
  *
  * @param {Object} searchItem
- * @param {Object[]} query - current query elements
+ * @param {Object[] | Map<number, Object[]>} query - current query elements, or
+ *  the {@link indexQueryBySearchItem} index of them
  * @param {any} referenceMoment
  * @param {Object[]} intervalOptions
  * @returns {Object | null}
@@ -34,9 +59,10 @@ export function enrichSearchItem(searchItem, query, referenceMoment, intervalOpt
     if (searchItem.type === "field" && searchItem.fieldType === "properties") {
         return { ...searchItem };
     }
-    const queryElements = query.filter(
-        (queryElem) => queryElem.searchItemId === searchItem.id,
-    );
+    const queryElements =
+        query instanceof Map
+            ? query.get(searchItem.id) || []
+            : query.filter((queryElem) => queryElem.searchItemId === searchItem.id);
     const isActive = Boolean(queryElements.length);
     const enrichedSearchItem = Object.assign({ isActive }, searchItem);
     switch (searchItem.type) {

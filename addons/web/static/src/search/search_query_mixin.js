@@ -20,6 +20,12 @@ import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.
  * them in is behaviour-preserving. ``query``/``searchItems``/``nextId`` state and
  * the domain/facet getters live on SearchModel and are reached via ``this``.
  *
+ * The mutators that used to return nothing now return ``_notify()``'s promise,
+ * which settles once the search panel has reloaded and the UPDATE event has
+ * fired. Purely additive — nothing read the old ``undefined`` — and it means a
+ * caller (a test, a controller sequencing two mutations) can await the settled
+ * state instead of guessing at ticks.
+ *
  * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
@@ -91,14 +97,14 @@ export const SearchQueryMixin = (Base) =>
             } else {
                 queryElem.autocompleteValue.label = label;
             }
-            this._notify();
+            return this._notify();
         }
 
         /** Remove all query elements. */
         clearQuery() {
             this.query = [];
             this.orderByCount = false;
-            this._notify();
+            return this._notify();
         }
 
         /**
@@ -189,15 +195,14 @@ export const SearchQueryMixin = (Base) =>
                 delete this.defaultGroupBy;
                 this.defaultGroupByRemoved = true;
                 this._checkOrderByCountStatus();
-                this._notify();
-                return;
+                return this._notify();
             }
             this.query = this.query.filter((queryElem) => {
                 const searchItem = this.searchItems[queryElem.searchItemId];
                 return searchItem.groupId !== groupId;
             });
             this._checkOrderByCountStatus();
-            this._notify();
+            return this._notify();
         }
 
         /**
@@ -230,7 +235,7 @@ export const SearchQueryMixin = (Base) =>
                 }
                 this.query.push({ searchItemId });
             }
-            this._notify();
+            return this._notify();
         }
 
         /**
@@ -321,7 +326,7 @@ export const SearchQueryMixin = (Base) =>
                     }
                 }
             }
-            this._notify();
+            return this._notify();
         }
 
         /**
@@ -347,7 +352,7 @@ export const SearchQueryMixin = (Base) =>
             } else {
                 this.query.push({ searchItemId, intervalId });
             }
-            this._notify();
+            return this._notify();
         }
 
         /** Open the custom filter dialog (DomainSelectorDialog). */
@@ -374,6 +379,6 @@ export const SearchQueryMixin = (Base) =>
             } else {
                 this.orderByCount = "Desc";
             }
-            this._notify();
+            return this._notify();
         }
     };

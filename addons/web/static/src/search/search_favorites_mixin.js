@@ -159,5 +159,9 @@ export const SearchFavoritesMixin = (Base) =>
                 (irFilter) => this._irFilterToFavorite(irFilter),
                 (irFilters) => this._createGroupOfFavorites(irFilters),
             );
+            // Replacing/removing favorites in place invalidates the enrichment
+            // memo, and `_createGroupOfSearchItems` only clears it when there is
+            // at least one NEW favorite to create.
+            this._enrichedSearchItems = null;
         }
     };

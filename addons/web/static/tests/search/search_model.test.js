@@ -9,6 +9,7 @@ import {
     models,
     mountWithSearch,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { SearchModelEvent } from "@web/core/events";
 
@@ -646,7 +647,10 @@ test("parsing a groupBy and a filter", async () => {
         `,
     });
     const groupNumbers = model.getSearchItems(() => true).map((i) => i.groupNumber);
-    expect(groupNumbers).toEqual([2, 1]);
+    // Arch order, not creation order: the parser collects every group-by into
+    // one pregroup and appends it last, so ordering by id alone reported this
+    // group-by after the filter that follows it in the arch.
+    expect(groupNumbers).toEqual([1, 2]);
 });
 
 test("process search default group by", async () => {
@@ -1413,4 +1417,131 @@ test("search() invalidates the memos consumers detect changes by", async () => {
     expect(model.domain === before.domain).toBe(false);
     expect(model.orderBy === before.orderBy).toBe(false);
     expect(model.domain).toEqual(before.domain);
+});
+
+describe("invisible search items", () => {
+    test("an item whose invisible condition holds is left out", async () => {
+        const model = await createSearchModel({
+            searchViewArch: `
+                <search>
+                    <filter name="shown" string="Shown" domain="[]"/>
+                    <filter name="hidden" string="Hidden" domain="[]" invisible="context.get('hide')"/>
+                </search>`,
+            context: { hide: true },
+        });
+        expect(
+            model.getSearchItems((i) => i.type === "filter").map((i) => i.description),
+        ).toEqual(["Shown"]);
+    });
+
+    test("an empty list reads as visible, like every other view modifier", async () => {
+        const model = await createSearchModel({
+            searchViewArch: `
+                <search>
+                    <filter name="a" string="A" domain="[]" invisible="context.get('ids')"/>
+                </search>`,
+            context: { ids: [] },
+        });
+        expect(
+            model.getSearchItems((i) => i.type === "filter").map((i) => i.description),
+        ).toEqual(["A"]);
+    });
+
+    test("an unevaluatable condition warns and hides nothing", async () => {
+        patchWithCleanup(console, { warn: () => expect.step("warn") });
+        const model = await createSearchModel({
+            searchViewArch: `
+                <search>
+                    <filter name="a" string="A" domain="[]" invisible="no_such_name"/>
+                    <filter name="b" string="B" domain="[]"/>
+                </search>`,
+        });
+
+        // The control panel reads every menu through getSearchItems; one bad
+        // arch expression must not take all of them down.
+        expect(
+            model.getSearchItems((i) => i.type === "filter").map((i) => i.description),
+        ).toEqual(["A", "B"]);
+        expect.verifySteps(["warn"]);
+    });
+});
+
+test("getSearchItems is ordered whether or not a favorite is in scope", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="foo"/>
+                <filter name="a" string="A" domain="[]"/>
+                <separator/>
+                <filter name="b" string="B" domain="[]"/>
+            </search>`,
+        irFilters: [
+            {
+                context: "{}",
+                domain: "[]",
+                id: 1,
+                is_default: false,
+                name: "Fav",
+                sort: "[]",
+                user_ids: [2],
+            },
+        ],
+    });
+
+    const withoutFavorite = model
+        .getSearchItems((i) => i.type === "filter")
+        .map((i) => i.description);
+    const withFavorite = model
+        .getSearchItems((i) => ["filter", "favorite"].includes(i.type))
+        .map((i) => i.description);
+
+    expect(withoutFavorite).toEqual(["A", "B"]);
+    expect(withFavorite.filter((d) => d !== "Fav")).toEqual(withoutFavorite);
+});
+
+test("the Activities block ANDs across its invisible separator", async () => {
+    // Verbatim in shape from account/views/account_move_views.xml, repeated in
+    // 44 shipped search views. The activity systray combines
+    // search_default_filter_activities_my with one of the date filters; they sit
+    // on either side of `<separator invisible="1"/>`, so they must AND. The
+    // three date filters share a group and must OR. Honouring `invisible` on the
+    // separator turns the first pair into an OR.
+    const arch = `
+        <search>
+            <filter string="Archived" name="inactive" domain="[('bar', '=', False)]"/>
+            <separator/>
+            <filter name="filter_activities_my" string="My Activities" invisible="1"
+                    domain="[('foo', '=', 'mine')]"/>
+            <separator invisible="1"/>
+            <filter name="activities_overdue" invisible="1" string="Late"
+                    domain="[('foo', '=', 'late')]"/>
+            <filter name="activities_today" invisible="1" string="Today"
+                    domain="[('foo', '=', 'today')]"/>
+        </search>`;
+
+    const acrossSeparator = await createSearchModel({
+        searchViewArch: arch,
+        context: {
+            search_default_filter_activities_my: 1,
+            search_default_activities_overdue: 1,
+        },
+    });
+    expect(acrossSeparator.domain).toEqual([
+        "&",
+        ["foo", "=", "mine"],
+        ["foo", "=", "late"],
+    ]);
+
+    const withinGroup = await createSearchModel({
+        searchViewArch: arch,
+        context: {
+            search_default_activities_overdue: 1,
+            search_default_activities_today: 1,
+        },
+    });
+    expect(withinGroup.domain).toEqual([
+        "|",
+        ["foo", "=", "late"],
+        ["foo", "=", "today"],
+    ]);
 });

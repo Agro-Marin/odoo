@@ -80,7 +80,6 @@ export class SearchBar extends Component {
 
     setup() {
         this.dialogService = useService("dialog");
-        this.fields = this.env.searchModel.searchViewFields;
         this.root = useRef("root");
         this.ui = useService("ui");
 
@@ -129,6 +128,16 @@ export class SearchBar extends Component {
      */
     get searchItemsFields() {
         return this.env.searchModel.getSearchItems((f) => f.type === "field");
+    }
+
+    /**
+     * Live, like {@link searchItemsFields} and `SearchBarMenu.fields`: the
+     * properties flow adds `<field>.<property>` entries to `searchViewFields`
+     * after setup, and `load` replaces the object wholesale.
+     * @returns {Record<string, Object>}
+     */
+    get fields() {
+        return this.env.searchModel.searchViewFields;
     }
 
     /**
@@ -713,7 +722,7 @@ export class SearchBar extends Component {
         };
     }
 
-    onFacetLabelClick(target, facet) {
+    onFacetLabelClick(facet) {
         const { domain, groupId } = facet;
         if (this.env.searchModel.canOrderByCount && facet.type === "groupBy") {
             this.env.searchModel.switchGroupBySort();

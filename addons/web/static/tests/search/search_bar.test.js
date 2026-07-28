@@ -40,6 +40,7 @@ import {
     mountWithCleanup,
     mountWithSearch,
     onRpc,
+    patchWithCleanup,
     removeFacet,
     selectGroup,
     serverState,
@@ -2165,4 +2166,66 @@ test("the custom filter entry is addressable like every other item", async () =>
     expect(customFilter.id).toBeOfType("number");
     expect(searchBar.items.find((i) => i.id === customFilter.id)).toBe(customFilter);
     expect(new Set(searchBar.items.map((i) => i.id)).size).toBe(searchBar.items.length);
+});
+
+test("a search item with an unevaluatable invisible does not break the menus", async () => {
+    // getSearchItems is read lazily, so the mount survives either way; the
+    // failure used to land as an Owl lifecycle error the first time the Filters
+    // menu was opened or the input was typed into.
+    patchWithCleanup(console, { warn: () => expect.step("warn") });
+    await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <field name="foo"/>
+                <filter name="a" string="A" domain="[]" invisible="no_such_name"/>
+                <filter name="b" string="B" domain="[]"/>
+            </search>
+        `,
+    });
+
+    await toggleSearchBarMenu();
+    expect(queryAllTexts`.o_filter_menu .o_menu_item`).toEqual([
+        "A",
+        "B",
+        "Custom Filter...",
+    ]);
+
+    await editSearch("a");
+    expect(`.o_searchview_autocomplete .o-dropdown-item`).toHaveCount(2);
+    // Once per query cycle, not per read: getSearchItems memoises the enriched
+    // items, so a broken expression does not spam the console on every render.
+    expect.verifySteps(["warn"]);
+});
+
+test("removing a facet keeps the DOM identity of the ones after it", async () => {
+    // Facets are keyed by group identity, not by position. With a positional
+    // key Owl patches every later facet in place instead of moving it, so the
+    // focused facet's element is the one that gets dropped.
+    await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <filter name="a" string="A" domain="[('bar','=',1)]"/>
+                <separator/>
+                <filter name="b" string="B" domain="[('bar','=',2)]"/>
+                <separator/>
+                <filter name="c" string="C" domain="[('bar','=',3)]"/>
+            </search>
+        `,
+        context: { search_default_a: 1, search_default_b: 1, search_default_c: 1 },
+    });
+    expect(getFacetTexts()).toEqual(["A", "B", "C"]);
+
+    const facets = queryAll`.o_searchview_facet`;
+    const lastFacet = facets.at(-1);
+    lastFacet.focus();
+    expect(lastFacet).toBeFocused();
+
+    await contains(`.o_searchview_facet:first-child .o_facet_remove`).click();
+
+    expect(getFacetTexts()).toEqual(["B", "C"]);
+    expect(queryAll`.o_searchview_facet`.at(-1)).toBe(lastFacet);
 });

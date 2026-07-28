@@ -3,6 +3,8 @@
 
 /** @module @web/search/search_state - State serialization, shared constants, and section helpers for SearchModel */
 
+import { evaluateBooleanExpr } from "@web/core/py_js/py";
+
 /** Sentinel for the default-groupBy facet (not a real groupId). */
 export const SPECIAL = Symbol("special");
 
@@ -27,6 +29,33 @@ export function hasValues(section) {
         case "filter": {
             return values?.size > 0;
         }
+        default: {
+            return false;
+        }
+    }
+}
+
+/**
+ * Evaluate a search-view `invisible` expression the same way every other view
+ * modifier is evaluated (`bool(...)`, so an empty list reads as visible).
+ *
+ * The expression is view data written by whoever authored the arch, not an
+ * invariant of this module. An unevaluatable one used to propagate out of
+ * `getSearchItems`, which is read lazily: the mount survives, and the throw
+ * lands as an Owl lifecycle error the first time the user opens the search-bar
+ * menu or types in the input. Hiding nothing and saying why keeps the failure
+ * to the one item that caused it.
+ *
+ * @param {string | undefined} expr
+ * @param {Object} evalContext
+ * @returns {boolean}
+ */
+export function isInvisible(expr, evalContext) {
+    try {
+        return evaluateBooleanExpr(expr, evalContext);
+    } catch (error) {
+        console.warn(`[search] ignoring invisible="${expr}": ${error.message}`);
+        return false;
     }
 }
 
@@ -46,13 +75,20 @@ export function mapToArray(map) {
 }
 
 /**
- * Deserialize an array of [key, value] pairs back to a Map.
+ * Deserialize an array of [key, value] pairs back to a Map, copying each value
+ * the way {@link mapToArray} does on the way out.
+ *
+ * Without the copy the imported model shares its section/value objects with the
+ * state object it was handed, and `execute` then rewrites that object's
+ * `values`/`groups` arrays into Maps in place — so `load({state})` corrupted a
+ * caller-owned state instead of reading it. Only `WithSearch` hid this, by
+ * always passing a fresh `JSON.parse` result.
  *
  * @param {[any, Object][]} array
  * @returns {Map<any, Object>}
  */
 export function arrayToMap(array) {
-    return new Map(array);
+    return new Map(array.map(([key, val]) => [key, { ...val }]));
 }
 
 /**

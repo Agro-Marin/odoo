@@ -57,7 +57,6 @@ export class SearchPanel extends Component {
     setup() {
         this.keyExpandSidebar = `search_panel_expanded,${this.env.config.viewId},${this.env.config.actionId}`;
         this.state = useState({
-            active: {},
             expanded: {},
             sidebarExpanded: true,
         });
@@ -288,21 +287,26 @@ export class SearchPanel extends Component {
     }
 
     /**
+     * @param {Object} section
+     * @returns {boolean} whether the section holds a selection
+     */
+    isSelected(section) {
+        if (section.type === "category") {
+            return Boolean(section.activeValueId);
+        }
+        return [...section.values.values()].some((value) => value.checked);
+    }
+
+    /**
      * Check whether the given section (or any section, if omitted) has an
      * active selection.
      * @param {Number} sectionId
      */
     hasSelection(sectionId = 0) {
-        if (sectionId) {
-            const sectionState = this.state.active[sectionId];
-            if (sectionState instanceof Object) {
-                return Object.values(sectionState).some((val) => val);
-            }
-            return Boolean(sectionState);
-        }
-        return Object.keys(this.state.active).some((key) =>
-            this.hasSelection(/** @type {any} */ (key)),
-        );
+        const sections = sectionId
+            ? this.env.searchModel.getSections((s) => s.id === sectionId)
+            : this.sections;
+        return sections.some((section) => this.isSelected(section));
     }
 
     /**
@@ -313,7 +317,7 @@ export class SearchPanel extends Component {
     clearSelection(sectionId = 0) {
         const sectionIds = sectionId
             ? [sectionId]
-            : Object.keys(this.state.active).map(Number);
+            : this.sections.map((section) => section.id);
         this.env.searchModel.clearSections(sectionIds);
     }
 
@@ -351,55 +355,53 @@ export class SearchPanel extends Component {
 
     /**
      * @param {number} filterId
-     * @param {{ values: Map<Object> }} group
+     * @param {{ values: Map<any, Object> }} group
      */
     toggleFilterGroup(filterId, { values }) {
-        const valueIds = [];
-        const checked = [...values.values()].every(
-            (value) => this.state.active[filterId][value.id],
-        );
-        values.forEach(({ id }) => {
-            valueIds.push(id);
-            this.state.active[filterId][id] = !checked;
-        });
-        this.env.searchModel.toggleFilterValues(filterId, valueIds, !checked);
+        const checked = [...values.values()].every((value) => value.checked);
+        this.env.searchModel.toggleFilterValues(filterId, [...values.keys()], !checked);
     }
 
     /**
      * @param {number} filterId
      * @param {number} valueId
-     * @param {{ currentTarget: HTMLInputElement }} event
      */
-    toggleFilterValue(filterId, valueId, { currentTarget }) {
-        this.state.active[filterId][valueId] = currentTarget.checked;
+    toggleFilterValue(filterId, valueId) {
         this.env.searchModel.toggleFilterValues(filterId, [valueId]);
     }
 
     /**
-     * Checked / indeterminate state of a filter group's header, derived from
-     * the same `state.active` the value checkboxes render from.
-     * @param {number} sectionId
+     * Checked / indeterminate state of a filter group's header, read from the
+     * same `value.checked` the value checkboxes render from.
      * @param {{ values: Map<any, Object> }} group
      * @returns {{ checked: boolean, indeterminate: boolean }}
      */
-    getGroupState(sectionId, group) {
-        const activeValues = this.state.active[sectionId] || {};
+    getGroupState({ values }) {
         let checkedCount = 0;
-        for (const valueId of group.values.keys()) {
-            if (activeValues[valueId]) {
+        for (const value of values.values()) {
+            if (value.checked) {
                 checkedCount++;
             }
         }
         return {
-            checked: checkedCount > 0 && checkedCount === group.values.size,
-            indeterminate: checkedCount > 0 && checkedCount < group.values.size,
+            checked: checkedCount > 0 && checkedCount === values.size,
+            indeterminate: checkedCount > 0 && checkedCount < values.size,
         };
     }
 
-    /** Sync component state with the SearchModel's current section values. */
+    /**
+     * Collapse the sidebar while the model exposes no section, and restore it
+     * when sections come back — but only if this is the one that collapsed it,
+     * so a user who closed the sidebar by hand keeps it closed.
+     *
+     * Named for the `super.updateActiveValues()` call sites this is the hook
+     * for (see account's product-catalog panel). It no longer mirrors the
+     * model's checked/active values into component state: the templates read
+     * `value.checked` and `section.activeValueId` off the sections themselves,
+     * so there is nothing left to keep in sync.
+     */
     updateActiveValues() {
-        const sections = this.sections;
-        if (!sections.length) {
+        if (!this.sections.length) {
             if (this.state.sidebarExpanded) {
                 this._sidebarAutoCollapsed = true;
                 this.state.sidebarExpanded = false;
@@ -407,25 +409,6 @@ export class SearchPanel extends Component {
         } else if (this._sidebarAutoCollapsed) {
             this._sidebarAutoCollapsed = false;
             this.state.sidebarExpanded = true;
-        }
-        for (const section of sections) {
-            if (section.type === "category") {
-                this.state.active[section.id] = section.activeValueId;
-            } else {
-                this.state.active[section.id] = {};
-                if (section.groups) {
-                    for (const group of section.groups.values()) {
-                        for (const value of group.values.values()) {
-                            this.state.active[section.id][value.id] = value.checked;
-                        }
-                    }
-                }
-                if (section?.values) {
-                    for (const value of section.values.values()) {
-                        this.state.active[section.id][value.id] = value.checked;
-                    }
-                }
-            }
         }
     }
 

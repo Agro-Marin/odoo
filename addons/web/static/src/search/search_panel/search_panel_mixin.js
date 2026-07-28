@@ -58,7 +58,7 @@ export const SearchPanelMixin = (Base) =>
         toggleCategoryValue(sectionId, valueId) {
             const category = this.sections.get(sectionId);
             category.activeValueId = valueId;
-            this._notify();
+            return this._notify();
         }
 
         /**
@@ -76,7 +76,7 @@ export const SearchPanelMixin = (Base) =>
                 }
                 value.checked = forceTo === null ? !value.checked : forceTo;
             }
-            this._notify();
+            return this._notify();
         }
 
         /**
@@ -94,7 +94,7 @@ export const SearchPanelMixin = (Base) =>
                     }
                 }
             }
-            this._notify();
+            return this._notify();
         }
 
         /**

@@ -62,4 +62,25 @@ describe("state export/import", () => {
         section.values.get(10).checked = true;
         expect(group.values.get(10).checked).toBe(true);
     });
+
+    test("import leaves the state object it was handed untouched", () => {
+        const source = makeSource();
+        const exported = {};
+        execute(mapToArray, source, exported);
+        const state = JSON.parse(JSON.stringify(exported));
+        const before = JSON.parse(JSON.stringify(state));
+
+        const target = {};
+        execute(arrayToMap, state, target);
+
+        // `execute` rewrites `values`/`groups` into Maps as it walks. Sharing
+        // the value objects with the caller's state meant `load({ state })`
+        // corrupted it in place — only WithSearch hid this, by always passing a
+        // throwaway JSON.parse result.
+        expect(state).toEqual(before);
+        expect(Array.isArray(state.sections[0][1].values)).toBe(true);
+
+        target.sections.get(1).values.get(10).checked = true;
+        expect(state.sections[0][1].values[0][1].checked).toBe(false);
+    });
 });
