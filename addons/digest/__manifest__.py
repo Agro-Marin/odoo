@@ -9,6 +9,7 @@ Send KPI Digests periodically
     'version': '1.1',
     'depends': [
         'portal',
+        'resource',
     ],
     'data': [
         'security/ir.model.access.csv',
