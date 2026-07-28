@@ -36,6 +36,7 @@ but job still pending" — only the safe inverse (work rolled back, job retried)
 import json
 import logging
 import os
+import random
 import socket
 import threading
 import time
@@ -50,7 +51,9 @@ import psycopg.errors
 
 from odoo import api, db, fields, models
 from odoo.api import SUPERUSER_ID
+from odoo.db.errors import PG_RETRY_EXCEPTIONS
 from odoo.exceptions import (
+    ConcurrencyError,
     RetryableJobError,
     TerminalJobError,
     UserError,
@@ -81,6 +84,18 @@ RETRY_BACKOFF_BASE_S = 10
 RETRY_BACKOFF_MAX_S = 3600
 
 CLAIM_MAX_ATTEMPTS = 10
+
+CONCURRENCY_MAX_ATTEMPTS = 5
+CONCURRENCY_BACKOFF_MAX_S = 2.0
+JOB_CONCURRENCY_EXCEPTIONS = (*PG_RETRY_EXCEPTIONS, ConcurrencyError)
+"""Failures that mean "somebody else committed first", not "this job is broken".
+
+The set :func:`odoo.service.transaction.retrying` replays an HTTP request on.
+A job body writing the same rows as a concurrent request loses the same races,
+and reaching them through :meth:`IrJob._record_failure` instead charged each
+one a retry off the budget plus a rung of the backoff ladder -- five lost races
+and a perfectly correct job is ``failed`` for good.
+"""
 
 DRAIN_BUDGET_RATIO = 0.4
 """Fraction of the worker's real-time limit a single drain pass may consume.
@@ -976,6 +991,15 @@ class IrJob(models.Model):
         next pass.  The reload swaps the registry object, so the cursor's
         transaction — which is what ``api.Environment`` resolves model classes
         from — has to be re-pointed at it.
+
+        Publishing those invalidations is deliberately *outside* the failure
+        handling.  It used to sit in the same ``try`` as the run, one statement
+        after the commit that already made the job durable, so a signalling
+        failure ran the whole not-a-failure path over a job that had succeeded:
+        ``reset_changes()`` rebuilt the in-memory registry away from schema
+        changes the database had already accepted, and ``_record_failure``
+        logged "Job N failed" while updating nothing (its ``WHERE state =
+        'started'`` no longer matched the ``done`` row).
         """
         registry = Registry(db_name).check_signaling()
         worker_ident = f"{socket.gethostname()}:{os.getpid()}"
@@ -997,22 +1021,90 @@ class IrJob(models.Model):
                     cr.transaction.reset()
                 with _job_session_lock(cr, job["id"]):
                     cr.commit()
-                    try:
-                        registry[IrJob._name]._run_claimed(cr, job)
-                        cr.commit()
+                    exc = IrJob._run_with_concurrency_replay(registry, cr, job)
+                    if exc is None:
                         registry.signal_changes()
-                    except Exception as exc:
-                        registry.reset_changes()
-                        cr.rollback()
-                        if not isinstance(exc, RetryableJobError):
-                            _logger.exception(
-                                "Job %s (%s.%s) failed",
-                                job["id"],
-                                job["model_name"],
-                                job["method_name"],
-                            )
-                        registry[IrJob._name]._record_failure(cr, job, exc)
-                        cr.commit()
+                        continue
+                    IrJob._log_job_failure(job, exc)
+                    registry[IrJob._name]._record_failure(cr, job, exc)
+                    cr.commit()
+
+    @staticmethod
+    def _run_with_concurrency_replay(
+        registry, cr, job: dict[str, Any]
+    ) -> BaseException | None:
+        """Execute a claimed job, replaying it on a lost concurrency race.
+
+        Returns ``None`` once the job has committed, else the exception that
+        ended it — already rolled back, with the registry's pending
+        invalidations discarded, so the caller starts its bookkeeping on a clean
+        transaction.  The rollback is what makes a replay start clean:
+        ``Cursor.rollback`` clears the transaction's ORM caches, so the second
+        attempt cannot read a value the first one only staged.
+
+        The replay is the job-queue counterpart of
+        :func:`odoo.service.transaction.retrying`, which every HTTP request
+        already gets: same error set, same bounded attempt count, same jittered
+        backoff.  Without it a serialization failure or deadlock -- the ordinary
+        outcome of a job writing rows a request is writing too -- reached
+        :meth:`_record_failure` as if the job were at fault, spending a retry
+        from the budget and a rung of an exponential ladder that starts at ten
+        seconds, so five lost races retired a job that was never wrong.
+
+        :meth:`_run_claimed` is idempotent under replay for the same reason a
+        request handler is: the attempt is rolled back whole, ``state = 'done'``
+        included.  Effects outside the transaction (mail sent, an endpoint
+        called) are replayed, exactly as they are for a retried request.
+        """
+        for attempt in range(1, CONCURRENCY_MAX_ATTEMPTS + 1):
+            try:
+                registry[IrJob._name]._run_claimed(cr, job)
+                cr.commit()
+                return None
+            except Exception as exc:
+                registry.reset_changes()
+                cr.rollback()
+                if not isinstance(exc, JOB_CONCURRENCY_EXCEPTIONS):
+                    return exc
+                if attempt == CONCURRENCY_MAX_ATTEMPTS:
+                    _logger.info(
+                        "Job %s: %s on every one of %s attempts, recording it",
+                        job["id"],
+                        type(exc).__name__,
+                        CONCURRENCY_MAX_ATTEMPTS,
+                    )
+                    return exc
+                wait = random.uniform(0.0, min(2**attempt, CONCURRENCY_BACKOFF_MAX_S))
+                _logger.info(
+                    "Job %s: %s, replaying in %.2fs (attempt %s/%s)",
+                    job["id"],
+                    type(exc).__name__,
+                    wait,
+                    attempt,
+                    CONCURRENCY_MAX_ATTEMPTS,
+                )
+                time.sleep(wait)
+        raise AssertionError("the replay loop always returns")
+
+    @staticmethod
+    def _log_job_failure(job: dict[str, Any], exc: BaseException) -> None:
+        """Log a failed run at the level its exception actually means.
+
+        A traceback is what an unexpected defect deserves.  The two exceptions
+        the API defines for *expected* outcomes are not that:
+        :class:`RetryableJobError` says "later", and ``_record_failure`` already
+        logs the retry; :class:`TerminalJobError` is a ``UserError`` precisely
+        so it reads as a message rather than a stack -- and it was getting a
+        full traceback plus a second ERROR line, for conditions like "the
+        account this job runs as has been archived".
+        """
+        if isinstance(exc, RetryableJobError):
+            return
+        target = f"{job['model_name']}.{job['method_name']}"
+        if isinstance(exc, UserError):
+            _logger.warning("Job %s (%s) refused: %s", job["id"], target, exc)
+        else:
+            _logger.error("Job %s (%s) failed", job["id"], target, exc_info=exc)
 
     @staticmethod
     def _claim_next(
@@ -1147,23 +1239,33 @@ class IrJob(models.Model):
         re-execution can only happen when the effects were rolled back too.
         Raises on business failure; the caller rolls back and records it.
 
+        That atomicity rests on the completing ``UPDATE`` matching a row, so a
+        miss is reported rather than swallowed: it means something moved the row
+        out of ``started`` mid-run, and the work is about to commit with the job
+        still claimable — the one shape that yields a double run.
+
         The scheduling user is re-checked here rather than trusted from enqueue
         time: archiving an account is how access is revoked, and a queue holds
         that account's work for as long as its ``eta`` and retry backoff last.
         ``ir.cron`` refuses to run a server action as an archived user for the
         same reason.
 
-        The company comes from the stored context's ``allowed_company_ids``, or
-        (when the enqueue carried none, as a cron/shell/nested enqueue does)
-        from the user's companies as they stand at execution time.  The
+        The company comes from the stored context's ``allowed_company_ids``,
+        narrowed by :meth:`_narrow_company_scope` to what the user may still
+        see, or (when the enqueue carried none, as a cron/shell/nested enqueue
+        does) from the user's companies as they stand at execution time.  The
         persisted ``company_id`` is deliberately *not* used to seed the scope:
         ``allowed_company_ids = [company_id]`` would pin ``env.company``
         correctly but shrink ``env.companies`` to that one company, silently
         hiding records from any job that reads across the user's companies.
-        Pinning the enqueue-time scope faithfully means storing the whole
-        ``[company] + rest`` list at enqueue, which in turn lets a job run
-        against a company revoked in the meantime (nothing validates
-        ``allowed_company_ids`` against ``user.company_ids``).
+
+        A dispatch that cannot succeed is raised as a
+        :class:`~odoo.exceptions.TerminalJobError`, not as the bare
+        ``KeyError``/``TypeError`` it is: an uninstalled model and an
+        undecorated method are properties of the *code*, identical on the next
+        attempt, so letting them through as ordinary failures spent the whole
+        retry budget re-deriving the same answer over a ten-second-to-an-hour
+        backoff ladder.  Only the archived-user check was already terminal.
         """
         env = api.Environment(cr, job["user_id"], dict(job["context"] or {}))
         if not env.user.active and env.uid != SUPERUSER_ID:
@@ -1175,11 +1277,28 @@ class IrJob(models.Model):
                     login=env.user.login,
                 )
             )
-        records = env[job["model_name"]].browse(job["record_ids"] or [])
+        env = IrJob._narrow_company_scope(env, job)
+        try:
+            model = env[job["model_name"]]
+        except KeyError:
+            raise TerminalJobError(
+                env._(
+                    "Job %(id)s targets model %(model)s, which no longer exists "
+                    "in this database.",
+                    id=job["id"],
+                    model=job["model_name"],
+                )
+            ) from None
+        records = model.browse(job["record_ids"] or [])
         if _job_config_of(type(records), job["method_name"]) is None:
-            raise TypeError(
-                f"ir.job {job['id']}: {job['model_name']}.{job['method_name']} "
-                "is not declared with @api.job"
+            raise TerminalJobError(
+                env._(
+                    "Job %(id)s calls %(model)s.%(method)s, which is not "
+                    "declared with @api.job.",
+                    id=job["id"],
+                    model=job["model_name"],
+                    method=job["method_name"],
+                )
             )
         _logger.info(
             "Job %s: %s%s.%s() starting (retry %s/%s)",
@@ -1204,9 +1323,54 @@ class IrJob(models.Model):
                 job["id"],
             )
         )
+        if not cr.rowcount:
+            _logger.error(
+                "Job %s: completed but its row was no longer 'started'; the"
+                " work commits without being marked done and may run again",
+                job["id"],
+            )
         if IrJob._release_dependents(cr, job["id"]):
             IrJob._notify_after_commit(cr)
         _logger.info("Job %s: done", job["id"])
+
+    @staticmethod
+    def _narrow_company_scope(env, job: dict[str, Any]):
+        """Drop from ``allowed_company_ids`` what the user may no longer see.
+
+        The enqueue-time multi-company scope is replayed at execution time, and
+        :attr:`odoo.api.Environment.companies` validates it against the user's
+        *current* companies: a company archived, deleted, or simply taken away
+        from that user in the meantime made every read through ``env.company``
+        raise ``AccessError: Access to unauthorized or invalid companies`` --
+        from inside the job body, so it read as a business failure and spent the
+        whole retry budget before failing permanently on an opaque message.
+
+        Narrowing keeps the intent (run in the scope the caller had) wherever it
+        is still legal and degrades to the user's own companies where it is not,
+        which is what an enqueue that carried no scope at all already gets.
+        Superuser jobs are left alone: ``env.su`` skips the validation, and
+        narrowing them would silently shrink the scope of inter-company work
+        that is allowed to cross it.
+        """
+        allowed = (job["context"] or {}).get("allowed_company_ids")
+        if not allowed or env.su:
+            return env
+        available = set(env.user._get_company_ids())
+        kept = [company_id for company_id in allowed if company_id in available]
+        if kept == list(allowed):
+            return env
+        _logger.warning(
+            "Job %s: dropping %s from its company scope, no longer available to %s",
+            job["id"],
+            sorted(set(allowed) - available),
+            env.user.login,
+        )
+        context = dict(env.context)
+        if kept:
+            context["allowed_company_ids"] = kept
+        else:
+            context.pop("allowed_company_ids", None)
+        return api.Environment(env.cr, env.uid, context)
 
     @classmethod
     def _record_failure(cls, cr, job: dict[str, Any], exc: BaseException) -> None:

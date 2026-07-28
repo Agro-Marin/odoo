@@ -10,6 +10,8 @@ import time
 from datetime import timedelta
 from unittest.mock import patch
 
+import psycopg.errors
+
 import odoo
 from odoo import api, fields
 from odoo.exceptions import (
@@ -239,6 +241,26 @@ class TestIrJob(TransactionCase):
         job["method_name"] = "write"
         with self.assertRaises(TerminalJobError):
             IrJob._run_claimed(self.env.cr, job)
+
+    def test_run_claimed_refuses_a_vanished_model_terminally(self):
+        self.partner.delayed()._ir_job_test_append()
+        job = self._claim()
+        job["model_name"] = "res.partner.uninstalled"
+        with self.assertRaises(TerminalJobError):
+            IrJob._run_claimed(self.env.cr, job)
+
+    def test_undispatchable_job_does_not_climb_the_backoff_ladder(self):
+        """The whole point of making those terminal: budget, not just tidiness."""
+        self.partner.delayed(max_retries=5)._ir_job_test_append()
+        job = self._claim()
+        job["method_name"] = "write"
+        with self.assertRaises(TerminalJobError) as caught:
+            IrJob._run_claimed(self.env.cr, job)
+        IrJob._record_failure(self.env.cr, job, caught.exception)
+        record = self.env["ir.job"].browse(job["id"])
+        record.invalidate_recordset()
+        self.assertEqual(record.state, "failed")
+        self.assertEqual(record.retry, 0, "not one retry was spent")
 
     def test_failure_retries_with_backoff_then_fails(self):
         self.partner.delayed(max_retries=1)._ir_job_test_boom(
@@ -523,6 +545,78 @@ class TestIrJob(TransactionCase):
         scoped.delayed()._ir_job_test_append()
         self.env.flush_all()
         return user
+
+    def test_revoked_company_is_dropped_from_the_replayed_scope(self):
+        """A queue holds a job for as long as its backoff lasts; the company
+        scope it was enqueued with can be revoked in between.
+
+        ``Environment.companies`` validates ``allowed_company_ids`` against the
+        user's current ones, so replaying the stored scope verbatim made every
+        read through ``env.company`` raise ``AccessError`` from inside the job
+        body -- read as a business failure, it then spent the whole retry budget
+        before failing permanently on an opaque message.
+        """
+        kept = self.env["res.company"].create({"name": "kept"})
+        revoked = self.env["res.company"].create({"name": "revoked"})
+        user = self._multi_company_user(kept + revoked, kept + revoked)
+        user.write({"company_ids": [(6, 0, kept.ids)]})
+        self.env.flush_all()
+
+        claimed = self._claim()
+        with self.assertLogs("odoo.addons.base.models.ir_job", "WARNING") as logs:
+            IrJob._run_claimed(self.env.cr, claimed)
+        self.assertIn("company scope", logs.output[0])
+        record = self.env["ir.job"].browse(claimed["id"])
+        record.invalidate_recordset()
+        self.assertEqual(record.state, "done", "it ran, in the scope still allowed")
+
+    def test_narrowing_moves_env_company_when_the_first_one_is_revoked(self):
+        """``allowed_company_ids[0]`` *is* ``env.company``, so dropping the head
+        changes which company the job's writes are stamped with.  That is the
+        only answer left once the enqueue-time one is out of reach, and it must
+        be a deliberate, visible one rather than a surprise.
+        """
+        revoked = self.env["res.company"].create({"name": "revoked head"})
+        kept = self.env["res.company"].create({"name": "surviving"})
+        user = self._multi_company_user(revoked + kept, revoked + kept)
+        user.write({"company_ids": [(6, 0, kept.ids)], "company_id": kept.id})
+        self.env.flush_all()
+
+        claimed = self._claim()
+        env = odoo.api.Environment(
+            self.env.cr, claimed["user_id"], dict(claimed["context"])
+        )
+        with self.assertLogs("odoo.addons.base.models.ir_job", "WARNING"):
+            narrowed = IrJob._narrow_company_scope(env, claimed)
+        self.assertEqual(narrowed.companies.ids, [kept.id])
+        self.assertEqual(narrowed.company, kept)
+
+    def test_a_superuser_scope_is_never_narrowed(self):
+        """``env.su`` skips the validation entirely, and narrowing would shrink
+        inter-company work that is allowed to cross company boundaries.
+        """
+        gone = self.env["res.company"].create({"name": "not the superuser's"})
+        job = {
+            "id": 0,
+            "context": {"allowed_company_ids": [gone.id]},
+        }
+        env = odoo.api.Environment(
+            self.env.cr, odoo.api.SUPERUSER_ID, dict(job["context"])
+        )
+        self.assertIs(IrJob._narrow_company_scope(env, job), env)
+        self.assertEqual(env.companies.ids, [gone.id])
+
+    def test_a_still_valid_company_scope_is_replayed_untouched(self):
+        kept = self.env["res.company"].create({"name": "kept a"})
+        other = self.env["res.company"].create({"name": "kept b"})
+        self._multi_company_user(kept + other, kept + other)
+        claimed = self._claim()
+        env = odoo.api.Environment(
+            self.env.cr, claimed["user_id"], dict(claimed["context"])
+        )
+        narrowed = IrJob._narrow_company_scope(env, claimed)
+        self.assertIs(narrowed, env)
+        self.assertEqual(narrowed.companies.ids, [kept.id, other.id])
 
     def test_permanent_condition_does_not_climb_the_backoff_ladder(self):
         """``TerminalJobError`` spends the budget at once, not one rung at a time.
@@ -1233,10 +1327,178 @@ class TestIrJobDrainLoop(BaseCase):
             "the invalidation was never published to the other processes",
         )
 
+    def test_a_lost_concurrency_race_is_replayed_not_charged_to_the_job(self):
+        """Losing a serialization race is what an HTTP request gets replayed
+        for; a job body doing the same writes was billed a retry and a rung of
+        an exponential ladder that starts at ten seconds instead.
+        """
+        job_model = self.registry["ir.job"]
+        attempts = []
+
+        @api.job(max_retries=5)
+        def _job_test_conflict(self):
+            attempts.append(1)
+            if len(attempts) < 3:
+                raise psycopg.errors.SerializationFailure("lost the race")
+
+        job_model._job_test_conflict = _job_test_conflict
+        self.addCleanup(delattr, job_model, "_job_test_conflict")
+
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            env["ir.job"].delayed(channel=self.CHANNEL)._job_test_conflict()
+            env.flush_all()
+            cr.commit()
+
+        with (
+            patch.object(ir_job.IrJob, "_notify_workers"),
+            patch.object(ir_job.time, "sleep"),
+        ):
+            IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+        self.assertEqual(len(attempts), 3, "replayed until it committed")
+        self.assertEqual(self._states(), {"done": 1})
+        with self.registry.cursor() as cr:
+            cr.execute("SELECT retry FROM ir_job WHERE channel = %s", (self.CHANNEL,))
+            self.assertEqual(cr.fetchone()[0], 0, "no budget was spent on it")
+
+    def test_a_real_postgres_serialization_failure_is_replayed(self):
+        """The raised-from-Python case proves nothing about the real one.
+
+        A genuine ``40001`` leaves the transaction *aborted*, so every statement
+        after it fails until a rollback; and the replay must still be holding
+        the job's session advisory lock, or a reaper would see the row as
+        abandoned and hand the same job to a second worker.
+        """
+        job_model = self.registry["ir.job"]
+        attempts = []
+        db_name = self.db_name
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            partner = env["res.partner"].create({"name": "conflict target"})
+            partner_id = partner.id
+            cr.commit()
+        self.addCleanup(self._delete_partner, partner_id)
+        observed_lock = []
+        snapshots = []
+
+        @api.job(max_retries=5)
+        def _job_test_real_conflict(self):
+            attempts.append(1)
+            target = self.env["res.partner"].browse(partner_id)
+            snapshots.append(target.comment)
+            if len(attempts) == 1:
+                with odoo.db.db_connect(db_name).cursor() as other:
+                    other.execute(
+                        "UPDATE res_partner SET comment = 'outsider' WHERE id = %s",
+                        (partner_id,),
+                    )
+                    other.commit()
+            else:
+                with odoo.db.db_connect(db_name).cursor() as probe:
+                    probe.execute(
+                        "SELECT pg_try_advisory_lock("
+                        "hashtextextended('ir_job:' || %s::text, 0))",
+                        (self.env.context["probe_job_id"],),
+                    )
+                    observed_lock.append(probe.fetchone()[0])
+            target.comment = "the job wrote this"
+
+        job_model._job_test_real_conflict = _job_test_real_conflict
+        self.addCleanup(delattr, job_model, "_job_test_real_conflict")
+
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            enqueued = (
+                env["ir.job"].delayed(channel=self.CHANNEL)._job_test_real_conflict()
+            )
+            cr.execute(
+                "UPDATE ir_job SET context = %s WHERE id = %s",
+                (f'{{"probe_job_id": {enqueued.id}}}', enqueued.id),
+            )
+            env.flush_all()
+            cr.commit()
+
+        with (
+            patch.object(ir_job.IrJob, "_notify_workers"),
+            patch.object(ir_job.time, "sleep"),
+        ):
+            IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+
+        self.assertEqual(len(attempts), 2, "the first attempt lost a real 40001")
+        self.assertEqual(self._states(), {"done": 1})
+        with self.registry.cursor() as cr:
+            cr.execute("SELECT retry FROM ir_job WHERE channel = %s", (self.CHANNEL,))
+            self.assertEqual(cr.fetchone()[0], 0, "no retry budget was spent")
+            cr.execute("SELECT comment FROM res_partner WHERE id = %s", (partner_id,))
+            self.assertIn("the job wrote this", cr.fetchone()[0])
+        self.assertEqual(
+            observed_lock,
+            [False],
+            "the liveness lock was still held across the rollback and replay",
+        )
+        self.assertEqual(
+            snapshots[1],
+            "outsider",
+            "the replay ran on a fresh snapshot, not the rolled-back one",
+        )
+
     def _delete_partner(self, partner_id):
         with self.registry.cursor() as cr:
             cr.execute("DELETE FROM res_partner WHERE id = %s", (partner_id,))
             cr.commit()
+
+    def test_a_race_lost_every_time_still_ends_up_recorded(self):
+        job_model = self.registry["ir.job"]
+        attempts = []
+
+        @api.job(max_retries=5)
+        def _job_test_always_conflict(self):
+            attempts.append(1)
+            raise psycopg.errors.SerializationFailure("always loses")
+
+        job_model._job_test_always_conflict = _job_test_always_conflict
+        self.addCleanup(delattr, job_model, "_job_test_always_conflict")
+
+        with self.registry.cursor() as cr:
+            env = odoo.api.Environment(cr, common.ADMIN_USER_ID, {})
+            env["ir.job"].delayed(channel=self.CHANNEL)._job_test_always_conflict()
+            env.flush_all()
+            cr.commit()
+
+        with (
+            patch.object(ir_job.IrJob, "_notify_workers"),
+            patch.object(ir_job.time, "sleep"),
+            mute_logger("odoo.addons.base.models.ir_job"),
+        ):
+            IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+        self.assertEqual(len(attempts), ir_job.CONCURRENCY_MAX_ATTEMPTS)
+        self.assertEqual(self._states(), {"scheduled": 1}, "backing off, as a retry")
+
+    def test_a_signalling_failure_does_not_report_a_finished_job_as_failed(self):
+        """The publication sits after the commit that already made the job
+        durable, so treating its failure as the job's ran the whole
+        not-a-failure path over a job that had succeeded.
+        """
+        self._enqueue(1)
+        boom = RuntimeError("signalling is down")
+        with (
+            patch.object(ir_job.IrJob, "_notify_workers"),
+            patch.object(type(self.registry), "signal_changes", side_effect=boom),
+            self.assertRaises(RuntimeError),
+        ):
+            IrJob._claim_and_run_loop(
+                self.db_name, channels=[self.CHANNEL], deadline=time.monotonic() + 60
+            )
+        self.assertEqual(
+            self._states(), {"done": 1}, "the job committed and stayed committed"
+        )
+
 
 class TestIrJobClaimCapacity(TransactionCase):
     """The claim query's capacity decision, and that the ``saturated`` CTE
