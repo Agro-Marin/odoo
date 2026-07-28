@@ -205,7 +205,7 @@ class EnvironmentMixin(_ModelStubs):
                 inverses = field_inverses[field]
                 if not inverses:
                     continue
-                inv_recs = self[field.name].filtered(lambda r: not r.id)
+                inv_recs = self[field.name]._new_records
                 if not inv_recs:
                     continue
                 for invf in inverses:

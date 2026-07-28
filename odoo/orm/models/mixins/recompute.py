@@ -272,17 +272,15 @@ class RecomputeMixin(_ModelStubs):
                             )
                         break
             else:
-                new_records = self.filtered(lambda r: not r.id)
-                real_records = self - new_records
+                self_ids = self._ids
+                real_ids = [id_ for id_ in self_ids if id_]
                 records = model.browse()
-                if real_records:
-                    records = model.search(
-                        [(field.name, "in", real_records.ids)], order="id"
-                    )
-                if new_records:
+                if real_ids:
+                    records = model.search([(field.name, "in", real_ids)], order="id")
+                if len(real_ids) != len(self_ids):
                     field_cache = field._get_cache(model.env)
                     cache_records = model.browse(field_cache)
-                    new_ids = set(self._ids)
+                    new_ids = set(self_ids)
                     records |= cache_records.filtered(
                         lambda r, field=field, new_ids=new_ids: (
                             not set(r[field.name]._ids).isdisjoint(new_ids)

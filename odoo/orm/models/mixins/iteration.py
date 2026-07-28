@@ -100,6 +100,20 @@ class IterationMixin(_ModelStubs):
             return list(self._ids)
         return list(_origin_ids(self._ids))
 
+    @property
+    def _new_records(self) -> Self:
+        """The subset of ``self`` that has no database id yet.
+
+        The complement of ``filtered("id")``, which has its own fast path in
+        :meth:`~odoo.orm.models.mixins.traversal.TraversalMixin.filtered` for the
+        same reason this exists: the spelling it replaces --
+        ``filtered(lambda r: not r.id)`` -- materializes one singleton recordset
+        per record and dispatches ``Id.__get__`` on each, to compute a predicate
+        that is ``bool`` of the id.  A ``NewId`` is falsy whatever its ``origin``,
+        so the two agree by construction.
+        """
+        return self.browse([id_ for id_ in self._ids if not id_])
+
     def __bool__(self) -> bool:
         """Test whether ``self`` is nonempty."""
         return bool(self._ids)

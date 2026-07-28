@@ -449,8 +449,5 @@ class WriteMixin(_ModelStubs):
                 )
             )
 
-            field = self._fields["parent_path"]
-            for id_, path in updated.items():
-                field._update_cache(self.browse(id_), path)
-            records = self.browse(updated)
-            records.modified(["parent_path"])
+            self._fields["parent_path"]._update_cache_items(self.env, updated.items())
+            self.browse(updated).modified(["parent_path"])

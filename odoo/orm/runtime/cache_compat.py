@@ -149,8 +149,14 @@ class Cache:
 
         :param dirty: whether to mark ``field`` dirty on the records after update.
         """
-        for record, value in zip(records, values, strict=False):
-            field._update_cache(record, value, dirty=dirty)
+        if dirty:
+            for record, value in zip(records, values, strict=False):
+                field._update_cache(record, value, dirty=True)
+            return
+        # The clean path is exactly ``_update_cache_items``: it resolves the
+        # field cache and runs the dirty guard once for the batch instead of
+        # rebuilding a singleton and re-checking the dirty set per record.
+        field._update_cache_items(records.env, zip(records._ids, values, strict=False))
 
     def update_raw(
         self,
@@ -281,20 +287,13 @@ class Cache:
     def clear(self):
         """Invalidate the cache and its dirty flags.
 
-        ``core.clear_cache()`` empties the underlying ``FieldCache`` (data +
-        dirty + patches) but leaves each environment's ``_field_cache_memo``
-        pointing at the now-detached per-field dicts, so a subsequent read
-        serves a stale value and a subsequent write flushes into a dict the
-        cache no longer knows about (``RuntimeError`` at flush).  Purge the
-        memos too, keeping the two in sync — mirroring ``Transaction.clear()``
-        without discarding pending computes (this is the recordset-level cache
-        API, not a full transaction reset).
+        Empties the underlying ``FieldCache`` (data + dirty + patches) without
+        discarding pending computes — this is the recordset-level cache API, not
+        a full transaction reset.  The per-environment ``_field_cache_memo``
+        purge that must accompany it is fired by the cache itself (see
+        :meth:`FieldCache.__init__`).
         """
-        txn = self.transaction
-        txn.core.clear_cache()
-        for env in txn.envs:
-            with contextlib.suppress(AttributeError):
-                del env._field_cache_memo
+        self.transaction.core.clear_cache()
 
     def check(self, env, *, raise_on_invalid: bool = True) -> list[tuple]:
         """Check that the cache agrees with the database, and report what does not.

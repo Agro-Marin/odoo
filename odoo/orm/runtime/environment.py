@@ -23,6 +23,7 @@ from odoo.tools import (
     frozendict,
     reset_cached_properties,
 )
+from odoo.tools.misc import ReadonlyDict
 from odoo.tools.translate import (
     LazyGettext,
     get_translated_module,
@@ -633,6 +634,23 @@ class Environment(Mapping[str, "BaseModel"]):
     ) -> dict[Field, MutableMapping[IdType, typing.Any]]:
         """Memo for `Field._get_cache(env)`.  Do not use it."""
         return {}
+
+    @functools.cached_property
+    def _context_defaults(self) -> Mapping[str, typing.Any]:
+        """``{field_name: value}`` from the ``default_<name>`` context keys.
+
+        A function of ``self.context`` alone, which is frozen for the lifetime
+        of an environment — so it is derived once here rather than by rescanning
+        the context inside every :meth:`~odoo.models.Model.default_get`, which
+        ``create()`` calls once per record.
+        """
+        return ReadonlyDict(
+            {
+                key[8:]: value
+                for key, value in self.context.items()
+                if key.startswith("default_")
+            }
+        )
 
     @functools.cached_property
     def _field_depends_context(self):
