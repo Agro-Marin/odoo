@@ -86,7 +86,12 @@ ODOO_EXTERNAL_LIBS = MappingProxyType(
         "@odoo/hoot-dom-helpers-events": "/web/static/lib/hoot-dom/helpers/events.js",
         "@odoo/hoot-dom-helpers-time": "/web/static/lib/hoot-dom/helpers/time.js",
         "@odoo/hoot-dom-utils": "/web/static/lib/hoot-dom/hoot_dom_utils.js",
-        "@popperjs/core": "/web/static/lib/popper/popper.esm.js",
+        # Not a vendored library: Popper was replaced by an in-house
+        # reimplementation of the one entry point Bootstrap uses. Standalone
+        # pages get its self-contained build, since they resolve this
+        # specifier with an import map and have no bundler to follow the
+        # source module's `@web/...` imports.
+        "@popperjs/core": "/web/static/lib/popper_compat/popper_compat.esm.js",
         "luxon": "/web/static/lib/luxon/luxon.js",
         "dompurify": "/web/static/lib/dompurify/purify.es.js",
         "signature_pad": "/web/static/lib/signature_pad/signature_pad.js",

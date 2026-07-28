@@ -201,7 +201,7 @@
                 <title t-esc="status_message">Internal Server Error</title>
 
                 <link rel="stylesheet" href="/web/static/lib/bootstrap/dist/css/bootstrap.css"/>
-                <script type="importmap">{"imports": {"@popperjs/core": "/web/static/lib/popper/popper.esm.js"}}</script>
+                <script type="importmap">{"imports": {"@popperjs/core": "/web/static/lib/popper_compat/popper_compat.esm.js"}}</script>
                 <script type="module" src="/web/static/lib/bootstrap/bootstrap.esm.js"></script>
                 <style>
                     html {

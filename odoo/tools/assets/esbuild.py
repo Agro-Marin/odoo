@@ -315,12 +315,18 @@ class EsbuildCompiler:
             "hoot-dom",
             "hoot_dom_utils.js",
         ),
+        # Bootstrap is Popper's only importer and uses a single entry point,
+        # which `popper_compat` reimplements over the in-house position
+        # engine. Bundles alias the SOURCE module so esbuild inlines it and
+        # follows its `@web/...` imports normally; the self-contained build
+        # under static/lib exists only for import-map pages (see
+        # ODOO_EXTERNAL_LIBS).
         "@popperjs/core": (
             "web",
             "static",
-            "lib",
-            "popper",
-            "popper.esm.js",
+            "src",
+            "libs",
+            "popper_compat.js",
         ),
         "@odoo/o-spreadsheet": (
             "spreadsheet",
