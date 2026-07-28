@@ -192,8 +192,10 @@ export default class DevicesSynchronisation {
      * @returns {Array} - Array of domain conditions.
      */
     constructOrdersDomain() {
-        const dynamicModels = this.dynamicModels;
-        const recordsToCheck = Array.from(dynamicModels).reduce((acc, model) => {
+        // Read the option getter once: it rebuilds an object with four fresh
+        // closures on every access and the filter below runs it per record.
+        const databaseTable = this.pos.data.opts.databaseTable;
+        const recordsToCheck = Array.from(this.dynamicModels).reduce((acc, model) => {
             const collection = this.models[model];
             // A dynamic model can be declared by an installed module without being
             // part of the current session's loaded data (e.g. preparation-display
@@ -202,76 +204,58 @@ export default class DevicesSynchronisation {
             if (!collection) {
                 return acc;
             }
-            acc[model] = collection.filter(
-                (r) => !this.pos.data.opts.databaseTable[model]?.condition(r),
-            );
+            acc[model] = collection.filter((r) => !databaseTable[model]?.condition(r));
             return acc;
         }, {});
 
         const recordIdsByModel = {};
-        const domainByModel = Object.entries(recordsToCheck).reduce(
-            (acc, [model, records]) => {
-                const serverRecs = records.filter((r) => r.isSynced);
-                const ids = serverRecs.map((r) => r.id);
-                const config = this.pos.config;
-                const domains = [];
+        const domainByModel = {};
 
-                if (ids.length === 0 && model !== "pos.order") {
-                    return acc;
-                }
+        for (const [model, records] of Object.entries(recordsToCheck)) {
+            const serverRecs = records.filter((r) => r.isSynced);
+            const ids = serverRecs.map((r) => r.id);
+            const isOrder = model === "pos.order";
 
-                recordIdsByModel[model] = ids;
-                for (const record of serverRecs) {
-                    const recordDateTime = record.write_date
-                        .plus({ seconds: 1 })
-                        .toUTC();
-                    const recordDateTimeString = recordDateTime.toFormat(
-                        "yyyy-MM-dd HH:mm:ss",
-                        {
-                            numberingSystem: "latn",
-                        },
-                    );
+            if (ids.length === 0 && !isOrder) {
+                continue;
+            }
+            recordIdsByModel[model] = ids;
 
-                    let domain = new Domain([
+            // Only pos.order contributes a domain. Every other dynamic model
+            // used to build one Domain per record and then drop it on the floor
+            // (the assignment sat inside the pos.order branch), so this was pure
+            // waste proportional to the number of synced lines and payments.
+            if (!isOrder) {
+                continue;
+            }
+
+            const domains = serverRecs.map((record) => {
+                const recordDateTimeString = record.write_date
+                    .plus({ seconds: 1 })
+                    .toUTC()
+                    .toFormat("yyyy-MM-dd HH:mm:ss", { numberingSystem: "latn" });
+                return Domain.or([
+                    new Domain([
                         ["id", "=", record.id],
                         ["write_date", ">=", recordDateTimeString],
-                    ]);
+                    ]),
+                    new Domain([
+                        ["id", "=", record.id],
+                        ["state", "!=", record.state],
+                    ]),
+                ]);
+            });
 
-                    if (model === "pos.order") {
-                        domain = Domain.or([
-                            domain,
-                            new Domain([
-                                ["id", "=", record.id],
-                                ["state", "!=", record.state],
-                            ]),
-                        ]);
-                    }
-
-                    domains.push(domain);
-                }
-
-                let domain = Domain.or(domains);
-                if (model === "pos.order") {
-                    domain = Domain.or([
-                        domain,
-                        new Domain([
-                            ["id", "not in", ids],
-                            ["state", "=", "draft"],
-                            [
-                                "config_id",
-                                "in",
-                                [config.id, ...config.raw.trusted_config_ids],
-                            ],
-                        ]),
-                    ]);
-
-                    acc[model] = domain.toList();
-                }
-
-                return acc;
-            },
-            {},
-        );
+            const config = this.pos.config;
+            domainByModel[model] = Domain.or([
+                Domain.or(domains),
+                new Domain([
+                    ["id", "not in", ids],
+                    ["state", "=", "draft"],
+                    ["config_id", "in", [config.id, ...config.raw.trusted_config_ids]],
+                ]),
+            ]).toList();
+        }
 
         return { domain: domainByModel, recordIds: recordIdsByModel };
     }

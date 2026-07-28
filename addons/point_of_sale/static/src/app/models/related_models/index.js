@@ -2,6 +2,7 @@
 import { TrapDisabler } from "@point_of_sale/proxy_trap";
 import { uuidv4 } from "@point_of_sale/utils";
 
+import { BackLinkIndex } from "./backlink_index.js";
 import { Base } from "./base.js";
 import { createExtraField, processModelClasses } from "./model_classes.js";
 import { processModelDefs } from "./model_defs.js";
@@ -294,11 +295,10 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                     const rawValue = isX2Many ? new Set(value) : value;
                     const data = existingRecord?.[field.name];
                     let localIds = [];
-                    if (
-                        isX2Many &&
-                        existingRecord &&
-                        opts.databaseTable[field.relation]?.key
-                    ) {
+                    // `database`, not `opts.databaseTable`: the latter is
+                    // optional (line 28 falls back to {}), so dereferencing it
+                    // live threw a TypeError for any caller that omitted it.
+                    if (isX2Many && existingRecord && database[field.relation]?.key) {
                         localIds =
                             data
                                 .filter((r) => r.isSynced === false)
@@ -630,8 +630,17 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
                 if (X2MANY_TYPES.has(field.type)) {
                     const records = record[name];
                     if (records) {
+                        // No handleCommand here: an x2many field records the
+                        // unlink on the CHILD's side, via the many2one branch
+                        // below when that child is itself deleted. Calling it
+                        // here passed the parent instead of the child, so it
+                        // wrote {id: <parent id>, parentId: undefined} once per
+                        // child, under the child model's m2o field name. Those
+                        // entries can never match serialization's
+                        // `parentId === record.id` test, so they were neither
+                        // emitted nor cleared and simply accumulated for the
+                        // lifetime of the session.
                         for (const record2 of [...records]) {
-                            handleCommand(inverse, field, record, opts.backend);
                             models._disconnect(
                                 field,
                                 record,
@@ -669,8 +678,6 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             if (!field) {
                 return undefined;
             }
-            const relation = field.relation;
-            const inverseField = field.inverse_name;
             const backLinkKey = this.name + field.name;
             // Subscribe on EVERY call (warm or cold): without this, only the
             // caller that built the index tracked anything reactive — every
@@ -679,57 +686,39 @@ export function createRelatedModels(modelDefs, modelClasses = {}, opts = {}) {
             // `this` is reached through `record.model`, so it carries the
             // caller's reactive binding (symbol-keyed paths do not).
             void this.backlinkVersions[backLinkKey];
-            const bumpVersion = () => {
-                this.backlinkVersions[backLinkKey] =
-                    (this.backlinkVersions[backLinkKey] || 0) + 1;
-            };
-            if (!backlinkIndexes.has(backLinkKey)) {
-                const recordsMap = record[STORE_SYMBOL].getRecordsMap(relation, "id");
 
-                const index = new Map();
-                for (const relRecord of recordsMap.values()) {
-                    const parentId = relRecord[RAW_SYMBOL][inverseField];
-                    const parentIds = parentId instanceof Set ? parentId : [parentId];
-
-                    for (const id of parentIds) {
-                        if (!id) {
-                            continue;
-                        }
-                        if (!index.has(id)) {
-                            index.set(id, []);
-                        }
-                        index.get(id).push(relRecord);
-                    }
-                }
+            let index = backlinkIndexes.get(backLinkKey);
+            if (!index) {
+                const bumpVersion = () => {
+                    this.backlinkVersions[backLinkKey] =
+                        (this.backlinkVersions[backLinkKey] || 0) + 1;
+                };
+                index = new BackLinkIndex(
+                    record[STORE_SYMBOL],
+                    field.relation,
+                    field.inverse_name,
+                    bumpVersion,
+                );
                 backlinkIndexes.set(backLinkKey, index);
 
-                const unsubscribers = [];
-                unsubscribers.push(
-                    record.model.addEventListener("delete", (data) => {
-                        index.delete(data.id);
-                        bumpVersion();
-                    }),
+                // Listeners live as long as the index does: it is now kept in
+                // sync instead of being thrown away and rebuilt.
+                record.model.addEventListener("delete", (data) =>
+                    index.onParentDeleted(data.id),
                 );
-
-                const cleanup = () => {
-                    backlinkIndexes.delete(backLinkKey);
-                    for (const unsubscribe of unsubscribers) {
-                        unsubscribe?.();
-                    }
-                    unsubscribers.length = 0;
-                    bumpVersion();
-                };
-
-                const relationModel = record.models[relation];
-                for (const operation of ["update", "create", "delete"]) {
-                    unsubscribers.push(
-                        relationModel.addEventListener(operation, cleanup),
-                    );
-                }
+                const relationModel = record.models[field.relation];
+                relationModel.addEventListener("create", (data) =>
+                    index.onCreate(data.ids),
+                );
+                relationModel.addEventListener("update", (data) =>
+                    index.onUpdate(data.id, data.fields),
+                );
+                relationModel.addEventListener("delete", (data) =>
+                    index.onDelete(data.id),
+                );
             }
 
-            const currentIndex = backlinkIndexes.get(backLinkKey);
-            return currentIndex.get(record.id) || [];
+            return index.get(record.id);
         }
 
         serializeForORM(record, opts = {}) {

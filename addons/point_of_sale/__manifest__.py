@@ -246,6 +246,12 @@
             "point_of_sale.assets_prod_dark",
             "point_of_sale.base_app",
             "point_of_sale.customer_display_assets",
+            # The customer-display test bundle pulls in web_tour and hoot-dom,
+            # which are module-syntax. Undeclared, every one of those files was
+            # dropped from the bundle with only a console error ("cannot be
+            # concatenated into non-ESM bundle"), so the tour helpers never
+            # loaded and every customer-display tour failed to start.
+            "point_of_sale.customer_display_assets_test",
         ],
         # ``/pos/ui`` renders ``web.assets_tests`` in test mode; declaring it a
         # secondary of the POS app bundles makes the served import map carry the
@@ -256,6 +262,13 @@
         "secondary_import_map_includes": {
             "point_of_sale.assets_prod": ["web.assets_tests"],
             "point_of_sale.assets_prod_dark": ["web.assets_tests"],
+            # Same shape on the customer-display page: the app bundle is the
+            # first (import-map-winning) ESM bundle and the test bundle is
+            # rendered after it, so it must share the app's module singletons
+            # rather than resolve to re-bundled copies.
+            "point_of_sale.customer_display_assets": [
+                "point_of_sale.customer_display_assets_test"
+            ],
         },
     },
 }

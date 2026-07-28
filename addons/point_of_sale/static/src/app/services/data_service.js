@@ -315,10 +315,21 @@ export class PosData extends SignalStore {
         const serverProductIds = this.models["product.product"].map((p) => p.id);
         const databaseProductIds = missing["product.product"]?.map((p) => p.id) ?? [];
         const loadedProductIds = new Set([...databaseProductIds, ...serverProductIds]);
-        missing["pos.order.line"] =
-            missing["pos.order.line"]?.filter((line) =>
-                loadedProductIds.has(line.product_id),
-            ) ?? [];
+        const restoredLines = missing["pos.order.line"] ?? [];
+        missing["pos.order.line"] = restoredLines.filter((line) =>
+            loadedProductIds.has(line.product_id),
+        );
+        // Dropping a line silently leaves its order restored as a header with a
+        // wrong total, which is indistinguishable from a correct restore. Say so.
+        const droppedLines = restoredLines.length - missing["pos.order.line"].length;
+        if (droppedLines) {
+            logPosMessage(
+                "DataService",
+                "getLocalDataFromIndexedDB",
+                `Dropped ${droppedLines} restored order line(s) whose product is not loaded; the owning orders will show an incomplete total`,
+                CONSOLE_COLOR,
+            );
+        }
 
         const results = this.models.loadConnectedData(missing, []);
 
@@ -432,8 +443,10 @@ export class PosData extends SignalStore {
         return localData;
     }
 
-    async initData(hard = false, limit = true) {
-        const data = await this.loadInitialData(hard, limit);
+    async initData() {
+        // loadInitialData() takes no arguments; the two that used to be
+        // forwarded here were silently dropped.
+        const data = await this.loadInitialData();
         const order = data["pos.order"] || [];
         const orderlines = data["pos.order.line"] || [];
 
@@ -547,6 +560,7 @@ export class PosData extends SignalStore {
     }
 
     initListeners() {
+        const databaseTable = this.opts.databaseTable;
         for (const dynamicModel of this.opts.dynamicModels) {
             if (!this.models[dynamicModel]) {
                 continue;
@@ -563,7 +577,7 @@ export class PosData extends SignalStore {
             // records recreated on every reload. Only models persisted in
             // IndexedDB (databaseTable) have a store to prune; a module can
             // declare dynamic models that are not persisted.
-            if (this.opts.databaseTable[dynamicModel]) {
+            if (databaseTable[dynamicModel]) {
                 this.models[dynamicModel].addEventListener("delete", (params) => {
                     if (params.key !== undefined) {
                         this.indexedDB.delete(dynamicModel, [params.key]);
@@ -572,9 +586,9 @@ export class PosData extends SignalStore {
             }
         }
 
-        const ignore = Object.keys(this.opts.databaseTable);
+        const ignore = new Set(Object.keys(this.opts.databaseTable));
         for (const model of Object.keys(this.relations)) {
-            if (ignore.includes(model)) {
+            if (ignore.has(model)) {
                 continue;
             }
 
@@ -609,6 +623,10 @@ export class PosData extends SignalStore {
         options = [],
         uuid = "",
     }) {
+        // Counted, not a boolean: execute() is called concurrently, and the
+        // first call to finish used to clear the flag for every other in-flight
+        // request, hiding the loading indicator while work was still running.
+        this._inFlight = (this._inFlight ?? 0) + 1;
         this.network.loading = true;
 
         try {
@@ -622,9 +640,13 @@ export class PosData extends SignalStore {
                 fields = this.fields[model] || [];
             }
 
+            // Compare on copies: Array.prototype.sort mutates in place, so this
+            // test used to permanently reorder both the caller's array and the
+            // canonical this.fields[model].
+            const modelFields = this.fields[model];
             if (
-                this.fields[model] &&
-                fields.sort().join(",") !== this.fields[model].sort().join(",")
+                modelFields &&
+                [...fields].sort().join(",") !== [...modelFields].sort().join(",")
             ) {
                 limitedFields = true;
             }
@@ -774,7 +796,8 @@ export class PosData extends SignalStore {
                 throw error;
             }
         } finally {
-            this.network.loading = false;
+            this._inFlight -= 1;
+            this.network.loading = this._inFlight > 0;
         }
     }
 
@@ -1136,11 +1159,28 @@ export class PosData extends SignalStore {
         const deleted = [];
         for (const id of ids) {
             const record = this.models[model].get(id);
+            if (!record) {
+                // A stale id threw a TypeError straight out of this sync
+                // method; write() already guards the same lookup. The id is
+                // still sent to the server, which may well still hold it.
+                continue;
+            }
             deleted.push(id);
             record.delete();
         }
 
-        this.ormDelete(model, ids);
+        // Fire-and-forget by contract (the method is synchronous), but never
+        // an unhandled rejection: ormDelete queues on connection loss and
+        // rejects on a real refusal.
+        Promise.resolve(this.ormDelete(model, ids)).catch((error) => {
+            logPosMessage(
+                "DataService",
+                "delete",
+                `Could not delete ${model} ${ids} on the server`,
+                CONSOLE_COLOR,
+                [error],
+            );
+        });
         return deleted;
     }
 
@@ -1261,8 +1301,14 @@ export class PosData extends SignalStore {
     localDeleteCascade(record, removeFromServer = false) {
         const recordModel = record.model.name;
 
+        // Read the option getters ONCE: both rebuild a fresh object (and
+        // databaseTable four fresh closures) on every access, and idbKey below
+        // runs per record.
+        const cascadeDeleteModels = new Set(this.opts.cascadeDeleteModels);
+        const databaseTable = this.opts.databaseTable;
+
         const relationsToDelete = Object.values(this.relations[recordModel])
-            .filter((rel) => this.opts.cascadeDeleteModels.includes(rel.relation))
+            .filter((rel) => cascadeDeleteModels.has(rel.relation))
             .map((rel) => rel.name);
         const recordsToDelete = relationsToDelete.flatMap(
             (relation) => record[relation] || [],
@@ -1272,8 +1318,7 @@ export class PosData extends SignalStore {
         // configured key path (not a hard-coded `uuid`): id-keyed stores such as
         // `product.attribute.custom.value` would otherwise never match a `uuid` and
         // leave orphaned rows behind.
-        const idbKey = (rec) =>
-            rec[this.opts.databaseTable[rec.model.name]?.key || "id"];
+        const idbKey = (rec) => rec[databaseTable[rec.model.name]?.key || "id"];
         this.deleteRecordsInIndexedDB(recordModel, [idbKey(record)]);
         for (const item of recordsToDelete) {
             this.deleteRecordsInIndexedDB(item.model.name, [idbKey(item)]);
