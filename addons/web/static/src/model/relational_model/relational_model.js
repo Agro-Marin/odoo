@@ -232,6 +232,20 @@ export class RelationalModel extends Model {
         this.urgentSave = new UrgentSaveCoordinator(this.bus);
         /** @type {(() => void) | null} */
         this._closeUrgentSaveNotification = null;
+
+        /**
+         * In-flight *compound* updates: multi-step record mutations a field
+         * widget drives across more than one ``mutex`` section, awaiting
+         * something (an RPC, a variant lookup) in between. The mutex goes idle
+         * in every one of those gaps, so ``mutex.getUnlockedDef()`` cannot see
+         * them and {@link _askChanges} would call the model settled mid-cascade
+         * — handing ``leaveEditMode`` / ``save`` / ``load`` a half-applied
+         * record whose required fields the pending step has yet to write.
+         * Widgets scope one with {@link trackCompoundUpdate}.
+         *
+         * @type {Set<Promise<unknown>>}
+         */
+        this._compoundUpdates = new Set();
     }
 
     exportState() {
@@ -351,10 +365,46 @@ export class RelationalModel extends Model {
         invalidateAggregateSpecs(config.fields);
     }
 
+    /**
+     * Scope a multi-step record mutation as one unit {@link _askChanges} waits
+     * on, for widgets whose write cannot be expressed as a single mutex
+     * section (a variant lookup between two writes, say).
+     *
+     * Call it *synchronously* at the point the user's edit is applied — never
+     * from a render side effect. A barrier that only opens once the first
+     * step's re-render has landed still leaves unguarded exactly the gap it
+     * exists to close.
+     *
+     * @template T
+     * @param {() => Promise<T>} fn
+     * @returns {Promise<T>}
+     */
+    trackCompoundUpdate(fn) {
+        const prom = Promise.resolve().then(fn);
+        this._compoundUpdates.add(prom);
+        const forget = () => this._compoundUpdates.delete(prom);
+        prom.then(forget, forget);
+        return prom;
+    }
+
     async _askChanges() {
-        const proms = [];
-        this.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
-        await Promise.all([...proms, this.mutex.getUnlockedDef()]);
+        // Settle in rounds: flushing an input can open a compound update, and a
+        // compound update's next step re-takes the mutex. The model is settled
+        // only once a whole round finds nothing left in flight. Each round
+        // awaits the units it snapshotted, so a cascade of depth N drains in N
+        // rounds; rounds cannot repeat forever unless a widget is looping.
+        while (true) {
+            const proms = [];
+            this.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
+            // Only *completion* is the barrier's business: a failed cascade has
+            // already reported itself, and rejecting here would fail the save
+            // or the leave-edit-mode that merely waited behind it.
+            const compound = [...this._compoundUpdates].map((p) => p.catch(() => {}));
+            await Promise.all([...proms, ...compound, this.mutex.getUnlockedDef()]);
+            if (!this._compoundUpdates.size) {
+                return;
+            }
+        }
     }
 
     /**

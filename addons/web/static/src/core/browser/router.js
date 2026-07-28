@@ -7,7 +7,7 @@ import { EventBus } from "@odoo/owl";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
 import { RouterEvent } from "@web/core/events";
 import { slidingWindow } from "@web/core/utils/collections/arrays";
-import { omit, pick } from "@web/core/utils/collections/objects";
+import { deepEqual, omit, pick } from "@web/core/utils/collections/objects";
 import { isNumeric } from "@web/core/utils/format/strings";
 import { compareUrls, objectToUrlEncodedString } from "@web/core/utils/urls";
 
@@ -319,10 +319,21 @@ browser.addEventListener("popstate", (ev) => {
         browser.history.replaceState({ nextState: state }, "", browser.location.href);
         return;
     }
+    const previousState = state;
     state =
         ev.state?.nextState ||
         router.urlToState(new URL(/** @type {any} */ (browser.location)));
-    if (!ev.state?.skipRouteChange && !router.skipLoad) {
+    // Landing back on the state we are already on is not a navigation: it pops
+    // a *synthetic* entry someone stacked on top of ours (BottomSheet pushes one
+    // so the Back gesture closes the sheet instead of leaving the page, then
+    // pops it again when the sheet closes by any other means). Reloading there
+    // is never merely redundant — `loadState` re-enters `doAction`, whose
+    // KeepLast supersedes whatever action is still loading, so a tap that both
+    // closes a sheet and opens an action cancels the action and re-renders the
+    // controller already on screen. `skipRouteChange` cannot express this: it
+    // is read off the entry we land *on*, not the synthetic one we left.
+    const routeChanged = !deepEqual(previousState, state);
+    if (!ev.state?.skipRouteChange && !router.skipLoad && routeChanged) {
         routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
     router.skipLoad = false;
