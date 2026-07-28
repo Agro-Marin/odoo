@@ -227,3 +227,12 @@ test("sequence 0 sorts first, not as the default 100", async () => {
         "Last",
     ]);
 });
+
+test("the user menu toggle is named as a menu, not as an image", async () => {
+    // The avatar's `alt="User"` was the button's only accessible name, so the
+    // control announced as "User" rather than as something openable — and the
+    // image is decorative next to a name that already says whose menu it is.
+    await mountWithCleanup(UserMenu);
+    expect(".o_user_menu button").toHaveAttribute("aria-label", "User menu");
+    expect(".o_user_menu button img").toHaveAttribute("alt", "");
+});

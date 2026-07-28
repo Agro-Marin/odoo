@@ -531,3 +531,30 @@ test("Do not execute adapt when navbar is destroyed", async () => {
     await runAllTimers();
     expect.verifySteps([]);
 });
+
+test.tags("desktop");
+test("the icon-only navbar toggles carry an accessible name", async () => {
+    // `title` is the weakest source of an accessible name and some assistive
+    // technology ignores it, so an icon-only button that relies on it alone can
+    // be announced as an unlabelled button. The sidebar close button in the
+    // same template already pairs `title` with `aria-label`; the apps and
+    // "more" toggles did not.
+    defineMenus([
+        {
+            id: 1,
+            children: [{ id: 10 }, { id: 11 }, { id: 12 }, { id: 13 }, { id: 14 }],
+        },
+    ]);
+    await resize({ width: 300 });
+    const env = await makeMockEnv();
+    Object.defineProperty(env, "isSmall", { get: () => false });
+    getService("menu").setCurrentMenu(1);
+    await mountWithCleanup(NavBar);
+    await waitNavbarAdaptation();
+
+    expect(".o_navbar_apps_menu button").toHaveAttribute("aria-label", "Home Menu");
+    expect(".o_menu_sections_more button").toHaveAttribute("aria-label", "More Menu");
+    // The glyphs themselves must not be announced alongside the name.
+    expect(".o_navbar_apps_menu button i").toHaveAttribute("aria-hidden", "true");
+    expect(".o_menu_sections_more button i").toHaveAttribute("aria-hidden", "true");
+});
