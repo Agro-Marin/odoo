@@ -175,7 +175,7 @@ export class CommandPalette extends Component {
          *          namespace: string,
          *          placeholder: string,
          *          searchValue: string,
-         *          selectedCommand: CommandItem }}
+         *          selectedIndex: number }}
          */
         this.state = useState(/** @type {any} */ ({}));
 
@@ -320,12 +320,30 @@ export class CommandPalette extends Component {
      * Select a command by its index in the current list.
      * @param {number} index - -1 to deselect
      */
+    /**
+     * The highlighted command, derived from `state.selectedIndex` rather than
+     * stored beside it. Keeping a second copy of it in state meant the index
+     * that drives keyboard navigation lived on that copy, so a stale snapshot
+     * could feed an index back into a list it no longer belonged to.
+     *
+     * @returns {CommandItem | null}
+     */
+    get selectedCommand() {
+        return this.state.commands?.[this.state.selectedIndex] ?? null;
+    }
+
+    /**
+     * Highlight the command at `index`, or nothing when there is no such
+     * command. Anything that is not a position in the current list — `-1`, a
+     * stale index from a longer list, `undefined` from a caller that computed
+     * no branch — means "no selection"; there is no other way to spell it.
+     *
+     * @param {number} index
+     */
     selectCommand(index) {
-        if (index === -1 || index >= this.state.commands.length) {
-            this.state.selectedCommand = null;
-            return;
-        }
-        this.state.selectedCommand = markRaw(this.state.commands[index]);
+        const isSelectable =
+            Number.isInteger(index) && index >= 0 && index < this.state.commands.length;
+        this.state.selectedIndex = isSelectable ? index : -1;
     }
 
     /**
@@ -334,7 +352,7 @@ export class CommandPalette extends Component {
      */
     selectCommandAndScrollTo(type) {
         this.mouseSelectionActive = false;
-        const index = this.state.selectedCommand?.index ?? -1;
+        const index = this.state.selectedIndex;
         if (index === -1) {
             return;
         }
@@ -392,7 +410,7 @@ export class CommandPalette extends Component {
      */
     async executeSelectedCommand(ctrlKey) {
         await this.searchValuePromise;
-        const selectedCommand = this.state.selectedCommand;
+        const selectedCommand = this.selectedCommand;
         if (selectedCommand) {
             if (!ctrlKey) {
                 await this.executeCommand(selectedCommand);

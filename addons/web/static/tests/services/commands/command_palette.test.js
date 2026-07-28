@@ -1731,3 +1731,56 @@ test("category grouping is preserved while an async provider reloads", async () 
     expect(".o_command_category").toHaveCount(3);
     expect(queryAllTexts(".o_command")).toEqual(["Command1", "Command2", "Command3"]);
 });
+
+// SELECTION-CONTRACT-BLOCK
+// `selectCommand` used to keep a detached copy of the highlighted command in
+// state and guard it with `index === -1 || index >= length`. That let every
+// other non-position through — a negative below -1, or the `undefined` a caller
+// produces when it computes no branch — straight into `markRaw(commands[index])`,
+// which throws on a non-object.
+async function mountPalette(commands) {
+    await mountWithCleanup(MainComponentsContainer);
+    /** @type {any} */
+    let palette;
+    patchWithCleanup(CommandPalette.prototype, {
+        setup() {
+            super.setup();
+            palette = this;
+        },
+    });
+    getService("dialog").add(CommandPalette, {
+        config: { providers: [{ provide: () => commands }] },
+    });
+    await animationFrame();
+    return palette;
+}
+
+test("an index that is not a position selects nothing instead of throwing", async () => {
+    const palette = await mountPalette([
+        { name: "cmd a", action: () => {} },
+        { name: "cmd b", action: () => {} },
+    ]);
+    expect(palette.selectedCommand.name).toBe("cmd a");
+
+    for (const bad of [undefined, NaN, -2, -1, 2, 99, 1.5, null]) {
+        palette.selectCommand(bad);
+        expect(palette.selectedCommand).toBe(null);
+    }
+
+    palette.selectCommand(1);
+    expect(palette.selectedCommand.name).toBe("cmd b");
+});
+
+test("the highlighted command follows the list it is an index into", async () => {
+    const palette = await mountPalette([
+        { name: "cmd a", action: () => {} },
+        { name: "cmd b", action: () => {} },
+        { name: "cmd c", action: () => {} },
+    ]);
+    palette.selectCommand(2);
+    expect(palette.selectedCommand.name).toBe("cmd c");
+
+    // A shorter result set arrives; the old position no longer exists.
+    palette.state.commands = palette.state.commands.slice(0, 1);
+    expect(palette.selectedCommand).toBe(null);
+});
