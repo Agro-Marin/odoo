@@ -133,6 +133,13 @@ export const webVitalsService = {
             });
             clsObserver.observe({ type: "layout-shift", buffered: true });
             observers.push(clsObserver);
+            // Seed the metric the moment the observer is live, because a
+            // buffered PerformanceObserver never invokes its callback when no
+            // entry matches. A page that produced no layout shift at all would
+            // otherwise omit `cls` entirely — indistinguishable downstream from
+            // "CLS was not measured here", which is the exact confusion the
+            // unconditional assignment in the callback exists to prevent.
+            metrics.cls = 0;
         } catch {
             // ignore
         }

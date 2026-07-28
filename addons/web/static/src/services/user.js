@@ -8,7 +8,7 @@ import { readJSONStorage, writeJSONStorage } from "@web/core/browser/storage_jso
 import { UserEvent } from "@web/core/events";
 import { pyToJsLocale } from "@web/core/l10n/utils";
 import { rpc } from "@web/core/network/rpc";
-import { ensureArray, sortBy } from "@web/core/utils/collections/arrays";
+import { ensureArray, sortBy, unique } from "@web/core/utils/collections/arrays";
 import { Cache } from "@web/core/utils/collections/cache";
 import { session } from "@web/session";
 
@@ -231,11 +231,20 @@ export function _makeUser(session) {
             kwargs: { context },
         });
     };
+    // ``ids`` is a SET as far as ``has_access`` is concerned, so the key must be
+    // order- and duplicate-insensitive: keying on the caller's literal array
+    // made `[2, 1]` miss the entry `[1, 2]` had just filled and pay a second
+    // round-trip for the identical question.
     const getAccessRightCacheKey = (
         /** @type {string} */ model,
         /** @type {string} */ operation,
         /** @type {number[]} */ ids,
-    ) => JSON.stringify([model, operation, ids]);
+    ) =>
+        JSON.stringify([
+            model,
+            operation,
+            unique([...ids]).sort((a, b) => (a > b ? 1 : a < b ? -1 : 0)),
+        ]);
     const accessRightCache = new Cache(
         getAccessRightCacheValue,
         getAccessRightCacheKey,

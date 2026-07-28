@@ -65,6 +65,13 @@ export const pwaService = {
     start(env, { dialog }) {
         /** @type {any} */
         let _manifest;
+        /**
+         * In-flight manifest fetch, so concurrent callers share one request.
+         * Memoizing only the RESULT left a window in which every caller during
+         * the fetch started its own.
+         * @type {Promise<any> | null}
+         */
+        let _manifestPromise = null;
         /** @type {any} */
         let nativePrompt;
 
@@ -191,17 +198,29 @@ export const pwaService = {
          * @returns {Promise<Object>} parsed manifest JSON
          */
         async function getManifest() {
-            if (!_manifest) {
+            if (_manifest) {
+                return _manifest;
+            }
+            if (!_manifestPromise) {
                 const href = document
                     .querySelector("link[rel=manifest]")
                     ?.getAttribute("href");
                 if (!href) {
                     return {};
                 }
-                const manifest = await get(href, "text", { rejectHtml: true });
-                _manifest = JSON.parse(manifest);
+                _manifestPromise = get(href, "text", { rejectHtml: true })
+                    .then((/** @type {string} */ manifest) => {
+                        _manifest = JSON.parse(manifest);
+                        return _manifest;
+                    })
+                    .finally(() => {
+                        // Clear on settlement so a failed fetch (offline, expired
+                        // session) is retried by the next caller instead of
+                        // handing every one of them the same rejection forever.
+                        _manifestPromise = null;
+                    });
             }
-            return _manifest;
+            return _manifestPromise;
         }
 
         /**
@@ -219,7 +238,15 @@ export const pwaService = {
                 return;
             }
             if (nativePrompt) {
-                const res = await nativePrompt.prompt();
+                // A BeforeInstallPromptEvent may be prompted ONCE; a second
+                // call rejects with InvalidStateError, which surfaced as an
+                // uncaught error dialog. Release it here — the browser fires a
+                // fresh event (repopulating this slot through
+                // REGISTER_BEFOREINSTALLPROMPT_EVENT) if the app is still
+                // installable later.
+                const prompt = nativePrompt;
+                nativePrompt = null;
+                const res = await prompt.prompt();
                 _setInstallationState(res.outcome);
                 state.canPromptToInstall = false;
                 if (onDone) {

@@ -136,9 +136,16 @@ userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
  */
 export async function getCurrencyRates() {
     if (!ratesPromise) {
-        ratesPromise = fetchCurrencyRates().finally(() => {
-            ratesPromise = null;
+        const prom = fetchCurrencyRates().finally(() => {
+            // Only clear the slot this fetch still owns. A company switch nulls
+            // `ratesPromise` mid-flight, so an unguarded clear let the OLD fetch
+            // evict the NEW one on settling and the next caller re-entered
+            // `fetchCurrencyRates` for a fetch already in progress.
+            if (ratesPromise === prom) {
+                ratesPromise = null;
+            }
         });
+        ratesPromise = prom;
     }
     await ratesPromise;
     return rates;

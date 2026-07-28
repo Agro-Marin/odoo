@@ -376,11 +376,24 @@ export const hotkeyService = {
              *  - all parts are whitelisted
              *  - single key part comes last
              *  - each part is separated by the dash character: "+"
+             *
+             * The last two are CANONICALISED rather than merely documented.
+             * Dispatch matches ``getActiveHotkey``'s output, which always spells
+             * modifiers in {@link MODIFIERS} order with the key last, against an
+             * exact-string index — so a registration written any other way used
+             * to be accepted without complaint and then never fire. Measured:
+             * ``alt+shift+u`` fired while ``shift+alt+u``, ``control+alt+shift+u``
+             * and ``u+alt`` were all silent. Sorting here is what makes the
+             * documented rules true instead of aspirational; it also collapses a
+             * repeated modifier ("alt+alt+a") onto one slot.
              */
-            const keys = hotkey
+            const parts = hotkey
                 .toLowerCase()
                 .split("+")
-                .filter((k) => !MODIFIERS.includes(k));
+                .map((part) => part.trim())
+                .filter(Boolean);
+            const modifiers = MODIFIERS.filter((modifier) => parts.includes(modifier));
+            const keys = parts.filter((k) => !MODIFIERS.includes(k));
             if (keys.some((k) => !AUTHORIZED_KEYS.includes(k))) {
                 throw new Error(
                     `You are trying to subscribe for an hotkey ('${hotkey}')
@@ -396,7 +409,7 @@ export const hotkeyService = {
             const token = nextToken++;
             /** @type {HotkeyRegistration} */
             const registration = {
-                hotkey: hotkey.toLowerCase(),
+                hotkey: [...modifiers, ...keys].join("+"),
                 callback,
                 activeElement: null,
                 allowRepeat: options?.allowRepeat,

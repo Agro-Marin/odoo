@@ -82,7 +82,20 @@ class DebugContext {
                         .category(category)
                         .getAll()
                         .map((factory) =>
-                            factory(Object.assign({ env, accessRights }, ...contexts)),
+                            // INNERMOST context wins, spelled out rather than
+                            // emerging from the key order of a merge. Spreading
+                            // every active context of a category into one object
+                            // only behaved correctly because today's activators
+                            // ("action", "view", "form") all pass the same key
+                            // shape, so the last one overwrote the others whole.
+                            // The moment two differ, the outer one's keys leak
+                            // into the inner one's descriptor and the debug menu
+                            // acts on a record that was never active.
+                            factory({
+                                env,
+                                accessRights,
+                                ...[...contexts].at(-1),
+                            }),
                         ),
                 )
                 .filter(Boolean)
