@@ -104,9 +104,17 @@ export async function executeReportAction(action, options, am) {
         }
         return finishReport(action, options, am);
     } else {
+        // SINGLE EXIT — ``options.onClose`` runs on every path, the same rule
+        // ``act_url.js`` spells out. Nothing was produced, but the caller is
+        // still waiting: this is how ``view_button_hook`` reloads its view and
+        // how ``doAction(..., { onClose: resolve })`` awaits an action. A
+        // report whose type no LOADED handler claims (an enterprise handler
+        // missing from the bundle) takes this path, and returning without
+        // settling stranded the caller rather than doing less.
         console.error(
             `The ActionManager can't handle reports of type ${action.report_type}`,
             action,
         );
+        options.onClose?.();
     }
 }

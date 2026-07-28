@@ -12,7 +12,7 @@ import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { rpc } from "@web/core/network/rpc";
 import { evaluateExpr } from "@web/core/py_js/py";
-import { omit } from "@web/core/utils/collections/objects";
+import { omit, pick } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { user } from "@web/services/user";
 
@@ -175,6 +175,14 @@ export async function executeActionButton(
                     parent_action_embedded_actions: embeddedActions,
                     parent_action_id: action.id,
                 };
+                // Delegating is still THIS click, so everything the click owed
+                // its caller is now owed by the delegate. ``onClose`` above all:
+                // it is how every view button reloads its view afterwards
+                // (``view_button_hook``) and how a list's ``openAction``
+                // reloads its root record (``list_controller.openRecord``).
+                // Dropping it left the view showing pre-action data with no
+                // second trigger, and dropping ``close`` left the dialog the
+                // button was pressed in standing open.
                 await am.doActionButton(
                     {
                         name:
@@ -186,6 +194,7 @@ export async function executeActionButton(
                         type: embeddedAction.python_method ? "object" : "action",
                         resModel: embeddedAction.parent_res_model,
                         viewType: embeddedAction.default_view_mode,
+                        ...pick(params, "onClose", "close", "effect", "stackPosition"),
                     },
                     { isEmbeddedAction: true },
                 );

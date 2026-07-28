@@ -66,6 +66,19 @@ export class BreadcrumbCache {
         this._entries.set(key, value);
     }
 
+    /**
+     * Mark an entry as recently used without consuming its value.
+     *
+     * A caller that only wants the entry to survive the next eviction has no
+     * value to read; spelling that as a bare ``get(key);`` statement reads as
+     * dead code.
+     *
+     * @param {string} key
+     */
+    touch(key) {
+        this.get(key);
+    }
+
     /** @param {string} key */
     delete(key) {
         this._entries.delete(key);

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
+import { after, expect, test } from "@odoo/hoot";
 import { Deferred } from "@odoo/hoot-mock";
 import { EventBus } from "@odoo/owl";
 import { KeepLast, SupersededError } from "@web/core/utils/concurrency";
@@ -35,7 +35,11 @@ function makeFakeAm(overrides = {}) {
                         ui.count--;
                     },
                 },
-                effect: { add() {} },
+                effect: {
+                    add(effect) {
+                        am.__effects.push(effect);
+                    },
+                },
             },
         },
         keepLast: { add: (prom) => prom },
@@ -46,6 +50,7 @@ function makeFakeAm(overrides = {}) {
         ...overrides,
     };
     am.__ui = ui;
+    am.__effects = [];
     return am;
 }
 
@@ -259,4 +264,73 @@ test("filterActionContext: strips action-specific keys, keeps the rest", () => {
 
 test("filterActionContext: tolerates an undefined context", () => {
     expect(filterActionContext(undefined)).toEqual({});
+});
+
+test("an embedded-action delegation still settles the click's obligations", async () => {
+    // A view button on an action that carries embedded actions delegates the
+    // whole click to the configured embedded one and returns early. That return
+    // used to drop `onClose` — how `view_button_hook` reloads the view and how
+    // `list_controller.openRecord` reloads its root — along with `close` and
+    // `effect`, so the view sat on pre-action data with nothing left to
+    // refresh it.
+    const embedded = {
+        id: 7,
+        action_id: [99],
+        parent_res_model: "partner",
+        context: {},
+    };
+    const am = makeFakeAm({
+        _loadAction: async () => ({
+            type: "ir.actions.act_window",
+            id: 5,
+            embedded_action_ids: [embedded],
+        }),
+        doAction: async (_action, options) => {
+            expect.step("doAction");
+            await options?.onClose?.();
+        },
+        _executeCloseAction: async () => expect.step("closeAction"),
+    });
+    // The real manager routes this straight back into executeActionButton.
+    am.doActionButton = (params, options) => executeActionButton(am, params, options);
+
+    user.updateUserSettings("embedded_actions_config_ids", {
+        "5+1": { embedded_actions_order: [7] },
+    });
+    after(() => user.updateUserSettings("embedded_actions_config_ids", {}));
+
+    await executeActionButton(am, {
+        name: 5,
+        type: "action",
+        resId: 1,
+        resModel: "partner",
+        close: true,
+        effect: "{'type': 'rainbow_man'}",
+        onClose: () => expect.step("onClose"),
+    });
+
+    expect.verifySteps(["doAction", "onClose", "closeAction"]);
+    expect(am.__effects).toEqual([{ type: "rainbow_man" }]);
+});
+
+test("an embedded-action delegation matches the plain path's obligations", async () => {
+    const am = makeFakeAm({
+        _loadAction: async () => ({ type: "ir.actions.act_window", id: 5 }),
+        doAction: async (_action, options) => {
+            expect.step("doAction");
+            await options?.onClose?.();
+        },
+        _executeCloseAction: async () => expect.step("closeAction"),
+    });
+    await executeActionButton(am, {
+        name: 5,
+        type: "action",
+        resId: 1,
+        resModel: "partner",
+        close: true,
+        effect: "{'type': 'rainbow_man'}",
+        onClose: () => expect.step("onClose"),
+    });
+    expect.verifySteps(["doAction", "onClose", "closeAction"]);
+    expect(am.__effects).toEqual([{ type: "rainbow_man" }]);
 });

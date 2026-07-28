@@ -82,3 +82,15 @@ test("a cached in-flight promise is returned as-is", async () => {
     expect(cache.get("k")).toBe(pending);
     expect(await cache.get("k")).toEqual({ display_name: "Partner" });
 });
+
+test("touch keeps an entry alive without consuming it", () => {
+    const cache = new BreadcrumbCache(2);
+    cache.set("a", 1);
+    cache.set("b", 2);
+    cache.touch("a");
+    cache.set("c", 3);
+
+    expect(cache.has("a")).toBe(true);
+    expect(cache.has("b")).toBe(false);
+    expect(cache.get("a")).toBe(1);
+});
