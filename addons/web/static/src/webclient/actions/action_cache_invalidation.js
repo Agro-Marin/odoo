@@ -4,8 +4,8 @@
 /** @module @web/webclient/actions/action_cache_invalidation - Refresh the action stack when an act_window write invalidates server-side action caches */
 
 import { RpcEvent } from "@web/core/events";
+import { onModelMutation } from "@web/core/network/model_mutation";
 import { rpcBus } from "@web/core/network/rpc";
-import { onModelMutation } from "@web/services/orm_service";
 
 import { BreadcrumbCache } from "./breadcrumb_cache.js";
 import { refreshBreadcrumbDisplayNames } from "./breadcrumb_manager.js";

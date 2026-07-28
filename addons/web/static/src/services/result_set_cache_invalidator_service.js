@@ -4,9 +4,9 @@
 /** @module @web/services/result_set_cache_invalidator_service - Bridges `RPC:RESPONSE` for record-removing methods into a scoped `CLEAR-CACHES` event */
 
 import { RpcEvent } from "@web/core/events";
+import { onModelMutation } from "@web/core/network/model_mutation";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { onModelMutation } from "@web/services/orm_service";
 
 /**
  * Methods that remove records from the model's result sets, so cached

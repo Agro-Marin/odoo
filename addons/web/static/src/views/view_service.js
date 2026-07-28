@@ -4,9 +4,9 @@
 /** @module @web/views/view_service - Service that loads, caches, and invalidates view descriptions (arch, filters, action menus) */
 
 import { RpcEvent } from "@web/core/events";
+import { onModelMutation } from "@web/core/network/model_mutation";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { onModelMutation } from "@web/services/orm_service";
 
 /**
  * @typedef {Object} IrFilter
