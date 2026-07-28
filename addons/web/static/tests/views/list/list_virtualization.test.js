@@ -250,3 +250,55 @@ test("ArrowUp from the true first row still reaches the search bar (V5)", async 
     await animationFrame();
     expect(".o_searchview_input").toBeFocused();
 });
+
+test.tags("mobile");
+test("virtualization engages on small screens too (V8)", async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list limit="200"><field name="name"/></list>`,
+    });
+
+    // Below the `md` breakpoint `.o_list_renderer` has no height constraint
+    // (`list_renderer.scss` scopes its `height: 100%` to `media-breakpoint-up(md)`),
+    // so it grows to fit and an ANCESTOR scrolls. Deriving the viewport from
+    // the renderer therefore measured a span as tall as the whole list, the
+    // computed window covered every row, and virtualization silently did
+    // nothing on the platform that needs it most: all 150 rows were rendered.
+    const rows = queryAll(".o_data_row");
+    expect(rows.length).toBeGreaterThan(0);
+    expect(rows.length).toBeLessThan(150);
+    expect(".o_virtual_spacer").toHaveCount(1);
+});
+
+test.tags("mobile");
+test("every row stays reachable by scrolling on small screens (V9)", async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `<list limit="200"><field name="name"/></list>`,
+    });
+
+    const renderer = queryFirst(".o_list_renderer");
+    const scrollable = new Set(["auto", "scroll", "overlay"]);
+    let scroller = renderer;
+    for (let node = renderer; node; node = node.parentElement) {
+        if (
+            node.scrollHeight > node.clientHeight &&
+            scrollable.has(getComputedStyle(node).overflowY)
+        ) {
+            scroller = node;
+            break;
+        }
+    }
+    expect(scroller).not.toBe(renderer);
+
+    scroller.scrollTop = scroller.scrollHeight;
+    await animationFrame();
+    await animationFrame();
+
+    const names = queryAll(".o_data_row .o_data_cell").map((td) =>
+        td.textContent.trim(),
+    );
+    expect(names.at(-1)).toBe("record 150");
+});

@@ -20,6 +20,14 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  *  buffer size around the visible area, as a multiple of the window size on each side.
  *  Default 1 renders 3x the window size (9x if buffered on both axes); 0 means no buffer.
  *  Lower it for costly renders.
+ * @property {() => number} [getRowsOffset]
+ *  Distance in px between the scroll container's content origin and the first
+ *  row, when the two differ — a sticky header, or a scroll container that is an
+ *  ANCESTOR of the grid and holds other content above it. The cumulative sizes
+ *  passed to {@link setRowsHeights} are measured from the first row, so without
+ *  this the scroll position and those sizes are expressed in different origins
+ *  and the computed window is shifted by the offset. Defaults to 0 (the grid
+ *  itself is the scroll container and starts at its content origin).
  */
 
 /**
@@ -134,7 +142,13 @@ function getIndexes({
  * @param {VirtualGridParams<T>} params
  * @returns {VirtualGridIndexes & VirtualGridSetters}
  */
-export function useVirtualGrid({ scrollableRef, initialScroll, onChange, bufferCoef }) {
+export function useVirtualGrid({
+    scrollableRef,
+    initialScroll,
+    onChange,
+    bufferCoef,
+    getRowsOffset,
+}) {
     const comp = useComponent();
     onChange ||= () => comp.render();
 
@@ -151,7 +165,7 @@ export function useVirtualGrid({ scrollableRef, initialScroll, onChange, bufferC
     const computeRowsIndexes = () =>
         getIndexes({
             sizes: current.summedRowsHeights,
-            start: current.scroll.top,
+            start: Math.max(0, current.scroll.top - (getRowsOffset?.() ?? 0)),
             span: scrollableRef.el?.clientHeight || window.innerHeight,
             prevStartIndex: current.rowsIndexes?.[0],
             bufferCoef,
