@@ -165,14 +165,22 @@ def rotate_pdf(pdf: bytes) -> bytes:
 
 
 def to_pdf_stream(attachment) -> io.BytesIO | None:
-    """Get the byte stream of the attachment as a PDF."""
-    if not attachment.raw:
+    """Get the byte stream of the attachment as a PDF.
+
+    Content is read through ``_unsized()``: under a ``bin_size`` context every
+    binary field of an ``ir.attachment`` reads back as a human size string, so
+    the image leg handed ``b"77.00 bytes"`` to PIL (``UnidentifiedImageError``)
+    and the emptiness guard passed on a row with no content at all.
+    """
+    if attachment_raw := attachment._get_pdf_raw():
+        return io.BytesIO(attachment_raw)
+
+    raw = attachment._unsized().raw
+    if not raw:
         _logger.warning("%s has no raw data.", attachment)
         return None
 
-    if attachment_raw := attachment._get_pdf_raw():
-        return io.BytesIO(attachment_raw)
-    stream = io.BytesIO(attachment.raw)
+    stream = io.BytesIO(raw)
     if attachment.mimetype.startswith("image"):
         output_stream = io.BytesIO()
         Image.open(stream).convert("RGB").save(output_stream, format="pdf")
