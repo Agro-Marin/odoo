@@ -122,6 +122,15 @@ const LIST_OPERATORS = new Set(["in", "not in"]);
  * list the client cannot enumerate, and wrapping it would turn the domain into
  * ``id in [allowed_ids]`` — a different, wrong query.
  *
+ * Deliberately NOT applied by {@link condition}. That constructor takes a value
+ * its caller chose, and rewriting it there is a silent behaviour change rather
+ * than a repair: ``geoengine`` builds ``condition(path, "in", "{ACTIVE_IDS}")``
+ * with a scalar placeholder on purpose, and wrapping it emitted
+ * ``("geo_point", "in", ["{ACTIVE_IDS}"])`` — a domain the substitution step no
+ * longer recognises. Untrusted domain TEXT is the boundary that needs the
+ * repair; a programmatic caller gets what it asked for. Consumers that cannot
+ * handle a scalar (see ``simplifyTree``) test for it instead.
+ *
  * @param {Value} operator
  * @param {Value|Tree} value
  * @returns {Value|Tree}
@@ -146,14 +155,7 @@ export function normalizeListOperatorValue(operator, value) {
  * @returns {Condition}
  */
 export function condition(path, operator, value, negate = false, isProperty = false) {
-    return {
-        type: "condition",
-        path,
-        operator,
-        value: normalizeListOperatorValue(operator, value),
-        negate,
-        isProperty,
-    };
+    return { type: "condition", path, operator, value, negate, isProperty };
 }
 
 export const TRUE_TREE = condition(1, "=", 1);

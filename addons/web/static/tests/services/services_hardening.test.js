@@ -14,7 +14,7 @@ import {
     onRpc,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
-import { Expression } from "@web/core/tree/condition_tree";
+import { condition, Expression } from "@web/core/tree/condition_tree";
 import { constructDomainFromTree } from "@web/core/tree/construct_domain_from_tree";
 import { constructTreeFromDomain } from "@web/core/tree/construct_tree_from_domain";
 import { createDebugContext } from "@web/services/debug/debug_context";
@@ -68,6 +68,18 @@ describe("list-operator values", () => {
         ]);
         expect(await treeProcessor.getDomainTreeDescription("hardening", tree)).toBe(
             "Qty = 5 or 1",
+        );
+    });
+
+    test("condition() leaves a caller's explicit scalar alone", () => {
+        // The repair belongs to untrusted domain TEXT. `geoengine` builds
+        // `condition(path, "in", "{ACTIVE_IDS}")` with a scalar placeholder on
+        // purpose; wrapping it emitted a domain its substitution step no longer
+        // recognises.
+        const tree = condition("geo_point", "in", "{ACTIVE_IDS}");
+        expect(tree.value).toBe("{ACTIVE_IDS}");
+        expect(constructDomainFromTree(tree)).toBe(
+            `[("geo_point", "in", "{ACTIVE_IDS}")]`,
         );
     });
 
