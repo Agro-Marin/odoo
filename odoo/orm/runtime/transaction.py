@@ -73,7 +73,13 @@ class _EnvironmentSet(WeakSet):
 
     def discard(self, env: Environment) -> None:
         super().discard(env)
-        self._index.pop(self.key(env.uid, env.su, env.context), None)
+        # Only evict the index entry if it still points at *this* environment:
+        # the key is ``(uid, su, context)``, so a rebuilt environment with the
+        # same parameters shares it, and popping blindly would retire the live
+        # one along with the discarded duplicate.
+        key = self.key(env.uid, env.su, env.context)
+        if self._index.get(key) is env:
+            del self._index[key]
 
     def lookup(self, key: tuple) -> Environment | None:
         """Return the live environment registered under *key*, if any."""
@@ -110,7 +116,9 @@ class Transaction:
         self.default_env: Environment | None = None
         self._last_env: weakref_ref[Environment] | None = None
 
-        self._cache_store = FieldCache(dirty_factory=OrderedSet)
+        self._cache_store = FieldCache(
+            dirty_factory=OrderedSet, on_detach=self._drop_field_cache_memos
+        )
 
         self._compute_engine = ComputeEngine(pending_factory=OrderedSet)
 
@@ -165,14 +173,24 @@ class Transaction:
             self._orm_profiler.report()
             self._orm_profiler.clear()
 
+    def _drop_field_cache_memos(self) -> None:
+        """Purge every environment's ``Field._get_cache`` memo.
+
+        Wired into :class:`FieldCache` as its ``on_detach`` callback, so it runs
+        automatically whenever the cache removes a per-field dict rather than
+        emptying it in place.  The memos alias those dicts and the
+        ``Field.__get__`` fast paths read them without revalidating, so leaving
+        one behind serves stale values and swallows writes.
+        """
+        for env in self.envs:
+            with suppress(AttributeError):
+                del env._field_cache_memo
+
     def clear(self):
         """Clear the caches and pending computations/updates."""
         self._cache_store.clear()
         self._compute_engine.clear()
         self._ref_cache.clear()
-        for env in self.envs:
-            with suppress(AttributeError):
-                del env._field_cache_memo
         self._last_env = None
         if env := next(iter(self.envs), None):
             env.cr.cache.clear()
@@ -208,9 +226,10 @@ class Transaction:
         """Invalidate the cache of all fields.
 
         Unsafe: invalidating a dirty field drops the value to be written.
+
+        The per-environment ``_field_cache_memo`` purge is not done here: the
+        cache fires :meth:`_drop_field_cache_memos` itself (see
+        :meth:`FieldCache.__init__`).
         """
         self._cache_store.invalidate_all()
         self._ref_cache.clear()
-        for env in self.envs:
-            with suppress(AttributeError):
-                del env._field_cache_memo
