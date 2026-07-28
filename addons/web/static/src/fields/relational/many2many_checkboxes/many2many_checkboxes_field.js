@@ -3,7 +3,7 @@
 
 /** @module @web/fields/relational/many2many_checkboxes/many2many_checkboxes_field - Checkbox group field for Many2many relations */
 
-import { Component, onWillRender, onWillUnmount } from "@odoo/owl";
+import { Component, onWillRender, onWillUnmount, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
@@ -49,8 +49,15 @@ export class Many2ManyCheckboxesField extends Component {
             }
             return items;
         });
-        this.idsToAdd = new Set();
-        this.idsToRemove = new Set();
+        // Reactive, because they are render inputs: a click is only written
+        // to the model 500ms later, so until then these two lists ALONE decide
+        // what `isSelected` reports. Held in bare Sets, a toggle changed
+        // nothing owl could see, no re-render followed, and `CheckBox.toggle`
+        // then re-asserted its unchanged `value` prop onto the input — the box
+        // the user had just clicked snapped back. Arrays rather than Sets:
+        // owl's reactivity covers plain objects and arrays, not Set/Map, and
+        // an id-keyed object would stringify the ids.
+        this.pending = useState({ add: [], remove: [] });
         this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
         onWillRender(() => {
             this.currentIds = new Set(
@@ -86,23 +93,24 @@ export class Many2ManyCheckboxesField extends Component {
      */
     isSelected(item) {
         const id = item[0];
-        if (this.idsToRemove.has(id)) {
+        if (this.pending.remove.includes(id)) {
             return false;
         }
-        return this.currentIds.has(id) || this.idsToAdd.has(id);
+        return this.currentIds.has(id) || this.pending.add.includes(id);
     }
 
     /** @returns {Promise|undefined} Flushes pending add/remove changes to the relation */
     commitChanges() {
-        if (this.idsToAdd.size === 0 && this.idsToRemove.size === 0) {
+        const { add, remove } = this.pending;
+        if (!add.length && !remove.length) {
             return;
         }
         const result = this.props.record.data[this.props.name].addAndRemove({
-            add: [...this.idsToAdd],
-            remove: [...this.idsToRemove],
+            add: [...add],
+            remove: [...remove],
         });
-        this.idsToAdd.clear();
-        this.idsToRemove.clear();
+        this.pending.add = [];
+        this.pending.remove = [];
         return result;
     }
 
@@ -111,18 +119,14 @@ export class Many2ManyCheckboxesField extends Component {
      * @param {boolean} checked
      */
     onChange(resId, checked) {
-        if (checked) {
-            if (this.idsToRemove.has(resId)) {
-                this.idsToRemove.delete(resId);
-            } else {
-                this.idsToAdd.add(resId);
-            }
-        } else {
-            if (this.idsToAdd.has(resId)) {
-                this.idsToAdd.delete(resId);
-            } else {
-                this.idsToRemove.add(resId);
-            }
+        const [undo, stage] = checked
+            ? [this.pending.remove, this.pending.add]
+            : [this.pending.add, this.pending.remove];
+        const undoIndex = undo.indexOf(resId);
+        if (undoIndex >= 0) {
+            undo.splice(undoIndex, 1);
+        } else if (!stage.includes(resId)) {
+            stage.push(resId);
         }
         this.debouncedCommitChanges();
     }

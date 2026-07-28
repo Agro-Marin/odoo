@@ -373,6 +373,7 @@ export class PropertiesField extends Component {
         await this._unfoldPropertyGroup(movedTargetIndex, movedValues);
 
         this.movePopoverToProperty = propertyName;
+        this.render();
     }
 
     /**
@@ -697,7 +698,7 @@ export class PropertiesField extends Component {
                 definition_changed: true,
             });
             this.initialValues[newName] = { name: newName, type: "char" };
-            insertedAt = count - 1;
+            insertedAt = count;
             appliedValues = propertiesDefinitions;
             return propertiesDefinitions;
         });
@@ -858,13 +859,32 @@ export class PropertiesField extends Component {
         const propertyName = this.movePopoverToProperty;
         this.movePopoverToProperty = null;
 
-        const popoverContent = document.querySelector(".o_field_property_definition");
-        const popover = popoverContent?.closest(".o_popover");
         const target = document.querySelector(
             `*[property-name="${propertyName}"] .o_field_property_open_popover`,
         );
+        if (!target) {
+            return;
+        }
 
-        if (!popover || !target) {
+        // `popover.isOpen`, not a DOM probe: a move that crosses a group
+        // boundary re-parents the row, so owl destroys the node the popover was
+        // anchored to and the popover's own target-removal watchdog closes it —
+        // the editor vanishes mid-edit and every further move becomes
+        // impossible, since its buttons went with it. The overlay node is still
+        // in the document at this point (it is removed on a later frame), so
+        // querying for it reports a popover that is already dead. Repositioning
+        // cannot help something that is gone: re-anchor by reopening.
+        if (!this.popover.isOpen) {
+            this._openPropertyDefinition(
+                /** @type {HTMLElement} */ (target),
+                propertyName,
+            );
+            return;
+        }
+
+        const popoverContent = document.querySelector(".o_field_property_definition");
+        const popover = popoverContent?.closest(".o_popover");
+        if (!popover) {
             return;
         }
 
@@ -899,6 +919,26 @@ export class PropertiesField extends Component {
             this.initialValues[newName] = initialValues;
             newDefinition.name = newName;
         }
+    }
+
+    /**
+     * Render identity of a property row, stable across the technical-name
+     * regeneration a type/comodel change performs.
+     *
+     * The row used to be keyed on ``name`` itself, so a type change re-created
+     * the whole block — and with it the ``.o_field_property_open_popover``
+     * anchor the definition popover is attached to. The popover's own
+     * target-removal watchdog then closed it, throwing the user out of the
+     * definition editor at the exact moment they changed the type. The name is
+     * mutable metadata; the slot the user is editing is what the DOM node
+     * stands for, and ``initialValues`` already resolves any regenerated name
+     * back to the one the slot started with.
+     *
+     * @param {string} propertyName
+     * @returns {string}
+     */
+    getPropertyKey(propertyName) {
+        return this.initialValues?.[propertyName]?.name ?? propertyName;
     }
 
     /**
@@ -956,6 +996,15 @@ export class PropertiesField extends Component {
             }
             return propertyName;
         };
+
+        // Close any popover still open FIRST. `popover.open` closes the
+        // previous one itself, but by then `onCloseCurrentPopover` below has
+        // already been overwritten — so the outgoing popover would run the
+        // incoming one's teardown (clearing the new target's `disabled` mark
+        // and writing the new property's default value), and the outgoing
+        // target would keep its `disabled` class forever, making its edit
+        // button permanently dead.
+        this.popover.close();
 
         this.onCloseCurrentPopover = () => {
             this.onCloseCurrentPopover = null;

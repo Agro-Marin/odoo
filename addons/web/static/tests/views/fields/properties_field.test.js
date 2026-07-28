@@ -3248,3 +3248,49 @@ test("properties: folded single group does not leak properties into columns", as
         ],
     ]);
 });
+
+test.tags("desktop");
+test("properties: the 'Show in Kanban Cards' toggle keeps the state it was clicked into", async () => {
+    // The template read `props.propertyDefinition.view_in_cards` while every
+    // handler writes `state.propertyDefinition` — and popover props are frozen
+    // at open time, so the prop never moved. `CheckBox.toggle` re-asserts its
+    // `value` prop right after calling onChange, so the box the user had just
+    // ticked reverted while the change itself went through.
+    onRpc("has_access", () => true);
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <sheet>
+                    <group>
+                        <field name="company_id"/>
+                        <field name="properties"/>
+                    </group>
+                </sheet>
+            </form>`,
+        actionMenus: {},
+    });
+
+    await toggleActionMenu();
+    await toggleMenuItem("Edit Properties");
+    await click(
+        ".o_field_properties:first-child .o_property_field:first-child .o_field_property_open_popover",
+    );
+    await animationFrame();
+
+    const kanbanCheckbox =
+        ".o_property_field_popover .o_field_property_definition_kanban input";
+    expect(kanbanCheckbox).toHaveCount(1);
+    expect(kanbanCheckbox).toBeChecked({
+        message: "property_1 ships with view_in_cards set",
+    });
+
+    await click(kanbanCheckbox);
+    await animationFrame();
+    expect(kanbanCheckbox).not.toBeChecked({
+        message: "the toggle must stay on the value the user clicked it into",
+    });
+});

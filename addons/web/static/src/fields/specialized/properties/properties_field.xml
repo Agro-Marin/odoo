@@ -25,7 +25,7 @@
  <div
  t-foreach="propertiesListGroup.elements"
  t-as="propertyConfiguration"
- t-key="propertyConfiguration.name"
+ t-key="getPropertyKey(propertyConfiguration.name)"
  class="o_property_field o_wrap_label text-900"
  t-att-class="{
  'd-flex flex-row': !env.isSmall and !propertiesListGroup.isFolded, 'o_property_folded': propertiesListGroup.isFolded,

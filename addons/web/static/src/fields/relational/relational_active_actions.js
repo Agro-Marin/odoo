@@ -10,7 +10,12 @@ import { Domain } from "@web/core/domain";
  * @typedef {Object} RelationalActiveActions {
  * @property {"x2m"} type
  * @property {boolean} create
- * @property {boolean} createEdit
+ * @property {boolean | undefined} createEdit ``undefined`` when no
+ *   ``createEdit`` crud option was supplied, and that is load-bearing rather
+ *   than sloppy: ``Many2XAutocomplete.addCreateEditSuggestion`` reads
+ *   ``createEdit ?? create``, so "unset" means "follow create" while ``false``
+ *   means "explicitly denied". Coercing it to a boolean would silently remove
+ *   the "Create and edit..." entry from every x2many that never set the option.
  * @property {boolean} delete
  * @property {boolean} [link]
  * @property {boolean} [unlink]

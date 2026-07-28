@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { setInputFiles } from "@odoo/hoot-dom";
+import { click, queryFirst, setInputFiles } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     clickSave,
@@ -307,4 +307,24 @@ test("widget many2many_binary image MIME type preview", async () => {
         `data:image/png;base64,${IMAGE_B64}`,
         { message: "preview should display the image preview" },
     );
+});
+
+test("removing the same attachment twice does not throw", async () => {
+    // Two clicks land on the delete icon before the first removal re-renders
+    // (double click, or a slow frame). The second lookup misses, and passing
+    // the resulting `undefined` on to `StaticList.forget` used to throw.
+    await mountView({
+        type: "form",
+        resModel: "turtle",
+        arch: `<form><field name="picture_ids" widget="many2many_binary"/></form>`,
+        resId: 1,
+    });
+
+    expect(".o_attachment").toHaveCount(1);
+    const remove = queryFirst(".o_attachment .o_attachment_delete");
+    await click(remove);
+    await click(remove);
+    await animationFrame();
+
+    expect(".o_attachment").toHaveCount(0);
 });

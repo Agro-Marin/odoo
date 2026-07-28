@@ -134,6 +134,11 @@ function parseOperation(value, parseValueFn) {
  * @returns {number}
  */
 function parseNumber(value, options = /** @type {any} */ ({})) {
+    // `Number()` — which this used to hand the raw string to — ignores leading
+    // and trailing whitespace, and DECIMAL_LITERAL_REGEX does not. Without the
+    // trim, a pasted " 10 " (spreadsheet copy, stray space) stopped being a
+    // number and flagged the field invalid.
+    value = value.trim();
     if (value.startsWith("=")) {
         try {
             return Number(evaluateMathematicalExpression(value.slice(1)));
@@ -216,6 +221,11 @@ export function parseFloat(value, { allowOperation = false } = {}) {
  * @returns {number} a float
  */
 export function parseFloatTime(value) {
+    // Before the split: the sign is read positionally, so on " -1:30" it would
+    // land inside the hours token instead, and `parseInteger` (which tolerates
+    // its own padding) would then return -1 for the hours and +30 for the
+    // minutes — yielding -0.5 for what the user wrote as -1.5.
+    value = value.trim();
     let sign = 1;
     if (value[0] === "-") {
         value = value.slice(1);
@@ -301,6 +311,10 @@ export function parseInteger(value, { allowOperation = false } = {}) {
  * @returns {number | import("@web/model/relational_model/operation").Operation} float
  */
 export function parsePercentage(value, { allowOperation = false } = {}) {
+    // Before the suffix test, which is positional: on "50% " the last
+    // character is the space, the "%" survives into parseFloat and the whole
+    // value is rejected.
+    value = value.trim();
     if (value.at(-1) === "%") {
         value = value.slice(0, -1);
     }

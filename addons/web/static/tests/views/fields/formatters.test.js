@@ -143,6 +143,18 @@ test("formatInteger", () => {
     expect(formatInteger(6000, options)).toBe("60€00");
 });
 
+test("formatInteger past the exponential-notation threshold", () => {
+    patchWithCleanup(localization, { grouping: [3, 3, 3, 3] });
+    // `Number.prototype.toFixed` switches to exponential notation at 1e21, and
+    // the thousands grouping then chops up the exponent rather than the digits:
+    // 1e21 used to render as "1e,+21". (The leading run stays ungrouped because
+    // this grouping list is finite — that part is `intersperse`'s contract.)
+    expect(formatInteger(1e20)).toBe("100000000,000,000,000,000");
+    expect(formatInteger(1e21)).toBe("1000000000,000,000,000,000");
+    expect(formatInteger(-1e21)).toBe("-1000000000,000,000,000,000");
+    expect(formatInteger(1e21)).not.toInclude("e");
+});
+
 test("formatMany2one", () => {
     expect(formatMany2one(false)).toBe("");
     expect(formatMany2one([false, "M2O value"])).toBe("M2O value");

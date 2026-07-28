@@ -3,6 +3,7 @@
 import { expect, getFixture, test } from "@odoo/hoot";
 import { queryAllTexts, scroll } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, mockDate } from "@odoo/hoot-mock";
+import { Component, xml } from "@odoo/owl";
 import { getPickerCell } from "@web/../tests/components/datetime/datetime_test_helpers";
 import { SELECTORS } from "@web/../tests/components/domain_selector/domain_selector_helpers";
 import {
@@ -33,6 +34,7 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { useBus } from "@web/core/utils/hooks";
 import { WebClient } from "@web/webclient/webclient";
 
 class PartnerType extends models.Model {
@@ -1304,4 +1306,41 @@ test("domain field: out-of-order counts, only the latest is shown (KeepLast)", a
     await animationFrame();
 
     expect(".o_domain_show_selection_button").toHaveText("1 record(s)");
+});
+
+test("editing the domain does not clear a sibling field's dirty-typing signal", async () => {
+    // FIELD_IS_DIRTY is a shared, last-writer-wins signal. DomainField.update
+    // used to emit `false` unconditionally on every edit, so a domain change
+    // cancelled the "the user is typing" mark another field had just raised —
+    // clearing the save indicator while that input still held uncommitted text.
+    const events = [];
+    class DirtySpy extends Component {
+        static template = xml`<span class="o_dirty_spy"/>`;
+        static props = ["*"];
+        setup() {
+            useBus(this.props.record.model.bus, "FIELD_IS_DIRTY", (ev) =>
+                events.push(ev.detail),
+            );
+        }
+    }
+    registry.category("fields").add("domain_dirty_spy", { component: DirtySpy });
+
+    Partner._records[0].foo = "[]";
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form>
+                <field name="foo" widget="domain" options="{'model': 'partner'}"/>
+                <field name="bar" widget="domain_dirty_spy"/>
+            </form>`,
+    });
+
+    events.length = 0;
+    await addNewRule();
+    await animationFrame();
+
+    expect(events).toEqual([], {
+        message: "a domain edit this field never marked dirty must emit nothing",
+    });
 });

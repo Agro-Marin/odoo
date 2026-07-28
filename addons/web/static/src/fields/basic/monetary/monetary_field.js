@@ -102,7 +102,7 @@ export class MonetaryField extends NumericInputFieldBase {
         return currency.digits;
     }
 
-    /** @returns {string|number} */
+    /** @returns {string} */
     get formattedValue() {
         if (this.props.inputType === "number" && !this.props.readonly) {
             return this.rawValue;

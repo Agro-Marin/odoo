@@ -48,7 +48,7 @@ export class FloatField extends NumericInputFieldBase {
         );
     }
 
-    /** @returns {string | number} */
+    /** @returns {string} */
     get formattedValue() {
         if (
             !this.props.formatNumber ||
