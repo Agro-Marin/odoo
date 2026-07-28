@@ -89,9 +89,18 @@ class TestHttpCase(HttpCase):
 @tagged("-at_install", "post_install")
 class TestRunbotLog(HttpCase):
     def test_runbot_js_log(self):
-        """Test that a ChromeBrowser console.dir is handled server side as a log of level RUNBOT."""
+        """Test that a ChromeBrowser console.dir is handled server side as a log of level RUNBOT.
+
+        Capture on ``self._logger`` at ``RUNBOT`` rather than the root logger at
+        its default: ``assertLogs()`` sets a level on the logger it captures, but
+        the record is filtered at the logger that *emits* it, and the browser
+        logger is a child of this one.  ``RUNBOT`` is 25, so under
+        ``--log-level=warn`` (30) the message never left ``ChromeBrowser``, root
+        saw nothing, and the test failed for a reason that had nothing to do with
+        what it asserts.
+        """
         log_message = "this is a small test"
-        with self.assertLogs() as log_catcher:
+        with self.assertLogs(self._logger, level=logging.RUNBOT) as log_catcher:
             self.browser_js(
                 "about:blank",
                 f"console.runbot = console.dir; console.runbot('{log_message}'); console.log('test successful');",
