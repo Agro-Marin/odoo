@@ -8,6 +8,7 @@ import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { visitXML } from "@web/core/utils/dom/xml";
 import { clamp } from "@web/core/utils/format/numbers";
+import { isInvisible } from "@web/search/search_state";
 import { DEFAULT_INTERVAL, toGeneratorId } from "@web/search/utils/dates";
 
 const ALL = _t("All");
@@ -75,18 +76,24 @@ export class SearchArchParser {
      * @param {Record<string, Object>} fields - field definitions from the model
      * @param {Record<string, any>} [searchDefaults={}] - default search values from context
      * @param {Record<string, any>} [searchPanelDefaults={}] - default search panel selections
+     * @param {Record<string, any>} [evalContext={}] - namespace for the `invisible`
+     *  expression of a `<searchpanel><field>`, which carries no search item and
+     *  so cannot be re-evaluated at read time the way `<filter>`/`<field>` are
+     *  by `getSearchItems`
      */
     constructor(
         searchViewDescription,
         fields,
         searchDefaults = {},
         searchPanelDefaults = {},
+        evalContext = {},
     ) {
         const { irFilters, arch } = searchViewDescription;
 
         this.fields = fields || {};
         this.irFilters = irFilters || [];
         this.arch = arch || "<search/>";
+        this.evalContext = evalContext;
 
         this.labels = [];
         this.preSearchItems = [];
@@ -169,7 +176,7 @@ export class SearchArchParser {
      */
     visitField(node) {
         this.pushGroup("field");
-        const preField = { type: "field" };
+        const preField = { type: "field", groupNumber: this.groupNumber };
         if (node.hasAttribute("invisible")) {
             preField.invisible = node.getAttribute("invisible");
         }
@@ -347,9 +354,12 @@ export class SearchArchParser {
                         .split(",");
                 }
                 this.optionsParams = optionsParams;
-                visitChildren();
+                try {
+                    visitChildren();
+                } finally {
+                    this.optionsParams = null;
+                }
                 preSearchItem.optionsParams = optionsParams;
-                this.optionsParams = null;
             }
             preSearchItem.domain = node.getAttribute("domain") || "[]";
         }
@@ -456,13 +466,15 @@ export class SearchArchParser {
         }
 
         for (const node of searchPanelNode.children) {
-            if (node.nodeType !== 1 || node.tagName !== "field") {
+            if (node.tagName !== "field") {
                 continue;
             }
-            if (
-                node.getAttribute("invisible") === "True" ||
-                node.getAttribute("invisible") === "1"
-            ) {
+            // Numbered before the visibility test, so hiding one field does not
+            // renumber the ones after it. Section ids key the SearchPanel's
+            // exported `expanded` state and `_sectionLoadIds`; shifting them
+            // reattaches a restored state to the wrong sections.
+            const sectionId = nextSectionId++;
+            if (this.isHidden(node)) {
                 continue;
             }
             const attrs = {};
@@ -479,13 +491,21 @@ export class SearchArchParser {
                 expand: evaluateBooleanExpr(attrs.expand),
                 fieldName: attrs.name,
                 icon: _normalizeIconClass(attrs.icon),
-                id: nextSectionId++,
+                id: sectionId,
                 limit: evaluateExpr(attrs.limit || String(DEFAULT_LIMIT)),
                 type,
                 values: new Map(),
             };
             if (type === "category") {
-                section.activeValueId = this.searchPanelDefaults[attrs.name];
+                // A category holds one active value, a filter a list of them;
+                // nothing enforces the two forms apart, so accept the list a
+                // caller naturally writes instead of letting
+                // `_ensureCategoryValue` find it among no known value id and
+                // silently bounce the user back to "All".
+                const categoryDefault = this.searchPanelDefaults[attrs.name];
+                section.activeValueId = Array.isArray(categoryDefault)
+                    ? categoryDefault[0]
+                    : categoryDefault;
                 section.icon = section.icon || "fa-solid fa-folder";
                 section.hierarchize = evaluateBooleanExpr(attrs.hierarchize || "1");
                 section.depth = attrs.depth ? Number.parseInt(attrs.depth, 10) : 0;
@@ -527,7 +547,27 @@ export class SearchArchParser {
         return false;
     }
 
-    /** Process a `<separator/>` node: flush the current group. */
+    /**
+     * Whether a node's `invisible` attribute holds right now.
+     * @param {Element} node
+     * @returns {boolean}
+     */
+    isHidden(node) {
+        return isInvisible(node.getAttribute("invisible"), this.evalContext);
+    }
+
+    /**
+     * Process a `<separator/>` node: flush the current group.
+     *
+     * `invisible` is deliberately NOT honoured here, and must not be: 44 shipped
+     * search views carry `<separator invisible="1"/>` inside the standard
+     * Activities block, and the split it performs is what makes
+     * `search_default_filter_activities_my` AND with
+     * `search_default_activities_overdue` instead of OR-ing (a separator is a
+     * group boundary, and `computeDomain` ORs within a group). Honouring the
+     * attribute silently rewrites those domains. The attribute is dead weight
+     * on this tag — a lint/view fix, not a client-side one.
+     */
     visitSeparator() {
         this.pushGroup();
     }

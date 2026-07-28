@@ -7,7 +7,6 @@ import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { SearchModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
-import { evaluateExpr } from "@web/core/py_js/py";
 import { Mutex } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 
@@ -23,7 +22,7 @@ import {
     computeSearchItemDomain,
     computeSearchPanelDomain,
 } from "./search_domain.js";
-import { enrichSearchItem } from "./search_enrichment.js";
+import { enrichSearchItem, indexQueryBySearchItem } from "./search_enrichment.js";
 import { buildFacets } from "./search_facets.js";
 import { SearchFavoritesMixin } from "./search_favorites_mixin.js";
 import {
@@ -41,6 +40,7 @@ import {
     arrayToMap,
     execute,
     extractSearchDefaults,
+    isInvisible,
     mapToArray,
 } from "./search_state.js";
 import { getIntervalOptions } from "./utils/dates.js";
@@ -336,6 +336,7 @@ export class SearchModel extends SearchQueryMixin(
                 searchViewFields,
                 searchDefaults,
                 searchPanelDefaults,
+                this.domainEvalContext,
             );
             const { labels, preSearchItems, searchPanelInfo, sections } =
                 parser.parse();
@@ -433,6 +434,10 @@ export class SearchModel extends SearchQueryMixin(
         this.globalGroupBy = "groupBy" in config ? groupBy || [] : this.globalGroupBy;
         this.globalOrderBy = "orderBy" in config ? orderBy || [] : this.globalOrderBy;
 
+        // Consumed once, at load. Re-applying them here would re-activate a
+        // default on every prop change (WithSearch.onWillUpdateProps reloads on
+        // any of them), including one the user has just switched off; they are
+        // stripped only so they cannot leak into the context sent to the server.
         this._extractSearchDefaultsFromGlobalContext();
 
         await this._reloadSections();
@@ -456,13 +461,17 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {Section[]}
      */
     _sectionsOfType(type) {
-        if (this._sectionsByType?.source !== this.sections) {
-            this._sectionsByType = { source: this.sections };
+        if (this._sectionsByTypeSource !== this.sections) {
+            this._sectionsByTypeSource = this.sections;
+            this._sectionsByType = new Map();
         }
-        this._sectionsByType[type] ??= [...this.sections.values()].filter(
-            (s) => s.type === type,
-        );
-        return this._sectionsByType[type];
+        if (!this._sectionsByType.has(type)) {
+            this._sectionsByType.set(
+                type,
+                [...this.sections.values()].filter((s) => s.type === type),
+            );
+        }
+        return this._sectionsByType.get(type);
     }
 
     /**
@@ -524,7 +533,7 @@ export class SearchModel extends SearchQueryMixin(
                 }
                 facets.push(facet);
             }
-            this._facets = facets;
+            this._facets = this._freezeInDevMode(facets);
         }
         return this._facets;
     }
@@ -594,27 +603,31 @@ export class SearchModel extends SearchQueryMixin(
     getSearchItems(predicate) {
         if (!this._enrichedSearchItems) {
             const domainEvalContext = this.domainEvalContext;
+            const queryIndex = indexQueryBySearchItem(this.query);
             const enrichedSearchItems = [];
             for (const searchItem of Object.values(this.searchItems)) {
-                const enrichedSearchitem = this._enrichItem(searchItem);
-                if (enrichedSearchitem) {
-                    const isInvisible =
-                        "invisible" in searchItem &&
-                        evaluateExpr(searchItem.invisible, domainEvalContext);
-                    if (!isInvisible) {
-                        enrichedSearchItems.push(enrichedSearchitem);
-                    }
+                const enrichedSearchitem = this._enrichItem(searchItem, queryIndex);
+                if (
+                    enrichedSearchitem &&
+                    !isInvisible(searchItem.invisible, domainEvalContext)
+                ) {
+                    enrichedSearchItems.push(enrichedSearchitem);
                 }
             }
+            // Sorted once, here, rather than only when the result happens to
+            // contain a favorite: whether the list came back grouped used to
+            // depend on the caller's predicate. `id` breaks the ties
+            // `groupNumber` alone leaves to the engine, and covers the
+            // property-derived items that carry no groupNumber at all.
+            enrichedSearchItems.sort(
+                (f1, f2) =>
+                    (f1.groupNumber || 0) - (f2.groupNumber || 0) || f1.id - f2.id,
+            );
             this._enrichedSearchItems = enrichedSearchItems;
         }
-        const searchItems = predicate
+        return predicate
             ? this._enrichedSearchItems.filter(predicate)
             : [...this._enrichedSearchItems];
-        if (searchItems.some((f) => f.type === "favorite")) {
-            searchItems.sort((f1, f2) => f1.groupNumber - f2.groupNumber);
-        }
-        return searchItems;
     }
 
     /**
@@ -694,10 +707,10 @@ export class SearchModel extends SearchQueryMixin(
      * outside the control panel model (search bar, menus). Null means the
      * filter should not appear.
      */
-    _enrichItem(searchItem) {
+    _enrichItem(searchItem, queryIndex) {
         return enrichSearchItem(
             searchItem,
-            this.query,
+            queryIndex || this.query,
             this.referenceMoment,
             this.intervalOptions,
         );
@@ -1006,7 +1019,13 @@ export class SearchModel extends SearchQueryMixin(
             return;
         }
 
-        const parser = new SearchArchParser(searchViewDescription, searchViewFields);
+        const parser = new SearchArchParser(
+            searchViewDescription,
+            searchViewFields,
+            {},
+            {},
+            this.domainEvalContext,
+        );
         const { searchPanelInfo } = parser.parse();
 
         this.searchPanelInfo = {

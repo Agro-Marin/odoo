@@ -366,12 +366,22 @@ export function getSetParam(periodOption, referenceMoment) {
 }
 
 /**
- * Return the ordinal rank of an interval option (year=0, quarter=1, ..., day=4).
+ * Rank an interval from coarsest to finest (year=0 … day=4, hour=5); -1 for an
+ * id that is not an interval at all.
+ *
+ * Ranked against the BACKEND options, not the five the UI offers: `hour` is a
+ * legal group-by interval (`getGroupBy` accepts it, and a `<filter
+ * context="{'group_by': 'x:hour'}">` puts it straight into the query), and
+ * ranking it -1 made it the *coarsest* of all. That inverted both callers —
+ * `getQueryGroups` sorted an hour interval before the year, and the graph
+ * model, which keeps the finest interval when a field is grouped twice,
+ * discarded the hour and kept whatever else was there.
+ *
  * @param {string} intervalOptionId
  * @returns {number}
  */
 export function rankInterval(intervalOptionId) {
-    return Object.keys(INTERVAL_OPTIONS).indexOf(intervalOptionId);
+    return Object.keys(BACKEND_INTERVAL_OPTIONS).indexOf(intervalOptionId);
 }
 
 /**
