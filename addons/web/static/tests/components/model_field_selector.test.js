@@ -694,6 +694,10 @@ test("debug input", async () => {
                         groupable: true,
                         type: "char",
                         name: "foo",
+                        // Part of a Char's description since the ORM exports
+                        // `_description_trim`; the client reads it to honour the
+                        // trim contract (see TextInputFieldBase.shouldTrim).
+                        trim: true,
                     },
                 });
             }
