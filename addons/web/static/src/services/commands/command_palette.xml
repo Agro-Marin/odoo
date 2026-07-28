@@ -9,6 +9,7 @@
           <input class="form-control border-0 p-0" type="text" data-allow-hotkeys="true" t-att-value="state.searchValue" t-ref="autofocus" t-att-placeholder="state.placeholder" t-on-input="onSearchInput" t-on-keydown="onKeyDown"
               role="combobox"
               t-attf-aria-activedescendant="o_command_{{state.selectedIndex >= 0 ? state.selectedIndex : 'empty'}}"
+              aria-controls="o_command_palette_listbox"
               aria-expanded="true"
               aria-autocomplete="list"
               aria-haspopup="listbox"
@@ -19,7 +20,11 @@
           </div>
         </div>
 
-        <div t-ref="listbox" role="listbox" class="o_command_palette_listbox position-relative overflow-auto">
+        <!-- id: the combobox above names this element in `aria-controls`, which
+             is what ties the input to its popup; without it the input's
+             `aria-activedescendant` points into a listbox assistive technology
+             has no way to associate with it. -->
+        <div id="o_command_palette_listbox" t-ref="listbox" role="listbox" class="o_command_palette_listbox position-relative overflow-auto">
           <div t-if="!state.commands.length" id="o_command_empty" role="option" aria-selected="true" class="o_command_palette_listbox_empty px-4 py-3 fst-italic" t-out="state.emptyMessage"/>
           <t t-foreach="commandsByCategory" t-as="category" t-key="category.keyId">
             <div class="o_command_category px-0">

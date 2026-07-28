@@ -32,6 +32,12 @@ defineModels([Hardening]);
 
 describe.current.tags("desktop");
 
+/** Bare mount target, so services needing a main container have one. */
+class Host extends Component {
+    static props = [];
+    static template = xml`<div class="host"/>`;
+}
+
 describe("list-operator values", () => {
     test("a bracket-less `in` candidate becomes a one-element list", () => {
         const tree = constructTreeFromDomain([["state", "in", "draft"]]);
@@ -194,5 +200,24 @@ describe("caches and memoisation", () => {
         await debugContext.getItems({});
         registry.category("debug").category("hardening_cat").remove("probe");
         expect(seen).toEqual([{ marker: "inner", outerOnly: undefined }]);
+    });
+});
+
+describe("combobox popup association", () => {
+    test("the command palette input names the listbox it controls", async () => {
+        await makeMockEnv();
+        await mountWithCleanup(Host);
+        getService("command").openMainPalette();
+        await animationFrame();
+        await animationFrame();
+        const input = queryOne(".o_command_palette input[role=combobox]");
+        const listbox = queryOne(".o_command_palette [role=listbox]");
+        // Without `aria-controls` the input's `aria-activedescendant` points
+        // into a popup assistive technology cannot associate with the combobox.
+        expect(listbox.id).toBe("o_command_palette_listbox");
+        expect(input.getAttribute("aria-controls")).toBe(listbox.id);
+        expect(
+            document.getElementById(input.getAttribute("aria-activedescendant")),
+        ).not.toBe(null);
     });
 });

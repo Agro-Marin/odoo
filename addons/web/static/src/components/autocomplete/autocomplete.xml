@@ -12,6 +12,7 @@
                 t-att-title="props.title"
                 role="combobox"
                 t-att-aria-activedescendant="activeSourceOptionId"
+                t-attf-aria-controls="{{props.id or 'autocomplete'}}_listbox"
                 t-att-aria-expanded="displayOptions ? 'true' : 'false'"
                 aria-autocomplete="list"
                 aria-haspopup="listbox"
@@ -25,7 +26,11 @@
                 t-ref="input"
             />
             <t t-if="displayOptions">
+                <!-- id: named by the combobox's `aria-controls`. The popup is
+                     only in the DOM while open, which the combobox pattern
+                     explicitly allows the reference to outlive. -->
                 <ul
+                    t-attf-id="{{props.id or 'autocomplete'}}_listbox"
                     role="listbox"
                     class="o-autocomplete--dropdown-menu ui-widget show"
                     t-att-class="ulDropdownClass"
