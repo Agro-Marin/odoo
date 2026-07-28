@@ -2,12 +2,29 @@
 
 import { afterEach, describe, expect, getFixture, test } from "@odoo/hoot";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
-import { Dropdown, Modal, Popover, Tooltip } from "@web/libs/bootstrap";
+import { getScrollingElement } from "@web/core/utils/dom/scrolling";
+import {
+    Alert,
+    Button,
+    Carousel,
+    Collapse,
+    Dropdown,
+    Modal,
+    Offcanvas,
+    Popover,
+    ScrollSpy,
+    Tab,
+    Toast,
+    Tooltip,
+} from "@web/libs/bootstrap";
 
 describe.current.tags("headless");
 
 afterEach(() => {
-    document.querySelectorAll(".tooltip, .popover").forEach((el) => el.remove());
+    document
+        .querySelectorAll(".tooltip, .popover, .modal-backdrop")
+        .forEach((el) => el.remove());
+    document.querySelectorAll("body > .modal").forEach((el) => el.remove());
     document.body.classList.remove("modal-open");
     document.body.style.overflow = "";
     document.body.style.paddingRight = "";
@@ -17,6 +34,24 @@ function mount(html) {
     const fixture = getFixture();
     fixture.innerHTML = html;
     return fixture.firstElementChild;
+}
+
+const MODAL_HTML = `<div class="modal"><div class="modal-dialog"><div class="modal-content">m</div></div></div>`;
+
+/** A second document, to exercise the cross-document paths. */
+async function scrollingIframe(bodyInner = "") {
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "width:300px;height:200px;border:0";
+    getFixture().appendChild(iframe);
+    await new Promise((resolve) => {
+        iframe.addEventListener("load", resolve, { once: true });
+        iframe.srcdoc =
+            `<body style="margin:0;height:200px;overflow:hidden">` +
+            `<div id="wrap" style="height:200px;overflow-y:auto"><div style="height:3000px"></div></div>` +
+            bodyInner +
+            `</body>`;
+    });
+    return iframe;
 }
 
 function tipCount() {
@@ -193,7 +228,60 @@ describe("Tooltip.show", () => {
         ttB.dispose();
     });
 
-    test("a popover does not become the tracked tooltip", async () => {
+    test("a popover neither becomes nor dismisses the tracked tooltip", async () => {
+        const root = mount(
+            `<div><button id="a">A</button><button id="p">P</button></div>`,
+        );
+        const ttA = new Tooltip(root.querySelector("#a"), {
+            title: "A",
+            animation: false,
+        });
+        const po = new Popover(root.querySelector("#p"), {
+            content: "P",
+            animation: false,
+        });
+        ttA.show();
+        await animationFrame();
+        po.show();
+        await animationFrame();
+        expect(document.querySelectorAll(".tooltip:not(.popover)")).toHaveLength(1);
+        expect(document.querySelectorAll(".popover")).toHaveLength(1);
+        ttA.dispose();
+        po.dispose();
+    });
+
+    test("a tooltip anchored in an iframe is appended to that iframe", async () => {
+        const iframe = await scrollingIframe(`<button id="a">A</button>`);
+        const idoc = iframe.contentDocument;
+        const tt = new Tooltip(idoc.querySelector("#a"), {
+            title: "A",
+            animation: false,
+        });
+        tt.show();
+        await animationFrame();
+        expect(idoc.querySelectorAll(".tooltip")).toHaveLength(1);
+        expect(document.querySelectorAll(".tooltip")).toHaveLength(0);
+        tt.dispose();
+        iframe.remove();
+    });
+
+    test("an explicit container still wins over the anchor's document", async () => {
+        const host = mount(`<div id="host"></div>`);
+        const iframe = await scrollingIframe(`<button id="a">A</button>`);
+        const idoc = iframe.contentDocument;
+        const tt = new Tooltip(idoc.querySelector("#a"), {
+            title: "A",
+            animation: false,
+            container: host,
+        });
+        tt.show();
+        await animationFrame();
+        expect(host.querySelectorAll(".tooltip")).toHaveLength(1);
+        tt.dispose();
+        iframe.remove();
+    });
+
+    test("a popover shown first is untouched by a later tooltip", async () => {
         const root = mount(
             `<div><button id="a">A</button><button id="p">P</button></div>`,
         );
@@ -237,11 +325,9 @@ describe("Tooltip.show", () => {
     });
 });
 
-describe("Modal scrollbar compensation", () => {
+describe("Modal", () => {
     test("_adjustDialog has no page-level side effects", async () => {
-        const el = mount(
-            `<div class="modal"><div class="modal-dialog"><div class="modal-content">m</div></div></div>`,
-        );
+        const el = mount(MODAL_HTML);
         const modal = new Modal(el);
         modal._adjustDialog();
         expect(document.body.style.overflow).toBe("");
@@ -266,21 +352,107 @@ describe("Modal scrollbar compensation", () => {
         modal.dispose();
     });
 
-    test("show() locks the modal's own document", async () => {
-        const iframe = document.createElement("iframe");
-        getFixture().appendChild(iframe);
-        await new Promise((resolve) => {
-            iframe.addEventListener("load", resolve, { once: true });
-            iframe.srcdoc = `<body style="height:3000px"><div class="modal"><div class="modal-dialog"><div class="modal-content">m</div></div></div></body>`;
-        });
-        const idoc = iframe.contentDocument;
-        const modal = new Modal(idoc.querySelector(".modal"));
+    // Pins the premise of dropping the upstream scrollbar-compensation patch:
+    // it only ever acted when getScrollingElement() answered with a child of
+    // body. Since 6454eb52086 the webclient scrolls the document instead, so
+    // this is documentElement and Bootstrap's own ScrollBarHelper covers it.
+    // If this ever fails, a layout grew a scrollable body child and the
+    // compensation question is live again.
+    test("the webclient scrolls the document, not a body child", async () => {
+        const scrollable = getScrollingElement(document);
+        expect(scrollable).toBe(document.documentElement);
+        expect(document.body.contains(scrollable)).toBe(false);
+    });
+
+    test("show() leaves no inline padding on the scrolling element", async () => {
+        const before = document.documentElement.getAttribute("style");
+        const el = mount(MODAL_HTML);
+        const modal = new Modal(el);
         modal.show();
         await animationFrame();
-        expect(modal._scrollBar._element).toBe(idoc.body);
-        expect(document.body.style.overflow).toBe("");
+        modal.hide();
+        await animationFrame();
+        expect(document.documentElement.getAttribute("style")).toBe(before);
+        modal.dispose();
+    });
+
+    // Characterises an unfixed Bootstrap defect, not a desired behaviour:
+    // `_showElement` tests containment with `document.body.contains(...)` and
+    // `Backdrop` resolves its `rootElement` with `getElement("body")`, both of
+    // which mean the top-level document whatever document owns the modal. An
+    // iframe-owned modal is therefore adopted out of the document that styles
+    // and positions it. Fixing it means editing the vendored bundle - wrapping
+    // cannot express it - so until then, do not open a Bootstrap Modal inside
+    // the website editor's iframe. Flip these assertions when it is fixed.
+    test("an iframe-owned modal is adopted into the top document (Bootstrap bug)", async () => {
+        const iframe = await scrollingIframe(MODAL_HTML);
+        const idoc = iframe.contentDocument;
+        const modalEl = idoc.querySelector(".modal");
+        const modal = new Modal(modalEl);
+        modal.show();
+        await animationFrame();
+        expect(modalEl.ownerDocument).toBe(document);
+        expect(idoc.body.contains(modalEl)).toBe(false);
+        expect(idoc.querySelectorAll(".modal-backdrop")).toHaveLength(0);
+        expect(document.querySelectorAll(".modal-backdrop")).toHaveLength(1);
         modal.dispose();
         iframe.remove();
+    });
+});
+
+// The patches in `@web/libs/bootstrap` reach into Bootstrap internals that carry
+// no compatibility promise. This suite is the upgrade tripwire: it fails on the
+// bundle bump rather than silently in production.
+describe("patched Bootstrap internals still exist", () => {
+    test("the pinned version is the one the patches were written against", async () => {
+        expect(Modal.VERSION).toBe("5.3.8");
+    });
+
+    test("the Tooltip hooks the patches build on are present", async () => {
+        for (const name of [
+            "show",
+            "dispose",
+            "_disposePopper",
+            "_isShown",
+            "_configAfterMerge",
+        ]) {
+            expect(typeof Tooltip.prototype[name]).toBe("function");
+        }
+        expect(Popover.prototype._configAfterMerge).toBe(
+            Tooltip.prototype._configAfterMerge,
+        );
+        expect(Tooltip.Default.allowList["*"]).toBeInstanceOf(Array);
+    });
+
+    test("Modal is re-exported unpatched", async () => {
+        expect(Object.hasOwn(Modal.prototype, "show")).toBe(true);
+        for (const name of ["_resetAdjustments", "_adjustDialog"]) {
+            expect(typeof Modal.prototype[name]).toBe("function");
+        }
+    });
+
+    test("every Bootstrap component the bundle defines is re-exported", async () => {
+        for (const component of [
+            Alert,
+            Button,
+            Carousel,
+            Collapse,
+            Dropdown,
+            Modal,
+            Offcanvas,
+            Popover,
+            ScrollSpy,
+            Tab,
+            Toast,
+            Tooltip,
+        ]) {
+            expect(typeof component).toBe("function");
+            expect(typeof component.getOrCreateInstance).toBe("function");
+        }
+    });
+
+    test("Dropdown still consults _detectNavbar", async () => {
+        expect(typeof Dropdown.prototype._detectNavbar).toBe("function");
     });
 });
 
@@ -324,28 +496,88 @@ describe("Dropdown", () => {
 });
 
 describe("Font Awesome 4 shims", () => {
-    test("legacy icon names still render a glyph", async () => {
-        const legacy = [
-            "fa-circle-o-notch",
-            "fa-pencil-square-o",
-            "fa-star-o",
-            "fa-file-text-o",
-            "fa-trash-o",
-            "fa-money",
-            "fa-picture-o",
-            "fa-youtube-play",
-        ];
+    // Every name declared in v4-shims.css, not a sample: these are the FA4 names
+    // still hardcoded across ~178 files, and FA7 renders an undefined `--fa` as
+    // nothing at all, so a missing shim is a silently blank icon.
+    const LEGACY_NAMES = [
+        "fa-arrow-circle-o-up",
+        "fa-bell-o",
+        "fa-building-o",
+        "fa-calendar-check-o",
+        "fa-calendar-o",
+        "fa-calendar-plus-o",
+        "fa-calendar-times-o",
+        "fa-check-circle-o",
+        "fa-check-square-o",
+        "fa-circle-o-notch",
+        "fa-circle-thin",
+        "fa-clock-o",
+        "fa-comment-o",
+        "fa-commenting-o",
+        "fa-comments-o",
+        "fa-dot-circle-o",
+        "fa-envelope-o",
+        "fa-file-archive-o",
+        "fa-file-audio-o",
+        "fa-file-excel-o",
+        "fa-file-image-o",
+        "fa-file-o",
+        "fa-file-pdf-o",
+        "fa-file-powerpoint-o",
+        "fa-file-text-o",
+        "fa-file-video-o",
+        "fa-file-word-o",
+        "fa-files-o",
+        "fa-flag-o",
+        "fa-flash",
+        "fa-folder-o",
+        "fa-folder-open-o",
+        "fa-hand-paper-o",
+        "fa-handshake-o",
+        "fa-hdd-o",
+        "fa-heart-o",
+        "fa-hourglass-o",
+        "fa-id-card-o",
+        "fa-life-bouy",
+        "fa-lightbulb-o",
+        "fa-map-o",
+        "fa-money",
+        "fa-newspaper-o",
+        "fa-paper-plane-o",
+        "fa-pencil-square-o",
+        "fa-picture-o",
+        "fa-question-circle-o",
+        "fa-star-half-o",
+        "fa-star-o",
+        "fa-sun-o",
+        "fa-trash-o",
+        "fa-user-circle-o",
+        "fa-user-o",
+        "fa-youtube-play",
+    ];
+
+    test("every legacy icon name renders a real glyph", async () => {
         const fixture = getFixture();
-        fixture.innerHTML = legacy
-            .map((n) => `<i class="fa ${n}" id="${n}"></i>`)
-            .join("");
-        for (const name of legacy) {
-            const content = getComputedStyle(
-                fixture.querySelector(`#${name}`),
-                "::before",
-            ).getPropertyValue("content");
-            expect(content).not.toBe("none");
+        fixture.innerHTML = LEGACY_NAMES.map(
+            (n) => `<i class="fa ${n}" id="${n}"></i>`,
+        ).join("");
+        const blank = [];
+        for (const name of LEGACY_NAMES) {
+            const el = fixture.querySelector(`#${name}`);
+            const content = getComputedStyle(el, "::before").getPropertyValue(
+                "content",
+            );
+            const glyph = getComputedStyle(el).getPropertyValue("--fa").trim();
+            if (content === "none" || content === '""' || !glyph) {
+                blank.push(`${name}(content=${content},--fa=${glyph || "unset"})`);
+            }
         }
+        expect(blank).toEqual([]);
+    });
+
+    test("the shim list covers every legacy name, with no stale extras", async () => {
+        expect(LEGACY_NAMES.length).toBe(54);
+        expect(new Set(LEGACY_NAMES).size).toBe(LEGACY_NAMES.length);
     });
 
     test("an -o shim renders the regular weight, beating a fa-solid base class", async () => {
