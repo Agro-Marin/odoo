@@ -1952,7 +1952,58 @@ every ``.js`` file that declares or patches a component.
        substitute for templating (raw DOM injection breaks on re-render)
 
 
-4.3.2 Patch template
+4.3.2 ``this`` inside a template is not always the component 👁
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+OWL renders against a *derived* context, not the component itself
+(``owl.es.js``, ``ComponentNode`` constructor)::
+
+   const ctx = Object.assign(Object.create(this.component), { this: this.component });
+   this.renderFn = app.getTemplate(C.template).bind(this.component, ctx, this);
+
+Template expressions compile to lookups on ``ctx``. Because ``ctx`` merely
+*inherits* from the component, **reads** always resolve, but a **write** of a
+bare instance property lands on ``ctx`` — a per-render throwaway — and is
+invisible to the component and gone on the next render. Which ``this`` a member
+gets depends on how the template names it:
+
+.. list-table::
+   :header-rows: 1
+
+   * - Reference in the template
+     - ``this`` inside the member
+     - Bare ``this.x = …`` write
+   * - ``this.foo()``
+     - the component (``ctx.this``)
+     - safe
+   * - ``t-on-click="foo"``
+     - the component — handlers are invoked as
+       ``handler.call(node.component, ev)``
+     - safe
+   * - ``onFoo.bind="foo"``
+     - the component — compiles to ``(ctx['foo']).bind(this)``, and ``this`` in
+       a compiled template *function* is the component
+     - safe
+   * - ``foo`` / ``foo.bar`` (bare getter or method)
+     - the derived ``ctx``
+     - **LOST**
+
+Only the last row is dangerous, and it fails silently — no error, just a value
+that never sticks. Two consequences:
+
+- ``this.someObject.key = v`` is safe everywhere: the *read* of ``someObject``
+  resolves through the prototype chain to the component's object, and the
+  mutation lands on that shared object. Only rebinding the property itself
+  (``this.someObject = …``, ``this.counter = 1``) is lost.
+- A member reached *transitively* is bound the same way as its entry point. A
+  bare template getter that calls ``this.helper()`` still runs ``helper`` on
+  ``ctx``, so a write in ``helper`` is lost too.
+
+When a bare template member genuinely needs to persist something, store it in a
+container object created in ``setup()`` and mutate that — see
+``Many2XAutocomplete.emptySearchMemo``, which exists for exactly this reason.
+
+4.3.3 Patch template
 ~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: javascript
@@ -1978,7 +2029,7 @@ every ``.js`` file that declares or patches a component.
        },
    });
 
-4.3.3 Decision tree for frontend work
+4.3.4 Decision tree for frontend work
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block::
@@ -1990,7 +2041,7 @@ every ``.js`` file that declares or patches a component.
    │   └─ Needs popup?               → Register in the pos_popups registry
    └─ Unsure?                        → Read reference/owl/ before guessing
 
-4.3.4 Common POS import paths
+4.3.5 Common POS import paths
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: javascript

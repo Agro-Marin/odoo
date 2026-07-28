@@ -1,5 +1,11 @@
 # Strict ruff configuration for Odoo 19.0 fork
-# Python 3.14+ | ruff 0.15+
+# Python 3.14+ (preparing for 3.15 / PEP 703 free-threading) | ruff >= 0.15.19
+#
+# The ruff floor is exact, not aspirational: `explicit-preview-rules` means preview
+# rules are named individually below, and a ruff that predates any of them aborts with
+# "Unknown rule selector" rather than skipping it. Keep these five in lockstep:
+#   requirements-dev.txt · .pre-commit-config.yaml · .github/workflows/ruff.yml
+#   ../enterprise/.pre-commit-config.yaml · ../agromarin/.pre-commit-config.yaml
 
 target-version = "py314"
 line-length = 88
@@ -45,6 +51,8 @@ select = [
     # Modern Python
     "UP",         # pyupgrade (3.14+ syntax)
     "YTT",        # flake8-2020
+    "PYI",        # flake8-pyi (annotation correctness — applies to .py too)
+    "ASYNC",      # flake8-async (blocking calls / misuse in async defs)
 
     # Code quality
     "SIM",        # flake8-simplify
@@ -101,22 +109,122 @@ select = [
     # Ruff-specific
     "RUF",        # Ruff's own rules
 
-    # Preview rules (cherry-picked — requires explicit-preview-rules)
-    "RUF039",     # unraw-re-pattern (regex missing r"" prefix)
-    "RUF069",     # float-equality-comparison (precision bugs in financial code)
-    "RUF065",     # f-string-in-logging (performance — use lazy %s formatting)
-    # "FURB113",  # repeated-append — DISABLED: loses inter-append comments, rarely a real perf issue
-    "FURB188",    # slice-to-remove-prefix (use removeprefix()/removesuffix())
-
     # Misc
     "EXE",        # flake8-executable
     "PGH",        # pygrep-hooks
     "TRY",        # tryceratops
 
-    # Enforced only in pure Python packages (odoo/libs/, odoo/orm/components/)
-    # Suppressed everywhere else via per-file-ignores — see below
+    # ---------------------------------------------------------------------
+    # STRICT-PACKAGE RULES — enforced only in odoo/libs/ and odoo/orm/components/
+    # (the two packages with zero Odoo ORM imports). See the `!{...}` negated glob
+    # in [lint.per-file-ignores] for how the scoping works.
+    # ---------------------------------------------------------------------
     "D",          # pydocstyle (docstring presence and quality)
     "ANN",        # flake8-annotations (type signatures)
+    "D420",       # incorrect-section-order (preview)
+    "D421",       # property-docstring-starts-with-verb (preview)
+    "ARG",        # flake8-unused-arguments — no ORM override contract to excuse them here
+    "FBT003",     # boolean-positional-value-in-call — f(x, True) at the call site
+    # FBT001/FBT002 (boolean-trap SIGNATURES) are deliberately excluded, here and
+    # everywhere: 1191 findings fork-wide, 113 in these two packages alone, against a
+    # change nobody is going to make to a settled API. FBT003 is kept because it is
+    # caller-side and each fix is one keyword. Decision reviewed 2026-07-26 — reopen
+    # only with a plan to actually pay it down, not just to raise the floor.
+    # Free-threading (PEP 703): a mutable class attribute is process-shared state that
+    # every instance and every thread mutates through the same object, with no lock.
+    # Under the GIL that is merely surprising; on a no-GIL build it is a data race.
+    # Odoo models legitimately use list/dict class attrs (hence RUF012 in `ignore`
+    # below), but these two packages have no such excuse — and odoo/orm/components/ is
+    # exactly what .github/workflows/freethreading.yml hammers from 16 threads on 3.14t.
+    "RUF012",     # mutable-class-default
+
+    # ---------------------------------------------------------------------
+    # Preview rules (cherry-picked — `explicit-preview-rules` means a preview
+    # rule is OFF unless named individually here, so a ruff upgrade can never
+    # silently add findings).
+    #
+    # Selection criterion: every rule below was measured against `odoo/` with
+    # ruff 0.15.19 before being added. Counts in comments are `odoo/` hits at
+    # the time of selection — they document that each rule is affordable, not
+    # a contract. Rules costing hundreds of findings for a style opinion were
+    # rejected and are listed under "Rejected preview rules" at the end.
+    # ---------------------------------------------------------------------
+
+    # -- Correctness: real bug classes --
+    "B909",       # loop-iterator-mutation (3) — mutating a container while iterating it
+    "ISC004",     # implicit-str-concat-in-collection (22) — catches missing commas in list/tuple literals
+    "PLE0304",    # invalid-bool-return-type (0)
+    "PLE1141",    # dict-iter-missing-items (0) — `for k, v in d` without .items()
+    "PLE4703",    # modified-iterating-set (0)
+    "PLW0244",    # redefined-slots-in-subclass (0) — silently defeats __slots__
+    "PLW1514",    # unspecified-encoding (8) — open() without encoding is locale-dependent
+    "PLW3201",    # bad-dunder-method-name (11) — misspelled dunder is never called
+    "RUF027",     # missing-f-string-syntax (0) — "{x}" that was meant to be an f-string
+    "RUF036",     # none-not-at-end-of-union (1)
+    "RUF038",     # redundant-bool-literal (0)
+    "RUF045",     # implicit-class-var-in-dataclass (0)
+    "RUF063",     # access-annotations-from-class-dict (0) — PEP 649 correctness on 3.14
+    "RUF066",     # property-without-return (0)
+    "RUF068",     # duplicate-entry-in-dunder-all (0)
+    "RUF070",     # unnecessary-assign-before-yield (1)
+    "RUF072",     # useless-finally (0)
+    "RUF073",     # f-string-percent-format (0) — f"...%s" % args, almost always a bug
+    "RUF074",     # incorrect-decorator-order (0)
+    "RUF075",     # fallible-context-manager (5) — resource leak if __init__ raises mid-`with`
+    "B901",       # return-in-generator (1) — `return x` in a generator is not the value callers expect
+    "B043",       # del-attr-with-constant (1)
+    "PLR1708",    # stop-iteration-return (0) — PEP 479: StopIteration inside a generator
+    "LOG004",     # log-exception-outside-except-handler (2)
+    "ASYNC119",   # yield-in-context-manager-in-async-generator (0)
+    "TID254",     # lazy-import-mismatch (0)
+    "TID255",     # lazy-import-immediately-resolved (0)
+    "PT029",      # pytest-warns-without-warning (0)
+
+    # -- Modernization / clarity --
+    "RUF039",     # unraw-re-pattern (regex missing r"" prefix)
+    "RUF069",     # float-equality-comparison (precision bugs in financial code)
+    "RUF065",     # f-string-in-logging (performance — use lazy %s formatting)
+    "FURB188",    # slice-to-remove-prefix (use removeprefix()/removesuffix())
+    "PLR0202",    # no-classmethod-decorator (0)
+    "PLR0203",    # no-staticmethod-decorator (0)
+    "PLR1712",    # swap-with-temporary-variable (0)
+    "PLR6104",    # non-augmented-assignment (23) — `x = x + y` -> `x += y`
+    "PLC2801",    # unnecessary-dunder-call (21) — `x.__len__()` -> `len(x)`
+    "FURB101",    # read-whole-file (7) — pairs with the PTH family already enforced
+    "FURB103",    # write-whole-file (3)
+    "FURB131",    # delete-full-slice (0)
+    "FURB140",    # reimplemented-starmap (1)
+    "FURB142",    # for-loop-set-mutation (5)
+    "FURB145",    # slice-copy (1)
+    "FURB148",    # unnecessary-enumerate (0)
+    "FURB152",    # math-constant (23) — hardcoded 3.14159 -> math.pi
+    "FURB154",    # repeated-global (0)
+    "FURB164",    # unnecessary-from-float (0)
+    "FURB180",    # meta-class-abc-meta (0)
+    "FURB192",    # sorted-min-max (0)
+    "RUF047",     # needless-else (0)
+    "RUF050",     # unnecessary-if (1)
+    "RUF054",     # indented-form-feed (0)
+    "RUF055",     # unnecessary-regular-expression (0)
+    "RUF056",     # falsy-dict-get-fallback (1)
+    "RUF071",     # os-path-commonprefix (0)
+    "E502",       # redundant-backslash (0)
+    "W391",       # too-many-newlines-at-end-of-file (0)
+
+    # -- Rejected preview rules (measured, deliberately NOT selected) --
+    # "FURB113",  # repeated-append — loses inter-append comments; rarely a real perf issue
+    # "FURB189",  # subclass-builtin (17) — UserDict/UserList are slower; subclassing dict is deliberate here
+    # "PLC2701",  # import-private-name (321) — the fork uses `_module.py` as a package-private
+    #             # convention (_recordset, _serve, _prefork); this rule fights that architecture
+    # "PLR6201",  # literal-membership (315) — tuple->set micro-optimisation, no correctness value
+    # "PLR6301",  # no-self-use (738) — fires on every Odoo hook/override that ignores self
+    # "PLR0914",  # too-many-locals (58) — same rationale as the PLR09xx ignores below
+    # "PLR0916",  # too-many-boolean-expressions (17) — ditto
+    # "PLR1702",  # too-many-nested-blocks (55) — ditto
+    # "PLW0717",  # too-many-statements-in-try-clause (79) — ditto
+    # "RUF031",   # parenthesized-tuple-in-subscript (66) — pure formatting churn
+    # "RUF052",   # used-dummy-variable (166) — `_x` reuse is idiomatic in unpacking here
+    # "PLC1901",  # compare-to-empty-string — already in `ignore` below
 ]
 
 unfixable = [
@@ -142,7 +250,10 @@ ignore = [
     "E501",       # line-too-long
 
     # --- Odoo architecture patterns ---
-    "RUF012",     # mutable-class-default (Odoo models use dicts/lists as class attrs)
+    # NOTE: RUF012 (mutable-class-default) is NOT ignored here. Odoo models legitimately
+    # use list/dict class attributes, so it is switched off for them by the strict-package
+    # glob in per-file-ignores — an `ignore` entry would beat `select` and disable it in
+    # odoo/libs/ and odoo/orm/components/ too, where it is the free-threading guard.
     "PLW0642",    # self-or-cls-assignment (self = self.sudo() / self.with_context())
     "PLW2901",    # redefined-loop-name (common in Odoo batch processing)
     "TID252",     # relative-imports (Odoo uses them everywhere)
@@ -172,6 +283,12 @@ ignore = [
                   # would break the established exception contract callers/tests catch)
     "EM101",      # string-in-exception (intermediate variable adds noise, no readability gain)
     "EM102",      # f-string-in-exception (pragmatic — f-strings in exceptions are fine)
+    # S110/S112 (try-except-pass / -continue) stay on their DEFAULT setting: they fire
+    # on bare `except:` / `except Exception:` only. Turning on
+    # [lint.flake8-bandit] check-typed-exception extends them to narrowly-typed handlers
+    # too, taking the pair from 9 findings to 163 — mostly deliberate
+    # "this optional lookup may legitimately miss" code. Measured and declined
+    # 2026-07-26; the default already catches the swallow-everything cases that matter.
 
     # --- CLI style ---
     "PLR1722",    # sys-exit-alias (sys.exit() is idiomatic in CLI commands)
@@ -202,8 +319,8 @@ ignore = [
     "FURB118",    # reimplemented-operator (lambdas often more readable than operator.X)
 
     # --- D (pydocstyle) — conflicting rule pairs and global noise ---
-    # D and ANN are enforced only in odoo/libs/ and odoo/orm/components/; suppressed
-    # everywhere else via per-file-ignores. These ignores apply even in target dirs.
+    # D and ANN are enforced only in odoo/libs/ and odoo/orm/components/ (see the
+    # negated glob in per-file-ignores). These ignores apply even in those packages.
     "D203",       # one-blank-line-before-class (conflicts with D211 — D211 preferred)
     "D213",       # multi-line-summary-second-line (conflicts with D212 — D212 preferred)
 
@@ -293,20 +410,31 @@ ignore = [
     "RUF069",     # float-equality assertions of exact, deterministic test values are fine
 ]
 
-# Tests inside D/ANN-enforced packages (libs/, orm/components/) — suppress D/ANN
-# to match the project-wide convention that tests are exempt from docstring/annotation rules.
-# Structural globs (not hand-listed dirs) so EVERY tests/ dir nested under these two
-# packages inherits the exemption — e.g. libs/_field_access/tests — with no drift.
-"odoo/libs/**/tests/**" = ["D", "ANN"]
-"odoo/orm/components/**/tests/**" = ["D", "ANN"]
-# odoo/orm/tests/ — the orm-level test suite. D/ANN are enforced across odoo/orm/
-# only in components/; every other orm/ subdir (domain, fields, models, runtime) is
-# suppressed below. Tests are exempt by the same project-wide convention, so the
-# orm-level tests dir gets the same treatment as the per-package tests/ above.
-"odoo/orm/tests/**" = ["D", "ANN"]
-# odoo/orm/domain/tests/ — pure Tier-1 optimizer suite (stubbed imports, no DB).
-# Tests are exempt from D/ANN by the same project-wide convention as the dirs above.
-"odoo/orm/domain/tests/**" = ["D", "ANN"]
+# --- Strict-package scoping -------------------------------------------------
+# D / ANN / ARG / FBT003 / RUF012 are enforced ONLY in the two packages that have zero
+# Odoo ORM imports and can be held to library standards:
+#   odoo/libs/            — pure utility library
+#   odoo/orm/components/  — pure ORM data structures (the free-threading CI target)
+# Everywhere else these are noise: 56k+ D and 77k+ ANN findings, and Odoo models use
+# mutable class attributes and ignore-the-argument overrides by design.
+#
+# The NEGATED glob is what makes this maintainable. per-file-ignores can only remove
+# rules, never re-enable them, so scoping used to mean listing the COMPLEMENT — every
+# other directory in the tree, ~40 hand-written entries. That list drifted: when
+# odoo/orm/_recordset.py was added nobody extended it, and the file silently started
+# carrying D/ANN. `!{a,b}/**` inverts the maintenance burden: only the two enforced
+# packages are named, so a new directory anywhere else is correct by default.
+#
+# (Two dirs, ONE entry: separate `!a/**` and `!b/**` entries would each match the
+# other's files and cancel the rule everywhere. The brace alternation is required.)
+"!{odoo/libs,odoo/orm/components}/**" = ["D", "ANN", "ARG", "FBT003", "RUF012"]
+
+# Tests inside the strict packages are exempt again, matching the project-wide
+# convention that tests carry neither docstrings nor full annotations. Structural
+# globs (not hand-listed dirs) so EVERY nested tests/ dir inherits the exemption —
+# e.g. odoo/libs/_field_access/tests — with no drift.
+"odoo/libs/**/tests/**" = ["D", "ANN", "ARG", "FBT003"]
+"odoo/orm/components/**/tests/**" = ["D", "ANN", "ARG", "FBT003"]
 
 # __manifest__.py: Standalone dict expression is the whole file
 "**/__manifest__.py" = ["B018"]
@@ -321,11 +449,11 @@ ignore = [
 
 # CLI/scripts — print() is legitimate user output in CLI commands
 "**/odoo-bin" = ["E402", "T201"]
-"setup.py" = ["E402", "D", "ANN"]
-"setup/**" = ["D", "ANN"]
-"tools/**" = ["T201", "D", "ANN"]  # FA4 migration scripts: print() is user-facing output
+"odoo/cli/**" = ["T201"]           # print() is legitimate user output in CLI commands
 "doc/**/*.py" = ["T201"]           # CLA stats script: print() is user-facing output
-"**/tooling/**" = ["T201", "D", "ANN"]  # architecture/dev tooling (root + per-addon, e.g. addons/web/tooling): print() is user-facing output
+"tools/**" = ["T201"]              # FA4 migration scripts: print() is user-facing output
+"**/tooling/**" = ["T201"]         # architecture/dev tooling (root + per-addon, e.g. addons/web/tooling)
+"setup.py" = ["E402"]
 
 # Security-critical path validation — os.path is intentional
 "**/tools/files.py" = ["PTH"]
@@ -336,60 +464,11 @@ ignore = [
 # `os.sep` split in `fs2web` is a deliberate no-op fast path on POSIX.
 "**/models/ir_asset_paths.py" = ["PTH"]
 
-# D and ANN: enforced ONLY in pure Python packages that have zero Odoo ORM imports:
-#   odoo/libs/            — utility library (~838 D violations, ~1,076 ANN violations)
-#   odoo/orm/components/  — ORM data structures (same pool, counted together above)
-#
-# The rest of the codebase has 56k+ D and 77k+ ANN violations — suppressed below.
-#
-# core/addons/ — standard Odoo modules (account, mail, website, etc.)
-"addons/**" = ["D", "ANN"]
-# core/tests/, core/doc/ — top-level non-package directories
-"tests/**" = ["D", "ANN"]
-"doc/**" = ["D", "ANN"]
-
-# NOTE: In ruff per-file-ignores, "*" matches path separators just like "**",
-# so "odoo/*.py" would suppress all .py files under odoo/ — not just root-level.
-# Root-level files must be listed explicitly to avoid over-suppression.
-#
-# odoo/ root-level files
-"odoo/exceptions.py" = ["D", "ANN"]
-"odoo/init.py" = ["D", "ANN"]
-"odoo/logutils.py" = ["D", "ANN"]
-"odoo/__main__.py" = ["D", "ANN"]
-"odoo/release.py" = ["D", "ANN"]
-# odoo/ subdirectories (everything except libs/)
-"odoo/addons/**" = ["D", "ANN"]
-"odoo/api/**" = ["D", "ANN"]
-"odoo/cli/**" = ["D", "ANN", "T201"]  # print() is legitimate user output in CLI
-"odoo/db/**" = ["D", "ANN"]
-"odoo/fields/**" = ["D", "ANN"]
-"odoo/http/**" = ["D", "ANN"]
-"odoo/models/**" = ["D", "ANN"]
-"odoo/modules/**" = ["D", "ANN"]
-"odoo/_monkeypatches/**" = ["D", "ANN"]
-"odoo/service/**" = ["D", "ANN"]
-"odoo/tests/**" = ["D", "ANN"]
-"odoo/tools/**" = ["D", "ANN"]
-"odoo/upgrade/**" = ["D", "ANN"]
-"odoo/upgrade_code/**" = ["D", "ANN"]
-# odoo/orm/ root-level files (orm/components/ is a target dir — NOT listed here)
-"odoo/orm/constants.py" = ["D", "ANN"]
-"odoo/orm/decorators.py" = ["D", "ANN"]
-"odoo/orm/helpers.py" = ["D", "ANN"]
-"odoo/orm/__init__.py" = ["D", "ANN"]
-"odoo/orm/parsing.py" = ["D", "ANN"]
-"odoo/orm/primitives.py" = ["D", "ANN"]
-"odoo/orm/protocols.py" = ["D", "ANN"]
-"odoo/orm/registration.py" = ["D", "ANN"]
-"odoo/orm/model_test_env.py" = ["D", "ANN"]
-"odoo/orm/_typing.py" = ["D", "ANN"]
-"odoo/orm/validation.py" = ["D", "ANN"]
-# odoo/orm/ subdirectories (everything except components/)
-"odoo/orm/domain/**" = ["D", "ANN"]
-"odoo/orm/fields/**" = ["D", "ANN"]
-"odoo/orm/models/**" = ["D", "ANN"]
-"odoo/orm/runtime/**" = ["D", "ANN"]
+# os.fork(): the prefork worker model is the ONE sanctioned fork site. Forking a
+# process that already has threads warns since 3.12 and is a hard hazard under a
+# free-threaded build, so `os.fork` is banned via TID251 (see banned-api below) to
+# force review of any NEW call site. This file is that reviewed exception.
+"odoo/service/_prefork.py" = ["TID251"]
 
 [lint.isort]
 section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
@@ -403,6 +482,36 @@ known-local-folder = ["odoo.addons"]
 
 # --- Stdlib replacements ---
 "optparse".msg = "Use argparse instead"
+
+# --- Scheduled for removal in Python 3.15 ---
+# Verified against this workspace's CPython 3.14.4 stdlib, not from memory: each of
+# these calls warnings._deprecated(..., remove=(3, 15)) or documents the same.
+# All three currently have ZERO call sites — these are guards, not cleanups.
+"locale.getdefaultlocale".msg = "Removed in 3.15 — use locale.getlocale() / locale.getencoding()"
+"ctypes.SetPointerType".msg = "Removed in 3.15 — use pointer.set_type(cls)"
+"sysconfig.expand_makefile_vars".msg = "Removed in 3.15 — no public replacement; inline the expansion"
+
+# --- Free-threading (PEP 703) readiness ---
+# fork() in a process that already has threads is undefined behaviour the child can
+# only survive by luck; CPython warns about it since 3.12 and it is a hard hazard on
+# a no-GIL build, where the framework is far more threaded. The prefork worker model
+# (odoo/service/_prefork.py) is the reviewed exception, ignored above.
+"os.fork".msg = "fork() with live threads is unsafe under free-threading — use multiprocessing (forkserver/spawn), or add a per-file-ignore after review"
+"os.forkpty".msg = "Same hazard as os.fork() — see odoo/service/_prefork.py for the sanctioned pattern"
+# threading camelCase aliases: DeprecationWarning on 3.14, pending removal. Only the
+# module-level ones are listed — TID251 resolves qualified names, so bound-method
+# forms (t.setDaemon(...)) cannot be matched and are review-only.
+"threading.currentThread".msg = "Use threading.current_thread()"
+"threading.activeCount".msg = "Use threading.active_count()"
+
+# --- Deprecated typing aliases (removal pending upstream) ---
+"typing.Text".msg = "Use str instead"
+"typing.ByteString".msg = "Use bytes | bytearray | memoryview, or collections.abc.Buffer"
+"typing.no_type_check_decorator".msg = "Deprecated with no replacement — drop the decorator"
+
+# --- Deprecated / removed elsewhere in the stdlib ---
+"asyncio.get_event_loop".msg = "Use asyncio.run() or asyncio.get_running_loop()"
+"http.server.CGIHTTPRequestHandler".msg = "Deprecated CGI handler — do not use"
 
 # --- Legacy typing (use builtin generics and union syntax, Python 3.10+) ---
 "typing.Optional".msg = "Use X | None instead"
