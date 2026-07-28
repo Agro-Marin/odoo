@@ -286,7 +286,7 @@ test("Show search input when more that 10 companies & search filters items but i
         { id: 10, name: "Random e", sequence: 10, parent_id: false, child_ids: [] },
     ];
     await createSwitchCompanyMenu();
-    await contains(".o_burger_menu_companies > div").click();
+    await contains(".o_burger_menu_companies_toggle").click();
     expect(".o_burger_menu_companies input").toHaveCount(1);
     expect(".o_burger_menu_companies input").not.toBeFocused();
 
@@ -300,4 +300,44 @@ test("Show search input when more that 10 companies & search filters items but i
         "Random Company aa",
         "Random Company ab",
     ]);
+});
+
+test("many companies: the collapsed list is reachable by keyboard", async () => {
+    // Above the threshold the list starts COLLAPSED, so the toggle is the only
+    // way into the company switcher. As a click-only <div> it had no role, no
+    // tab stop and no aria-expanded, which put the whole burger-menu switcher
+    // out of reach of a keyboard. This branch had no coverage at all: every
+    // other test here uses three companies, where `show` is always true.
+    serverState.companies = Array.from({ length: 12 }, (_, i) => ({
+        id: i + 1,
+        name: `Company ${i + 1}`,
+        parent_id: false,
+        child_ids: [],
+    }));
+    await mountWithCleanup(MobileSwitchCompanyMenu);
+
+    const toggle = ".o_burger_menu_companies_toggle";
+    expect(toggle).toHaveCount(1);
+    expect(toggle).toHaveProperty("tagName", "BUTTON");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect("[data-company-id]").toHaveCount(0);
+
+    await contains(toggle).click();
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect("[data-company-id]").toHaveCount(12);
+
+    await contains(toggle).click();
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect("[data-company-id]").toHaveCount(0);
+});
+
+test("few companies: the heading is not an actionable control", async () => {
+    // Below the threshold `toggleCollapsible` is a no-op and the list is always
+    // shown, so exposing a button would announce an action that does nothing.
+    await mountWithCleanup(MobileSwitchCompanyMenu);
+
+    expect(".o_burger_menu_companies_toggle").toHaveCount(0);
+    expect(".o_burger_menu_companies").toHaveText(
+        "Companies\nHermit\nHerman's\nHeroes TM",
+    );
 });
