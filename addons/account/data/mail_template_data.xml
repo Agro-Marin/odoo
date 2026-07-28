@@ -375,7 +375,11 @@
             <field name="name">Journal Notification</field>
             <field name="model_id" ref="account.model_account_move"/>
             <field name="subject">{{ object.company_id.name }} - New invoice in {{ object.journal_id.display_name or 'Invoices' }} journal</field>
-            <field name="email_from">{{ object.invoice_user_id.email_formatted or object.company_id.email_formatted or user.email_formatted }}</field>
+            <!-- Journal-scoped notification sent to subscriber addresses configured on the
+                 journal, not a customer-facing document: it must come from the company, like
+                 its subject line. Leading with invoice_user_id would disclose the individual
+                 accountant's address to every subscriber and misdirect their replies. -->
+            <field name="email_from">{{ object.company_id.email_formatted or user.email_formatted }}</field>
             <field name="use_default_to" eval="False"/>
             <field name="auto_delete" eval="True"/>
             <field name="body_html" type="html">

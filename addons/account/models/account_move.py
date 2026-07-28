@@ -1462,12 +1462,6 @@ class AccountMove(models.Model):
                 invoice.direction_sign = -1
 
     @api.depends(
-        "line_ids.matched_debit_ids.debit_move_id.move_id.origin_payment_id.is_matched",
-        "line_ids.matched_debit_ids.debit_move_id.move_id.line_ids.amount_residual",
-        "line_ids.matched_debit_ids.debit_move_id.move_id.line_ids.amount_residual_currency",
-        "line_ids.matched_credit_ids.credit_move_id.move_id.origin_payment_id.is_matched",
-        "line_ids.matched_credit_ids.credit_move_id.move_id.line_ids.amount_residual",
-        "line_ids.matched_credit_ids.credit_move_id.move_id.line_ids.amount_residual_currency",
         "line_ids.balance",
         "line_ids.currency_id",
         "line_ids.amount_currency",
@@ -1552,6 +1546,13 @@ class AccountMove(models.Model):
         "company_id",
         "reconciled_payment_ids.state",
         "matched_payment_ids.state",
+        # The query below reads `pay.is_matched` on the counterpart payments, so
+        # this compute -- not `_compute_amounts` -- is what has to be triggered
+        # when one of them flips. Declaring it on `_compute_amounts` instead
+        # (where nothing reads it) refreshed `payment_state` only as a side
+        # effect of invalidating ten amount fields on every reconciliation.
+        "line_ids.matched_debit_ids.debit_move_id.move_id.origin_payment_id.is_matched",
+        "line_ids.matched_credit_ids.credit_move_id.move_id.origin_payment_id.is_matched",
     )
     def _compute_payment_state(self):
         def _invoice_qualifies(move):
@@ -2920,7 +2921,12 @@ class AccountMove(models.Model):
                 self.env["account.move"].browse(move_id)
                 if move_id > 0
                 else move_by_synthetic_id[move_id]
-            ): self.env["account.move"].browse(duplicate_ids)
+            ): self.env["account.move"]
+            .browse(duplicate_ids)
+            # The query above runs without record rules, so it can surface moves
+            # the user cannot read; reading them back (display_name, state, ...)
+            # then raises an AccessError on an invoice they *do* have access to.
+            ._filtered_access("read")
             for move_id, duplicate_ids in result
         }
 
@@ -8331,11 +8337,19 @@ class AccountMove(models.Model):
                     "company_name": journal_alias_company.name or self.env.company.name,
                 },
             )
-            self._routing_create_bounce_email(
+            # Send as the journal alias' company, not as whatever company the
+            # gateway user happens to be in: `_routing_create_bounce_email`
+            # derives the sender from `self.env.company.bounce_email`, so
+            # without this a bounce for company B goes out from company A.
+            reply_to_journal_company = (
+                journal_alias_company.email or self.env.company.email
+            )
+            self.with_company(journal_alias_company)._routing_create_bounce_email(
                 message_dict["from"],
                 body,
                 message,
                 references=f"{message_dict['message_id']} {generate_tracking_message_id('loop-detection-bounce-email')}",
+                reply_to=reply_to_journal_company,
             )
             return ()
         return super()._routing_check_route(

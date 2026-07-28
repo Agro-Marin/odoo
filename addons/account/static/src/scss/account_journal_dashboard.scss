@@ -13,20 +13,6 @@
             }
         }
 
-        .o_dashboard_star {
-            font-size: 12px;
-
-            &.fa-star-o {
-                color: $o-main-color-muted;
-                &:hover {
-                    color: gold;
-                }
-            }
-            &.fa-star {
-                color: gold;
-            }
-        }
-
         .o_dashboard_graph {
             margin-bottom: calc($o-horizontal-padding / -2);
         }

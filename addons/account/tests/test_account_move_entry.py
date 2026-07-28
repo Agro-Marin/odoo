@@ -1977,3 +1977,93 @@ class TestAccountMove(AccountTestInvoicingCommon):
             self.test_move.line_ids[0],
             "",
         )
+
+    def test_status_in_payment_search_matches_the_computed_value(self):
+        """`_compute_status_in_payment` and `_field_to_sql` must agree, exhaustively.
+
+        The bucket is expressed twice -- once in Python for display, once in SQL
+        so the field stays searchable/groupable -- with nothing tying the two
+        together. Walk every (state, payment_state, is_move_sent) combination and
+        require the search to return exactly the records the compute labels.
+        """
+        states = ("draft", "posted", "cancel")
+        payment_states = [
+            value
+            for value, _label in self.env["account.move"]
+            ._fields["payment_state"]
+            .selection
+        ]
+        combos = [
+            (state, payment_state, sent)
+            for state in states
+            for payment_state in payment_states
+            for sent in (True, False)
+        ]
+
+        moves = self.env["account.move"].create(
+            [
+                {
+                    "move_type": "entry",
+                    "date": "2026-01-01",
+                    "line_ids": [
+                        Command.create(
+                            {
+                                "account_id": self.company_data[
+                                    "default_account_revenue"
+                                ].id,
+                                "balance": 100.0,
+                            }
+                        ),
+                        Command.create(
+                            {
+                                "account_id": self.company_data[
+                                    "default_account_expense"
+                                ].id,
+                                "balance": -100.0,
+                            }
+                        ),
+                    ],
+                }
+                for _combo in combos
+            ]
+        )
+
+        # Force the combinations: `state` and `payment_state` cannot be driven
+        # into every pairing through normal flows, and the mapping under test is
+        # a pure function of the three stored columns.
+        for move, (state, payment_state, sent) in zip(moves, combos, strict=True):
+            self.env.cr.execute(
+                "UPDATE account_move SET state = %s, payment_state = %s, is_move_sent = %s"
+                " WHERE id = %s",
+                (state, payment_state, sent, move.id),
+            )
+        self.env.invalidate_all()
+
+        expected = {}
+        for move in moves:
+            expected.setdefault(move.status_in_payment, set()).add(move.id)
+
+        selection = dict(
+            self.env["account.move"]._fields["status_in_payment"].selection
+        )
+        for value in selection:
+            found = set(
+                self.env["account.move"]
+                .search(
+                    [
+                        ("id", "in", moves.ids),
+                        ("status_in_payment", "=", value),
+                    ]
+                )
+                .ids
+            )
+            self.assertEqual(
+                found,
+                expected.get(value, set()),
+                f"SQL and Python disagree on status_in_payment == {value!r}",
+            )
+
+        self.assertFalse(
+            set(expected) - set(selection),
+            "the compute produced a value outside the field's selection",
+        )
