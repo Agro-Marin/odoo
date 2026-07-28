@@ -5,7 +5,14 @@
 
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import {
+    isPlainObject,
+    readJSONStorage,
+    writeJSONStorage,
+} from "@web/core/browser/storage_json";
 import { registry } from "@web/core/registry";
+
+const STORAGE_KEY = "web.emoji.frequent";
 /**
  * @typedef {Object} FrequentEmojiState
  * @property {Record<string, number>} all - map of codepoints to usage counts
@@ -16,18 +23,18 @@ import { registry } from "@web/core/registry";
  */
 
 /**
- * Parse the stored frequent-emoji map defensively. ``JSON.parse("null")``
- * returns ``null`` (which passes a bare try/catch), and any non-object value
- * then throws in ``Object.entries`` on every render via ``computeRecentEmojis``
- * — permanently bricking the emoji picker until localStorage is cleared by
- * hand. Accept ONLY a plain object; anything else degrades to ``{}``.
+ * Parse a ``storage`` event's raw ``newValue``, which arrives as a string and
+ * so cannot go through {@link readJSONStorage}. Same shape contract: anything
+ * that is not a plain object degrades to ``{}``, because a ``null`` or scalar
+ * reaches ``Object.entries`` on every render via ``computeRecentEmojis`` and
+ * permanently bricks the emoji picker.
  * @param {string | null} raw
  * @returns {Record<string, number>}
  */
 function parseFrequent(raw) {
     try {
         const value = JSON.parse(raw || "{}");
-        return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+        return isPlainObject(value) ? value : {};
     } catch {
         return {};
     }
@@ -36,20 +43,12 @@ function parseFrequent(raw) {
 export const frequentEmojiService = {
     /** @returns {FrequentEmojiState} */
     start() {
-        /** @type {(ev: StorageEvent) => void} */
-        const onStorage = (ev) => {
-            if (ev.key === "web.emoji.frequent") {
-                state.all = parseFrequent(ev.newValue);
-            } else if (ev.key === null) {
-                // `localStorage.clear()` in another tab.
-                state.all = {};
-            }
-        };
-        browser.addEventListener("storage", onStorage);
-
         const state = reactive({
             /** @type {Record<string, number>} */
-            all: parseFrequent(browser.localStorage.getItem("web.emoji.frequent")),
+            all: readJSONStorage(STORAGE_KEY, {
+                fallback: /** @type {Record<string, number>} */ ({}),
+                validate: isPlainObject,
+            }),
             /**
              * Increment usage count for the given emoji codepoints.
              * @param {string} codepoints - the emoji codepoints identifier
@@ -57,15 +56,7 @@ export const frequentEmojiService = {
             incrementEmojiUsage(codepoints) {
                 state.all[codepoints] ??= 0;
                 state.all[codepoints]++;
-                try {
-                    browser.localStorage.setItem(
-                        "web.emoji.frequent",
-                        JSON.stringify(state.all),
-                    );
-                } catch {
-                    // localStorage unavailable/full: usage tracking isn't
-                    // persisted; picking the emoji must still work.
-                }
+                writeJSONStorage(STORAGE_KEY, state.all);
             },
             /**
              * Return the most frequently used emoji codepoints, sorted by usage.
@@ -83,6 +74,18 @@ export const frequentEmojiService = {
                 browser.removeEventListener("storage", onStorage);
             },
         });
+
+        /** @type {(ev: StorageEvent) => void} */
+        const onStorage = (ev) => {
+            if (ev.key === STORAGE_KEY) {
+                state.all = parseFrequent(ev.newValue);
+            } else if (ev.key === null) {
+                // `localStorage.clear()` in another tab.
+                state.all = {};
+            }
+        };
+        browser.addEventListener("storage", onStorage);
+
         return state;
     },
 };
