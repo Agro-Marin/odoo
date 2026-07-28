@@ -153,8 +153,18 @@ class ResLang(models.Model):
 
     @api.depends("code", "flag_image")
     def _compute_field_flag_image_url(self) -> None:
+        """Point at the uploaded flag if there is one, else at the country flag.
+
+        Existence is read under ``bin_size``. ``flag_image`` is an
+        attachment-backed Image, so asking for it plainly fetches every
+        language's image and base64-encodes it to answer a yes/no — and
+        ``flag_image_url`` is in :attr:`CACHED_FIELDS`, so that ran on every cold
+        warm-up of the language cache. The ORM reads ``file_size`` instead, and
+        ``human_size`` maps 0 to ``False``, so truthiness is unchanged.
+        """
+        has_flag = set(self.with_context(bin_size=True).filtered("flag_image")._ids)
         for lang in self:
-            if lang.flag_image:
+            if lang.id in has_flag:
                 lang.flag_image_url = f"/web/image/res.lang/{lang.id}/flag_image"
             elif not lang.code:
                 lang.flag_image_url = False

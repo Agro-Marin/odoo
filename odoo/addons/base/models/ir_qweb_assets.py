@@ -1080,6 +1080,52 @@ class IrQweb(models.AbstractModel):
                         esbuild_result = EsbuildResult("", None, None)
         return esbuild_result, child_bundles
 
+    def _get_dynamic_parent_bundles(
+        self,
+        bundle: str,
+        assets_params: dict[str, Any] | None,
+    ) -> tuple[str, ...]:
+        """Every bundle name whose ``dynamic_children`` apply when rendering *bundle*.
+
+        ``esm.dynamic_children`` is declared against a bundle NAME, but bundles
+        compose: ``("include", "other.bundle")`` folds another bundle's
+        declarations into this one, and the composed bundle is what a page
+        actually renders. ``web.assets_frontend_lazy`` is exactly that — it is
+        ``web.assets_frontend`` plus a few removals, and it is the bundle
+        frontend pages render with JS (``web.assets_frontend`` itself is called
+        with ``t-js="false"``, for its stylesheet only).
+
+        Resolving children by name alone therefore silently dropped every child
+        declared against an *included* bundle. Since only the first ESM bundle's
+        import map is honoured per document (see
+        :meth:`_dedup_request_import_map`) and dynamic children are served
+        per-file, a dropped child means its specifiers are absent from the one
+        map the page gets, and the ``import()`` after ``loadBundle`` dies with
+        "Failed to resolve module specifier". Two shipped features were dead
+        this way on every frontend page: ``web_tour``'s lazy bundles (so no tour
+        could start on a portal or website page) and ``portal.assets_chatter``.
+
+        Following the include graph makes the declaration mean what its authors
+        write — "this bundle family can lazily load X" — instead of "X is
+        reachable only from the one composition that happens to share this
+        name".
+
+        Order is the walk order of the contributing bundles, so the resulting
+        child list (and the esbuild input derived from it) stays deterministic.
+        ``_get_asset_paths`` is ormcached under the ``assets`` cache and has
+        already been called for this bundle by the enclosing render, so this is
+        a cache hit rather than a second filesystem walk.
+
+        :return: *bundle* first, then each bundle that contributed files to it
+        """
+        contributors = dict.fromkeys((bundle,))
+        for asset in self.env["ir.asset"]._get_asset_paths(
+            bundle=bundle,
+            assets_params=assets_params or self.env["ir.asset"]._get_asset_params(),
+        ):
+            contributors.setdefault(asset.bundle)
+        return tuple(contributors)
+
     def _get_dynamic_child_bundles(
         self,
         bundle: str,
@@ -1089,12 +1135,21 @@ class IrQweb(models.AbstractModel):
     ) -> list[AssetsBundle]:
         """Construct the ``AssetsBundle`` of every dynamic child of *bundle*.
 
+        Children are collected across *bundle* and every bundle it includes —
+        see :meth:`_get_dynamic_parent_bundles` for why the bundle name alone is
+        not enough. A child declared under several contributors is built once.
+
         Debug renders build every child per-file (``debug_assets=True``);
         production builds only the truly dynamic children (runtime
         ``loadBundle`` targets) that way, so their import map exposes
         individually loadable URLs.
         """
         registry = esm_registry()
+        child_names = dict.fromkeys(
+            child_name
+            for parent_name in self._get_dynamic_parent_bundles(bundle, assets_params)
+            for child_name in registry.dynamic_children.get(parent_name, ())
+        )
         return [
             self._get_asset_bundle(
                 child_name,
@@ -1104,7 +1159,7 @@ class IrQweb(models.AbstractModel):
                 or child_name in registry.dynamic_bundle_names,
                 assets_params=assets_params,
             )
-            for child_name in registry.dynamic_children.get(bundle, ())
+            for child_name in child_names
         ]
 
     @staticmethod
@@ -1669,9 +1724,19 @@ class IrQweb(models.AbstractModel):
             )
 
         if not debug_assets:
+            # Hoot test modules are reached only through ``loadAndStart``, which
+            # imports the subset the page's ``&id=`` filter can select and
+            # preloads that subset itself. Preloading them here would fetch the
+            # whole bundle before the filter is even read.
+            reachable_without_hoot = {
+                url
+                for spec, url in native_data["import_map"].items()
+                if not self._is_hoot_test_specifier(spec)
+            }
             pre_nodes.extend(
                 ("link", {"rel": "modulepreload", "href": url})
                 for url in native_data["preload_urls"]
+                if url in reachable_without_hoot
             )
 
         bridge_specifiers = sorted(
@@ -1708,13 +1773,39 @@ class IrQweb(models.AbstractModel):
                         f"import({json_mod.dumps(s)})" for s in non_hoot_specs
                     )
                     bridge_code += f"await Promise.allSettled([{imports}]);\n"
-            else:
+            elif bundle in esm_registry().secondary_bundle_names:
                 tour_specs = [s for s in non_hoot_specs if "/tours/" in s]
                 if tour_specs:
                     bridge_code += (
                         "\n".join(f"import {json_mod.dumps(s)};" for s in tour_specs)
                         + "\n"
                     )
+            else:
+                # A bundle the page composes alongside an earlier one without
+                # declaring the relationship (e.g. `web.assets_frontend_minimal`
+                # after `web.assets_frontend_lazy`). Only the FIRST bundle emits
+                # the page's single import map, so this one's bare specifiers are
+                # unresolvable -- importing them would throw and its modules
+                # would never run. Import by resolved URL instead, which needs no
+                # map entry, and register the namespaces so bare-specifier
+                # consumers still get the same singletons.
+                own_specs = [
+                    s for s in non_hoot_specs if s in native_data["import_map"]
+                ]
+                if own_specs:
+                    import_lines = []
+                    register_entries = []
+                    for i, specifier in enumerate(own_specs):
+                        var = f"__s{i}"
+                        url = native_data["import_map"][specifier]
+                        import_lines.append(
+                            f"import * as {var} from {json_mod.dumps(url)};"
+                        )
+                        register_entries.append(f"  {json_mod.dumps(specifier)}: {var}")
+                    bridge_code += "\n".join(import_lines) + "\n"
+                    bridge_code += "odoo.loader.registerNativeModules({\n"
+                    bridge_code += ",\n".join(register_entries)
+                    bridge_code += "\n});\n"
 
             start_hoot = [s for s in hoot_specs if s.endswith("/start.hoot")]
             other_tests = [s for s in hoot_specs if s not in start_hoot]
@@ -1792,8 +1883,15 @@ class IrQweb(models.AbstractModel):
         doesn't invalidate the browser cache.
 
         Superseded rows are NOT deleted here — deletion is deferred to
-        ``IrAttachment._gc_esm_assets`` after a grace window; this method only
-        triggers the assets-cache clear that version propagation requires.
+        ``IrAttachment._gc_esm_assets`` after a grace window.
+
+        Nor is the assets cache cleared here. Saving a new artifact is a
+        *consequence* of the sources having changed, not a cause, and clearing
+        on it discarded the entries this very request had just computed —
+        costing a second full recompute on the next render. Invalidation now
+        comes from the causes themselves: ``ir.asset`` writes, ``res.company``
+        changes and attachment ``unlink`` already clear the cache, and a
+        changed file on disk is reported by the ``--dev=assets`` watcher.
         """
         IrAttachment = self.env["ir.attachment"]
         content_bytes = content.encode("utf-8")
@@ -1853,7 +1951,6 @@ class IrQweb(models.AbstractModel):
             ]
         )
         if stale_count:
-            self.env.registry.clear_cache("assets")
             log_event(
                 _attach_log,
                 logging.INFO,

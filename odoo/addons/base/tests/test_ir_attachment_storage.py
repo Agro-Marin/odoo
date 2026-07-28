@@ -7,6 +7,7 @@ of backend value fragments with the live model. See the C1 plan
 
 import base64
 import contextlib
+import io
 from unittest.mock import patch
 
 import psycopg.errors
@@ -43,7 +44,10 @@ class TestIrAttachmentStorage(TransactionCase):
         """Read-side backend follows the store key's URI scheme."""
         plain = self.Attachment._backend_for_key("ab/abcdef0123")
         self.assertIsInstance(plain, FileStorage)
-        self.addCleanup(ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, "weird")
+        self.addCleanup(
+            ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard,
+            (self.env.cr.dbname, "weird"),
+        )
         with mute_logger("odoo.addons.base.models.ir_attachment_storage"):
             unknown = self.Attachment._backend_for_key("weird://bucket/key")
         self.assertIsInstance(unknown, FileStorage)
@@ -66,8 +70,9 @@ class TestIrAttachmentStorage(TransactionCase):
         filestore with a distinct warning, once per scheme, so the read
         failure is blamed on the missing backend, not the filestore.
         """
+        dbname = self.env.cr.dbname
         self.addCleanup(
-            ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, "ghost-s3"
+            ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, (dbname, "ghost-s3")
         )
         with self.assertLogs(
             "odoo.addons.base.models.ir_attachment_storage", level="WARNING"
@@ -82,6 +87,64 @@ class TestIrAttachmentStorage(TransactionCase):
             again = self.Attachment._backend_for_key("ghost-s3://bucket/other")
         self.assertIsInstance(again, FileStorage)
         warn.assert_not_called()
+
+    def test_unknown_scheme_warns_per_database(self):
+        """The once-only guard is per database, not per worker process.
+
+        One worker serves many databases and a backend module is installed per
+        database, so silencing every other database's warning off the first hit
+        withheld the explanation from exactly the operators who needed it.
+        """
+        dbname = self.env.cr.dbname
+        other = f"{dbname}__other"
+        for key in ((dbname, "twin-s3"), (other, "twin-s3")):
+            self.addCleanup(ir_attachment_storage._UNKNOWN_SCHEMES_WARNED.discard, key)
+
+        with self.assertLogs(
+            "odoo.addons.base.models.ir_attachment_storage", level="WARNING"
+        ):
+            self.Attachment._backend_for_key("twin-s3://bucket/key")
+
+        with (
+            patch.object(self.env.cr, "dbname", other),
+            self.assertLogs(
+                "odoo.addons.base.models.ir_attachment_storage", level="WARNING"
+            ) as cm,
+        ):
+            self.Attachment._backend_for_key("twin-s3://bucket/key")
+        self.assertEqual(len(cm.records), 1, "a second database must be told too")
+
+    def test_register_storage_rejects_a_contested_location(self):
+        """Two backends claiming one location must fail loudly, not race.
+
+        The loser's rows keep a key scheme nothing resolves once the winner --
+        decided by module load order -- has taken the name.
+        """
+
+        class FirstStorage(AttachmentStorage):
+            location = "contested"
+            key_scheme = "first"
+
+        class SecondStorage(AttachmentStorage):
+            location = "contested"
+            key_scheme = "second"
+
+        register_storage(FirstStorage)
+        try:
+            with self.assertRaises(ValueError):
+                register_storage(SecondStorage)
+            self.assertIs(STORAGE_BACKENDS["contested"], FirstStorage)
+            # re-registering the same class stays a no-op (module reload)
+            self.assertIs(register_storage(FirstStorage), FirstStorage)
+        finally:
+            STORAGE_BACKENDS.pop("contested", None)
+
+        class NamelessStorage(AttachmentStorage):
+            key_scheme = "nameless"
+
+        with self.assertRaises(ValueError):
+            register_storage(NamelessStorage)
+        self.assertNotIn("", STORAGE_BACKENDS)
 
     def test_stream_key_dispatch(self):
         """_to_http_stream routes keyed content to the key's owning backend."""
@@ -260,6 +323,51 @@ class TestMemoryStorageCRUD(TransactionCase):
             old_key = copy.store_fname
             copy.unlink()
             self.assertNotIn(old_key, MemoryStorage.blobs)
+
+    def test_streamed_upload_lifecycle(self):
+        """The streaming upload path must work on a backend that cannot stream.
+
+        ``_create_from_stream`` is the one writer that creates the row before it
+        has any content, then hands the payload to ``backend.write_stream`` and
+        writes the derived columns back. ``FileStorage`` overrides that method,
+        so the base implementation -- buffer, hash, delegate to ``write`` -- was
+        only ever exercised through ``DbStorage``, which owns no store key. A
+        keyed backend inheriting it goes down a path nothing covered: the key
+        comes back from ``write``, but ``checksum``/``file_size`` come from
+        ``write_stream``, and the index read has to go through the backend
+        rather than the filestore.
+        """
+        payload = b"streamed-into-a-custom-backend-" * 40
+        text = b"hello indexable streamed content " * 30
+        with activate_memory_storage(self.env):
+            Attachment = self.env["ir.attachment"]
+
+            att = Attachment._create_from_stream(
+                io.BytesIO(payload), name="s.bin", mimetype="application/octet-stream"
+            )
+            self.assertTrue(att.store_fname.startswith("mem://"))
+            self.assertEqual(att.file_size, len(payload))
+            self.assertEqual(att.checksum, Attachment._content_checksum(payload))
+            att.invalidate_recordset()
+            self.assertEqual(att.raw, payload)
+            self.assertEqual(att._read_prefix(16), payload[:16])
+            self.assertEqual(att._to_http_stream().size, len(payload))
+
+            indexed = Attachment._create_from_stream(
+                io.BytesIO(text), name="s.txt", mimetype="text/plain"
+            )
+            self.assertTrue(
+                indexed.index_content,
+                "the index read must reach the backend, not the filestore",
+            )
+
+            empty = Attachment._create_from_stream(
+                io.BytesIO(b""), name="e.bin", mimetype="application/octet-stream"
+            )
+            self.assertFalse(
+                empty.store_fname, "empty content is never keyed externally"
+            )
+            self.assertEqual(empty.file_size, 0)
 
     def test_force_storage_migrates_into_memory(self):
         payload = b"fs-to-mem-payload"

@@ -314,7 +314,7 @@ class ThreadedServer(CommonServer):
                 lambda sig: self.signal_handler(sig, None), 1
             )
 
-        if config["test_enable"] or (config["http_enable"] and not stop):
+        if config["http_enable"] and (config["test_enable"] or not stop):
             self.http_spawn()
 
     def stop(self) -> None:

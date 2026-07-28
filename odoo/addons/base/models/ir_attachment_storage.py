@@ -13,12 +13,26 @@ _logger = logging.getLogger(__name__)
 
 STORAGE_BACKENDS: dict[str, type[AttachmentStorage]] = {}
 
-_UNKNOWN_SCHEMES_WARNED: set[str] = set()
+_UNKNOWN_SCHEMES_WARNED: set[tuple[str, str]] = set()
 
 
 def register_storage(cls: type[AttachmentStorage]) -> type[AttachmentStorage]:
-    """Class decorator registering *cls* under its ``location`` name."""
-    assert cls.location, "storage backend must define a location name"
+    """Class decorator registering *cls* under its ``location`` name.
+
+    :raise ValueError: if *cls* defines no location, or if another backend
+        already claims it. Overwriting silently would leave the rows the first
+        backend wrote unreadable whenever the two key schemes differ, and the
+        winner would depend on module load order.
+    """
+    if not cls.location:
+        msg = f"{cls.__name__} must define a location name to be registered"
+        raise ValueError(msg)
+    if (current := STORAGE_BACKENDS.get(cls.location)) not in (None, cls):
+        msg = (
+            f"storage location {cls.location!r} is already registered by "
+            f"{current.__name__}; {cls.__name__} cannot claim it too"
+        )
+        raise ValueError(msg)
     STORAGE_BACKENDS[cls.location] = cls
     return cls
 
@@ -31,14 +45,20 @@ def backend_for_key(env: Environment, key: str) -> AttachmentStorage:
     ``s3://`` rows left after uninstalling the backend) also falls back to the
     filestore, but warns once per scheme so the inevitable read failure is
     blamed on the missing backend, not the filestore.
+
+    "Once" is per database, not per process: one worker serves many databases,
+    and whether a backend module is installed is a per-database fact. Keyed on
+    the scheme alone, the first database to hit a missing backend silenced the
+    warning for every other database in the worker -- so the operators who most
+    needed the explanation were the ones who never saw it.
     """
     if "://" in key:
         for backend_cls in STORAGE_BACKENDS.values():
             if backend_cls.owns_key(key):
                 return backend_cls(env)
         scheme = key.split("://", 1)[0]
-        if scheme not in _UNKNOWN_SCHEMES_WARNED:
-            _UNKNOWN_SCHEMES_WARNED.add(scheme)
+        if (seen_key := (env.cr.dbname, scheme)) not in _UNKNOWN_SCHEMES_WARNED:
+            _UNKNOWN_SCHEMES_WARNED.add(seen_key)
             _logger.warning(
                 "No storage backend registered for scheme %r (key %r); "
                 "falling back to the local filestore. Subsequent read "
@@ -200,8 +220,7 @@ class FileStorage(AttachmentStorage):
             return {
                 "checksum": checksum,
                 "file_size": 0,
-                "store_fname": False,
-                "db_datas": b"",
+                **self._inline_datas_values(b""),
             }
         return {
             "checksum": checksum,

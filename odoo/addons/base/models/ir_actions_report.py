@@ -181,15 +181,24 @@ class _WeasyWarningCapture:
     broken rule, which is the difference between "PDF rendering failed" and a
     fixable template diagnosis. The logger level is lowered to WARNING for the
     duration; refcounted so overlapping captures (threaded dev server) restore
-    the original level only when the outermost capture exits. Captured messages
+    the original state only when the outermost capture exits. Captured messages
     can cross-talk between concurrent renders — acceptable, they only enrich
     error messages and debug logs.
+
+    Propagation is disabled for the same duration, so ``sink`` is the only
+    destination. Lowering the level alone would defeat the ERROR silencing it
+    is nested inside: the records would still reach the ancestor handlers and
+    flood the log with the very per-declaration warnings that setup suppressed
+    (a single Bootstrap-derived report stylesheet emits several hundred). Their
+    intended visibility is ``sink`` — surfaced on the ``UserError`` when a
+    render fails, and summarised at DEBUG otherwise.
     """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._depth = 0
         self._saved_level = logging.NOTSET
+        self._saved_propagate = True
 
     @contextmanager
     def capture(self, sink: list[str]):
@@ -199,7 +208,9 @@ class _WeasyWarningCapture:
             self._depth += 1
             if self._depth == 1:
                 self._saved_level = logger.level
+                self._saved_propagate = logger.propagate
                 logger.setLevel(logging.WARNING)
+                logger.propagate = False
             logger.addHandler(handler)
         try:
             yield
@@ -209,6 +220,7 @@ class _WeasyWarningCapture:
                 self._depth -= 1
                 if self._depth == 0:
                     logger.setLevel(self._saved_level)
+                    logger.propagate = self._saved_propagate
 
 
 _weasy_warning_capture = _WeasyWarningCapture()

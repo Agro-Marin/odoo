@@ -10,8 +10,10 @@ See https://github.com/sass/embedded-protocol for the protocol specification.
 """
 
 import atexit
+import collections
 import contextlib
 import logging
+import re
 import shutil
 import subprocess
 import threading
@@ -31,6 +33,9 @@ from odoo.libs._vendor.embedded_sass_pb2 import (
 )
 
 _logger = logging.getLogger(__name__)
+
+_RX_DEPRECATION = re.compile(r"DEPRECATION WARNING \[([a-z-]+)\]")
+_RX_OMITTED = re.compile(r"(\d+) repetitive deprecation warnings omitted")
 
 _COMPILE_TIMEOUT_S = 120.0
 
@@ -368,6 +373,12 @@ class SassEmbeddedCompiler:
         """Execute a single compilation request/response cycle."""
         syntax_enum = {"scss": SCSS, "indented": INDENTED, "css": CSS}.get(syntax, SCSS)
         style_enum = COMPRESSED if style == "compressed" else EXPANDED
+        # Per-warning detail stays on DEBUG (a bundle emits over a thousand), but
+        # the tally is logged once so deprecations that will break on the next
+        # Dart Sass major are not invisible. ``quiet_deps`` cannot filter them:
+        # the pipeline concatenates every file into one root stylesheet, so Sass
+        # sees no dependencies.
+        deprecations: collections.Counter[str] = collections.Counter()
 
         request = InboundMessage()
         compile_req = request.compile_request
@@ -414,6 +425,16 @@ class SassEmbeddedCompiler:
                 resp = outbound.compile_response
                 result_type = resp.WhichOneof("result")
                 if result_type == "success":
+                    if deprecations:
+                        _logger.info(
+                            "Sass compiled %s with %s deprecation warning(s): %s",
+                            url or "<string>",
+                            sum(deprecations.values()),
+                            ", ".join(
+                                f"{name}={count}"
+                                for name, count in deprecations.most_common()
+                            ),
+                        )
                     return resp.success.css
                 elif result_type == "failure":
                     raise SassCompileError(
@@ -428,7 +449,14 @@ class SassEmbeddedCompiler:
                 if event.type == 2:
                     _logger.debug("Sass debug: %s", event.message)
                 else:
-                    _logger.debug("Sass warning: %s", event.formatted or event.message)
+                    text = event.formatted or event.message
+                    _logger.debug("Sass warning: %s", text)
+                    if category := _RX_DEPRECATION.search(text):
+                        deprecations[category.group(1)] += 1
+                    elif omitted := _RX_OMITTED.search(text):
+                        deprecations["(repeats omitted by sass)"] += int(
+                            omitted.group(1)
+                        )
 
             elif msg_type == "canonicalize_request":
                 req = outbound.canonicalize_request

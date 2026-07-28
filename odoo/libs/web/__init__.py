@@ -3,6 +3,6 @@
 Pure Python web helpers with no Odoo dependencies.
 """
 
-from . import urls
+from . import import_map, urls
 
-__all__ = ["urls"]
+__all__ = ["import_map", "urls"]
