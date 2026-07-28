@@ -130,18 +130,19 @@ export class ExportDataDialog extends Component {
 
         this.state = useState({
             exportList: [],
+            // Reactive, not a plain instance field: it is the `value` of a
+            // CONTROLLED CheckBox, whose contract (see `CheckBox.toggle`) is
+            // that the owner re-renders when the value changes. As a plain
+            // field it never did, so the CheckBox re-asserted its stale
+            // `props.value` onto the DOM and the next click toggled BACK to
+            // the value the user had just left.
+            isCompatible: false,
             isEditingTemplate: false,
             search: [],
             selectedFormat: 0,
             templateId: null,
             isSmall: this.env.isSmall,
             disabled: false,
-            // Reactive because it drives a CONTROLLED CheckBox and the field
-            // tree's t-key. As a plain instance field it moved without owl
-            // seeing it, so the box's `value` prop never changed: the checkbox
-            // reconciled itself back to the stale prop and the toggle undid
-            // itself while the (slow) field fetch was still in flight.
-            isCompatible: false,
         });
 
         this.newTemplateText = _t("New template");
@@ -267,20 +268,22 @@ export class ExportDataDialog extends Component {
      * Load fields to display and (re)set the list of available fields
      */
     async fetchFields() {
-        // Build the replacement set aside, then publish it in one assignment.
-        // `knownFields` feeds `rootFields`, and a render CAN flush during the
-        // await below — `state.isCompatible` is reactive, so toggling the
-        // import-compatible box schedules one immediately. Clearing up front
-        // therefore rendered the tree against an empty map, blanking the panel
-        // for a frame, and left it blank for good whenever nothing else
-        // happened to re-render afterwards. Keeping the previous fields
-        // visible until the new ones arrive is also the better behaviour.
-        const nextKnownFields = {};
-        await this.fetchFieldsKeepLast.add(
-            this.loadFields(undefined, false, nextKnownFields),
-        );
-        this.knownFields = nextKnownFields;
-        this.expandedFields = {};
+        // Build the replacement set BEFORE dropping the one on screen. Clearing
+        // up front only looked harmless while `isCompatible` was a non-reactive
+        // field: nothing re-rendered between the clear and the response. Now
+        // that toggling it re-renders immediately (as a controlled CheckBox
+        // requires), an emptied `knownFields` paints an EMPTY field tree for
+        // the whole round trip.
+        const isCompatible = this.state.isCompatible;
+        const pending = { knownFields: {}, expandedFields: {} };
+        await this.fetchFieldsKeepLast.add(this.loadFields(undefined, false, pending));
+        if (isCompatible !== this.state.isCompatible) {
+            // Superseded mid-flight: `KeepLast` normally strands this call, but
+            // never commit a half-built set on the strength of that alone.
+            return;
+        }
+        this.knownFields = pending.knownFields;
+        this.expandedFields = pending.expandedFields;
         await this.setDefaultExportList();
         this.state.search = [];
         if (this.searchRef.el) {
@@ -328,13 +331,13 @@ export class ExportDataDialog extends Component {
      * Fetch exportable (sub-)fields from the server and cache them.
      * @param {string} [id] - parent field path to expand; omit for root fields
      * @param {boolean} [preventLoad=false] - if true, return cached data only (no RPC)
-     * @param {Object} [target] - map the fetched fields are merged into;
-     *  defaults to the live ``knownFields``. ``fetchFields`` passes a fresh one
-     *  so a full reload can swap the whole set in atomically.
+     * @param {{ knownFields: Object, expandedFields: Object }} [target] - where to
+     *   accumulate the loaded fields. Defaults to the live maps; {@link fetchFields}
+     *   passes a staging pair so the displayed tree survives the round trip.
      * @returns {Promise<Array<Object> | undefined>}
      */
-    async loadFields(id, preventLoad = false, target = null) {
-        const knownFields = target ?? this.knownFields;
+    async loadFields(id, preventLoad = false, target) {
+        const knownFields = target?.knownFields ?? this.knownFields;
         let parentField, parentParams;
         if (id) {
             if (this.expandedFields[id]) {
@@ -364,7 +367,7 @@ export class ExportDataDialog extends Component {
             }
         }
         if (id) {
-            this.expandedFields[id] = { fields };
+            (target?.expandedFields ?? this.expandedFields)[id] = { fields };
         }
         return fields;
     }
