@@ -75,12 +75,18 @@ test("reportJsError: same message on a different line/col is a distinct beacon",
     expect(calls).toHaveLength(3);
 });
 
-test("reportJsError: kind is normalized to error | unhandledrejection", async () => {
+test("reportJsError: kind passes through for every kind the server accepts", async () => {
     const { calls } = spyBeacon();
     reportJsError({ message: "beacon-kind-rej", kind: "unhandledrejection" });
+    reportJsError({ message: "beacon-kind-svc", kind: "service_start" });
+    reportJsError({ message: "beacon-kind-rebind", kind: "module_rebind" });
     reportJsError({ message: "beacon-kind-bogus", kind: /** @type {any} */ ("weird") });
     expect((await payloadOf(calls[0].blob)).kind).toBe("unhandledrejection");
-    expect((await payloadOf(calls[1].blob)).kind).toBe("error");
+    expect((await payloadOf(calls[1].blob)).kind).toBe("service_start");
+    expect((await payloadOf(calls[2].blob)).kind).toBe("module_rebind");
+    // The fallback still guards typos — widening the set must not make it a
+    // pass-through, or a misspelled kind becomes a category of its own.
+    expect((await payloadOf(calls[3].blob)).kind).toBe("error");
 });
 
 test("reportJsError: line/col are coerced to integers, filename defaults to ''", async () => {
@@ -131,4 +137,94 @@ test("reportJsError: never throws and returns false when sendBeacon is unavailab
 test("reportJsError: a sendBeacon that rejects the payload returns false", () => {
     mockSendBeacon(() => false);
     expect(reportJsError({ message: "beacon-quota" })).toBe(false);
+});
+
+test("reportJsError: the cause chain is serialized into the payload", async () => {
+    const { calls } = spyBeacon();
+    const inner = new TypeError("x is undefined");
+    const outer = new Error("owl lifecycle", { cause: inner });
+    reportJsError({ message: "beacon-cause", cause: outer.cause });
+    const payload = await payloadOf(calls[0].blob);
+    expect(payload.cause).toBe("Caused by: TypeError: x is undefined");
+});
+
+test("reportJsError: a multi-level cause chain keeps every level in order", async () => {
+    const { calls } = spyBeacon();
+    const root = new RangeError("root");
+    const mid = new Error("mid", { cause: root });
+    reportJsError({ message: "beacon-cause-chain", cause: mid });
+    const payload = await payloadOf(calls[0].blob);
+    expect(payload.cause).toBe("Caused by: Error: mid\nCaused by: RangeError: root");
+});
+
+test("reportJsError: a cause chain deeper than the cap stops at the cap", async () => {
+    const { calls } = spyBeacon();
+    let deepest = new Error("level-0");
+    for (let i = 1; i < 20; i++) {
+        deepest = new Error(`level-${i}`, { cause: deepest });
+    }
+    reportJsError({ message: "beacon-cause-deep", cause: deepest });
+    const payload = await payloadOf(calls[0].blob);
+    // 8 levels max — without the cap a long chain would crowd out the fields
+    // that identify where the failure happened.
+    expect(payload.cause.split("\n")).toHaveLength(8);
+});
+
+test("reportJsError: a cyclic cause chain terminates instead of spinning", async () => {
+    const { calls } = spyBeacon();
+    const a = new Error("a");
+    const b = new Error("b", { cause: a });
+    /** @type {any} */ (a).cause = b;
+    expect(() => reportJsError({ message: "beacon-cause-cycle", cause: b })).not.toThrow();
+    const payload = await payloadOf(calls[0].blob);
+    expect(payload.cause).toInclude("[circular]");
+});
+
+test("reportJsError: non-Error causes are serialized without throwing", async () => {
+    const { calls } = spyBeacon();
+    reportJsError({ message: "beacon-cause-str", cause: "just a string" });
+    reportJsError({ message: "beacon-cause-obj", cause: { code: 500 } });
+    reportJsError({ message: "beacon-cause-num", cause: 42 });
+    expect((await payloadOf(calls[0].blob)).cause).toBe("Caused by: just a string");
+    expect((await payloadOf(calls[1].blob)).cause).toBe('Caused by: {"code":500}');
+    expect((await payloadOf(calls[2].blob)).cause).toBe("Caused by: 42");
+});
+
+test("reportJsError: an unserializable cause degrades to a placeholder", async () => {
+    const { calls } = spyBeacon();
+    // BigInt has no JSON representation, so JSON.stringify throws here.
+    reportJsError({ message: "beacon-cause-bigint", cause: { n: 1n } });
+    const payload = await payloadOf(calls[0].blob);
+    expect(payload.cause).toBe("Caused by: [unserializable]");
+});
+
+test("reportJsError: no cause yields an empty field, not a missing one", async () => {
+    const { calls } = spyBeacon();
+    reportJsError({ message: "beacon-cause-none" });
+    const payload = await payloadOf(calls[0].blob);
+    expect(payload.cause).toBe("");
+});
+
+test("reportJsError: the cause chain is capped at 4096 chars", async () => {
+    const { calls } = spyBeacon();
+    reportJsError({ message: "beacon-cause-cap", cause: "c".repeat(5000) });
+    expect((await payloadOf(calls[0].blob)).cause).toHaveLength(4096);
+});
+
+test("reportJsError: same message and position but a different stack is distinct", () => {
+    const { calls } = spyBeacon();
+    // The regression this guards: OWL reports every lifecycle failure with one
+    // generic message at 0:0, so these two used to collapse into one beacon.
+    const message = "An error occured in the owl lifecycle";
+    expect(reportJsError({ message, stack: "at ComponentA (a.js:1:1)" })).toBe(true);
+    expect(reportJsError({ message, stack: "at ComponentB (b.js:2:2)" })).toBe(true);
+    expect(calls).toHaveLength(2);
+});
+
+test("reportJsError: an exact repeat including the stack is still throttled", () => {
+    const { calls } = spyBeacon();
+    const info = { message: "beacon-dup-stack", stack: "at same (same.js:1:1)" };
+    expect(reportJsError({ ...info })).toBe(true);
+    expect(reportJsError({ ...info })).toBe(false);
+    expect(calls).toHaveLength(1);
 });
