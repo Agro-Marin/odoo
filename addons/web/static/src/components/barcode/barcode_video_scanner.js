@@ -61,8 +61,11 @@ export class BarcodeVideoScanner extends Component {
         this.zoomRatio = 1;
         this.scanPaused = false;
         this.consecutiveDetectErrors = 0;
+        this.zoomTrack = null;
         this.state = useState({
             isReady: false,
+            /** @type {{min: number, max: number, step: number, value: number} | null} */
+            zoom: null,
         });
 
         onWillStart(async () => {
@@ -243,23 +246,39 @@ export class BarcodeVideoScanner extends Component {
         return newObject;
     }
 
+    /**
+     * Publishes the track's zoom capability as state so the slider is rendered
+     * by the template. It used to be an `<input>` built by hand and appended
+     * into the CropOverlay's DOM: OWL never owned it, so it survived unmount
+     * (accumulating one slider per scanner session) and its listener was never
+     * removed.
+     *
+     * @param {MediaStreamTrack} track
+     * @param {MediaTrackSettings} settings
+     */
     addZoomSlider(track, settings) {
-        const zoom = track.getCapabilities().zoom;
-        if (zoom?.min !== undefined && zoom?.max !== undefined) {
-            const inputElement = document.createElement("input");
-            inputElement.type = "range";
-            inputElement.min = zoom.min;
-            inputElement.max = zoom.max;
-            inputElement.step = zoom.step || 1;
-            inputElement.value = settings.zoom;
-            inputElement.classList.add("align-self-end", "m-5", "z-1");
-            inputElement.addEventListener("input", async (event) => {
-                await track?.applyConstraints({
-                    advanced: [{ zoom: inputElement.value }],
-                });
-            });
-            this.videoPreviewRef.el.parentElement.appendChild(inputElement);
+        const zoom = track.getCapabilities?.().zoom;
+        if (zoom?.min === undefined || zoom?.max === undefined) {
+            return;
         }
+        this.zoomTrack = track;
+        this.state.zoom = {
+            min: zoom.min,
+            max: zoom.max,
+            step: zoom.step || 1,
+            value: settings.zoom ?? zoom.min,
+        };
+    }
+
+    /**
+     * @param {Event} ev
+     */
+    onZoomInput(ev) {
+        // `MediaTrackConstraints.zoom` is a ConstrainDouble: an
+        // `HTMLInputElement.value` string is silently rejected by the UA.
+        const value = Number(/** @type {HTMLInputElement} */ (ev.target).value);
+        this.state.zoom.value = value;
+        this.zoomTrack?.applyConstraints({ advanced: [{ zoom: value }] });
     }
 }
 

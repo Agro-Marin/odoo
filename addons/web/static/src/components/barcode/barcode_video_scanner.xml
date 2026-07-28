@@ -3,6 +3,9 @@
     <t t-name="web.BarcodeVideoScanner">
         <CropOverlay onResize.bind="this.onResize" isReady="state.isReady">
             <video t-ref="videoPreview" muted="true" autoplay="true" playsinline="true" t-att-class="props.cssClass"/>
+            <input t-if="state.zoom" type="range" class="align-self-end m-5 z-1"
+                   t-att-min="state.zoom.min" t-att-max="state.zoom.max" t-att-step="state.zoom.step"
+                   t-att-value="state.zoom.value" t-on-input="onZoomInput"/>
         </CropOverlay>
     </t>
 </templates>

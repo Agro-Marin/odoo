@@ -396,7 +396,14 @@ export function useColorPicker(refName, props, options = {}) {
     const popoverOptions = {
         ...options,
         onClose: () => {
-            onCloseCallback();
+            const callback = onCloseCallback;
+            // Scoped to ONE picker session. Only the custom tab registers a
+            // callback, so a session that never mounts it would otherwise
+            // replay the previous session's commit against a destroyed
+            // component -- currently inert only because `onApplyCallback`
+            // happens to clear that instance's flag first.
+            onCloseCallback = () => {};
+            callback();
             userOnClose?.();
         },
     };

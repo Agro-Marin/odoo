@@ -155,17 +155,22 @@ export class Notebook extends Component {
      * @param {string} pageIndex - page ID to activate
      */
     async activatePage(pageIndex) {
+        // An id that matches no page would otherwise become `currentPage`,
+        // leaving the notebook with no active tab and no rendered pane.
+        const exists = this.pages.some(([id]) => id === pageIndex);
         if (
-            !this.disabledPages.includes(pageIndex) &&
-            this.state.currentPage !== pageIndex
+            !exists ||
+            this.disabledPages.includes(pageIndex) ||
+            this.state.currentPage === pageIndex
         ) {
-            const prom = (async () => this.props.onWillActivatePage(pageIndex))();
-            const canProceed = await /** @type {KeepLast} */ (
-                this.keepLastPageTransition
-            ).add(prom);
-            if (canProceed !== false) {
-                this.state.currentPage = pageIndex;
-            }
+            return;
+        }
+        const prom = (async () => this.props.onWillActivatePage(pageIndex))();
+        const canProceed = await /** @type {KeepLast} */ (
+            this.keepLastPageTransition
+        ).add(prom);
+        if (canProceed !== false) {
+            this.state.currentPage = pageIndex;
         }
     }
 
@@ -175,10 +180,13 @@ export class Notebook extends Component {
      * @returns {Array<[string, Object]>} ordered [id, descriptor] pairs
      */
     computePages(props) {
+        // Initialised before the early return: `activatePage` reads it
+        // unconditionally, so a notebook with neither slots nor pages used to
+        // leave it undefined and throw on the first programmatic activation.
+        this.disabledPages = [];
         if (!props.slots && !props.pages) {
             return [];
         }
-        this.disabledPages = [];
         /** @type {[string, any][]} */
         const pages = [];
         /** @type {[string, any][]} */

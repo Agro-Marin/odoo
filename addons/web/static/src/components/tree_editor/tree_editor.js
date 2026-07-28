@@ -181,11 +181,14 @@ export class TreeEditor extends Component {
      * @param {Tree} [node] - sibling to insert after; appends if omitted
      */
     _addNewCondition(parent, node) {
-        if (node) {
-            const index = parent.children.indexOf(node);
-            parent.children.splice(index + 1, 0, this.makeCondition(parent, node));
+        const index = node ? parent.children.indexOf(node) : -1;
+        if (index === -1) {
+            // No sibling given, or one that is not (or no longer) a child of
+            // `parent`: append. Splicing at `indexOf(...) + 1` would silently
+            // insert at position 0 for a stale node.
+            parent.children.push(this.makeCondition(parent, node));
         } else {
-            parent.children.push(this.makeCondition(parent));
+            parent.children.splice(index + 1, 0, this.makeCondition(parent, node));
         }
     }
 
@@ -205,11 +208,14 @@ export class TreeEditor extends Component {
     _addNewConnector(parent, node) {
         const index = parent.children.indexOf(node);
         const nextConnector = parent.value === "&" ? "|" : "&";
-        parent.children.splice(
-            index + 1,
-            0,
-            connector(nextConnector, [this.makeCondition(parent, node)]),
-        );
+        const newConnector = connector(nextConnector, [
+            this.makeCondition(parent, node),
+        ]);
+        if (index === -1) {
+            parent.children.push(newConnector);
+        } else {
+            parent.children.splice(index + 1, 0, newConnector);
+        }
     }
 
     /**
@@ -231,6 +237,11 @@ export class TreeEditor extends Component {
         }
         const parent = ancestors.at(-1);
         const index = parent.children.indexOf(node);
+        if (index === -1) {
+            // `splice(-1, 1)` would drop the LAST child instead of the one
+            // asked for. Nothing to remove is the only safe reading here.
+            return;
+        }
         parent.children.splice(index, 1);
         ancestors = ancestors.slice(0, -1);
         if (!parent.children.length) {
