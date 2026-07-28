@@ -690,6 +690,7 @@ class Registry(
             self._foreign_keys: dict[
                 tuple[str, str], tuple[str, str, str, BaseModel, str]
             ] = {}
+            self._relation_reflections: OrderedSet[tuple[str, str, str]] = OrderedSet()
             self._is_install: bool = install
 
             for model in models:
@@ -701,6 +702,7 @@ class Registry(
             env["ir.model.fields.selection"]._reflect_selections(model_names)
             env["ir.model.constraint"]._reflect_constraints(model_names)
             env["ir.model.inherit"]._reflect_inherits(model_names)
+            env["ir.model.relation"]._reflect_relations(self._relation_reflections)
 
             self._ordinary_tables = {}
 
@@ -718,6 +720,7 @@ class Registry(
         finally:
             del self._post_init_queue
             del self._foreign_keys
+            del self._relation_reflections
             del self._is_install
 
     def _clear_cache_group(self, cache_name: str) -> None:
