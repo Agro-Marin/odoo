@@ -9,6 +9,7 @@ import {
     deepClone,
 } from "@web/core/template_inheritance";
 import { makeAssetLog } from "@web/core/utils/asset_log";
+import { globalSingleton } from "@web/core/utils/global_singleton";
 
 const log = makeAssetLog("templates");
 
@@ -475,9 +476,7 @@ export class TemplateRegistry {
  *
  * @type {TemplateRegistry}
  */
-export const templates =
-    /** @type {any} */ (globalThis).__odooTemplates__ ??
-    /** @type {any} */ (globalThis.__odooTemplates__ = new TemplateRegistry());
+export const templates = globalSingleton("templates", () => new TemplateRegistry());
 
 /**
  * @param {string} name

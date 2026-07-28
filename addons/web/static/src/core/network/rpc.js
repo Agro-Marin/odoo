@@ -9,6 +9,7 @@ import { RpcEvent } from "@web/core/events";
 import { buildKey } from "@web/core/network/rpc_dedup";
 import { rpcLog } from "@web/core/utils/asset_log";
 import { isObject, omit } from "@web/core/utils/collections/objects";
+import { globalSingleton } from "@web/core/utils/global_singleton";
 
 /** @import { RPCCache } from "@web/core/network/rpc_cache" */
 
@@ -88,18 +89,15 @@ import { isObject, omit } from "@web/core/utils/collections/objects";
  * @typedef {Promise<T> & { abort: (rejectError?: boolean) => void }} RpcPromise
  */
 
-const _RPC_STATE_KEY = "__odoo_rpc_state__";
 /** @type {{ rpcBus: EventBus, inflightDedup: Map<string, Promise<any>>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean, rpcId: number, dedupCallbackSeq: number }} */
-const _rpcState = /** @type {any} */ (
-    globalThis[_RPC_STATE_KEY] ??= {
-        rpcBus: new EventBus(),
-        inflightDedup: new Map(),
-        rpcCache: undefined,
-        busListenersAttached: false,
-        rpcId: 0,
-        dedupCallbackSeq: 0,
-    }
-);
+const _rpcState = globalSingleton("rpc", () => ({
+    rpcBus: new EventBus(),
+    inflightDedup: new Map(),
+    rpcCache: undefined,
+    busListenersAttached: false,
+    rpcId: 0,
+    dedupCallbackSeq: 0,
+}));
 
 export const rpcBus = _rpcState.rpcBus;
 

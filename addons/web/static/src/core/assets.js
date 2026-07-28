@@ -15,6 +15,7 @@ import {
 } from "./module_bridge.js";
 import { registry } from "./registry.js";
 import { makeAssetLog } from "./utils/asset_log.js";
+import { globalSingleton } from "./utils/global_singleton.js";
 
 const log = makeAssetLog("js");
 
@@ -27,15 +28,13 @@ const log = makeAssetLog("js");
  * }} BundleFileNames
  */
 
-const __odoo_assets_state__ = /** @type {any} */ (
-    globalThis.__odoo_assets_state__ ??= {
-        globalBundleCache: new Map(),
-        assetCacheByDocument: new WeakMap(),
-        crossDocESMBundleCache: new WeakMap(),
-        injectedImportMapKeys: new Set(),
-        crossDocLoadSeq: 0,
-    }
-);
+const __odoo_assets_state__ = globalSingleton("assets", () => ({
+    globalBundleCache: new Map(),
+    assetCacheByDocument: new WeakMap(),
+    crossDocESMBundleCache: new WeakMap(),
+    injectedImportMapKeys: new Set(),
+    crossDocLoadSeq: 0,
+}));
 
 export const globalBundleCache = __odoo_assets_state__.globalBundleCache;
 export const assetCacheByDocument = __odoo_assets_state__.assetCacheByDocument;

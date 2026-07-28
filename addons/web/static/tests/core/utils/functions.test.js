@@ -51,7 +51,11 @@ test("uniqueId", () => {
 });
 
 test("uniqueId counter is anchored on globalThis (cross-bundle)", () => {
-    const state = /** @type {any} */ (globalThis).__odoo_uid_state__;
+    // Reached through the shared `globalSingleton` namespace rather than a
+    // bespoke `__odoo_uid_state__` global. What the test pins is the INVARIANT
+    // — one counter per page, surviving a duplicated module evaluation — not
+    // the particular property name it happens to live under.
+    const state = /** @type {any} */ (globalThis).__odoo_singletons__?.uniqueId;
     expect(state).not.toBe(undefined);
     const before = state.nextId;
     const id = uniqueId("anchor_");

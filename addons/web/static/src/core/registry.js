@@ -6,6 +6,7 @@
 import { EventBus, onWillDestroy, useState, validate } from "@odoo/owl";
 import { reportJsError } from "@web/core/errors/error_beacon";
 import { makeAssetLog } from "@web/core/utils/asset_log";
+import { globalSingleton } from "@web/core/utils/global_singleton";
 
 const log = makeAssetLog("registry");
 
@@ -331,7 +332,7 @@ export class Registry extends EventBus {
 
 /** @type {Registry<import("registries").GlobalRegistry>} */
 export const registry = /** @type {any} */ (
-    globalThis.__odooRegistry__ ??= new Registry()
+    globalSingleton("registry", () => new Registry())
 );
 
 /**
