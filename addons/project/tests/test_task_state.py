@@ -185,8 +185,10 @@ class TestTaskState(TestProjectCommon):
         self.task_2_copy = self.task_2.copy()
         self.assertEqual(
             self.task_2_copy.state,
-            "in_progress",
-            "The task_2_copy should go back to in_progress",
+            "todo",
+            "A copy is a new task: it must start where a freshly created task "
+            "starts (the 'todo' default) rather than inheriting a review "
+            "verdict or landing on a different state than create() gives.",
         )
 
         self.task_2.write(
@@ -239,8 +241,9 @@ class TestTaskState(TestProjectCommon):
         )
         self.assertEqual(
             task_1_copy.state,
-            "in_progress",
-            "The task_1_copy should have a state of 'in progress'.",
+            "todo",
+            "A copy must not inherit the original's 'approved' verdict, and "
+            "starts on the same default as any newly created task.",
         )
 
     def test_duplicate_task_state_retention_with_open_dependencies(

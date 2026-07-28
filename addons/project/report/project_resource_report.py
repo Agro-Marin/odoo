@@ -18,6 +18,7 @@ class ProjectResourceReport(models.Model):
 
     user_id = fields.Many2one("res.users", string="User", readonly=True)
     project_id = fields.Many2one("project.project", string="Project", readonly=True)
+    company_id = fields.Many2one("res.company", string="Company", readonly=True)
     allocated_hours = fields.Float(
         "Allocated Hours",
         readonly=True,
@@ -37,9 +38,10 @@ class ProjectResourceReport(models.Model):
         "Overallocated",
         readonly=True,
         help=(
-            "True when the user's busiest single week exceeds 40 allocated "
-            "hours across all active projects (reservations are bucketed by "
-            "ISO week on their start date)."
+            "True when the user's busiest single week exceeds their working "
+            "calendar's weekly capacity across all active projects "
+            "(reservations are bucketed by ISO week on their start date). "
+            "Falls back to 40h for a resource with no calendar."
         ),
     )
 
@@ -60,11 +62,14 @@ class ProjectResourceReport(models.Model):
                     SELECT
                         res.user_id,
                         t.project_id,
+                        t.company_id,
                         t.id AS task_id,
                         rr.allocated_hours,
+                        COALESCE(cal.hours_per_week, 40) AS weekly_capacity,
                         DATE_TRUNC('week', rr.date_start) AS week_start
                     FROM resource_reservation rr
                     JOIN resource_resource res ON res.id = rr.resource_id
+                    LEFT JOIN resource_calendar cal ON cal.id = res.calendar_id
                     JOIN project_task t
                          ON t.id = rr.res_id
                         AND rr.res_model = 'project.task'
@@ -78,17 +83,22 @@ class ProjectResourceReport(models.Model):
                     SELECT
                         user_id,
                         project_id,
+                        company_id,
                         SUM(allocated_hours) AS allocated_hours,
                         COUNT(DISTINCT task_id) AS task_count
                     FROM reservations
-                    GROUP BY user_id, project_id
+                    GROUP BY user_id, project_id, company_id
                 ),
                 -- Peak weekly load per user: sum hours within each ISO week
                 -- (by reservation start date), then take the busiest week.
                 user_peak AS (
-                    SELECT user_id, MAX(week_hours) AS peak_week_hours
+                    SELECT user_id,
+                           MAX(week_hours) AS peak_week_hours,
+                           MAX(weekly_capacity) AS weekly_capacity
                     FROM (
-                        SELECT user_id, week_start, SUM(allocated_hours) AS week_hours
+                        SELECT user_id, week_start,
+                               SUM(allocated_hours) AS week_hours,
+                               MAX(weekly_capacity) AS weekly_capacity
                         FROM reservations
                         WHERE week_start IS NOT NULL
                         GROUP BY user_id, week_start
@@ -104,10 +114,12 @@ class ProjectResourceReport(models.Model):
                     ROW_NUMBER() OVER (ORDER BY up.user_id, up.project_id) AS id,
                     up.user_id,
                     up.project_id,
+                    up.company_id,
                     up.allocated_hours,
                     up.task_count,
                     ut.project_count,
-                    COALESCE(pk.peak_week_hours, 0) > 40 AS is_overallocated
+                    COALESCE(pk.peak_week_hours, 0)
+                        > COALESCE(pk.weekly_capacity, 40) AS is_overallocated
                 FROM user_project up
                 JOIN user_totals ut ON ut.user_id = up.user_id
                 LEFT JOIN user_peak pk ON pk.user_id = up.user_id

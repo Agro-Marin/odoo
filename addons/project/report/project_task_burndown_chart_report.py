@@ -24,12 +24,13 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
     date_last_status_change = fields.Date(string="Last Status Change", readonly=True)
     state = fields.Selection(
         [
+            ("todo", "To Do"),
             ("in_progress", "In Progress"),
-            ("done", "Done"),
-            ("waiting", "Waiting"),
-            ("approved", "Approved"),
-            ("canceled", "Canceled"),
             ("changes_requested", "Changes Requested"),
+            ("approved", "Approved"),
+            ("done", "Done"),
+            ("canceled", "Cancelled"),
+            ("blocked", "Waiting"),
         ],
         string="State",
         readonly=True,
@@ -140,7 +141,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                         %(date_begin)s as date_begin,
                         %(date_end)s as date_end,
                         step_id,
-                        is_closed
+                        date_closed
                    FROM (
                             SELECT DISTINCT task_id,
                                    planned_hours,
@@ -148,7 +149,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                                    %(date_begin)s as date_begin,
                                    %(date_end)s as date_end,
                                    first_value(step_id) OVER task_date_begin_window AS step_id,
-                                   is_closed
+                                   date_closed
                               FROM (
                                      SELECT pt.id as task_id,
                                             pt.planned_hours,
@@ -160,12 +161,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                                             CASE WHEN mtv.id IS NOT NULL THEN mtv.old_value_integer
                                                ELSE pt.step_id
                                             END as step_id,
-                                            CASE
-                                                WHEN mtv.id IS NOT NULL AND mtv.old_value_char IN ('done', 'canceled') THEN 'closed'
-                                                WHEN mtv.id IS NOT NULL AND mtv.old_value_char NOT IN ('done', 'canceled') THEN 'open'
-                                                WHEN mtv.id IS NULL AND pt.state IN ('done', 'canceled') THEN 'closed'
-                                                ELSE 'open'
-                                            END as is_closed
+                                            pt.date_closed
                                        FROM project_task pt
                                                 LEFT JOIN (
                                                     mail_message mm
@@ -183,7 +179,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                                    %(date_begin)s,
                                    %(date_end)s,
                                    step_id,
-                                   is_closed
+                                   date_closed
                             WINDOW task_date_begin_window AS (PARTITION BY task_id, %(date_begin)s)
                           UNION ALL
                             SELECT pt.id as task_id,
@@ -192,9 +188,7 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                                    last_step_id_change_mail_message.date as date_begin,
                                    (now() at time zone 'utc')::date + INTERVAL '%(interval)s' as date_end,
                                    pt.step_id as old_value_integer,
-                                   CASE WHEN pt.state IN ('done', 'canceled') THEN 'closed'
-                                       ELSE 'open'
-                                   END as is_closed
+                                   pt.date_closed
                               FROM project_task pt
                                    JOIN LATERAL (
                                        SELECT mm.date
@@ -214,13 +208,16 @@ class ProjectTaskBurndownChartReport(models.AbstractModel):
                         %(date_begin)s,
                         %(date_end)s,
                         step_id,
-                        is_closed
+                        date_closed
               )
               SELECT (project_id*10^13 + step_id*10^7 + to_char(date, 'YYMMDD')::integer)::bigint as id,
                      planned_hours,
                      project_id,
                      step_id,
-                     is_closed,
+                     CASE WHEN date_closed IS NOT NULL
+                           AND date_closed < date + INTERVAL '%(interval)s'
+                          THEN 'closed' ELSE 'open'
+                     END as is_closed,
                      date,
                      __count
                 FROM all_step_task_moves t

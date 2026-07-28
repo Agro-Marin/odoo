@@ -1,4 +1,4 @@
-import { describe, expect, test } from "@odoo/hoot";
+import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { click, queryAll } from "@odoo/hoot-dom";
 import {
     defineModels,
@@ -65,11 +65,20 @@ defineModels([ProjectTaskBurndownChartReport]);
 
 describe.current.tags("desktop");
 
-mockService("notification", () => ({
-    add() {
-        expect.step("notification");
-    },
-}));
+// In `beforeEach`, not at module scope: `mockService` mutates the global
+// service registry, and at import time that happens outside any per-test
+// snapshot -- so the mock stayed installed for EVERY test in the bundle, and
+// every notification any other addon raised was recorded as a stray
+// `expect.step("notification")` in whatever test was running. It took
+// `@documents/log_access` down (2 tests) as soon as `project` shared a HOOT run
+// with `documents`.
+beforeEach(() =>
+    mockService("notification", () => ({
+        add() {
+            expect.step("notification");
+        },
+    })),
+);
 
 const mountViewParams = {
     resModel: "project.task.burndown.chart.report",

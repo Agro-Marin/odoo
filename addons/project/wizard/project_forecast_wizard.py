@@ -19,6 +19,11 @@ class ProjectForecastWizard(models.TransientModel):
     _name = "project.forecast.wizard"
     _description = "Monte Carlo Forecast"
 
+    # Bounds a single simulated run. Reached only when the sampled throughput
+    # is too slow to clear the backlog; runs that hit it are reported, never
+    # silently folded into the percentiles.
+    SIMULATION_WEEK_CAP = 200
+
     project_id = fields.Many2one(
         "project.project",
         string="Project",
@@ -78,6 +83,7 @@ class ProjectForecastWizard(models.TransientModel):
 
         # Run simulation
         results = []
+        truncated = 0
         for _i in range(sim_count):
             weeks = 0
             remaining = self.remaining_items
@@ -86,7 +92,8 @@ class ProjectForecastWizard(models.TransientModel):
                 weekly_tp = random.choice(throughput)
                 remaining -= max(weekly_tp, 0)
                 weeks += 1
-                if weeks > 200:  # Safety cap
+                if weeks >= self.SIMULATION_WEEK_CAP:
+                    truncated += 1
                     break
             results.append(weeks)
 
@@ -96,20 +103,63 @@ class ProjectForecastWizard(models.TransientModel):
         self.p85_weeks = results[int(n * 0.85)]
         self.p95_weeks = results[int(n * 0.95)]
 
-        self.result_text = (
-            f"Based on {len(throughput)} weeks of throughput data "
-            f"({sim_count} simulations):\n\n"
-            f"  50% chance of finishing in {self.p50_weeks:.0f} weeks or less\n"
-            f"  85% chance of finishing in {self.p85_weeks:.0f} weeks or less\n"
-            f"  95% chance of finishing in {self.p95_weeks:.0f} weeks or less\n\n"
-            f"Remaining items: {self.remaining_items}\n"
-            f"Historical throughput: {min(throughput)}-{max(throughput)} tasks/week "
-            f"(avg {sum(throughput) / len(throughput):.1f})"
-        )
+        avg_tp = sum(throughput) / len(throughput)
+        lines = [
+            self.env._(
+                "Based on %(weeks)s weeks of throughput data (%(sims)s simulations):",
+                weeks=len(throughput),
+                sims=sim_count,
+            ),
+            "",
+            self.env._(
+                "  50%% chance of finishing in %(p)s weeks or less",
+                p=f"{self.p50_weeks:.0f}",
+            ),
+            self.env._(
+                "  85%% chance of finishing in %(p)s weeks or less",
+                p=f"{self.p85_weeks:.0f}",
+            ),
+            self.env._(
+                "  95%% chance of finishing in %(p)s weeks or less",
+                p=f"{self.p95_weeks:.0f}",
+            ),
+            "",
+            self.env._("Remaining items: %(n)s", n=self.remaining_items),
+            self.env._(
+                "Historical throughput: %(lo)s-%(hi)s tasks/week (avg %(avg)s), "
+                "including %(zeros)s week(s) with no delivery",
+                lo=min(throughput),
+                hi=max(throughput),
+                avg=f"{avg_tp:.1f}",
+                zeros=sum(1 for t in throughput if not t),
+            ),
+        ]
+        # Never let a truncated run masquerade as a finished estimate.
+        if truncated:
+            lines += [
+                "",
+                self.env._(
+                    "WARNING: %(pct)s%% of simulations had not finished after "
+                    "%(cap)s weeks and were cut short — the percentiles above "
+                    "are optimistic lower bounds.",
+                    pct=f"{100 * truncated / sim_count:.0f}",
+                    cap=self.SIMULATION_WEEK_CAP,
+                ),
+            ]
+        self.result_text = "\n".join(lines)
         return self._reopen_wizard()
 
     def _get_weekly_throughput(self) -> list[int]:
-        """Fetch tasks-closed-per-week for the last N weeks.
+        """Fetch tasks-closed-per-week for the last N weeks, zeros included.
+
+        Every week in the window is a sample, including the ones where nothing
+        shipped. A plain ``GROUP BY`` emits no row for an empty week, which
+        silently deleted those zeros from the distribution and biased the
+        forecast optimistic by the exact factor the feature exists to remove:
+        a project delivering in 2 of 12 weeks sampled ``[2, 2]`` and forecast
+        10 weeks for 20 items instead of 60 — with P50, P85 and P95 collapsing
+        onto one value, because a sample with no variance cannot express any.
+        ``generate_series`` supplies the missing weeks.
 
         Throughput buckets by ``date_closed`` (the actual completion timestamp),
         not ``date_end`` (the renamed deadline) — forecasting from deadlines
@@ -118,6 +168,12 @@ class ProjectForecastWizard(models.TransientModel):
         column's storage): ``INTERVAL %(param)s`` is not valid SQL (the interval
         text must be a literal, not a bind placeholder) and a bare ``NOW()``
         would be evaluated in the session timezone against a UTC column.
+
+        Weeks before the project existed are excluded: they are not evidence
+        of slow delivery, and padding with them would bias the forecast
+        pessimistic just as dropping the real zeros biased it optimistic. The
+        floor is the *earlier* of the project's creation and its first recorded
+        closure, so backdated or imported history is never silently discarded.
         """
         # Raw SQL bypasses record rules, and project_id is user-settable on this
         # transient — gate on ORM read access so a user can't read the throughput
@@ -127,23 +183,45 @@ class ProjectForecastWizard(models.TransientModel):
         self.env.cr.execute(
             SQL(
                 """
-            SELECT
-                DATE_TRUNC('week', date_closed) AS week,
-                COUNT(*) AS closed_count
-            FROM project_task
-            WHERE project_id = %(project_id)s
-              AND state = 'done'
-              AND date_closed >= %(since)s
-              AND date_closed IS NOT NULL
-              AND is_template IS NOT TRUE
-            GROUP BY DATE_TRUNC('week', date_closed)
-            ORDER BY week
+            WITH closed AS (
+                    SELECT DATE_TRUNC('week', date_closed) AS week_start,
+                           COUNT(*) AS closed_count
+                      FROM project_task
+                     WHERE project_id = %(project_id)s
+                       AND state = 'done'
+                       AND date_closed >= %(since)s
+                       AND is_template IS NOT TRUE
+                     GROUP BY DATE_TRUNC('week', date_closed)
+            ),
+            bounds AS (
+                    SELECT GREATEST(
+                               DATE_TRUNC('week', %(since)s::timestamp),
+                               LEAST(
+                                   DATE_TRUNC('week', %(project_start)s::timestamp),
+                                   COALESCE(
+                                       (SELECT MIN(week_start) FROM closed),
+                                       DATE_TRUNC('week', %(project_start)s::timestamp)
+                                   )
+                               )
+                           ) AS series_start
+            )
+            SELECT COALESCE(closed.closed_count, 0) AS closed_count
+              FROM bounds,
+                   generate_series(
+                       bounds.series_start,
+                       DATE_TRUNC('week', %(now)s::timestamp),
+                       INTERVAL '1 week'
+                   ) AS w(week_start)
+              LEFT JOIN closed ON closed.week_start = w.week_start
+             ORDER BY w.week_start
             """,
                 project_id=self.project_id.id,
                 since=since,
+                now=self.env.cr.now(),
+                project_start=self.project_id.create_date or since,
             )
         )
-        return [row[1] for row in self.env.cr.fetchall()]
+        return [row[0] for row in self.env.cr.fetchall()]
 
     def _reopen_wizard(self) -> dict:
         """Return action to keep the wizard open after running."""

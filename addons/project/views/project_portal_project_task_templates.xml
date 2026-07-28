@@ -10,7 +10,7 @@
     <template id="portal_my_tasks_state_widget_template" name="Status Widget Template">
         <span
             t-att-title="dict(task.fields_get(allfields=['state'])['state']['selection'])[task.state]"
-            t-attf-class="#{'fa' if task.state in ['done','canceled','waiting'] else 'o_status rounded-circle' } #{'fa-check-circle text-success' if task.state == 'done' else 'fa-times-circle text-danger' if task.state == 'canceled' else 'bg-warning' if task.state == 'changes_requested' else 'bg-success' if task.state == 'approved' else 'fa-hourglass-o' if task.state == 'waiting' else ''}"
+            t-attf-class="#{'fa' if task.state in ['done','canceled','blocked'] else 'o_status rounded-circle' } #{'fa-check-circle text-success' if task.state == 'done' else 'fa-times-circle text-danger' if task.state == 'canceled' else 'bg-warning' if task.state == 'changes_requested' else 'bg-success' if task.state == 'approved' else 'fa-hourglass-o' if task.state == 'blocked' else ''}"
         />
     </template>
     <template id="portal_my_tasks_badge_widget_template" name="badge Widget Template">

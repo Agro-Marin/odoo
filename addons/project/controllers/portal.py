@@ -121,8 +121,10 @@ class ProjectCustomerPortal(CustomerPortal):
         domain = self._prepare_project_domain()
 
         searchbar_sortings = self._prepare_searchbar_sortings()
-        if not sortby:
-            sortby = "name"
+        # Clamp to the declared vocabulary: `sortby` comes straight off the
+        # query string, and indexing it unchecked answered `?sortby=anything-else`
+        # with a KeyError (HTTP 500).
+        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, "name")
         order = searchbar_sortings[sortby]["order"]
 
         if date_begin and date_end:
@@ -311,6 +313,11 @@ class ProjectCustomerPortal(CustomerPortal):
         task_sudo = Task.search(
             [("project_id", "=", project_id), ("id", "=", task_id)], limit=1
         ).sudo()
+        if not task_sudo:
+            # An id that does not resolve under this project — missing, or
+            # filtered out by the record rules — used to render the task page
+            # against an empty recordset, i.e. a blank task rather than a 404.
+            return request.redirect("/my")
         task_sudo.attachment_ids.generate_access_token()
         values = self._task_get_page_view_values(
             task_sudo, access_token, project=project_sudo, **kw
@@ -733,13 +740,22 @@ class ProjectCustomerPortal(CustomerPortal):
             )
         )
 
-        # default sort by value
-        if not sortby or (sortby == "milestone_id" and not milestones_allowed):
-            sortby = next(iter(searchbar_sortings))
+        # Default sort/group by value. `_resolve_searchbar_option` also clamps an
+        # unknown key from the query string, which used to be a KeyError (HTTP
+        # 500) in the template's Sort By / Group By buttons. The explicit
+        # milestone_id case stays: that key *is* in the vocabulary, it is just
+        # not usable on a project without milestones.
+        if sortby == "milestone_id" and not milestones_allowed:
+            sortby = None
+        sortby = self._resolve_searchbar_option(
+            searchbar_sortings, sortby, next(iter(searchbar_sortings))
+        )
 
-        # default group by value
-        if not groupby or (groupby == "milestone_id" and not milestones_allowed):
-            groupby = "project_id"
+        if groupby == "milestone_id" and not milestones_allowed:
+            groupby = None
+        groupby = self._resolve_searchbar_option(
+            searchbar_groupby, groupby, "project_id"
+        )
 
         if date_begin and date_end:
             domain &= Domain("create_date", ">", date_begin) & Domain(
@@ -1078,7 +1094,7 @@ class ProjectCustomerPortal(CustomerPortal):
                 status=400,
             )
 
-        attachment = IrAttachment.create(values)
+        attachment = IrAttachment.with_context(image_no_postprocess=True).create(values)
         return request.make_response(
             data=json.dumps(
                 attachment.read(

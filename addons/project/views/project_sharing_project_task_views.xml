@@ -35,7 +35,7 @@
                 <field name="state"/>
                 <field name="allow_milestones" />
                 <field name="has_late_and_unreached_milestone"/>
-                <progressbar field="state" colors='{"done": "success-done", "canceled": "danger", "approved": "success", "changes_requested": "warning", "waiting": "info", "in_progress": "200"}'/>
+                <progressbar field="state" colors='{"done": "success-done", "canceled": "danger", "approved": "success", "changes_requested": "warning", "blocked": "info", "todo": "muted", "in_progress": "200"}'/>
                 <templates>
                 <t t-name="menu" t-if="!selection_mode">
                     <div role="separator" class="dropdown-divider"></div>

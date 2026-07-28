@@ -11,7 +11,6 @@ from typing import Any
 from odoo import _, api, fields, models
 from odoo.api import ValuesType
 from odoo.exceptions import UserError
-from odoo.fields import Command
 
 
 class ProjectWorkflowStep(models.Model):
@@ -137,37 +136,21 @@ class ProjectWorkflowStep(models.Model):
         required=True,
     )
 
-    @staticmethod
-    def _vals_assign_projects(vals: dict) -> bool:
+    def _vals_assign_projects(self, vals: dict) -> bool:
         """Whether ``vals`` actually assigns at least one project.
 
-        A non-empty command list that resolves to *no* project — e.g.
-        ``[(6, 0, [])]`` or ``[(5,)]`` — is falsy for our purposes: it must not
-        be mistaken for a project assignment (which would wrongly wipe
-        ``user_id`` and leave a step that is neither a project nor a personal
-        stage).
+        A non-empty value that resolves to *no* project — e.g. ``[(6, 0, [])]``
+        or ``[(5,)]`` — is falsy for our purposes: it must not be mistaken for a
+        project assignment (which would wrongly wipe ``user_id`` and leave a step
+        that is neither a project nor a personal stage).
+
+        Resolution is delegated to the ORM rather than re-implemented, so every
+        form ``project_ids`` legitimately accepts (command list, bare id list,
+        recordset) is honoured.
         """
-        commands = vals.get("project_ids")
-        if not commands:
+        if not vals.get("project_ids"):
             return False
-        resolved: set = set()
-        for command in commands:
-            # Bare ids (Odoo shorthand for a SET command).
-            if isinstance(command, int):
-                resolved.add(command)
-                continue
-            code = command[0]
-            if code == Command.CREATE:
-                resolved.add(command)  # a brand-new project will exist
-            elif code == Command.LINK:
-                resolved.add(command[1])
-            elif code == Command.SET:
-                resolved = set(command[2])
-            elif code == Command.CLEAR:
-                resolved = set()
-            elif code == Command.UNLINK:
-                resolved.discard(command[1])
-        return bool(resolved)
+        return bool(self.new(vals).project_ids)
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> ProjectWorkflowStep:

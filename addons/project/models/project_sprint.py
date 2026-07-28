@@ -92,6 +92,27 @@ class ProjectSprint(models.Model):
         compute="_compute_task_metrics",
         export_string_translation=False,
     )
+    # Recorded when the sprint closes: the unfinished work is detached from the
+    # sprint at that moment, so without this its commitment is unrecoverable.
+    carried_over_count = fields.Integer(
+        "Carried Over",
+        readonly=True,
+        copy=False,
+        help="Tasks still unfinished when this sprint closed, returned to the "
+        "backlog. Counted in the sprint's commitment, not in its velocity.",
+    )
+    carried_over_hours = fields.Float(
+        "Carried Over Hours",
+        readonly=True,
+        copy=False,
+        export_string_translation=False,
+    )
+    carried_over_story_points = fields.Float(
+        "Carried Over Story Points",
+        readonly=True,
+        copy=False,
+        export_string_translation=False,
+    )
 
     _sprint_date_check = models.Constraint(
         "check(date_end >= date_start)",
@@ -107,19 +128,35 @@ class ProjectSprint(models.Model):
         "task_ids.state",
         "task_ids.planned_hours",
         "task_ids.story_points",
+        "state",
+        "carried_over_count",
     )
     def _compute_task_metrics(self) -> None:
-        """Compute sprint metrics from task data."""
+        """Compute sprint metrics from task data.
+
+        Closing a sprint detaches whatever was not finished, so a closed
+        sprint's ``task_ids`` holds only the delivered work: computing
+        completion from it reported 100% for every closed sprint, however much
+        was carried over. The counts recorded at closure are added back, which
+        is what velocity and carry-over analysis need.
+        """
         for sprint in self:
             tasks = sprint.task_ids
             closed = tasks.filtered(lambda t: t.state in CLOSED_STATES)
-            sprint.task_count = len(tasks)
+            carried = sprint.carried_over_count
+            sprint.task_count = len(tasks) + carried
             sprint.completed_count = len(closed)
-            sprint.completion_pct = len(closed) / len(tasks) * 100 if tasks else 0.0
-            sprint.committed_hours = sum(tasks.mapped("planned_hours"))
+            sprint.completion_pct = (
+                len(closed) / sprint.task_count * 100 if sprint.task_count else 0.0
+            )
+            sprint.committed_hours = (
+                sum(tasks.mapped("planned_hours")) + sprint.carried_over_hours
+            )
             sprint.velocity = sum(closed.mapped("planned_hours"))
             # Story points — only if tasks have the field populated
-            sprint.story_points_committed = sum(tasks.mapped("story_points"))
+            sprint.story_points_committed = (
+                sum(tasks.mapped("story_points")) + sprint.carried_over_story_points
+            )
             sprint.story_points_completed = sum(closed.mapped("story_points"))
 
     def action_start(self) -> None:
@@ -143,9 +180,22 @@ class ProjectSprint(models.Model):
         self.state = "active"
 
     def action_close(self) -> None:
-        """Close this sprint and clear sprint_id on incomplete tasks."""
+        """Close the sprint, returning unfinished work to the backlog.
+
+        The unfinished tasks lose their ``sprint_id`` so they can be pulled
+        into the next sprint (it is a Many2one), which erased the record of
+        what this sprint had committed to. Their weight is recorded first so
+        the sprint keeps an honest denominator.
+        """
         self.ensure_one()
         incomplete = self.task_ids.filtered(lambda t: t.state not in CLOSED_STATES)
+        self.write(
+            {
+                "carried_over_count": len(incomplete),
+                "carried_over_hours": sum(incomplete.mapped("planned_hours")),
+                "carried_over_story_points": sum(incomplete.mapped("story_points")),
+                "state": "closed",
+            }
+        )
         if incomplete:
             incomplete.write({"sprint_id": False})
-        self.state = "closed"

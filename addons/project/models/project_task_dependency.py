@@ -94,35 +94,38 @@ class ProjectTaskDependency(models.Model):
     def _check_no_cycle(self) -> None:
         """Prevent circular dependencies via the typed dependency model.
 
-        Builds the predecessor→successor adjacency once (single query) and
-        traverses it in memory, instead of issuing one ``search`` per graph
-        node per dependency (a query storm on deep/wide graphs).
+        Walks the successor graph in Postgres with a recursive CTE, which
+        visits only the connected component of the edge being added. The
+        previous version read the whole ``project_task_dependency`` table into
+        Python on every create/write (~78ms at 125k rows, growing with
+        unrelated projects). Scoping that read by project is NOT a valid
+        shortcut: a dependency may cross projects, so a cycle can leave and
+        re-enter one.
         """
-        # depends_on_id -> [task_id, ...]: "tasks that depend on this one".
         # Raw read bypasses ORM auto-flush, so flush the endpoints first.
         self.flush_model(["task_id", "depends_on_id"])
-        self.env.cr.execute(
-            "SELECT depends_on_id, task_id FROM project_task_dependency"
-        )
-        downstream: dict[int, list[int]] = defaultdict(list)
-        for depends_on_id, task_id in self.env.cr.fetchall():
-            downstream[depends_on_id].append(task_id)
         for dep in self:
-            target = dep.depends_on_id.id
-            visited: set[int] = set()
-            stack = [dep.task_id.id]
-            while stack:
-                current = stack.pop()
-                if current == target:
-                    # Reached depends_on_id by following successors of task_id —
-                    # this dependency closes a cycle.
-                    raise ValidationError(
-                        _("Adding this dependency would create a circular reference.")
-                    )
-                if current in visited:
-                    continue
-                visited.add(current)
-                stack.extend(downstream.get(current, ()))
+            self.env.cr.execute(
+                """
+                WITH RECURSIVE reachable(id) AS (
+                        SELECT task_id
+                          FROM project_task_dependency
+                         WHERE depends_on_id = %(start)s
+                     UNION
+                        SELECT d.task_id
+                          FROM project_task_dependency d
+                          JOIN reachable r ON d.depends_on_id = r.id
+                )
+                SELECT 1 FROM reachable WHERE id = %(target)s LIMIT 1
+                """,
+                {"start": dep.task_id.id, "target": dep.depends_on_id.id},
+            )
+            if self.env.cr.fetchone():
+                # depends_on_id is reachable by following successors of
+                # task_id, so this dependency closes a cycle.
+                raise ValidationError(
+                    _("Adding this dependency would create a circular reference.")
+                )
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> ProjectTaskDependency:
@@ -147,7 +150,7 @@ class ProjectTaskDependency(models.Model):
                 if dep.task_id == old_task and dep.depends_on_id == old_pred:
                     continue
                 if old_pred in old_task.predecessor_ids:
-                    old_task.write(
+                    old_task.with_context(skip_dependency_sync=True).write(
                         {"predecessor_ids": [fields.Command.unlink(old_pred.id)]}
                     )
                 dep._sync_to_m2m()
@@ -156,7 +159,7 @@ class ProjectTaskDependency(models.Model):
     def unlink(self) -> bool:
         """Remove from M2M when typed dependency is deleted."""
         for dep in self:
-            dep.task_id.write(
+            dep.task_id.with_context(skip_dependency_sync=True).write(
                 {
                     "predecessor_ids": [fields.Command.unlink(dep.depends_on_id.id)],
                 }
@@ -176,4 +179,6 @@ class ProjectTaskDependency(models.Model):
             if dep.depends_on_id not in dep.task_id.predecessor_ids:
                 preds_by_task[dep.task_id] |= dep.depends_on_id
         for task, preds in preds_by_task.items():
-            task.write({"predecessor_ids": [fields.Command.link(p.id) for p in preds]})
+            task.with_context(skip_dependency_sync=True).write(
+                {"predecessor_ids": [fields.Command.link(p.id) for p in preds]}
+            )
