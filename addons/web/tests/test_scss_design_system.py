@@ -141,6 +141,47 @@ class TestScssDesignSystem(TransactionCase):
             failures, f"below WCAG AA ({WCAG_AA_TEXT}:1): {', '.join(failures)}"
         )
 
+    def test_check_input_boundary_is_perceivable_in_both_schemes(self):
+        """An unchecked box is identified by its boundary alone, so it needs 3:1.
+
+        SC 1.4.11 covers "visual information required to identify user interface
+        components", which a checkbox border is and a divider is not - but
+        Bootstrap points `$form-check-input-border` at `$border-color`, the
+        divider tone. Unchecked boxes sat at 1.48:1 in light and 1.26:1 in dark.
+
+        Measured against both surfaces a checkbox actually sits on: the page and
+        the view/card behind most forms. In dark the card is the *lighter* of the
+        two, so testing only the page background would be the looser check.
+        """
+        failures = []
+        for scheme, css in (("light", self.css), ("dark", self._compiled(DARK_BUNDLE))):
+            body = self._rule(".form-check-input", containing="border:", css=css)
+            border = re.search(
+                r"(?:^|;)border:\s*[^;}]*?\ssolid\s+(#[0-9a-fA-F]{3,6}|rgba?\([^)]*\))",
+                body,
+                re.IGNORECASE,
+            )
+            self.assertTrue(border, f"{scheme}: .form-check-input declares no border")
+            rgb, alpha = _parse_color(border.group(1))
+
+            for surface in ("--body-bg", "--card-bg"):
+                found = re.search(re.escape(surface) + r":\s*([^;}]+)", css)
+                self.assertTrue(found, f"{scheme}: {surface} is not defined")
+                value = found.group(1).strip()
+                # `white` and friends are keywords `_parse_color` does not take.
+                background = (
+                    [255, 255, 255] if value == "white" else _parse_color(value)[0]
+                )
+                ratio = _contrast_ratio(_composite(rgb, alpha, background), background)
+                if ratio < WCAG_NON_TEXT:
+                    failures.append(
+                        f"{scheme}: {border.group(1)} on {surface} "
+                        f"({value}) = {ratio:.2f}:1"
+                    )
+        self.assertFalse(
+            failures, f"below SC 1.4.11 ({WCAG_NON_TEXT}:1): {', '.join(failures)}"
+        )
+
     def test_opacity_vars_do_not_inherit(self):
         """`--bg-opacity` / `--text-opacity` must be registered non-inheriting.
 
