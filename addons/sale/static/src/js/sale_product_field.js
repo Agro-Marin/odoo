@@ -3,7 +3,6 @@ import {
     ProductLabelSectionAndNoteField,
     productLabelSectionAndNoteField,
 } from "@account/components/product_label_section_and_note_field/product_label_section_and_note_field";
-import { useEffect } from "@odoo/owl";
 import { serializeDateTime } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
@@ -74,33 +73,50 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
         this.dialog = useService("dialog");
         this.notification = useService("notification");
         this.orm = useService("orm");
-        this.isInternalUpdate = false;
-        this.wasCombo = false;
-        let isMounted = false;
-        useEffect(
-            (value) => {
-                if (!isMounted) {
-                    isMounted = true;
-                } else if (value && this.isInternalUpdate) {
-                    // we don't want to trigger product update when update comes from an external sources,
-                    // such as an onchange, or the product configuration dialog itself
-                    if (this.wasCombo) {
-                        // If the previously selected product was a combo, delete its selected combo
-                        // items before changing the product.
-                        this.props.record.update({
-                            selected_combo_items: JSON.stringify([]),
-                        });
-                    }
-                    if (this.relation === "product.template" || this.isCombo) {
-                        this._onProductTemplateUpdate();
-                    } else {
-                        this._onProductUpdate();
-                    }
-                }
-                this.isInternalUpdate = false;
-            },
-            () => [this.value && this.value.id],
-        );
+    }
+
+    /**
+     * Apply a user product selection together with everything it cascades
+     * into — the variant lookup, the resulting ``product_id`` write and its
+     * onchange — as one unit the model can wait on.
+     *
+     * The cascade used to hang off a ``useEffect`` on the product id, told
+     * apart from an onchange writing the same field by an ``isInternalUpdate``
+     * flag. That made its second half a render side effect: between the first
+     * onchange resolving and the effect running, the mutex was idle while the
+     * line still had no ``product_id``, ``name`` or ``product_uom_id``, and
+     * anything asking the model to settle in that window (the
+     * ``leaveEditMode`` behind "Add a product", a save, a reload) saw a line
+     * with empty required fields and acted on it — "Add a product" silently
+     * added nothing. Driving the cascade from the selection removes the flag
+     * and the window both.
+     *
+     * @param {() => Promise<unknown>} applySelection writes the selected value
+     * @returns {Promise<void>}
+     */
+    _selectProduct(applySelection) {
+        // Read before the write: the cascade branches on what the line held
+        // when the user picked, not on what the selection turned it into.
+        const wasCombo = this.isCombo;
+        const previousId = this.value && this.value.id;
+        return this.props.record.model.trackCompoundUpdate(async () => {
+            await applySelection();
+            if (!this.value || this.value.id === previousId) {
+                return;
+            }
+            if (wasCombo) {
+                // If the previously selected product was a combo, delete its selected combo
+                // items before changing the product.
+                await this.props.record.update({
+                    selected_combo_items: JSON.stringify([]),
+                });
+            }
+            if (this.relation === "product.template" || this.isCombo) {
+                await this._onProductTemplateUpdate();
+            } else {
+                await this._onProductUpdate();
+            }
+        });
     }
 
     get productName() {
@@ -194,11 +210,7 @@ export class SaleOrderLineProductField extends ProductLabelSectionAndNoteField {
             ...p,
             canOpen:
                 this.props.canOpen && (!this.props.readonly || this.isProductClickable),
-            update: (value) => {
-                this.isInternalUpdate = true;
-                this.wasCombo = this.isCombo;
-                return p.update(value);
-            },
+            update: (value) => this._selectProduct(() => p.update(value)),
             value,
         };
     }

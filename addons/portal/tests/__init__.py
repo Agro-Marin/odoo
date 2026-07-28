@@ -14,4 +14,3 @@ from . import test_portal_wizard
 from . import test_signature_form_js
 from . import test_token_validation
 from . import test_tours
-from . import test_zzfinal
