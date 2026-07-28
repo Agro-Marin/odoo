@@ -85,7 +85,7 @@ class TestLeastPackagesSearch(TransactionCase):
 class TestDistributeReservation(TransactionCase):
     """Pure, DB-free unit tests for the extracted reservation allocator.
 
-    `_distribute_reservation(candidates, quantity, available_quantity, digits)`
+    `_distribute_reservation(candidates, quantity, digits)`
     returns a list of `(handle, amount)` pairs. Candidates are
     `_ReservationCandidate(handle, on_hand, reserved, key)` in removal-strategy
     order; `handle`/`key` are opaque, so plain strings stand in for quants here.
@@ -99,31 +99,51 @@ class TestDistributeReservation(TransactionCase):
 
     def test_zero_quantity_is_noop(self):
         cands = [self._cand("a", 10, 0)]
-        self.assertEqual(_distribute_reservation(cands, 0, 10, self.DIGITS), [])
+        self.assertEqual(_distribute_reservation(cands, 0, self.DIGITS), [])
 
     def test_reserve_stops_at_quantity(self):
         # Two quants of 10 available; reserve 8 -> all from the first.
         cands = [self._cand("a", 10, 0), self._cand("b", 10, 0)]
-        res = _distribute_reservation(cands, 8, 20, self.DIGITS)
+        res = _distribute_reservation(cands, 8, self.DIGITS)
         self.assertEqual(res, [("a", 8)])
 
     def test_reserve_spans_multiple_candidates(self):
         cands = [self._cand("a", 5, 0), self._cand("b", 5, 0)]
-        res = _distribute_reservation(cands, 8, 10, self.DIGITS)
+        res = _distribute_reservation(cands, 8, self.DIGITS)
         self.assertEqual(res, [("a", 5), ("b", 3)])
 
     def test_reserve_skips_fully_reserved(self):
         # First quant has no slack; allocation moves to the second.
         cands = [self._cand("a", 5, 5), self._cand("b", 5, 0)]
-        res = _distribute_reservation(cands, 3, 5, self.DIGITS)
+        res = _distribute_reservation(cands, 3, self.DIGITS)
         self.assertEqual(res, [("b", 3)])
 
-    def test_reserve_entire_available_budget(self):
-        # Reserving exactly the whole available budget drains both quants and stops
-        # cleanly (the caller pre-caps quantity to available, so they hit zero together).
+    def test_reserve_exactly_all_available_slack(self):
+        # Reserving exactly the whole availability drains both quants and stops
+        # cleanly (the caller pre-caps quantity to available, so it lands on zero).
         cands = [self._cand("a", 4, 1), self._cand("b", 5, 0)]  # slack 3 + 5 = 8
-        res = _distribute_reservation(cands, 8, 8, self.DIGITS)
+        res = _distribute_reservation(cands, 8, self.DIGITS)
         self.assertEqual(res, [("a", 3), ("b", 5)])
+
+    def test_reserve_not_truncated_by_unrelated_negative_quant(self):
+        """A quant over-reserved into negative available must not shrink what the
+        *other* keys can reserve.
+
+        `_get_reserve_quantity` caps `quantity` to `_sum_available_quantity`, which
+        drops such a quant's key group rather than netting it against the rest: here
+        a(4) + b(8) = 12 is genuinely reservable even though c is 8 short. The
+        allocator used to also receive a `sum(positive on_hand) - sum(reserved)`
+        budget -- 13 - 9 = 4 -- and broke the loop the moment it hit zero, so `a`
+        was reserved and `b` was silently skipped.
+        """
+        cands = [
+            self._cand("a", 4, 0, key="ka"),
+            self._cand("b", 8, 0, key="kb"),
+            self._cand("c", 1, 9, key="kc"),
+        ]
+        res = _distribute_reservation(cands, 12, self.DIGITS)
+        self.assertEqual(res, [("a", 4), ("b", 8)])
+        self.assertEqual(sum(qty for _handle, qty in res), 12)
 
     def test_negative_available_absorbed_within_group(self):
         """A quant over-reserved into negative available must be absorbed by the
@@ -132,26 +152,26 @@ class TestDistributeReservation(TransactionCase):
         # a: -3 available (over-reserved), b: +10 available, same key "g".
         cands = [self._cand("a", 2, 5, key="g"), self._cand("b", 10, 0, key="g")]
         # Reserve 4. b's 10 slack first absorbs a's 3 negative, leaving 7 to reserve.
-        res = _distribute_reservation(cands, 4, 7, self.DIGITS)
+        res = _distribute_reservation(cands, 4, self.DIGITS)
         self.assertEqual(res, [("b", 4)])
 
     def test_negative_available_not_absorbed_across_groups(self):
         # a's negative belongs to key "g1"; b is "g2" and must not absorb it.
         cands = [self._cand("a", 2, 5, key="g1"), self._cand("b", 10, 0, key="g2")]
-        res = _distribute_reservation(cands, 4, 7, self.DIGITS)
+        res = _distribute_reservation(cands, 4, self.DIGITS)
         self.assertEqual(res, [("b", 4)])
 
     def test_unreserve_releases_up_to_reserved(self):
         # Negative quantity releases reservations, capped per candidate at `reserved`.
         cands = [self._cand("a", 10, 4), self._cand("b", 10, 4)]
-        res = _distribute_reservation(cands, -6, 8, self.DIGITS)
+        res = _distribute_reservation(cands, -6, self.DIGITS)
         self.assertEqual(res, [("a", -4), ("b", -2)])
 
     def test_unreserve_skips_zero_reserved_candidates(self):
         """Candidates with nothing reserved must be skipped, not emitted as
         zero-delta `(handle, -0.0)` pairs for the caller to apply as no-ops."""
         cands = [self._cand("a", 10, 0), self._cand("b", 10, 4)]
-        res = _distribute_reservation(cands, -4, 4, self.DIGITS)
+        res = _distribute_reservation(cands, -4, self.DIGITS)
         self.assertEqual(res, [("b", -4)])
 
 
@@ -1058,6 +1078,151 @@ class TestStockQuantImprovements(TestStockCommon):
             "match the search-path order",
         )
 
+    # ---- reservation must not be truncated by an over-reserved sibling quant ----
+    def test_reserve_full_availability_despite_negative_quant(self):
+        """One pass must reserve everything `_get_available_quantity` reports.
+
+        A stock count that lowers on-hand below what is already reserved leaves a
+        quant with negative available (here lot C: 1 on hand, 9 reserved). That
+        shortfall belongs to C's own lot -- it must not reduce what lots A and B can
+        reserve. This pass used to stop after lot A, reserving 4 of 12 and leaving the
+        move `partially_available`, because the allocator was handed a budget netting
+        C's shortfall against A and B (see
+        `test_reserve_not_truncated_by_unrelated_negative_quant`).
+        """
+        product = self.env["product.product"].create(
+            {"name": "qimp-negquant", "is_storable": True, "tracking": "lot"}
+        )
+        lots = {}
+        for name, qty in (("A", 4), ("B", 8), ("C", 9)):
+            lots[name] = self.env["stock.lot"].create(
+                {"name": f"qimp-neg-{name}", "product_id": product.id}
+            )
+            self.Quant._update_available_quantity(
+                product, self.loc, qty, lot_id=lots[name]
+            )
+        # Reserve all of lot C, then a count corrects its on-hand down to 1.
+        self.Quant._update_reserved_quantity(product, self.loc, 9, lot_id=lots["C"])
+        self.Quant.search(
+            [("product_id", "=", product.id), ("lot_id", "=", lots["C"].id)]
+        ).write({"quantity": 1})
+        self.env.flush_all()
+
+        available = self.Quant._get_available_quantity(product, self.loc)
+        self.assertEqual(available, 12.0, "lots A and B are wholly free")
+
+        move = self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 12,
+                "location_id": self.loc.id,
+                "location_dest_id": self.customer_location.id,
+            }
+        )
+        move._action_confirm()
+        # One reservation pass. A picking-less move is not auto-assigned by
+        # `_action_confirm`, so this is the single pass under test.
+        move._action_assign()
+        self.env.flush_all()
+
+        self.assertEqual(
+            move.quantity, 12.0, "a single reservation pass must take all 12"
+        )
+        self.assertEqual(move.state, "assigned")
+        self.assertEqual(
+            sorted(move.move_line_ids.mapped("lot_id.name")),
+            ["qimp-neg-A", "qimp-neg-B"],
+        )
+
+    # ---- the reservation loop must not redo derived state per move ----------
+    def test_action_assign_does_not_refresh_orderpoints_per_move(self):
+        """Every in-loop `stock.move.line.create` used to trigger `_recompute_state`
+        -> `move.write({'state': ...})` -> `_update_orderpoints`, i.e. one
+        `stock.warehouse.orderpoint` search per move. `_action_assign` already
+        accumulates the states and writes them once at the end, so that work is pure
+        duplication; the loop now runs under `preserve_state`."""
+        products = self.env["product.product"].create(
+            [{"name": f"qimp-assign-{i}", "is_storable": True} for i in range(5)]
+        )
+        for product in products:
+            self.Quant._update_available_quantity(product, self.loc, 50.0)
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.picking_type_out.id,
+                "location_id": self.loc.id,
+                "location_dest_id": self.customer_location.id,
+            }
+        )
+        self.env["stock.move"].create(
+            [
+                {
+                    "product_id": product.id,
+                    "product_uom_qty": 5.0,
+                    "picking_id": picking.id,
+                    "location_id": self.loc.id,
+                    "location_dest_id": self.customer_location.id,
+                }
+                for product in products
+            ]
+        )
+        picking.action_confirm()
+        picking.move_ids._do_unreserve()
+        self.env.flush_all()
+
+        StockMove = type(self.env["stock.move"])
+        original = StockMove._get_orderpoints_to_update
+        calls = []
+
+        def spy(records):
+            calls.append(len(records))
+            return original(records)
+
+        with patch.object(StockMove, "_get_orderpoints_to_update", spy):
+            picking.move_ids._action_assign()
+            self.env.flush_all()
+
+        self.assertLessEqual(
+            len(calls),
+            2,
+            "orderpoint refresh must not scale with the number of moves "
+            f"(5 moves produced {len(calls)} searches)",
+        )
+        self.assertEqual(
+            picking.move_ids.mapped("state"),
+            ["assigned"] * 5,
+            "suppressing the per-move recompute must not change the outcome",
+        )
+        self.assertEqual(sum(picking.move_ids.mapped("quantity")), 25.0)
+
+    # ---- the quants cache must arrive with its values loaded ----------------
+    def test_quants_cache_is_prefetched(self):
+        """`_read_group(..., ['id:recordset'])` yields ids with no values loaded, and
+        the reservation path reads `in_date`/`quantity` one gathered group at a time
+        -- so each group fetched its own row. The builder now warms them all at once;
+        reading those fields afterwards must cost no further queries."""
+        products = self.env["product.product"].create(
+            [{"name": f"qimp-warm-{i}", "is_storable": True} for i in range(5)]
+        )
+        for product in products:
+            self.Quant._update_available_quantity(product, self.loc, 7.0)
+        self.env.flush_all()
+        self.env.invalidate_all()
+
+        cache = self.Quant._get_quants_by_products_locations(products, self.loc)
+        before = self.env.cr.sql_log_count
+        for product in products:
+            quants = cache[product.id, self.loc.id, False, False, False]
+            self.assertTrue(quants, "the scan covered this product/location")
+            # The exact reads `_update_available_quantity` performs per group.
+            self.assertEqual(quants.quantity, 7.0)
+            quants.mapped("in_date")
+            quants.mapped("reserved_quantity")
+        self.assertEqual(
+            self.env.cr.sql_log_count,
+            before,
+            "cached quants must already carry their values",
+        )
+
 
 @tagged("post_install", "-at_install")
 class TestStockMoveLineImprovements(TestStockCommon):
@@ -1157,3 +1322,127 @@ class TestStockMoveLineImprovements(TestStockCommon):
         )
         self.assertEqual(outer_history.package_name, "QIMP-OUTER")
         self.assertEqual(outer_history._get_complete_dest_name_except_outermost(), "")
+
+    # ---- _action_done folds the reservation release into the stock removal ----
+    def _spy_update_available_quantity(self):
+        """Record every `_update_available_quantity` call with its characteristics."""
+        calls = []
+        Quant = type(self.env["stock.quant"])
+        original = Quant._update_available_quantity
+
+        def spy(
+            model,
+            product_id,
+            location_id,
+            quantity=False,
+            reserved_quantity=False,
+            **kwargs,
+        ):
+            calls.append(
+                {
+                    "location": location_id.id,
+                    "quantity": quantity,
+                    "reserved": reserved_quantity,
+                }
+            )
+            return original(
+                model,
+                product_id,
+                location_id,
+                quantity=quantity,
+                reserved_quantity=reserved_quantity,
+                **kwargs,
+            )
+
+        return calls, patch.object(Quant, "_update_available_quantity", spy)
+
+    def test_action_done_updates_the_source_quant_once(self):
+        """Validating a line drops on-hand *and* releases what it reserved -- both on
+        the same quant row. Issuing them as two `_update_available_quantity` calls
+        gathered, locked and re-read that row twice; they must be one call carrying
+        both deltas."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-donemerge", "is_storable": True}
+        )
+        self.Quant._update_available_quantity(product, self.loc, 10.0)
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.picking_type_out.id,
+                "location_id": self.loc.id,
+                "location_dest_id": self.customer_location.id,
+            }
+        )
+        self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 4.0,
+                "picking_id": picking.id,
+                "location_id": self.loc.id,
+                "location_dest_id": self.customer_location.id,
+            }
+        )
+        picking.action_confirm()
+        picking.action_assign()
+        quant = self.Quant._gather(product, self.loc, strict=True)
+        self.assertEqual(quant.reserved_quantity, 4.0, "setup: the line is reserved")
+
+        picking.move_ids.write({"picked": True})
+        calls, spy = self._spy_update_available_quantity()
+        with spy:
+            picking._action_done()
+
+        source_calls = [c for c in calls if c["location"] == self.loc.id]
+        self.assertEqual(
+            len(source_calls),
+            1,
+            "the release and the removal must share one quant update",
+        )
+        self.assertEqual(source_calls[0]["quantity"], -4.0)
+        self.assertEqual(
+            source_calls[0]["reserved"], -4.0, "the release rides along, not separately"
+        )
+        quant = self.Quant._gather(product, self.loc, strict=True)
+        self.assertEqual(quant.quantity, 6.0)
+        self.assertEqual(quant.reserved_quantity, 0.0, "no reservation may be stranded")
+
+    def test_action_done_sends_no_reserved_delta_where_reservation_is_bypassed(self):
+        """A location that bypasses reservation holds none to release, so the merged
+        update must carry the stock delta alone -- the guard the separate
+        `action="reserved"` call used to apply."""
+        product = self.env["product.product"].create(
+            {"name": "qimp-donebypass", "is_storable": True}
+        )
+        picking = self.env["stock.picking"].create(
+            {
+                "picking_type_id": self.warehouse_1.in_type_id.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.loc.id,
+            }
+        )
+        self.env["stock.move"].create(
+            {
+                "product_id": product.id,
+                "product_uom_qty": 7.0,
+                "picking_id": picking.id,
+                "location_id": self.supplier_location.id,
+                "location_dest_id": self.loc.id,
+            }
+        )
+        picking.action_confirm()
+        picking.move_ids.move_line_ids.quantity = 7.0
+        picking.move_ids.write({"picked": True})
+        calls, spy = self._spy_update_available_quantity()
+        with spy:
+            picking._action_done()
+
+        supplier_calls = [
+            c for c in calls if c["location"] == self.supplier_location.id
+        ]
+        self.assertTrue(supplier_calls, "the supplier side is still decremented")
+        self.assertTrue(
+            all(not c["reserved"] for c in supplier_calls),
+            "a bypassing location must receive no reservation delta",
+        )
+        self.assertEqual(
+            self.Quant._gather(product, self.loc, strict=True).quantity, 7.0
+        )
