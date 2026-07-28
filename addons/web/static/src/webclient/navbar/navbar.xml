@@ -76,8 +76,8 @@
     <t t-else="">
       <div t-if="!isScopedApp" class="o_navbar_apps_menu">
         <Dropdown>
-          <button data-hotkey="h" title="Home Menu">
-            <i class="oi oi-apps" />
+          <button data-hotkey="h" title="Home Menu" aria-label="Home Menu">
+            <i class="oi oi-apps" aria-hidden="true"/>
           </button>
           <t t-set-slot="content">
             <DropdownItem
@@ -228,8 +228,8 @@
   <t t-name="web.NavBar.SectionsMenu.MoreDropdown">
     <div class="o_menu_sections_more">
       <Dropdown>
-        <button title="More Menu" t-att-data-hotkey="hotkey">
-          <i class="fa-solid fa-plus"/>
+        <button title="More Menu" aria-label="More Menu" t-att-data-hotkey="hotkey">
+          <i class="fa-solid fa-plus" aria-hidden="true"/>
         </button>
 
         <t t-set-slot="content">

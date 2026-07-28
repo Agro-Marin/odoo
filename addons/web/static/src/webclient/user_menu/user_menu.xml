@@ -5,8 +5,8 @@
         <div class="o_user_menu d-none d-md-block pe-0 bg-inherit">
             <DropdownGroup group="'web-navbar-group'">
                 <Dropdown>
-                    <button class="py-1 py-lg-0">
-                        <img class="o_avatar o_user_avatar rounded" t-att-src="source" alt="User"/>
+                    <button class="py-1 py-lg-0" aria-label="User menu">
+                        <img class="o_avatar o_user_avatar rounded" t-att-src="source" alt=""/>
                         <small class="oe_topbar_name d-none ms-2 text-start smaller lh-1 text-truncate"  t-att-class="{'d-lg-inline-block' : env.debug}" style="max-width: 200px">
                             <t t-esc="userName"/>
                             <mark class="d-block font-monospace text-truncate">
