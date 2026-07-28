@@ -68,6 +68,34 @@ test("parseFloatTime", () => {
     expect(() => parseFloatTime("1:00:90")).toThrow();
 });
 
+test("surrounding whitespace is not part of the number", () => {
+    // `Number()`, which the numeric parsers ultimately delegate to, ignores
+    // padding; the decimal-literal guard in front of it does not, so each
+    // parser has to normalise before its own positional inspection of the
+    // string. A value pasted from a spreadsheet routinely carries padding.
+    expect(parseFloat(" 10 ")).toBe(10);
+    expect(parseFloat("\t1e3\n")).toBe(1000);
+    expect(parseInteger(" 10 ")).toBe(10);
+    expect(parseInteger(" -10 ")).toBe(-10);
+    expect(parseMonetary("  42  ")).toBe(42);
+    expect(parsePercentage(" 50% ")).toBe(0.5);
+    expect(parsePercentage("50% ")).toBe(0.5);
+    expect(parseFloatTime(" 1:30 ")).toBe(1.5);
+    expect(parseFloat(" = 1 + 2")).toBe(3);
+
+    // Positional reads must happen AFTER the trim, or padding silently shifts
+    // the meaning instead of merely being tolerated: parseFloatTime reads the
+    // sign by index, so a leading space used to leave "-" inside the hours
+    // token and yield -0.5 for "-1:30".
+    expect(parseFloatTime(" -1:30")).toBe(-1.5);
+    expect(parseFloatTime(" -1:30 ")).toBe(-1.5);
+    expect(parseFloatTime("  -0:30  ")).toBe(-0.5);
+
+    // Padding is tolerated, not treated as a separator.
+    expect(() => parseFloat("1 000,5")).toThrow();
+    expect(() => parseInteger("1 0")).toThrow();
+});
+
 test("formatFloatTime / parseFloatTime round-trips with displaySeconds", () => {
     for (const value of [1.5, 0.25, 2.008333, 11.9836]) {
         const formatted = formatFloatTime(value, { displaySeconds: true });

@@ -262,7 +262,15 @@ export function formatInteger(value, options = {}) {
     const grouping = options.grouping || l10n.grouping;
     const thousandsSep =
         "thousandsSep" in options ? options.thousandsSep : l10n.thousandsSep;
-    return insertThousandsSep(value.toFixed(0), thousandsSep, grouping);
+    // `toFixed` switches to exponential notation at 1e21, and the grouping that
+    // follows then chops up the exponent instead of the digits: 1e21 rendered
+    // as "1e,+21". Above that magnitude every representable double is already
+    // an integer, so BigInt gives the exact digit string.
+    const digits =
+        Math.abs(value) >= 1e21
+            ? BigInt(Math.trunc(value)).toString()
+            : value.toFixed(0);
+    return insertThousandsSep(digits, thousandsSep, grouping);
 }
 formatInteger.extractOptions = ({ attrs, options }) => ({
     decimals: options.decimals || 0,

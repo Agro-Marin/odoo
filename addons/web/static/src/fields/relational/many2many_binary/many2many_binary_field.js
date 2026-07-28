@@ -92,7 +92,13 @@ export class Many2ManyBinaryField extends Component {
         const record = this.props.record.data[this.props.name].records.find(
             (record) => record.resId === deleteId,
         );
-        this.operations.removeRecord(record);
+        if (!record) {
+            // A double click on the remove icon reaches here twice for the
+            // same id; after the first removal the lookup misses and
+            // `forget(undefined)` throws. The tags widget already guards this.
+            return;
+        }
+        return this.operations.removeRecord(record);
     }
 }
 

@@ -94,9 +94,15 @@ export class NumericInputFieldBase extends Component {
      * branch), so ``enable_formatting: false`` on a float whose value was
      * ``false`` displayed "false". One definition instead of three copies.
      *
-     * @returns {number | ""}
+     * A STRING, like every other ``formattedValue`` branch: ``useInputField``
+     * documents ``getValue`` as ``() => string`` and assigns the result
+     * straight to ``input.value``. Returning a number made its
+     * ``inputRef.el.value !== value`` guard compare a string against a number,
+     * so it never held and the input was rewritten on every single render.
+     *
+     * @returns {string}
      */
     get rawValue() {
-        return this.value === false ? "" : this.value;
+        return this.value === false ? "" : String(this.value);
     }
 }

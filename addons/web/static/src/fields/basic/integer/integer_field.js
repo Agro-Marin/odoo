@@ -40,7 +40,7 @@ export class IntegerField extends NumericInputFieldBase {
         );
     }
 
-    /** @returns {string | number} */
+    /** @returns {string} */
     get formattedValue() {
         if (
             !this.props.formatNumber ||

@@ -432,10 +432,18 @@ test("isUploading state should be set to false after upload", async () => {
     await animationFrame();
     const file = new File(["test"], "fake_file.txt", { type: "text/plain" });
     await setInputFiles([file]);
-    await waitFor(`.o_form_button_save:visible`);
     await animationFrame();
+    await animationFrame();
+
     expect.verifyErrors([/RPC_ERROR/]);
+    // The subject of this test: the uploader must leave its "uploading" state
+    // whatever the update did, or the button stays stuck on a spinner.
     expect(`.o_select_file_button`).toHaveText("Upload your file");
+    // A rejected onchange rolls the change back and lowers `dirty` again
+    // (Record._update's restoreDirty), so nothing is pending afterwards. This
+    // used to wait for the save button instead, which pinned the opposite —
+    // a record left dirty with an empty changeset.
+    expect(`.o_form_button_save:visible`).toHaveCount(0);
 });
 
 test("should accept file with allowed MIME type and reject others", async () => {

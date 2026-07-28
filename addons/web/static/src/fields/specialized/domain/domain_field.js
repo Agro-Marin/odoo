@@ -3,7 +3,7 @@
 
 /** @module @web/fields/specialized/domain/domain_field - Domain expression editor field with record count and selector UI */
 
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillUnmount, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
 import { useGetDefaultLeafDomain } from "@web/components/domain_selector/utils";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
@@ -39,6 +39,13 @@ export class DomainField extends Component {
         countLimit: 10000,
         allowExpressions: false,
     };
+
+    /**
+     * Last FIELD_IS_DIRTY value this field put on the shared bus. Starts at
+     * ``false`` so a clean field never announces a transition it did not make.
+     * @type {boolean}
+     */
+    lastIsDirty = false;
 
     setup() {
         this.orm = useService("orm");
@@ -108,6 +115,8 @@ export class DomainField extends Component {
             ModelEvent.WILL_SAVE_URGENTLY,
             flushDebugDomain,
         );
+
+        onWillUnmount(() => this._setIsDirty(false));
     }
 
     allowExpressions(props) {
@@ -299,18 +308,36 @@ export class DomainField extends Component {
         return rpc("/web/domain/validate", { model: resModel, domain });
     }
 
+    /**
+     * FIELD_IS_DIRTY is a shared, last-writer-wins signal: whoever fires it
+     * last speaks for every field on the record. Emitting ``false``
+     * unconditionally therefore cancelled a SIBLING field's "the user is
+     * typing" mark — clearing the save indicator and the keyboard-navigation
+     * guard while that other input still held uncommitted text. Only report a
+     * transition this field actually caused (same rule as DateTimeField).
+     *
+     * @param {boolean} isDirty
+     */
+    _setIsDirty(isDirty) {
+        if (isDirty === this.lastIsDirty) {
+            return;
+        }
+        this.lastIsDirty = isDirty;
+        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
+    }
+
     update(domain, isDebugEdited = false) {
         if (!isDebugEdited) {
             this.debugDomain = null;
         }
         this.props.record.update({ [this.props.name]: domain });
-        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, false);
+        this._setIsDirty(false);
     }
 
     debugUpdate(domain) {
         const isDirty = domain !== this.getDomain();
         this.debugDomain = isDirty ? domain : null;
-        this.props.record.model.bus.trigger(ModelEvent.FIELD_IS_DIRTY, isDirty);
+        this._setIsDirty(isDirty);
         if (!this.props.record.isValid) {
             this.props.record.resetFieldValidity(this.props.name);
         }
