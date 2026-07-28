@@ -245,3 +245,24 @@ test("a slot-only sheet renders, and its back slot prop routes to onBack", async
     queryOne(".slot-back").click();
     expect.verifySteps(["back"]);
 });
+
+test("a focus-trapping sheet is announced as modal, a non-trapping one is not", async () => {
+    class Child extends Component {
+        static template = xml`<div class="sheet-child"/>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => {} },
+    });
+    await animationFrame();
+    expect(".o_bottom_sheet_sheet").toHaveAttribute("role", "dialog");
+    expect(".o_bottom_sheet_sheet").toHaveAttribute("aria-modal", "true");
+
+    // Dropdown opens its menu as a sheet without taking the active element:
+    // the page behind stays reachable, so the sheet must not claim modality.
+    await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => {}, setActiveElement: false },
+    });
+    await animationFrame();
+    expect(".o_bottom_sheet_sheet:last").not.toHaveAttribute("aria-modal");
+});

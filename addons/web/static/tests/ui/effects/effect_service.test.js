@@ -94,3 +94,10 @@ test("rendering a rainbowman with a custom component", async () => {
         `<div class="custom">foo is bar</div>`,
     );
 });
+
+test("the reward message is announced, as it is when effects are off", async () => {
+    getService("effect").add({ message: "Well Done!" });
+    await animationFrame();
+    expect(".o_reward_msg_content").toHaveAttribute("role", "status");
+    expect(".o_reward_msg_content").toHaveText("Well Done!");
+});
