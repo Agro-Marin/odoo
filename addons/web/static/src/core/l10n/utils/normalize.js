@@ -14,6 +14,15 @@
 /**
  * Normalizes a string for use in comparison.
  *
+ * NOT the same fold as ``@web/core/l10n/utils/unaccent``, deliberately. That one
+ * reproduces PostgreSQL's ``unaccent()`` exactly, because it has to select the
+ * same records as the server's ``ilike``; this one is the *UI search* fold and
+ * answers to no server, so it adds NFKC and full case folding (which is how
+ * ``𝔖𝔥𝔯𝔢𝔨`` matches ``Shrek`` and ``ß`` matches ``ss``) while staying clear of
+ * transliterations that would surprise a human typing in a search box —
+ * ``©``→``(C)``, ``½``→`` 1/2``, ``₹``→``Rs``. Widening this to the SQL table is
+ * a search-relevance decision, not a correctness fix; don't do it silently.
+ *
  * @example
  * normalize("déçûmes") === normalize("DECUMES")
  * normalize("𝔖𝔥𝔯𝔢𝔨") === normalize("Shrek")
