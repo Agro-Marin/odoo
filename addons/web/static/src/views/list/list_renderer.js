@@ -54,7 +54,10 @@ import { getRowComponentClass } from "./list_record_row.js";
 import { useListSelection } from "./list_selection.js";
 import { listSortingMixin } from "./list_sorting.js";
 import { listStylingMixin } from "./list_styling.js";
-import { useListVirtualization } from "./list_virtualization.js";
+import {
+    DEFAULT_THRESHOLD as DEFAULT_VIRTUALIZATION_THRESHOLD,
+    useListVirtualization,
+} from "./list_virtualization.js";
 
 /**
  * @typedef {import('@web/model/relational_model/dynamic_list').DynamicList} DynamicList
@@ -88,7 +91,7 @@ export class ListRenderer extends Component {
     static useMagicColumnWidths = true;
     static LONG_TOUCH_THRESHOLD = 400;
     /** Minimum flat row count to activate row virtualization. Set Infinity to disable. */
-    static VIRTUALIZATION_THRESHOLD = 100;
+    static VIRTUALIZATION_THRESHOLD = DEFAULT_VIRTUALIZATION_THRESHOLD;
     static components = {
         DropdownItem,
         Field,
@@ -682,9 +685,10 @@ export class ListRenderer extends Component {
                 viewIdentifier.push(keyParts[partName]);
             }
         });
-        keyParts.fields
-            .sort((left, right) => (left < right ? -1 : 1))
-            .forEach((fieldName) => viewIdentifier.push(fieldName));
+        // `toSorted`, not `sort`: `fields` is `list.fieldNames`, and sorting it
+        // in place would reorder whatever that getter handed back. It happens
+        // to build a fresh array today — this must not depend on that.
+        viewIdentifier.push(...keyParts.fields.toSorted());
         return viewIdentifier.join(",");
     }
 
@@ -1069,7 +1073,7 @@ export class ListRenderer extends Component {
     /**
      * @param {string} fieldName
      */
-    async toggleOptionalField(fieldName) {
+    toggleOptionalField(fieldName) {
         this.opt.toggleOptionalField(fieldName, () => this.render());
     }
 

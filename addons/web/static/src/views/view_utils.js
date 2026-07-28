@@ -371,10 +371,8 @@ export function computeArchiveEnabled(readonlySource, presenceSource = readonlyS
  */
 export function buildActionMenuItems(staticItems, actionMenus) {
     const staticActionItems = Object.entries(staticItems)
-        .filter(([key, item]) => item.isAvailable === undefined || item.isAvailable())
-        .sort(
-            ([k1, item1], [k2, item2]) => (item1.sequence || 0) - (item2.sequence || 0),
-        )
+        .filter(([, item]) => item.isAvailable === undefined || item.isAvailable())
+        .sort(([, item1], [, item2]) => (item1.sequence || 0) - (item2.sequence || 0))
         .map(([key, item]) =>
             Object.assign(
                 { key, groupNumber: STATIC_ACTIONS_GROUP_NUMBER },
@@ -384,7 +382,9 @@ export function buildActionMenuItems(staticItems, actionMenus) {
 
     return {
         action: [...staticActionItems, ...(actionMenus?.action || [])],
-        print: actionMenus?.print,
+        // Always an array, like `action`: consumers already tolerate an absent
+        // `print`, but a single return shape means one less thing to remember.
+        print: actionMenus?.print || [],
     };
 }
 

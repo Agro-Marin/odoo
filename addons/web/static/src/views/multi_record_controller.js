@@ -110,7 +110,7 @@ export class MultiRecordController extends Component {
             () => [this.selectionKey, this.model.root.isDomainSelected],
         );
 
-        this.exportRecords = useExportRecords(this.env, this.props.context, () =>
+        this.exportRecords = useExportRecords(this.env, () =>
             this.getExportableFields(),
         );
         this.deleteRecordsWithConfirmation = useDeleteRecords(this.model);
