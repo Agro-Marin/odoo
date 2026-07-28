@@ -23,9 +23,11 @@ const formatters = registry.category("formatters");
  * @returns {string}
  */
 function resolveCurrencyField(fields, column) {
+    // `column` comes from a `find()` over the ACTIVE columns, which can miss
+    // when an optional column is toggled off between render and click.
     return (
-        column.options.currency_field ||
-        fields[column.name].currency_field ||
+        column?.options?.currency_field ||
+        fields[column?.name]?.currency_field ||
         "currency_id"
     );
 }

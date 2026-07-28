@@ -22,6 +22,23 @@
  * }} FlatRow
  */
 
+/**
+ * Constructor / {@link ListGridState#update} option name → backing field.
+ * ``columns`` is deliberately absent: it needs {@link ListGridState#_setColumns}
+ * to rebuild the id→index lookup, so it is handled explicitly by both callers.
+ * Declaring the mapping once keeps ``update`` from drifting out of sync with
+ * the constructor every time an option is added.
+ */
+const OPTION_FIELDS = {
+    list: "_list",
+    hasSelectors: "_hasSelectors",
+    hasOpenFormViewColumn: "_hasOpenFormViewColumn",
+    hasActionsColumn: "_hasActionsColumn",
+    isRTL: "_isRTL",
+    showGroupAddLine: "_showGroupAddLine",
+    isCellReadonly: "_isCellReadonly",
+};
+
 export class ListGridState {
     /**
      * @param {object} options
@@ -70,7 +87,22 @@ export class ListGridState {
         /** Index tracking for cross-row navigation between group and data rows. */
         this._lastColIndex = 0;
 
+        /**
+         * Bumped by every {@link rebuild}. Consumers that memoize a lookup into
+         * the flat rows (``ListRecordRow``'s ``record`` / ``group``) key on it:
+         * the renderer holds ONE instance for its whole life and rebuild
+         * mutates it in place, so object identity can never signal
+         * invalidation.
+         * @type {number}
+         */
+        this._generation = 0;
+
         this.rebuild();
+    }
+
+    /** @returns {number} counter identifying the current flat-row materialization */
+    get generation() {
+        return this._generation;
     }
 
     /**
@@ -79,29 +111,13 @@ export class ListGridState {
      * @param {object} options - Same shape as constructor options (partial OK)
      */
     update(options) {
-        if (options.list !== undefined) {
-            this._list = options.list;
+        for (const [name, field] of Object.entries(OPTION_FIELDS)) {
+            if (options[name] !== undefined) {
+                this[field] = options[name];
+            }
         }
         if (options.columns !== undefined) {
             this._setColumns(options.columns);
-        }
-        if (options.hasSelectors !== undefined) {
-            this._hasSelectors = options.hasSelectors;
-        }
-        if (options.hasOpenFormViewColumn !== undefined) {
-            this._hasOpenFormViewColumn = options.hasOpenFormViewColumn;
-        }
-        if (options.hasActionsColumn !== undefined) {
-            this._hasActionsColumn = options.hasActionsColumn;
-        }
-        if (options.isRTL !== undefined) {
-            this._isRTL = options.isRTL;
-        }
-        if (options.showGroupAddLine !== undefined) {
-            this._showGroupAddLine = options.showGroupAddLine;
-        }
-        if (options.isCellReadonly !== undefined) {
-            this._isCellReadonly = options.isCellReadonly;
         }
     }
 
@@ -110,6 +126,7 @@ export class ListGridState {
      * Call after any structural change (group toggle, page, sort).
      */
     rebuild() {
+        this._generation++;
         this._flatRows = [];
         this._rowByRecordId = new Map();
         this._rowByGroupId = new Map();
@@ -489,7 +506,11 @@ export class ListGridState {
         const targetCol = currentIsRecord ? colIndex : this._lastColIndex || 0;
         return {
             rowIndex: nextRowIndex,
-            colIndex: Math.min(targetCol, this.colCount - 1),
+            // Clamped at BOTH ends: `colCount` is 0 for a list rendered with no
+            // columns at all (every column optional-hidden, or a sub-renderer
+            // mid-reconfiguration), and `colCount - 1` alone would hand the
+            // caller -1 as a column index.
+            colIndex: Math.max(0, Math.min(targetCol, this.colCount - 1)),
         };
     }
 

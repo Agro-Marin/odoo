@@ -421,7 +421,6 @@ export class ListRenderer extends Component {
         this.virt = useListVirtualization({
             rootRef: this.rootRef,
             getGridState: () => this.gridState,
-            getNbCols: () => this.nbCols,
             canResequence: () => this.canResequenceRows,
             getEditedRecord: () => this.editedRecord,
             threshold: /** @type {any} */ (this.constructor).VIRTUALIZATION_THRESHOLD,
@@ -932,9 +931,18 @@ export class ListRenderer extends Component {
             return;
         }
 
-        const closestCell = /** @type {HTMLTableCellElement} */ (
+        const closestCell = /** @type {HTMLTableCellElement | null} */ (
             /** @type {HTMLElement} */ (ev.target).closest("td, th")
         );
+        if (!closestCell) {
+            // The handler is bound on cells, but a keydown can still surface
+            // here from content the cell only owns logically (a portalled
+            // dropdown/popover panel, a datepicker in the overlay container).
+            // Every branch below addresses a cell, so with no cell there is
+            // nothing to handle — bail instead of throwing out of a keydown
+            // handler and killing the key for the whole view.
+            return;
+        }
         if (closestCell.querySelector(".o_select_menu [aria-expanded=true]")) {
             return;
         }
@@ -1128,7 +1136,12 @@ export class ListRenderer extends Component {
             field: this.fields[column.name],
             fieldInfo: /** @type {any} */ (column),
         });
-        this.tooltipInfoByColumn[column.id] = tooltipInfo;
+        if (!column.relatedPropertyField) {
+            // Property columns are excluded from the memo by the guard above
+            // (their definition can change under a stable column id), so
+            // writing their entry only grew a map nothing would ever read.
+            this.tooltipInfoByColumn[column.id] = tooltipInfo;
+        }
         return tooltipInfo;
     }
 

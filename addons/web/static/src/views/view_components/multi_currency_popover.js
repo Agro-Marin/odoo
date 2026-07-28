@@ -34,10 +34,8 @@ export class MultiCurrencyPopover extends Component {
         });
         useExternalListener(window, "mouseover", (ev) => {
             const popoverEl = this.rootRef.el;
-            if (
-                !this.props.target.contains(ev.target) &&
-                !popoverEl?.contains(ev.target)
-            ) {
+            const target = /** @type {Node} */ (ev.target);
+            if (!this.props.target.contains(target) && !popoverEl?.contains(target)) {
                 this.props.close();
             }
         });

@@ -684,3 +684,83 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         expect(coordinator.status).toBe("clean");
     });
 });
+
+describe("FormSaveCoordinator — lastError lifecycle", () => {
+    test("a discard-resolved save settles 'ok' but KEEPS lastError", async () => {
+        const handled = Object.assign(new Error("server said no"), {
+            data: { message: "server said no" },
+        });
+        // Mirrors record_save.js: `save` RETURNS the onError result, and the
+        // dialog hook resolves truthy when the user picks "Discard changes".
+        // Nothing was written, so the queued action must not proceed — the
+        // retained lastError is what tells shouldExecuteAction that.
+        const { coordinator } = makeContext({
+            save: (opts) => opts.onError(handled, { discard() {}, retry() {} }),
+        });
+
+        const saved = await coordinator.requestSave({ errorMode: "dialog" });
+
+        expect(saved).toBe(true);
+        expect(coordinator.status).toBe("clean");
+        expect(coordinator.lastError).toBe(handled);
+    });
+
+    test("an unresolved failure leaves lastError set", async () => {
+        const boom = new Error("boom");
+        const { coordinator } = makeContext({
+            save: async () => {
+                throw boom;
+            },
+        });
+
+        const saved = await coordinator.requestSave({ errorMode: "dialog" });
+
+        expect(saved).toBe(false);
+        expect(coordinator.status).toBe("error");
+        expect(coordinator.lastError).toBe(boom);
+    });
+
+    test("requestSave clears a previous error on entry", async () => {
+        const { coordinator } = makeContext();
+        coordinator.lastError = new Error("stale");
+        await coordinator.requestSave();
+        expect(coordinator.lastError).toBe(null);
+    });
+});
+
+describe("FormSaveCoordinator — re-entrant requestUrgentSave", () => {
+    test("a throw is surfaced instead of vanishing", async () => {
+        const beaconError = new Error("beacon exploded");
+        let urgentFailed = 0;
+        const { coordinator } = makeContext({
+            urgentSave: async () => {
+                throw beaconError;
+            },
+            hooks: { onUrgentSaveFailed: () => urgentFailed++ },
+        });
+        coordinator.status = "saving"; // a save is already in flight
+
+        await expect(coordinator.requestUrgentSave()).rejects.toThrow(
+            "beacon exploded",
+        );
+
+        // The re-entrant call must NOT claim a terminal (it does not own the
+        // epoch), but it must report: previously the caller got nothing at all
+        // and FormStatusIndicator kept spinning on `isSaving`.
+        expect(coordinator.lastError).toBe(beaconError);
+        expect(urgentFailed).toBe(1);
+    });
+
+    test("a re-entrant failure (no throw) still notifies once", async () => {
+        let urgentFailed = 0;
+        const { coordinator } = makeContext({
+            urgentSave: async () => false,
+            hooks: { onUrgentSaveFailed: () => urgentFailed++ },
+        });
+        coordinator.status = "saving";
+
+        expect(await coordinator.requestUrgentSave()).toBe(false);
+        expect(urgentFailed).toBe(1);
+        expect(coordinator.status).toBe("saving");
+    });
+});

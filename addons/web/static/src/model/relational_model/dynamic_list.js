@@ -255,9 +255,7 @@ export class DynamicList extends DataPoint {
         const isSelected = this.isDomainSelected || this.selection.length;
         if (archive) {
             this.model.hooks.ui.onConfirmArchive(
-                isSelected,
                 () => this.archive(isSelected),
-                () => this.unarchive(isSelected),
                 dialogProps,
             );
         } else {

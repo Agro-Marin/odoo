@@ -58,8 +58,9 @@ export class CalendarCommonPopover extends Component {
             window,
             "pointerdown",
             (e) => {
-                const onCalendar = e.target.closest(".o_calendar_widget, .fc-popover");
-                const onSourceEvent = e.target.closest(
+                const target = /** @type {HTMLElement} */ (e.target);
+                const onCalendar = target.closest(".o_calendar_widget, .fc-popover");
+                const onSourceEvent = target.closest(
                     `.fc-event[data-event-id="${this.props.record.id}"]`,
                 );
                 if (onCalendar && !onSourceEvent) {

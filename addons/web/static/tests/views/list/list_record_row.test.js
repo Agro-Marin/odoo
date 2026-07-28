@@ -232,3 +232,52 @@ test("row.group resolves the flat parentGroup even when virtualization is active
     expect(groupGetter.call(makeThis(false))).toBe(parentGroup);
     expect(groupGetter.call(makeThis(true))).toBe(parentGroup);
 });
+
+test("record/group memoize the grid lookup and invalidate on rebuild (C7)", () => {
+    // `record` and `group` are read once per template expression AND once per
+    // `this.record` inside every delegated renderer method (the `_rendererCtx`
+    // Proxy routes both names here), so the lookup is memoized. The key is the
+    // grid GENERATION, not the ListGridState instance: the renderer holds one
+    // instance for its whole life and `rebuild()` mutates it in place.
+    const recordGetter = Object.getOwnPropertyDescriptor(
+        ListRecordRow.prototype,
+        "record",
+    ).get;
+    const groupGetter = Object.getOwnPropertyDescriptor(
+        ListRecordRow.prototype,
+        "group",
+    ).get;
+
+    let lookups = 0;
+    let generation = 1;
+    const flatRecord = { id: "5" };
+    const parentGroup = { id: "group-7" };
+    const row = {
+        props: {
+            record: { id: 5 },
+            group: undefined,
+            renderer: {
+                gridState: {
+                    get generation() {
+                        return generation;
+                    },
+                    findRowByRecordId(id) {
+                        lookups++;
+                        return id === "5"
+                            ? { record: flatRecord, parentGroup }
+                            : undefined;
+                    },
+                },
+            },
+        },
+    };
+
+    expect(recordGetter.call(row)).toBe(flatRecord);
+    expect(groupGetter.call(row)).toBe(parentGroup);
+    expect(recordGetter.call(row)).toBe(flatRecord);
+    expect(lookups).toBe(1);
+
+    generation++; // a rebuild happened
+    expect(recordGetter.call(row)).toBe(flatRecord);
+    expect(lookups).toBe(2);
+});

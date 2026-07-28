@@ -1,6 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
     contains,
     defineModels,
@@ -21,6 +22,7 @@ class Partner extends models.Model {
     _records = [
         { id: 1, name: "first" },
         { id: 2, name: "second" },
+        { id: 3, name: "third" },
     ];
 }
 
@@ -63,4 +65,40 @@ test("openRecord does not navigate when the dirty record fails validation", asyn
     expect.verifySteps(["openRecord"]);
     expect(`.o_selected_row`).toHaveCount(1);
     expect(`.o_field_invalid`).toHaveCount(1);
+});
+
+test.tags("desktop");
+test("onSelectionChanged fires for a cardinality-preserving selection swap", async () => {
+    // The effect dependency used to be `selection.length`, a cardinality proxy
+    // for a SET: deselecting one record and selecting another in the same tick
+    // (two ordinary clicks) left the count unchanged, so the callback never
+    // ran and consumers kept reporting the OLD ids — a silent stale-data
+    // window, not merely a missed notification.
+    const seen = [];
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `<list><field name="name"/></list>`,
+        allowSelectors: true,
+        selectRecord: () => {},
+        onSelectionChanged: (resIds) => seen.push(JSON.stringify(resIds)),
+    });
+
+    await contains(`.o_data_row:nth-child(1) .o_list_record_selector input`).click();
+    await animationFrame();
+    expect(seen.at(-1)).toBe("[1]");
+
+    seen.length = 0;
+    const inputs = document.querySelectorAll(
+        `.o_data_row .o_list_record_selector input`,
+    );
+    inputs[0].click(); // deselect record 1
+    inputs[1].click(); // select record 2 — same cardinality
+    await animationFrame();
+    expect(seen.at(-1)).toBe("[2]");
+
+    seen.length = 0;
+    inputs[2].click(); // cardinality changes too
+    await animationFrame();
+    expect(seen.at(-1)).toBe("[2,3]");
 });

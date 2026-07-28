@@ -344,13 +344,18 @@ export class KanbanRenderer extends Component {
         if (this.props.progressBarState && !group.isFolded) {
             const progressBarInfo = this.props.progressBarState.getGroupInfo(group);
             if (progressBarInfo.activeBar) {
+                // A restored active bar whose value is no longer among the
+                // arch's `colors` keys resolves to nothing; that must not take
+                // the whole kanban render down over a colour class.
                 const progressBar = progressBarInfo.bars.find(
                     (b) => b.value === progressBarInfo.activeBar,
                 );
-                classes.push(
-                    "o_kanban_group_show",
-                    `o_kanban_group_show_${progressBar.color}`,
-                );
+                if (progressBar) {
+                    classes.push(
+                        "o_kanban_group_show",
+                        `o_kanban_group_show_${progressBar.color}`,
+                    );
+                }
             }
         }
         return classes.join(" ");

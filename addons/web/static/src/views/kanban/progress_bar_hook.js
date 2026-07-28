@@ -19,6 +19,21 @@ const FALSE = Symbol("False");
 const MOVE_RECONCILE_DELAY = 300;
 
 /**
+ * Shared, immutable "bars not loaded yet" reply from {@link
+ * ProgressBarState#getGroupInfo}. One frozen instance, not a fresh literal per
+ * call: this is read once per group per render and handed to `ColumnProgress`
+ * as a prop, and OWL compares props with `!==` — a new object every render made
+ * the child un-skippable for the whole pre-load window.
+ * @type {{ activeBar: string | null, bars: Object[], total: number, isReady: boolean }}
+ */
+const EMPTY_GROUP_INFO = Object.freeze({
+    activeBar: null,
+    bars: [],
+    total: 0,
+    isReady: false,
+});
+
+/**
  * Find a group entry matching a specific group-by field value.
  * @param {Object[]} groups - Aggregate group data from formatted_read_group.
  * @param {Object} groupByField - Field descriptor with a `name` property.
@@ -99,15 +114,11 @@ class ProgressBarState {
     /**
      * Get or compute progress bar info for a group (bars, active selection, readiness).
      * @param {Group} group - The kanban group datapoint.
-     * @returns {{ activeBar: string | null, bars: Object[], isReady: boolean }}
+     * @returns {{ activeBar: string | null, bars: Object[], total: number, isReady: boolean }}
      */
     getGroupInfo(group) {
         if (this._pbCounts === null) {
-            return {
-                activeBar: null,
-                bars: [],
-                isReady: false,
-            };
+            return EMPTY_GROUP_INFO;
         }
         if (!this._groupsInfo[group.id]) {
             this._seedGroupInfo(group);
@@ -744,10 +755,13 @@ class ProgressBarState {
     getGroupCount(group) {
         const progressBarInfo = this.getGroupInfo(group);
         if (progressBarInfo.activeBar) {
-            const progressBar = progressBarInfo.bars.find(
+            // `?.` for the same reason `_seedGroupInfo` and `_applyMoveDelta`
+            // already use it: `activeBars` can be restored from a previous
+            // session's exported state, and nothing revalidates its value
+            // against the arch's current `colors` keys.
+            return progressBarInfo.bars.find(
                 (b) => b.value === progressBarInfo.activeBar,
-            );
-            return progressBar.count;
+            )?.count;
         }
     }
 
@@ -826,10 +840,13 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
         progressBarState._pruneGroupsInfo();
         if (model.isReady) {
             return prom
-                .then(() => progressBarState._refreshBars())
+                ?.then(() => progressBarState._refreshBars())
                 .catch((error) => console.error(error));
         }
-        prom.then(() => progressBarState._deselectEmptyActiveBars()).catch((error) =>
+        // `prom` is only assigned by the patched `onWillLoadRoot`; nothing
+        // enforces that it ran first, and an unset `prom` should skip the
+        // follow-up, not throw inside a lifecycle hook.
+        prom?.then(() => progressBarState._deselectEmptyActiveBars()).catch((error) =>
             console.error(error),
         );
     };

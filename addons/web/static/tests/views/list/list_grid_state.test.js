@@ -432,3 +432,61 @@ describe("canonical column index", () => {
         expect(gs.getColIndexOfColumn(first[0])).toBe(1);
     });
 });
+
+describe("generation counter", () => {
+    test("advances on every rebuild", () => {
+        const gs = makeGridState();
+        const first = gs.generation;
+        gs.rebuild();
+        expect(gs.generation).toBe(first + 1);
+        gs.rebuild();
+        expect(gs.generation).toBe(first + 2);
+    });
+
+    test("is the only signal a rebuild happened — object identity is not", () => {
+        // `ListRecordRow`'s record/group memoize a lookup into the flat rows.
+        // The renderer holds ONE ListGridState for its whole life and
+        // `rebuild()` mutates it in place, so a cache keyed on the instance
+        // would never invalidate and rows would resolve to stale flat entries.
+        const gs = makeGridState();
+        const before = { self: gs, rows: gs.flatRows, generation: gs.generation };
+        gs.rebuild();
+        expect(gs).toBe(before.self); // identity unchanged...
+        expect(gs.flatRows).not.toBe(before.rows); // ...but the rows are new
+        expect(gs.generation).not.toBe(before.generation);
+    });
+});
+
+describe("update()", () => {
+    test("applies every declared option and ignores undefined ones", () => {
+        const gs = makeGridState({ hasSelectors: false });
+        expect(gs.colCount).toBe(3);
+        gs.update({ hasSelectors: true });
+        expect(gs.colCount).toBe(4);
+        gs.update({ hasSelectors: undefined });
+        expect(gs.colCount).toBe(4);
+        gs.update({ hasActionsColumn: true, hasOpenFormViewColumn: true });
+        expect(gs.colCount).toBe(6);
+        gs.update({ isRTL: true });
+        expect(gs.isRTL).toBe(true);
+    });
+
+    test("columns still rebuild the id-to-index lookup", () => {
+        const gs = makeGridState();
+        const columns = [mockColumn("a"), mockColumn("b")];
+        gs.update({ columns });
+        expect(gs.getColIndexOfColumn(columns[1])).toBe(1);
+        expect(gs.colCount).toBe(2);
+    });
+});
+
+describe("moveFocus clamping", () => {
+    test("never yields a negative column index when the grid has no columns", () => {
+        const gs = makeGridState({
+            columns: [],
+            list: mockList([1, 2].map(mockRecord)),
+        });
+        expect(gs.colCount).toBe(0);
+        expect(gs.moveFocus(0, 0, "down")).toEqual({ rowIndex: 1, colIndex: 0 });
+    });
+});
