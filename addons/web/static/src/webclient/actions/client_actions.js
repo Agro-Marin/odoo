@@ -9,6 +9,7 @@ import { router } from "@web/core/browser/router";
 import { makeErrorFromResponse, rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { htmlSprintf } from "@web/core/utils/dom/html";
+import { isSafeUrlScheme } from "@web/core/utils/urls";
 /**
  * Client action to display a notification with optional links.
  *
@@ -24,9 +25,20 @@ export function displayNotificationAction(env, action) {
         title: params.title,
         type: params.type || "info",
     };
-    const links = (params.links || []).map(
-        (link) => markup`<a href="${link.url}" target="_blank">${link.label}</a>`,
-    );
+    // `markup` escapes the interpolated url, which stops tag injection but says
+    // nothing about the SCHEME: `javascript:` survives escaping intact and runs
+    // on click. `params.links[].url` is not necessarily admin-authored — any
+    // model method can build a notification out of a record field a regular
+    // user filled in — so it gets the same `isSafeUrlScheme` gate `act_url.js`
+    // applies. A blocked link keeps its label as plain text rather than
+    // vanishing, so the message still reads as written.
+    const links = (params.links || []).map((link) => {
+        if (isSafeUrlScheme(link.url)) {
+            return markup`<a href="${link.url}" target="_blank">${link.label}</a>`;
+        }
+        console.warn("Blocked an unsafe url in a display_notification link", link.url);
+        return markup`${link.label}`;
+    });
     const message = htmlSprintf(params.message, ...links);
     env.services.notification.add(message, options);
     return params.next;
