@@ -14,10 +14,23 @@
                 <div class="modal-dialog modal-dialog-centered" t-attf-class="modal-{{props.size}}">
                     <div class="modal-content" t-att-class="props.contentClass" t-att-style="contentStyle">
                         <header t-if="props.header" class="modal-header">
-                            <t t-slot="header" close="data.close" isFullscreen="isFullscreen">
+                            <!-- The slot scope IS the header contract: everything
+                                 `web.Dialog.header` needs is published here, so a
+                                 component overriding this slot can render a correct
+                                 header without reaching into Dialog's internals. -->
+                            <t t-slot="header"
+                                close="data.close"
+                                isFullscreen="isFullscreen"
+                                isClosing="data.isClosing"
+                                title="props.title"
+                                titleId="id + '_title'">
                                 <t t-call="web.Dialog.header">
                                     <t t-set="fullscreen" t-value="isFullscreen"/>
                                     <t t-set="onExpand" t-value="props.onExpand"/>
+                                    <t t-set="isClosing" t-value="data.isClosing"/>
+                                    <t t-set="title" t-value="props.title"/>
+                                    <t t-set="titleId" t-value="id + '_title'"/>
+                                    <t t-set="dismiss" t-value="() => this.dismiss()"/>
                                 </t>
                             </t>
                         </header>
@@ -33,20 +46,32 @@
         </div>
     </t>
 
+    <!--
+        Standalone header, driven ENTIRELY by `t-set` parameters:
+        `fullscreen`, `onExpand`, `isClosing`, `title`, `titleId`, `dismiss`.
+
+        It used to read `data.isClosing`, `id` and `props.title` straight off the
+        calling component, which is an invisible contract only `web.Dialog`
+        itself satisfies. `SelectCreateDialog` overrides the header slot and
+        t-calls this template from a plain Component: `data` was undefined there,
+        so the whole dialog threw on render (`debug_manager` "can open a view"),
+        and `id` was undefined too, pointing Dialog's `aria-labelledby` at a
+        `<h4 id="undefined_title">` that never matched.
+    -->
     <t t-name="web.Dialog.header">
         <t t-if="fullscreen">
-            <button class="btn oi oi-arrow-left" aria-label="Close" tabindex="-1" t-att-disabled="data.isClosing" t-on-click="dismiss" />
+            <button class="btn oi oi-arrow-left" aria-label="Close" tabindex="-1" t-att-disabled="isClosing" t-on-click="dismiss" />
         </t>
         <h4 class="modal-title text-break flex-grow-1"
-            t-att-id="id + '_title'"
+            t-att-id="titleId"
             t-att-class="{ 'me-auto': fullscreen }">
-            <t t-esc="props.title"/>
+            <t t-esc="title"/>
         </h4>
         <t t-if="onExpand">
             <button type="button" class="fa-solid fa-up-right-and-down-left-from-center btn opacity-75 opacity-100-hover o_expand_button" aria-label="Expand" tabindex="-1" t-on-click="onExpand"/>
         </t>
         <t t-if="!fullscreen">
-            <button type="button" class="btn-close" aria-label="Close" tabindex="-1" t-att-disabled="data.isClosing" t-on-click="dismiss"></button>
+            <button type="button" class="btn-close" aria-label="Close" tabindex="-1" t-att-disabled="isClosing" t-on-click="dismiss"></button>
         </t>
     </t>
 </templates>

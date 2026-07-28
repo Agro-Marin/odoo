@@ -18,6 +18,10 @@
     <xpath expr="//t[@t-slot='header']" position="replace">
       <t t-call="web.ActionDialog.header">
         <t t-set="fullscreen" t-value="props.isFullscreen"/>
+        <t t-set="isClosing" t-value="data.isClosing"/>
+        <t t-set="title" t-value="props.title"/>
+        <t t-set="titleId" t-value="id + '_title'"/>
+        <t t-set="dismiss" t-value="() => this.dismiss()"/>
       </t>
     </xpath>
   </t>
