@@ -582,7 +582,19 @@ export const treeProcessorService = {
                 const _fieldDef = getFieldDef(/** @type {any} */ (tree).path);
                 const _resModel = getResModel(_fieldDef);
                 const _tree = /** @type {any} */ (tree.value);
-                const description = await getDomainTreeDescription(_resModel, _tree);
+                // `limit`/`pathLimit` must cross into the sub-domain. They are
+                // threaded through this whole recursion for this one call, and
+                // dropping them here made them dead parameters: a caller asking
+                // for a compact rendering (mass_mailing's snippet-visibility
+                // facet passes 2/1) got the DEFAULTS back the moment the domain
+                // contained an `any` sub-expression.
+                const description = await getDomainTreeDescription(
+                    _resModel,
+                    _tree,
+                    false,
+                    limit,
+                    pathLimit,
+                );
                 stringDescription.push(`( ${description} )`);
             }
             return stringDescription.join(" ");

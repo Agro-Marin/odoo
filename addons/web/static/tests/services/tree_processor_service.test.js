@@ -273,3 +273,23 @@ test("a tree's field defs and display names are resolved once, not once per leaf
     expect(loadFieldInfoCalls).toBe(1);
     expect(loadDisplayNamesCalls).toBe(1);
 });
+
+test("a sub-expression inherits the caller's value and path limits", async () => {
+    await makeMockEnv();
+    const treeProcessor = getService("tree_processor");
+    const domain = [
+        ["manager_id", "any", [["manager_id.qty", "in", [1, 2, 3, 4, 5, 6, 7, 8]]]],
+    ];
+    const tree = await treeProcessor.treeFromDomain("partner", domain);
+
+    // `limit`/`pathLimit` are threaded through the whole description recursion
+    // for the sole benefit of this nested call. Dropping them silently handed
+    // the sub-domain the DEFAULTS (5 values, unlimited path segments).
+    expect(
+        await treeProcessor.getDomainTreeDescription("partner", tree, false, 2, 1),
+    ).toBe("Manager : ( Manager... = 1 or ... )");
+
+    expect(await treeProcessor.getDomainTreeDescription("partner", tree)).toBe(
+        "Manager : ( Manager \u2794 Qty = 1 or 2 or 3 or 4 or ... )",
+    );
+});
