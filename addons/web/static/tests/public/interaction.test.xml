@@ -7,4 +7,9 @@
         <div class="sub1" t-att-data-which="first">Sub 1</div>
         <div class="sub2" t-att-data-which="second">Sub 2</div>
     </t>
+
+<t t-name="web.public.test.norender">
+    <span class="no-context">no context needed</span>
+</t>
+
 </templates>

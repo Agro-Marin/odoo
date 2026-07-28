@@ -3209,6 +3209,19 @@ describe("removeChildren", () => {
 });
 
 describe("renderAt", () => {
+    test("renders a context-free template without being handed a context", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                // two interactions in the tree already called it this way; the
+                // parameter simply never admitted it
+                this.renderAt("web.public.test.norender");
+            }
+        }
+        await startInteraction(Test, `<div class="test"></div>`);
+        expect(".test .no-context").toHaveCount(1);
+    });
+
     test("renders several elements with a single interaction scan", async () => {
         // a scan costs one querySelectorAll per registered interaction class,
         // a price paid per scan and not per node: rendering N siblings must not
