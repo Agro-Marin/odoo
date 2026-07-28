@@ -30,39 +30,22 @@ export const DocumentsModelMixin = (component) =>
          */
         async load(params = {}) {
             const selection = this.root?.selection;
-            // `=== undefined`, not a truthiness test: `sharedSelection` arrives as
-            // an empty array whenever the view is switched with nothing selected
-            // (getGlobalState -> exportSelection -> []). `![]` is false, so a
-            // truthiness test never re-captured afterwards, and `_reapplySelection`
-            // only cleared the buffer when it was non-empty -- so that `[]` stuck
-            // for the rest of the session and every later `load()` (i.e. every
-            // rename, lock, archive, embedded action or upload, all of which go
-            // through `_notifyChange`) silently wiped the user's selection.
+            // `=== undefined`, not a truthiness test: `sharedSelection` arrives
+            // as an empty array when the view is switched with nothing selected,
+            // and `![]` is false -- a truthiness test would never re-capture
+            // again, so that `[]` would wipe the selection on every later load.
             if (this.originalSelection === undefined && selection && selection.length > 0) {
                 this.originalSelection = selection.map((rec) => rec.resId);
             }
-            // The point of this block is that `load()` must not write into an
-            // object it does not own.
+            // A copy: `params.context` is the controller's own `props.context`
+            // object, so stamping the flag onto it would mutate component props
+            // (and, through `computeNextConfig`, `this.config` with it).
             //
-            // It used to read `for (const arg of arguments) arg.context[...] =
-            // true`. The only caller that passes anything is `useModel`'s
-            // `load(getSearchParams(props))`, and `params.context` there IS the
-            // controller's own `props.context` object -- so the loop stamped
-            // component props in place. `computeNextConfig` then copied the
-            // stamped context into `this.config`, which is how every later
-            // argument-less `load()` came to carry the flag too.
-            //
-            // On the flag itself, measured rather than assumed: it is inert for
-            // this model. Every `ir.attachment._search` a documents read
-            // triggers is an `[('id','in',[...])]` batch, and the `res_field`
-            // guard in `ir_attachment._search` already exempts any domain
-            // mentioning `id`. Related `attachment_id.*` fields resolve to a
-            // LEFT JOIN, never a nested `_search`. Setting or omitting the flag
-            // returns byte-identical results and the same query count.
-            //
-            // It is kept (upstream sets it, it costs nothing, and a future
-            // domain could stop being id-scoped) but it is deliberately no
-            // longer delivered by mutating props.
+            // The flag itself is inert for this model -- every
+            // `ir.attachment._search` a documents read triggers is an
+            // `[('id','in',[...])]` batch, which `ir_attachment._search` already
+            // exempts. Kept because upstream sets it and a future domain could
+            // stop being id-scoped.
             const nextParams =
                 this.config.resModel === "documents.document"
                     ? {
@@ -104,9 +87,8 @@ export const DocumentsModelMixin = (component) =>
                     record.selected = originalSelection.has(record.resId);
                 });
             }
-            // Always release the buffer, including when it was empty -- otherwise
-            // an empty `sharedSelection` is never cleared and permanently blocks
-            // the re-capture in `load()` above.
+            // Released even when empty, otherwise it blocks the re-capture in
+            // `load()` above forever.
             delete this.originalSelection;
         }
 
@@ -238,10 +220,8 @@ export const DocumentsModelMixin = (component) =>
          * Copy the links (comma-separated) of the selected documents.
          */
         async onCopyLinks() {
-            // Honour a domain ("select all") selection like the other bulk
-            // handlers do: reading `targetRecords` alone silently acted on the
-            // records loaded in the current page, so with "All 5 selected" shown
-            // the user got 2 links.
+            // A domain ("select all") selection covers more than the loaded
+            // page, so `targetRecords` alone would act on the page only.
             const urls = this.isDomainSelected
                 ? (
                       await this.orm.read(
@@ -318,6 +298,19 @@ export const DocumentsModelMixin = (component) =>
          * Unlink the selected documents if they are archived.
          */
         async onDelete() {
+            // Resolved before asking: `DynamicList.deleteRecords([])` means "the
+            // whole selection, or the whole domain" (see its `_deleteRecords`),
+            // so an empty list must never reach it. It also stops the dialog from
+            // opening on a selection that holds nothing erasable -- an internal
+            // user only ever erases what is already in the trash.
+            const records = this.isDomainSelected
+                ? null
+                : this.documentService.userIsInternal
+                  ? this.targetRecords.filter((r) => !r.data.active)
+                  : this.targetRecords;
+            if (records && !records.length) {
+                return;
+            }
             const confirmed = await new Promise((resolve) => {
                 const dialogProps = {
                     title: _t("Delete permanently"),
@@ -339,10 +332,7 @@ export const DocumentsModelMixin = (component) =>
             if (!confirmed) {
                 return;
             }
-            if (!this.isDomainSelected) {
-                const records = !this.documentService.userIsInternal
-                    ? this.targetRecords
-                    : this.targetRecords.filter((r) => !r.data.active);
+            if (records) {
                 await this.root.deleteRecords(records);
             } else {
                 const resIds = !this.documentService.userIsInternal
@@ -438,9 +428,7 @@ export const DocumentsModelMixin = (component) =>
          * Open the permission panel of the selected document.
          */
         async onShare() {
-            // Same reason as `onCopyLinks`: with a domain selection the sharing
-            // dialog used to open on the loaded page only, while the UI said
-            // "All N selected".
+            // Domain selection: see `onCopyLinks`.
             const documentIds = this.isDomainSelected
                 ? await this.getResIds()
                 : this.targetRecords.map((d) => d.data.id);
@@ -468,8 +456,7 @@ export const DocumentsModelMixin = (component) =>
          * Execute the given `ir.embedded.action` on the current selected documents.
          */
         async onDoAction(actionId) {
-            // Same reason: an embedded server action ran on the loaded page only
-            // while the UI reported the whole domain as selected.
+            // Domain selection: see `onCopyLinks`.
             const documentIds = this.isDomainSelected
                 ? await this.getResIds()
                 : this.targetRecords.map((record) => record.data.id);
@@ -523,16 +510,12 @@ export const DocumentsModelMixin = (component) =>
          *
          * Mutates `data.records` in place and returns nothing; the callers
          * (`DocumentsListModel` / `DocumentsKanbanModel` `_loadData`) return
-         * their own `data`. It used to `return data` on one branch only, which
-         * read as if the result mattered.
+         * their own `data`.
          *
-         * Hands the id to `this.documentIdToRestore` (this model) rather than to
-         * the `document.document` service. It is consumed a few microtasks later
-         * by `DocumentsRecordMixin.setup`, on records this very load builds, and
-         * cleared at the end of `load` -- so it is load-scoped state belonging to
-         * the model. On the service it was an undeclared property (the service
-         * only ever declares `documentIdToRestoreOnce`) written by one mixin and
-         * read by another through a process-wide singleton.
+         * The id lands on `this.documentIdToRestore`: load-scoped state, consumed
+         * by `DocumentsRecordMixin.setup` on the records this very load builds and
+         * cleared at the end of `load`, so it belongs to the model rather than to
+         * the process-wide service.
          */
         async _loadDocumentToRestore(config, data) {
             // This getter resets the DocumentIdToRestore, we'll restore it if we do have the record.

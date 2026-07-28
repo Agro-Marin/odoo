@@ -45,7 +45,15 @@ class DocumentsAccessTracking(models.Model):
                 ]
             )
 
-        self.env.ref("documents.ir_cron_documents_access_tracking")._trigger()
+        # Same rule as `documents.document._trigger_url_preview_cron`: the cron
+        # record may not have survived an uninstall, and a hard `env.ref` would
+        # take every access-rights update down with a ValueError over a chatter
+        # message that nobody would have read anyway.
+        cron = self.env.ref(
+            "documents.ir_cron_documents_access_tracking", raise_if_not_found=False
+        )
+        if cron:
+            cron.sudo()._trigger()
 
     @api.model
     def _cron_generate_tracking(self) -> None:

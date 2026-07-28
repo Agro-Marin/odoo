@@ -16,12 +16,9 @@ patch(ErrorDialog.components, {
  * Form-data marker identifying the traceback upload as this dialog's own.
  *
  * `file_upload`'s bus is application-wide, so `FILE_UPLOAD_LOADED` fires for
- * every upload in the session -- including a documents upload the user started
- * before the error appeared. `/documents/upload/<token>` answers with an array
- * of new document ids, so a single-file upload is shape-identical to the
- * traceback controller's `[url]` response and used to be adopted here: the
- * dialog published a document id as its "traceback URL" and copied it to the
- * clipboard announcing "The document URL has been copied to your clipboard."
+ * every upload in the session. `/documents/upload/<token>` answers with an array
+ * of new document ids, which is shape-identical to this controller's `[url]`
+ * response, so without a marker a documents upload gets adopted as the traceback.
  */
 const TRACEBACK_MARKER = "documents_traceback";
 

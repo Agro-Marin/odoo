@@ -79,7 +79,7 @@ export class PdfPage extends Component {
      */
     onClickSelect(ev) {
         if (this.props.onSelectClicked) {
-            this.props.onSelectClicked(this.props.pageId, ev.shiftKey, ev.ctrlKey || ev.metaKey);
+            this.props.onSelectClicked(this.props.pageId, ev.shiftKey);
         }
     }
     /**

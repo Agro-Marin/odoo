@@ -123,8 +123,7 @@
                     user-drag: none;
                 }
 
-                .fa-star,
-                .fa-star-o {
+                .fa-star {
                     &:before {
                         position: relative;
                         z-index: 1;
@@ -168,22 +167,22 @@
             @include media-breakpoint-up(lg) {
                 &:not(:hover) {
                     .fa-eye-slash,
-                    .fa-star-o,
-                    .o_field_kanban_activity:has(.fa-clock-o) {
+                    .fa-regular.fa-star,
+                    .o_field_kanban_activity:has(.fa-regular.fa-clock) {
                         visibility: hidden;
                     }
                 }
             }
 
-            .fa-star-o {
-                &:hover:before {
-                    content: "\f005";
+            .fa-regular.fa-star {
+                &:hover {
+                    --fa-style: 900;
                 }
             }
 
-            .fa-star {
-                &:hover:before {
-                    content: "\f006";
+            .fa-solid.fa-star {
+                &:hover {
+                    --fa-style: 400;
                 }
             }
 

@@ -19,6 +19,8 @@ export const documentsClientThumbnailService = {
     start(env) {
         let pdfEnabled = true;
         const mutex = new Mutex();
+        /** res ids whose thumbnail generation is currently queued or running. */
+        const queued = new Set();
 
         const makeThumbnail = async (record) => {
             if (record.data.thumbnail_status !== "client_generated") {
@@ -29,11 +31,21 @@ export const documentsClientThumbnailService = {
                 if (!pdfEnabled) {
                     return;
                 }
-                ({ thumbnail, pdfEnabled } = await getPdfThumbnail(
+                let isPdfValid;
+                ({ thumbnail, isPdfValid, pdfEnabled } = await this._getPdfThumbnail(
                     record,
                     THUMBNAIL_WIDTH,
                     THUMBNAIL_HEIGHT
                 ));
+                if (isPdfValid === false) {
+                    // The route answered 415: whatever the document carries, the
+                    // server will not render a first page from it, now or ever.
+                    // `false` marks it failed below -- the same policy the webp
+                    // branch applies to its definitive failures. Leaving the
+                    // status at `client_generated` had every later page load
+                    // re-request it, for a thumbnail that can never arrive.
+                    thumbnail = false;
+                }
             } else if (record.data.mimetype === "image/webp") {
                 try {
                     const img = await this._getLoadedImage(record);
@@ -68,26 +80,27 @@ export const documentsClientThumbnailService = {
                     return;
                 }
                 for (const record of records) {
-                    if (record.data.thumbnail_status === "client_generated") {
+                    if (
+                        record.data.thumbnail_status === "client_generated" &&
+                        !queued.has(record.resId)
+                    ) {
+                        // One generation per record at a time. Every card enqueues
+                        // itself on mount and the same record mounts more than once
+                        // per load, so without this each thumbnail was fetched and
+                        // rendered twice. Released in the `finally` below, so a
+                        // record whose file changes later is generated again.
+                        queued.add(record.resId);
                         mutex.exec(async () => {
                             try {
                                 await makeThumbnail(record);
                             } catch {
                                 // Thumbnails are cosmetic and generated in the
-                                // background. `mutex.exec` hands back a promise
-                                // that rejects when its action does, and nobody
-                                // was holding it -- so a failed
-                                // `update_thumbnail` RPC, or a PDF whose first
-                                // page fails to render (`generatePdfThumbnail`
-                                // wraps that block in a `finally`, not a
-                                // `catch`), escaped as an unhandled rejection
-                                // and the webclient raised the global error
-                                // dialog at the user. For a decoration.
-                                //
-                                // The status is deliberately left untouched, so
-                                // the next load retries -- same as the
-                                // "content not accessible" path above. Changing
-                                // the retry policy is a separate decision.
+                                // background, and `mutex.exec` hands back a promise
+                                // nobody holds -- an escaping rejection would reach
+                                // the webclient's global error dialog. The status is
+                                // left untouched so the next load retries.
+                            } finally {
+                                queued.delete(record.resId);
                             }
                         });
                     }
@@ -95,6 +108,13 @@ export const documentsClientThumbnailService = {
                 return mutex.getUnlockedDef();
             },
         };
+    },
+    /**
+     * Seam over the shared pdf.js helper, mirroring `_getLoadedImage`: both
+     * fetch-and-decode steps are reachable from a test without a real document.
+     */
+    _getPdfThumbnail(record, width, height) {
+        return getPdfThumbnail(record, width, height);
     },
     async _getLoadedImage(record) {
         // Fetch first (rather than assigning the URL straight to img.src) so the

@@ -84,15 +84,20 @@ class DocumentsAccess(models.Model):
         moment their *share* expired. Expire the membership instead, and only
         delete rows that hold nothing else (the ``_role_or_last_access_date``
         constraint means a row must keep at least one of the two).
+
+        Reports ``(done, maybe more)`` so a backlog larger than one batch is
+        drained across the vacuum's re-queue instead of over as many days.
         """
+        limit = 1000
         expired = self.search(
-            [("expiration_date", "<=", fields.Datetime.now())], limit=1000
+            [("expiration_date", "<=", fields.Datetime.now())], limit=limit
         )
         if not expired:
-            return
+            return 0, False
         visited = expired.filtered("last_access_date")
         visited.write({"role": False, "expiration_date": False})
         (expired - visited).unlink()
+        return len(expired), len(expired) == limit
 
     ######################
     # Partner invitation #

@@ -1,8 +1,6 @@
 /** @odoo-module native */
 import { Attachment } from "@mail/core/common/attachment_model";
 import { patch } from "@web/core/utils/patch";
-import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
 
 const textMimeTypePattern = /^text\//;
 const additionalMimeTypes = ["application/xml"];
@@ -66,19 +64,16 @@ const attachmentPatch = {
     documentTextContent: null,
 
     /**
-     * Fetching the attachment raw via rpc (orm_service is unavailable from here).
      * Content urls for 'application/documents-email' docs are set so as
      * browsers render strictly 'text/plain' (anti-phishing measure).
+     *
+     * Through the document service, which batches the read with whatever else
+     * asks in the same tick.
      */
     async loadDocumentEmailContent() {
-        const params = {
-            model: "documents.document",
-            method: "read",
-            args: [this.documentId, ["raw"]],
-            kwargs: { context: user.context },
-        };
-        const result = await rpc("/web/dataset/call_kw/documents.document/read", params);
-        this.documentEmailContent = result[0]["raw"];
+        this.documentEmailContent = await this.store.env.services[
+            "document.document"
+        ].loadEmailContent(this.documentId);
     },
     /**
      * Fetch the content and wraps it in a pre tag for nicer rendering

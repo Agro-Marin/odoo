@@ -31,3 +31,42 @@ class TestMultipage(TransactionCase):
             "folder_id": self.folder_a.id,
         })
         self.assertFalse(document.is_multipage)
+
+    def test_multipage_under_bin_size(self):
+        """The page count must not depend on the ambient `bin_size` context."""
+        document = self.env["documents.document"].create({
+            "name": "multipage.pdf",
+            "mimetype": "application/pdf",
+            "datas": multipage_pdf,
+            "folder_id": self.folder_a.id,
+        })
+        self.assertTrue(document.is_multipage)
+
+        document.invalidate_recordset()
+        sized = document.with_context(bin_size=True)
+        self.assertTrue(
+            sized._get_is_multipage(),
+            "the payload must be read through a bin_size-safe primitive",
+        )
+
+    def test_multipage_parameterised_pdf_mimetype(self):
+        """A mimetype carrying parameters is still a PDF."""
+        document = self.env["documents.document"].create({
+            "name": "multipage.pdf",
+            "mimetype": "application/pdf; charset=binary",
+            "datas": multipage_pdf,
+            "folder_id": self.folder_a.id,
+        })
+        self.assertTrue(document.is_multipage)
+
+    def test_multipage_without_attachment(self):
+        """A document with no attachment (e.g. a shortcut) is not a PDF."""
+        target = self.env["documents.document"].create({
+            "name": "multipage.pdf",
+            "mimetype": "application/pdf",
+            "datas": multipage_pdf,
+            "folder_id": self.folder_a.id,
+        })
+        shortcut = target.action_create_shortcut()
+        self.assertFalse(shortcut.attachment_id)
+        self.assertIsNone(shortcut._get_is_multipage())

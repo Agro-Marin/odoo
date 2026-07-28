@@ -224,7 +224,8 @@ class ShareRoute(http.Controller):
             request.env["documents.document"]
             .sudo()
             .search(
-                Domain("folder_id", "=", folder_sudo.id) & cls._folder_children_domain(),
+                Domain("folder_id", "=", folder_sudo.id)
+                & cls._folder_children_domain(),
                 order="name",
             )
         )
@@ -507,15 +508,38 @@ class ShareRoute(http.Controller):
                 if (item := make_zip_item(doc, folder)) is not None
             )
             for folder_sudo in documents_sudo:
-                if folder_sudo.type != "folder" or folder_sudo in seen_folders:
+                if folder_sudo.type != "folder":
                     continue
-                seen_folders.add(folder_sudo)
+                # Children hang off the TARGET, never off the shortcut, so
+                # recursing on the shortcut found nothing and the archive
+                # carried the folder as an empty directory -- silently, with
+                # HTTP 200. A shortcut to a *file* has always been resolved
+                # (`make_zip_item` below streams the target); this is the same
+                # promise for folders. `_get_folder_children` re-applies the
+                # visibility domain to whatever it lists, so resolving here
+                # cannot widen what the link grants.
+                source_sudo = folder_sudo.shortcut_document_id or folder_sudo
 
                 if (sub_folder := make_zip_item(folder_sudo, folder)) is None:
                     continue  # unreachable shortcut target
                 yield sub_folder
-                for sub_document_sudo in self._get_folder_children(folder_sudo):
-                    yield from generate_zip_items(sub_document_sudo, sub_folder)
+                # The guard skips the WALK, never the entry above: several
+                # shortcuts to one folder each deserve their own directory in
+                # the archive, and only the first carries the contents. Keyed on
+                # the resolved folder, because a cycle closed through a shortcut
+                # (A holds a shortcut to B, B one back to A) is only visible once
+                # both sides resolve to the same record. Global rather than
+                # per-branch so the walk stays bounded by the number of folders.
+                if source_sudo in seen_folders:
+                    continue
+                seen_folders.add(source_sudo)
+                # One recursion for the whole level, not one per child: a
+                # single-record call made `sorted()` and the files-then-folders
+                # split above vacuous, and issued one `_get_folder_children`
+                # search per child.
+                yield from generate_zip_items(
+                    self._get_folder_children(source_sudo), sub_folder
+                )
 
         return list(generate_zip_items(documents, ZipEntry("", None)))
 
@@ -644,6 +668,12 @@ class ShareRoute(http.Controller):
         }
         documents = request.env["documents.document"].browse(document_ids)
         documents.check_access("read")
+        # The ids are client-supplied like the rest of the payload. A pending
+        # request document holds no content and a shortcut holds its target's,
+        # so `b64decode(document.datas)` got `False` and raised TypeError -- an
+        # HTTP 500 where every other bad input on this route answers 400.
+        if any(not document.attachment_id for document in documents):
+            raise BadRequest("cannot split a document that carries no content")
 
         with ExitStack() as stack:
             files = request.httprequest.files.getlist("ufile")
@@ -807,8 +837,13 @@ class ShareRoute(http.Controller):
         # An archived document keeps the default `documents_init` (it cannot be
         # browsed as a folder). Shortcuts to archived folders behave like binary
         # documents for the same reason.
-        if document.active and document.type == "folder" and (
-            not document.shortcut_document_id or document.shortcut_document_id.active
+        if (
+            document.active
+            and document.type == "folder"
+            and (
+                not document.shortcut_document_id
+                or document.shortcut_document_id.active
+            )
         ):
             documents_init = {"user_folder_id": str(document.id)}
         elif document.active:
@@ -849,9 +884,7 @@ class ShareRoute(http.Controller):
         dispatcher's read-only retry: that retry re-runs the whole handler, and
         this one serves file content.
         """
-        return not str2bool(
-            request.httprequest.args.get("download", "1"), default=True
-        )
+        return not str2bool(request.httprequest.args.get("download", "1"), default=True)
 
     @http.route(
         "/documents/content/<access_token>",
@@ -1208,9 +1241,7 @@ class ShareRoute(http.Controller):
                 values_are_used
                 and owner_id
                 and owner_id != request.env.user.id
-                and not request.env.user.has_group(
-                    "documents.group_documents_manager"
-                )
+                and not request.env.user.has_group("documents.group_documents_manager")
             ):
                 # Otherwise any internal user holding an edit share link could
                 # attribute an upload to someone else -- filing a document into
@@ -1293,9 +1324,21 @@ class ShareRoute(http.Controller):
             attachment_sudo = AttachmentSudo._from_request_file(
                 files[0], mimetype="TRUST" if is_internal_user else "GUESS"
             )
-            attachment_sudo.res_model = document_sudo.res_model or "documents.document"
-            attachment_sudo.res_id = (
-                document_sudo.res_id if document_sudo.res_model else document_sudo.id
+            # One write, and `no_document`: this is Documents binding its own
+            # attachment to the document it is about to fill in two lines, the
+            # same internal move `documents.document._inverse_res_record` makes.
+            # Left to the bridge, the two single-field writes re-enter
+            # `_create_document`, which either self-binds the request document
+            # early -- so the `is a request` test below sees an attachment and
+            # skips the edit-link downgrade -- or, for a document linked to a
+            # `documents.mixin` record, creates a SECOND document for it.
+            attachment_sudo.with_context(no_document=True).write(
+                {
+                    "res_model": document_sudo.res_model or "documents.document",
+                    "res_id": document_sudo.res_id
+                    if document_sudo.res_model
+                    else document_sudo.id,
+                }
             )
             values = {"attachment_id": attachment_sudo.id}
             if not document_sudo.attachment_id:  # is a request
@@ -1359,6 +1402,22 @@ class ShareRoute(http.Controller):
         return created_sudo.ids
 
     def _documents_upload_create_write(self, document_sudo: Any, vals: dict) -> Any:
+        """Write *vals* on a binary document, or create one inside a folder.
+
+        The per-file extension point of the upload route: overrides may veto or
+        redirect a single file, which is why the loop in :meth:`_documents_upload`
+        cannot be batched.
+
+        An override MUST return a ``documents.document`` recordset -- the
+        document it handled, or an empty recordset to mean "nothing was
+        created". Returning ``None`` breaks both consumers: the caller unions the
+        result (``created_sudo |= None`` is a ``TypeError``) and
+        ``documents_spreadsheet``'s override reads ``.name`` off it. Neither
+        failure is recoverable mid-upload, so they surface as an HTTP 500.
+
+        :return: the document written or created
+        :rtype: recordset of documents.document
+        """
         # Either write vals on a binary document or create a new document
         # with vals inside a folder document.
         if document_sudo.type == "binary":

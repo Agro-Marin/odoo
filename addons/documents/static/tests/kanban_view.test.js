@@ -31,7 +31,6 @@ import {
     mimetypeExamplesBase64,
 } from "./helpers/data.js";
 import { defineDocumentsModels } from "@documents/../tests/documents_test_helpers";
-import { defineDocumentsModels } from "@documents/../tests/documents_test_helpers";
 import { makeDocumentsMockEnv } from "./helpers/model.js";
 import { embeddedActionsServerData } from "./helpers/test_server_data.js";
 import { basicDocumentsKanbanArch, mountDocumentsKanbanView } from "./helpers/views/kanban.js";
@@ -82,7 +81,7 @@ test("Colorless-tags are also visible on cards", async function () {
     const archWithTags = basicDocumentsKanbanArch.replace(
         '<field name="name"/>',
         '<field name="name"/>\n' +
-            '<field name="tag_ids" class="d-block text-wrap" widget="many2many_tags" options="{\'color_field\': \'color\'}"/>'
+            '<field name="tag_ids" class="d-block text-wrap" widget="documents_many2many_tags" options="{\'color_field\': \'color\'}"/>'
     );
     await makeDocumentsMockEnv({ serverData });
     await mountDocumentsKanbanView({ arch: archWithTags });
@@ -433,9 +432,23 @@ test("Drag and Drop - Check access rights confirmation popup when moving from se
     await animationFrame();
     const source = contains(".o_search_panel_category_value[data-value-id='7']");
     const { drop, moveTo } = await source.drag();
-    await moveTo(
-        document.querySelector(".o_search_panel_category_value[data-value-id='COMPANY']")
+    // The same nesting gesture the cases above use, not a single `moveTo`:
+    // `useNestedSortable` only reports a `parent` once the pointer has moved
+    // far enough right to nest. Dropped straight onto the row, folder 7 lands
+    // as a SIBLING -- `parent` is null, `onDrop` returns on `!parentFolderId`,
+    // and no move is issued.
+    // Folders 2..6 are already COMPANY's children, so dropping folder 7 as
+    // their sibling makes COMPANY its parent. Hovering the COMPANY row itself
+    // does NOT work: the placeholder lands next to the dragged element and
+    // `nested_sortable` skips `onDrop` for that no-op.
+    const lastCompanyChild = document.querySelector(
+        ".o_search_panel_category_value[data-value-id='6']"
     );
+    await moveTo(lastCompanyChild);
+    await moveTo(lastCompanyChild, {
+        position: { y: lastCompanyChild.offsetHeight },
+        relative: true,
+    });
     await drop();
     await animationFrame();
     expect.verifySteps([
@@ -786,6 +799,77 @@ test("Select a range with SHIFT key", async () => {
     await contains(".o_kanban_record:contains(Request 2)").click();
     expect(".o_kanban_record:contains(Request 1)").toHaveClass("o_record_selected");
     expect("div.o_record_selected").toHaveCount(3);
+});
+
+test("Select a range with SHIFT key, upwards", async () => {
+    // Only the downwards direction was covered. `toggleRangeSelection` reads the
+    // range off the rendered DOM and applies it over `props.list.records`, two
+    // orderings that need not agree, so pin the other direction too.
+    const serverData = getDocumentsTestServerModelsData([
+        makeDocumentRecordData(2, "Doc A", { folder_id: 1 }),
+        makeDocumentRecordData(3, "Doc B", { folder_id: 1 }),
+        makeDocumentRecordData(4, "Doc C", { folder_id: 1 }),
+    ]);
+    onRpc("/documents/touch/accessTokenFolder1", () => ({}));
+    await makeDocumentsMockEnv({ serverData });
+    await mountDocumentsKanbanView();
+    await contains(".o_kanban_record:contains(Doc C)").click();
+    expect(".o_kanban_record.o_record_selected").toHaveCount(1);
+    await contains(".o_kanban_record:contains(Doc A)").click({ shiftKey: true });
+    expect(".o_kanban_record.o_record_selected").toHaveCount(3);
+    for (const name of ["Doc A", "Doc B", "Doc C"]) {
+        expect(`.o_kanban_record:contains(${name})`).toHaveClass("o_record_selected");
+    }
+});
+
+test("The kanban view mounts in debug mode", async () => {
+    // `DocumentsSearchModel.orderBy` used to push its default onto the array
+    // `super.orderBy` returns. That array is memoized in `_orderBy` and frozen
+    // by `_freezeInDevMode`, so the push threw "Cannot add property 0, object is
+    // not extensible" and the whole view failed to mount under `?debug=1`.
+    patchWithCleanup(odoo, { debug: "1" });
+    const serverData = getDocumentsTestServerModelsData([
+        makeDocumentRecordData(2, "Doc A", { folder_id: 1 }),
+    ]);
+    onRpc("/documents/touch/accessTokenFolder1", () => ({}));
+    await makeDocumentsMockEnv({ serverData });
+    await mountDocumentsKanbanView();
+    expect(".o_kanban_record:contains(Doc A)").toHaveCount(1);
+});
+
+test("The search panel spins on the folder an upload targets", async () => {
+    // The upload never carried a `folder_id` form field (the route takes
+    // `user_folder_id`, and only for the two drive roots), so the spinner
+    // `isUploadingInFolder` drives never appeared for any upload.
+    const serverData = getDocumentsTestServerModelsData([
+        makeDocumentRecordData(2, "Doc A", { folder_id: 1 }),
+    ]);
+    onRpc("/documents/touch/accessTokenFolder1", () => ({}));
+    await makeDocumentsMockEnv({ serverData });
+    await mountDocumentsKanbanView();
+    await contains(".o_has_treeEntry .o_toggle_fold").click();
+    expect(".o_search_panel_category_value.o_treeEntry:contains(Folder 1)").toHaveCount(1);
+    expect(".o_search_panel_category_value .fa-circle-notch").toHaveCount(0);
+    const fileUpload = getService("file_upload");
+    const uploaded = new Deferred();
+    patchWithCleanup(fileUpload, {
+        async upload(_route, _files, options) {
+            const upload = { id: 1, data: new FormData(), state: "loading" };
+            options?.buildFormData?.(upload.data);
+            fileUpload.uploads[upload.id] = upload;
+            uploaded.resolve();
+            return upload;
+        },
+    });
+    getService("document.document").uploadDocument(
+        [new File(["x"], "x.txt")],
+        "accessTokenFolder1",
+        {},
+        { targetFolderId: 1 }
+    );
+    await uploaded;
+    await animationFrame();
+    expect(".o_search_panel_category_value.o_treeEntry:contains(Folder 1) .fa-circle-notch").toHaveCount(1);
 });
 
 test("Name in previewer is correct without attachment", async function () {

@@ -14,7 +14,7 @@ import { DocumentsDropZone } from "@documents/views/helper/documents_drop_zone";
 import { DocumentsFileViewer } from "@documents/views/helper/documents_file_viewer";
 import { DocumentsKanbanRecord } from "@documents/views/kanban/documents_kanban_record";
 
-import { onMounted, useExternalListener, useRef } from "@odoo/owl";
+import { onMounted, useRef, useState } from "@odoo/owl";
 
 export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRenderer) {
     static props = [...KanbanRenderer.props, "previewStore"];
@@ -33,7 +33,10 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
         super.setup();
         this.root = useRef("root");
         const { uploads } = useService("file_upload");
-        this.documentUploads = uploads;
+        // `useState`: the raw service reactive handed to FileUploadProgressContainer
+        // subscribes no component, so the progress rows only move when something
+        // else happens to re-render this renderer.
+        this.documentUploads = useState(uploads);
         this.documentService = useService("document.document");
 
         useCommand(
@@ -92,8 +95,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
             },
         });
 
-        useExternalListener(window, "keydown", (ev) => this.onKeyDown(ev));
-        useExternalListener(window, "keyup", (ev) => this.onKeyUp(ev));
 
         useBus(this.documentService.bus, "DOCUMENT_ACTIVITY_CHANGED", ({ detail }) => {
             if (
@@ -258,18 +259,6 @@ export class DocumentsKanbanRenderer extends DocumentsRendererMixin(KanbanRender
                 r.toggleSelection(!record.selected);
             }
         });
-    }
-
-    onKeyDown(ev) {
-        if (ev.key === "Control") {
-            this.root.el.classList.add("o_documents_dnd_shortcut");
-        }
-    }
-
-    onKeyUp(ev) {
-        if (ev.key === "Control") {
-            this.root.el.classList.remove("o_documents_dnd_shortcut");
-        }
     }
 
     toggleSelection(record) {

@@ -1,9 +1,17 @@
 /** @odoo-module native */
 import { SelectionBox } from "@web/views/view_components/selection_box";
+import { useService } from "@web/core/utils/hooks";
 
 export class DocumentsSelectionBox extends SelectionBox {
+    setup() {
+        super.setup();
+        // Asked of the service directly rather than walked to through
+        // `props.root.model.documentService`.
+        this.documentService = useService("document.document");
+    }
+
     onUnselectAll() {
         super.onUnselectAll();
-        this.props.root.model.documentService.bus.trigger("UPDATE-DOCUMENT-FOLDER");
+        this.documentService.bus.trigger("UPDATE-DOCUMENT-FOLDER");
     }
 }

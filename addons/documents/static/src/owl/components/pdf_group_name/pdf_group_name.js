@@ -43,8 +43,8 @@ export class PdfGroupName extends Component {
     /**
      * Clicking the name is a selection gesture as much as a rename gesture, so
      * it gets its own handler. `onToggleEdit` is called on leaving edit mode
-     * too (blur, Enter), and used to carry the selection toggle with it — which
-     * re-selected the group the very click had just deselected.
+     * too (blur, Enter), so carrying the selection toggle there would re-select the
+     * group the click had just deselected.
      * @public
      */
     onClickGroupName() {

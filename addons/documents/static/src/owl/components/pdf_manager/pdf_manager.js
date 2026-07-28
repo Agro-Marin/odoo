@@ -19,6 +19,8 @@ import { Dialog } from "@web/ui/dialog/dialog";
 
 const BLANK_PAGE_THRESHOLD = 2500;
 const BLANK_PIXEL_FILTER_VALUE = 220;
+/** Menu entries that open an overlay over the app rather than navigating away. */
+const NON_LEAVING_MENUS = ["shortcuts", "settings", "support", "documentation"];
 
 export class PdfManager extends Component {
     static components = {
@@ -43,6 +45,7 @@ export class PdfManager extends Component {
         //this is necessary because this Component is a modal in disguise but does not properly override "Dialog"
         useActiveElement("root");
         this.pageViewer = useRef("pageViewer");
+        this.pagePreview = useRef("pagePreview");
         this.selectionBox = useRef("selectionBox");
         this.addFileInput = useRef("addFileInput");
         this.notification = useService("notification");
@@ -281,7 +284,7 @@ export class PdfManager extends Component {
      * @return {Boolean}
      */
     get isDebugMode() {
-        return Boolean(odoo.debug);
+        return Boolean(this.env.debug);
     }
     /**
      * @return {Boolean}
@@ -304,9 +307,8 @@ export class PdfManager extends Component {
      * Enter or leave the group-name edit mode.
      *
      * Selection-neutral on purpose: this runs on entering the input *and* on
-     * leaving it (blur, Enter). It used to toggle the whole group's selection
-     * both ways, so committing a rename undid the selection the click that
-     * opened the input had just made.
+     * leaving it (blur, Enter), so toggling the selection here would undo what the
+     * click that opened the input just did.
      * @public
      * @param {String} groupId
      * @param {Boolean} toggle
@@ -378,10 +380,9 @@ export class PdfManager extends Component {
                 indexPage < sortedPagesIds.length - 1 &&
                 this.store.getPage(sortedPagesIds[indexPage + 1]).isSelected
             ) {
-                // Asked of the store rather than scraped off the rendered
-                // splitter's `o_pdf_separator_selected` class. The class is set
-                // by `pageId_last`, so the two agree by construction -- but only
-                // one of them is still true when the DOM has not rendered yet.
+                // Asked of the store, not scraped off the rendered splitter: the
+                // class agrees by construction, but only the store is right before
+                // the DOM has rendered.
                 const isSeparatorActive = this.store.isLastPageOfGroup(pageId);
                 toggleSeparatorBool = toggleSeparatorBool && isSeparatorActive;
                 if (isSeparatorActive) {
@@ -488,11 +489,9 @@ export class PdfManager extends Component {
             await this._loadCanvases({ newPages, pageCount, pdf });
         } catch (error) {
             // pdf.js rejects on encrypted (PasswordException), corrupt
-            // (InvalidPDFException) and unreachable (Missing/UnexpectedResponse,
-            // e.g. an expired access token or a document trashed meanwhile) PDFs.
-            // Without this the rejection escaped un-awaited to the global error
-            // handler and left `uploadingLock` on forever, disabling every
-            // top-bar button with no way back but Escape.
+            // (InvalidPDFException) and unreachable (Missing/UnexpectedResponse)
+            // PDFs. Unhandled, that reaches the global error handler and leaves
+            // `uploadingLock` on, disabling every top-bar button.
             this._displayErrorNotification(
                 error?.name === "PasswordException"
                     ? _t("%s is password protected and cannot be split.", displayName)
@@ -599,16 +598,10 @@ export class PdfManager extends Component {
      * empirically tested threshold the image is considered as blank.
      * It's used to detect scanned blank page (they are never really empty...)
      *
-     * Walks RGB and steps over alpha. `getImageData` returns RGBA, and the
-     * previous `for (const pixel of pixels)` treated the alpha byte as if it
-     * were a colour channel. That never changed a verdict -- pdf.js paints the
-     * page onto a `background || "#ffffff"` fill, so alpha is 255 everywhere and
-     * `255 < BLANK_PIXEL_FILTER_VALUE` is always false -- it just scanned a
-     * quarter more bytes than it had to. Measured over 400 pages at the 160x230
-     * size this renders: 295ms -> 132ms on blank pages (the ones that cannot
-     * exit early), unchanged on inked pages, same verdicts.
-     *
-     * Not async: it never awaited anything.
+     * Walks RGB and steps over the alpha byte `getImageData` interleaves: pdf.js
+     * paints onto an opaque fill, so alpha is always 255 and testing it is a
+     * quarter of the bytes scanned for nothing (295ms -> 132ms over 400 pages at
+     * the 160x230 size this renders).
      */
     _hasBlankGraphics(canvas) {
         const pixels = canvas
@@ -724,10 +717,8 @@ export class PdfManager extends Component {
         );
         let activePages = this.selectedPageIds;
         if (!activePages.length) {
-            // Fall back to the focused page. Keep it as an array: `activePages`
-            // feeds `.includes(pageId)` below, and a bare string there would do
-            // substring matching (e.g. "page2".includes -> "page25"), silently
-            // pulling unrelated pages into the split.
+            // An array, not a bare string: `activePages` feeds `.includes(pageId)`
+            // below, where a string would match substrings ("page2" -> "page25").
             activePages = this.store.focusedPage ? [this.store.focusedPage] : [];
             this.store.focusedPage = false;
         }
@@ -756,7 +747,7 @@ export class PdfManager extends Component {
         // When splitting a file we want them displayed in the same order as they were in the file.
         newFiles.reverse();
         // Http request
-        const document = this.props.documents[0];
+        const sourceDocument = this.props.documents[0];
         const data = new FormData();
         data.append("csrf_token", odoo.csrf_token);
         for (const file of files) {
@@ -767,10 +758,10 @@ export class PdfManager extends Component {
         data.append(
             "vals",
             JSON.stringify({
-                folder_id: document.folder_id?.id ?? false,
-                tag_ids: document.tag_ids.currentIds,
-                owner_id: document.owner_id.id,
-                partner_id: document.partner_id.id,
+                folder_id: sourceDocument.folder_id?.id ?? false,
+                tag_ids: sourceDocument.tag_ids.currentIds,
+                owner_id: sourceDocument.owner_id.id,
+                partner_id: sourceDocument.partner_id.id,
                 active: this.state.keepDocument,
             }),
         );
@@ -1266,28 +1257,52 @@ export class PdfManager extends Component {
         this._exitSplitTools();
     }
     /**
+     * Whether a click would navigate out of the split tool.
+     *
+     * The four menu entries listed open an overlay over the app instead of
+     * leaving it, and a mobile dropdown is not a navigation either.
+     *
+     * @private
+     * @param {HTMLElement} target
+     * @returns {boolean}
+     */
+    _isLeavingClick(target) {
+        if (target.closest(".o_burger_menu_content")) {
+            return true;
+        }
+        const menuItem = target.closest(".dropdown-item");
+        if (!menuItem && !target.closest(".o_menu_toggle")) {
+            return false;
+        }
+        if (NON_LEAVING_MENUS.includes(menuItem?.dataset.menu)) {
+            return false;
+        }
+        return !target.closest("[data-dropdown-is-mobile]");
+    }
+    /**
+     * Ask before letting a click navigate away, then replay it.
+     *
+     * `_exitSplitToolsClick` guards the replay against re-entering this handler.
+     * It now covers the burger-menu branch too, and is released once the replay
+     * has been dispatched: the exit dialog can leave the manager mounted (the
+     * "keep the remaining pages" answer commits them and stays if any are left),
+     * and both of those were one-way before -- the burger branch re-prompted on
+     * its own replayed click, and every later click skipped the prompt entirely.
+     *
      * @private
      * @param {Event} ev
      */
     _onOutsideClick(ev) {
-        if (
-            (!this._exitSplitToolsClick &&
-                (ev.target.closest(".dropdown-item") ||
-                    ev.target.closest(".o_menu_toggle")) &&
-                ev.target.closest(".dropdown-item")?.dataset.menu !== "shortcuts" &&
-                ev.target.closest(".dropdown-item")?.dataset.menu !== "settings" &&
-                ev.target.closest(".dropdown-item")?.dataset.menu !== "support" &&
-                ev.target.closest(".dropdown-item")?.dataset.menu !== "documentation" &&
-                !ev.target.closest("[data-dropdown-is-mobile]")) ||
-            ev.target.closest(".o_burger_menu_content")
-        ) {
-            ev.stopPropagation();
-            ev.preventDefault();
-            this._exitSplitTools(() => {
-                this._exitSplitToolsClick = true;
-                ev.target.click();
-            });
+        if (this._exitSplitToolsClick || !this._isLeavingClick(ev.target)) {
+            return;
         }
+        ev.stopPropagation();
+        ev.preventDefault();
+        this._exitSplitTools(() => {
+            this._exitSplitToolsClick = true;
+            ev.target.click();
+            this._exitSplitToolsClick = false;
+        });
     }
     /**
      * Open the previewer
@@ -1300,9 +1315,9 @@ export class PdfManager extends Component {
         if (!page) {
             return;
         }
-        const previewWrapper = document.querySelector(".o_documents_pdf_page_preview");
+        // Our own ref, not a document-wide query for a class only we render.
         const ratio = 18 / 13;
-        const width = previewWrapper.clientWidth - (30 * window.innerWidth) / 100;
+        const width = this.pagePreview.el.clientWidth - (30 * window.innerWidth) / 100;
         this.previewCanvas = await this._renderCanvas(toRaw(page), {
             width: width,
             height: width * ratio,
@@ -1350,9 +1365,8 @@ export class PdfManager extends Component {
      * @public
      * @param {String} pageId
      * @param {Boolean} isRangeSelection
-     * @param {Boolean} ctrlKey
      */
-    onSelectClicked(pageId, isRangeSelection, ctrlKey) {
+    onSelectClicked(pageId, isRangeSelection) {
         this.store.clickSelect(pageId, { isRangeSelection });
     }
     /**

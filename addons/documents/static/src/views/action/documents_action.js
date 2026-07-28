@@ -25,7 +25,9 @@ export class DocumentsAction extends Component {
         useEffect(() => {
             if (this.documentService.getSelectionActions) {
                 const selectionActions = this.documentService.getSelectionActions();
-                this.state.topbarActions = Object.values(this.documentService.getSelectionActions().getTopbarActions()).sort((a, b) => b.groupNumber - a.groupNumber)
+                this.state.topbarActions = Object.values(
+                    selectionActions.getTopbarActions()
+                ).sort((a, b) => b.groupNumber - a.groupNumber);
                 if (this.props.isPreview) {
                     const actionMenuProps = selectionActions.getMenuProps();
                     actionMenuProps.items.action = actionMenuProps.items.action.filter(

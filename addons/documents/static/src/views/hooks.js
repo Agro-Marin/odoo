@@ -44,9 +44,9 @@ export const DETAIL_PANEL_REQUIRED_FIELDS = [
 
 export function preSuperSetupFolder() {
     const component = useComponent();
-    const orm = useService("orm");
+    const documentService = useService("document.document");
     onWillStart(async () => {
-        component._deletionDelay = await orm.call("documents.document", "get_deletion_delay", [[]]);
+        component._deletionDelay = await documentService.getDeletionDelay();
     });
 }
 
@@ -204,15 +204,7 @@ export function useDocumentView(helpers) {
                     default_partner_id: props.context.default_partner_id || false,
                     // `folder_id` is a Many2one, so only a real folder id means
                     // anything here -- the ORM drops "MY"/"COMPANY"/... on the
-                    // floor (verified: `default_get` returns False for them).
-                    //
-                    // The fallback used to be `getFolders()[1].id`, i.e. "skip
-                    // the synthetic All root and take whatever folder the server
-                    // happened to list first". That fired only from "All", where
-                    // it pre-filled an arbitrary folder the user never picked --
-                    // and it threw outright when the panel held no real folder
-                    // (a share user with none). Prefill the folder the user is
-                    // actually standing in, or nothing.
+                    // floor. Prefill the folder the user is standing in, or nothing.
                     default_folder_id: selectedRealFolderId(),
                     default_res_id: props.context.default_res_id || false,
                     default_res_model: props.context.default_res_model || false,
@@ -328,9 +320,8 @@ function useDocumentsViewFilePreviewer({
                         await component.model.load();
                         for (const record of documents) {
                             if (!newDocumentIds.includes(record.resId)) {
-                                // deleteRecords expects an array; a bare record
-                                // has no `.length`, so the base falls through to
-                                // deleting the current selection / whole domain.
+                                // An array: `deleteRecords` reads `.length`, and
+                                // treats an empty list as "the whole domain".
                                 await record.model.root.deleteRecords([record]);
                             }
                         }
@@ -370,17 +361,12 @@ function useDocumentsViewFilePreviewer({
                 return store.Document.insert({
                     id: rec.resId,
                     attachment: getRecordAttachment(rec),
-                    name: rec.data.name,
-                    mimetype: rec.data.mimetype,
-                    url: rec.data.url,
-                    displayName: rec.data.display_name,
                     record: rec,
                 });
             });
-        // The scrollable ".o_documents_view" element may already be detached
-        // when the preview is closed after a delete, so both toggling sites go
-        // through this single null-safe accessor (previously the "remove" side
-        // dereferenced a possibly-null querySelector result and crashed).
+        // The scrollable ".o_documents_view" element may already be detached when
+        // the preview is closed after a delete, so both toggling sites go through
+        // one null-safe accessor.
         const documentsViewEl = () =>
             component.root?.el?.querySelector(".o_documents_view");
         // If there is a scrollbar we don't want it whenever the previewer is opened
@@ -388,14 +374,6 @@ function useDocumentsViewFilePreviewer({
         const selectedDocument = documentsRecords.find(
             (rec) => rec.id === (mainDocument || documents[0]).resId
         );
-        // `pdfManagerOpenCallback` and `hasPdfSplit` used to be published here
-        // too. Nothing read either one: the "split this PDF" control was dropped
-        // from the previewer template (`documents.FileViewer` inherits
-        // `web.FileViewer` and adds no such button), which also left
-        // `documents_account`'s `hasSplitPdf` patch and the `onSelectDocument`
-        // branches in `FileViewer.next/previous` orphaned. Publishing a callback
-        // that reaches back into this closure, with no caller, is exactly what
-        // kept the whole controller alive below.
         documentService.documentList = {
             documents: documentsRecords || [],
             folderId: env.searchModel.getSelectedFolderId(),
@@ -413,15 +391,11 @@ function useDocumentsViewFilePreviewer({
                 documentsViewEl()?.classList.remove("overflow-hidden");
 
                 setPreviewStore({});
-                // Release it: this object closes over `setPreviewStore`,
-                // `getSelectedDocumentsElements` and `component.root`, i.e. over
-                // the controller that opened the preview, plus every previewed
-                // record. The service is a singleton and never cleared it, so
-                // after a kanban->list switch the list's own
-                // "documents-close-preview" ran the *destroyed* kanban
-                // controller's callback, and the dead controller and its whole
-                // record set stayed reachable until the next preview replaced
-                // them. `?.` at both call sites makes a second close a no-op.
+                // Released because this object closes over `setPreviewStore`,
+                // `getSelectedDocumentsElements` and `component.root` -- the whole
+                // controller that opened the preview, plus every previewed record
+                // -- and the service holding it is a singleton. `?.` at both call
+                // sites makes a second close a no-op.
                 documentService.documentList = null;
             },
             selectedDocument,
@@ -479,7 +453,7 @@ function useDocumentsViewFileUpload() {
         });
     });
 
-    useBus(documentService.bus, "DOCUMENT_RELOAD", async (ev) => {
+    useBus(documentService.bus, "DOCUMENT_RELOAD", async () => {
         await env.searchModel._reloadSearchModel(true);
         await env.model.load();
         await env.model.notify();
@@ -510,12 +484,8 @@ function useDocumentsViewFileUpload() {
             return;
         }
         const newDocumentIds = Array.isArray(response) ? response : undefined;
-        // Plain reload, like every other call site. Passing `component.props`
-        // here handed the model the controller's whole props object as its
-        // `load(params)` -- `computeNextConfig` only ever reads context/domain/
-        // groupBy/orderBy out of it (which `this.config` already holds), so the
-        // only thing the argument actually achieved was letting the model mixin
-        // write into the component's props.
+        // Argument-less, like every other call site: `computeNextConfig` reads
+        // only context/domain/groupBy/orderBy, all of which `this.config` holds.
         await env.model.load();
         if (!newDocumentIds) {
             return;
@@ -535,7 +505,9 @@ function useDocumentsViewFileUpload() {
         if (["COMPANY", "MY"].includes(selectedUserFolderId)) {
             context.default_user_folder_id = selectedUserFolderId;
         }
-        await documentService.uploadDocument(files, accessToken, context);
+        await documentService.uploadDocument(files, accessToken, context, {
+            targetFolderId: selectedUserFolderId,
+        });
     };
 
     useBus(bus, "documents-upload-files", (ev) => {

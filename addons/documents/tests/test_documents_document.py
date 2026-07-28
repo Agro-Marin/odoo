@@ -1202,6 +1202,38 @@ class TestCaseDocuments(TransactionCaseDocuments):
         self.document_txt.with_user(self.doc_user).toggle_lock()
         self.assertFalse(self.document_txt.lock_uid, "editor should have unlocked")
 
+    def test_lock_blocks_every_way_of_changing_the_content(self):
+        """The lock guards content changes, not just content *arrivals*.
+
+        It keyed on a truthy value, which answers "is new content coming?" where
+        the rule is "is the current content being changed?". Every falsy spelling
+        walked straight past it and emptied the file, and ``attachment_id: False``
+        detached it without even leaving a version behind -- the versioning
+        branch is skipped too, so the history offered no way back.
+        """
+        self.document_txt.write({"owner_id": self.document_manager.id})
+        self.document_txt.access_internal = "edit"
+        self.document_txt.with_user(self.document_manager).toggle_lock()
+        original = self.document_txt.attachment_id.raw
+        self.assertTrue(original, "the fixture must start with content")
+
+        for vals in (
+            {"raw": b""},
+            {"raw": False},
+            {"datas": b""},
+            {"datas": False},
+            {"attachment_id": False},
+            {"raw": b"replaced"},
+        ):
+            with self.subTest(vals=vals), self.assertRaises(UserError):
+                self.document_txt.with_user(self.doc_user).write(dict(vals))
+
+        self.assertEqual(
+            self.document_txt.attachment_id.raw,
+            original,
+            "a user who does not hold the lock changed the content",
+        )
+
     def test_res_name_recompute_with_deleted_record(self):
         partner = self.env["res.partner"].create({"name": "Test Partner"})
         doc = self.env["documents.document"].create({

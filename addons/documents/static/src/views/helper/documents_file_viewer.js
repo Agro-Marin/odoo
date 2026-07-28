@@ -77,7 +77,7 @@ export class DocumentsFileViewer extends Component {
 
     onIframeKeydown(ev) {
         if (ev.key === "Escape") {
-            this.env.model.env.documentsView.bus.trigger("documents-close-preview");
+            this.env.documentsView.bus.trigger("documents-close-preview");
         }
     }
 }

@@ -128,3 +128,38 @@ test("a thumbnail failure does not stop the queue for later records", async () =
 
     expect.verifySteps(["A failed", "B stored"]);
 });
+
+test("a PDF the route refuses is marked failed, not retried forever", async () => {
+    // 415 means the server will not render a first page from this document, so
+    // the status has to leave `client_generated` -- otherwise every page load
+    // re-requests a thumbnail that can never arrive (measured: two requests per
+    // load, indefinitely).
+    const serverData = getDocumentsTestServerModelsData([
+        makeDocumentRecordData(3, "Broken PDF", {
+            thumbnail_status: "client_generated",
+            attachment_id: 2,
+            folder_id: 1,
+            mimetype: "application/pdf",
+        }),
+    ]);
+    serverData["ir.attachment"] = [{ id: 2, name: "broken" }];
+    let stored;
+    onRpc("/documents/document/3/update_thumbnail", async (request) => {
+        stored = (await request.json()).params.thumbnail;
+        expect.step("update_thumbnail");
+        return true;
+    });
+    await makeDocumentsMockEnv({ serverData });
+    patchWithCleanup(documentsClientThumbnailService, {
+        // Stand in for the route answering 415, which is what makes
+        // `generatePdfThumbnail` report `isPdfValid: false`.
+        _getPdfThumbnail() {
+            return { thumbnail: undefined, isPdfValid: false, pdfEnabled: true };
+        },
+    });
+    await mountDocumentsKanbanView();
+    await drainThumbnailQueue();
+
+    expect.verifySteps(["update_thumbnail"]);
+    expect(stored).toBe(false, { message: "stored as a definitive failure" });
+});

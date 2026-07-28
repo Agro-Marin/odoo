@@ -833,10 +833,19 @@ class DocumentsDocument(models.Model):
         # with no attachment yet was a *no-op that lost the upload*. Resolve the
         # content key once here and let the rest of the method reason about
         # "content", not about a field name.
+        # The guard tests KEY PRESENCE, not truthiness. Keying it on a truthy
+        # value asked "is new content arriving?" where the rule is "is the
+        # current content being changed?", and the two differ exactly where it
+        # matters: `{"raw": b""}`, `{"raw": False}`, `{"datas": b""}` and
+        # `{"datas": False}` all walked past the lock and emptied the file, and
+        # `{"attachment_id": False}` detached it outright -- that one without
+        # even leaving a version behind, since the versioning branch below is
+        # also skipped, so the web client's history offered no way back.
+        # Emptying a file IS replacing its content.
         content_keys = ("datas", "raw")
         writes_content = any(key in vals for key in content_keys)
         has_content = any(vals.get(key) for key in content_keys)
-        replaces_content = bool(has_content or vals.get("attachment_id"))
+        replaces_content = writes_content or "attachment_id" in vals
         if replaces_content and (locked_by_other := self._locked_by_other()):
             raise UserError(
                 _(
@@ -877,9 +886,8 @@ class DocumentsDocument(models.Model):
         # cannot edit -- and, downstream, archive/delete them once they no
         # longer had a parent folder to authorize against.
         if "folder_id" in vals:
+            self._check_parent_folder_in_vals(vals)
             new_parent_folder = self.browse(vals["folder_id"])
-            if vals["folder_id"] and new_parent_folder.type != "folder":
-                raise UserError(_("Invalid folder id"))
             documents_to_move = self.filtered(
                 lambda d: d.folder_id != new_parent_folder
             )
@@ -903,9 +911,20 @@ class DocumentsDocument(models.Model):
                         )
 
             if new_parent_folder.shortcut_document_id:
-                return self.write(
-                    vals | {"folder_id": new_parent_folder.shortcut_document_id.id}
-                )
+                # `user_folder_id` is dropped, not carried: the first pass has
+                # already merged everything it derives into `vals`, and it still
+                # names the *shortcut*. Re-entering with both made
+                # `_clean_vals_for_user_folder_id` compare the shortcut it
+                # re-derives against the resolved target and refuse the move with
+                # "Conflicting values passed with user_folder_id" -- so dropping
+                # a document onto a shortcut-folder failed through
+                # `user_folder_id` (what the web client sends) while the same
+                # move through `folder_id` worked.
+                resolved_vals = vals | {
+                    "folder_id": new_parent_folder.shortcut_document_id.id
+                }
+                resolved_vals.pop("user_folder_id", None)
+                return self.write(resolved_vals)
 
             # Only for a move *into a folder*: detaching an archived document to
             # a drive root has always been allowed and is relied upon (see
@@ -1755,14 +1774,26 @@ class DocumentsDocument(models.Model):
                 document.thumbnail = False
                 document.thumbnail_status = "client_generated"
             elif document.mimetype and document.mimetype.startswith("image/"):
+                # `_read_prefix`, not `raw`: this compute also assigns
+                # `thumbnail_status`, a Selection, so `Binary.compute_value` does
+                # not clear `bin_size` for it -- and `web_save` reads back under
+                # `bin_size=True` unconditionally. `raw` therefore handed
+                # `image_process` a size string (`b"129.00 bytes"`) on every
+                # content replacement made through the web client, and the
+                # failure was STORED: `thumbnail_status='error'` over a
+                # thumbnail that had just been dropped. `sudo()` keeps the
+                # elevation `raw`'s `related_sudo=True` provided.
+                content = document.attachment_id.sudo()._read_prefix()
                 try:
-                    document.thumbnail = base64.b64encode(
-                        image_process(document.raw, size=(200, 140), crop="center")
+                    thumbnail = (
+                        image_process(content, size=(200, 140), crop="center")
+                        if content
+                        else None
                     )
-                    document.thumbnail_status = "present"
                 except UserError, TypeError:
-                    document.thumbnail = False
-                    document.thumbnail_status = "error"
+                    thumbnail = None
+                document.thumbnail = base64.b64encode(thumbnail) if thumbnail else False
+                document.thumbnail_status = "present" if thumbnail else "error"
             else:
                 document.thumbnail = False
                 document.thumbnail_status = False
@@ -2391,15 +2422,6 @@ class DocumentsDocument(models.Model):
 
     def action_change_owner(self, new_user_id: int) -> None:
         """Set the given user as owner of the documents in ``self``."""
-        if not self.env.user._is_admin() and not self.env.user.has_group(
-            "documents.group_documents_system"
-        ):
-            if any(document.owner_id != self.env.user for document in self):
-                raise AccessError(
-                    _(
-                        "You are not allowed to change ownerships of documents you do not own."
-                    )
-                )
         self.owner_id = new_user_id
 
     def action_create_shortcut(
@@ -2507,8 +2529,23 @@ class DocumentsDocument(models.Model):
         )
 
     def action_delete_from_history(self, attachment_id: int) -> None:
-        """Delete an attachment from the document's history."""
+        """Delete a version, promoting the newest remaining one if it was current.
+
+        The write right was only ever enforced downstream, by
+        ``ir.attachment.unlink`` and by the ``attachment_id`` write below, so a
+        viewer's attempt surfaced as a raw ``AccessError`` naming an attachment
+        they cannot see -- rather than this method's own wording, the way its
+        twin :meth:`action_restore_version` states it.
+
+        Deleting the *current* version silently swaps the document's content for
+        an older one. That is the same content change ``action_restore_version``
+        performs and logs; unlogged, "the file is not what it was yesterday and
+        the chatter says nothing" was the only trace left.
+        """
         self.ensure_one()
+        self._check_access_or_raise(
+            "write", _("You are not allowed to delete a version of this document.")
+        )
         attachment = self.env["ir.attachment"].browse(attachment_id)
 
         if attachment not in self.previous_attachment_ids and (
@@ -2516,9 +2553,23 @@ class DocumentsDocument(models.Model):
         ):
             raise UserError(_("You cannot delete this attachment."))
 
+        deleted_name = attachment.name
         if attachment == self.attachment_id:
-            self.attachment_id = max(
+            promoted = max(
                 self.previous_attachment_ids, key=lambda a: (a.create_date, a.id)
+            )
+            self.attachment_id = promoted
+            self.message_post(
+                body=_(
+                    "Version deleted: “%(deleted)s” removed, “%(promoted)s” is now "
+                    "the current version.",
+                    deleted=deleted_name,
+                    promoted=promoted.name,
+                )
+            )
+        else:
+            self.message_post(
+                body=_("Version deleted from the history: “%s”.", deleted_name)
             )
 
         attachment.unlink()
@@ -3145,6 +3196,15 @@ class DocumentsDocument(models.Model):
         self,
     ) -> None:  # TODO remove in master and directly modify toggle_favorited
         """Toggle the favorited state of every document in ``self``."""
+        # The writes below are `sudo()` -- favouriting is a per-user preference,
+        # not a change to the document, so it must work on a document one may
+        # only view. That elevation also removed the ONLY check on this
+        # RPC-reachable method: `is_favorited` computes `False` for a document
+        # the caller cannot read, so those took the "add" branch and any user
+        # could plant a `favorited_ids` row on any document id.
+        self._check_access_or_raise(
+            "read", _("You are not allowed to access these documents.")
+        )
         # Partition once and issue two batched m2m writes instead of one write per
         # record (the client calls this on a whole multi-selection).
         favorited = self.filtered("is_favorited").sudo()
@@ -3530,26 +3590,42 @@ class DocumentsDocument(models.Model):
         )
 
     def _field_to_sql(self, alias: str, fname: str, query: Any = None) -> SQL:
+        """Render *fname* as SQL, joining the per-partner access dates on demand.
+
+        ``last_access_date_group`` resolves through a LEFT JOIN rather than a
+        correlated subquery so the expression can be grouped on: PostgreSQL 18
+        rejects a correlated subquery referencing ungrouped outer columns.
+
+        The join therefore has to be added to a *query*, and without one there
+        is nothing to add it to. Returning the alias anyway produced SQL
+        referencing a join that was never made -- a syntax error at execution,
+        blamed on whatever assembled the statement rather than on the caller
+        that omitted the query.
+
+        :raise ValueError: for ``last_access_date_group`` without a *query*
+        """
         if fname == "last_access_date_group":
-            # Use a LEFT JOIN instead of a correlated subquery so that the
-            # expression is compatible with GROUP BY. PostgreSQL 18 does not
-            # allow correlated subqueries that reference ungrouped outer columns.
+            if query is None:
+                msg = (
+                    "last_access_date_group needs a query to hang its join on; "
+                    "it cannot be rendered as a standalone expression"
+                )
+                raise ValueError(msg)
             join_alias = f"{alias}__last_access"
-            if query is not None:
-                subquery = SQL(
-                    """(SELECT document_id,
-                        %s AS date_group
-                        FROM documents_access
-                        WHERE partner_id = %s)""",
-                    self._last_access_date_group_case_sql(),
-                    self.env.user.partner_id.id,
-                )
-                condition = SQL(
-                    "%s = %s",
-                    SQL.identifier(join_alias, "document_id"),
-                    SQL.identifier(alias, "id"),
-                )
-                query.add_join("LEFT JOIN", join_alias, subquery, condition)
+            subquery = SQL(
+                """(SELECT document_id,
+                    %s AS date_group
+                    FROM documents_access
+                    WHERE partner_id = %s)""",
+                self._last_access_date_group_case_sql(),
+                self.env.user.partner_id.id,
+            )
+            condition = SQL(
+                "%s = %s",
+                SQL.identifier(join_alias, "document_id"),
+                SQL.identifier(alias, "id"),
+            )
+            query.add_join("LEFT JOIN", join_alias, subquery, condition)
             return SQL.identifier(join_alias, "date_group")
 
         return super()._field_to_sql(alias, fname, query)
@@ -3857,9 +3933,9 @@ class DocumentsDocument(models.Model):
         :return: `None` if mimetype not handled, `False` if single page or error occurred, `True` otherwise.
         :rtype: bool | None
         """
-        if self.mimetype not in ("application/pdf", "application/pdf;base64"):
+        decoded = self.attachment_id._get_pdf_raw() if self.attachment_id else None
+        if decoded is None:
             return None
-        decoded = base64.b64decode(self.datas)
         # Avoid warning in tests due to IrActionsReport._pre_render_qweb_pdf rendering pdf as html
         # It is done before even reading the PDF as PdfFileReader emit warning in that case
         if modules.module.current_test and b"<!DOCTYPE html>" in decoded[:32]:
@@ -4832,17 +4908,34 @@ class DocumentsDocument(models.Model):
                     else attachment.res_id
                 )
 
-        # Delegate vals_list update to _prepare_create_values_for_model to add values depending on related record
-        updated_vals_list = []
-        for res_model, model_vals_tuple_list in groupby(
-            zip(vals_list, old_vals_list, strict=True), lambda v: v[0].get("res_model")
+        # Delegate vals_list update to _prepare_create_values_for_model to add
+        # values depending on related record. `groupby` gathers every element
+        # sharing a key, not just consecutive ones, so appending group by group
+        # RETURNED THE VALS IN A DIFFERENT ORDER than they came in whenever two
+        # `res_model`s interleave -- and `create()` hands its records back in
+        # whatever order this returns. That breaks the `@api.model_create_multi`
+        # contract every caller relies on (`create(vals_list)[i]` is no longer
+        # `vals_list[i]`), including this model's own `create`, which zips the
+        # result against the attachments it collected beforehand. Group for the
+        # per-model call, then scatter the results back into their own slots.
+        indexed = list(enumerate(zip(vals_list, old_vals_list, strict=True)))
+        prepared_by_position = {}
+        for res_model, group in groupby(
+            indexed, lambda item: item[1][0].get("res_model")
         ):
-            updated_vals_list += self._prepare_create_values_for_model(
-                res_model,
-                [vals_tuple[0] for vals_tuple in model_vals_tuple_list],
-                [vals_tuple[1] for vals_tuple in model_vals_tuple_list],
+            positions = [position for position, __ in group]
+            prepared_by_position.update(
+                zip(
+                    positions,
+                    self._prepare_create_values_for_model(
+                        res_model,
+                        [vals_list[position] for position in positions],
+                        [old_vals_list[position] for position in positions],
+                    ),
+                    strict=True,
+                )
             )
-        return updated_vals_list
+        return [prepared_by_position[position] for position in range(len(vals_list))]
 
     def _prepare_create_values_for_model(
         self, res_model: str | bool, vals_list: list[dict], pre_vals_list: list[dict]
@@ -5092,9 +5185,20 @@ class DocumentsDocument(models.Model):
         return super().search_panel_select_range(field_name, **kwargs)
 
     @api.autovacuum
-    def _gc_clear_bin(self) -> None:
-        """Files are deleted automatically from the trash bin after the configured remaining days."""
-        self.search(self._get_gc_clear_bin_domain(), limit=1000).unlink()
+    def _gc_clear_bin(self) -> tuple:
+        """Files are deleted automatically from the trash bin after the configured remaining days.
+
+        Reports ``(done, maybe more)`` so the vacuum re-enqueues this until the
+        trash is actually drained. Returning ``None`` ran it exactly once per
+        daily vacuum, capping expiry at ``limit`` documents a day: any install
+        trashing more than that never caught up, and the "deleted forever on
+        <date>" the trash promises simply did not happen.
+        """
+        limit = 1000
+        expired = self.search(self._get_gc_clear_bin_domain(), limit=limit)
+        removed = len(expired)
+        expired.unlink()
+        return removed, removed == limit
 
     # ------------------------------------------------------------
     # VALIDATIONS

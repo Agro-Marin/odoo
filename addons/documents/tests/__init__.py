@@ -6,6 +6,8 @@ from . import test_documents_access
 from . import test_documents_audit_fixes
 from . import test_documents_audit_round3
 from . import test_documents_audit_round4
+from . import test_documents_audit_round5
+from . import test_documents_audit_round5_http
 from . import test_documents_compound_fixes
 from . import test_documents_dedup_fixes
 from . import test_documents_document

@@ -149,11 +149,27 @@ class IrAttachment(models.Model):
         # applied a side effect on records the caller had not yet been cleared
         # for. The selection is still computed on the pre-write state, since
         # `a.res_field` would otherwise already reflect `vals`.
-        if not self.env.context.get("no_document"):
-            to_document = self.filtered(
-                lambda a: not (vals.get("res_field") or a.res_field)
-            )
-            result = super().write(vals)
-            to_document.sudo()._create_document(vals)
+        if self.env.context.get("no_document"):
+            return super().write(vals)
+        to_document = self.filtered(lambda a: not (vals.get("res_field") or a.res_field))
+        result = super().write(vals)
+        if not {"res_model", "res_id"} & vals.keys():
+            # Nothing about the link changed, so nothing can become a document.
+            # The old code called `_create_document(vals)` anyway; with neither
+            # key present it resolved no model and returned immediately.
             return result
-        return super().write(vals)
+        # Resolve the target off each attachment the way `create` does, instead
+        # of reading the caller's raw `vals`. A link is routinely completed one
+        # key at a time -- `write({"res_id": record.id})` on an attachment that
+        # already carries `res_model` -- and `vals` alone then says
+        # `res_model=None`, so `_create_document` matched no mixin and the bridge
+        # document was never created. Grouping keeps one call per distinct
+        # target, which is what the method expects (it browses a single
+        # `res_id`).
+        for (res_model, res_id), attachments in to_document.grouped(
+            lambda attachment: (attachment.res_model, attachment.res_id)
+        ).items():
+            attachments.sudo()._create_document(
+                vals | {"res_model": res_model, "res_id": res_id}
+            )
+        return result

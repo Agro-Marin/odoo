@@ -30,6 +30,31 @@ export function openDocumentUrl(url) {
 }
 
 /**
+ * Normalize a `user_folder_id` into a search-panel value id.
+ *
+ * The panel keys real folders by number and the virtual roots by string
+ * ("COMPANY", "MY", "SHARED", "RECENT", "TRASH"), while `user_folder_id` is a
+ * Char that carries either -- or `false`, which `_compute_user_folder_id`
+ * assigns to any document the user cannot access.
+ *
+ * Replaces `!isNaN(v) ? parseInt(v) : v`, copied at five call sites: `Number("")`
+ * and `Number(false)` are both `0`, so `isNaN` accepts them and `parseInt` then
+ * answers `NaN` -- an id that matches no folder and no root.
+ *
+ * @param {number|String|false} userFolderId
+ * @returns {number|String|false} `false` when there is no usable id
+ */
+export function toFolderValueId(userFolderId) {
+    if (typeof userFolderId === "number") {
+        return userFolderId;
+    }
+    if (typeof userFolderId !== "string" || !userFolderId) {
+        return false;
+    }
+    return /^\d+$/.test(userFolderId) ? Number(userFolderId) : userFolderId;
+}
+
+/**
  * From multiple documents.document records, return the actions available on all of them.
  * @param {RelationalModelRecord[]} documents
  * @return {{id: Number, name: String}[]}
