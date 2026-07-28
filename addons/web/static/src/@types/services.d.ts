@@ -33,7 +33,7 @@ declare module "services" {
     import { overlayService } from "@web/ui/overlay/overlay_service";
     import { popoverService } from "@web/ui/popover/popover_service";
     import { tooltipService } from "@web/ui/tooltip/tooltip_service";
-    import { uiService } from "@web/ui/block/ui_service";
+    import { uiService } from "@web/ui/ui_service";
 
     import { demoDataService } from "@web/views/settings/widgets/demo_data_service";
     import { userInviteService } from "@web/views/settings/widgets/user_invite_service";
