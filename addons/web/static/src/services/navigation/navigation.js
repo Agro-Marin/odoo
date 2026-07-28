@@ -11,6 +11,58 @@ import { useService } from "@web/core/utils/hooks";
 import { throttleForAnimation } from "@web/core/utils/timing";
 export const ACTIVE_ELEMENT_CLASS = "focus";
 
+/**
+ * Roles for which ARIA defines ``aria-selected`` (ARIA 1.2, "Supported States
+ * and Properties"). It is NOT supported on ``menuitem``, which is what every
+ * ``web.DropdownItem`` carries — so stamping it there produced markup assistive
+ * technology is required to ignore, and the highlighted item was announced by
+ * nothing at all.
+ */
+const ARIA_SELECTED_ROLES = new Set([
+    "columnheader",
+    "gridcell",
+    "option",
+    "row",
+    "rowheader",
+    "tab",
+    "treeitem",
+]);
+
+/**
+ * Composite roles that own an ``aria-activedescendant``. This is the attribute
+ * that actually conveys "the keyboard is on this item" when DOM focus stays
+ * elsewhere — the whole premise of ``virtualFocus``, used by the search bar,
+ * the select menu and the time picker.
+ */
+const ARIA_ACTIVEDESCENDANT_ROLES = new Set([
+    "application",
+    "combobox",
+    "grid",
+    "group",
+    "listbox",
+    "menu",
+    "menubar",
+    "radiogroup",
+    "row",
+    "searchbox",
+    "spinbutton",
+    "tablist",
+    "textbox",
+    "toolbar",
+    "tree",
+    "treegrid",
+]);
+
+/**
+ * @param {HTMLElement} el
+ * @returns {boolean}
+ */
+function supportsAriaSelected(el) {
+    return ARIA_SELECTED_ROLES.has(el.getAttribute("role") ?? "");
+}
+
+let navigationItemId = 0;
+
 class NavigationItem {
     /**@type {number} */
     index = -1;
@@ -54,7 +106,7 @@ class NavigationItem {
             this.target = el;
         }
 
-        if (this.el.ariaSelected !== "true") {
+        if (supportsAriaSelected(this.el) && this.el.ariaSelected !== "true") {
             this.el.ariaSelected = "false";
         }
 
@@ -79,7 +131,7 @@ class NavigationItem {
         scrollTo(this.target);
         this._navigator._setActiveItem(this.index);
         this.target.classList.add(ACTIVE_ELEMENT_CLASS);
-        this.target.ariaSelected = "true";
+        this._setAriaSelected("true");
 
         if (focus && !this._options.virtualFocus) {
             this._navigator._throttledFocus.cancel();
@@ -89,9 +141,26 @@ class NavigationItem {
 
     setInactive(blur = true) {
         this.target.classList.remove(ACTIVE_ELEMENT_CLASS);
-        this.target.ariaSelected = "false";
+        this._setAriaSelected("false");
         if (blur && !this._options.virtualFocus) {
             this.target.blur();
+        }
+    }
+
+    /**
+     * Publish the selected state on the element that CARRIES THE ROLE, which is
+     * always the ``.o-navigable`` element itself. ``target`` may be a descendant
+     * input/button (``shouldFocusChildInput``), and writing the state there
+     * while the constructor seeded it on ``el`` left the two disagreeing at the
+     * same time — measured on a wrapper item: container ``aria-selected=false``,
+     * inner button ``aria-selected=true``.
+     *
+     * @private
+     * @param {"true" | "false"} value
+     */
+    _setAriaSelected(value) {
+        if (supportsAriaSelected(this.el)) {
+            this.el.ariaSelected = value;
         }
     }
 
@@ -246,7 +315,7 @@ export class Navigator {
         if (!hasActive || index < 0) {
             this.items.at(-1)?.setActive();
         } else {
-            this.items[index % this.items.length]?.setActive();
+            this.items[index]?.setActive();
         }
     }
 
@@ -371,7 +440,39 @@ export class Navigator {
         this.state.activeItemIndex = -1;
         this.state.activeItemEl = null;
         this.state.itemsRevision++;
+        this._syncActiveDescendant();
         this.unregisterHotkeys();
+    }
+
+    /**
+     * Point the container's ``aria-activedescendant`` at the active item.
+     *
+     * Without it the active item reached assistive technology through nothing
+     * but a CSS class — and under ``virtualFocus`` (search bar, select menu,
+     * time picker) DOM focus never moves either, so there was no signal at all.
+     * Guarded on the container's role: the attribute is only meaningful on a
+     * composite widget, and emitting it elsewhere would trade one piece of
+     * invalid markup for another.
+     *
+     * @private
+     */
+    _syncActiveDescendant() {
+        const container = this._options.getContainer?.();
+        if (
+            !container ||
+            !ARIA_ACTIVEDESCENDANT_ROLES.has(container.getAttribute("role") ?? "")
+        ) {
+            return;
+        }
+        const activeEl = this.state.activeItemEl;
+        if (!activeEl) {
+            container.removeAttribute("aria-activedescendant");
+            return;
+        }
+        if (!activeEl.id) {
+            activeEl.id = `o-navigation-item-${++navigationItemId}`;
+        }
+        container.setAttribute("aria-activedescendant", activeEl.id);
     }
 
     /**
@@ -385,6 +486,7 @@ export class Navigator {
         // reading `this.activeItem.el` back would throw on a null.
         const item = index >= 0 ? this.items[index] : undefined;
         this.activeItem = item ?? null;
+        this._syncActiveDescendant();
         if (item) {
             this._options.onItemActivated?.(item.el);
         }
@@ -443,6 +545,9 @@ export class Navigator {
 /**
  * @typedef {Object} NavigationOptions
  * @property {() => HTMLElement[]} [getItems]
+ * @property {() => HTMLElement | null} [getContainer] - the composite element
+ * owning the items; used to publish `aria-activedescendant`. Defaulted by
+ * {@link useNavigation} to the hook's container ref.
  * @property {(info: { navigator: Navigator, target: HTMLElement }) => boolean} [isNavigationAvailable]
  * @property {Record<string, any>} [hotkeys]
  * @property {Function} [onUpdated]
@@ -499,6 +604,7 @@ export function useNavigation(containerRef, options = {}) {
                 ":scope .o-navigable",
             ) ?? [];
     }
+    newOptions.getContainer ??= () => /** @type {any} */ (containerRef).el ?? null;
 
     const hotkeyService = useService("hotkey");
     const navigator = new Navigator(newOptions, hotkeyService);

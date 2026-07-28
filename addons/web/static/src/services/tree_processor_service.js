@@ -105,6 +105,12 @@ function getPathsInTree(tree, lookInSubTrees = false) {
  * `a != 1 or a != 2` is a tautology, whereas the merged `a not in [1, 2]` is
  * its near-opposite (De Morgan turns the OR into an AND). A negated child is
  * therefore passed through untouched.
+ *
+ * A child only merges when its candidates are ENUMERABLE here. `in` carries a
+ * list ({@link normalizeListOperatorValue} guarantees it for every tree built
+ * from a domain) except when it names an {@link Expression} — `a in ids` cannot
+ * be flattened into the merged list without resolving `ids`, which is a server
+ * value. Such a child is passed through like a negated one.
  * @param {any} tree
  * @returns {any}
  */
@@ -124,7 +130,8 @@ export function simplifyTree(tree) {
             child.type === "connector" ||
             child.negate ||
             typeof child.path !== "string" ||
-            !["=", "in"].includes(child.operator)
+            !["=", "in"].includes(child.operator) ||
+            (child.operator === "in" && !Array.isArray(child.value))
         ) {
             children.push(child);
         } else {
@@ -245,6 +252,15 @@ function extractIdsFromTree(tree, getFieldDef) {
  */
 
 /**
+ * Everything the rendering of one tree needs, resolved once for that tree and
+ * threaded through its recursion instead of re-derived per node.
+ *
+ * @typedef {Object} TreeContext
+ * @property {(path: string) => Record<string, any> | null} getFieldDef
+ * @property {(node: any) => ConditionDescription} getConditionDescription
+ */
+
+/**
  * @typedef {Object} ConditionDescription
  * @property {string} pathDescription - human-readable field path
  * @property {string} operatorDescription - operator label
@@ -324,30 +340,38 @@ export const treeProcessorService = {
         }
 
         /**
-         * Body of {@link makeGetConditionDescription} for a tree the caller has
-         * ALREADY simplified. The public entry point simplifies and delegates;
-         * the two internal callers that simplify for their own recursion reuse
-         * this directly instead of paying a second full-tree pass.
+         * Resolve, ONCE for a whole (already simplified) tree, everything its
+         * rendering needs: the field definitions, the path descriptions and the
+         * display names. The public entry point simplifies and delegates; the
+         * two internal callers that simplify for their own recursion reuse this
+         * directly instead of paying a second full-tree pass.
+         *
+         * ``getFieldDef`` is part of the returned context rather than a private
+         * local because the recursions need it too — see the note in
+         * {@link describeSimplifiedTree}.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @param {number} [limit]
          * @param {number} [pathLimit]
-         * @returns {Promise<(node: any) => ConditionDescription>}
+         * @returns {Promise<TreeContext>}
          */
-        async function _makeGetConditionDescription(resModel, tree, limit, pathLimit) {
+        async function makeTreeContext(resModel, tree, limit, pathLimit) {
             const [getFieldDef, getPathDescription] = await Promise.all([
                 makeGetFieldDef(resModel, tree),
                 makeGetPathDescriptions(resModel, tree, pathLimit),
             ]);
             const displayNames = await getDisplayNames(tree, getFieldDef);
-            return (node) =>
-                _getConditionDescription(
-                    node,
-                    getFieldDef,
-                    getPathDescription,
-                    displayNames,
-                    limit,
-                );
+            return {
+                getFieldDef,
+                getConditionDescription: (node) =>
+                    _getConditionDescription(
+                        node,
+                        getFieldDef,
+                        getPathDescription,
+                        displayNames,
+                        limit,
+                    ),
+            };
         }
 
         /**
@@ -358,13 +382,14 @@ export const treeProcessorService = {
          * @param {number} [pathLimit] - max segments in path descriptions
          * @returns {Promise<(node: any) => ConditionDescription>}
          */
-        function makeGetConditionDescription(resModel, tree, limit, pathLimit) {
-            return _makeGetConditionDescription(
+        async function makeGetConditionDescription(resModel, tree, limit, pathLimit) {
+            const { getConditionDescription } = await makeTreeContext(
                 resModel,
                 simplifyTree(tree),
                 limit,
                 pathLimit,
             );
+            return getConditionDescription;
         }
 
         /**
@@ -505,12 +530,7 @@ export const treeProcessorService = {
                 resModel,
                 simplified,
                 isSubExpression,
-                await _makeGetConditionDescription(
-                    resModel,
-                    simplified,
-                    limit,
-                    pathLimit,
-                ),
+                await makeTreeContext(resModel, simplified, limit, pathLimit),
                 limit,
                 pathLimit,
             );
@@ -522,19 +542,27 @@ export const treeProcessorService = {
          * ``simplifyTree`` recurses into children itself, so re-simplifying each
          * subtree on the way down was O(nodes x depth) of idempotent work.
          *
-         * ``getConditionDescription`` is likewise resolved ONCE for the whole
-         * tree and threaded down. Building it per leaf re-ran the full
-         * resolution — field defs, path descriptions and display names — once
-         * per condition, defeating the very batching those helpers exist to
-         * provide (measured: 12 ``loadFieldInfo`` + 12 ``loadDisplayNames`` for
-         * a 12-leaf tree that needs one of each). It also left the display-name
-         * batching microtask-alignment-dependent: leaves at different depths
-         * reach ``loadDisplayNames`` on different ticks and fragment into
-         * separate RPCs.
+         * The whole {@link TreeContext} is likewise resolved ONCE for the tree
+         * and threaded down. Building it per leaf re-ran the full resolution —
+         * field defs, path descriptions and display names — once per condition,
+         * defeating the very batching those helpers exist to provide (measured:
+         * 12 ``loadFieldInfo`` + 12 ``loadDisplayNames`` for a 12-leaf tree that
+         * needs one of each). It also left the display-name batching
+         * microtask-alignment-dependent: leaves at different depths reach
+         * ``loadDisplayNames`` on different ticks and fragment into separate RPCs.
+         *
+         * ``ctx.getFieldDef`` is threaded for the same reason. The sub-expression
+         * branch below needs the co-model of ``tree.path``, and used to re-derive
+         * it with a fresh ``makeGetFieldDef`` call — resolving a path the
+         * tree-wide context had already resolved (``makeGetFieldDef`` runs with
+         * ``lookInSubTrees``) and that ``getConditionDescription`` had just
+         * resolved again one line earlier. Because each nesting level repeated
+         * that for every level below it, the cost grew QUADRATICALLY in nesting
+         * depth: 5 / 11 / 19 ``loadFieldInfo`` calls at depth 1 / 2 / 3.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @param {boolean} isSubExpression
-         * @param {(node: any) => ConditionDescription} getConditionDescription
+         * @param {TreeContext} ctx
          * @param {number} [limit]
          * @param {number} [pathLimit]
          * @returns {Promise<string>}
@@ -543,20 +571,13 @@ export const treeProcessorService = {
             resModel,
             tree,
             isSubExpression,
-            getConditionDescription,
+            ctx,
             limit,
             pathLimit,
         ) {
             if (tree.type === "connector") {
                 const childDescriptions = tree.children.map((node) =>
-                    describeSimplifiedTree(
-                        resModel,
-                        node,
-                        true,
-                        getConditionDescription,
-                        limit,
-                        pathLimit,
-                    ),
+                    describeSimplifiedTree(resModel, node, true, ctx, limit, pathLimit),
                 );
                 const separator = tree.value === "&" ? _t("and") : _t("or");
                 const descriptions = await Promise.all(childDescriptions);
@@ -571,15 +592,14 @@ export const treeProcessorService = {
                 return description;
             }
             const { pathDescription, operatorDescription, valueDescription } =
-                getConditionDescription(tree);
+                ctx.getConditionDescription(tree);
             const stringDescription = [pathDescription, operatorDescription];
             if (valueDescription) {
                 stringDescription.push(
                     formatValueDescription(valueDescription, isSubExpression),
                 );
             } else if (isTree(tree.value)) {
-                const getFieldDef = await makeGetFieldDef(resModel, tree);
-                const _fieldDef = getFieldDef(/** @type {any} */ (tree).path);
+                const _fieldDef = ctx.getFieldDef(/** @type {any} */ (tree).path);
                 const _resModel = getResModel(_fieldDef);
                 const _tree = /** @type {any} */ (tree.value);
                 // `limit`/`pathLimit` must cross into the sub-domain. They are
@@ -613,7 +633,7 @@ export const treeProcessorService = {
                 resModel,
                 simplified,
                 depth,
-                await _makeGetConditionDescription(resModel, simplified, 20),
+                await makeTreeContext(resModel, simplified, 20),
             );
         }
 
@@ -623,16 +643,11 @@ export const treeProcessorService = {
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @param {number} depth
-         * @param {(node: any) => ConditionDescription} getConditionDescription
-         *   resolved once for the whole tree — see {@link describeSimplifiedTree}
+         * @param {TreeContext} ctx resolved once for the whole tree — see
+         *   {@link describeSimplifiedTree}
          * @returns {Promise<string[]>}
          */
-        async function tooltipLinesOfSimplifiedTree(
-            resModel,
-            tree,
-            depth,
-            getConditionDescription,
-        ) {
+        async function tooltipLinesOfSimplifiedTree(resModel, tree, depth, ctx) {
             const tabs = " ".repeat(depth * 4);
             if (tree.type === "connector") {
                 let connector = tree.value === "&" ? _t("all") : _t("any");
@@ -642,18 +657,13 @@ export const treeProcessorService = {
                 connector = `${tabs}${connector}`;
                 const childrenTooltipLines = await Promise.all(
                     tree.children.map((node) =>
-                        tooltipLinesOfSimplifiedTree(
-                            resModel,
-                            node,
-                            depth + 1,
-                            getConditionDescription,
-                        ),
+                        tooltipLinesOfSimplifiedTree(resModel, node, depth + 1, ctx),
                     ),
                 );
                 return [connector, ...childrenTooltipLines].flat();
             }
             const { pathDescription, operatorDescription, valueDescription } =
-                getConditionDescription(tree);
+                ctx.getConditionDescription(tree);
             const descr = [];
             const stringDescriptions = [pathDescription, operatorDescription];
             if (valueDescription) {
@@ -661,8 +671,7 @@ export const treeProcessorService = {
             }
             descr.push(`${tabs}${stringDescriptions.join(" ")}`);
             if (isTree(tree.value)) {
-                const getFieldDef = await makeGetFieldDef(resModel, tree);
-                const _fieldDef = getFieldDef(/** @type {any} */ (tree).path);
+                const _fieldDef = ctx.getFieldDef(/** @type {any} */ (tree).path);
                 const _resModel = getResModel(_fieldDef);
                 const _tree = /** @type {any} */ (tree.value);
                 const tooltipLines = await getTooltipLines(_resModel, _tree, depth + 1);
