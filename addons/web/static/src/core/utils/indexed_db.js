@@ -22,7 +22,21 @@ const BLOCKED_DELETE_TIMEOUT = 1000;
 
 export class IDBQuotaExceededError extends Error {}
 
-function formatStorageSize(/** @type {number} */ size) {
+/**
+ * ``StorageEstimate``'s members are OPTIONAL per spec, and a browser that
+ * reports a quota failure may still omit them — so this renders a missing
+ * figure as "unknown" rather than throwing on ``undefined.toFixed``. It is
+ * only ever called to build a diagnostic message, and throwing there would
+ * replace the ``IDBQuotaExceededError`` its caller is about to raise (see
+ * {@link IndexedDB._runCallback}).
+ *
+ * @param {number | undefined} size
+ * @returns {string}
+ */
+function formatStorageSize(size) {
+    if (typeof size !== "number" || !Number.isFinite(size)) {
+        return "unknown";
+    }
     const units = ["B", "KB", "MB", "GB"];
     let i = 0;
     while (size >= 1000 && i < units.length - 1) {
@@ -246,6 +260,14 @@ export class IndexedDB {
      * errors. Extracted so the cached-connection fast path and the
      * fresh-open path share the exact same error handling.
      *
+     * The quota branch reports usage figures purely as a diagnostic, and
+     * gathering them must never be able to displace the
+     * ``IDBQuotaExceededError`` itself: that error is the ONLY signal
+     * ``rpc_cache`` matches on to drop the disk cache and recover, so a
+     * ``TypeError`` escaping here (absent ``navigator.storage``, a rejecting
+     * or partial ``estimate()``) turns a recoverable full cache into one
+     * that stays full and fails every later write for the session.
+     *
      * @param {IDBDatabase} db
      * @param {(db?: IDBDatabase) => any} callback
      */
@@ -254,11 +276,17 @@ export class IndexedDB {
             return await callback(db);
         } catch (e) {
             if (e.name === "QuotaExceededError") {
-                const { quota, usage } = await navigator.storage.estimate();
+                /** @type {StorageEstimate} */
+                let estimate = {};
+                try {
+                    estimate = (await navigator.storage?.estimate()) ?? {};
+                } catch {
+                    // Diagnostics only — fall through with unknown figures.
+                }
                 console.error(
                     `IndexedDB error: Quota Exceeded (${formatStorageSize(
-                        usage,
-                    )} out of ${formatStorageSize(quota)} used)`,
+                        estimate.usage,
+                    )} out of ${formatStorageSize(estimate.quota)} used)`,
                 );
                 throw new IDBQuotaExceededError();
             }
@@ -399,17 +427,21 @@ export class IndexedDB {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
             );
-            tables = tables
-                ? objectStoreNames.filter((t) => tables.includes(t))
+            // Bound to a new const rather than reassigning the parameter: the
+            // filter callback reads `tables`, and narrowing does not survive
+            // into a closure over a reassignable binding.
+            const requested = tables;
+            const targetTables = requested
+                ? objectStoreNames.filter((t) => requested.includes(t))
                 : objectStoreNames;
 
-            if (!tables.length) {
+            if (!targetTables.length) {
                 return resolve(undefined);
             }
-            const transaction = db.transaction(tables, "readwrite", {
+            const transaction = db.transaction(targetTables, "readwrite", {
                 durability: "relaxed",
             });
-            const proms = tables.map(
+            const proms = targetTables.map(
                 (table) =>
                     new Promise((resolve) => {
                         const objectStore = transaction.objectStore(table);

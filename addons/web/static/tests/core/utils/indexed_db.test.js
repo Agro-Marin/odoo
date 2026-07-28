@@ -3,7 +3,7 @@
 import { describe, expect, onError, test } from "@odoo/hoot";
 import { advanceTime } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
-import { IndexedDB } from "@web/core/utils/indexed_db";
+import { IDBQuotaExceededError, IndexedDB } from "@web/core/utils/indexed_db";
 
 describe.current.tags("headless");
 
@@ -502,4 +502,46 @@ test("blocked database deletion degrades to no-cache instead of hanging", async 
         request.onsuccess = resolve;
         request.onerror = resolve;
     });
+});
+
+test("a quota failure still surfaces IDBQuotaExceededError when the estimate is partial", async () => {
+    // StorageEstimate's members are OPTIONAL per spec. IDBQuotaExceededError is
+    // the only signal rpc_cache matches on to drop a full disk cache, so a
+    // diagnostic that throws on the missing figures would leave the cache full
+    // and every later disk write failing for the rest of the session.
+    patchWithCleanup(console, { error: (message) => expect.step(String(message)) });
+
+    for (const estimate of [{}, { usage: 10 }, null]) {
+        patchWithCleanup(navigator.storage, { estimate: async () => estimate });
+        const idb = new IndexedDB(CACHE_NAME, 1);
+        idb._degraded = true;
+        await expect(
+            idb._runCallback(/** @type {any} */ ({}), () => {
+                throw new DOMException("Quota exceeded", "QuotaExceededError");
+            }),
+        ).rejects.toThrow(IDBQuotaExceededError);
+    }
+
+    expect.verifySteps([
+        "IndexedDB error: Quota Exceeded (unknown out of unknown used)",
+        "IndexedDB error: Quota Exceeded (10.00B out of unknown used)",
+        "IndexedDB error: Quota Exceeded (unknown out of unknown used)",
+    ]);
+});
+
+test("a quota failure surfaces IDBQuotaExceededError when estimate() itself throws", async () => {
+    patchWithCleanup(console, { error: () => {} });
+    patchWithCleanup(navigator.storage, {
+        estimate: async () => {
+            throw new Error("storage unavailable");
+        },
+    });
+
+    const idb = new IndexedDB(CACHE_NAME, 1);
+    idb._degraded = true;
+    await expect(
+        idb._runCallback(/** @type {any} */ ({}), () => {
+            throw new DOMException("Quota exceeded", "QuotaExceededError");
+        }),
+    ).rejects.toThrow(IDBQuotaExceededError);
 });
