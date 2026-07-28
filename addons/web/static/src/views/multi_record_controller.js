@@ -64,6 +64,8 @@ export class MultiRecordController extends Component {
     exportRecords;
     /** @type {any} */
     deleteRecordsWithConfirmation;
+    /** @type {boolean} resolved by ``onWillStart``; false until then */
+    isExportEnable = false;
 
     setup() {
         const { action, dialog, notification, orm, uiHooks } = useControllerServices();
@@ -105,7 +107,7 @@ export class MultiRecordController extends Component {
             () => {
                 this.onSelectionChanged();
             },
-            () => [this.model.root.selection?.length, this.model.root.isDomainSelected],
+            () => [this.selectionKey, this.model.root.isDomainSelected],
         );
 
         this.exportRecords = useExportRecords(this.env, this.props.context, () =>
@@ -149,6 +151,30 @@ export class MultiRecordController extends Component {
                 layoutActions: !this.hasSelectedRecords,
             },
         };
+    }
+
+    /**
+     * Identity of the current selection, as a value comparable with ``===``
+     * so it can serve as a ``useEffect`` dependency.
+     *
+     * The dependency used to be ``selection.length``, which is a cardinality
+     * proxy for a SET: swapping one selected record for another (deselect A,
+     * select B in the same tick — two ordinary clicks) left the length
+     * unchanged, so the effect never re-ran and ``props.onSelectionChanged``
+     * consumers kept reporting the OLD ids until some later change happened to
+     * move the count — a stale-data window, not merely a missed notification.
+     * Keying on the ids themselves makes every selection change observable,
+     * and identical selections still compare equal so no spurious
+     * notification is introduced.
+     *
+     * @returns {string}
+     */
+    get selectionKey() {
+        const selection = this.model.root.selection;
+        if (!selection?.length) {
+            return "";
+        }
+        return selection.map((record) => record.id).join(",");
     }
 
     get hasSelectedRecords() {

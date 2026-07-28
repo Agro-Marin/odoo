@@ -159,11 +159,7 @@ export class ListRecordRow extends Component {
      * record IS the renderer-callback proxy.
      */
     get record() {
-        const props = this.props;
-        const flat = props.renderer.gridState?.findRowByRecordId(
-            String(props.record.id),
-        );
-        return flat?.record ?? props.record;
+        return resolveFlatRow(this)?.record ?? this.props.record;
     }
 
     /**
@@ -181,11 +177,7 @@ export class ListRecordRow extends Component {
      * renderer now also passes it as the ``group`` prop, so this is stable.
      */
     get group() {
-        const renderer = this.props.renderer;
-        const flat = renderer.gridState?.findRowByRecordId(
-            String(this.props.record.id),
-        );
-        return flat?.parentGroup ?? this.props.group ?? undefined;
+        return resolveFlatRow(this)?.parentGroup ?? this.props.group ?? undefined;
     }
 
     /** Historical ``t-set`` scope var from the grouped rows recursion. */
@@ -298,6 +290,46 @@ export class ListRecordRow extends Component {
             evalContext = /** @type {any} */ (evalContext).parent;
         }
     }
+}
+
+/**
+ * This row's entry in the renderer's flat grid, memoized until the grid is
+ * rebuilt.
+ *
+ * ``record`` and ``group`` are read once per template expression AND once per
+ * ``this.record`` / ``this.group`` inside every delegated renderer method (the
+ * ``_rendererCtx`` Proxy routes both names here), so an un-memoized lookup paid
+ * a ``String(id)`` allocation plus a Map lookup dozens of times per row per
+ * render.
+ *
+ * A free function, not a method: the ``group`` getter is part of the row's
+ * duck-typed contract and is invoked with a plain object as ``this`` (see
+ * "row.group resolves the flat parentGroup even when virtualization is
+ * active"), so it must not require anything else on the prototype.
+ *
+ * The cache key is ``(gridState.generation, record.id)`` and NOT the
+ * ``gridState`` object: the renderer owns a single instance for its whole life
+ * and ``rebuild()`` mutates it in place, so object identity would never
+ * invalidate.
+ *
+ * @param {any} row
+ * @returns {any}
+ */
+function resolveFlatRow(row) {
+    const gridState = row.props.renderer.gridState;
+    if (!gridState) {
+        return undefined;
+    }
+    const recordId = row.props.record.id;
+    if (
+        row._flatRowGeneration !== gridState.generation ||
+        row._flatRowId !== recordId
+    ) {
+        row._flatRowGeneration = gridState.generation;
+        row._flatRowId = recordId;
+        row._flatRowValue = gridState.findRowByRecordId(String(recordId));
+    }
+    return row._flatRowValue;
 }
 
 /**

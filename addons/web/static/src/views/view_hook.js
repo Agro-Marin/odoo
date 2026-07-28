@@ -39,13 +39,13 @@ export function useActionLinks({ resModel, reload }) {
     const orm = useService("orm");
     const { doAction } = useService("action");
 
-    async function handler(ev) {
+    /**
+     * @param {Event} ev
+     * @param {HTMLAnchorElement} target the resolved ``a[type="action"]``
+     */
+    async function handler(ev, target) {
         ev.preventDefault();
         ev.stopPropagation();
-        let target = ev.target;
-        if (target.tagName !== "A") {
-            target = target.closest("a");
-        }
         const data = target.dataset;
 
         if (data.method !== undefined && data.model !== undefined) {
@@ -100,7 +100,12 @@ export function useActionLinks({ resModel, reload }) {
     return (ev) => {
         const a = ev.target.closest(`a[type="action"]`);
         if (a && ev.currentTarget.contains(a)) {
-            handler(ev);
+            // Pass the anchor we just matched. Re-deriving it inside the
+            // handler used a DIFFERENT selector (`closest("a")`), so the two
+            // could disagree about which element the click was for.
+            handler(ev, a).catch((error) => {
+                Promise.reject(error);
+            });
         }
     };
 }
@@ -155,9 +160,9 @@ export function useBounceButton(containerRef, shouldBounce) {
 export function useExportRecords(env, context, getDefaultExportList) {
     const { model, searchModel } = env;
     const dialog = useService("dialog");
-    useBus(searchModel, SearchModelEvent.DIRECT_EXPORT_DATA, async () => {
-        _downloadExport(getDefaultExportList(), false, "xlsx");
-    });
+    useBus(searchModel, SearchModelEvent.DIRECT_EXPORT_DATA, () =>
+        _downloadExport(getDefaultExportList(), false, "xlsx"),
+    );
     const _getExportedFields = async (isCompatible, parentParams) => {
         const root = model.root;
         let domain = parentParams ? [] : root.domain;
@@ -241,7 +246,11 @@ export function useDeleteRecords(model) {
         ) {
             body = _t("Are you sure you want to delete these records?");
         }
-        let confirm = () => Promise.all(records.map((r) => r.delete()));
+        // `records` is optional (multi-record controllers omit it and let the
+        // list fall back to its selection). The mono-record branch used to
+        // dereference it anyway, so an omitted argument threw only once the
+        // user had already clicked "Delete" in the confirmation dialog.
+        let confirm = () => Promise.all((records ?? []).map((r) => r.delete()));
         if (isDynamicList) {
             confirm = () => model.root.deleteRecords(records);
         }

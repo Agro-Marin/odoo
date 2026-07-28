@@ -647,7 +647,9 @@ export function useListKeyboardNavigation(tableRef, options) {
                     }
                     toFocus = findFocusFutureCell
                         ? dispatchFutureCell(cell, cellIsInGroupRow, "up", move)
-                        : move && move.el;
+                        : move && "el" in move
+                          ? move.el
+                          : null;
                     if (!toFocus && getEnv().searchModel) {
                         getEnv().searchModel.trigger(SearchModelEvent.FOCUS_SEARCH);
                         return true;
@@ -662,7 +664,9 @@ export function useListKeyboardNavigation(tableRef, options) {
                     }
                     toFocus = findFocusFutureCell
                         ? dispatchFutureCell(cell, cellIsInGroupRow, "down", move)
-                        : move && move.el;
+                        : move && "el" in move
+                          ? move.el
+                          : null;
                     break;
                 }
                 case "arrowleft":
@@ -715,7 +719,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                         if (move && "pending" in move) {
                             return true;
                         }
-                        toFocus = move && move.el;
+                        toFocus = move && "el" in move ? move.el : null;
                     }
                     break;
                 }
@@ -725,7 +729,7 @@ export function useListKeyboardNavigation(tableRef, options) {
                         if (move && "pending" in move) {
                             return true;
                         }
-                        toFocus = move && move.el;
+                        toFocus = move && "el" in move ? move.el : null;
                     }
                     break;
                 }

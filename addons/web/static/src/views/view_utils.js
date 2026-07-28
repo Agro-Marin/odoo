@@ -149,8 +149,24 @@ export function handleBeforeUnload(
     }
     const canBeacon = Boolean(record.resId) && !inDialog && useSendBeacon;
     if (!canBeacon) {
-        // @ts-ignore -- `@ts-ignore`, NOT `@ts-expect-error`: the gate runs with
-        // error does not occur and `@ts-expect-error` reports TS2578 "Unused
+        // LOAD-BEARING, and it looks like a no-op — do not delete. The `dirty`
+        // check below must see values the user typed but never committed (no
+        // blur, no Enter). Entering urgent-save mode is what flushes them, and
+        // the whole chain is synchronous by construction:
+        //   1. `UrgentSaveCoordinator.run` flips `status` to "active" and fires
+        //      `WILL_SAVE_URGENTLY` BEFORE its first `await`
+        //      (`urgent_save_coordinator.js`);
+        //   2. its nine listeners (`useInputField`, html/ace/domain/properties/
+        //      m2m-checkboxes/datetime fields, …) call their `commitChanges()`,
+        //      which reaches `Record.update`;
+        //   3. `Record.update` short-circuits the model mutex while
+        //      `urgentSave.isActive` (`record.js`), so `_update` runs inline and
+        //      calls `_markDirty()` before awaiting anything.
+        // `beforeunload` cannot await, so only that synchronous path can affect
+        // the check; without it the browser's unsaved-changes prompt silently
+        // stops appearing for typed input. Pinned by "uncommitted typed input
+        // on NEW record blocks unload" in `views/form/auto_save.test.js`, which
+        // is the ONLY test in that suite that fails when this line is removed.
         record.model.urgentSave.run(() => Promise.resolve());
         if (record.dirty) {
             ev.preventDefault();
@@ -179,7 +195,7 @@ export function isNumeric(field) {
  * @returns {boolean}
  */
 export function isNull(value) {
-    return [null, undefined].includes(value);
+    return value === null || value === undefined;
 }
 
 /**
@@ -404,7 +420,7 @@ export function makeModelUIHooks({ action, dialog, notification }) {
                 return reload();
             }
         },
-        onConfirmArchive(isSelected, archiveFn, unarchiveFn, dialogProps = {}) {
+        onConfirmArchive(archiveFn, dialogProps = {}) {
             const defaultProps = {
                 body: _t(
                     "Are you sure that you want to archive all the selected records?",

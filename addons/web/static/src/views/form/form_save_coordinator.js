@@ -91,7 +91,26 @@ export class FormSaveCoordinator extends SignalStore {
     /** @type {FormSaveStatus} */
     status = "clean";
 
-    /** @type {any | null} Last unhandled error, surfaced for diagnostics. */
+    /**
+     * The most recent save error, cleared only on entry to the next
+     * ``requestSave`` / ``requestDiscard``.
+     *
+     * INVARIANT — do NOT clear this on a successful terminal, however wrong
+     * the pairing looks. ``status: "clean"`` together with a non-null
+     * ``lastError`` is a real state, not a leak: when a save fails and the
+     * user answers the error dialog with "Discard changes", ``record.save``
+     * RETURNS the hook's truthy result (``record_save.js`` does
+     * ``return onError(...)``), so the save settles as ``ok`` even though
+     * nothing was written. ``lastError`` is the only remaining evidence of
+     * that, and ``FormController.shouldExecuteAction`` reads exactly this pair
+     * to refuse the action the user had queued behind the save — pinned by
+     * "don't duplicate if save fail" in ``views/form/form_view.test.js``.
+     *
+     * Clearing it here is unobservable in the OTHER direction: the sole reader
+     * always issues its own ``requestSave`` first, and that resets the slot.
+     *
+     * @type {any | null}
+     */
     lastError = null;
 
     /**
@@ -182,9 +201,12 @@ export class FormSaveCoordinator extends SignalStore {
      * "stay here", or the saveOverride / record.save return value when it's
      * a non-boolean (e.g. an action descriptor).
      *
-     * Throws when ``errorMode === "rethrow"`` and ``record.save()`` raises;
-     * other modes ("dialog", "silent") capture the error in ``lastError``
-     * and return false.
+     * Throws when ``errorMode === "rethrow"`` and ``record.save()`` raises,
+     * AND whenever a ``saveOverride`` raises — an override owns its own error
+     * contract, so its failure is never swallowed regardless of ``errorMode``
+     * (this is the ``beforeLeave`` / ``save`` path in ``form_controller.js``).
+     * Otherwise ("dialog", "silent") the error is captured in ``lastError``
+     * and the call returns false.
      *
      * @param {RequestSaveOptions} [options]
      * @returns {Promise<any>}
@@ -203,6 +225,7 @@ export class FormSaveCoordinator extends SignalStore {
         this.lastError = null;
         this._transition("begin");
         const ownerEpoch = ++this._saveEpoch;
+        /** @type {Record<string, any>} */
         const opts = { reload, ...params };
         if (nextId !== undefined) {
             opts.nextId = nextId;
@@ -247,11 +270,26 @@ export class FormSaveCoordinator extends SignalStore {
      */
     async requestUrgentSave() {
         if (this.isSaving) {
-            const succeeded = await this.model.root.urgentSave();
-            if (!succeeded) {
+            // Re-entrant: a save is already in flight and owns the epoch, so
+            // this call must not claim a terminal (it would settle a state it
+            // does not own). It must still surface its own failure the same way
+            // the main path does — previously a throw here left ``status`` on
+            // "saving" forever (``isSaving`` drives FormStatusIndicator's
+            // spinner) while ``lastError`` stayed null and
+            // ``onUrgentSaveFailed`` never ran, so a tab closed during an
+            // in-flight save reported a permanently pending save it had
+            // actually abandoned.
+            try {
+                const succeeded = await this.model.root.urgentSave();
+                if (!succeeded) {
+                    this.hooks.onUrgentSaveFailed?.();
+                }
+                return succeeded;
+            } catch (e) {
+                this.lastError = e;
                 this.hooks.onUrgentSaveFailed?.();
+                throw e;
             }
-            return succeeded;
         }
         this._transition("begin");
         const ownerEpoch = ++this._saveEpoch;

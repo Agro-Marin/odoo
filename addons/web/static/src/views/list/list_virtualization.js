@@ -29,6 +29,23 @@ const DEFAULT_ROW_HEIGHT = 41;
 const DEFAULT_GROUP_ROW_HEIGHT = 37;
 const DEFAULT_THRESHOLD = 100;
 const DEFAULT_BUFFER_COEF = 0.5;
+/**
+ * Sub-pixel granularity of a measured row height. Row heights ARE fractional
+ * (40.5px at default density), and the measurement feeds back into a
+ * ``component.render()`` — so comparing raw floats makes any sub-pixel jitter
+ * (zoom level, fractional borders, a scrollbar appearing) a render trigger,
+ * with no bound on how often it can fire. Quantizing to a quarter pixel keeps
+ * every real density change detectable while making jitter a no-op.
+ */
+const HEIGHT_QUANTUM = 0.25;
+
+/**
+ * @param {number} height
+ * @returns {number}
+ */
+function quantize(height) {
+    return Math.round(height / HEIGHT_QUANTUM) * HEIGHT_QUANTUM;
+}
 
 /**
  * @typedef {import("./list_grid_state").FlatRow} FlatRow
@@ -36,7 +53,6 @@ const DEFAULT_BUFFER_COEF = 0.5;
  * @typedef ListVirtualizationOptions
  * @property {any} rootRef - ref to .o_list_renderer
  * @property {() => import("./list_grid_state").ListGridState} getGridState
- * @property {() => number} getNbCols - total column count (for spacer colspan)
  * @property {() => boolean} canResequence - whether drag reorder is active
  * @property {() => object | null} getEditedRecord - currently edited record
  * @property {number} [threshold] - min flat rows to activate virtualization
@@ -62,7 +78,6 @@ const DEFAULT_BUFFER_COEF = 0.5;
 export function useListVirtualization({
     rootRef,
     getGridState,
-    getNbCols,
     canResequence,
     getEditedRecord,
     threshold = DEFAULT_THRESHOLD,
@@ -115,7 +130,7 @@ export function useListVirtualization({
         const dataRow = el.querySelector(".o_data_row");
         if (dataRow) {
             const rowHeight =
-                dataRow.getBoundingClientRect().height || DEFAULT_ROW_HEIGHT;
+                quantize(dataRow.getBoundingClientRect().height) || DEFAULT_ROW_HEIGHT;
             if (rowHeight !== measuredRowHeight) {
                 measuredRowHeight = rowHeight;
                 changed = true;
@@ -124,7 +139,8 @@ export function useListVirtualization({
         const groupRow = el.querySelector(".o_group_header");
         if (groupRow) {
             const groupHeight =
-                groupRow.getBoundingClientRect().height || DEFAULT_GROUP_ROW_HEIGHT;
+                quantize(groupRow.getBoundingClientRect().height) ||
+                DEFAULT_GROUP_ROW_HEIGHT;
             if (groupHeight !== measuredGroupRowHeight) {
                 measuredGroupRowHeight = groupHeight;
                 changed = true;

@@ -135,7 +135,7 @@ export const DEFAULT_LIFECYCLE_HOOKS = /** @type {LifecycleHooks} */ ({
  *  onDisplayUrgentSave: (message: string) => (() => void);
  *  onDisplayPropertyWarning: (message: string) => void;
  *  onDisplayArchiveAction: (action: Object, reload: () => Promise<any>) => any;
- *  onConfirmArchive: (isSelected: boolean, archiveFn: Function, unarchiveFn: Function, dialogProps?: Object) => void;
+ *  onConfirmArchive: (archiveFn: Function, dialogProps?: Object) => void;
  *  onConfirmDuplicate: (resIds: number[], copyFn: Function) => void;
  *  onDisplayLimitNotification: (msg: string) => void;
  * }} UIHooks
@@ -146,7 +146,7 @@ export const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
     onDisplayUrgentSave: () => () => {},
     onDisplayPropertyWarning: () => {},
     onDisplayArchiveAction: (_action, reload) => reload(),
-    onConfirmArchive: (_isSelected, archiveFn) => archiveFn(),
+    onConfirmArchive: (archiveFn) => archiveFn(),
     onConfirmDuplicate: (resIds, copyFn) => copyFn(resIds),
     onDisplayLimitNotification: () => {},
 });
