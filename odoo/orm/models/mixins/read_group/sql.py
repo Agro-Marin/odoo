@@ -26,32 +26,6 @@ from odoo.tools.translate import _
 from ....fields.temporal import _get_all_timezones_set
 
 
-def _safe_sql_str_literal(value: str) -> str:
-    """Return *value* as a single-quoted SQL string literal.
-
-    Embedded into the SQL text (not parameter-bound) because the expression
-    appears in both SELECT and GROUP BY and PG matches them by byte-identical
-    text; a bound param gets a distinct ``$N`` each time, so GROUP BY
-    validation fails. Callers pass allow-listed values (timezone, granularity);
-    the quote/backslash/percent check is defense-in-depth (``%`` because every
-    caller splices the result into a printf-style ``SQL()`` code string, where
-    a stray ``%`` would be parsed as a format directive).
-
-    :raises TypeError: when *value* is not a :class:`str`
-    :raises ValueError: when *value* contains ``'``, ``\\`` or ``%``
-    """
-    if not isinstance(value, str):
-        raise TypeError(
-            f"_safe_sql_str_literal expects str, got {type(value).__name__}: {value!r}"
-        )
-    if "'" in value or "\\" in value or "%" in value:
-        raise ValueError(
-            f"_safe_sql_str_literal: {value!r} contains characters unsafe "
-            f"for direct embedding into a SQL string literal"
-        )
-    return f"'{value}'"
-
-
 class _ReadGroupSQLMixin(_ModelStubs):
     """SQL expression generation for read_group (SELECT/GROUP BY/HAVING/ORDER BY)."""
 
@@ -301,14 +275,14 @@ class _ReadGroupSQLMixin(_ModelStubs):
                 if tz_name := self.env.context.get("tz"):
                     if tz_name in _get_all_timezones_set():
                         sql_expr = SQL(
-                            "timezone(%s, timezone('UTC', %%s))"
-                            % _safe_sql_str_literal(tz_name),
+                            "timezone(%s, timezone('UTC', %s))",
+                            SQL.literal(tz_name),
                             sql_expr,
                         )
             if granularity in READ_GROUP_NUMBER_GRANULARITY:
-                pg_granularity = READ_GROUP_NUMBER_GRANULARITY[granularity]
                 sql_expr = SQL(
-                    "date_part(%s, %%s)" % _safe_sql_str_literal(pg_granularity),
+                    "date_part(%s, %s)",
+                    SQL.literal(READ_GROUP_NUMBER_GRANULARITY[granularity]),
                     sql_expr,
                 )
         elif granularity in READ_GROUP_NUMBER_GRANULARITY:
@@ -319,14 +293,17 @@ class _ReadGroupSQLMixin(_ModelStubs):
         if granularity == "week":
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
+            interval = SQL.literal(f"-{days_offset} DAY")
             sql_expr = SQL(
-                "(date_trunc('week', %%s::timestamp - INTERVAL '-%d DAY')"
-                " + INTERVAL '-%d DAY')" % (days_offset, days_offset),
+                "(date_trunc('week', %s::timestamp - INTERVAL %s) + INTERVAL %s)",
                 sql_expr,
+                interval,
+                interval,
             )
         elif granularity in READ_GROUP_TIME_GRANULARITY:
             sql_expr = SQL(
-                "date_trunc(%s, %%s::timestamp)" % _safe_sql_str_literal(granularity),
+                "date_trunc(%s, %s::timestamp)",
+                SQL.literal(granularity),
                 sql_expr,
             )
 
