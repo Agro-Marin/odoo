@@ -1,7 +1,14 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { drag, queryAll, queryAllTexts, queryFirst, scroll } from "@odoo/hoot-dom";
+import {
+    drag,
+    press,
+    queryAll,
+    queryAllTexts,
+    queryFirst,
+    scroll,
+} from "@odoo/hoot-dom";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { Component, onWillUpdateProps, xml } from "@odoo/owl";
 import {
@@ -3600,4 +3607,97 @@ test("the sidebar collapse and expand toggles carry an accessible name", async (
     expect(
         ".o_search_panel_sidebar button[aria-label='Expand the search panel']",
     ).toHaveCount(1);
+});
+
+test("a category row is a keyboard-operable control", async () => {
+    // The row IS the control — it selects the value and folds its children —
+    // but it is a bare `<header>`: no role, no tab stop, no Enter/Space. The
+    // only thing standing in for that was the unlabeled `o_toggle_fold` button
+    // that happened to bubble its click, so selecting a category was
+    // effectively mouse-only.
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel>
+                    <field name="company_id"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+    const component = await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+    });
+
+    const rows = queryAll(".o_search_panel_category_value header");
+    expect(rows.length).toBeGreaterThan(1);
+    expect(rows[0]).toHaveAttribute("role", "button");
+    expect(rows[0]).toHaveAttribute("tabindex", "0");
+    // "All" is active on load.
+    expect(rows[0]).toHaveAttribute("aria-current", "true");
+
+    // The fold affordance is decorative now: no duplicate tab stop, and no
+    // unnamed button announced for every row.
+    expect(".o_search_panel_category_value .o_toggle_fold").toHaveAttribute(
+        "aria-hidden",
+        "true",
+    );
+    expect(".o_search_panel_category_value .o_toggle_fold").toHaveAttribute(
+        "tabindex",
+        "-1",
+    );
+
+    rows[1].focus();
+    await press("Enter");
+    await animationFrame();
+
+    const category = component.env.searchModel.getSections(
+        (s) => s.type === "category",
+    )[0];
+    expect(category.activeValueId).not.toBe(false);
+    expect(queryAll(".o_search_panel_category_value header")[1]).toHaveAttribute(
+        "aria-current",
+        "true",
+    );
+});
+
+test("a category row with children exposes aria-expanded, a leaf does not", async () => {
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel>
+                    <field name="company_id"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+    onRpc("search_panel_select_range", () => ({
+        parent_field: "parent_id",
+        values: [
+            { id: 3, display_name: "asustek", parent_id: false },
+            { id: 5, display_name: "agrolait", parent_id: 3 },
+        ],
+    }));
+    await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+    });
+
+    const parent = queryFirst(
+        ".o_search_panel_category_value header:has(.o_search_panel_label_title:contains(asustek))",
+    );
+    expect(parent).toHaveAttribute("aria-expanded", "false");
+
+    await contains(parent).click();
+    expect(
+        queryFirst(
+            ".o_search_panel_category_value header:has(.o_search_panel_label_title:contains(asustek))",
+        ),
+    ).toHaveAttribute("aria-expanded", "true");
+
+    // A leaf must not claim to be collapsed.
+    const child = queryFirst(
+        ".o_search_panel_category_value header:has(.o_search_panel_label_title:contains(agrolait))",
+    );
+    expect(child.hasAttribute("aria-expanded")).toBe(false);
 });

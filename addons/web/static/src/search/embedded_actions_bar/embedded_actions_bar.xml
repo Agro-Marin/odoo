@@ -36,7 +36,7 @@
                     >
                         <div class="d-flex p-0 pe-1 align-items-center justify-content-between">
                             <span t-out="action.name"/>
-                            <i t-if="action.is_deletable" class="o_icon_right btn btn-link text-danger p-0 position-absolute end-0 fa-regular fa-trash-can" title="Delete item" t-on-click.stop="() => this.openConfirmationDialog(action)" />
+                            <i t-if="action.is_deletable" class="o_icon_right btn btn-link text-danger p-0 position-absolute end-0 fa-regular fa-trash-can" role="button" tabindex="0" title="Delete item" aria-label="Delete item" t-on-click.stop="() => this.openConfirmationDialog(action)" t-on-keydown="(ev) => this.onDeleteKeydown(ev, action)" />
                         </div>
                     </DropdownItem>
                 </t>

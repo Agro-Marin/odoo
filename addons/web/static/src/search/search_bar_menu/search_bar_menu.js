@@ -215,4 +215,25 @@ export class SearchBarMenu extends Component {
             this.env.searchModel.searchItems[itemId].serverSideId,
         );
     }
+
+    /**
+     * Activate the edit-favorite affordance from the keyboard.
+     *
+     * It is an `<i>` carrying a click handler, so it had neither a role nor a
+     * way in from the keyboard: editing a favorite was mouse-only. The element
+     * is left as-is rather than promoted to a `<button>` because it has no
+     * `btn` classes and would pick up the browser's button styling.
+     *
+     * @param {KeyboardEvent} ev
+     * @param {number} itemId
+     */
+    onEditFavoriteKeydown(ev, itemId) {
+        if (ev.key !== "Enter" && ev.key !== " ") {
+            return;
+        }
+        // Both would otherwise reach the CheckboxItem and toggle the favorite.
+        ev.preventDefault();
+        ev.stopPropagation();
+        this.editFavorite(itemId);
+    }
 }
