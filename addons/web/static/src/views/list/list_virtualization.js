@@ -27,7 +27,12 @@ import { onMounted, onPatched, status, useComponent } from "@odoo/owl";
 import { useVirtualGrid } from "@web/core/utils/virtual_grid";
 const DEFAULT_ROW_HEIGHT = 41;
 const DEFAULT_GROUP_ROW_HEIGHT = 37;
-const DEFAULT_THRESHOLD = 100;
+/**
+ * Minimum flat row count before windowing engages. Exported because
+ * ``ListRenderer`` re-publishes it as a static so sub-renderers can raise or
+ * disable it per view — one literal, two names for it is one too many.
+ */
+export const DEFAULT_THRESHOLD = 100;
 const DEFAULT_BUFFER_COEF = 0.5;
 /**
  * Sub-pixel granularity of a measured row height. Row heights ARE fractional
@@ -45,6 +50,38 @@ const HEIGHT_QUANTUM = 0.25;
  */
 function quantize(height) {
     return Math.round(height / HEIGHT_QUANTUM) * HEIGHT_QUANTUM;
+}
+
+/** Computed ``overflow-y`` values that make an element a scroll container. */
+const SCROLLABLE_OVERFLOWS = new Set(["auto", "scroll", "overlay"]);
+
+/**
+ * Nearest scrolling ancestor-or-self of ``el``.
+ *
+ * Both conditions are required. ``overflow-y`` alone is not enough: the list
+ * renderer carries Bootstrap's ``.table-responsive`` (``overflow-x: auto``),
+ * and CSS computes the other axis to ``auto`` as soon as one axis is not
+ * ``visible`` — so it reports a scrollable ``overflow-y`` at every breakpoint,
+ * including the ones where it has no height constraint and never scrolls.
+ * Requiring actual overflow distinguishes them.
+ *
+ * @param {HTMLElement | null | undefined} el
+ * @returns {HTMLElement | null} the scroll container, or ``el`` itself when
+ *   nothing overflows yet (so the caller still measures a sane viewport)
+ */
+function getScrollContainer(el) {
+    if (!el) {
+        return null;
+    }
+    for (let node = el; node; node = node.parentElement) {
+        if (
+            node.scrollHeight > node.clientHeight &&
+            SCROLLABLE_OVERFLOWS.has(getComputedStyle(node).overflowY)
+        ) {
+            return node;
+        }
+    }
+    return el;
 }
 
 /**
@@ -97,9 +134,55 @@ export function useListVirtualization({
     /** @type {number[]} */
     let cumHeights = [];
 
+    /**
+     * The element that actually scrolls, resolved per access rather than
+     * assumed to be ``rootRef.el``.
+     *
+     * ``.o_list_renderer`` is only the scroll container from the ``md``
+     * breakpoint up — ``list_renderer.scss`` puts its ``height: 100%`` inside
+     * a ``media-breakpoint-up(md)`` block, and ``MultiRecordController``
+     * already branches on ``env.isSmall`` for the same reason. Below ``md``
+     * the renderer grows to its full content height and an ancestor
+     * (``.o_content``) does the scrolling, so binding the scroll listener and
+     * reading the viewport ``span`` off ``rootRef.el`` measured a viewport as
+     * tall as the whole list: ``getIndexes`` then returned every row and
+     * virtualization silently did nothing on the platform that needs it most.
+     *
+     * Resolved lazily (a getter, not a cached element) because the breakpoint
+     * can change under a live component — a window resize past ``md`` moves
+     * the scrolling to a different element with no remount.
+     */
+    const scrollableRef = {
+        get el() {
+            return getScrollContainer(rootRef.el);
+        },
+    };
+
+    /**
+     * Px between the scroll container's content origin and the first row.
+     * Non-zero even on desktop (the sticky ``<thead>``), and larger when the
+     * scroller is an ancestor holding the control panel too.
+     *
+     * @returns {number}
+     */
+    function getRowsOffset() {
+        const scroller = scrollableRef.el;
+        const tbody = rootRef.el?.querySelector("tbody");
+        if (!scroller || !tbody) {
+            return 0;
+        }
+        return Math.max(
+            0,
+            tbody.getBoundingClientRect().top -
+                scroller.getBoundingClientRect().top +
+                scroller.scrollTop,
+        );
+    }
+
     const virtualGrid = useVirtualGrid({
-        scrollableRef: rootRef,
+        scrollableRef,
         bufferCoef,
+        getRowsOffset,
     });
 
     /**
@@ -174,16 +257,21 @@ export function useListVirtualization({
          * @param {number} rowIndex - globalIndex in the flat rows array
          */
         ensureRowVisible(rowIndex) {
-            if (!active || !rootRef.el) {
+            const scroller = scrollableRef.el;
+            if (!active || !scroller) {
                 return;
             }
             if (rowIndex < 0 || rowIndex >= cumHeights.length) {
                 return;
             }
-            const targetTop = rowIndex > 0 ? cumHeights[rowIndex - 1] : 0;
-            const containerHeight = rootRef.el.clientHeight;
+            // `cumHeights` is measured from the first row, `scrollTop` from the
+            // scroller's content origin — same offset correction as the window
+            // computation, or this scrolls short by the header's height.
+            const targetTop =
+                (rowIndex > 0 ? cumHeights[rowIndex - 1] : 0) + getRowsOffset();
+            const containerHeight = scroller.clientHeight;
             const scrollTo = Math.max(0, targetTop - containerHeight / 2);
-            rootRef.el.scrollTop = scrollTo;
+            scroller.scrollTop = scrollTo;
         },
 
         /**

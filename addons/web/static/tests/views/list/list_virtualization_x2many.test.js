@@ -18,6 +18,7 @@
 
 import { expect, test } from "@odoo/hoot";
 import { queryAll, queryFirst } from "@odoo/hoot-dom";
+import { animationFrame } from "@odoo/hoot-mock";
 import {
     defineModels,
     fields,
@@ -59,6 +60,26 @@ const ARCH = `
         </field>
     </form>`;
 
+/**
+ * Resolve the element that actually scrolls the x2many, the same way
+ * ``useListVirtualization`` does.
+ *
+ * @param {HTMLElement} el
+ * @returns {HTMLElement}
+ */
+function scrollContainerOf(el) {
+    const scrollable = new Set(["auto", "scroll", "overlay"]);
+    for (let node = el; node; node = node.parentElement) {
+        if (
+            node.scrollHeight > node.clientHeight &&
+            scrollable.has(getComputedStyle(node).overflowY)
+        ) {
+            return node;
+        }
+    }
+    return el;
+}
+
 test.tags("desktop");
 test("every x2many row above the virtualization threshold is reachable", async () => {
     seedLines(LINE_COUNT);
@@ -68,11 +89,26 @@ test("every x2many row above the virtualization threshold is reachable", async (
     // The x2many list is not its own scroll viewport: the form scrolls it.
     expect(renderer.scrollHeight).toBe(renderer.clientHeight);
 
-    const names = queryAll(".o_field_x2many .o_data_row .o_data_cell").map((td) =>
+    const firstNames = queryAll(".o_field_x2many .o_data_row .o_data_cell").map((td) =>
         td.textContent.trim(),
     );
-    expect(names.at(0)).toBe("line 1");
-    expect(names.at(-1)).toBe(`line ${LINE_COUNT}`);
+    expect(firstNames.at(0)).toBe("line 1");
+
+    // Reachability is what matters, and under virtualization it is a property
+    // of SCROLLING, not of the initial DOM: asserting the last row is present
+    // up-front only held while virtualization was inert inside an x2many
+    // (the renderer was mistaken for its own viewport, so the computed span
+    // covered every row and nothing was ever windowed out).
+    const scroller = scrollContainerOf(renderer);
+    expect(scroller).not.toBe(renderer);
+    scroller.scrollTop = scroller.scrollHeight;
+    await animationFrame();
+    await animationFrame();
+
+    const lastNames = queryAll(".o_field_x2many .o_data_row .o_data_cell").map((td) =>
+        td.textContent.trim(),
+    );
+    expect(lastNames.at(-1)).toBe(`line ${LINE_COUNT}`);
 });
 
 test.tags("desktop");
