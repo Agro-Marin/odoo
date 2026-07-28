@@ -4,7 +4,7 @@ import { _t } from "@web/core/l10n/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { formatFloat } from "@web/fields/formatters";
 import { formatCurrency } from "@web/services/currency";
-import { SIZES } from "@web/ui/block/ui_service";
+import { SIZES } from "@web/ui/viewport";
 import { ViewButton } from "@web/views/view_button/view_button";
 
 import { ProjectMilestone } from "./components/project_milestone.js";

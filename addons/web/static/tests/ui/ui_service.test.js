@@ -6,7 +6,8 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { MEDIAS_BREAKPOINTS, useActiveElement } from "@web/ui/block/ui_service";
+import { useActiveElement } from "@web/ui/ui_service";
+import { MEDIAS_BREAKPOINTS } from "@web/ui/viewport";
 
 import {
     getService,

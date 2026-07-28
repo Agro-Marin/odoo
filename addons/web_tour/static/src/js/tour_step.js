@@ -2,7 +2,7 @@
 import hoot from "@odoo/hoot-dom";
 import { pick } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
-import { utils } from "@web/ui/block/ui_service";
+import { utils } from "@web/ui/viewport";
 
 /**
  * @typedef TourStep

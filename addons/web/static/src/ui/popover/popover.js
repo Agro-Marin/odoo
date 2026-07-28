@@ -10,9 +10,9 @@ import { reverseForRTL } from "@web/core/position/utils";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { useActiveElement } from "@web/ui/block/ui_service";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
+import { useActiveElement } from "@web/ui/ui_service";
 
 /**
  * @param {EventTarget} target

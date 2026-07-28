@@ -2,7 +2,7 @@
 import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
-import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
+import { SIZES, utils as uiUtils } from "@web/ui/viewport";
 
 export class HoverableDropdown extends Interaction {
     static selector = "header.o_hoverable_dropdown";

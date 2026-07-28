@@ -18,8 +18,8 @@ import { resizeTextArea } from "@web/core/utils/dom/autoresize";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
 import { redirect } from "@web/core/utils/urls";
 import { Interaction } from "@web/public/interaction";
-import { utils as uiUtils } from "@web/ui/block/ui_service";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { utils as uiUtils } from "@web/ui/viewport";
 
 const { DateTime } = luxon;
 

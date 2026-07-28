@@ -15,7 +15,7 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { useActiveElement } from "@web/ui/block/ui_service";
+import { useActiveElement } from "@web/ui/ui_service";
 
 const useDialogDraggable = makeDraggableHook(
     /** @type {any} */ ({

@@ -31,7 +31,7 @@ import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
 import { useServiceProtectMethodHandling } from "@web/core/utils/hooks";
 import { session } from "@web/session";
-import { MEDIAS_BREAKPOINTS, utils as uiUtils } from "@web/ui/block/ui_service";
+import { MEDIAS_BREAKPOINTS, utils as uiUtils } from "@web/ui/viewport";
 import { WebClient } from "@web/webclient/webclient";
 
 import { click, contains } from "./mail_test_helpers_contains.js";
@@ -78,7 +78,7 @@ import { ResUsersSettings } from "./mock_server/mock_models/res_users_settings.j
 import { ResUsersSettingsVolumes } from "./mock_server/mock_models/res_users_settings_volumes.js";
 
 export * from "./mail_test_helpers_contains.js";
-export { SIZES } from "@web/ui/block/ui_service";
+export { SIZES } from "@web/ui/viewport";
 
 before(prepareRegistriesWithCleanup);
 export const registryNamesToCloneWithCleanup = [];

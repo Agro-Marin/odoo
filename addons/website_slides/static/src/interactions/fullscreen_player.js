@@ -7,7 +7,7 @@ import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
 import { session } from "@web/session";
-import { SIZES, utils as uiUtils } from "@web/ui/block/ui_service";
+import { SIZES, utils as uiUtils } from "@web/ui/viewport";
 import { unhideConditionalElements } from "@website/utils/misc";
 import { CoursePage } from "@website_slides/interactions/course_page";
 import {

@@ -6,7 +6,7 @@ import { SearchPanel } from "@web/search/search_panel/search_panel";
 import { useNestedSortable } from "@web/core/utils/dnd/nested_sortable";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { utils as uiUtils } from "@web/ui/block/ui_service";
+import { utils as uiUtils } from "@web/ui/viewport";
 import { toFolderValueId } from "@documents/views/utils";
 import { Component, onWillStart, useState } from "@odoo/owl";
 

@@ -5,7 +5,7 @@ import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { localization } from "@web/core/l10n/localization";
-import { getFirstAndLastTabableElements } from "@web/ui/block/ui_service";
+import { getFirstAndLastTabableElements } from "@web/ui/ui_service";
 import { cookie } from "@web/core/browser/cookie";
 import { useChildRef } from "@web/core/utils/hooks";
 import { SnippetViewer } from "./snippet_viewer.js";

@@ -13,7 +13,7 @@ import { useService } from "@web/core/utils/hooks";
 import { loadPDFJS, pdfjsLib } from "@web/core/utils/pdfjs";
 import { useCommand } from "@web/services/commands/command_hook";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
-import { useActiveElement } from "@web/ui/block/ui_service";
+import { useActiveElement } from "@web/ui/ui_service";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";
 

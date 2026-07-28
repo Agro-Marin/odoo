@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { SearchPanel } from "@web/search/search_panel/search_panel";
 import { useService } from "@web/core/utils/hooks"
-import { SIZES } from "@web/ui/block/ui_service";
+import { SIZES } from "@web/ui/viewport";
 
 export class LunchSearchPanel extends SearchPanel {
     setup() {

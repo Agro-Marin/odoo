@@ -5,7 +5,7 @@ import { useState } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import { SIZES } from "@web/ui/block/ui_service";
+import { SIZES } from "@web/ui/viewport";
 import { FormRenderer } from "@web/views/form/form_renderer";
 patch(FormRenderer.prototype, {
     setup() {

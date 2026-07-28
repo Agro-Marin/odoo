@@ -2,7 +2,7 @@
 import hoot from "@odoo/hoot-dom";
 import { MacroMutationObserver } from "@web/core/utils/macro";
 import { debounce } from "@web/core/utils/timing";
-import { utils } from "@web/ui/block/ui_service";
+import { utils } from "@web/ui/viewport";
 import { tourState } from "@web_tour/js/tour_state";
 import { TourStep } from "@web_tour/js/tour_step";
 import { getScrollParent } from "@web_tour/js/utils/tour_utils";

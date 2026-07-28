@@ -10,8 +10,8 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-import { utils } from "@web/ui/block/ui_service";
 import { usePopover } from "@web/ui/popover/popover_hook";
+import { utils } from "@web/ui/viewport";
 import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 
 import { ColumnProgress } from "./column_progress.js";

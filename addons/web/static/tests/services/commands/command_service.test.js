@@ -21,7 +21,7 @@ import {
 import { registry } from "@web/core/registry";
 import { useCommand } from "@web/services/commands/command_hook";
 import { HotkeyCommandItem } from "@web/services/commands/default_providers";
-import { useActiveElement } from "@web/ui/block/ui_service";
+import { useActiveElement } from "@web/ui/ui_service";
 
 class TestComponent extends Component {
     static template = xml`<div />`;

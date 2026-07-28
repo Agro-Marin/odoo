@@ -21,7 +21,7 @@ import { registry } from "@web/core/registry";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { getFieldFromRegistry } from "@web/fields/field";
 import { X2M_TYPES } from "@web/fields/field_types";
-import { utils } from "@web/ui/block/ui_service";
+import { utils } from "@web/ui/viewport";
 
 const isSmall = utils.isSmall;
 const viewRegistry = registry.category("views");

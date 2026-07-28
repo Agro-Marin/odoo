@@ -18,7 +18,7 @@ import {
     mountView,
     webModels,
 } from "@web/../tests/web_test_helpers";
-import { SIZES } from "@web/ui/block/ui_service";
+import { SIZES } from "@web/ui/viewport";
 
 class Partner extends models.Model {
     name = fields.Char();

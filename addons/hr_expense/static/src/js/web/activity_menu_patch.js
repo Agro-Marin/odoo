@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { ActivityMenu } from "@mail/core/web/activity_menu";
-import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/block/ui_service";
+import { MEDIAS_BREAKPOINTS, SIZES } from "@web/ui/viewport";
 import { patch } from "@web/core/utils/patch";
 
 patch(ActivityMenu.prototype, {
