@@ -132,7 +132,7 @@ export async function loadPDFJS() {
             const lib = await import("pdfjs-dist");
             lib.GlobalWorkerOptions.workerSrc =
                 "/web/static/lib/pdfjs/build/pdf.worker.js";
-            _pdfjsLib = lib;
+            _pdfjsLib = withWasmDefault(lib);
             return pdfjsLib;
         })().catch((error) => {
             loadPromise = null;
@@ -141,4 +141,50 @@ export async function loadPDFJS() {
         await loadPromise;
     }
     return pdfjsLib;
+}
+
+/**
+ * Directory holding pdf.js's WebAssembly codecs.
+ *
+ * Since v6 the JPEG 2000 (openjpeg), JBIG2 and colour-management (qcms)
+ * decoders ship as separate `.wasm` files instead of being inlined in the
+ * worker bundle, and `getDocument` needs to be told where they live. The
+ * bundled *viewer* defaults the option; the library does not — it defaults to
+ * `null` and then cannot decode images that need those codecs.
+ *
+ * The trailing slash matters: pdf.js concatenates the file name onto it.
+ *
+ * @type {string}
+ */
+export const PDFJS_WASM_URL = "/web/static/lib/pdfjs/web/wasm/";
+
+/**
+ * Wrap the pdf.js namespace so `getDocument` defaults {@link PDFJS_WASM_URL}.
+ *
+ * Applying the default here rather than at each call site keeps the codec
+ * location a property of "pdf.js as this app loads it": a new caller cannot
+ * forget it, and moving the files is a one-line change. An ES module
+ * namespace is read-only, so the default is layered on a delegating object
+ * rather than assigned onto the namespace itself.
+ *
+ * @param {any} lib the freshly imported pdf.js namespace
+ * @returns {any} a view of `lib` whose `getDocument` carries the default
+ */
+function withWasmDefault(lib) {
+    const view = Object.create(lib);
+    view.getDocument = (src) => {
+        // getDocument also accepts a URL/TypedArray/ArrayBuffer shorthand;
+        // normalise to the parameter-object form so wasmUrl has somewhere to go.
+        let params;
+        if (typeof src === "string" || src instanceof URL) {
+            params = { url: src };
+        } else if (src instanceof ArrayBuffer || ArrayBuffer.isView(src)) {
+            params = { data: src };
+        } else {
+            params = { ...src };
+        }
+        params.wasmUrl ??= PDFJS_WASM_URL;
+        return lib.getDocument(params);
+    };
+    return view;
 }
