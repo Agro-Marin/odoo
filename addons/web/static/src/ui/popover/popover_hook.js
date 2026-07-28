@@ -12,8 +12,9 @@ import { useService } from "@web/core/utils/hooks";
  * @property {(target: string | HTMLElement, props: object) => void} open
  *  - Signals the manager to open the configured popover
  *    component on the target, with the given props.
- * @property {() => void} close
- *  - Signals the manager to remove the popover.
+ * @property {(removeParams?: any) => void} close
+ *  - Signals the manager to remove the popover, optionally with a reason
+ *    that reaches `options.onClose`.
  * @property {boolean} isOpen
  *  - Whether the popover is currently open.
  */
@@ -25,18 +26,23 @@ import { useService } from "@web/core/utils/hooks";
  * @returns {PopoverHookReturnType}
  */
 export function makePopover(addFn, component, options) {
-    /** @type {(() => void) | null} */
+    /** @type {((removeParams?: any) => void) | null} */
     let removeFn = null;
-    function close() {
-        removeFn?.();
+    /**
+     * Forwards its argument the whole way down. The presenter binds the hosted
+     * component's `close` to pass a reason on; a thunk here would have dropped
+     * it again one layer up, which is where nearly every caller sits.
+     */
+    function close(/** @type {any} */ removeParams) {
+        removeFn?.(removeParams);
     }
     return {
         open(target, props) {
             close();
             const newOptions = Object.create(options);
-            newOptions.onClose = () => {
+            newOptions.onClose = (/** @type {any} */ removeParams) => {
                 removeFn = null;
-                options.onClose?.();
+                options.onClose?.(removeParams);
             };
             removeFn = addFn(/** @type {any} */ (target), component, props, newOptions);
         },
@@ -77,12 +83,14 @@ export function usePopover(component, options = {}) {
     };
 
     const newOptions = Object.create(options);
-    newOptions.onClose = () => {
+    newOptions.onClose = (/** @type {any} */ removeParams) => {
         if (status(owner) !== "destroyed") {
-            options.onClose?.();
+            options.onClose?.(removeParams);
         }
     };
     const popover = makePopover(add, component, newOptions);
-    onWillUnmount(popover.close);
+    // Wrapped: an unmount is not a close reason, and handing Owl's hook the
+    // bare function would make whatever it passes one.
+    onWillUnmount(() => popover.close());
     return popover;
 }

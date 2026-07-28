@@ -4,7 +4,7 @@ import { expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
 import { RouterEvent } from "@web/core/events";
@@ -265,4 +265,63 @@ test("a focus-trapping sheet is announced as modal, a non-trapping one is not", 
     });
     await animationFrame();
     expect(".o_bottom_sheet_sheet:last").not.toHaveAttribute("aria-modal");
+});
+
+// DISMISS-GESTURE-BLOCK
+// Scrolling the rail below `dismissThreshold` IS the drag-to-dismiss gesture,
+// and `updateDimensions` rewrites `--sheet-height` on that same rail when the
+// viewport changes. Nothing pinned the boundary between the two, so a
+// reflow-driven scroll event was free to read as a dismissal — which on mobile
+// would mean focusing an input inside a sheet closes the sheet.
+test.tags("mobile");
+test("a viewport change (virtual keyboard) does not dismiss the sheet", async () => {
+    class Child extends Component {
+        static template = xml`<div class="sheet-child"/>`;
+        static props = ["*"];
+    }
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => expect.step("closed") },
+    });
+    await animationFrame();
+    await runAllTimers();
+    expect(".sheet-child").toHaveCount(1);
+    expect(sheet.state.isDismissing).toBe(false);
+
+    patchWithCleanup(browser, {
+        visualViewport: {
+            width: 375,
+            height: 300,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+        },
+    });
+    sheet.updateDimensions();
+    sheet.scrollRailRef.el.dispatchEvent(new Event("scroll"));
+    await runAllTimers();
+    await animationFrame();
+
+    expect(sheet.state.isDismissing).toBe(false);
+    expect.verifySteps([]);
+});
+
+test.tags("mobile");
+test("dragging the rail below the threshold dismisses the sheet", async () => {
+    class Child extends Component {
+        static template = xml`<div class="sheet-child"/>`;
+        static props = ["*"];
+    }
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => expect.step("closed") },
+    });
+    await animationFrame();
+    await runAllTimers();
+    expect(sheet.state.isDismissing).toBe(false);
+
+    sheet.scrollRailRef.el.scrollTop = 0;
+    sheet.scrollRailRef.el.dispatchEvent(new Event("scroll"));
+    await runAllTimers();
+    await animationFrame();
+
+    expect(sheet.state.isDismissing).toBe(true);
+    expect.verifySteps(["closed"]);
 });
