@@ -23,7 +23,7 @@ from odoo.exceptions import (
 from odoo.modules.registry import Registry
 from odoo.tests import common
 from odoo.tests.common import BaseCase, TransactionCase
-from odoo.tools import mute_logger
+from odoo.tools import SQL, mute_logger
 
 from odoo.addons.base.models import ir_job
 from odoo.addons.base.models.ir_cron import IrCron
@@ -924,6 +924,131 @@ class TestIrJob(TransactionCase):
         job = self.partner.delayed()._ir_job_test_append()
         job.write({"eta": self.env.cr.now() + timedelta(hours=1), "state": "pending"})
         self.assertEqual(job.state, "pending")
+
+    def test_reaper_handles_a_whole_batch_in_a_fixed_number_of_statements(self):
+        """Row by row this cost three round trips per candidate, all of them
+        holding the sweep lock that gates job processing for the database.
+        """
+        jobs = [self.partner.delayed()._ir_job_test_append() for _ in range(8)]
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'started', worker_ident = 'dead:1',"
+            " started_at = (now() AT TIME ZONE 'UTC') - interval '5 minutes'"
+            " WHERE id = ANY(%s)",
+            ([job.id for job in jobs],),
+        )
+        statements = []
+        original = type(self.env.cr).execute
+
+        def counting(cr, query, params=None, **kwargs):
+            statements.append(query)
+            return original(cr, query, params, **kwargs)
+
+        with patch.object(type(self.env.cr), "execute", counting):
+            reaped = IrJob._reap_dead_jobs(self.env.cr)
+        self.assertEqual(reaped, 8)
+        self.assertLessEqual(len(statements), 4, "one probe, two updates, one unlock")
+        self.env.invalidate_all()
+        self.assertEqual({job.state for job in jobs}, {"pending"})
+        self.assertEqual({job.retry for job in jobs}, {1})
+
+    def test_reaper_skips_a_job_whose_worker_is_still_alive(self):
+        """Liveness *is* the lock, and the set-based probe must still honour it.
+
+        The existing "locked" case only covered the grace period, so a rewrite
+        that took the lock incorrectly -- or skipped taking it at all -- would
+        have requeued a job that is running right now, and run it twice.
+        """
+        job = self.partner.delayed()._ir_job_test_append()
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'started', worker_ident = 'alive:1',"
+            " started_at = (now() AT TIME ZONE 'UTC') - interval '5 minutes'"
+            " WHERE id = %s",
+            (job.id,),
+        )
+        worker = odoo.db.db_connect(self.env.cr.dbname).cursor()
+        try:
+            worker.execute(
+                "SELECT pg_advisory_lock(hashtextextended('ir_job:' || %s::text, 0))",
+                (job.id,),
+            )
+            self.assertEqual(IrJob._reap_dead_jobs(self.env.cr), 0)
+        finally:
+            worker.execute(
+                "SELECT pg_advisory_unlock(hashtextextended('ir_job:' || %s::text, 0))",
+                (job.id,),
+            )
+            worker.close()
+        job.invalidate_recordset()
+        self.assertEqual(job.state, "started", "a live worker still owns it")
+
+    def test_reaper_takes_exactly_one_lock_per_candidate(self):
+        """``MATERIALIZED`` is what makes that true: without it the planner may
+        apply ``pg_try_advisory_lock`` to rows it is merely considering.
+        """
+        jobs = [self.partner.delayed()._ir_job_test_append() for _ in range(5)]
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'started', worker_ident = 'dead:1',"
+            " started_at = (now() AT TIME ZONE 'UTC') - interval '5 minutes'"
+            " WHERE id = ANY(%s)",
+            ([job.id for job in jobs],),
+        )
+        before = self._advisory_locks_held()
+        self.env.cr.execute(
+            SQL(
+                """
+                WITH candidates AS MATERIALIZED (
+                    SELECT id FROM ir_job
+                    WHERE state = 'started' AND worker_ident = 'dead:1'
+                    ORDER BY started_at LIMIT 5
+                )
+                SELECT id FROM candidates WHERE pg_try_advisory_lock(%s)
+                """,
+                ir_job._advisory_key_sql(SQL.identifier("id")),
+            )
+        )
+        locked = [row[0] for row in self.env.cr.fetchall()]
+        try:
+            self.assertEqual(len(locked), 5)
+            self.assertEqual(self._advisory_locks_held() - before, 5, "one each")
+        finally:
+            self.env.cr.execute(
+                SQL(
+                    "SELECT pg_advisory_unlock(%s) FROM unnest(%s::bigint[]) AS id",
+                    ir_job._advisory_key_sql(SQL.identifier("id")),
+                    locked,
+                )
+            )
+        self.assertEqual(self._advisory_locks_held(), before)
+
+    def test_reaper_splits_a_batch_between_requeue_and_failure(self):
+        alive = self.partner.delayed(max_retries=5)._ir_job_test_append()
+        spent = self.partner.delayed(max_retries=0)._ir_job_test_append()
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'started', worker_ident = 'dead:1',"
+            " started_at = (now() AT TIME ZONE 'UTC') - interval '5 minutes'"
+            " WHERE id = ANY(%s)",
+            ([alive.id, spent.id],),
+        )
+        self.assertEqual(IrJob._reap_dead_jobs(self.env.cr), 2)
+        self.env.invalidate_all()
+        self.assertEqual(alive.state, "pending")
+        self.assertEqual(spent.state, "failed")
+        self.assertEqual(spent.exc_name, "WorkerDied")
+
+    def test_reaper_releases_the_locks_it_took(self):
+        """It holds session locks, which outlive the statement: leaving them on
+        would block the very workers meant to pick the requeued jobs up.
+        """
+        job = self.partner.delayed()._ir_job_test_append()
+        self.env.cr.execute(
+            "UPDATE ir_job SET state = 'started', worker_ident = 'dead:1',"
+            " started_at = (now() AT TIME ZONE 'UTC') - interval '5 minutes'"
+            " WHERE id = %s",
+            (job.id,),
+        )
+        before = self._advisory_locks_held()
+        self.assertEqual(IrJob._reap_dead_jobs(self.env.cr), 1, "a lock was taken")
+        self.assertEqual(self._advisory_locks_held(), before, "and given back")
 
     def _advisory_locks_held(self):
         self.env.cr.execute(
