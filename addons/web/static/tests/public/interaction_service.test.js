@@ -686,7 +686,9 @@ test("a component mounted by t-component is stopped with its subtree", async () 
         static template = xml`<b>c</b>`;
         static props = {};
         setup() {
-            onWillDestroy(() => destroys++);
+            onWillDestroy(() => {
+                destroys++;
+            });
         }
     }
     class Test extends Interaction {
@@ -785,7 +787,9 @@ test("a page-wide stop reaps a component root whose host left the document", asy
         static template = xml`<b>c</b>`;
         static props = {};
         setup() {
-            onWillDestroy(() => destroys++);
+            onWillDestroy(() => {
+                destroys++;
+            });
         }
     }
     class Test extends Interaction {

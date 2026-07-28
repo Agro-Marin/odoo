@@ -2679,25 +2679,26 @@ describe("t-att and t-out", () => {
             Test,
             `<div class="test"><div class="slot"></div></div>`,
         );
+        const textNode = /** @type {Text} */ (queryOne(".slot").firstChild);
         const range = document.createRange();
-        range.setStart(queryOne(".slot").firstChild, 0);
-        range.setEnd(queryOne(".slot").firstChild, 5);
-        const selection = window.getSelection();
+        range.setStart(textNode, 0);
+        range.setEnd(textNode, 5);
+        const selection = /** @type {Selection} */ (window.getSelection());
         selection.removeAllRanges();
         selection.addRange(range);
         expect(selection.toString()).toBe("hello");
         core.interactions[0].updateContent();
-        expect(window.getSelection().toString()).toBe("hello");
+        expect(String(window.getSelection())).toBe("hello");
     });
 
     test("a plain t-out reproduces the textContent setter exactly", async () => {
         // the skip test stands on this: `textContent` is a nullable IDL
         // attribute, so null AND undefined both store the empty string
         const probe = document.createElement("div");
-        probe.textContent = null;
-        expect(probe.textContent).toBe("");
-        probe.textContent = undefined;
-        expect(probe.textContent).toBe("");
+        for (const nullish of [null, undefined]) {
+            probe.textContent = /** @type {any} */ (nullish);
+            expect(probe.textContent).toBe("");
+        }
 
         class Test extends Interaction {
             static selector = ".test";
@@ -2777,6 +2778,7 @@ describe("t-att and t-out", () => {
     test("a t-att value that changes is still written through the guard", async () => {
         class Test extends Interaction {
             static selector = ".test";
+            hidden = false;
             setup() {
                 this.v = "1";
             }
