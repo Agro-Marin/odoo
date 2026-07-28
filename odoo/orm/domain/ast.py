@@ -1186,9 +1186,20 @@ class DomainCondition(Domain):
                         if isinstance(collapsed, DomainBool):
                             return collapsed
                 domain = self._optimize_field_search_method(model)
-                domain = domain.optimize(model)
+                # A search method that hands the condition back unchanged means
+                # "I have no rewrite for this; compile me as a plain column".
+                # The equality is tested BEFORE re-optimizing: optimizing an
+                # unchanged condition re-enters this branch, calls the same
+                # search method, gets the same answer, and recurses until
+                # ``_recursion_error_as_value_error`` converts the blowup into a
+                # ValueError.  The check after the re-optimization stays -- a
+                # method that rewrites to something which *optimizes back* to
+                # this condition is also a no-op -- so the only behaviour that
+                # changes is the one that used to crash.
                 if domain != self:
-                    return domain
+                    domain = domain.optimize(model)
+                    if domain != self:
+                        return domain
 
         optimizations = _OPTIMIZATIONS_FOR[level]
         for opt in optimizations.get(self.operator, ()):

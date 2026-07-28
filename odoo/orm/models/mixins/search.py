@@ -203,11 +203,7 @@ class SearchMixin(_ModelStubs):
             fname for fname in search_fnames if not self._rec_names_search_cyclic(fname)
         ]
         if not search_fnames:
-            _logger.warning(
-                "Cannot search on display_name, no _rec_name or _rec_names_search defined on %s",
-                self._name,
-            )
-            return Domain.TRUE
+            return self._search_display_name_unsearchable(operator, value)
         if operator.endswith("like") and not value and "=" not in operator:
             return (
                 Domain.FALSE if operator in Domain.NEGATIVE_OPERATORS else Domain.TRUE
@@ -334,6 +330,53 @@ class SearchMixin(_ModelStubs):
             field = model._fields[fname]
             model = self.env.get(field.comodel_name) if field.relational else None
         return field
+
+    @api.model
+    def _search_display_name_unsearchable(
+        self, operator: str, value: typing.Any
+    ) -> DomainType:
+        """Answer a ``display_name`` condition on a model with no name field.
+
+        Reached when ``_rec_names_search``/``_rec_name`` yield nothing to search:
+        a model with no ``name`` field that declares neither, or whose entries
+        are all cyclic.  There are 114 such models in ``base`` + ``test_orm`` +
+        ``test_read_group`` alone, nearly all of them wizards, logs and other
+        transient models.
+
+        **A stored ``display_name`` is searched as the column it is.**  A model
+        that redeclares it as an ordinary ``Char(store=True)`` still inherits the
+        base field's ``search=``, so this method is consulted even though the
+        column exists and holds the values -- and the answer below was applied to
+        it too, which made every condition on a perfectly ordinary text column
+        match every record.  Handing the condition back unchanged tells
+        :meth:`DomainCondition._optimize_step` to compile that column, which is
+        what the caller meant.
+
+        **Otherwise the condition does not restrict.**  ``display_name`` is
+        computed and there is nothing for PostgreSQL to filter on, and returning
+        ``Domain.TRUE`` is deliberate rather than a fallback: ``name_search`` is
+        what the web client calls to populate a many2one dropdown, and a model
+        with no name must still list its records there
+        (``base.test_expression.TestMany2one.test_name_search_undefined`` pins
+        it).
+
+        Know what that costs, because it is not "unknown", it is "every record
+        matches", for *every* operator: a condition and its negation both select
+        the whole table, so ``display_name`` is the one field for which the
+        partition law does not hold, and a **record rule** written on it grants
+        access to everything it was meant to restrict.  Narrowing it would have
+        to leave ``name_search`` lenient while making ``search`` strict, which is
+        a change to what ``name_search`` promises, not to this method.
+        """
+        field = self._fields["display_name"]
+        if field.is_column:
+            return Domain(field.name, operator, value)
+        _logger.warning(
+            "Cannot search on display_name, no _rec_name or _rec_names_search "
+            "defined on %s; the condition does not restrict",
+            self._name,
+        )
+        return Domain.TRUE
 
     @api.model
     def _search_display_name_unset(
