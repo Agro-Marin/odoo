@@ -99,7 +99,7 @@ export class MailComposerFormRenderer extends formView.Renderer {
                         composer,
                         file,
                     );
-                    await this.operations.saveRecord([attachment.id]);
+                    await this.operations.linkRecords([attachment.id]);
                 }
             },
         });
