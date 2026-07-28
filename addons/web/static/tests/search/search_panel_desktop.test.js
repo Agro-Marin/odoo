@@ -3571,3 +3571,33 @@ test("an unreachable ancestor yields the partial chain", async () => {
     expect(searchPanel.getAncestorValueIds(category, 201)).toEqual([202]);
     expect(searchPanel.getAncestorValueIds(category, 999)).toEqual([]);
 });
+
+test("the sidebar collapse and expand toggles carry an accessible name", async () => {
+    // Icon-only buttons: with no text, no title and no aria-label, assistive
+    // technology announced them as an unnamed "button".
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel>
+                    <field name="company_id" enable_counters="1"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+    await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+    });
+
+    expect(
+        ".o_search_panel button[aria-label='Collapse the search panel']",
+    ).toHaveCount(1);
+
+    await contains(
+        ".o_search_panel button[aria-label='Collapse the search panel']",
+    ).click();
+
+    expect(
+        ".o_search_panel_sidebar button[aria-label='Expand the search panel']",
+    ).toHaveCount(1);
+});

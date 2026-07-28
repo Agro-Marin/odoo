@@ -729,6 +729,22 @@ export class SearchBar extends Component {
         };
     }
 
+    /**
+     * Whether clicking a facet's label does anything — it flips the count sort
+     * on a group-by facet, or opens the domain editor on a facet that carries
+     * one. The template used to re-derive half of this and got it wrong: a
+     * count-sortable group-by facet has no `domain` (group-by items contribute
+     * none), so it rendered as `role="img"` while still being clickable.
+     * @param {Object} facet
+     * @returns {boolean}
+     */
+    isFacetLabelClickable(facet) {
+        return Boolean(
+            (this.env.searchModel.canOrderByCount && facet.type === "groupBy") ||
+            facet.domain,
+        );
+    }
+
     onFacetLabelClick(facet) {
         const { domain, groupId } = facet;
         if (this.env.searchModel.canOrderByCount && facet.type === "groupBy") {

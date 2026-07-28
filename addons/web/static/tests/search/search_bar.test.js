@@ -2256,3 +2256,61 @@ test("an expanded search item retired mid-flight does not break computeState", a
     expect(searchBar.state.expanded).toEqual([]);
     expect(searchBar.state.query).toBe("ab");
 });
+
+test("a count-sortable group-by facet label announces itself as a button", async () => {
+    // A group-by facet carries no `domain` (group-by items contribute none), so
+    // deriving the role from `facet.domain` alone rendered a label that flips
+    // the count sort on click as `role="img"` — announced as a picture, and not
+    // reachable as a control.
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: ["groupBy"],
+        searchViewId: false,
+        searchViewArch: `<search/>`,
+    });
+    searchBar.env.searchModel.canOrderByCount = true;
+    await toggleSearchBarMenu();
+    await selectGroup("bool");
+
+    expect(".o_searchview_facet").toHaveCount(1);
+    expect(".o_searchview_facet .o_searchview_facet_label").toHaveAttribute(
+        "role",
+        "button",
+    );
+});
+
+test("a plain group-by facet label stays non-interactive", async () => {
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: ["groupBy"],
+        searchViewId: false,
+        searchViewArch: `<search/>`,
+    });
+    searchBar.env.searchModel.canOrderByCount = false;
+    await toggleSearchBarMenu();
+    await selectGroup("bool");
+
+    expect(".o_searchview_facet .o_searchview_facet_label").toHaveAttribute(
+        "role",
+        "img",
+    );
+});
+
+test("a filter facet label carrying a domain announces itself as a button", async () => {
+    await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: ["filter"],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <filter string="Foo" name="foo" domain="[('foo', '=', 'qsdf')]"/>
+            </search>
+        `,
+        context: { search_default_foo: true },
+    });
+
+    expect(".o_searchview_facet .o_searchview_facet_label").toHaveAttribute(
+        "role",
+        "button",
+    );
+});
