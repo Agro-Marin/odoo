@@ -258,6 +258,45 @@ describe("Tooltip.show", () => {
         ttB.dispose();
     });
 
+    // Characterises a deliberate deviation from Bootstrap's contract, not a
+    // desired behaviour. A dismissal takes the tip off screen without going
+    // through hide(), so neither event fires and anything cleaning up from
+    // `hidden.bs.tooltip` never runs. Nothing listens for it today -- the one
+    // listener in the tree, website's page_properties, is on
+    // `hidden.bs.popover`, and popovers are never dismissed this way. Firing
+    // them here would mean re-entering listener code from inside another
+    // tooltip's show(), which is why it is not done. Flip this the day a
+    // consumer appears.
+    test("dismissing fires no hide/hidden, where a real hide does", async () => {
+        const root = mount(
+            `<div><button id="a">A</button><button id="b">B</button></div>`,
+        );
+        const btnA = root.querySelector("#a");
+        const ttA = new Tooltip(btnA, { title: "A", animation: false });
+        const ttB = new Tooltip(root.querySelector("#b"), {
+            title: "B",
+            animation: false,
+        });
+        const seen = [];
+        for (const name of ["hide", "hidden"]) {
+            btnA.addEventListener(`${name}.bs.tooltip`, () => seen.push(name));
+        }
+        ttA.show();
+        await animationFrame();
+        ttB.show();
+        await animationFrame();
+        expect(seen).toEqual([]);
+
+        // the same instance taken down the supported way still reports itself
+        ttA.show();
+        await animationFrame();
+        ttA.hide();
+        await runAllTimers();
+        expect(seen).toEqual(["hide", "hidden"]);
+        ttA.dispose();
+        ttB.dispose();
+    });
+
     test("a hidden anchor is skipped instead of throwing", async () => {
         const el = mount(`<button style="display:none">x</button>`);
         const tt = new Tooltip(el, { title: "X", animation: false });
