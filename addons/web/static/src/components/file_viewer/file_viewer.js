@@ -344,8 +344,16 @@ export class FileViewer extends Component {
             return;
         }
         const image = printWindow.document.createElement("img");
-        image.setAttribute("onload", "window.print(); setTimeout(window.close, 10)");
-        image.setAttribute("onerror", "window.print(); setTimeout(window.close, 10)");
+        // Real handlers, not `onload="..."` attribute strings: those are parsed
+        // as inline script, so they are the first thing a `script-src` policy
+        // kills — and if they never run, the popup is stranded open with no way
+        // back to it.
+        const printAndClose = () => {
+            printWindow.print();
+            printWindow.setTimeout(() => printWindow.close(), 10);
+        };
+        image.addEventListener("load", printAndClose, { once: true });
+        image.addEventListener("error", printAndClose, { once: true });
         image.src = this.state.file.defaultSource;
         printWindow.document.body.appendChild(image);
     }

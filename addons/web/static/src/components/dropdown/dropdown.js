@@ -285,8 +285,19 @@ export class Dropdown extends Component {
      * restores its own focus first; reading document.activeElement later (in
      * openPopover) would capture the sibling's restored element and land focus
      * there on close instead of on our toggler.
+     *
+     * An already-open dropdown captures nothing: `state.open()` is a no-op
+     * then, so `openPopover` never runs to consume the snapshot and it survives
+     * to hijack the NEXT open. A `mouseenter` on an open nested/grouped
+     * dropdown is enough to strand one, and an open driven by `state.open()`
+     * alone — the SelectMenu / TimePicker pattern — never re-captures, so
+     * closing it restored focus to whatever happened to be focused during that
+     * unrelated hover.
      */
     _captureFocusBeforeOpen() {
+        if (this.state.isOpen) {
+            return;
+        }
         this._pendingFocusEl = /** @type {HTMLElement | null} */ (
             document.activeElement
         );
@@ -380,6 +391,14 @@ export class Dropdown extends Component {
     }
 
     openPopover() {
+        // Consumed before the early returns: an open that does not happen must
+        // not leave the snapshot behind for a later one to pick up.
+        const captured =
+            this._pendingFocusEl !== undefined
+                ? this._pendingFocusEl
+                : /** @type {HTMLElement | null} */ (document.activeElement);
+        this._pendingFocusEl = undefined;
+
         if (this.popover.isOpen || status(this) !== "mounted") {
             return;
         }
@@ -397,11 +416,6 @@ export class Dropdown extends Component {
             items: this.props.items,
             slots: this.props.slots,
         };
-        const captured =
-            this._pendingFocusEl !== undefined
-                ? this._pendingFocusEl
-                : /** @type {HTMLElement | null} */ (document.activeElement);
-        this._pendingFocusEl = undefined;
         const capturedInOtherDropdown =
             captured &&
             !this.target.contains(captured) &&

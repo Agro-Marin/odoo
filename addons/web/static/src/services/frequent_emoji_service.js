@@ -13,6 +13,8 @@ import {
 import { registry } from "@web/core/registry";
 
 const STORAGE_KEY = "web.emoji.frequent";
+/** Cap on tracked emojis; the picker shows 42 of them. @see incrementEmojiUsage */
+const MAX_TRACKED = 200;
 /**
  * @typedef {Object} FrequentEmojiState
  * @property {Record<string, number>} all - map of codepoints to usage counts
@@ -54,8 +56,31 @@ export const frequentEmojiService = {
              * @param {string} codepoints - the emoji codepoints identifier
              */
             incrementEmojiUsage(codepoints) {
+                // Unbounded, this grows one entry per distinct emoji ever used
+                // (~1.5k) and is re-read and re-sorted on every render of the
+                // picker, to display 42 of them. Keep a generous multiple of
+                // what is displayed and drop the coldest tail.
+                const isNew = !(codepoints in state.all);
                 state.all[codepoints] ??= 0;
                 state.all[codepoints]++;
+                // Only an insertion can push the map over the cap, so the scan
+                // stays off the hot path of re-using an emoji already tracked.
+                if (isNew) {
+                    const tracked = Object.keys(state.all);
+                    const excess = tracked.length - MAX_TRACKED;
+                    if (excess > 0) {
+                        // The emoji just used is exempt: it enters with a count
+                        // of 1, so it is by definition the coldest entry and
+                        // would be evicted before it could ever earn its place
+                        // -- leaving a full cache permanently unable to learn.
+                        const coldest = tracked
+                            .filter((tracking) => tracking !== codepoints)
+                            .sort((a, b) => state.all[a] - state.all[b]);
+                        for (const cold of coldest.slice(0, excess)) {
+                            delete state.all[cold];
+                        }
+                    }
+                }
                 writeJSONStorage(STORAGE_KEY, state.all);
             },
             /**

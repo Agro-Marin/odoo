@@ -1,9 +1,9 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, waitFor } from "@odoo/hoot-dom";
+import { click, queryAll, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, useRef, useState, xml } from "@odoo/owl";
+import { Component, onRendered, useRef, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     EmojiPicker,
@@ -124,4 +124,29 @@ test("the active emoji is read from the rendered list, not from the DOM", async 
     // Reading it without a mounted grid must not throw.
     instance.gridRef = { el: null };
     expect(() => instance.activeEmoji).not.toThrow();
+});
+
+test("hovering an emoji updates the placeholder without re-rendering the grid", async () => {
+    let renders = 0;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            onRendered(() => renders++);
+        }
+    }
+    const picker = await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    const cells = queryAll(".o-EmojiPicker-content .o-Emoji");
+    expect(cells.length).toBeGreaterThan(1);
+
+    renders = 0;
+    cells[3].dispatchEvent(new MouseEvent("mouseenter"));
+    await animationFrame();
+
+    // A repaint of the whole grid to change one placeholder cost 14-61ms per
+    // cell the pointer crossed; the placeholder is written straight to the DOM.
+    expect(renders).toBe(0);
+    expect(".o-EmojiPicker input").toHaveAttribute(
+        "placeholder",
+        picker.getEmojisFromSearch()[3].shortcodes.join(" "),
+    );
 });

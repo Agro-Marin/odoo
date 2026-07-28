@@ -1,7 +1,7 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { click, queryAllTexts, resize } from "@odoo/hoot-dom";
+import { click, hover, queryAllTexts, resize } from "@odoo/hoot-dom";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
@@ -1354,4 +1354,30 @@ test("range with no end: start at 23h clamps the end time instead of wrapping", 
     });
 
     expect(".o_time_picker_input:eq(1)").toHaveValue("23:00");
+});
+
+test.tags("desktop");
+test("grid refreshes when isDateValid / dayCellClass change their answer", async () => {
+    // The rental date picker's shape: stable callbacks (a bound method, an
+    // arrow) closing over data that lands after mount. Keying the grid cache on
+    // their identity froze the first answer forever.
+    const rules = { blockedWeekday: null };
+    await mountWithCleanup(DateTimePicker, {
+        props: {
+            type: "date",
+            isDateValid: (date) => date.weekday !== rules.blockedWeekday,
+            dayCellClass: (date) =>
+                date.weekday === rules.blockedWeekday ? "o_blocked" : "",
+        },
+    });
+    expect(".o_date_item_cell[disabled]").toHaveCount(0);
+    expect(".o_blocked").toHaveCount(0);
+
+    rules.blockedWeekday = 6;
+    // Any re-render must pick the new answer up; hovering is the cheapest one.
+    await hover(getPickerCell("10"));
+    await animationFrame();
+
+    expect(".o_date_item_cell[disabled]").toHaveCount(6);
+    expect(".o_blocked").toHaveCount(6);
 });

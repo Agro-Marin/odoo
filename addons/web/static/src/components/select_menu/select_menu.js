@@ -431,7 +431,29 @@ export class SelectMenu extends Component {
 
         const _choices = [];
         const _sections = new Set();
-        groupsList.sort((a, b) => collator.compare(a.section || "", b.section || ""));
+        // Sections declared in `props.sections` are ordered as declared —
+        // it is an ordered array, and its order was previously ignored in
+        // favour of the section's technical name, which the user never sees.
+        // Sections that were never declared keep the alphabetical fallback:
+        // `section` doubles as a grouping key that works without any
+        // `props.sections` at all, and then the name is the only order there is.
+        const sectionRank = (group) => {
+            if (!group.section) {
+                return -1;
+            }
+            const index = this.props.sections.findIndex(
+                (s) => s.name === group.section,
+            );
+            return index === -1 ? Infinity : index;
+        };
+        groupsList.sort((a, b) => {
+            const rankA = sectionRank(a);
+            const rankB = sectionRank(b);
+            if (rankA !== rankB) {
+                return rankA - rankB;
+            }
+            return collator.compare(a.section || "", b.section || "");
+        });
 
         for (const group of groupsList) {
             let filteredOptions = group.choices || [];

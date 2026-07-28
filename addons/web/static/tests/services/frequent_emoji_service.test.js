@@ -133,3 +133,23 @@ test("destroy detaches the cross-tab listener", async () => {
         { message: "a torn-down service no longer tracks other tabs" },
     );
 });
+
+test("tracked emojis are capped, and a newly used one is never the eviction", async () => {
+    // A full cache, coldest first.
+    const seeded = {};
+    for (let i = 0; i < 200; i++) {
+        seeded[`e${i}`] = i + 1;
+    }
+    browser.localStorage.setItem(KEY, JSON.stringify(seeded));
+    await makeMockEnv();
+    const emoji = getService("web.frequent.emoji");
+    expect(Object.keys(emoji.all).length).toBe(200);
+
+    emoji.incrementEmojiUsage("newbie");
+
+    const kept = Object.keys(emoji.all);
+    expect(kept.length).toBe(200);
+    expect(kept).not.toInclude("e0"); // the coldest was dropped
+    expect(kept).toInclude("newbie"); // ...not the emoji just used
+    expect(kept).toInclude("e199");
+});

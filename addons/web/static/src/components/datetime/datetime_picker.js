@@ -437,20 +437,29 @@ export class DateTimePicker extends Component {
         const precision = this.activePrecisionLevel;
         const effShowWeekNumbers = showWeekNumbers ?? !range;
 
+        // The grid is cached across renders so hovering a day cell — which only
+        // moves `state.hoveredDate` — does not rebuild the whole 6x7 luxon grid.
+        // That is only sound while `getItems` is a pure function of the key
+        // below. `isDateValid` / `dayCellClass` break that: they are arbitrary
+        // caller closures that may read state the key cannot see, so keying on
+        // their IDENTITY froze the grid at whatever they returned the first
+        // time (a bound method over late-arriving data kept rendering the
+        // pre-arrival validity forever). Impure inputs opt out of the cache
+        // instead of silently invalidating it.
+        const isPureGrid = !isDateValid && !dayCellClass;
         const gridKey = [
             focusDate?.ts,
             precision,
             this.minDate?.ts,
             this.maxDate?.ts,
             effShowWeekNumbers,
-            isDateValid,
-            dayCellClass,
         ];
         if (
+            !isPureGrid ||
             !this._gridKey ||
             gridKey.some((value, index) => value !== this._gridKey[index])
         ) {
-            this._gridKey = gridKey;
+            this._gridKey = isPureGrid ? gridKey : null;
             this.title = precision.getTitle(focusDate);
             this.items = precision.getItems(focusDate, {
                 maxDate: this.maxDate,

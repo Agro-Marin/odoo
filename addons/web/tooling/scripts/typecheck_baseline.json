@@ -1,7 +1,7 @@
 {
   "_generated_at": "2026-05-11",
-  "_total_errors": 1970,
-  "_file_count": 303,
+  "_total_errors": 1772,
+  "_file_count": 274,
   "_generator": "addons/web/tooling/scripts/typecheck_gate.mjs --update-baseline",
   "files": {
     "addons/spreadsheet/static/src/data_sources/data_source.js": {
@@ -280,24 +280,6 @@
       "TS2322": 2,
       "TS2554": 1
     },
-    "addons/web/static/tests/components/components/copy_button.test.js": {
-      "TS2741": 1
-    },
-    "addons/web/static/tests/components/components/datetime/datetime_hook.test.js": {
-      "TS18048": 7,
-      "TS2322": 6
-    },
-    "addons/web/static/tests/components/components/datetime/datetime_input.test.js": {
-      "TS18048": 1,
-      "TS2322": 1
-    },
-    "addons/web/static/tests/components/components/datetime/datetime_picker.test.js": {
-      "TS2304": 1,
-      "TS2322": 21
-    },
-    "addons/web/static/tests/components/components/time_picker.test.js": {
-      "TS2322": 1
-    },
     "addons/web/static/tests/components/datetime/datetime_test_helpers.js": {
       "TS2345": 2,
       "TS2365": 1
@@ -518,116 +500,6 @@
       "TS2353": 2,
       "TS2554": 1,
       "TS2740": 1
-    },
-    "addons/web/static/tests/legacy/core/datetime/datetime_test_helpers.js": {
-      "TS2307": 2,
-      "TS2339": 1,
-      "TS2345": 1,
-      "TS2365": 1
-    },
-    "addons/web/static/tests/legacy/core/utils/nested_sortable_tests.js": {
-      "TS2307": 1
-    },
-    "addons/web/static/tests/legacy/helpers/mock_env.js": {
-      "TS2307": 2,
-      "TS2339": 3
-    },
-    "addons/web/static/tests/legacy/helpers/mock_server.js": {
-      "TS1005": 2,
-      "TS2304": 1,
-      "TS2307": 2,
-      "TS2322": 5,
-      "TS2339": 13,
-      "TS2345": 3,
-      "TS2367": 1,
-      "TS2488": 1,
-      "TS2538": 10,
-      "TS2554": 2
-    },
-    "addons/web/static/tests/legacy/helpers/mock_services.js": {
-      "TS2307": 1,
-      "TS2339": 1,
-      "TS2556": 1
-    },
-    "addons/web/static/tests/legacy/helpers/mount_in_fixture.js": {
-      "TS2307": 1,
-      "TS2339": 1,
-      "TS2419": 1,
-      "TS2739": 1
-    },
-    "addons/web/static/tests/legacy/ignore_missing_deps_start.js": {
-      "TS2339": 1
-    },
-    "addons/web/static/tests/legacy/ignore_missing_deps_stop.js": {
-      "TS2339": 1
-    },
-    "addons/web/static/tests/legacy/legacy_tests/core/class_tests.js": {
-      "TS2339": 6,
-      "TS2351": 9
-    },
-    "addons/web/static/tests/legacy/legacy_tests/helpers/test_utils.js": {
-      "TS1005": 2,
-      "TS2339": 2
-    },
-    "addons/web/static/tests/legacy/legacy_tests/helpers/test_utils_dom.js": {
-      "TS18047": 2,
-      "TS2339": 12,
-      "TS2488": 1,
-      "TS8032": 1
-    },
-    "addons/web/static/tests/legacy/legacy_tests/helpers/test_utils_fields.js": {
-      "TS2339": 1,
-      "TS2345": 1
-    },
-    "addons/web/static/tests/legacy/legacy_tests/helpers/test_utils_mock.js": {
-      "TS2304": 1,
-      "TS2307": 1
-    },
-    "addons/web/static/tests/legacy/public/minimal_dom.js": {
-      "TS2307": 2,
-      "TS2345": 1,
-      "TS2554": 1,
-      "TS2722": 2
-    },
-    "addons/web/static/tests/legacy/public/public_widget_tests.js": {
-      "TS2339": 22,
-      "TS2345": 3,
-      "TS2351": 1
-    },
-    "addons/web/static/tests/legacy/qunit.js": {
-      "TS2304": 6,
-      "TS2339": 1,
-      "TS2345": 3
-    },
-    "addons/web/static/tests/legacy/search/helpers.js": {
-      "TS2307": 1,
-      "TS2322": 1,
-      "TS2339": 1
-    },
-    "addons/web/static/tests/legacy/setup.js": {
-      "TS2307": 2,
-      "TS2339": 2,
-      "TS2556": 7
-    },
-    "addons/web/static/tests/legacy/views/calendar/helpers.js": {
-      "TS2307": 1
-    },
-    "addons/web/static/tests/legacy/views/graph_view_tests.js": {
-      "TS2307": 1
-    },
-    "addons/web/static/tests/legacy/views/helpers.js": {
-      "TS18048": 1,
-      "TS2307": 1,
-      "TS2339": 11,
-      "TS2559": 1
-    },
-    "addons/web/static/tests/legacy/views/kanban/helpers.js": {
-      "TS2307": 1
-    },
-    "addons/web/static/tests/legacy/webclient/helpers.js": {
-      "TS2307": 2,
-      "TS2339": 1,
-      "TS2345": 1
     },
     "addons/web/static/tests/mock_server/mock_model.test.js": {
       "TS2339": 1,

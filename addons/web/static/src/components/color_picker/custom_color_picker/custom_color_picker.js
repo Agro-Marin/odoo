@@ -90,21 +90,28 @@ export class CustomColorPicker extends Component {
         this.opacitySliderRef = useRef("opacitySlider");
         this.opacitySliderPointerRef = useRef("opacitySliderPointer");
 
+        // Dragging a slider must keep tracking the pointer even once it leaves
+        // the picker, including into a same-origin editor iframe — hence the
+        // top window and every reachable frame. `props.document` is the anchor
+        // for that walk rather than a hard-coded `window`: it used to be read
+        // only in the cross-origin fallback below, so the declared (and
+        // defaulted) prop had no effect on the path everyone actually takes.
+        const baseDocument = this.props.document ?? document;
         let documents;
         try {
+            const baseWindow = baseDocument.defaultView ?? window;
             documents = [
-                window.top,
-                ...Array.from(window.top.frames).filter((frame) => {
+                baseWindow.top,
+                ...Array.from(baseWindow.top.frames).filter((frame) => {
                     try {
-                        const document = frame.document;
-                        return !!document;
+                        return !!frame.document;
                     } catch {
                         return false;
                     }
                 }),
             ].map((w) => w.document);
         } catch {
-            documents = [this.props.document ?? document];
+            documents = [baseDocument];
         }
         this.throttleOnPointerMove = useThrottleForAnimation((ev) => {
             this.onPointerMovePicker(ev);

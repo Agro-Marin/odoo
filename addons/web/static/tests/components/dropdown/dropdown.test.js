@@ -28,6 +28,7 @@ import {
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
+import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -1621,4 +1622,49 @@ test("dropdown: no BottomSheet", async () => {
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
     expect(".o_bottom_sheet").toHaveCount(0);
+});
+
+test.tags("desktop");
+test("a mouseenter on an open dropdown does not hijack focus on the next open", async () => {
+    let state;
+    class Parent extends Component {
+        static components = { Dropdown, DropdownGroup };
+        static template = xml`
+            <input class="decoy" type="text"/>
+            <input class="realOwner" type="text"/>
+            <DropdownGroup group="'g'">
+                <Dropdown state="state">
+                    <button class="toggler">Toggle</button>
+                    <t t-set-slot="content"><button class="item">Item</button></t>
+                </Dropdown>
+            </DropdownGroup>`;
+        static props = ["*"];
+        setup() {
+            this.state = state = useDropdownState();
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    // Open by gesture, then hover the toggler again while it is already open:
+    // `state.open()` is a no-op, so nothing consumes a focus snapshot.
+    await click(".toggler");
+    await animationFrame();
+    queryOne(".decoy").focus();
+    queryOne(".toggler").dispatchEvent(new MouseEvent("mouseenter"));
+
+    state.close();
+    await animationFrame();
+
+    // Reopen programmatically -- the SelectMenu / TimePicker pattern, which
+    // never re-captures -- with the focus on the element that really opened it.
+    queryOne(".realOwner").focus();
+    state.open();
+    await animationFrame();
+
+    // Focus inside the menu, as keyboard navigation leaves it.
+    queryOne(".item").focus();
+    state.close();
+    await animationFrame();
+
+    expect(document.activeElement).toBe(queryOne(".realOwner"));
 });

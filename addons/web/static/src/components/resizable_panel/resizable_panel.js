@@ -52,6 +52,13 @@ function useResizable({
     let isChangingSize = false;
 
     useExternalListener(window, "resize", () => {
+        // `useRef().el` is null for an element that is not in the document, so
+        // a panel detached while still mounted would throw here on the next
+        // resize. Every other reader in this hook already guards; this one and
+        // `resize` did not.
+        if (!containerRef.el) {
+            return;
+        }
         const limit = getLimitWidth();
         if (getContainerRect().width >= limit) {
             resize(computeFinalWidth(limit));
@@ -199,6 +206,9 @@ function useResizable({
      * @param {number} width - new width in pixels
      */
     function resize(width) {
+        if (!containerRef.el) {
+            return;
+        }
         containerRef.el.style.setProperty("width", `${width}px`);
         onResize(width);
     }
