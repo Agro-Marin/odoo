@@ -592,3 +592,91 @@ test("a notification link with a safe url is left alone", async () => {
         "/odoo/action-1",
     );
 });
+
+test("a function client action settles onClose like a close action does", async () => {
+    // A function client action is a one-shot side effect: it is finished the
+    // moment it returns. A view button whose python method wrote something and
+    // returned `display_notification` therefore has to reload its view exactly
+    // as the same method returning NOTHING does — that one becomes an
+    // `act_window_close`, which settles `onClose`, which is how
+    // `view_button_hook` reloads. Only the notification path did not, so the
+    // user was left looking at pre-write data.
+    await mountWithCleanup(WebClient);
+
+    let closedByNotification = 0;
+    await getService("action").doAction(
+        {
+            type: "ir.actions.client",
+            tag: "display_notification",
+            params: { message: "done", type: "success" },
+        },
+        { onClose: () => closedByNotification++ },
+    );
+    await animationFrame();
+
+    let closedByCloseAction = 0;
+    await getService("action").doAction(
+        { type: "ir.actions.act_window_close" },
+        { onClose: () => closedByCloseAction++ },
+    );
+
+    expect(closedByNotification).toBe(1);
+    expect(closedByCloseAction).toBe(1);
+});
+
+test("a function client action that chains hands onClose to the follow-up", async () => {
+    // When it returns another action the obligation moves along with it rather
+    // than being settled twice.
+    registry.category("actions").add("chaining_probe", () => ({
+        type: "ir.actions.client",
+        tag: "display_notification",
+        params: { message: "chained" },
+    }));
+    await mountWithCleanup(WebClient);
+
+    let closed = 0;
+    await getService("action").doAction(
+        { type: "ir.actions.client", tag: "chaining_probe" },
+        { onClose: () => closed++ },
+    );
+    await animationFrame();
+
+    expect(closed).toBe(1);
+});
+
+test.tags("desktop");
+test("a button whose method returns a notification reloads its view", async () => {
+    // The user-facing half of the rule above: `view_button_hook` reloads off
+    // `onClose`, so a method that wrote something and answered with a
+    // notification left the form showing pre-write data, while the same method
+    // answering with nothing refreshed it.
+    Partner._views.form = `
+        <form>
+            <header>
+                <button name="do_it" type="object" string="Do it"/>
+            </header>
+            <group><field name="display_name"/></group>
+        </form>`;
+    onRpc("web_read", () => expect.step("web_read"));
+    onRpc("/web/dataset/call_button/*", () => ({
+        type: "ir.actions.client",
+        tag: "display_notification",
+        params: { message: "written", type: "success" },
+    }));
+
+    await mountWithCleanup(WebClient);
+    await getService("action").doAction({
+        type: "ir.actions.act_window",
+        res_model: "partner",
+        res_id: 1,
+        views: [[false, "form"]],
+    });
+    await animationFrame();
+    expect.verifySteps(["web_read"]);
+
+    await contains("button[name='do_it']").click();
+    await animationFrame();
+
+    expect(".o_notification").toHaveCount(1);
+    expect.verifySteps(["web_read"]);
+});
