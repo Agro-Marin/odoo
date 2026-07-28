@@ -118,6 +118,9 @@ export function useActiveElement(refName) {
     );
 }
 
+/** @type {any} */
+const BLOCK_UI_ENTRY = { Component: BlockUI };
+
 /**
  * Core UI service providing block/unblock, active element management,
  * and responsive size tracking.
@@ -133,12 +136,17 @@ export const uiService = {
         const bus = new EventBus();
         const medias = getMediaQueryLists();
 
-        registry
-            .category("main_components")
-            .add(
-                "BlockUI",
-                /** @type {any} */ ({ Component: BlockUI, props: { bus } }),
-            );
+        /**
+         * The SAME entry object every time, and no `force`: `main_components`
+         * is one global registry shared by every env, so this add has to be
+         * idempotent. A bus passed as a prop here pinned every
+         * `MainComponentsContainer` on the page — whatever env it belongs to —
+         * to the bus of whichever env started first; `BlockUI` resolves the bus
+         * from its own env instead. Re-registering a fresh object would also
+         * make a second env's start either warn (without `force`) or wipe an
+         * addon's override of this key (with it).
+         */
+        registry.category("main_components").add("BlockUI", BLOCK_UI_ENTRY);
 
         let blockCount = 0;
         /** @param {{ message?: string, delay?: number }} [data] */
@@ -183,9 +191,12 @@ export const uiService = {
             bus.trigger(AppEvent.ACTIVE_ELEMENT_CHANGED, ui.activeElement);
         }
         function getActiveElementOf(/** @type {Node} */ el) {
-            for (const activeElement of activeElems.toReversed()) {
-                if (activeElement.contains(el)) {
-                    return activeElement;
+            // Walked backwards in place: this runs on hotkey dispatch and on
+            // every popover click-away test, and `toReversed()` copied the
+            // whole stack each time to read at most a couple of entries.
+            for (let i = activeElems.length - 1; i >= 0; i--) {
+                if (activeElems[i].contains(el)) {
+                    return activeElems[i];
                 }
             }
         }
@@ -201,12 +212,13 @@ export const uiService = {
             }
         };
 
+        const initialSize = getSize();
         const ui = reactive({
             bus,
-            size: getSize(),
+            size: initialSize,
             activeElement: /** @type {Document | HTMLElement} */ (document),
             isBlocked: false,
-            isSmall: getSize() <= SIZES.SM,
+            isSmall: initialSize <= SIZES.SM,
             block,
             unblock,
             activateElement,
