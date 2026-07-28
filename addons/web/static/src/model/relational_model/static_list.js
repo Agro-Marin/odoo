@@ -893,6 +893,92 @@ export class StaticList extends DataPoint {
     }
 
     /**
+     * Adopt the server's post-save state as this list's new baseline.
+     *
+     * A save with ``reload: false`` keeps the record datapoint alive and
+     * editable, so the list has to learn what the write actually produced —
+     * ``_clearCommands`` alone only drops the pending log. Without this step
+     * the list kept describing the PRE-save world: ``config.resIds`` (its
+     * notion of server truth) still listed the old membership, ``_currentIds``
+     * still held virtual ids for rows that now exist server-side, and
+     * ``_initialCommands`` still held the onchange payload that seeded them.
+     * Editing one of those rows afterwards therefore staged a CREATE rather
+     * than an UPDATE, and the next save wrote a SECOND row: a rename became a
+     * duplicate.
+     *
+     * Virtual ids are resolved the same way {@link resolveCreatedResId} does —
+     * the nth CREATE maps to the nth new resId in ASCENDING order, since ids
+     * come from a Postgres sequence and are monotonic in creation order. When
+     * the counts disagree (a ``create()`` override inserting extra rows) the
+     * mapping is not trustworthy, so no id is remapped: the rows keep their
+     * virtual ids and the caller is left with a list it must reload, which is
+     * strictly better than silently attaching a row to the wrong id.
+     *
+     * @param {(number | Record<string, any>)[]} serverValue post-save value of
+     *  this field: a list of ids, or of row objects when a nested spec was
+     *  requested
+     */
+    _commitSave(serverValue) {
+        if (!Array.isArray(serverValue)) {
+            this._clearCommands();
+            return;
+        }
+        const serverIds = serverValue.map((v) =>
+            v && typeof v === "object" ? v.id : v,
+        );
+        const previousResIds = new Set(this.resIds);
+        const createdResIds = serverIds
+            .filter((id) => !previousResIds.has(id))
+            .sort((x, y) => x - y);
+        const createdVirtualIds = this._commands
+            .filter(([command]) => command === x2ManyCommands.CREATE)
+            .map(([, virtualId]) => virtualId);
+        if (createdResIds.length === createdVirtualIds.length) {
+            createdVirtualIds.forEach((virtualId, index) => {
+                const resId = createdResIds[index];
+                const record = this._cache[virtualId];
+                if (!record) {
+                    return;
+                }
+                delete this._cache[virtualId];
+                this.model._patchConfig(record.config, { resId, resIds: [resId] });
+                record._virtualId = false;
+                this._cache[resId] = record;
+                const idIndex = this._currentIds.indexOf(virtualId);
+                if (idIndex >= 0) {
+                    this._currentIds[idIndex] = resId;
+                }
+            });
+        }
+        // Membership follows the server, but in the order the user is looking
+        // at: keep the client sequence for ids the server confirms, then append
+        // whatever it added on its own (a ``create()`` override, a computed
+        // line).
+        const confirmed = new Set(serverIds);
+        const kept = this._currentIds.filter((id) => confirmed.has(id));
+        const keptSet = new Set(kept);
+        this._currentIds = [...kept, ...serverIds.filter((id) => !keptSet.has(id))];
+        this.count = this._currentIds.length;
+        this.model._patchConfig(this.config, { resIds: [...serverIds] });
+        this._commands = [];
+        // The seeded rows are saved now, so replaying the payload that created
+        // them on a later ``_discard`` would resurrect them as new rows.
+        this._initialCommands = [];
+        this._unknownRecordCommands = {};
+        this._loadingStubIds.clear();
+        // Row slots opened for rows that are now persisted are no longer
+        // temporary; leaving the counter set would make a later ``_discard``
+        // hand back slots the current page legitimately occupies.
+        this._tmpIncreaseLimit = 0;
+        this._savePoint = undefined;
+        this.records = this._currentIds
+            .slice(this.offset, this.offset + this.limit)
+            .map((id) => this._cache[id])
+            .filter(Boolean);
+        this._pruneCache();
+    }
+
+    /**
      * Remove cache entries for records no longer referenced by _currentIds.
      * Prevents unbounded cache growth during long editing sessions with
      * repeated add/delete cycles on x2many fields.
