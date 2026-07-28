@@ -1,13 +1,15 @@
 /**
- * @zxing/library v0.21.3 — single-file ES-module build.
+ * @zxing/library v0.23.0 — single-file ES-module build.
  *
  * Built from the upstream npm package's `esm/` sources (the package ships
- * no single-file ESM bundle) with its `ts-custom-error` dependency inlined:
+ * no single-file ESM bundle) with its `ts-custom-error` dependency inlined.
+ * The esbuild version is pinned: its IIFE parenthesisation changed between
+ * releases, so an unpinned rebuild produces a large cosmetic diff.
  *
- *     npm pack @zxing/library@0.21.3 && tar xzf zxing-library-0.21.3.tgz
+ *     npm pack @zxing/library@0.23.0 && tar xzf zxing-library-0.23.0.tgz
  *     npm install ts-custom-error@3.3.1
- *     esbuild package/esm/index.js --bundle --format=esm --target=es2023 \
- *         --legal-comments=inline --outfile=zxing-library.js
+ *     npx esbuild@0.25.0 package/esm/index.js --bundle --format=esm \
+ *         --target=es2023 --legal-comments=inline --outfile=zxing-library.js
  *
  * Replaces the upstream UMD build (`umd/zxing-library.js` + the
  * `window.ZXing` global); resolved through the browser import map as the
@@ -15,7 +17,7 @@
  *
  * @license Apache-2.0 (see LICENSE in this directory)
  */
-// node_modules/ts-custom-error/dist/custom-error.mjs
+// ../node_modules/ts-custom-error/dist/custom-error.mjs
 function fixProto(target, prototype) {
   var setPrototypeOf = Object.setPrototypeOf;
   setPrototypeOf ? setPrototypeOf(target, prototype) : target.__proto__ = prototype;
@@ -27,7 +29,7 @@ function fixStack(target, fn) {
   var captureStackTrace = Error.captureStackTrace;
   captureStackTrace && captureStackTrace(target, fn);
 }
-var __extends = /* @__PURE__ */ (function() {
+var __extends = /* @__PURE__ */ function() {
   var _extendStatics = function extendStatics(d, b) {
     _extendStatics = Object.setPrototypeOf || {
       __proto__: []
@@ -48,8 +50,8 @@ var __extends = /* @__PURE__ */ (function() {
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
-var CustomError = (function(_super) {
+}();
+var CustomError = function(_super) {
   __extends(CustomError2, _super);
   function CustomError2(message, options) {
     var _newTarget = this.constructor;
@@ -64,29 +66,31 @@ var CustomError = (function(_super) {
     return _this;
   }
   return CustomError2;
-})(Error);
+}(Error);
 
 // package/esm/core/Exception.js
-var __extends2 = /* @__PURE__ */ (function() {
+var __extends2 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var Exception = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends2(Exception2, _super);
     function Exception2(message) {
       if (message === void 0) {
@@ -102,76 +106,80 @@ var Exception = (
     };
     Exception2.kind = "Exception";
     return Exception2;
-  })(CustomError)
+  }(CustomError)
 );
 var Exception_default = Exception;
 
 // package/esm/core/ArgumentException.js
-var __extends3 = /* @__PURE__ */ (function() {
+var __extends3 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var ArgumentException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends3(ArgumentException2, _super);
     function ArgumentException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     ArgumentException2.kind = "ArgumentException";
     return ArgumentException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var ArgumentException_default = ArgumentException;
 
 // package/esm/core/IllegalArgumentException.js
-var __extends4 = /* @__PURE__ */ (function() {
+var __extends4 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var IllegalArgumentException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends4(IllegalArgumentException2, _super);
     function IllegalArgumentException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     IllegalArgumentException2.kind = "IllegalArgumentException";
     return IllegalArgumentException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var IllegalArgumentException_default = IllegalArgumentException;
 
 // package/esm/core/BinaryBitmap.js
 var BinaryBitmap = (
   /** @class */
-  (function() {
+  function() {
     function BinaryBitmap2(binarizer) {
       this.binarizer = binarizer;
       if (binarizer === null) {
@@ -219,31 +227,33 @@ var BinaryBitmap = (
       }
     };
     return BinaryBitmap2;
-  })()
+  }()
 );
 var BinaryBitmap_default = BinaryBitmap;
 
 // package/esm/core/ChecksumException.js
-var __extends5 = /* @__PURE__ */ (function() {
+var __extends5 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var ChecksumException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends5(ChecksumException2, _super);
     function ChecksumException2() {
       return _super !== null && _super.apply(this, arguments) || this;
@@ -253,14 +263,14 @@ var ChecksumException = (
     };
     ChecksumException2.kind = "ChecksumException";
     return ChecksumException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var ChecksumException_default = ChecksumException;
 
 // package/esm/core/Binarizer.js
 var Binarizer = (
   /** @class */
-  (function() {
+  function() {
     function Binarizer2(source) {
       this.source = source;
     }
@@ -274,81 +284,93 @@ var Binarizer = (
       return this.source.getHeight();
     };
     return Binarizer2;
-  })()
+  }()
 );
 var Binarizer_default = Binarizer;
 
 // package/esm/core/util/System.js
 var System = (
   /** @class */
-  (function() {
+  function() {
     function System2() {
     }
     System2.arraycopy = function(src, srcPos, dest, destPos, length) {
-      while (length--) {
-        dest[destPos++] = src[srcPos++];
+      if (src === dest && srcPos < destPos) {
+        destPos += length - 1;
+        srcPos += length - 1;
+        while (length--) {
+          dest[destPos--] = src[srcPos--];
+        }
+      } else {
+        while (length--) {
+          dest[destPos++] = src[srcPos++];
+        }
       }
     };
     System2.currentTimeMillis = function() {
       return Date.now();
     };
     return System2;
-  })()
+  }()
 );
 var System_default = System;
 
 // package/esm/core/IndexOutOfBoundsException.js
-var __extends6 = /* @__PURE__ */ (function() {
+var __extends6 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var IndexOutOfBoundsException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends6(IndexOutOfBoundsException2, _super);
     function IndexOutOfBoundsException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     IndexOutOfBoundsException2.kind = "IndexOutOfBoundsException";
     return IndexOutOfBoundsException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var IndexOutOfBoundsException_default = IndexOutOfBoundsException;
 
 // package/esm/core/ArrayIndexOutOfBoundsException.js
-var __extends7 = /* @__PURE__ */ (function() {
+var __extends7 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var ArrayIndexOutOfBoundsException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends7(ArrayIndexOutOfBoundsException2, _super);
     function ArrayIndexOutOfBoundsException2(index, message) {
       if (index === void 0) {
@@ -364,7 +386,7 @@ var ArrayIndexOutOfBoundsException = (
     }
     ArrayIndexOutOfBoundsException2.kind = "ArrayIndexOutOfBoundsException";
     return ArrayIndexOutOfBoundsException2;
-  })(IndexOutOfBoundsException_default)
+  }(IndexOutOfBoundsException_default)
 );
 var ArrayIndexOutOfBoundsException_default = ArrayIndexOutOfBoundsException;
 
@@ -382,7 +404,7 @@ var __values = function(o) {
 };
 var Arrays = (
   /** @class */
-  (function() {
+  function() {
     function Arrays2() {
     }
     Arrays2.fill = function(a, val) {
@@ -514,14 +536,14 @@ var Arrays = (
       return a - b;
     };
     return Arrays2;
-  })()
+  }()
 );
 var Arrays_default = Arrays;
 
 // package/esm/core/util/Integer.js
 var Integer = (
   /** @class */
-  (function() {
+  function() {
     function Integer2() {
     }
     Integer2.numberOfTrailingZeros = function(i) {
@@ -601,14 +623,14 @@ var Integer = (
     Integer2.MIN_VALUE_32_BITS = -2147483648;
     Integer2.MAX_VALUE = Number.MAX_SAFE_INTEGER;
     return Integer2;
-  })()
+  }()
 );
 var Integer_default = Integer;
 
 // package/esm/core/common/BitArray.js
 var BitArray = (
   /** @class */
-  (function() {
+  function() {
     function BitArray2(size, bits) {
       if (void 0 === size) {
         this.size = 0;
@@ -841,7 +863,7 @@ var BitArray = (
       return result;
     };
     return BitArray2;
-  })()
+  }()
 );
 var BitArray_default = BitArray;
 
@@ -864,26 +886,28 @@ var DecodeHintType;
 var DecodeHintType_default = DecodeHintType;
 
 // package/esm/core/FormatException.js
-var __extends8 = /* @__PURE__ */ (function() {
+var __extends8 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var FormatException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends8(FormatException2, _super);
     function FormatException2() {
       return _super !== null && _super.apply(this, arguments) || this;
@@ -893,7 +917,7 @@ var FormatException = (
     };
     FormatException2.kind = "FormatException";
     return FormatException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var FormatException_default = FormatException;
 
@@ -941,7 +965,7 @@ var CharacterSetValueIdentifiers;
 })(CharacterSetValueIdentifiers || (CharacterSetValueIdentifiers = {}));
 var CharacterSetECI = (
   /** @class */
-  (function() {
+  function() {
     function CharacterSetECI2(valueIdentifier, valuesParam, name) {
       var e_1, _a2;
       var otherEncodingNames = [];
@@ -1042,45 +1066,47 @@ var CharacterSetECI = (
     CharacterSetECI2.GB18030 = new CharacterSetECI2(CharacterSetValueIdentifiers.GB18030, 29, "GB18030", "GB2312", "EUC_CN", "GBK");
     CharacterSetECI2.EUC_KR = new CharacterSetECI2(CharacterSetValueIdentifiers.EUC_KR, 30, "EUC_KR", "EUC-KR");
     return CharacterSetECI2;
-  })()
+  }()
 );
 var CharacterSetECI_default = CharacterSetECI;
 
 // package/esm/core/UnsupportedOperationException.js
-var __extends9 = /* @__PURE__ */ (function() {
+var __extends9 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var UnsupportedOperationException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends9(UnsupportedOperationException2, _super);
     function UnsupportedOperationException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     UnsupportedOperationException2.kind = "UnsupportedOperationException";
     return UnsupportedOperationException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var UnsupportedOperationException_default = UnsupportedOperationException;
 
 // package/esm/core/util/StringEncoding.js
 var StringEncoding = (
   /** @class */
-  (function() {
+  function() {
     function StringEncoding2() {
     }
     StringEncoding2.decode = function(bytes, encoding) {
@@ -1094,7 +1120,7 @@ var StringEncoding = (
       return new TextDecoder(encodingName).decode(bytes);
     };
     StringEncoding2.shouldDecodeOnFallback = function(encodingName) {
-      return !StringEncoding2.isBrowser() && encodingName === "ISO-8859-1";
+      return false;
     };
     StringEncoding2.encode = function(s, encoding) {
       var encodingName = this.encodingName(encoding);
@@ -1132,9 +1158,9 @@ var StringEncoding = (
         return decodeURIComponent(s);
       }
       if (characterSet.equals(CharacterSetECI_default.UnicodeBigUnmarked)) {
-        return String.fromCharCode.apply(null, new Uint16Array(bytes.buffer));
+        return String.fromCharCode.apply(null, Array.from(new Uint16Array(bytes.buffer)));
       }
-      throw new UnsupportedOperationException_default("Encoding " + this.encodingName(encoding) + " not supported by fallback.");
+      throw new UnsupportedOperationException_default("Encoding ".concat(this.encodingName(encoding), " not supported by fallback."));
     };
     StringEncoding2.isDecodeFallbackSupported = function(characterSet) {
       return characterSet.equals(CharacterSetECI_default.UTF8) || characterSet.equals(CharacterSetECI_default.ISO8859_1) || characterSet.equals(CharacterSetECI_default.ASCII);
@@ -1149,14 +1175,14 @@ var StringEncoding = (
       return new Uint8Array(uintArray);
     };
     return StringEncoding2;
-  })()
+  }()
 );
 var StringEncoding_default = StringEncoding;
 
 // package/esm/core/common/StringUtils.js
 var StringUtils = (
   /** @class */
-  (function() {
+  function() {
     function StringUtils2() {
     }
     StringUtils2.castAsNonUtf8Char = function(code, encoding) {
@@ -1352,14 +1378,14 @@ var StringUtils = (
     StringUtils2.PLATFORM_DEFAULT_ENCODING = StringUtils2.UTF8;
     StringUtils2.ASSUME_SHIFT_JIS = false;
     return StringUtils2;
-  })()
+  }()
 );
 var StringUtils_default = StringUtils;
 
 // package/esm/core/util/StringBuilder.js
 var StringBuilder = (
   /** @class */
-  (function() {
+  function() {
     function StringBuilder2(value) {
       if (value === void 0) {
         value = "";
@@ -1411,14 +1437,14 @@ var StringBuilder = (
       this.value = this.value.substring(0, n) + c + this.value.substring(n);
     };
     return StringBuilder2;
-  })()
+  }()
 );
 var StringBuilder_default = StringBuilder;
 
 // package/esm/core/common/BitMatrix.js
 var BitMatrix = (
   /** @class */
-  (function() {
+  function() {
     function BitMatrix2(width, height, rowSize, bits) {
       this.width = width;
       this.height = height;
@@ -1432,7 +1458,7 @@ var BitMatrix = (
         throw new IllegalArgumentException_default("Both dimensions must be greater than 0");
       }
       if (void 0 === rowSize || null === rowSize) {
-        rowSize = Math.floor((width + 31) / 32);
+        rowSize = width + 31 >> 5;
       }
       this.rowSize = rowSize;
       if (void 0 === bits || null === bits) {
@@ -1504,26 +1530,26 @@ var BitMatrix = (
       return matrix;
     };
     BitMatrix2.prototype.get = function(x, y) {
-      var offset = y * this.rowSize + Math.floor(x / 32);
+      var offset = y * this.rowSize + (x >> 5);
       return (this.bits[offset] >>> (x & 31) & 1) !== 0;
     };
     BitMatrix2.prototype.set = function(x, y) {
-      var offset = y * this.rowSize + Math.floor(x / 32);
+      var offset = y * this.rowSize + (x >> 5);
       this.bits[offset] |= 1 << (x & 31) & 4294967295;
     };
     BitMatrix2.prototype.unset = function(x, y) {
-      var offset = y * this.rowSize + Math.floor(x / 32);
+      var offset = y * this.rowSize + (x >> 5);
       this.bits[offset] &= ~(1 << (x & 31) & 4294967295);
     };
     BitMatrix2.prototype.flip = function(x, y) {
-      var offset = y * this.rowSize + Math.floor(x / 32);
+      var offset = y * this.rowSize + (x >> 5);
       this.bits[offset] ^= 1 << (x & 31) & 4294967295;
     };
     BitMatrix2.prototype.xor = function(mask) {
       if (this.width !== mask.getWidth() || this.height !== mask.getHeight() || this.rowSize !== mask.getRowSize()) {
         throw new IllegalArgumentException_default("input matrix dimensions do not match");
       }
-      var rowArray = new BitArray_default(Math.floor(this.width / 32) + 1);
+      var rowArray = new BitArray_default((this.width >> 5) + 1);
       var rowSize = this.rowSize;
       var bits = this.bits;
       for (var y = 0, height = this.height; y < height; y++) {
@@ -1535,11 +1561,7 @@ var BitMatrix = (
       }
     };
     BitMatrix2.prototype.clear = function() {
-      var bits = this.bits;
-      var max = bits.length;
-      for (var i = 0; i < max; i++) {
-        bits[i] = 0;
-      }
+      this.bits.fill(0);
     };
     BitMatrix2.prototype.setRegion = function(left, top, width, height) {
       if (top < 0 || left < 0) {
@@ -1558,7 +1580,7 @@ var BitMatrix = (
       for (var y = top; y < bottom; y++) {
         var offset = y * rowSize;
         for (var x = left; x < right; x++) {
-          bits[offset + Math.floor(x / 32)] |= 1 << (x & 31) & 4294967295;
+          bits[offset + (x >> 5)] |= 1 << (x & 31) & 4294967295;
         }
       }
     };
@@ -1728,31 +1750,33 @@ var BitMatrix = (
       return new BitMatrix2(this.width, this.height, this.rowSize, this.bits.slice());
     };
     return BitMatrix2;
-  })()
+  }()
 );
 var BitMatrix_default = BitMatrix;
 
 // package/esm/core/NotFoundException.js
-var __extends10 = /* @__PURE__ */ (function() {
+var __extends10 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var NotFoundException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends10(NotFoundException2, _super);
     function NotFoundException2() {
       return _super !== null && _super.apply(this, arguments) || this;
@@ -1762,31 +1786,33 @@ var NotFoundException = (
     };
     NotFoundException2.kind = "NotFoundException";
     return NotFoundException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var NotFoundException_default = NotFoundException;
 
 // package/esm/core/common/GlobalHistogramBinarizer.js
-var __extends11 = /* @__PURE__ */ (function() {
+var __extends11 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var GlobalHistogramBinarizer = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends11(GlobalHistogramBinarizer2, _super);
     function GlobalHistogramBinarizer2(source) {
       var _this = _super.call(this, source) || this;
@@ -1865,10 +1891,7 @@ var GlobalHistogramBinarizer = (
       if (this.luminances.length < luminanceSize) {
         this.luminances = new Uint8ClampedArray(luminanceSize);
       }
-      var buckets = this.buckets;
-      for (var x = 0; x < GlobalHistogramBinarizer2.LUMINANCE_BUCKETS; x++) {
-        buckets[x] = 0;
-      }
+      this.buckets.fill(0);
     };
     GlobalHistogramBinarizer2.estimateBlackPoint = function(buckets) {
       var numBuckets = buckets.length;
@@ -1919,31 +1942,33 @@ var GlobalHistogramBinarizer = (
     GlobalHistogramBinarizer2.LUMINANCE_BUCKETS = 1 << GlobalHistogramBinarizer2.LUMINANCE_BITS;
     GlobalHistogramBinarizer2.EMPTY = Uint8ClampedArray.from([0]);
     return GlobalHistogramBinarizer2;
-  })(Binarizer_default)
+  }(Binarizer_default)
 );
 var GlobalHistogramBinarizer_default = GlobalHistogramBinarizer;
 
 // package/esm/core/common/HybridBinarizer.js
-var __extends12 = /* @__PURE__ */ (function() {
+var __extends12 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var HybridBinarizer = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends12(HybridBinarizer2, _super);
     function HybridBinarizer2(source) {
       var _this = _super.call(this, source) || this;
@@ -2074,14 +2099,14 @@ var HybridBinarizer = (
     HybridBinarizer2.MINIMUM_DIMENSION = HybridBinarizer2.BLOCK_SIZE * 5;
     HybridBinarizer2.MIN_DYNAMIC_RANGE = 24;
     return HybridBinarizer2;
-  })(GlobalHistogramBinarizer_default)
+  }(GlobalHistogramBinarizer_default)
 );
 var HybridBinarizer_default = HybridBinarizer;
 
 // package/esm/core/LuminanceSource.js
 var LuminanceSource = (
   /** @class */
-  (function() {
+  function() {
     function LuminanceSource2(width, height) {
       this.width = width;
       this.height = height;
@@ -2131,31 +2156,33 @@ var LuminanceSource = (
       return result.toString();
     };
     return LuminanceSource2;
-  })()
+  }()
 );
 var LuminanceSource_default = LuminanceSource;
 
 // package/esm/core/InvertedLuminanceSource.js
-var __extends13 = /* @__PURE__ */ (function() {
+var __extends13 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var InvertedLuminanceSource = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends13(InvertedLuminanceSource2, _super);
     function InvertedLuminanceSource2(delegate) {
       var _this = _super.call(this, delegate.getWidth(), delegate.getHeight()) || this;
@@ -2200,83 +2227,71 @@ var InvertedLuminanceSource = (
       return new InvertedLuminanceSource2(this.delegate.rotateCounterClockwise45());
     };
     return InvertedLuminanceSource2;
-  })(LuminanceSource_default)
+  }(LuminanceSource_default)
 );
 var InvertedLuminanceSource_default = InvertedLuminanceSource;
 
 // package/esm/browser/HTMLCanvasElementLuminanceSource.js
-var __extends14 = /* @__PURE__ */ (function() {
+var __extends14 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var HTMLCanvasElementLuminanceSource = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends14(HTMLCanvasElementLuminanceSource2, _super);
-    function HTMLCanvasElementLuminanceSource2(canvas, doAutoInvert) {
+    function HTMLCanvasElementLuminanceSource2(canvas, doAutoInvert, reuseBuffer) {
       if (doAutoInvert === void 0) {
         doAutoInvert = false;
       }
       var _this = _super.call(this, canvas.width, canvas.height) || this;
       _this.canvas = canvas;
       _this.tempCanvasElement = null;
-      _this.buffer = HTMLCanvasElementLuminanceSource2.makeBufferFromCanvasImageData(canvas, doAutoInvert);
+      _this.buffer = HTMLCanvasElementLuminanceSource2.makeBufferFromCanvasImageData(canvas, doAutoInvert, reuseBuffer);
       return _this;
     }
-    HTMLCanvasElementLuminanceSource2.makeBufferFromCanvasImageData = function(canvas, doAutoInvert) {
+    HTMLCanvasElementLuminanceSource2.makeBufferFromCanvasImageData = function(canvas, doAutoInvert, reuseBuffer) {
       if (doAutoInvert === void 0) {
         doAutoInvert = false;
       }
       var imageData = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
-      return HTMLCanvasElementLuminanceSource2.toGrayscaleBuffer(imageData.data, canvas.width, canvas.height, doAutoInvert);
+      return HTMLCanvasElementLuminanceSource2.toGrayscaleBuffer(imageData.data, canvas.width, canvas.height, doAutoInvert, reuseBuffer);
     };
-    HTMLCanvasElementLuminanceSource2.toGrayscaleBuffer = function(imageBuffer, width, height, doAutoInvert) {
+    HTMLCanvasElementLuminanceSource2.toGrayscaleBuffer = function(imageBuffer, width, height, doAutoInvert, reuseBuffer) {
       if (doAutoInvert === void 0) {
         doAutoInvert = false;
       }
-      var grayscaleBuffer = new Uint8ClampedArray(width * height);
+      var size = width * height;
+      var grayscaleBuffer = reuseBuffer && reuseBuffer.length >= size ? reuseBuffer : new Uint8ClampedArray(size);
       HTMLCanvasElementLuminanceSource2.FRAME_INDEX = !HTMLCanvasElementLuminanceSource2.FRAME_INDEX;
-      if (HTMLCanvasElementLuminanceSource2.FRAME_INDEX || !doAutoInvert) {
-        for (var i = 0, j = 0, length_1 = imageBuffer.length; i < length_1; i += 4, j++) {
-          var gray = void 0;
-          var alpha = imageBuffer[i + 3];
-          if (alpha === 0) {
-            gray = 255;
-          } else {
-            var pixelR = imageBuffer[i];
-            var pixelG = imageBuffer[i + 1];
-            var pixelB = imageBuffer[i + 2];
-            gray = 306 * pixelR + 601 * pixelG + 117 * pixelB + 512 >> 10;
-          }
-          grayscaleBuffer[j] = gray;
+      var invertMask = !HTMLCanvasElementLuminanceSource2.FRAME_INDEX && doAutoInvert ? 255 : 0;
+      for (var i = 0, j = 0, length_1 = imageBuffer.length; i < length_1; i += 4, j++) {
+        var gray = void 0;
+        var alpha = imageBuffer[i + 3];
+        if (alpha === 0) {
+          gray = 255;
+        } else {
+          var pixelR = imageBuffer[i];
+          var pixelG = imageBuffer[i + 1];
+          var pixelB = imageBuffer[i + 2];
+          gray = 306 * pixelR + 601 * pixelG + 117 * pixelB + 512 >> 10;
         }
-      } else {
-        for (var i = 0, j = 0, length_2 = imageBuffer.length; i < length_2; i += 4, j++) {
-          var gray = void 0;
-          var alpha = imageBuffer[i + 3];
-          if (alpha === 0) {
-            gray = 255;
-          } else {
-            var pixelR = imageBuffer[i];
-            var pixelG = imageBuffer[i + 1];
-            var pixelB = imageBuffer[i + 2];
-            gray = 306 * pixelR + 601 * pixelG + 117 * pixelB + 512 >> 10;
-          }
-          grayscaleBuffer[j] = 255 - gray;
-        }
+        grayscaleBuffer[j] = gray ^ invertMask;
       }
       return grayscaleBuffer;
     };
@@ -2292,7 +2307,7 @@ var HTMLCanvasElementLuminanceSource = (
         if (row.length < width) {
           row = new Uint8ClampedArray(width);
         }
-        row.set(this.buffer.slice(start, start + width));
+        row.set(this.buffer.subarray(start, start + width));
       }
       return row;
     };
@@ -2348,13 +2363,13 @@ var HTMLCanvasElementLuminanceSource = (
     HTMLCanvasElementLuminanceSource2.DEGREE_TO_RADIANS = Math.PI / 180;
     HTMLCanvasElementLuminanceSource2.FRAME_INDEX = true;
     return HTMLCanvasElementLuminanceSource2;
-  })(LuminanceSource_default)
+  }(LuminanceSource_default)
 );
 
 // package/esm/browser/VideoInputDevice.js
 var VideoInputDevice = (
   /** @class */
-  (function() {
+  function() {
     function VideoInputDevice2(deviceId, label, groupId) {
       this.deviceId = deviceId;
       this.label = label;
@@ -2370,7 +2385,7 @@ var VideoInputDevice = (
       };
     };
     return VideoInputDevice2;
-  })()
+  }()
 );
 
 // package/esm/browser/BrowserCodeReader.js
@@ -2405,8 +2420,8 @@ var __generator = function(thisArg, body) {
   var _ = { label: 0, sent: function() {
     if (t[0] & 1) throw t[1];
     return t[1];
-  }, trys: [], ops: [] }, f, y, t, g;
-  return g = { next: verb(0), "throw": verb(1), "return": verb(2) }, typeof Symbol === "function" && (g[Symbol.iterator] = function() {
+  }, trys: [], ops: [] }, f, y, t, g = Object.create((typeof Iterator === "function" ? Iterator : Object).prototype);
+  return g.next = verb(0), g["throw"] = verb(1), g["return"] = verb(2), typeof Symbol === "function" && (g[Symbol.iterator] = function() {
     return this;
   }), g;
   function verb(n) {
@@ -2416,7 +2431,7 @@ var __generator = function(thisArg, body) {
   }
   function step(op) {
     if (f) throw new TypeError("Generator is already executing.");
-    while (_) try {
+    while (g && (g = 0, op[0] && (_ = 0)), _) try {
       if (f = 1, y && (t = op[0] & 2 ? y["return"] : op[0] ? y["throw"] || ((t = y["return"]) && t.call(y), 0) : y.next) && !(t = t.call(y, op[1])).done) return t;
       if (y = 0, t) op = [op[0] & 2, t.value];
       switch (op[0]) {
@@ -2483,7 +2498,7 @@ var __values3 = function(o) {
 };
 var BrowserCodeReader = (
   /** @class */
-  (function() {
+  function() {
     function BrowserCodeReader2(reader, timeBetweenScansMillis, _hints) {
       if (timeBetweenScansMillis === void 0) {
         timeBetweenScansMillis = 500;
@@ -2582,7 +2597,7 @@ var BrowserCodeReader = (
                     continue;
                   }
                   deviceId = device.deviceId || device.id;
-                  label = device.label || "Video device " + (videoDevices.length + 1);
+                  label = device.label || "Video device ".concat(videoDevices.length + 1);
                   groupId = device.groupId;
                   videoDevice = { deviceId, label, kind, groupId };
                   videoDevices.push(videoDevice);
@@ -2850,10 +2865,10 @@ var BrowserCodeReader = (
     BrowserCodeReader2.prototype.getMediaElement = function(mediaElementId, type) {
       var mediaElement = document.getElementById(mediaElementId);
       if (!mediaElement) {
-        throw new ArgumentException_default("element with id '" + mediaElementId + "' not found");
+        throw new ArgumentException_default("element with id '".concat(mediaElementId, "' not found"));
       }
       if (mediaElement.nodeName.toLowerCase() !== type.toLowerCase()) {
-        throw new ArgumentException_default("element with id '" + mediaElementId + "' must be an " + type + " element");
+        throw new ArgumentException_default("element with id '".concat(mediaElementId, "' must be an ").concat(type, " element"));
       }
       return mediaElement;
     };
@@ -3080,6 +3095,8 @@ var BrowserCodeReader = (
           var isNotFound = e instanceof NotFoundException_default;
           if (isChecksumOrFormatError || isNotFound) {
             setTimeout(loop, _this._timeBetweenDecodingAttempts);
+          } else {
+            console.error("BrowserCodeReader: unexpected error during decode, stopping scan loop:", e);
           }
         }
       };
@@ -3087,7 +3104,18 @@ var BrowserCodeReader = (
     };
     BrowserCodeReader2.prototype.decode = function(element) {
       var binaryBitmap = this.createBinaryBitmap(element);
-      return this.decodeBitmap(binaryBitmap);
+      try {
+        return this.decodeBitmap(binaryBitmap);
+      } catch (e) {
+        if (e instanceof NotFoundException_default) {
+          var canvas = this.getCaptureCanvas(element);
+          var luminanceSource = new HTMLCanvasElementLuminanceSource(canvas, false);
+          var globalBinarizer = new GlobalHistogramBinarizer_default(luminanceSource);
+          var fallbackBitmap = new BinaryBitmap_default(globalBinarizer);
+          return this.decodeBitmap(fallbackBitmap);
+        }
+        throw e;
+      }
     };
     BrowserCodeReader2.prototype.createBinaryBitmap = function(mediaElement) {
       var ctx = this.getCaptureCanvasContext(mediaElement);
@@ -3099,7 +3127,8 @@ var BrowserCodeReader = (
         this.drawImageOnCanvas(mediaElement);
       }
       var canvas = this.getCaptureCanvas(mediaElement);
-      var luminanceSource = new HTMLCanvasElementLuminanceSource(canvas, doAutoInvert);
+      var luminanceSource = new HTMLCanvasElementLuminanceSource(canvas, doAutoInvert, this._grayscaleBuffer);
+      this._grayscaleBuffer = luminanceSource.getMatrix();
       var hybridBinarizer = new HybridBinarizer_default(luminanceSource);
       return new BinaryBitmap_default(hybridBinarizer);
     };
@@ -3160,7 +3189,11 @@ var BrowserCodeReader = (
       canvasElementContext.drawImage(srcElement, dimensions.sx, dimensions.sy, dimensions.sWidth, dimensions.sHeight, dimensions.dx, dimensions.dy, dimensions.dWidth, dimensions.dHeight);
     };
     BrowserCodeReader2.prototype.decodeBitmap = function(binaryBitmap) {
-      return this.reader.decode(binaryBitmap, this._hints);
+      try {
+        return this.reader.decode(binaryBitmap, this._hints);
+      } finally {
+        this.reader.reset();
+      }
     };
     BrowserCodeReader2.prototype.createCaptureCanvas = function(mediaElement) {
       if (typeof document === "undefined") {
@@ -3252,13 +3285,13 @@ var BrowserCodeReader = (
       this.videoElement.removeAttribute("src");
     };
     return BrowserCodeReader2;
-  })()
+  }()
 );
 
 // package/esm/core/Result.js
 var Result = (
   /** @class */
-  (function() {
+  function() {
     function Result3(text, rawBytes, numBits, resultPoints, format, timestamp) {
       if (numBits === void 0) {
         numBits = rawBytes == null ? 0 : 8 * rawBytes.length;
@@ -3339,7 +3372,7 @@ var Result = (
       return this.text;
     };
     return Result3;
-  })()
+  }()
 );
 var Result_default = Result;
 
@@ -3363,6 +3396,7 @@ var BarcodeFormat;
   BarcodeFormat2[BarcodeFormat2["UPC_A"] = 14] = "UPC_A";
   BarcodeFormat2[BarcodeFormat2["UPC_E"] = 15] = "UPC_E";
   BarcodeFormat2[BarcodeFormat2["UPC_EAN_EXTENSION"] = 16] = "UPC_EAN_EXTENSION";
+  BarcodeFormat2[BarcodeFormat2["MICRO_QR_CODE"] = 17] = "MICRO_QR_CODE";
 })(BarcodeFormat || (BarcodeFormat = {}));
 var BarcodeFormat_default = BarcodeFormat;
 
@@ -3380,13 +3414,14 @@ var ResultMetadataType;
   ResultMetadataType2[ResultMetadataType2["PDF417_EXTRA_METADATA"] = 8] = "PDF417_EXTRA_METADATA";
   ResultMetadataType2[ResultMetadataType2["STRUCTURED_APPEND_SEQUENCE"] = 9] = "STRUCTURED_APPEND_SEQUENCE";
   ResultMetadataType2[ResultMetadataType2["STRUCTURED_APPEND_PARITY"] = 10] = "STRUCTURED_APPEND_PARITY";
+  ResultMetadataType2[ResultMetadataType2["ERRORS_CORRECTED"] = 11] = "ERRORS_CORRECTED";
 })(ResultMetadataType || (ResultMetadataType = {}));
 var ResultMetadataType_default = ResultMetadataType;
 
 // package/esm/core/common/DecoderResult.js
 var DecoderResult = (
   /** @class */
-  (function() {
+  function() {
     function DecoderResult2(rawBytes, text, byteSegments, ecLevel, structuredAppendSequenceNumber, structuredAppendParity) {
       if (structuredAppendSequenceNumber === void 0) {
         structuredAppendSequenceNumber = -1;
@@ -3448,14 +3483,14 @@ var DecoderResult = (
       return this.structuredAppendSequenceNumber;
     };
     return DecoderResult2;
-  })()
+  }()
 );
 var DecoderResult_default = DecoderResult;
 
 // package/esm/core/common/reedsolomon/AbstractGenericGF.js
 var AbstractGenericGF = (
   /** @class */
-  (function() {
+  function() {
     function AbstractGenericGF2() {
     }
     AbstractGenericGF2.prototype.exp = function(a) {
@@ -3471,14 +3506,14 @@ var AbstractGenericGF = (
       return a ^ b;
     };
     return AbstractGenericGF2;
-  })()
+  }()
 );
 var AbstractGenericGF_default = AbstractGenericGF;
 
 // package/esm/core/common/reedsolomon/GenericGFPoly.js
 var GenericGFPoly = (
   /** @class */
-  (function() {
+  function() {
     function GenericGFPoly2(field, coefficients) {
       if (coefficients.length === 0) {
         throw new IllegalArgumentException_default();
@@ -3671,62 +3706,66 @@ var GenericGFPoly = (
       return result;
     };
     return GenericGFPoly2;
-  })()
+  }()
 );
 var GenericGFPoly_default = GenericGFPoly;
 
 // package/esm/core/ArithmeticException.js
-var __extends15 = /* @__PURE__ */ (function() {
+var __extends15 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var ArithmeticException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends15(ArithmeticException2, _super);
     function ArithmeticException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     ArithmeticException2.kind = "ArithmeticException";
     return ArithmeticException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var ArithmeticException_default = ArithmeticException;
 
 // package/esm/core/common/reedsolomon/GenericGF.js
-var __extends16 = /* @__PURE__ */ (function() {
+var __extends16 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var GenericGF = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends16(GenericGF2, _super);
     function GenericGF2(primitive, size, generatorBase) {
       var _this = _super.call(this) || this;
@@ -3803,80 +3842,87 @@ var GenericGF = (
     GenericGF2.AZTEC_DATA_8 = GenericGF2.DATA_MATRIX_FIELD_256;
     GenericGF2.MAXICODE_FIELD_64 = GenericGF2.AZTEC_DATA_6;
     return GenericGF2;
-  })(AbstractGenericGF_default)
+  }(AbstractGenericGF_default)
 );
 var GenericGF_default = GenericGF;
 
 // package/esm/core/ReedSolomonException.js
-var __extends17 = /* @__PURE__ */ (function() {
+var __extends17 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var ReedSolomonException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends17(ReedSolomonException2, _super);
     function ReedSolomonException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     ReedSolomonException2.kind = "ReedSolomonException";
     return ReedSolomonException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var ReedSolomonException_default = ReedSolomonException;
 
 // package/esm/core/IllegalStateException.js
-var __extends18 = /* @__PURE__ */ (function() {
+var __extends18 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var IllegalStateException = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends18(IllegalStateException2, _super);
     function IllegalStateException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     IllegalStateException2.kind = "IllegalStateException";
     return IllegalStateException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var IllegalStateException_default = IllegalStateException;
 
 // package/esm/core/common/reedsolomon/ReedSolomonDecoder.js
 var ReedSolomonDecoder = (
   /** @class */
-  (function() {
+  function() {
     function ReedSolomonDecoder2(field) {
       this.field = field;
     }
     ReedSolomonDecoder2.prototype.decode = function(received, twoS) {
+      this.decodeWithECCount(received, twoS);
+    };
+    ReedSolomonDecoder2.prototype.decodeWithECCount = function(received, twoS) {
       var field = this.field;
       var poly = new GenericGFPoly_default(field, received);
       var syndromeCoefficients = new Int32Array(twoS);
@@ -3889,7 +3935,7 @@ var ReedSolomonDecoder = (
         }
       }
       if (noError) {
-        return;
+        return 0;
       }
       var syndrome = new GenericGFPoly_default(field, syndromeCoefficients);
       var sigmaOmega = this.runEuclideanAlgorithm(field.buildMonomial(twoS, 1), syndrome, twoS);
@@ -3904,6 +3950,7 @@ var ReedSolomonDecoder = (
         }
         received[position] = GenericGF_default.addOrSubtract(received[position], errorMagnitudes[i]);
       }
+      return errorLocations.length;
     };
     ReedSolomonDecoder2.prototype.runEuclideanAlgorithm = function(a, b, R) {
       if (a.getDegree() < b.getDegree()) {
@@ -3989,7 +4036,7 @@ var ReedSolomonDecoder = (
       return result;
     };
     return ReedSolomonDecoder2;
-  })()
+  }()
 );
 var ReedSolomonDecoder_default = ReedSolomonDecoder;
 
@@ -4005,24 +4052,24 @@ var Table;
 })(Table || (Table = {}));
 var Decoder = (
   /** @class */
-  (function() {
-    function Decoder4() {
+  function() {
+    function Decoder5() {
     }
-    Decoder4.prototype.decode = function(detectorResult) {
+    Decoder5.prototype.decode = function(detectorResult) {
       this.ddata = detectorResult;
       var matrix = detectorResult.getBits();
       var rawbits = this.extractBits(matrix);
       var correctedBits = this.correctBits(rawbits);
-      var rawBytes = Decoder4.convertBoolArrayToByteArray(correctedBits);
-      var result = Decoder4.getEncodedData(correctedBits);
+      var rawBytes = Decoder5.convertBoolArrayToByteArray(correctedBits);
+      var result = Decoder5.getEncodedData(correctedBits);
       var decoderResult = new DecoderResult_default(rawBytes, result, null, null);
       decoderResult.setNumBits(correctedBits.length);
       return decoderResult;
     };
-    Decoder4.highLevelDecode = function(correctedBits) {
+    Decoder5.highLevelDecode = function(correctedBits) {
       return this.getEncodedData(correctedBits);
     };
-    Decoder4.getEncodedData = function(correctedBits) {
+    Decoder5.getEncodedData = function(correctedBits) {
       var endIndex = correctedBits.length;
       var latchTable = Table.UPPER;
       var shiftTable = Table.UPPER;
@@ -4033,13 +4080,13 @@ var Decoder = (
           if (endIndex - index < 5) {
             break;
           }
-          var length_1 = Decoder4.readCode(correctedBits, index, 5);
+          var length_1 = Decoder5.readCode(correctedBits, index, 5);
           index += 5;
           if (length_1 === 0) {
             if (endIndex - index < 11) {
               break;
             }
-            length_1 = Decoder4.readCode(correctedBits, index, 11) + 31;
+            length_1 = Decoder5.readCode(correctedBits, index, 11) + 31;
             index += 11;
           }
           for (var charCount = 0; charCount < length_1; charCount++) {
@@ -4047,7 +4094,7 @@ var Decoder = (
               index = endIndex;
               break;
             }
-            var code = Decoder4.readCode(correctedBits, index, 8);
+            var code = Decoder5.readCode(correctedBits, index, 8);
             result += /*(char)*/
             StringUtils_default.castAsNonUtf8Char(code);
             index += 8;
@@ -4058,12 +4105,12 @@ var Decoder = (
           if (endIndex - index < size) {
             break;
           }
-          var code = Decoder4.readCode(correctedBits, index, size);
+          var code = Decoder5.readCode(correctedBits, index, size);
           index += size;
-          var str = Decoder4.getCharacter(shiftTable, code);
+          var str = Decoder5.getCharacter(shiftTable, code);
           if (str.startsWith("CTRL_")) {
             latchTable = shiftTable;
-            shiftTable = Decoder4.getTable(str.charAt(5));
+            shiftTable = Decoder5.getTable(str.charAt(5));
             if (str.charAt(6) === "L") {
               latchTable = shiftTable;
             }
@@ -4075,7 +4122,7 @@ var Decoder = (
       }
       return result;
     };
-    Decoder4.getTable = function(t) {
+    Decoder5.getTable = function(t) {
       switch (t) {
         case "L":
           return Table.LOWER;
@@ -4092,23 +4139,23 @@ var Decoder = (
           return Table.UPPER;
       }
     };
-    Decoder4.getCharacter = function(table, code) {
+    Decoder5.getCharacter = function(table, code) {
       switch (table) {
         case Table.UPPER:
-          return Decoder4.UPPER_TABLE[code];
+          return Decoder5.UPPER_TABLE[code];
         case Table.LOWER:
-          return Decoder4.LOWER_TABLE[code];
+          return Decoder5.LOWER_TABLE[code];
         case Table.MIXED:
-          return Decoder4.MIXED_TABLE[code];
+          return Decoder5.MIXED_TABLE[code];
         case Table.PUNCT:
-          return Decoder4.PUNCT_TABLE[code];
+          return Decoder5.PUNCT_TABLE[code];
         case Table.DIGIT:
-          return Decoder4.DIGIT_TABLE[code];
+          return Decoder5.DIGIT_TABLE[code];
         default:
           throw new IllegalStateException_default("Bad table");
       }
     };
-    Decoder4.prototype.correctBits = function(rawbits) {
+    Decoder5.prototype.correctBits = function(rawbits) {
       var gf;
       var codewordSize;
       if (this.ddata.getNbLayers() <= 2) {
@@ -4132,7 +4179,7 @@ var Decoder = (
       var offset = rawbits.length % codewordSize;
       var dataWords = new Int32Array(numCodewords);
       for (var i = 0; i < numCodewords; i++, offset += codewordSize) {
-        dataWords[i] = Decoder4.readCode(rawbits, offset, codewordSize);
+        dataWords[i] = Decoder5.readCode(rawbits, offset, codewordSize);
       }
       try {
         var rsDecoder = new ReedSolomonDecoder_default(gf);
@@ -4165,7 +4212,7 @@ var Decoder = (
       }
       return correctedBits;
     };
-    Decoder4.prototype.extractBits = function(matrix) {
+    Decoder5.prototype.extractBits = function(matrix) {
       var compact = this.ddata.isCompact();
       var layers = this.ddata.getNbLayers();
       var baseMatrixSize = (compact ? 11 : 14) + layers * 4;
@@ -4202,7 +4249,7 @@ var Decoder = (
       }
       return rawbits;
     };
-    Decoder4.readCode = function(rawbits, startIndex, length) {
+    Decoder5.readCode = function(rawbits, startIndex, length) {
       var res = 0;
       for (var i = startIndex; i < startIndex + length; i++) {
         res <<= 1;
@@ -4212,24 +4259,24 @@ var Decoder = (
       }
       return res;
     };
-    Decoder4.readByte = function(rawbits, startIndex) {
+    Decoder5.readByte = function(rawbits, startIndex) {
       var n = rawbits.length - startIndex;
       if (n >= 8) {
-        return Decoder4.readCode(rawbits, startIndex, 8);
+        return Decoder5.readCode(rawbits, startIndex, 8);
       }
-      return Decoder4.readCode(rawbits, startIndex, n) << 8 - n;
+      return Decoder5.readCode(rawbits, startIndex, n) << 8 - n;
     };
-    Decoder4.convertBoolArrayToByteArray = function(boolArr) {
+    Decoder5.convertBoolArrayToByteArray = function(boolArr) {
       var byteArr = new Uint8Array((boolArr.length + 7) / 8);
       for (var i = 0; i < byteArr.length; i++) {
-        byteArr[i] = Decoder4.readByte(boolArr, 8 * i);
+        byteArr[i] = Decoder5.readByte(boolArr, 8 * i);
       }
       return byteArr;
     };
-    Decoder4.prototype.totalBitsInLayer = function(layers, compact) {
+    Decoder5.prototype.totalBitsInLayer = function(layers, compact) {
       return ((compact ? 88 : 112) + 16 * layers) * layers;
     };
-    Decoder4.UPPER_TABLE = [
+    Decoder5.UPPER_TABLE = [
       "CTRL_PS",
       " ",
       "A",
@@ -4263,7 +4310,7 @@ var Decoder = (
       "CTRL_DL",
       "CTRL_BS"
     ];
-    Decoder4.LOWER_TABLE = [
+    Decoder5.LOWER_TABLE = [
       "CTRL_PS",
       " ",
       "a",
@@ -4297,7 +4344,7 @@ var Decoder = (
       "CTRL_DL",
       "CTRL_BS"
     ];
-    Decoder4.MIXED_TABLE = [
+    Decoder5.MIXED_TABLE = [
       "CTRL_PS",
       " ",
       "",
@@ -4331,7 +4378,7 @@ var Decoder = (
       "CTRL_PL",
       "CTRL_BS"
     ];
-    Decoder4.PUNCT_TABLE = [
+    Decoder5.PUNCT_TABLE = [
       "",
       "\r",
       "\r\n",
@@ -4365,7 +4412,7 @@ var Decoder = (
       "}",
       "CTRL_UL"
     ];
-    Decoder4.DIGIT_TABLE = [
+    Decoder5.DIGIT_TABLE = [
       "CTRL_PS",
       " ",
       "0",
@@ -4383,15 +4430,15 @@ var Decoder = (
       "CTRL_UL",
       "CTRL_US"
     ];
-    return Decoder4;
-  })()
+    return Decoder5;
+  }()
 );
 var Decoder_default = Decoder;
 
 // package/esm/core/common/detector/MathUtils.js
 var MathUtils = (
   /** @class */
-  (function() {
+  function() {
     function MathUtils2() {
     }
     MathUtils2.round = function(d) {
@@ -4423,14 +4470,14 @@ var MathUtils = (
       return count;
     };
     return MathUtils2;
-  })()
+  }()
 );
 var MathUtils_default = MathUtils;
 
 // package/esm/core/util/Float.js
 var Float = (
   /** @class */
-  (function() {
+  function() {
     function Float2() {
     }
     Float2.floatToIntBits = function(f) {
@@ -4438,14 +4485,14 @@ var Float = (
     };
     Float2.MAX_VALUE = Number.MAX_SAFE_INTEGER;
     return Float2;
-  })()
+  }()
 );
 var Float_default = Float;
 
 // package/esm/core/ResultPoint.js
 var ResultPoint = (
   /** @class */
-  (function() {
+  function() {
     function ResultPoint2(x, y) {
       this.x = x;
       this.y = y;
@@ -4507,14 +4554,14 @@ var ResultPoint = (
       return (pointC.x - bX) * (pointA.y - bY) - (pointC.y - bY) * (pointA.x - bX);
     };
     return ResultPoint2;
-  })()
+  }()
 );
 var ResultPoint_default = ResultPoint;
 
 // package/esm/core/common/DetectorResult.js
 var DetectorResult = (
   /** @class */
-  (function() {
+  function() {
     function DetectorResult2(bits, points) {
       this.bits = bits;
       this.points = points;
@@ -4526,31 +4573,33 @@ var DetectorResult = (
       return this.points;
     };
     return DetectorResult2;
-  })()
+  }()
 );
 var DetectorResult_default = DetectorResult;
 
 // package/esm/core/aztec/AztecDetectorResult.js
-var __extends19 = /* @__PURE__ */ (function() {
+var __extends19 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AztecDetectorResult = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends19(AztecDetectorResult2, _super);
     function AztecDetectorResult2(bits, points, compact, nbDatablocks, nbLayers) {
       var _this = _super.call(this, bits, points) || this;
@@ -4569,14 +4618,14 @@ var AztecDetectorResult = (
       return this.compact;
     };
     return AztecDetectorResult2;
-  })(DetectorResult_default)
+  }(DetectorResult_default)
 );
 var AztecDetectorResult_default = AztecDetectorResult;
 
 // package/esm/core/common/detector/WhiteRectangleDetector.js
 var WhiteRectangleDetector = (
   /** @class */
-  (function() {
+  function() {
     function WhiteRectangleDetector2(image, initSize, x, y) {
       this.image = image;
       this.height = image.getHeight();
@@ -4774,14 +4823,14 @@ var WhiteRectangleDetector = (
     WhiteRectangleDetector2.INIT_SIZE = 10;
     WhiteRectangleDetector2.CORR = 1;
     return WhiteRectangleDetector2;
-  })()
+  }()
 );
 var WhiteRectangleDetector_default = WhiteRectangleDetector;
 
 // package/esm/core/common/GridSampler.js
 var GridSampler = (
   /** @class */
-  (function() {
+  function() {
     function GridSampler2() {
     }
     GridSampler2.checkAndNudgePoints = function(image, points) {
@@ -4835,14 +4884,14 @@ var GridSampler = (
       }
     };
     return GridSampler2;
-  })()
+  }()
 );
 var GridSampler_default = GridSampler;
 
 // package/esm/core/common/PerspectiveTransform.js
 var PerspectiveTransform = (
   /** @class */
-  (function() {
+  function() {
     function PerspectiveTransform2(a11, a21, a31, a12, a22, a32, a13, a23, a33) {
       this.a11 = a11;
       this.a21 = a21;
@@ -4923,31 +4972,33 @@ var PerspectiveTransform = (
       return new PerspectiveTransform2(this.a11 * other.a11 + this.a21 * other.a12 + this.a31 * other.a13, this.a11 * other.a21 + this.a21 * other.a22 + this.a31 * other.a23, this.a11 * other.a31 + this.a21 * other.a32 + this.a31 * other.a33, this.a12 * other.a11 + this.a22 * other.a12 + this.a32 * other.a13, this.a12 * other.a21 + this.a22 * other.a22 + this.a32 * other.a23, this.a12 * other.a31 + this.a22 * other.a32 + this.a32 * other.a33, this.a13 * other.a11 + this.a23 * other.a12 + this.a33 * other.a13, this.a13 * other.a21 + this.a23 * other.a22 + this.a33 * other.a23, this.a13 * other.a31 + this.a23 * other.a32 + this.a33 * other.a33);
     };
     return PerspectiveTransform2;
-  })()
+  }()
 );
 var PerspectiveTransform_default = PerspectiveTransform;
 
 // package/esm/core/common/DefaultGridSampler.js
-var __extends20 = /* @__PURE__ */ (function() {
+var __extends20 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var DefaultGridSampler = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends20(DefaultGridSampler2, _super);
     function DefaultGridSampler2() {
       return _super !== null && _super.apply(this, arguments) || this;
@@ -4973,7 +5024,7 @@ var DefaultGridSampler = (
         GridSampler_default.checkAndNudgePoints(image, points);
         try {
           for (var x = 0; x < max; x += 2) {
-            if (image.get(Math.floor(points[x]), Math.floor(points[x + 1]))) {
+            if (image.get(points[x] | 0, points[x + 1] | 0)) {
               bits.set(x / 2, y);
             }
           }
@@ -4984,14 +5035,14 @@ var DefaultGridSampler = (
       return bits;
     };
     return DefaultGridSampler2;
-  })(GridSampler_default)
+  }(GridSampler_default)
 );
 var DefaultGridSampler_default = DefaultGridSampler;
 
 // package/esm/core/common/GridSamplerInstance.js
 var GridSamplerInstance = (
   /** @class */
-  (function() {
+  function() {
     function GridSamplerInstance2() {
     }
     GridSamplerInstance2.setGridSampler = function(newGridSampler) {
@@ -5002,14 +5053,14 @@ var GridSamplerInstance = (
     };
     GridSamplerInstance2.gridSampler = new DefaultGridSampler_default();
     return GridSamplerInstance2;
-  })()
+  }()
 );
 var GridSamplerInstance_default = GridSamplerInstance;
 
 // package/esm/core/aztec/detector/Detector.js
 var Point = (
   /** @class */
-  (function() {
+  function() {
     function Point2(x, y) {
       this.x = x;
       this.y = y;
@@ -5024,17 +5075,21 @@ var Point = (
       return this.y;
     };
     return Point2;
-  })()
+  }()
 );
 var Detector = (
   /** @class */
-  (function() {
+  function() {
     function Detector5(image) {
       this.EXPECTED_CORNER_BITS = new Int32Array([
         3808,
+        // 07340  XXX .XX X.. ...
         476,
+        // 00734  ... XXX .XX X..
         2107,
+        // 04073  X.. ... XXX .XX
         1799
+        // 03407 .XX X.. ... XXX
       ]);
       this.image = image;
     }
@@ -5061,8 +5116,11 @@ var Detector = (
       var length = 2 * this.nbCenterLayers;
       var sides = new Int32Array([
         this.sampleLine(bullsEyeCorners[0], bullsEyeCorners[1], length),
+        // Right side
         this.sampleLine(bullsEyeCorners[1], bullsEyeCorners[2], length),
+        // Bottom
         this.sampleLine(bullsEyeCorners[2], bullsEyeCorners[3], length),
+        // Left side
         this.sampleLine(bullsEyeCorners[3], bullsEyeCorners[0], length)
         // Top
       ]);
@@ -5351,14 +5409,14 @@ var Detector = (
       return 4 * this.nbLayers + 2 * (Integer_default.truncDivision(this.nbLayers - 4, 8) + 1) + 15;
     };
     return Detector5;
-  })()
+  }()
 );
 var Detector_default = Detector;
 
 // package/esm/core/aztec/AztecReader.js
 var AztecReader = (
   /** @class */
-  (function() {
+  function() {
     function AztecReader2() {
     }
     AztecReader2.prototype.decode = function(image, hints) {
@@ -5414,31 +5472,33 @@ var AztecReader = (
     AztecReader2.prototype.reset = function() {
     };
     return AztecReader2;
-  })()
+  }()
 );
 var AztecReader_default = AztecReader;
 
 // package/esm/browser/BrowserAztecCodeReader.js
-var __extends21 = /* @__PURE__ */ (function() {
+var __extends21 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var BrowserAztecCodeReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends21(BrowserAztecCodeReader2, _super);
     function BrowserAztecCodeReader2(timeBetweenScansMillis) {
       if (timeBetweenScansMillis === void 0) {
@@ -5447,13 +5507,13 @@ var BrowserAztecCodeReader = (
       return _super.call(this, new AztecReader_default(), timeBetweenScansMillis) || this;
     }
     return BrowserAztecCodeReader2;
-  })(BrowserCodeReader)
+  }(BrowserCodeReader)
 );
 
 // package/esm/core/oned/OneDReader.js
 var OneDReader = (
   /** @class */
-  (function() {
+  function() {
     function OneDReader2() {
     }
     OneDReader2.prototype.decode = function(image, hints) {
@@ -5495,7 +5555,7 @@ var OneDReader = (
       if (tryHarder) {
         maxLines = height;
       } else {
-        maxLines = 15;
+        maxLines = 25;
       }
       var middle = Math.trunc(height / 2);
       for (var x = 0; x < maxLines; x++) {
@@ -5613,31 +5673,33 @@ var OneDReader = (
       return totalVariance / total;
     };
     return OneDReader2;
-  })()
+  }()
 );
 var OneDReader_default = OneDReader;
 
 // package/esm/core/oned/Code128Reader.js
-var __extends22 = /* @__PURE__ */ (function() {
+var __extends22 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var Code128Reader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends22(Code128Reader2, _super);
     function Code128Reader2() {
       return _super !== null && _super.apply(this, arguments) || this;
@@ -6060,28 +6122,30 @@ var Code128Reader = (
     Code128Reader2.CODE_START_C = 105;
     Code128Reader2.CODE_STOP = 106;
     return Code128Reader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var Code128Reader_default = Code128Reader;
 
 // package/esm/core/oned/Code39Reader.js
-var __extends23 = /* @__PURE__ */ (function() {
+var __extends23 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var __values4 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
@@ -6095,7 +6159,7 @@ var __values4 = function(o) {
 };
 var Code39Reader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends23(Code39Reader2, _super);
     function Code39Reader2(usingCheckDigit, extendedMode) {
       if (usingCheckDigit === void 0) {
@@ -6354,6 +6418,7 @@ var Code39Reader = (
       37,
       292,
       100,
+      // 0-9
       265,
       73,
       328,
@@ -6364,6 +6429,7 @@ var Code39Reader = (
       268,
       76,
       28,
+      // A-J
       259,
       67,
       322,
@@ -6374,6 +6440,7 @@ var Code39Reader = (
       262,
       70,
       22,
+      // K-T
       385,
       193,
       448,
@@ -6384,6 +6451,7 @@ var Code39Reader = (
       388,
       196,
       168,
+      // U-$
       162,
       138,
       42
@@ -6391,28 +6459,30 @@ var Code39Reader = (
     ];
     Code39Reader2.ASTERISK_ENCODING = 148;
     return Code39Reader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var Code39Reader_default = Code39Reader;
 
 // package/esm/core/oned/Code93Reader.js
-var __extends24 = /* @__PURE__ */ (function() {
+var __extends24 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var __values5 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
@@ -6426,7 +6496,7 @@ var __values5 = function(o) {
 };
 var Code93Reader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends24(Code93Reader2, _super);
     function Code93Reader2() {
       var _this = _super.call(this) || this;
@@ -6666,6 +6736,7 @@ var Code93Reader = (
       336,
       274,
       266,
+      // 0-9
       424,
       420,
       418,
@@ -6676,6 +6747,7 @@ var Code93Reader = (
       356,
       354,
       308,
+      // A-J
       282,
       344,
       332,
@@ -6686,12 +6758,14 @@ var Code93Reader = (
       434,
       428,
       422,
+      // K-T
       406,
       410,
       364,
       358,
       310,
       314,
+      // U-Z
       302,
       468,
       466,
@@ -6699,36 +6773,66 @@ var Code93Reader = (
       366,
       374,
       430,
+      // - - %
       294,
       474,
       470,
       306,
       350
+      // Control chars? $-*
     ];
     Code93Reader2.ASTERISK_ENCODING = Code93Reader2.CHARACTER_ENCODINGS[47];
     return Code93Reader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var Code93Reader_default = Code93Reader;
 
 // package/esm/core/oned/ITFReader.js
-var __extends25 = /* @__PURE__ */ (function() {
+var __extends25 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
+var __read = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var __spreadArray = function(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+    if (ar || !(i in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+      ar[i] = from[i];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
+};
 var __values6 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
@@ -6742,10 +6846,10 @@ var __values6 = function(o) {
 };
 var ITFReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends25(ITFReader2, _super);
     function ITFReader2() {
-      var _this = _super !== null && _super.apply(this, arguments) || this;
+      var _this = _super.apply(this, __spreadArray([], __read(arguments), false)) || this;
       _this.narrowLineWidth = -1;
       return _this;
     }
@@ -6928,24 +7032,43 @@ var ITFReader = (
     };
     ITFReader2.PATTERNS = [
       Int32Array.from([1, 1, 2, 2, 1]),
+      // 0
       Int32Array.from([2, 1, 1, 1, 2]),
+      // 1
       Int32Array.from([1, 2, 1, 1, 2]),
+      // 2
       Int32Array.from([2, 2, 1, 1, 1]),
+      // 3
       Int32Array.from([1, 1, 2, 1, 2]),
+      // 4
       Int32Array.from([2, 1, 2, 1, 1]),
+      // 5
       Int32Array.from([1, 2, 2, 1, 1]),
+      // 6
       Int32Array.from([1, 1, 1, 2, 2]),
+      // 7
       Int32Array.from([2, 1, 1, 2, 1]),
+      // 8
       Int32Array.from([1, 2, 1, 2, 1]),
+      // 9
       Int32Array.from([1, 1, 3, 3, 1]),
+      // 0
       Int32Array.from([3, 1, 1, 1, 3]),
+      // 1
       Int32Array.from([1, 3, 1, 1, 3]),
+      // 2
       Int32Array.from([3, 3, 1, 1, 1]),
+      // 3
       Int32Array.from([1, 1, 3, 1, 3]),
+      // 4
       Int32Array.from([3, 1, 3, 1, 1]),
+      // 5
       Int32Array.from([1, 3, 3, 1, 1]),
+      // 6
       Int32Array.from([1, 1, 1, 3, 3]),
+      // 7
       Int32Array.from([3, 1, 1, 3, 1]),
+      // 8
       Int32Array.from([1, 3, 1, 3, 1])
       // 9
     ];
@@ -6955,38 +7078,67 @@ var ITFReader = (
     ITFReader2.START_PATTERN = Int32Array.from([1, 1, 1, 1]);
     ITFReader2.END_PATTERN_REVERSED = [
       Int32Array.from([1, 1, 2]),
+      // 2x
       Int32Array.from([1, 1, 3])
       // 3x
     ];
     return ITFReader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var ITFReader_default = ITFReader;
 
 // package/esm/core/oned/AbstractUPCEANReader.js
-var __extends26 = /* @__PURE__ */ (function() {
+var __extends26 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
+var __read2 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var __spreadArray2 = function(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+    if (ar || !(i in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+      ar[i] = from[i];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
+};
 var AbstractUPCEANReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends26(AbstractUPCEANReader2, _super);
     function AbstractUPCEANReader2() {
-      var _this = _super !== null && _super.apply(this, arguments) || this;
+      var _this = _super.apply(this, __spreadArray2([], __read2(arguments), false)) || this;
       _this.decodeRowStringBuffer = "";
       return _this;
     }
@@ -7101,18 +7253,28 @@ var AbstractUPCEANReader = (
     AbstractUPCEANReader2.END_PATTERN = Int32Array.from([1, 1, 1, 1, 1, 1]);
     AbstractUPCEANReader2.L_PATTERNS = [
       Int32Array.from([3, 2, 1, 1]),
+      // 0
       Int32Array.from([2, 2, 2, 1]),
+      // 1
       Int32Array.from([2, 1, 2, 2]),
+      // 2
       Int32Array.from([1, 4, 1, 1]),
+      // 3
       Int32Array.from([1, 1, 3, 2]),
+      // 4
       Int32Array.from([1, 2, 3, 1]),
+      // 5
       Int32Array.from([1, 1, 1, 4]),
+      // 6
       Int32Array.from([1, 3, 1, 2]),
+      // 7
       Int32Array.from([1, 2, 1, 3]),
+      // 8
       Int32Array.from([3, 1, 1, 2])
+      // 9
     ];
     return AbstractUPCEANReader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var AbstractUPCEANReader_default = AbstractUPCEANReader;
 
@@ -7130,7 +7292,7 @@ var __values7 = function(o) {
 };
 var UPCEANExtension5Support = (
   /** @class */
-  (function() {
+  function() {
     function UPCEANExtension5Support2() {
       this.CHECK_DIGIT_ENCODINGS = [24, 20, 18, 17, 12, 6, 3, 10, 9, 5];
       this.decodeMiddleCounters = Int32Array.from([0, 0, 0, 0]);
@@ -7257,7 +7419,7 @@ var UPCEANExtension5Support = (
       return currency + unitsString + "." + hundredthsString;
     };
     return UPCEANExtension5Support2;
-  })()
+  }()
 );
 var UPCEANExtension5Support_default = UPCEANExtension5Support;
 
@@ -7275,7 +7437,7 @@ var __values8 = function(o) {
 };
 var UPCEANExtension2Support = (
   /** @class */
-  (function() {
+  function() {
     function UPCEANExtension2Support2() {
       this.decodeMiddleCounters = Int32Array.from([0, 0, 0, 0]);
       this.decodeRowStringBuffer = "";
@@ -7345,14 +7507,14 @@ var UPCEANExtension2Support = (
       return /* @__PURE__ */ new Map([[ResultMetadataType_default.ISSUE_NUMBER, parseInt(raw)]]);
     };
     return UPCEANExtension2Support2;
-  })()
+  }()
 );
 var UPCEANExtension2Support_default = UPCEANExtension2Support;
 
 // package/esm/core/oned/UPCEANExtensionSupport.js
 var UPCEANExtensionSupport = (
   /** @class */
-  (function() {
+  function() {
     function UPCEANExtensionSupport2() {
     }
     UPCEANExtensionSupport2.decodeRow = function(rowNumber, row, rowOffset) {
@@ -7367,31 +7529,33 @@ var UPCEANExtensionSupport = (
     };
     UPCEANExtensionSupport2.EXTENSION_START_PATTERN = Int32Array.from([1, 1, 2]);
     return UPCEANExtensionSupport2;
-  })()
+  }()
 );
 var UPCEANExtensionSupport_default = UPCEANExtensionSupport;
 
 // package/esm/core/oned/UPCEANReader.js
-var __extends27 = /* @__PURE__ */ (function() {
+var __extends27 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var UPCEANReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends27(UPCEANReader2, _super);
     function UPCEANReader2() {
       var _this = _super.call(this) || this;
@@ -7505,28 +7669,30 @@ var UPCEANReader = (
       return UPCEANReader2.findGuardPattern(row, endStart, false, UPCEANReader2.START_END_PATTERN, new Int32Array(UPCEANReader2.START_END_PATTERN.length).fill(0));
     };
     return UPCEANReader2;
-  })(AbstractUPCEANReader_default)
+  }(AbstractUPCEANReader_default)
 );
 var UPCEANReader_default = UPCEANReader;
 
 // package/esm/core/oned/EAN13Reader.js
-var __extends28 = /* @__PURE__ */ (function() {
+var __extends28 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var __values9 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
@@ -7540,7 +7706,7 @@ var __values9 = function(o) {
 };
 var EAN13Reader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends28(EAN13Reader2, _super);
     function EAN13Reader2() {
       var _this = _super.call(this) || this;
@@ -7615,28 +7781,30 @@ var EAN13Reader = (
     };
     EAN13Reader2.FIRST_DIGIT_ENCODINGS = [0, 11, 13, 14, 19, 25, 28, 21, 22, 26];
     return EAN13Reader2;
-  })(UPCEANReader_default)
+  }(UPCEANReader_default)
 );
 var EAN13Reader_default = EAN13Reader;
 
 // package/esm/core/oned/EAN8Reader.js
-var __extends29 = /* @__PURE__ */ (function() {
+var __extends29 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var __values10 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
@@ -7650,7 +7818,7 @@ var __values10 = function(o) {
 };
 var EAN8Reader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends29(EAN8Reader2, _super);
     function EAN8Reader2() {
       var _this = _super.call(this) || this;
@@ -7710,34 +7878,62 @@ var EAN8Reader = (
       return BarcodeFormat_default.EAN_8;
     };
     return EAN8Reader2;
-  })(UPCEANReader_default)
+  }(UPCEANReader_default)
 );
 var EAN8Reader_default = EAN8Reader;
 
 // package/esm/core/oned/UPCAReader.js
-var __extends30 = /* @__PURE__ */ (function() {
+var __extends30 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
+var __read3 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var __spreadArray3 = function(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+    if (ar || !(i in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+      ar[i] = from[i];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
+};
 var UPCAReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends30(UPCAReader2, _super);
     function UPCAReader2() {
-      var _this = _super !== null && _super.apply(this, arguments) || this;
+      var _this = _super.apply(this, __spreadArray3([], __read3(arguments), false)) || this;
       _this.ean13Reader = new EAN13Reader_default();
       return _this;
     }
@@ -7769,28 +7965,30 @@ var UPCAReader = (
       this.ean13Reader.reset();
     };
     return UPCAReader2;
-  })(UPCEANReader_default)
+  }(UPCEANReader_default)
 );
 var UPCAReader_default = UPCAReader;
 
 // package/esm/core/oned/UPCEReader.js
-var __extends31 = /* @__PURE__ */ (function() {
+var __extends31 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var __values11 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
@@ -7804,7 +8002,7 @@ var __values11 = function(o) {
 };
 var UPCEReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends31(UPCEReader2, _super);
     function UPCEReader2() {
       var _this = _super.call(this) || this;
@@ -7920,28 +8118,30 @@ var UPCEReader = (
       Int32Array.from([7, 11, 13, 14, 19, 25, 28, 21, 22, 1])
     ];
     return UPCEReader2;
-  })(UPCEANReader_default)
+  }(UPCEANReader_default)
 );
 var UPCEReader_default = UPCEReader;
 
 // package/esm/core/oned/MultiFormatUPCEANReader.js
-var __extends32 = /* @__PURE__ */ (function() {
+var __extends32 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var __values12 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
@@ -7955,7 +8155,7 @@ var __values12 = function(o) {
 };
 var MultiFormatUPCEANReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends32(MultiFormatUPCEANReader2, _super);
     function MultiFormatUPCEANReader2(hints) {
       var _this = _super.call(this) || this;
@@ -8033,34 +8233,62 @@ var MultiFormatUPCEANReader = (
       }
     };
     return MultiFormatUPCEANReader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var MultiFormatUPCEANReader_default = MultiFormatUPCEANReader;
 
 // package/esm/core/oned/CodaBarReader.js
-var __extends33 = /* @__PURE__ */ (function() {
+var __extends33 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
+var __read4 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var __spreadArray4 = function(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+    if (ar || !(i in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+      ar[i] = from[i];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
+};
 var CodaBarReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends33(CodaBarReader2, _super);
     function CodaBarReader2() {
-      var _this = _super !== null && _super.apply(this, arguments) || this;
+      var _this = _super.apply(this, __spreadArray4([], __read4(arguments), false)) || this;
       _this.CODA_BAR_CHAR_SET = {
         nnnnnww: "0",
         nnnnwwn: "1",
@@ -8144,28 +8372,30 @@ var CodaBarReader = (
       return reg.test(src);
     };
     return CodaBarReader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var CodaBarReader_default = CodaBarReader;
 
 // package/esm/core/oned/rss/AbstractRSSReader.js
-var __extends34 = /* @__PURE__ */ (function() {
+var __extends34 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var __values13 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
@@ -8179,7 +8409,7 @@ var __values13 = function(o) {
 };
 var AbstractRSSReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends34(AbstractRSSReader2, _super);
     function AbstractRSSReader2() {
       var _this = _super.call(this) || this;
@@ -8187,8 +8417,8 @@ var AbstractRSSReader = (
       _this.dataCharacterCounters = new Int32Array(8);
       _this.oddRoundingErrors = new Array(4);
       _this.evenRoundingErrors = new Array(4);
-      _this.oddCounts = new Array(_this.dataCharacterCounters.length / 2);
-      _this.evenCounts = new Array(_this.dataCharacterCounters.length / 2);
+      _this.oddCounts = new Array(Math.trunc(_this.dataCharacterCounters.length / 2));
+      _this.evenCounts = new Array(Math.trunc(_this.dataCharacterCounters.length / 2));
       return _this;
     }
     AbstractRSSReader2.prototype.getDecodeFinderCounters = function() {
@@ -8278,14 +8508,14 @@ var AbstractRSSReader = (
     AbstractRSSReader2.MIN_FINDER_PATTERN_RATIO = 9.5 / 12;
     AbstractRSSReader2.MAX_FINDER_PATTERN_RATIO = 12.5 / 14;
     return AbstractRSSReader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var AbstractRSSReader_default = AbstractRSSReader;
 
 // package/esm/core/oned/rss/DataCharacter.js
 var DataCharacter = (
   /** @class */
-  (function() {
+  function() {
     function DataCharacter2(value, checksumPortion) {
       this.value = value;
       this.checksumPortion = checksumPortion;
@@ -8310,17 +8540,15 @@ var DataCharacter = (
       return this.value ^ this.checksumPortion;
     };
     return DataCharacter2;
-  })()
+  }()
 );
 var DataCharacter_default = DataCharacter;
 
 // package/esm/core/oned/rss/FinderPattern.js
 var FinderPattern = (
   /** @class */
-  (function() {
+  function() {
     function FinderPattern3(value, startEnd, start, end, rowNumber) {
-      this.value = value;
-      this.startEnd = startEnd;
       this.value = value;
       this.startEnd = startEnd;
       this.resultPoints = new Array();
@@ -8347,7 +8575,7 @@ var FinderPattern = (
       return this.value;
     };
     return FinderPattern3;
-  })()
+  }()
 );
 var FinderPattern_default = FinderPattern;
 
@@ -8365,7 +8593,7 @@ var __values14 = function(o) {
 };
 var RSSUtils = (
   /** @class */
-  (function() {
+  function() {
     function RSSUtils2() {
     }
     RSSUtils2.getRSSvalue = function(widths, maxWidth, noNarrow) {
@@ -8411,8 +8639,8 @@ var RSSUtils = (
       return val;
     };
     RSSUtils2.combins = function(n, r) {
-      var maxDenom;
-      var minDenom;
+      var maxDenom = 0;
+      var minDenom = 0;
       if (n - r > r) {
         minDenom = r;
         maxDenom = n - r;
@@ -8425,30 +8653,30 @@ var RSSUtils = (
       for (var i = n; i > maxDenom; i--) {
         val *= i;
         if (j <= minDenom) {
-          val /= j;
+          val = Math.trunc(val / j);
           j++;
         }
       }
       while (j <= minDenom) {
-        val /= j;
+        val = Math.trunc(val / j);
         j++;
       }
       return val;
     };
     return RSSUtils2;
-  })()
+  }()
 );
 var RSSUtils_default = RSSUtils;
 
 // package/esm/core/oned/rss/expanded/BitArrayBuilder.js
 var BitArrayBuilder = (
   /** @class */
-  (function() {
+  function() {
     function BitArrayBuilder2() {
     }
     BitArrayBuilder2.buildBitArray = function(pairs) {
       var charNumber = pairs.length * 2 - 1;
-      if (pairs[pairs.length - 1].getRightChar() == null) {
+      if (pairs[pairs.length - 1].getRightChar() === null) {
         charNumber -= 1;
       }
       var size = 12 * charNumber;
@@ -8484,21 +8712,17 @@ var BitArrayBuilder = (
       return binary;
     };
     return BitArrayBuilder2;
-  })()
+  }()
 );
 var BitArrayBuilder_default = BitArrayBuilder;
 
 // package/esm/core/oned/rss/expanded/decoders/BlockParsedResult.js
 var BlockParsedResult = (
   /** @class */
-  (function() {
-    function BlockParsedResult2(finished, decodedInformation) {
-      if (decodedInformation) {
-        this.decodedInformation = null;
-      } else {
-        this.finished = finished;
-        this.decodedInformation = decodedInformation;
-      }
+  function() {
+    function BlockParsedResult2(decodedInformation, finished) {
+      this.decodedInformation = decodedInformation ? decodedInformation : null;
+      this.finished = !!finished;
     }
     BlockParsedResult2.prototype.getDecodedInformation = function() {
       return this.decodedInformation;
@@ -8507,14 +8731,60 @@ var BlockParsedResult = (
       return this.finished;
     };
     return BlockParsedResult2;
-  })()
+  }()
 );
 var BlockParsedResult_default = BlockParsedResult;
+
+// package/esm/core/oned/rss/expanded/decoders/CurrentParsingState.js
+var State;
+(function(State3) {
+  State3[State3["NUMERIC"] = 0] = "NUMERIC";
+  State3[State3["ALPHA"] = 1] = "ALPHA";
+  State3[State3["ISO_IEC_646"] = 2] = "ISO_IEC_646";
+})(State || (State = {}));
+var CurrentParsingState = (
+  /** @class */
+  function() {
+    function CurrentParsingState2() {
+      this.position = 0;
+      this.encoding = State.NUMERIC;
+    }
+    CurrentParsingState2.prototype.getPosition = function() {
+      return this.position;
+    };
+    CurrentParsingState2.prototype.setPosition = function(position) {
+      this.position = position;
+    };
+    CurrentParsingState2.prototype.incrementPosition = function(delta) {
+      this.position += delta;
+    };
+    CurrentParsingState2.prototype.isAlpha = function() {
+      return this.encoding === State.ALPHA;
+    };
+    CurrentParsingState2.prototype.isNumeric = function() {
+      return this.encoding === State.NUMERIC;
+    };
+    CurrentParsingState2.prototype.isIsoIec646 = function() {
+      return this.encoding === State.ISO_IEC_646;
+    };
+    CurrentParsingState2.prototype.setNumeric = function() {
+      this.encoding = State.NUMERIC;
+    };
+    CurrentParsingState2.prototype.setAlpha = function() {
+      this.encoding = State.ALPHA;
+    };
+    CurrentParsingState2.prototype.setIsoIec646 = function() {
+      this.encoding = State.ISO_IEC_646;
+    };
+    return CurrentParsingState2;
+  }()
+);
+var CurrentParsingState_default = CurrentParsingState;
 
 // package/esm/core/oned/rss/expanded/decoders/DecodedObject.js
 var DecodedObject = (
   /** @class */
-  (function() {
+  function() {
     function DecodedObject2(newPosition) {
       this.newPosition = newPosition;
     }
@@ -8522,31 +8792,33 @@ var DecodedObject = (
       return this.newPosition;
     };
     return DecodedObject2;
-  })()
+  }()
 );
 var DecodedObject_default = DecodedObject;
 
 // package/esm/core/oned/rss/expanded/decoders/DecodedChar.js
-var __extends35 = /* @__PURE__ */ (function() {
+var __extends35 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var DecodedChar = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends35(DecodedChar2, _super);
     function DecodedChar2(newPosition, value) {
       var _this = _super.call(this, newPosition) || this;
@@ -8561,42 +8833,44 @@ var DecodedChar = (
     };
     DecodedChar2.FNC1 = "$";
     return DecodedChar2;
-  })(DecodedObject_default)
+  }(DecodedObject_default)
 );
 var DecodedChar_default = DecodedChar;
 
 // package/esm/core/oned/rss/expanded/decoders/DecodedInformation.js
-var __extends36 = /* @__PURE__ */ (function() {
+var __extends36 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var DecodedInformation = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends36(DecodedInformation2, _super);
     function DecodedInformation2(newPosition, newString, remainingValue) {
       var _this = _super.call(this, newPosition) || this;
-      if (remainingValue) {
-        _this.remaining = true;
-        _this.remainingValue = _this.remainingValue;
-      } else {
+      _this.newString = newString;
+      if (remainingValue === void 0) {
         _this.remaining = false;
         _this.remainingValue = 0;
+      } else {
+        _this.remaining = true;
+        _this.remainingValue = remainingValue;
       }
-      _this.newString = newString;
       return _this;
     }
     DecodedInformation2.prototype.getNewString = function() {
@@ -8609,31 +8883,33 @@ var DecodedInformation = (
       return this.remainingValue;
     };
     return DecodedInformation2;
-  })(DecodedObject_default)
+  }(DecodedObject_default)
 );
 var DecodedInformation_default = DecodedInformation;
 
 // package/esm/core/oned/rss/expanded/decoders/DecodedNumeric.js
-var __extends37 = /* @__PURE__ */ (function() {
+var __extends37 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var DecodedNumeric = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends37(DecodedNumeric2, _super);
     function DecodedNumeric2(newPosition, firstDigit, secondDigit) {
       var _this = _super.call(this, newPosition) || this;
@@ -8659,34 +8935,29 @@ var DecodedNumeric = (
     DecodedNumeric2.prototype.isSecondDigitFNC1 = function() {
       return this.secondDigit === DecodedNumeric2.FNC1;
     };
-    DecodedNumeric2.prototype.isAnyFNC1 = function() {
-      return this.firstDigit === DecodedNumeric2.FNC1 || this.secondDigit === DecodedNumeric2.FNC1;
-    };
     DecodedNumeric2.FNC1 = 10;
     return DecodedNumeric2;
-  })(DecodedObject_default)
+  }(DecodedObject_default)
 );
 var DecodedNumeric_default = DecodedNumeric;
 
 // package/esm/core/oned/rss/expanded/decoders/FieldParser.js
-var __values15 = function(o) {
-  var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
-  if (m) return m.call(o);
-  if (o && typeof o.length === "number") return {
-    next: function() {
-      if (o && i >= o.length) o = void 0;
-      return { value: o && o[i++], done: !o };
-    }
-  };
-  throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
-};
 var FieldParser = (
   /** @class */
-  (function() {
+  function() {
     function FieldParser2() {
     }
+    FieldParser2.fixed = function(aiSize, fieldSize) {
+      return function(rawInformation) {
+        return FieldParser2.processFixedAI(aiSize, fieldSize, rawInformation);
+      };
+    };
+    FieldParser2.variable = function(aiSize, fieldSize) {
+      return function(rawInformation) {
+        return FieldParser2.processVariableAI(aiSize, fieldSize, rawInformation);
+      };
+    };
     FieldParser2.parseFieldsInGeneralPurpose = function(rawInformation) {
-      var e_1, _a2, e_2, _b, e_3, _c, e_4, _d;
       if (!rawInformation) {
         return null;
       }
@@ -8694,89 +8965,29 @@ var FieldParser = (
         throw new NotFoundException_default();
       }
       var firstTwoDigits = rawInformation.substring(0, 2);
-      try {
-        for (var _e = __values15(FieldParser2.TWO_DIGIT_DATA_LENGTH), _f = _e.next(); !_f.done; _f = _e.next()) {
-          var dataLength = _f.value;
-          if (dataLength[0] === firstTwoDigits) {
-            if (dataLength[1] === FieldParser2.VARIABLE_LENGTH) {
-              return FieldParser2.processVariableAI(2, dataLength[2], rawInformation);
-            }
-            return FieldParser2.processFixedAI(2, dataLength[1], rawInformation);
-          }
-        }
-      } catch (e_1_1) {
-        e_1 = { error: e_1_1 };
-      } finally {
-        try {
-          if (_f && !_f.done && (_a2 = _e.return)) _a2.call(_e);
-        } finally {
-          if (e_1) throw e_1.error;
-        }
+      var twoDigitDataProcessor = this.TWO_DIGIT_DATA_LENGTH.get(firstTwoDigits);
+      if (twoDigitDataProcessor) {
+        return twoDigitDataProcessor(rawInformation);
       }
       if (rawInformation.length < 3) {
         throw new NotFoundException_default();
       }
       var firstThreeDigits = rawInformation.substring(0, 3);
-      try {
-        for (var _g = __values15(FieldParser2.THREE_DIGIT_DATA_LENGTH), _h = _g.next(); !_h.done; _h = _g.next()) {
-          var dataLength = _h.value;
-          if (dataLength[0] === firstThreeDigits) {
-            if (dataLength[1] === FieldParser2.VARIABLE_LENGTH) {
-              return FieldParser2.processVariableAI(3, dataLength[2], rawInformation);
-            }
-            return FieldParser2.processFixedAI(3, dataLength[1], rawInformation);
-          }
-        }
-      } catch (e_2_1) {
-        e_2 = { error: e_2_1 };
-      } finally {
-        try {
-          if (_h && !_h.done && (_b = _g.return)) _b.call(_g);
-        } finally {
-          if (e_2) throw e_2.error;
-        }
+      var threeDigitDataProcessor = this.THREE_DIGIT_DATA_LENGTH.get(firstThreeDigits);
+      if (threeDigitDataProcessor) {
+        return threeDigitDataProcessor(rawInformation);
       }
-      try {
-        for (var _j = __values15(FieldParser2.THREE_DIGIT_PLUS_DIGIT_DATA_LENGTH), _k = _j.next(); !_k.done; _k = _j.next()) {
-          var dataLength = _k.value;
-          if (dataLength[0] === firstThreeDigits) {
-            if (dataLength[1] === FieldParser2.VARIABLE_LENGTH) {
-              return FieldParser2.processVariableAI(4, dataLength[2], rawInformation);
-            }
-            return FieldParser2.processFixedAI(4, dataLength[1], rawInformation);
-          }
-        }
-      } catch (e_3_1) {
-        e_3 = { error: e_3_1 };
-      } finally {
-        try {
-          if (_k && !_k.done && (_c = _j.return)) _c.call(_j);
-        } finally {
-          if (e_3) throw e_3.error;
-        }
+      var threeDigitPlusDigitDataProcessor = this.THREE_DIGIT_PLUS_DIGIT_DATA_LENGTH.get(firstThreeDigits);
+      if (threeDigitPlusDigitDataProcessor) {
+        return threeDigitPlusDigitDataProcessor(rawInformation);
       }
       if (rawInformation.length < 4) {
         throw new NotFoundException_default();
       }
       var firstFourDigits = rawInformation.substring(0, 4);
-      try {
-        for (var _l = __values15(FieldParser2.FOUR_DIGIT_DATA_LENGTH), _m = _l.next(); !_m.done; _m = _l.next()) {
-          var dataLength = _m.value;
-          if (dataLength[0] === firstFourDigits) {
-            if (dataLength[1] === FieldParser2.VARIABLE_LENGTH) {
-              return FieldParser2.processVariableAI(4, dataLength[2], rawInformation);
-            }
-            return FieldParser2.processFixedAI(4, dataLength[1], rawInformation);
-          }
-        }
-      } catch (e_4_1) {
-        e_4 = { error: e_4_1 };
-      } finally {
-        try {
-          if (_m && !_m.done && (_d = _l.return)) _d.call(_l);
-        } finally {
-          if (e_4) throw e_4.error;
-        }
+      var fourDigitDataProcessor = this.FOUR_DIGIT_DATA_LENGTH.get(firstFourDigits);
+      if (fourDigitDataProcessor) {
+        return fourDigitDataProcessor(rawInformation);
       }
       throw new NotFoundException_default();
     };
@@ -8792,7 +9003,7 @@ var FieldParser = (
       var remaining = rawInformation.substring(aiSize + fieldSize);
       var result = "(" + ai + ")" + field;
       var parsedAI = FieldParser2.parseFieldsInGeneralPurpose(remaining);
-      return parsedAI == null ? result : result + parsedAI;
+      return parsedAI === null ? result : result + parsedAI;
     };
     FieldParser2.processVariableAI = function(aiSize, variableFieldSize, rawInformation) {
       var ai = rawInformation.substring(0, aiSize);
@@ -8806,153 +9017,177 @@ var FieldParser = (
       var remaining = rawInformation.substring(maxSize);
       var result = "(" + ai + ")" + field;
       var parsedAI = FieldParser2.parseFieldsInGeneralPurpose(remaining);
-      return parsedAI == null ? result : result + parsedAI;
+      return parsedAI === null ? result : result + parsedAI;
     };
-    FieldParser2.VARIABLE_LENGTH = [];
-    FieldParser2.TWO_DIGIT_DATA_LENGTH = [
-      ["00", 18],
-      ["01", 14],
-      ["02", 14],
-      ["10", FieldParser2.VARIABLE_LENGTH, 20],
-      ["11", 6],
-      ["12", 6],
-      ["13", 6],
-      ["15", 6],
-      ["17", 6],
-      ["20", 2],
-      ["21", FieldParser2.VARIABLE_LENGTH, 20],
-      ["22", FieldParser2.VARIABLE_LENGTH, 29],
-      ["30", FieldParser2.VARIABLE_LENGTH, 8],
-      ["37", FieldParser2.VARIABLE_LENGTH, 8],
-      // internal company codes
-      ["90", FieldParser2.VARIABLE_LENGTH, 30],
-      ["91", FieldParser2.VARIABLE_LENGTH, 30],
-      ["92", FieldParser2.VARIABLE_LENGTH, 30],
-      ["93", FieldParser2.VARIABLE_LENGTH, 30],
-      ["94", FieldParser2.VARIABLE_LENGTH, 30],
-      ["95", FieldParser2.VARIABLE_LENGTH, 30],
-      ["96", FieldParser2.VARIABLE_LENGTH, 30],
-      ["97", FieldParser2.VARIABLE_LENGTH, 3],
-      ["98", FieldParser2.VARIABLE_LENGTH, 30],
-      ["99", FieldParser2.VARIABLE_LENGTH, 30]
-    ];
-    FieldParser2.THREE_DIGIT_DATA_LENGTH = [
-      // Same format as above
-      ["240", FieldParser2.VARIABLE_LENGTH, 30],
-      ["241", FieldParser2.VARIABLE_LENGTH, 30],
-      ["242", FieldParser2.VARIABLE_LENGTH, 6],
-      ["250", FieldParser2.VARIABLE_LENGTH, 30],
-      ["251", FieldParser2.VARIABLE_LENGTH, 30],
-      ["253", FieldParser2.VARIABLE_LENGTH, 17],
-      ["254", FieldParser2.VARIABLE_LENGTH, 20],
-      ["400", FieldParser2.VARIABLE_LENGTH, 30],
-      ["401", FieldParser2.VARIABLE_LENGTH, 30],
-      ["402", 17],
-      ["403", FieldParser2.VARIABLE_LENGTH, 30],
-      ["410", 13],
-      ["411", 13],
-      ["412", 13],
-      ["413", 13],
-      ["414", 13],
-      ["420", FieldParser2.VARIABLE_LENGTH, 20],
-      ["421", FieldParser2.VARIABLE_LENGTH, 15],
-      ["422", 3],
-      ["423", FieldParser2.VARIABLE_LENGTH, 15],
-      ["424", 3],
-      ["425", 3],
-      ["426", 3]
-    ];
-    FieldParser2.THREE_DIGIT_PLUS_DIGIT_DATA_LENGTH = [
-      // Same format as above
-      ["310", 6],
-      ["311", 6],
-      ["312", 6],
-      ["313", 6],
-      ["314", 6],
-      ["315", 6],
-      ["316", 6],
-      ["320", 6],
-      ["321", 6],
-      ["322", 6],
-      ["323", 6],
-      ["324", 6],
-      ["325", 6],
-      ["326", 6],
-      ["327", 6],
-      ["328", 6],
-      ["329", 6],
-      ["330", 6],
-      ["331", 6],
-      ["332", 6],
-      ["333", 6],
-      ["334", 6],
-      ["335", 6],
-      ["336", 6],
-      ["340", 6],
-      ["341", 6],
-      ["342", 6],
-      ["343", 6],
-      ["344", 6],
-      ["345", 6],
-      ["346", 6],
-      ["347", 6],
-      ["348", 6],
-      ["349", 6],
-      ["350", 6],
-      ["351", 6],
-      ["352", 6],
-      ["353", 6],
-      ["354", 6],
-      ["355", 6],
-      ["356", 6],
-      ["357", 6],
-      ["360", 6],
-      ["361", 6],
-      ["362", 6],
-      ["363", 6],
-      ["364", 6],
-      ["365", 6],
-      ["366", 6],
-      ["367", 6],
-      ["368", 6],
-      ["369", 6],
-      ["390", FieldParser2.VARIABLE_LENGTH, 15],
-      ["391", FieldParser2.VARIABLE_LENGTH, 18],
-      ["392", FieldParser2.VARIABLE_LENGTH, 15],
-      ["393", FieldParser2.VARIABLE_LENGTH, 18],
-      ["703", FieldParser2.VARIABLE_LENGTH, 30]
-    ];
-    FieldParser2.FOUR_DIGIT_DATA_LENGTH = [
-      // Same format as above
-      ["7001", 13],
-      ["7002", FieldParser2.VARIABLE_LENGTH, 30],
-      ["7003", 10],
-      ["8001", 14],
-      ["8002", FieldParser2.VARIABLE_LENGTH, 20],
-      ["8003", FieldParser2.VARIABLE_LENGTH, 30],
-      ["8004", FieldParser2.VARIABLE_LENGTH, 30],
-      ["8005", 6],
-      ["8006", 18],
-      ["8007", FieldParser2.VARIABLE_LENGTH, 30],
-      ["8008", FieldParser2.VARIABLE_LENGTH, 12],
-      ["8018", 18],
-      ["8020", FieldParser2.VARIABLE_LENGTH, 25],
-      ["8100", 6],
-      ["8101", 10],
-      ["8102", 2],
-      ["8110", FieldParser2.VARIABLE_LENGTH, 70],
-      ["8200", FieldParser2.VARIABLE_LENGTH, 70]
-    ];
+    FieldParser2.TWO_DIGIT_DATA_LENGTH = function() {
+      var out = /* @__PURE__ */ new Map();
+      out.set("00", FieldParser2.fixed(2, 18));
+      out.set("01", FieldParser2.fixed(2, 14));
+      out.set("02", FieldParser2.fixed(2, 14));
+      out.set("10", FieldParser2.variable(2, 20));
+      out.set("11", FieldParser2.fixed(2, 6));
+      out.set("12", FieldParser2.fixed(2, 6));
+      out.set("13", FieldParser2.fixed(2, 6));
+      out.set("15", FieldParser2.fixed(2, 6));
+      out.set("16", FieldParser2.fixed(2, 6));
+      out.set("17", FieldParser2.fixed(2, 6));
+      out.set("20", FieldParser2.fixed(2, 2));
+      out.set("21", FieldParser2.variable(2, 20));
+      out.set("22", FieldParser2.variable(2, 29));
+      out.set("30", FieldParser2.variable(2, 8));
+      out.set("37", FieldParser2.variable(2, 8));
+      for (var i = 90; i <= 99; i++) {
+        out.set(String(i), FieldParser2.variable(2, 30));
+      }
+      return out;
+    }();
+    FieldParser2.THREE_DIGIT_DATA_LENGTH = /* @__PURE__ */ new Map([
+      ["235", FieldParser2.variable(3, 28)],
+      ["240", FieldParser2.variable(3, 30)],
+      ["241", FieldParser2.variable(3, 30)],
+      ["242", FieldParser2.variable(3, 6)],
+      ["243", FieldParser2.variable(3, 20)],
+      ["250", FieldParser2.variable(3, 30)],
+      ["251", FieldParser2.variable(3, 30)],
+      ["253", FieldParser2.variable(3, 30)],
+      ["254", FieldParser2.variable(3, 20)],
+      ["255", FieldParser2.variable(3, 25)],
+      ["400", FieldParser2.variable(3, 30)],
+      ["401", FieldParser2.variable(3, 30)],
+      ["402", FieldParser2.fixed(3, 17)],
+      ["403", FieldParser2.variable(3, 30)],
+      ["410", FieldParser2.fixed(3, 13)],
+      ["411", FieldParser2.fixed(3, 13)],
+      ["412", FieldParser2.fixed(3, 13)],
+      ["413", FieldParser2.fixed(3, 13)],
+      ["414", FieldParser2.fixed(3, 13)],
+      ["415", FieldParser2.fixed(3, 13)],
+      ["416", FieldParser2.fixed(3, 13)],
+      ["417", FieldParser2.fixed(3, 13)],
+      ["420", FieldParser2.variable(3, 20)],
+      ["421", FieldParser2.variable(3, 15)],
+      // limited to 12 in latest versions of spec
+      ["422", FieldParser2.fixed(3, 3)],
+      ["423", FieldParser2.variable(3, 15)],
+      ["424", FieldParser2.fixed(3, 3)],
+      ["425", FieldParser2.variable(3, 15)],
+      ["426", FieldParser2.fixed(3, 3)],
+      ["427", FieldParser2.variable(3, 3)],
+      ["710", FieldParser2.variable(3, 20)],
+      ["711", FieldParser2.variable(3, 20)],
+      ["712", FieldParser2.variable(3, 20)],
+      ["713", FieldParser2.variable(3, 20)],
+      ["714", FieldParser2.variable(3, 20)],
+      ["715", FieldParser2.variable(3, 20)]
+    ]);
+    FieldParser2.THREE_DIGIT_PLUS_DIGIT_DATA_LENGTH = function() {
+      var out = /* @__PURE__ */ new Map();
+      for (var i = 310; i <= 316; i++) {
+        out.set(String(i), FieldParser2.fixed(4, 6));
+      }
+      for (var i = 320; i <= 337; i++) {
+        out.set(String(i), FieldParser2.fixed(4, 6));
+      }
+      for (var i = 340; i <= 357; i++) {
+        out.set(String(i), FieldParser2.fixed(4, 6));
+      }
+      for (var i = 360; i <= 369; i++) {
+        out.set(String(i), FieldParser2.fixed(4, 6));
+      }
+      out.set("390", FieldParser2.variable(4, 15));
+      out.set("391", FieldParser2.variable(4, 18));
+      out.set("392", FieldParser2.variable(4, 15));
+      out.set("393", FieldParser2.variable(4, 18));
+      out.set("394", FieldParser2.fixed(4, 4));
+      out.set("395", FieldParser2.fixed(4, 6));
+      out.set("703", FieldParser2.variable(4, 30));
+      out.set("723", FieldParser2.variable(4, 30));
+      return out;
+    }();
+    FieldParser2.FOUR_DIGIT_DATA_LENGTH = function() {
+      var out = /* @__PURE__ */ new Map();
+      out.set("4300", FieldParser2.variable(4, 35));
+      out.set("4301", FieldParser2.variable(4, 35));
+      out.set("4302", FieldParser2.variable(4, 70));
+      out.set("4303", FieldParser2.variable(4, 70));
+      out.set("4304", FieldParser2.variable(4, 70));
+      out.set("4305", FieldParser2.variable(4, 70));
+      out.set("4306", FieldParser2.variable(4, 70));
+      out.set("4307", FieldParser2.fixed(4, 2));
+      out.set("4308", FieldParser2.variable(4, 30));
+      out.set("4309", FieldParser2.fixed(4, 20));
+      out.set("4310", FieldParser2.variable(4, 35));
+      out.set("4311", FieldParser2.variable(4, 35));
+      out.set("4312", FieldParser2.variable(4, 70));
+      out.set("4313", FieldParser2.variable(4, 70));
+      out.set("4314", FieldParser2.variable(4, 70));
+      out.set("4315", FieldParser2.variable(4, 70));
+      out.set("4316", FieldParser2.variable(4, 70));
+      out.set("4317", FieldParser2.fixed(4, 2));
+      out.set("4318", FieldParser2.variable(4, 20));
+      out.set("4319", FieldParser2.variable(4, 30));
+      out.set("4320", FieldParser2.variable(4, 35));
+      out.set("4321", FieldParser2.fixed(4, 1));
+      out.set("4322", FieldParser2.fixed(4, 1));
+      out.set("4323", FieldParser2.fixed(4, 1));
+      out.set("4324", FieldParser2.fixed(4, 10));
+      out.set("4325", FieldParser2.fixed(4, 10));
+      out.set("4326", FieldParser2.fixed(4, 6));
+      out.set("7001", FieldParser2.fixed(4, 13));
+      out.set("7002", FieldParser2.variable(4, 30));
+      out.set("7003", FieldParser2.fixed(4, 10));
+      out.set("7004", FieldParser2.variable(4, 4));
+      out.set("7005", FieldParser2.variable(4, 12));
+      out.set("7006", FieldParser2.fixed(4, 6));
+      out.set("7007", FieldParser2.variable(4, 12));
+      out.set("7008", FieldParser2.variable(4, 3));
+      out.set("7009", FieldParser2.variable(4, 10));
+      out.set("7010", FieldParser2.variable(4, 2));
+      out.set("7011", FieldParser2.variable(4, 10));
+      out.set("7020", FieldParser2.variable(4, 20));
+      out.set("7021", FieldParser2.variable(4, 20));
+      out.set("7022", FieldParser2.variable(4, 20));
+      out.set("7023", FieldParser2.variable(4, 30));
+      out.set("7040", FieldParser2.fixed(4, 4));
+      out.set("7240", FieldParser2.variable(4, 20));
+      out.set("8001", FieldParser2.fixed(4, 14));
+      out.set("8002", FieldParser2.variable(4, 20));
+      out.set("8003", FieldParser2.variable(4, 30));
+      out.set("8004", FieldParser2.variable(4, 30));
+      out.set("8005", FieldParser2.fixed(4, 6));
+      out.set("8006", FieldParser2.fixed(4, 18));
+      out.set("8007", FieldParser2.variable(4, 34));
+      out.set("8008", FieldParser2.variable(4, 12));
+      out.set("8009", FieldParser2.variable(4, 50));
+      out.set("8010", FieldParser2.variable(4, 30));
+      out.set("8011", FieldParser2.variable(4, 12));
+      out.set("8012", FieldParser2.variable(4, 20));
+      out.set("8013", FieldParser2.variable(4, 25));
+      out.set("8017", FieldParser2.fixed(4, 18));
+      out.set("8018", FieldParser2.fixed(4, 18));
+      out.set("8019", FieldParser2.variable(4, 10));
+      out.set("8020", FieldParser2.variable(4, 25));
+      out.set("8026", FieldParser2.fixed(4, 18));
+      out.set("8100", FieldParser2.fixed(4, 6));
+      out.set("8101", FieldParser2.fixed(4, 10));
+      out.set("8102", FieldParser2.fixed(4, 2));
+      out.set("8110", FieldParser2.variable(4, 70));
+      out.set("8111", FieldParser2.fixed(4, 4));
+      out.set("8112", FieldParser2.variable(4, 70));
+      out.set("8200", FieldParser2.variable(4, 70));
+      return out;
+    }();
     return FieldParser2;
-  })()
+  }()
 );
 var FieldParser_default = FieldParser;
 
 // package/esm/core/oned/rss/expanded/decoders/GeneralAppIdDecoder.js
 var GeneralAppIdDecoder = (
   /** @class */
-  (function() {
+  function() {
     function GeneralAppIdDecoder2(information) {
+      this.current = new CurrentParsingState_default();
       this.buffer = new StringBuilder_default();
       this.information = information;
     }
@@ -8962,7 +9197,7 @@ var GeneralAppIdDecoder = (
       do {
         var info = this.decodeGeneralPurposeField(currentPosition, remaining);
         var parsedFields = FieldParser_default.parseFieldsInGeneralPurpose(info.getNewString());
-        if (parsedFields != null) {
+        if (parsedFields !== null) {
           buff.append(parsedFields);
         }
         if (info.isRemaining()) {
@@ -8997,7 +9232,7 @@ var GeneralAppIdDecoder = (
         return new DecodedNumeric_default(this.information.getSize(), numeric_1 - 1, DecodedNumeric_default.FNC1);
       }
       var numeric = this.extractNumericValueFromBitArray(pos, 7);
-      var digit1 = (numeric - 8) / 11;
+      var digit1 = Math.trunc((numeric - 8) / 11);
       var digit2 = (numeric - 8) % 11;
       return new DecodedNumeric_default(pos + 7, digit1, digit2);
     };
@@ -9015,18 +9250,18 @@ var GeneralAppIdDecoder = (
     };
     GeneralAppIdDecoder2.prototype.decodeGeneralPurposeField = function(pos, remaining) {
       this.buffer.setLengthToZero();
-      if (remaining != null) {
+      if (remaining !== null) {
         this.buffer.append(remaining);
       }
       this.current.setPosition(pos);
       var lastDecoded = this.parseBlocks();
-      if (lastDecoded != null && lastDecoded.isRemaining()) {
+      if (lastDecoded !== null && lastDecoded.isRemaining()) {
         return new DecodedInformation_default(this.current.getPosition(), this.buffer.toString(), lastDecoded.getRemainingValue());
       }
       return new DecodedInformation_default(this.current.getPosition(), this.buffer.toString());
     };
     GeneralAppIdDecoder2.prototype.parseBlocks = function() {
-      var isFinished;
+      var isFinished = false;
       var result;
       do {
         var initialPosition = this.current.getPosition();
@@ -9058,20 +9293,20 @@ var GeneralAppIdDecoder = (
           } else {
             information = new DecodedInformation_default(this.current.getPosition(), this.buffer.toString(), numeric.getSecondDigit());
           }
-          return new BlockParsedResult_default(true, information);
+          return new BlockParsedResult_default(information, true);
         }
-        this.buffer.append(numeric.getFirstDigit());
+        this.buffer.append("" + numeric.getFirstDigit());
         if (numeric.isSecondDigitFNC1()) {
           var information = new DecodedInformation_default(this.current.getPosition(), this.buffer.toString());
-          return new BlockParsedResult_default(true, information);
+          return new BlockParsedResult_default(information, true);
         }
-        this.buffer.append(numeric.getSecondDigit());
+        this.buffer.append("" + numeric.getSecondDigit());
       }
       if (this.isNumericToAlphaNumericLatch(this.current.getPosition())) {
         this.current.setAlpha();
         this.current.incrementPosition(4);
       }
-      return new BlockParsedResult_default(false);
+      return new BlockParsedResult_default();
     };
     GeneralAppIdDecoder2.prototype.parseIsoIec646Block = function() {
       while (this.isStillIsoIec646(this.current.getPosition())) {
@@ -9079,7 +9314,7 @@ var GeneralAppIdDecoder = (
         this.current.setPosition(iso.getNewPosition());
         if (iso.isFNC1()) {
           var information = new DecodedInformation_default(this.current.getPosition(), this.buffer.toString());
-          return new BlockParsedResult_default(true, information);
+          return new BlockParsedResult_default(information, true);
         }
         this.buffer.append(iso.getValue());
       }
@@ -9094,7 +9329,7 @@ var GeneralAppIdDecoder = (
         }
         this.current.setAlpha();
       }
-      return new BlockParsedResult_default(false);
+      return new BlockParsedResult_default();
     };
     GeneralAppIdDecoder2.prototype.parseAlphaBlock = function() {
       while (this.isStillAlpha(this.current.getPosition())) {
@@ -9102,7 +9337,7 @@ var GeneralAppIdDecoder = (
         this.current.setPosition(alpha.getNewPosition());
         if (alpha.isFNC1()) {
           var information = new DecodedInformation_default(this.current.getPosition(), this.buffer.toString());
-          return new BlockParsedResult_default(true, information);
+          return new BlockParsedResult_default(information, true);
         }
         this.buffer.append(alpha.getValue());
       }
@@ -9117,7 +9352,7 @@ var GeneralAppIdDecoder = (
         }
         this.current.setIsoIec646();
       }
-      return new BlockParsedResult_default(false);
+      return new BlockParsedResult_default();
     };
     GeneralAppIdDecoder2.prototype.isStillIsoIec646 = function(pos) {
       if (pos + 5 > this.information.getSize()) {
@@ -9146,14 +9381,14 @@ var GeneralAppIdDecoder = (
         return new DecodedChar_default(pos + 5, DecodedChar_default.FNC1);
       }
       if (fiveBitValue >= 5 && fiveBitValue < 15) {
-        return new DecodedChar_default(pos + 5, "0" + (fiveBitValue - 5));
+        return new DecodedChar_default(pos + 5, String.fromCharCode("0".charCodeAt(0) + fiveBitValue - 5));
       }
       var sevenBitValue = this.extractNumericValueFromBitArray(pos, 7);
       if (sevenBitValue >= 64 && sevenBitValue < 90) {
-        return new DecodedChar_default(pos + 7, "" + (sevenBitValue + 1));
+        return new DecodedChar_default(pos + 7, String.fromCharCode(sevenBitValue + 1));
       }
       if (sevenBitValue >= 90 && sevenBitValue < 116) {
-        return new DecodedChar_default(pos + 7, "" + (sevenBitValue + 7));
+        return new DecodedChar_default(pos + 7, String.fromCharCode(sevenBitValue + 7));
       }
       var eightBitValue = this.extractNumericValueFromBitArray(pos, 8);
       var c;
@@ -9246,11 +9481,11 @@ var GeneralAppIdDecoder = (
         return new DecodedChar_default(pos + 5, DecodedChar_default.FNC1);
       }
       if (fiveBitValue >= 5 && fiveBitValue < 15) {
-        return new DecodedChar_default(pos + 5, "0" + (fiveBitValue - 5));
+        return new DecodedChar_default(pos + 5, String.fromCharCode("0".charCodeAt(0) + fiveBitValue - 5));
       }
       var sixBitValue = this.extractNumericValueFromBitArray(pos, 6);
       if (sixBitValue >= 32 && sixBitValue < 58) {
-        return new DecodedChar_default(pos + 6, "" + (sixBitValue + 33));
+        return new DecodedChar_default(pos + 6, String.fromCharCode(sixBitValue + 33));
       }
       var c;
       switch (sixBitValue) {
@@ -9312,14 +9547,14 @@ var GeneralAppIdDecoder = (
       return true;
     };
     return GeneralAppIdDecoder2;
-  })()
+  }()
 );
 var GeneralAppIdDecoder_default = GeneralAppIdDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AbstractExpandedDecoder.js
 var AbstractExpandedDecoder = (
   /** @class */
-  (function() {
+  function() {
     function AbstractExpandedDecoder2(information) {
       this.information = information;
       this.generalDecoder = new GeneralAppIdDecoder_default(information);
@@ -9331,31 +9566,33 @@ var AbstractExpandedDecoder = (
       return this.generalDecoder;
     };
     return AbstractExpandedDecoder2;
-  })()
+  }()
 );
 var AbstractExpandedDecoder_default = AbstractExpandedDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI01decoder.js
-var __extends38 = /* @__PURE__ */ (function() {
+var __extends38 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI01decoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends38(AI01decoder2, _super);
     function AI01decoder2(information) {
       return _super.call(this, information) || this;
@@ -9369,13 +9606,13 @@ var AI01decoder = (
     AI01decoder2.prototype.encodeCompressedGtinWithoutAI = function(buf, currentPos, initialBufferPosition) {
       for (var i = 0; i < 4; ++i) {
         var currentBlock = this.getGeneralDecoder().extractNumericValueFromBitArray(currentPos + 10 * i, 10);
-        if (currentBlock / 100 === 0) {
+        if (currentBlock < 100) {
           buf.append("0");
         }
-        if (currentBlock / 10 === 0) {
+        if (currentBlock < 10) {
           buf.append("0");
         }
-        buf.append(currentBlock);
+        buf.append("" + currentBlock);
       }
       AI01decoder2.appendCheckDigit(buf, initialBufferPosition);
     };
@@ -9389,35 +9626,37 @@ var AI01decoder = (
       if (checkDigit === 10) {
         checkDigit = 0;
       }
-      buf.append(checkDigit);
+      buf.append("" + checkDigit);
     };
     AI01decoder2.GTIN_SIZE = 40;
     return AI01decoder2;
-  })(AbstractExpandedDecoder_default)
+  }(AbstractExpandedDecoder_default)
 );
 var AI01decoder_default = AI01decoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI01AndOtherAIs.js
-var __extends39 = /* @__PURE__ */ (function() {
+var __extends39 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI01AndOtherAIs = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends39(AI01AndOtherAIs2, _super);
     function AI01AndOtherAIs2(information) {
       return _super.call(this, information) || this;
@@ -9427,37 +9666,39 @@ var AI01AndOtherAIs = (
       buff.append("(01)");
       var initialGtinPosition = buff.length();
       var firstGtinDigit = this.getGeneralDecoder().extractNumericValueFromBitArray(AI01AndOtherAIs2.HEADER_SIZE, 4);
-      buff.append(firstGtinDigit);
+      buff.append("" + firstGtinDigit);
       this.encodeCompressedGtinWithoutAI(buff, AI01AndOtherAIs2.HEADER_SIZE + 4, initialGtinPosition);
       return this.getGeneralDecoder().decodeAllCodes(buff, AI01AndOtherAIs2.HEADER_SIZE + 44);
     };
     AI01AndOtherAIs2.HEADER_SIZE = 1 + 1 + 2;
     return AI01AndOtherAIs2;
-  })(AI01decoder_default)
+  }(AI01decoder_default)
 );
 var AI01AndOtherAIs_default = AI01AndOtherAIs;
 
 // package/esm/core/oned/rss/expanded/decoders/AnyAIDecoder.js
-var __extends40 = /* @__PURE__ */ (function() {
+var __extends40 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AnyAIDecoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends40(AnyAIDecoder2, _super);
     function AnyAIDecoder2(information) {
       return _super.call(this, information) || this;
@@ -9468,31 +9709,33 @@ var AnyAIDecoder = (
     };
     AnyAIDecoder2.HEADER_SIZE = 2 + 1 + 2;
     return AnyAIDecoder2;
-  })(AbstractExpandedDecoder_default)
+  }(AbstractExpandedDecoder_default)
 );
 var AnyAIDecoder_default = AnyAIDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI01weightDecoder.js
-var __extends41 = /* @__PURE__ */ (function() {
+var __extends41 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI01weightDecoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends41(AI01weightDecoder2, _super);
     function AI01weightDecoder2(information) {
       return _super.call(this, information) || this;
@@ -9503,39 +9746,41 @@ var AI01weightDecoder = (
       var weightNumeric = this.checkWeight(originalWeightNumeric);
       var currentDivisor = 1e5;
       for (var i = 0; i < 5; ++i) {
-        if (weightNumeric / currentDivisor === 0) {
+        if (weightNumeric < currentDivisor) {
           buf.append("0");
         }
-        currentDivisor /= 10;
+        currentDivisor = Math.trunc(currentDivisor / 10);
       }
-      buf.append(weightNumeric);
+      buf.append("" + weightNumeric);
     };
     return AI01weightDecoder2;
-  })(AI01decoder_default)
+  }(AI01decoder_default)
 );
 var AI01weightDecoder_default = AI01weightDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI013x0xDecoder.js
-var __extends42 = /* @__PURE__ */ (function() {
+var __extends42 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI013x0xDecoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends42(AI013x0xDecoder2, _super);
     function AI013x0xDecoder2(information) {
       return _super.call(this, information) || this;
@@ -9552,31 +9797,33 @@ var AI013x0xDecoder = (
     AI013x0xDecoder2.HEADER_SIZE = 4 + 1;
     AI013x0xDecoder2.WEIGHT_SIZE = 15;
     return AI013x0xDecoder2;
-  })(AI01weightDecoder_default)
+  }(AI01weightDecoder_default)
 );
 var AI013x0xDecoder_default = AI013x0xDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI013103decoder.js
-var __extends43 = /* @__PURE__ */ (function() {
+var __extends43 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI013103decoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends43(AI013103decoder2, _super);
     function AI013103decoder2(information) {
       return _super.call(this, information) || this;
@@ -9588,31 +9835,33 @@ var AI013103decoder = (
       return weight;
     };
     return AI013103decoder2;
-  })(AI013x0xDecoder_default)
+  }(AI013x0xDecoder_default)
 );
 var AI013103decoder_default = AI013103decoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI01320xDecoder.js
-var __extends44 = /* @__PURE__ */ (function() {
+var __extends44 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI01320xDecoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends44(AI01320xDecoder2, _super);
     function AI01320xDecoder2(information) {
       return _super.call(this, information) || this;
@@ -9631,31 +9880,33 @@ var AI01320xDecoder = (
       return weight - 1e4;
     };
     return AI01320xDecoder2;
-  })(AI013x0xDecoder_default)
+  }(AI013x0xDecoder_default)
 );
 var AI01320xDecoder_default = AI01320xDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI01392xDecoder.js
-var __extends45 = /* @__PURE__ */ (function() {
+var __extends45 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI01392xDecoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends45(AI01392xDecoder2, _super);
     function AI01392xDecoder2(information) {
       return _super.call(this, information) || this;
@@ -9668,7 +9919,7 @@ var AI01392xDecoder = (
       this.encodeCompressedGtin(buf, AI01392xDecoder2.HEADER_SIZE);
       var lastAIdigit = this.getGeneralDecoder().extractNumericValueFromBitArray(AI01392xDecoder2.HEADER_SIZE + AI01decoder_default.GTIN_SIZE, AI01392xDecoder2.LAST_DIGIT_SIZE);
       buf.append("(392");
-      buf.append(lastAIdigit);
+      buf.append("" + lastAIdigit);
       buf.append(")");
       var decodedInformation = this.getGeneralDecoder().decodeGeneralPurposeField(AI01392xDecoder2.HEADER_SIZE + AI01decoder_default.GTIN_SIZE + AI01392xDecoder2.LAST_DIGIT_SIZE, null);
       buf.append(decodedInformation.getNewString());
@@ -9677,31 +9928,33 @@ var AI01392xDecoder = (
     AI01392xDecoder2.HEADER_SIZE = 5 + 1 + 2;
     AI01392xDecoder2.LAST_DIGIT_SIZE = 2;
     return AI01392xDecoder2;
-  })(AI01decoder_default)
+  }(AI01decoder_default)
 );
 var AI01392xDecoder_default = AI01392xDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI01393xDecoder.js
-var __extends46 = /* @__PURE__ */ (function() {
+var __extends46 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI01393xDecoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends46(AI01393xDecoder2, _super);
     function AI01393xDecoder2(information) {
       return _super.call(this, information) || this;
@@ -9714,16 +9967,16 @@ var AI01393xDecoder = (
       this.encodeCompressedGtin(buf, AI01393xDecoder2.HEADER_SIZE);
       var lastAIdigit = this.getGeneralDecoder().extractNumericValueFromBitArray(AI01393xDecoder2.HEADER_SIZE + AI01decoder_default.GTIN_SIZE, AI01393xDecoder2.LAST_DIGIT_SIZE);
       buf.append("(393");
-      buf.append(lastAIdigit);
+      buf.append("" + lastAIdigit);
       buf.append(")");
       var firstThreeDigits = this.getGeneralDecoder().extractNumericValueFromBitArray(AI01393xDecoder2.HEADER_SIZE + AI01decoder_default.GTIN_SIZE + AI01393xDecoder2.LAST_DIGIT_SIZE, AI01393xDecoder2.FIRST_THREE_DIGITS_SIZE);
-      if (firstThreeDigits / 100 === 0) {
+      if (firstThreeDigits < 100) {
         buf.append("0");
       }
-      if (firstThreeDigits / 10 === 0) {
+      if (firstThreeDigits < 10) {
         buf.append("0");
       }
-      buf.append(firstThreeDigits);
+      buf.append("" + firstThreeDigits);
       var generalInformation = this.getGeneralDecoder().decodeGeneralPurposeField(AI01393xDecoder2.HEADER_SIZE + AI01decoder_default.GTIN_SIZE + AI01393xDecoder2.LAST_DIGIT_SIZE + AI01393xDecoder2.FIRST_THREE_DIGITS_SIZE, null);
       buf.append(generalInformation.getNewString());
       return buf.toString();
@@ -9732,31 +9985,33 @@ var AI01393xDecoder = (
     AI01393xDecoder2.LAST_DIGIT_SIZE = 2;
     AI01393xDecoder2.FIRST_THREE_DIGITS_SIZE = 10;
     return AI01393xDecoder2;
-  })(AI01decoder_default)
+  }(AI01decoder_default)
 );
 var AI01393xDecoder_default = AI01393xDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AI013x0x1xDecoder.js
-var __extends47 = /* @__PURE__ */ (function() {
+var __extends47 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AI013x0x1xDecoder = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends47(AI013x0x1xDecoder2, _super);
     function AI013x0x1xDecoder2(information, firstAIdigits, dateCode) {
       var _this = _super.call(this, information) || this;
@@ -9783,27 +10038,27 @@ var AI013x0x1xDecoder = (
       buf.append(this.dateCode);
       buf.append(")");
       var day = numericDate % 32;
-      numericDate /= 32;
+      numericDate = Math.trunc(numericDate / 32);
       var month = numericDate % 12 + 1;
-      numericDate /= 12;
+      numericDate = Math.trunc(numericDate / 12);
       var year = numericDate;
-      if (year / 10 === 0) {
+      if (year < 10) {
         buf.append("0");
       }
-      buf.append(year);
-      if (month / 10 === 0) {
+      buf.append("" + year);
+      if (month < 10) {
         buf.append("0");
       }
-      buf.append(month);
-      if (day / 10 === 0) {
+      buf.append("" + month);
+      if (day < 10) {
         buf.append("0");
       }
-      buf.append(day);
+      buf.append("" + day);
     };
     AI013x0x1xDecoder2.prototype.addWeightCode = function(buf, weight) {
       buf.append("(");
       buf.append(this.firstAIdigits);
-      buf.append(weight / 1e5);
+      buf.append("" + Math.trunc(weight / 1e5));
       buf.append(")");
     };
     AI013x0x1xDecoder2.prototype.checkWeight = function(weight) {
@@ -9813,112 +10068,130 @@ var AI013x0x1xDecoder = (
     AI013x0x1xDecoder2.WEIGHT_SIZE = 20;
     AI013x0x1xDecoder2.DATE_SIZE = 16;
     return AI013x0x1xDecoder2;
-  })(AI01weightDecoder_default)
+  }(AI01weightDecoder_default)
 );
 var AI013x0x1xDecoder_default = AI013x0x1xDecoder;
 
 // package/esm/core/oned/rss/expanded/decoders/AbstractExpandedDecoderComplement.js
 function createDecoder(information) {
-  try {
-    if (information.get(1)) {
-      return new AI01AndOtherAIs_default(information);
-    }
-    if (!information.get(2)) {
-      return new AnyAIDecoder_default(information);
-    }
-    var fourBitEncodationMethod = GeneralAppIdDecoder_default.extractNumericValueFromBitArray(information, 1, 4);
-    switch (fourBitEncodationMethod) {
-      case 4:
-        return new AI013103decoder_default(information);
-      case 5:
-        return new AI01320xDecoder_default(information);
-    }
-    var fiveBitEncodationMethod = GeneralAppIdDecoder_default.extractNumericValueFromBitArray(information, 1, 5);
-    switch (fiveBitEncodationMethod) {
-      case 12:
-        return new AI01392xDecoder_default(information);
-      case 13:
-        return new AI01393xDecoder_default(information);
-    }
-    var sevenBitEncodationMethod = GeneralAppIdDecoder_default.extractNumericValueFromBitArray(information, 1, 7);
-    switch (sevenBitEncodationMethod) {
-      case 56:
-        return new AI013x0x1xDecoder_default(information, "310", "11");
-      case 57:
-        return new AI013x0x1xDecoder_default(information, "320", "11");
-      case 58:
-        return new AI013x0x1xDecoder_default(information, "310", "13");
-      case 59:
-        return new AI013x0x1xDecoder_default(information, "320", "13");
-      case 60:
-        return new AI013x0x1xDecoder_default(information, "310", "15");
-      case 61:
-        return new AI013x0x1xDecoder_default(information, "320", "15");
-      case 62:
-        return new AI013x0x1xDecoder_default(information, "310", "17");
-      case 63:
-        return new AI013x0x1xDecoder_default(information, "320", "17");
-    }
-  } catch (e) {
-    console.log(e);
-    throw new IllegalStateException_default("unknown decoder: " + information);
+  if (information.get(1)) {
+    return new AI01AndOtherAIs_default(information);
   }
+  if (!information.get(2)) {
+    return new AnyAIDecoder_default(information);
+  }
+  var fourBitEncodationMethod = GeneralAppIdDecoder_default.extractNumericValueFromBitArray(information, 1, 4);
+  switch (fourBitEncodationMethod) {
+    case 4:
+      return new AI013103decoder_default(information);
+    case 5:
+      return new AI01320xDecoder_default(information);
+  }
+  var fiveBitEncodationMethod = GeneralAppIdDecoder_default.extractNumericValueFromBitArray(information, 1, 5);
+  switch (fiveBitEncodationMethod) {
+    case 12:
+      return new AI01392xDecoder_default(information);
+    case 13:
+      return new AI01393xDecoder_default(information);
+  }
+  var sevenBitEncodationMethod = GeneralAppIdDecoder_default.extractNumericValueFromBitArray(information, 1, 7);
+  switch (sevenBitEncodationMethod) {
+    case 56:
+      return new AI013x0x1xDecoder_default(information, "310", "11");
+    case 57:
+      return new AI013x0x1xDecoder_default(information, "320", "11");
+    case 58:
+      return new AI013x0x1xDecoder_default(information, "310", "13");
+    case 59:
+      return new AI013x0x1xDecoder_default(information, "320", "13");
+    case 60:
+      return new AI013x0x1xDecoder_default(information, "310", "15");
+    case 61:
+      return new AI013x0x1xDecoder_default(information, "320", "15");
+    case 62:
+      return new AI013x0x1xDecoder_default(information, "310", "17");
+    case 63:
+      return new AI013x0x1xDecoder_default(information, "320", "17");
+  }
+  throw new IllegalStateException_default("unknown decoder: " + information);
 }
 
 // package/esm/core/oned/rss/expanded/ExpandedPair.js
 var ExpandedPair = (
   /** @class */
-  (function() {
-    function ExpandedPair2(leftChar, rightChar, finderPatter, mayBeLast) {
-      this.leftchar = leftChar;
-      this.rightchar = rightChar;
-      this.finderpattern = finderPatter;
-      this.maybeLast = mayBeLast;
+  function() {
+    function ExpandedPair2(leftChar, rightChar, finderPatter) {
+      this.leftChar = leftChar;
+      this.rightChar = rightChar;
+      this.finderPattern = finderPatter;
     }
-    ExpandedPair2.prototype.mayBeLast = function() {
-      return this.maybeLast;
-    };
     ExpandedPair2.prototype.getLeftChar = function() {
-      return this.leftchar;
+      return this.leftChar;
     };
     ExpandedPair2.prototype.getRightChar = function() {
-      return this.rightchar;
+      return this.rightChar;
     };
     ExpandedPair2.prototype.getFinderPattern = function() {
-      return this.finderpattern;
+      return this.finderPattern;
     };
     ExpandedPair2.prototype.mustBeLast = function() {
-      return this.rightchar == null;
+      return this.rightChar === null;
     };
     ExpandedPair2.prototype.toString = function() {
-      return "[ " + this.leftchar + ", " + this.rightchar + " : " + (this.finderpattern == null ? "null" : this.finderpattern.getValue()) + " ]";
+      return "[ " + this.leftChar + ", " + this.rightChar + " : " + (this.finderPattern === null ? "null" : this.finderPattern.getValue()) + " ]";
     };
     ExpandedPair2.equals = function(o1, o2) {
-      if (!(o1 instanceof ExpandedPair2)) {
+      if (o2 === null)
+        return o1 === null;
+      if (!(o2 instanceof ExpandedPair2)) {
         return false;
       }
-      return ExpandedPair2.equalsOrNull(o1.leftchar, o2.leftchar) && ExpandedPair2.equalsOrNull(o1.rightchar, o2.rightchar) && ExpandedPair2.equalsOrNull(o1.finderpattern, o2.finderpattern);
-    };
-    ExpandedPair2.equalsOrNull = function(o1, o2) {
-      return o1 === null ? o2 === null : ExpandedPair2.equals(o1, o2);
+      return (o1.leftChar === null ? o2.leftChar === null : o1.leftChar.equals(o2.leftChar)) && (o1.rightChar === null ? o2.rightChar === null : o1.rightChar.equals(o2.rightChar)) && (o1.finderPattern === null ? o2.finderPattern === null : o1.finderPattern.equals(o2.finderPattern));
     };
     ExpandedPair2.prototype.hashCode = function() {
-      var value = this.leftchar.getValue() ^ this.rightchar.getValue() ^ this.finderpattern.getValue();
-      return value;
+      return ExpandedPair2.hashNotNull(this.leftChar) ^ ExpandedPair2.hashNotNull(this.rightChar) ^ ExpandedPair2.hashNotNull(this.finderPattern);
+    };
+    ExpandedPair2.hashNotNull = function(o) {
+      return o === null ? 0 : o.hashCode();
     };
     return ExpandedPair2;
-  })()
+  }()
 );
 var ExpandedPair_default = ExpandedPair;
 
 // package/esm/core/oned/rss/expanded/ExpandedRow.js
+var __read5 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var __spreadArray5 = function(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+    if (ar || !(i in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+      ar[i] = from[i];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
+};
 var ExpandedRow = (
   /** @class */
-  (function() {
-    function ExpandedRow2(pairs, rowNumber, wasReversed) {
-      this.pairs = pairs;
+  function() {
+    function ExpandedRow2(pairs, rowNumber) {
+      this.pairs = __spreadArray5([], __read5(pairs), false);
       this.rowNumber = rowNumber;
-      this.wasReversed = wasReversed;
     }
     ExpandedRow2.prototype.getPairs = function() {
       return this.pairs;
@@ -9926,58 +10199,80 @@ var ExpandedRow = (
     ExpandedRow2.prototype.getRowNumber = function() {
       return this.rowNumber;
     };
-    ExpandedRow2.prototype.isReversed = function() {
-      return this.wasReversed;
-    };
     ExpandedRow2.prototype.isEquivalent = function(otherPairs) {
-      return this.checkEqualitity(this, otherPairs);
+      return ExpandedRow2.listEquals(this.getPairs(), otherPairs);
     };
     ExpandedRow2.prototype.toString = function() {
       return "{ " + this.pairs + " }";
     };
-    ExpandedRow2.prototype.equals = function(o1, o2) {
-      if (!(o1 instanceof ExpandedRow2)) {
+    ExpandedRow2.equals = function(o1, o2) {
+      if (o1 === null)
+        return o2 === null;
+      if (!(o2 instanceof ExpandedRow2)) {
         return false;
       }
-      return this.checkEqualitity(o1, o2) && o1.wasReversed === o2.wasReversed;
+      return ExpandedRow2.listEquals(o1.pairs, o2.getPairs());
     };
-    ExpandedRow2.prototype.checkEqualitity = function(pair1, pair2) {
-      if (!pair1 || !pair2)
-        return;
-      var result;
-      pair1.forEach(function(e1, i) {
-        pair2.forEach(function(e2) {
-          if (e1.getLeftChar().getValue() === e2.getLeftChar().getValue() && e1.getRightChar().getValue() === e2.getRightChar().getValue() && e1.getFinderPatter().getValue() === e2.getFinderPatter().getValue()) {
-            result = true;
-          }
-        });
+    ExpandedRow2.listEquals = function(pairs1, pairs2) {
+      if (pairs1.length !== pairs2.length)
+        return false;
+      return pairs1.every(function(pair1, index) {
+        var pair2 = pairs2[index];
+        return ExpandedPair_default.equals(pair1, pair2);
       });
-      return result;
     };
     return ExpandedRow2;
-  })()
+  }()
 );
 var ExpandedRow_default = ExpandedRow;
 
 // package/esm/core/oned/rss/expanded/RSSExpandedReader.js
-var __extends48 = /* @__PURE__ */ (function() {
+var __extends48 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
-var __values16 = function(o) {
+}();
+var __read6 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var __spreadArray6 = function(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+    if (ar || !(i in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+      ar[i] = from[i];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
+};
+var __values15 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -9990,23 +10285,26 @@ var __values16 = function(o) {
 };
 var RSSExpandedReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends48(RSSExpandedReader2, _super);
     function RSSExpandedReader2() {
-      var _this = _super !== null && _super.apply(this, arguments) || this;
+      var _this = _super.apply(this, __spreadArray6([], __read6(arguments), false)) || this;
       _this.pairs = new Array(RSSExpandedReader2.MAX_PAIRS);
       _this.rows = new Array();
-      _this.startEnd = [2];
+      _this.startEnd = [0, 0];
+      _this.startFromEven = false;
       return _this;
     }
     RSSExpandedReader2.prototype.decodeRow = function(rowNumber, row, hints) {
-      this.pairs.length = 0;
       this.startFromEven = false;
       try {
         return RSSExpandedReader2.constructResult(this.decodeRow2pairs(rowNumber, row));
-      } catch (e) {
+      } catch (ex) {
+        if (ex instanceof NotFoundException_default) {
+        } else {
+          throw ex;
+        }
       }
-      this.pairs.length = 0;
       this.startFromEven = true;
       return RSSExpandedReader2.constructResult(this.decodeRow2pairs(rowNumber, row));
     };
@@ -10015,36 +10313,34 @@ var RSSExpandedReader = (
       this.rows.length = 0;
     };
     RSSExpandedReader2.prototype.decodeRow2pairs = function(rowNumber, row) {
+      this.pairs.length = 0;
       var done = false;
       while (!done) {
         try {
           this.pairs.push(this.retrieveNextPair(row, this.pairs, rowNumber));
         } catch (error) {
           if (error instanceof NotFoundException_default) {
-            if (!this.pairs.length) {
-              throw new NotFoundException_default();
+            if (this.pairs.length === 0) {
+              throw error;
             }
             done = true;
+          } else {
+            throw error;
           }
         }
       }
-      if (this.checkChecksum()) {
+      if (this.checkChecksum() && RSSExpandedReader2.isValidSequence(this.pairs, true)) {
         return this.pairs;
       }
-      var tryStackedDecode;
-      if (this.rows.length) {
-        tryStackedDecode = true;
-      } else {
-        tryStackedDecode = false;
-      }
-      this.storeRow(rowNumber, false);
+      var tryStackedDecode = this.rows.length > 0;
+      this.storeRow(rowNumber);
       if (tryStackedDecode) {
         var ps = this.checkRowsBoolean(false);
-        if (ps != null) {
+        if (ps !== null) {
           return ps;
         }
         ps = this.checkRowsBoolean(true);
-        if (ps != null) {
+        if (ps !== null) {
           return ps;
         }
       }
@@ -10057,72 +10353,104 @@ var RSSExpandedReader = (
       }
       this.pairs.length = 0;
       if (reverse) {
-        this.rows = this.rows.reverse();
+        this.rows.reverse();
       }
       var ps = null;
       try {
         ps = this.checkRows(new Array(), 0);
-      } catch (e) {
-        console.log(e);
+      } catch (ex) {
+        if (ex instanceof NotFoundException_default) {
+        } else {
+          throw ex;
+        }
       }
       if (reverse) {
-        this.rows = this.rows.reverse();
+        this.rows.reverse();
       }
       return ps;
     };
     RSSExpandedReader2.prototype.checkRows = function(collectedRows, currentRow) {
-      var e_1, _a2;
+      var _a2;
       for (var i = currentRow; i < this.rows.length; i++) {
         var row = this.rows[i];
-        this.pairs.length = 0;
-        try {
-          for (var collectedRows_1 = (e_1 = void 0, __values16(collectedRows)), collectedRows_1_1 = collectedRows_1.next(); !collectedRows_1_1.done; collectedRows_1_1 = collectedRows_1.next()) {
-            var collectedRow = collectedRows_1_1.value;
-            this.pairs.push(collectedRow.getPairs());
+        (_a2 = this.pairs).push.apply(_a2, __spreadArray6([], __read6(row.getPairs()), false));
+        var addSize = row.getPairs().length;
+        if (RSSExpandedReader2.isValidSequence(this.pairs, false)) {
+          if (this.checkChecksum()) {
+            return this.pairs;
           }
-        } catch (e_1_1) {
-          e_1 = { error: e_1_1 };
-        } finally {
+          collectedRows.push(row);
           try {
-            if (collectedRows_1_1 && !collectedRows_1_1.done && (_a2 = collectedRows_1.return)) _a2.call(collectedRows_1);
-          } finally {
-            if (e_1) throw e_1.error;
+            return this.checkRows(collectedRows, i + 1);
+          } catch (ex) {
+            if (ex instanceof NotFoundException_default) {
+              collectedRows.pop();
+              this.pairs.splice(this.pairs.length - addSize, addSize);
+            } else {
+              throw ex;
+            }
           }
-        }
-        this.pairs.push(row.getPairs());
-        if (!RSSExpandedReader2.isValidSequence(this.pairs)) {
-          continue;
-        }
-        if (this.checkChecksum()) {
-          return this.pairs;
-        }
-        var rs = new Array(collectedRows);
-        rs.push(row);
-        try {
-          return this.checkRows(rs, i + 1);
-        } catch (e) {
-          console.log(e);
+        } else {
+          this.pairs.splice(this.pairs.length - addSize, addSize);
         }
       }
       throw new NotFoundException_default();
     };
-    RSSExpandedReader2.isValidSequence = function(pairs) {
-      var e_2, _a2;
+    RSSExpandedReader2.isValidSequence = function(pairs, complete) {
+      var e_1, _a2;
       try {
-        for (var _b = __values16(RSSExpandedReader2.FINDER_PATTERN_SEQUENCES), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values15(RSSExpandedReader2.FINDER_PATTERN_SEQUENCES), _c = _b.next(); !_c.done; _c = _b.next()) {
           var sequence = _c.value;
-          if (pairs.length > sequence.length) {
-            continue;
-          }
-          var stop_1 = true;
-          for (var j = 0; j < pairs.length; j++) {
-            if (pairs[j].getFinderPattern().getValue() !== sequence[j]) {
-              stop_1 = false;
-              break;
+          var sizeOk = complete ? pairs.length === sequence.length : pairs.length <= sequence.length;
+          if (sizeOk) {
+            var stop_1 = true;
+            for (var j = 0; j < pairs.length; j++) {
+              if (pairs[j].getFinderPattern().getValue() !== sequence[j]) {
+                stop_1 = false;
+                break;
+              }
+            }
+            if (stop_1) {
+              return true;
             }
           }
-          if (stop_1) {
-            return true;
+        }
+      } catch (e_1_1) {
+        e_1 = { error: e_1_1 };
+      } finally {
+        try {
+          if (_c && !_c.done && (_a2 = _b.return)) _a2.call(_b);
+        } finally {
+          if (e_1) throw e_1.error;
+        }
+      }
+      return false;
+    };
+    RSSExpandedReader2.mayFollow = function(pairs, value) {
+      var e_2, _a2;
+      if (pairs.length === 0) {
+        return true;
+      }
+      try {
+        for (var _b = __values15(this.FINDER_PATTERN_SEQUENCES), _c = _b.next(); !_c.done; _c = _b.next()) {
+          var sequence = _c.value;
+          if (pairs.length + 1 <= sequence.length) {
+            for (var i = pairs.length; i < sequence.length; i++) {
+              if (sequence[i] === value) {
+                var matched = true;
+                for (var j = 0; j < pairs.length; j++) {
+                  var allowed = sequence[i - j - 1];
+                  var actual = pairs[pairs.length - j - 1].getFinderPattern().getValue();
+                  if (allowed !== actual) {
+                    matched = false;
+                    break;
+                  }
+                }
+                if (matched) {
+                  return true;
+                }
+              }
+            }
           }
         }
       } catch (e_2_1) {
@@ -10136,7 +10464,7 @@ var RSSExpandedReader = (
       }
       return false;
     };
-    RSSExpandedReader2.prototype.storeRow = function(rowNumber, wasReversed) {
+    RSSExpandedReader2.prototype.storeRow = function(rowNumber) {
       var insertPos = 0;
       var prevIsSame = false;
       var nextIsSame = false;
@@ -10155,88 +10483,70 @@ var RSSExpandedReader = (
       if (RSSExpandedReader2.isPartialRow(this.pairs, this.rows)) {
         return;
       }
-      this.rows.push(insertPos, new ExpandedRow_default(this.pairs, rowNumber, wasReversed));
+      this.rows.splice(insertPos, 0, new ExpandedRow_default(this.pairs, rowNumber));
       this.removePartialRows(this.pairs, this.rows);
     };
     RSSExpandedReader2.prototype.removePartialRows = function(pairs, rows) {
-      var e_3, _a2, e_4, _b, e_5, _c;
-      try {
-        for (var rows_1 = __values16(rows), rows_1_1 = rows_1.next(); !rows_1_1.done; rows_1_1 = rows_1.next()) {
-          var row = rows_1_1.value;
-          if (row.getPairs().length === pairs.length) {
-            continue;
+      var e_3, _a2;
+      for (var rowsIndex = rows.length - 1; rowsIndex >= 0; rowsIndex--) {
+        var r = rows[rowsIndex];
+        if (r.getPairs().length !== pairs.length) {
+          var allFound = true;
+          var _loop_1 = function(p2) {
+            if (!pairs.some(function(otherPair) {
+              return ExpandedPair_default.equals(p2, otherPair);
+            })) {
+              allFound = false;
+              return "break";
+            }
+          };
+          try {
+            for (var _b = (e_3 = void 0, __values15(r.getPairs())), _c = _b.next(); !_c.done; _c = _b.next()) {
+              var p = _c.value;
+              var state_1 = _loop_1(p);
+              if (state_1 === "break")
+                break;
+            }
+          } catch (e_3_1) {
+            e_3 = { error: e_3_1 };
+          } finally {
+            try {
+              if (_c && !_c.done && (_a2 = _b.return)) _a2.call(_b);
+            } finally {
+              if (e_3) throw e_3.error;
+            }
           }
+          if (allFound) {
+            rows.splice(rowsIndex, 1);
+          }
+        }
+      }
+    };
+    RSSExpandedReader2.isPartialRow = function(pairs, rows) {
+      var e_4, _a2, e_5, _b, e_6, _c;
+      try {
+        for (var rows_1 = __values15(rows), rows_1_1 = rows_1.next(); !rows_1_1.done; rows_1_1 = rows_1.next()) {
+          var r = rows_1_1.value;
           var allFound = true;
           try {
-            for (var _d = (e_4 = void 0, __values16(row.getPairs())), _e = _d.next(); !_e.done; _e = _d.next()) {
-              var p = _e.value;
+            for (var pairs_1 = (e_5 = void 0, __values15(pairs)), pairs_1_1 = pairs_1.next(); !pairs_1_1.done; pairs_1_1 = pairs_1.next()) {
+              var p = pairs_1_1.value;
               var found = false;
               try {
-                for (var pairs_1 = (e_5 = void 0, __values16(pairs)), pairs_1_1 = pairs_1.next(); !pairs_1_1.done; pairs_1_1 = pairs_1.next()) {
-                  var pp = pairs_1_1.value;
+                for (var _d = (e_6 = void 0, __values15(r.getPairs())), _e = _d.next(); !_e.done; _e = _d.next()) {
+                  var pp = _e.value;
                   if (ExpandedPair_default.equals(p, pp)) {
                     found = true;
                     break;
                   }
                 }
-              } catch (e_5_1) {
-                e_5 = { error: e_5_1 };
-              } finally {
-                try {
-                  if (pairs_1_1 && !pairs_1_1.done && (_c = pairs_1.return)) _c.call(pairs_1);
-                } finally {
-                  if (e_5) throw e_5.error;
-                }
-              }
-              if (!found) {
-                allFound = false;
-              }
-            }
-          } catch (e_4_1) {
-            e_4 = { error: e_4_1 };
-          } finally {
-            try {
-              if (_e && !_e.done && (_b = _d.return)) _b.call(_d);
-            } finally {
-              if (e_4) throw e_4.error;
-            }
-          }
-        }
-      } catch (e_3_1) {
-        e_3 = { error: e_3_1 };
-      } finally {
-        try {
-          if (rows_1_1 && !rows_1_1.done && (_a2 = rows_1.return)) _a2.call(rows_1);
-        } finally {
-          if (e_3) throw e_3.error;
-        }
-      }
-    };
-    RSSExpandedReader2.isPartialRow = function(pairs, rows) {
-      var e_6, _a2, e_7, _b, e_8, _c;
-      try {
-        for (var rows_2 = __values16(rows), rows_2_1 = rows_2.next(); !rows_2_1.done; rows_2_1 = rows_2.next()) {
-          var r = rows_2_1.value;
-          var allFound = true;
-          try {
-            for (var pairs_2 = (e_7 = void 0, __values16(pairs)), pairs_2_1 = pairs_2.next(); !pairs_2_1.done; pairs_2_1 = pairs_2.next()) {
-              var p = pairs_2_1.value;
-              var found = false;
-              try {
-                for (var _d = (e_8 = void 0, __values16(r.getPairs())), _e = _d.next(); !_e.done; _e = _d.next()) {
-                  var pp = _e.value;
-                  if (p.equals(pp)) {
-                    found = true;
-                    break;
-                  }
-                }
-              } catch (e_8_1) {
-                e_8 = { error: e_8_1 };
+              } catch (e_6_1) {
+                e_6 = { error: e_6_1 };
               } finally {
                 try {
                   if (_e && !_e.done && (_c = _d.return)) _c.call(_d);
                 } finally {
-                  if (e_8) throw e_8.error;
+                  if (e_6) throw e_6.error;
                 }
               }
               if (!found) {
@@ -10244,26 +10554,26 @@ var RSSExpandedReader = (
                 break;
               }
             }
-          } catch (e_7_1) {
-            e_7 = { error: e_7_1 };
+          } catch (e_5_1) {
+            e_5 = { error: e_5_1 };
           } finally {
             try {
-              if (pairs_2_1 && !pairs_2_1.done && (_b = pairs_2.return)) _b.call(pairs_2);
+              if (pairs_1_1 && !pairs_1_1.done && (_b = pairs_1.return)) _b.call(pairs_1);
             } finally {
-              if (e_7) throw e_7.error;
+              if (e_5) throw e_5.error;
             }
           }
           if (allFound) {
             return true;
           }
         }
-      } catch (e_6_1) {
-        e_6 = { error: e_6_1 };
+      } catch (e_4_1) {
+        e_4 = { error: e_4_1 };
       } finally {
         try {
-          if (rows_2_1 && !rows_2_1.done && (_a2 = rows_2.return)) _a2.call(rows_2);
+          if (rows_1_1 && !rows_1_1.done && (_a2 = rows_1.return)) _a2.call(rows_1);
         } finally {
-          if (e_6) throw e_6.error;
+          if (e_4) throw e_4.error;
         }
       }
       return false;
@@ -10281,7 +10591,7 @@ var RSSExpandedReader = (
       return new Result_default(resultingString, null, null, points, BarcodeFormat_default.RSS_EXPANDED, null);
     };
     RSSExpandedReader2.prototype.checkChecksum = function() {
-      var firstPair = this.pairs.get(0);
+      var firstPair = this.pairs[0];
       var checkCharacter = firstPair.getLeftChar();
       var firstCharacter = firstPair.getRightChar();
       if (firstCharacter === null) {
@@ -10289,12 +10599,12 @@ var RSSExpandedReader = (
       }
       var checksum = firstCharacter.getChecksumPortion();
       var s = 2;
-      for (var i = 1; i < this.pairs.size(); ++i) {
-        var currentPair = this.pairs.get(i);
+      for (var i = 1; i < this.pairs.length; ++i) {
+        var currentPair = this.pairs[i];
         checksum += currentPair.getLeftChar().getChecksumPortion();
         s++;
         var currentRightChar = currentPair.getRightChar();
-        if (currentRightChar != null) {
+        if (currentRightChar !== null) {
           checksum += currentRightChar.getChecksumPortion();
           s++;
         }
@@ -10304,7 +10614,7 @@ var RSSExpandedReader = (
       return checkCharacterValue === checkCharacter.getValue();
     };
     RSSExpandedReader2.getNextSecondBar = function(row, initialPos) {
-      var currentPos;
+      var currentPos = 0;
       if (row.get(initialPos)) {
         currentPos = row.getNextUnset(initialPos);
         currentPos = row.getNextSet(currentPos);
@@ -10319,36 +10629,42 @@ var RSSExpandedReader = (
       if (this.startFromEven) {
         isOddPattern = !isOddPattern;
       }
-      var pattern;
+      var pattern = null;
+      var leftChar = null;
       var keepFinding = true;
       var forcedOffset = -1;
       do {
         this.findNextPair(row, previousPairs, forcedOffset);
-        pattern = this.parseFoundFinderPattern(row, rowNumber, isOddPattern);
+        pattern = this.parseFoundFinderPattern(row, rowNumber, isOddPattern, previousPairs);
         if (pattern === null) {
           forcedOffset = RSSExpandedReader2.getNextSecondBar(row, this.startEnd[0]);
         } else {
-          keepFinding = false;
+          try {
+            leftChar = this.decodeDataCharacter(row, pattern, isOddPattern, true);
+            keepFinding = false;
+          } catch (ex) {
+            if (ex instanceof NotFoundException_default) {
+              forcedOffset = RSSExpandedReader2.getNextSecondBar(row, this.startEnd[0]);
+            } else {
+              throw ex;
+            }
+          }
         }
       } while (keepFinding);
-      var leftChar = this.decodeDataCharacter(row, pattern, isOddPattern, true);
-      if (!this.isEmptyPair(previousPairs) && previousPairs[previousPairs.length - 1].mustBeLast()) {
+      if (previousPairs.length > 0 && previousPairs[previousPairs.length - 1].mustBeLast()) {
         throw new NotFoundException_default();
       }
-      var rightChar;
+      var rightChar = null;
       try {
         rightChar = this.decodeDataCharacter(row, pattern, isOddPattern, false);
-      } catch (e) {
-        rightChar = null;
-        console.log(e);
+      } catch (ex) {
+        if (ex instanceof NotFoundException_default) {
+          rightChar = null;
+        } else {
+          throw ex;
+        }
       }
-      return new ExpandedPair_default(leftChar, rightChar, pattern, true);
-    };
-    RSSExpandedReader2.prototype.isEmptyPair = function(pairs) {
-      if (pairs.length === 0) {
-        return true;
-      }
-      return false;
+      return new ExpandedPair_default(leftChar, rightChar, pattern);
     };
     RSSExpandedReader2.prototype.findNextPair = function(row, previousPairs, forcedOffset) {
       var counters = this.getDecodeFinderCounters();
@@ -10357,10 +10673,10 @@ var RSSExpandedReader = (
       counters[2] = 0;
       counters[3] = 0;
       var width = row.getSize();
-      var rowOffset;
+      var rowOffset = 0;
       if (forcedOffset >= 0) {
         rowOffset = forcedOffset;
-      } else if (this.isEmptyPair(previousPairs)) {
+      } else if (previousPairs.length === 0) {
         rowOffset = 0;
       } else {
         var lastPair = previousPairs[previousPairs.length - 1];
@@ -10413,16 +10729,16 @@ var RSSExpandedReader = (
     };
     RSSExpandedReader2.reverseCounters = function(counters) {
       var length = counters.length;
-      for (var i = 0; i < length / 2; ++i) {
+      for (var i = 0; i < Math.trunc(length / 2); ++i) {
         var tmp = counters[i];
         counters[i] = counters[length - i - 1];
         counters[length - i - 1] = tmp;
       }
     };
-    RSSExpandedReader2.prototype.parseFoundFinderPattern = function(row, rowNumber, oddPattern) {
-      var firstCounter;
-      var start;
-      var end;
+    RSSExpandedReader2.prototype.parseFoundFinderPattern = function(row, rowNumber, oddPattern, previousPairs) {
+      var firstCounter = 0;
+      var start = 0;
+      var end = 0;
       if (oddPattern) {
         var firstElementStart = this.startEnd[0] - 1;
         while (firstElementStart >= 0 && !row.get(firstElementStart)) {
@@ -10440,11 +10756,31 @@ var RSSExpandedReader = (
       var counters = this.getDecodeFinderCounters();
       System_default.arraycopy(counters, 0, counters, 1, counters.length - 1);
       counters[0] = firstCounter;
-      var value;
+      var value = 0;
       try {
         value = this.parseFinderValue(counters, RSSExpandedReader2.FINDER_PATTERNS);
-      } catch (e) {
+      } catch (ex) {
+        if (ex instanceof NotFoundException_default) {
+          return null;
+        } else {
+          throw ex;
+        }
+      }
+      if (!RSSExpandedReader2.mayFollow(previousPairs, value)) {
         return null;
+      }
+      if (previousPairs.length > 0) {
+        var prev = previousPairs[previousPairs.length - 1];
+        var prevStart = prev.getFinderPattern().getStartEnd()[0];
+        var prevEnd = prev.getFinderPattern().getStartEnd()[1];
+        var prevWidth = prevEnd - prevStart;
+        var charWidth = prevWidth / /* float */
+        RSSExpandedReader2.FINDER_PATTERN_MODULES * RSSExpandedReader2.DATA_CHARACTER_MODULES;
+        var minX = prevEnd + 2 * charWidth * (1 - RSSExpandedReader2.MAX_FINDER_PATTERN_DISTANCE_VARIANCE);
+        var maxX = prevEnd + 2 * charWidth * (1 + RSSExpandedReader2.MAX_FINDER_PATTERN_DISTANCE_VARIANCE);
+        if (start < minX || start > maxX) {
+          return null;
+        }
       }
       return new FinderPattern_default(value, [start, end], start, end, rowNumber);
     };
@@ -10475,7 +10811,7 @@ var RSSExpandedReader = (
       var evenRoundingErrors = this.getEvenRoundingErrors();
       for (var i = 0; i < counters.length; i++) {
         var value_1 = 1 * counters[i] / elementWidth;
-        var count = value_1 + 0.5;
+        var count = Math.trunc(value_1 + 0.5);
         if (count < 1) {
           if (value_1 < 0.3) {
             throw new NotFoundException_default();
@@ -10487,7 +10823,7 @@ var RSSExpandedReader = (
           }
           count = 8;
         }
-        var offset = i / 2;
+        var offset = Math.trunc(i / 2);
         if ((i & 1) === 0) {
           oddCounts[offset] = count;
           oddRoundingErrors[offset] = value_1 - count;
@@ -10518,7 +10854,7 @@ var RSSExpandedReader = (
       if ((oddSum & 1) !== 0 || oddSum > 13 || oddSum < 4) {
         throw new NotFoundException_default();
       }
-      var group = (13 - oddSum) / 2;
+      var group = Math.trunc((13 - oddSum) / 2);
       var oddWidest = RSSExpandedReader2.SYMBOL_WIDEST[group];
       var evenWidest = 9 - oddWidest;
       var vOdd = RSSUtils_default.getRSSvalue(oddCounts, oddWidest, true);
@@ -10619,11 +10955,17 @@ var RSSExpandedReader = (
     RSSExpandedReader2.GSUM = [0, 348, 1388, 2948, 3988];
     RSSExpandedReader2.FINDER_PATTERNS = [
       Int32Array.from([1, 8, 4, 1]),
+      // A
       Int32Array.from([3, 6, 4, 1]),
+      // B
       Int32Array.from([3, 4, 6, 1]),
+      // C
       Int32Array.from([3, 2, 8, 1]),
+      // D
       Int32Array.from([2, 6, 5, 1]),
+      // E
       Int32Array.from([2, 2, 9, 1])
+      // F
     ];
     RSSExpandedReader2.WEIGHTS = [
       [1, 3, 9, 27, 81, 32, 96, 77],
@@ -10741,32 +11083,37 @@ var RSSExpandedReader = (
       ]
     ];
     RSSExpandedReader2.MAX_PAIRS = 11;
+    RSSExpandedReader2.FINDER_PATTERN_MODULES = 15;
+    RSSExpandedReader2.DATA_CHARACTER_MODULES = 17;
+    RSSExpandedReader2.MAX_FINDER_PATTERN_DISTANCE_VARIANCE = 0.1;
     return RSSExpandedReader2;
-  })(AbstractRSSReader_default)
+  }(AbstractRSSReader_default)
 );
 var RSSExpandedReader_default = RSSExpandedReader;
 
 // package/esm/core/oned/rss/Pair.js
-var __extends49 = /* @__PURE__ */ (function() {
+var __extends49 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var Pair = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends49(Pair2, _super);
     function Pair2(value, checksumPortion, finderPattern) {
       var _this = _super.call(this, value, checksumPortion) || this;
@@ -10784,29 +11131,57 @@ var Pair = (
       this.count++;
     };
     return Pair2;
-  })(DataCharacter_default)
+  }(DataCharacter_default)
 );
 var Pair_default = Pair;
 
 // package/esm/core/oned/rss/RSS14Reader.js
-var __extends50 = /* @__PURE__ */ (function() {
+var __extends50 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
-var __values17 = function(o) {
+}();
+var __read7 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var __spreadArray7 = function(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+    if (ar || !(i in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+      ar[i] = from[i];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
+};
+var __values16 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -10819,10 +11194,10 @@ var __values17 = function(o) {
 };
 var RSS14Reader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends50(RSS14Reader2, _super);
     function RSS14Reader2() {
-      var _this = _super !== null && _super.apply(this, arguments) || this;
+      var _this = _super.apply(this, __spreadArray7([], __read7(arguments), false)) || this;
       _this.possibleLeftPairs = [];
       _this.possibleRightPairs = [];
       return _this;
@@ -10836,11 +11211,11 @@ var RSS14Reader = (
       RSS14Reader2.addOrTally(this.possibleRightPairs, rightPair);
       row.reverse();
       try {
-        for (var _c = __values17(this.possibleLeftPairs), _d = _c.next(); !_d.done; _d = _c.next()) {
+        for (var _c = __values16(this.possibleLeftPairs), _d = _c.next(); !_d.done; _d = _c.next()) {
           var left = _d.value;
           if (left.getCount() > 1) {
             try {
-              for (var _e = (e_2 = void 0, __values17(this.possibleRightPairs)), _f = _e.next(); !_f.done; _f = _e.next()) {
+              for (var _e = (e_2 = void 0, __values16(this.possibleRightPairs)), _f = _e.next(); !_f.done; _f = _e.next()) {
                 var right = _f.value;
                 if (right.getCount() > 1 && RSS14Reader2.checkChecksum(left, right)) {
                   return RSS14Reader2.constructResult(left, right);
@@ -10870,12 +11245,12 @@ var RSS14Reader = (
     };
     RSS14Reader2.addOrTally = function(possiblePairs, pair) {
       var e_3, _a2;
-      if (pair == null) {
+      if (pair === null) {
         return;
       }
       var found = false;
       try {
-        for (var possiblePairs_1 = __values17(possiblePairs), possiblePairs_1_1 = possiblePairs_1.next(); !possiblePairs_1_1.done; possiblePairs_1_1 = possiblePairs_1.next()) {
+        for (var possiblePairs_1 = __values16(possiblePairs), possiblePairs_1_1 = possiblePairs_1.next(); !possiblePairs_1_1.done; possiblePairs_1_1 = possiblePairs_1.next()) {
           var other = possiblePairs_1_1.value;
           if (other.getValue() === pair.getValue()) {
             other.incrementCount();
@@ -10902,7 +11277,7 @@ var RSS14Reader = (
     };
     RSS14Reader2.constructResult = function(leftPair, rightPair) {
       var symbolValue = 4537077 * leftPair.getValue() + rightPair.getValue();
-      var text = new String(symbolValue).toString();
+      var text = String(symbolValue);
       var buffer = new StringBuilder_default();
       for (var i = 13 - text.length; i > 0; i--) {
         buffer.append("0");
@@ -10939,7 +11314,7 @@ var RSS14Reader = (
         var pattern = this.parseFoundFinderPattern(row, rowNumber, right, startEnd);
         var resultPointCallback = hints == null ? null : hints.get(DecodeHintType_default.NEED_RESULT_POINT_CALLBACK);
         if (resultPointCallback != null) {
-          var center = (startEnd[0] + startEnd[1]) / 2;
+          var center = (startEnd[0] + startEnd[1] - 1) / 2;
           if (right) {
             center = row.getSize() - 1 - center;
           }
@@ -10948,8 +11323,12 @@ var RSS14Reader = (
         var outside = this.decodeDataCharacter(row, pattern, true);
         var inside = this.decodeDataCharacter(row, pattern, false);
         return new Pair_default(1597 * outside.getValue() + inside.getValue(), outside.getChecksumPortion() + 4 * inside.getChecksumPortion(), pattern);
-      } catch (err) {
-        return null;
+      } catch (ex) {
+        if (ex instanceof NotFoundException_default) {
+          return null;
+        } else {
+          throw ex;
+        }
       }
     };
     RSS14Reader2.prototype.decodeDataCharacter = function(row, pattern, outsideChar) {
@@ -10960,7 +11339,7 @@ var RSS14Reader = (
       if (outsideChar) {
         OneDReader_default.recordPatternInReverse(row, pattern.getStartEnd()[0], counters);
       } else {
-        OneDReader_default.recordPattern(row, pattern.getStartEnd()[1] + 1, counters);
+        OneDReader_default.recordPattern(row, pattern.getStartEnd()[1], counters);
         for (var i = 0, j = counters.length - 1; i < j; i++, j--) {
           var temp = counters[i];
           counters[i] = counters[j];
@@ -11208,31 +11587,33 @@ var RSS14Reader = (
       Int32Array.from([1, 3, 9, 1])
     ];
     return RSS14Reader2;
-  })(AbstractRSSReader_default)
+  }(AbstractRSSReader_default)
 );
 var RSS14Reader_default = RSS14Reader;
 
 // package/esm/core/oned/MultiFormatOneDReader.js
-var __extends51 = /* @__PURE__ */ (function() {
+var __extends51 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var MultiFormatOneDReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends51(MultiFormatOneDReader2, _super);
     function MultiFormatOneDReader2(hints) {
       var _this = _super.call(this) || this;
@@ -11275,6 +11656,7 @@ var MultiFormatOneDReader = (
         _this.readers.push(new Code128Reader_default());
         _this.readers.push(new ITFReader_default());
         _this.readers.push(new RSS14Reader_default());
+        _this.readers.push(new RSSExpandedReader_default());
       }
       return _this;
     }
@@ -11293,31 +11675,33 @@ var MultiFormatOneDReader = (
       });
     };
     return MultiFormatOneDReader2;
-  })(OneDReader_default)
+  }(OneDReader_default)
 );
 var MultiFormatOneDReader_default = MultiFormatOneDReader;
 
 // package/esm/browser/BrowserBarcodeReader.js
-var __extends52 = /* @__PURE__ */ (function() {
+var __extends52 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var BrowserBarcodeReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends52(BrowserBarcodeReader2, _super);
     function BrowserBarcodeReader2(timeBetweenScansMillis, hints) {
       if (timeBetweenScansMillis === void 0) {
@@ -11326,11 +11710,11 @@ var BrowserBarcodeReader = (
       return _super.call(this, new MultiFormatOneDReader_default(hints), timeBetweenScansMillis, hints) || this;
     }
     return BrowserBarcodeReader2;
-  })(BrowserCodeReader)
+  }(BrowserCodeReader)
 );
 
 // package/esm/core/datamatrix/decoder/Version.js
-var __values18 = function(o) {
+var __values17 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -11343,7 +11727,7 @@ var __values18 = function(o) {
 };
 var ECBlocks = (
   /** @class */
-  (function() {
+  function() {
     function ECBlocks3(ecCodewords, ecBlocks1, ecBlocks2) {
       this.ecCodewords = ecCodewords;
       this.ecBlocks = [ecBlocks1];
@@ -11356,11 +11740,11 @@ var ECBlocks = (
       return this.ecBlocks;
     };
     return ECBlocks3;
-  })()
+  }()
 );
 var ECB = (
   /** @class */
-  (function() {
+  function() {
     function ECB3(count, dataCodewords) {
       this.count = count;
       this.dataCodewords = dataCodewords;
@@ -11372,11 +11756,11 @@ var ECB = (
       return this.dataCodewords;
     };
     return ECB3;
-  })()
+  }()
 );
 var Version = (
   /** @class */
-  (function() {
+  function() {
     function Version3(versionNumber, symbolSizeRows, symbolSizeColumns, dataRegionSizeRows, dataRegionSizeColumns, ecBlocks) {
       var e_1, _a2;
       this.versionNumber = versionNumber;
@@ -11389,7 +11773,7 @@ var Version = (
       var ecCodewords = ecBlocks.getECCodewords();
       var ecbArray = ecBlocks.getECBlocks();
       try {
-        for (var ecbArray_1 = __values18(ecbArray), ecbArray_1_1 = ecbArray_1.next(); !ecbArray_1_1.done; ecbArray_1_1 = ecbArray_1.next()) {
+        for (var ecbArray_1 = __values17(ecbArray), ecbArray_1_1 = ecbArray_1.next(); !ecbArray_1_1.done; ecbArray_1_1 = ecbArray_1.next()) {
           var ecBlock = ecbArray_1_1.value;
           total += ecBlock.getCount() * (ecBlock.getDataCodewords() + ecCodewords);
         }
@@ -11431,7 +11815,7 @@ var Version = (
         throw new FormatException_default();
       }
       try {
-        for (var _b = __values18(Version3.VERSIONS), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values17(Version3.VERSIONS), _c = _b.next(); !_c.done; _c = _b.next()) {
           var version = _c.value;
           if (version.symbolSizeRows === numRows && version.symbolSizeColumns === numColumns) {
             return version;
@@ -11487,32 +11871,32 @@ var Version = (
     };
     Version3.VERSIONS = Version3.buildVersions();
     return Version3;
-  })()
+  }()
 );
 var Version_default = Version;
 
 // package/esm/core/datamatrix/decoder/BitMatrixParser.js
 var BitMatrixParser = (
   /** @class */
-  (function() {
-    function BitMatrixParser3(bitMatrix) {
+  function() {
+    function BitMatrixParser4(bitMatrix) {
       var dimension = bitMatrix.getHeight();
       if (dimension < 8 || dimension > 144 || (dimension & 1) !== 0) {
         throw new FormatException_default();
       }
-      this.version = BitMatrixParser3.readVersion(bitMatrix);
+      this.version = BitMatrixParser4.readVersion(bitMatrix);
       this.mappingBitMatrix = this.extractDataRegion(bitMatrix);
       this.readMappingMatrix = new BitMatrix_default(this.mappingBitMatrix.getWidth(), this.mappingBitMatrix.getHeight());
     }
-    BitMatrixParser3.prototype.getVersion = function() {
+    BitMatrixParser4.prototype.getVersion = function() {
       return this.version;
     };
-    BitMatrixParser3.readVersion = function(bitMatrix) {
+    BitMatrixParser4.readVersion = function(bitMatrix) {
       var numRows = bitMatrix.getHeight();
       var numColumns = bitMatrix.getWidth();
       return Version_default.getVersionForDimensions(numRows, numColumns);
     };
-    BitMatrixParser3.prototype.readCodewords = function() {
+    BitMatrixParser4.prototype.readCodewords = function() {
       var result = new Int8Array(this.version.getTotalCodewords());
       var resultOffset = 0;
       var row = 4;
@@ -11570,7 +11954,7 @@ var BitMatrixParser = (
       }
       return result;
     };
-    BitMatrixParser3.prototype.readModule = function(row, column, numRows, numColumns) {
+    BitMatrixParser4.prototype.readModule = function(row, column, numRows, numColumns) {
       if (row < 0) {
         row += numRows;
         column += 4 - (numRows + 4 & 7);
@@ -11582,7 +11966,7 @@ var BitMatrixParser = (
       this.readMappingMatrix.set(column, row);
       return this.mappingBitMatrix.get(column, row);
     };
-    BitMatrixParser3.prototype.readUtah = function(row, column, numRows, numColumns) {
+    BitMatrixParser4.prototype.readUtah = function(row, column, numRows, numColumns) {
       var currentByte = 0;
       if (this.readModule(row - 2, column - 2, numRows, numColumns)) {
         currentByte |= 1;
@@ -11617,7 +12001,7 @@ var BitMatrixParser = (
       }
       return currentByte;
     };
-    BitMatrixParser3.prototype.readCorner1 = function(numRows, numColumns) {
+    BitMatrixParser4.prototype.readCorner1 = function(numRows, numColumns) {
       var currentByte = 0;
       if (this.readModule(numRows - 1, 0, numRows, numColumns)) {
         currentByte |= 1;
@@ -11652,7 +12036,7 @@ var BitMatrixParser = (
       }
       return currentByte;
     };
-    BitMatrixParser3.prototype.readCorner2 = function(numRows, numColumns) {
+    BitMatrixParser4.prototype.readCorner2 = function(numRows, numColumns) {
       var currentByte = 0;
       if (this.readModule(numRows - 3, 0, numRows, numColumns)) {
         currentByte |= 1;
@@ -11687,7 +12071,7 @@ var BitMatrixParser = (
       }
       return currentByte;
     };
-    BitMatrixParser3.prototype.readCorner3 = function(numRows, numColumns) {
+    BitMatrixParser4.prototype.readCorner3 = function(numRows, numColumns) {
       var currentByte = 0;
       if (this.readModule(numRows - 1, 0, numRows, numColumns)) {
         currentByte |= 1;
@@ -11722,7 +12106,7 @@ var BitMatrixParser = (
       }
       return currentByte;
     };
-    BitMatrixParser3.prototype.readCorner4 = function(numRows, numColumns) {
+    BitMatrixParser4.prototype.readCorner4 = function(numRows, numColumns) {
       var currentByte = 0;
       if (this.readModule(numRows - 3, 0, numRows, numColumns)) {
         currentByte |= 1;
@@ -11757,7 +12141,7 @@ var BitMatrixParser = (
       }
       return currentByte;
     };
-    BitMatrixParser3.prototype.extractDataRegion = function(bitMatrix) {
+    BitMatrixParser4.prototype.extractDataRegion = function(bitMatrix) {
       var symbolSizeRows = this.version.getSymbolSizeRows();
       var symbolSizeColumns = this.version.getSymbolSizeColumns();
       if (bitMatrix.getHeight() !== symbolSizeRows) {
@@ -11789,13 +12173,13 @@ var BitMatrixParser = (
       }
       return bitMatrixWithoutAlignment;
     };
-    return BitMatrixParser3;
-  })()
+    return BitMatrixParser4;
+  }()
 );
 var BitMatrixParser_default = BitMatrixParser;
 
 // package/esm/core/datamatrix/decoder/DataBlock.js
-var __values19 = function(o) {
+var __values18 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -11808,7 +12192,7 @@ var __values19 = function(o) {
 };
 var DataBlock = (
   /** @class */
-  (function() {
+  function() {
     function DataBlock3(numDataCodewords, codewords) {
       this.numDataCodewords = numDataCodewords;
       this.codewords = codewords;
@@ -11819,7 +12203,7 @@ var DataBlock = (
       var totalBlocks = 0;
       var ecBlockArray = ecBlocks.getECBlocks();
       try {
-        for (var ecBlockArray_1 = __values19(ecBlockArray), ecBlockArray_1_1 = ecBlockArray_1.next(); !ecBlockArray_1_1.done; ecBlockArray_1_1 = ecBlockArray_1.next()) {
+        for (var ecBlockArray_1 = __values18(ecBlockArray), ecBlockArray_1_1 = ecBlockArray_1.next(); !ecBlockArray_1_1.done; ecBlockArray_1_1 = ecBlockArray_1.next()) {
           var ecBlock = ecBlockArray_1_1.value;
           totalBlocks += ecBlock.getCount();
         }
@@ -11835,7 +12219,7 @@ var DataBlock = (
       var result = new Array(totalBlocks);
       var numResultBlocks = 0;
       try {
-        for (var ecBlockArray_2 = __values19(ecBlockArray), ecBlockArray_2_1 = ecBlockArray_2.next(); !ecBlockArray_2_1.done; ecBlockArray_2_1 = ecBlockArray_2.next()) {
+        for (var ecBlockArray_2 = __values18(ecBlockArray), ecBlockArray_2_1 = ecBlockArray_2.next(); !ecBlockArray_2_1.done; ecBlockArray_2_1 = ecBlockArray_2.next()) {
           var ecBlock = ecBlockArray_2_1.value;
           for (var i = 0; i < ecBlock.getCount(); i++) {
             var numDataCodewords = ecBlock.getDataCodewords();
@@ -11886,14 +12270,14 @@ var DataBlock = (
       return this.codewords;
     };
     return DataBlock3;
-  })()
+  }()
 );
 var DataBlock_default = DataBlock;
 
 // package/esm/core/common/BitSource.js
 var BitSource = (
   /** @class */
-  (function() {
+  function() {
     function BitSource2(bytes) {
       this.bytes = bytes;
       this.byteOffset = 0;
@@ -11947,7 +12331,7 @@ var BitSource = (
       return 8 * (this.bytes.length - this.byteOffset) - this.bitOffset;
     };
     return BitSource2;
-  })()
+  }()
 );
 var BitSource_default = BitSource;
 
@@ -11964,10 +12348,10 @@ var Mode;
 })(Mode || (Mode = {}));
 var DecodedBitStreamParser = (
   /** @class */
-  (function() {
-    function DecodedBitStreamParser4() {
+  function() {
+    function DecodedBitStreamParser5() {
     }
-    DecodedBitStreamParser4.decode = function(bytes) {
+    DecodedBitStreamParser5.decode = function(bytes) {
       var bits = new BitSource_default(bytes);
       var result = new StringBuilder_default();
       var resultTrailer = new StringBuilder_default();
@@ -12004,7 +12388,7 @@ var DecodedBitStreamParser = (
       }
       return new DecoderResult_default(bytes, result.toString(), byteSegments.length === 0 ? null : byteSegments, null);
     };
-    DecodedBitStreamParser4.decodeAsciiSegment = function(bits, result, resultTrailer) {
+    DecodedBitStreamParser5.decodeAsciiSegment = function(bits, result, resultTrailer) {
       var upperShift = false;
       do {
         var oneByte = bits.readBits(8);
@@ -12066,7 +12450,7 @@ var DecodedBitStreamParser = (
       } while (bits.available() > 0);
       return Mode.ASCII_ENCODE;
     };
-    DecodedBitStreamParser4.decodeC40Segment = function(bits, result) {
+    DecodedBitStreamParser5.decodeC40Segment = function(bits, result) {
       var upperShift = false;
       var cValues = [];
       var shift = 0;
@@ -12144,7 +12528,7 @@ var DecodedBitStreamParser = (
         }
       } while (bits.available() > 0);
     };
-    DecodedBitStreamParser4.decodeTextSegment = function(bits, result) {
+    DecodedBitStreamParser5.decodeTextSegment = function(bits, result) {
       var upperShift = false;
       var cValues = [];
       var shift = 0;
@@ -12227,7 +12611,7 @@ var DecodedBitStreamParser = (
         }
       } while (bits.available() > 0);
     };
-    DecodedBitStreamParser4.decodeAnsiX12Segment = function(bits, result) {
+    DecodedBitStreamParser5.decodeAnsiX12Segment = function(bits, result) {
       var cValues = [];
       do {
         if (bits.available() === 8) {
@@ -12266,7 +12650,7 @@ var DecodedBitStreamParser = (
         }
       } while (bits.available() > 0);
     };
-    DecodedBitStreamParser4.parseTwoBytes = function(firstByte, secondByte, result) {
+    DecodedBitStreamParser5.parseTwoBytes = function(firstByte, secondByte, result) {
       var fullBitValue = (firstByte << 8) + secondByte - 1;
       var temp = Math.floor(fullBitValue / 1600);
       result[0] = temp;
@@ -12275,7 +12659,7 @@ var DecodedBitStreamParser = (
       result[1] = temp;
       result[2] = fullBitValue - temp * 40;
     };
-    DecodedBitStreamParser4.decodeEdifactSegment = function(bits, result) {
+    DecodedBitStreamParser5.decodeEdifactSegment = function(bits, result) {
       do {
         if (bits.available() <= 16) {
           return;
@@ -12296,7 +12680,7 @@ var DecodedBitStreamParser = (
         }
       } while (bits.available() > 0);
     };
-    DecodedBitStreamParser4.decodeBase256Segment = function(bits, result, byteSegments) {
+    DecodedBitStreamParser5.decodeBase256Segment = function(bits, result, byteSegments) {
       var codewordPosition = 1 + bits.getByteOffset();
       var d1 = this.unrandomize255State(bits.readBits(8), codewordPosition++);
       var count;
@@ -12324,12 +12708,12 @@ var DecodedBitStreamParser = (
         throw new IllegalStateException_default("Platform does not support required encoding: " + uee.message);
       }
     };
-    DecodedBitStreamParser4.unrandomize255State = function(randomizedBase256Codeword, base256CodewordPosition) {
+    DecodedBitStreamParser5.unrandomize255State = function(randomizedBase256Codeword, base256CodewordPosition) {
       var pseudoRandomNumber = 149 * base256CodewordPosition % 255 + 1;
       var tempVariable = randomizedBase256Codeword - pseudoRandomNumber;
       return tempVariable >= 0 ? tempVariable : tempVariable + 256;
     };
-    DecodedBitStreamParser4.C40_BASIC_SET_CHARS = [
+    DecodedBitStreamParser5.C40_BASIC_SET_CHARS = [
       "*",
       "*",
       "*",
@@ -12371,7 +12755,7 @@ var DecodedBitStreamParser = (
       "Y",
       "Z"
     ];
-    DecodedBitStreamParser4.C40_SHIFT2_SET_CHARS = [
+    DecodedBitStreamParser5.C40_SHIFT2_SET_CHARS = [
       "!",
       '"',
       "#",
@@ -12400,7 +12784,7 @@ var DecodedBitStreamParser = (
       "^",
       "_"
     ];
-    DecodedBitStreamParser4.TEXT_BASIC_SET_CHARS = [
+    DecodedBitStreamParser5.TEXT_BASIC_SET_CHARS = [
       "*",
       "*",
       "*",
@@ -12442,8 +12826,8 @@ var DecodedBitStreamParser = (
       "y",
       "z"
     ];
-    DecodedBitStreamParser4.TEXT_SHIFT2_SET_CHARS = DecodedBitStreamParser4.C40_SHIFT2_SET_CHARS;
-    DecodedBitStreamParser4.TEXT_SHIFT3_SET_CHARS = [
+    DecodedBitStreamParser5.TEXT_SHIFT2_SET_CHARS = DecodedBitStreamParser5.C40_SHIFT2_SET_CHARS;
+    DecodedBitStreamParser5.TEXT_SHIFT3_SET_CHARS = [
       "`",
       "A",
       "B",
@@ -12477,13 +12861,13 @@ var DecodedBitStreamParser = (
       "~",
       String.fromCharCode(127)
     ];
-    return DecodedBitStreamParser4;
-  })()
+    return DecodedBitStreamParser5;
+  }()
 );
 var DecodedBitStreamParser_default = DecodedBitStreamParser;
 
 // package/esm/core/datamatrix/decoder/Decoder.js
-var __values20 = function(o) {
+var __values19 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -12496,11 +12880,11 @@ var __values20 = function(o) {
 };
 var Decoder2 = (
   /** @class */
-  (function() {
-    function Decoder4() {
+  function() {
+    function Decoder5() {
       this.rsDecoder = new ReedSolomonDecoder_default(GenericGF_default.DATA_MATRIX_FIELD_256);
     }
-    Decoder4.prototype.decode = function(bits) {
+    Decoder5.prototype.decode = function(bits) {
       var e_1, _a2;
       var parser = new BitMatrixParser_default(bits);
       var version = parser.getVersion();
@@ -12508,7 +12892,7 @@ var Decoder2 = (
       var dataBlocks = DataBlock_default.getDataBlocks(codewords, version);
       var totalBytes = 0;
       try {
-        for (var dataBlocks_1 = __values20(dataBlocks), dataBlocks_1_1 = dataBlocks_1.next(); !dataBlocks_1_1.done; dataBlocks_1_1 = dataBlocks_1.next()) {
+        for (var dataBlocks_1 = __values19(dataBlocks), dataBlocks_1_1 = dataBlocks_1.next(); !dataBlocks_1_1.done; dataBlocks_1_1 = dataBlocks_1.next()) {
           var db = dataBlocks_1_1.value;
           totalBytes += db.getNumDataCodewords();
         }
@@ -12534,7 +12918,7 @@ var Decoder2 = (
       }
       return DecodedBitStreamParser_default.decode(resultBytes);
     };
-    Decoder4.prototype.correctErrors = function(codewordBytes, numDataCodewords) {
+    Decoder5.prototype.correctErrors = function(codewordBytes, numDataCodewords) {
       var codewordsInts = new Int32Array(codewordBytes);
       try {
         this.rsDecoder.decode(codewordsInts, codewordBytes.length - numDataCodewords);
@@ -12545,15 +12929,15 @@ var Decoder2 = (
         codewordBytes[i] = codewordsInts[i];
       }
     };
-    return Decoder4;
-  })()
+    return Decoder5;
+  }()
 );
 var Decoder_default2 = Decoder2;
 
 // package/esm/core/datamatrix/detector/Detector.js
 var Detector2 = (
   /** @class */
-  (function() {
+  function() {
     function Detector5(image) {
       this.image = image;
       this.rectangleDetector = new WhiteRectangleDetector_default(this.image);
@@ -12772,14 +13156,14 @@ var Detector2 = (
       return transitions;
     };
     return Detector5;
-  })()
+  }()
 );
 var Detector_default2 = Detector2;
 
 // package/esm/core/datamatrix/DataMatrixReader.js
 var DataMatrixReader = (
   /** @class */
-  (function() {
+  function() {
     function DataMatrixReader2() {
       this.decoder = new Decoder_default2();
     }
@@ -12860,31 +13244,33 @@ var DataMatrixReader = (
     };
     DataMatrixReader2.NO_POINTS = [];
     return DataMatrixReader2;
-  })()
+  }()
 );
 var DataMatrixReader_default = DataMatrixReader;
 
 // package/esm/browser/BrowserDatamatrixCodeReader.js
-var __extends53 = /* @__PURE__ */ (function() {
+var __extends53 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var BrowserDatamatrixCodeReader = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends53(BrowserDatamatrixCodeReader2, _super);
     function BrowserDatamatrixCodeReader2(timeBetweenScansMillis) {
       if (timeBetweenScansMillis === void 0) {
@@ -12893,7 +13279,7 @@ var BrowserDatamatrixCodeReader = (
       return _super.call(this, new DataMatrixReader_default(), timeBetweenScansMillis) || this;
     }
     return BrowserDatamatrixCodeReader2;
-  })(BrowserCodeReader)
+  }(BrowserCodeReader)
 );
 
 // package/esm/core/qrcode/decoder/ErrorCorrectionLevel.js
@@ -12906,7 +13292,7 @@ var ErrorCorrectionLevelValues;
 })(ErrorCorrectionLevelValues || (ErrorCorrectionLevelValues = {}));
 var ErrorCorrectionLevel = (
   /** @class */
-  (function() {
+  function() {
     function ErrorCorrectionLevel2(value, stringValue, bits) {
       this.value = value;
       this.stringValue = stringValue;
@@ -12957,12 +13343,12 @@ var ErrorCorrectionLevel = (
     ErrorCorrectionLevel2.Q = new ErrorCorrectionLevel2(ErrorCorrectionLevelValues.Q, "Q", 3);
     ErrorCorrectionLevel2.H = new ErrorCorrectionLevel2(ErrorCorrectionLevelValues.H, "H", 2);
     return ErrorCorrectionLevel2;
-  })()
+  }()
 );
 var ErrorCorrectionLevel_default = ErrorCorrectionLevel;
 
 // package/esm/core/qrcode/decoder/FormatInformation.js
-var __values21 = function(o) {
+var __values20 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -12975,7 +13361,7 @@ var __values21 = function(o) {
 };
 var FormatInformation = (
   /** @class */
-  (function() {
+  function() {
     function FormatInformation2(formatInfo) {
       this.errorCorrectionLevel = ErrorCorrectionLevel_default.forBits(formatInfo >> 3 & 3);
       this.dataMask = /*(byte) */
@@ -12996,7 +13382,7 @@ var FormatInformation = (
       var bestDifference = Number.MAX_SAFE_INTEGER;
       var bestFormatInfo = 0;
       try {
-        for (var _b = __values21(FormatInformation2.FORMAT_INFO_DECODE_LOOKUP), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values20(FormatInformation2.FORMAT_INFO_DECODE_LOOKUP), _c = _b.next(); !_c.done; _c = _b.next()) {
           var decodeInfo = _c.value;
           var targetInfo = decodeInfo[0];
           if (targetInfo === maskedFormatInfo1 || targetInfo === maskedFormatInfo2) {
@@ -13081,12 +13467,12 @@ var FormatInformation = (
       Int32Array.from([11245, 31])
     ];
     return FormatInformation2;
-  })()
+  }()
 );
 var FormatInformation_default = FormatInformation;
 
 // package/esm/core/qrcode/decoder/ECBlocks.js
-var __values22 = function(o) {
+var __values21 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -13099,7 +13485,7 @@ var __values22 = function(o) {
 };
 var ECBlocks2 = (
   /** @class */
-  (function() {
+  function() {
     function ECBlocks3(ecCodewordsPerBlock) {
       var ecBlocks = [];
       for (var _i = 1; _i < arguments.length; _i++) {
@@ -13116,7 +13502,7 @@ var ECBlocks2 = (
       var total = 0;
       var ecBlocks = this.ecBlocks;
       try {
-        for (var ecBlocks_1 = __values22(ecBlocks), ecBlocks_1_1 = ecBlocks_1.next(); !ecBlocks_1_1.done; ecBlocks_1_1 = ecBlocks_1.next()) {
+        for (var ecBlocks_1 = __values21(ecBlocks), ecBlocks_1_1 = ecBlocks_1.next(); !ecBlocks_1_1.done; ecBlocks_1_1 = ecBlocks_1.next()) {
           var ecBlock = ecBlocks_1_1.value;
           total += ecBlock.getCount();
         }
@@ -13138,14 +13524,14 @@ var ECBlocks2 = (
       return this.ecBlocks;
     };
     return ECBlocks3;
-  })()
+  }()
 );
 var ECBlocks_default = ECBlocks2;
 
 // package/esm/core/qrcode/decoder/ECB.js
 var ECB2 = (
   /** @class */
-  (function() {
+  function() {
     function ECB3(count, dataCodewords) {
       this.count = count;
       this.dataCodewords = dataCodewords;
@@ -13157,12 +13543,12 @@ var ECB2 = (
       return this.dataCodewords;
     };
     return ECB3;
-  })()
+  }()
 );
 var ECB_default = ECB2;
 
 // package/esm/core/qrcode/decoder/Version.js
-var __values23 = function(o) {
+var __values22 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -13175,7 +13561,7 @@ var __values23 = function(o) {
 };
 var Version2 = (
   /** @class */
-  (function() {
+  function() {
     function Version3(versionNumber, alignmentPatternCenters) {
       var e_1, _a2;
       var ecBlocks = [];
@@ -13189,7 +13575,7 @@ var Version2 = (
       var ecCodewords = ecBlocks[0].getECCodewordsPerBlock();
       var ecbArray = ecBlocks[0].getECBlocks();
       try {
-        for (var ecbArray_1 = __values23(ecbArray), ecbArray_1_1 = ecbArray_1.next(); !ecbArray_1_1.done; ecbArray_1_1 = ecbArray_1.next()) {
+        for (var ecbArray_1 = __values22(ecbArray), ecbArray_1_1 = ecbArray_1.next(); !ecbArray_1_1.done; ecbArray_1_1 = ecbArray_1.next()) {
           var ecBlock = ecbArray_1_1.value;
           total += ecBlock.getCount() * (ecBlock.getDataCodewords() + ecCodewords);
         }
@@ -13360,7 +13746,7 @@ var Version2 = (
       new Version3(40, Int32Array.from([6, 30, 58, 86, 114, 142, 170]), new ECBlocks_default(30, new ECB_default(19, 118), new ECB_default(6, 119)), new ECBlocks_default(28, new ECB_default(18, 47), new ECB_default(31, 48)), new ECBlocks_default(30, new ECB_default(34, 24), new ECB_default(34, 25)), new ECBlocks_default(30, new ECB_default(20, 15), new ECB_default(61, 16)))
     ];
     return Version3;
-  })()
+  }()
 );
 var Version_default2 = Version2;
 
@@ -13378,7 +13764,7 @@ var DataMaskValues;
 })(DataMaskValues || (DataMaskValues = {}));
 var DataMask = (
   /** @class */
-  (function() {
+  function() {
     function DataMask2(value, isMasked) {
       this.value = value;
       this.isMasked = isMasked;
@@ -13446,22 +13832,22 @@ var DataMask = (
       })]
     ]);
     return DataMask2;
-  })()
+  }()
 );
 var DataMask_default = DataMask;
 
 // package/esm/core/qrcode/decoder/BitMatrixParser.js
 var BitMatrixParser2 = (
   /** @class */
-  (function() {
-    function BitMatrixParser3(bitMatrix) {
+  function() {
+    function BitMatrixParser4(bitMatrix) {
       var dimension = bitMatrix.getHeight();
       if (dimension < 21 || (dimension & 3) !== 1) {
         throw new FormatException_default();
       }
       this.bitMatrix = bitMatrix;
     }
-    BitMatrixParser3.prototype.readFormatInformation = function() {
+    BitMatrixParser4.prototype.readFormatInformation = function() {
       if (this.parsedFormatInfo !== null && this.parsedFormatInfo !== void 0) {
         return this.parsedFormatInfo;
       }
@@ -13490,7 +13876,7 @@ var BitMatrixParser2 = (
       }
       throw new FormatException_default();
     };
-    BitMatrixParser3.prototype.readVersion = function() {
+    BitMatrixParser4.prototype.readVersion = function() {
       if (this.parsedVersion !== null && this.parsedVersion !== void 0) {
         return this.parsedVersion;
       }
@@ -13524,11 +13910,11 @@ var BitMatrixParser2 = (
       }
       throw new FormatException_default();
     };
-    BitMatrixParser3.prototype.copyBit = function(i, j, versionBits) {
+    BitMatrixParser4.prototype.copyBit = function(i, j, versionBits) {
       var bit = this.isMirror ? this.bitMatrix.get(j, i) : this.bitMatrix.get(i, j);
       return bit ? versionBits << 1 | 1 : versionBits << 1;
     };
-    BitMatrixParser3.prototype.readCodewords = function() {
+    BitMatrixParser4.prototype.readCodewords = function() {
       var formatInfo = this.readFormatInformation();
       var version = this.readVersion();
       var dataMask = DataMask_default.values.get(formatInfo.getDataMask());
@@ -13569,7 +13955,7 @@ var BitMatrixParser2 = (
       }
       return result;
     };
-    BitMatrixParser3.prototype.remask = function() {
+    BitMatrixParser4.prototype.remask = function() {
       if (this.parsedFormatInfo === null) {
         return;
       }
@@ -13577,12 +13963,12 @@ var BitMatrixParser2 = (
       var dimension = this.bitMatrix.getHeight();
       dataMask.unmaskBitMatrix(this.bitMatrix, dimension);
     };
-    BitMatrixParser3.prototype.setMirror = function(isMirror) {
+    BitMatrixParser4.prototype.setMirror = function(isMirror) {
       this.parsedVersion = null;
       this.parsedFormatInfo = null;
       this.isMirror = isMirror;
     };
-    BitMatrixParser3.prototype.mirror = function() {
+    BitMatrixParser4.prototype.mirror = function() {
       var bitMatrix = this.bitMatrix;
       for (var x = 0, width = bitMatrix.getWidth(); x < width; x++) {
         for (var y = x + 1, height = bitMatrix.getHeight(); y < height; y++) {
@@ -13593,13 +13979,13 @@ var BitMatrixParser2 = (
         }
       }
     };
-    return BitMatrixParser3;
-  })()
+    return BitMatrixParser4;
+  }()
 );
 var BitMatrixParser_default2 = BitMatrixParser2;
 
 // package/esm/core/qrcode/decoder/DataBlock.js
-var __values24 = function(o) {
+var __values23 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -13612,7 +13998,7 @@ var __values24 = function(o) {
 };
 var DataBlock2 = (
   /** @class */
-  (function() {
+  function() {
     function DataBlock3(numDataCodewords, codewords) {
       this.numDataCodewords = numDataCodewords;
       this.codewords = codewords;
@@ -13626,7 +14012,7 @@ var DataBlock2 = (
       var totalBlocks = 0;
       var ecBlockArray = ecBlocks.getECBlocks();
       try {
-        for (var ecBlockArray_1 = __values24(ecBlockArray), ecBlockArray_1_1 = ecBlockArray_1.next(); !ecBlockArray_1_1.done; ecBlockArray_1_1 = ecBlockArray_1.next()) {
+        for (var ecBlockArray_1 = __values23(ecBlockArray), ecBlockArray_1_1 = ecBlockArray_1.next(); !ecBlockArray_1_1.done; ecBlockArray_1_1 = ecBlockArray_1.next()) {
           var ecBlock = ecBlockArray_1_1.value;
           totalBlocks += ecBlock.getCount();
         }
@@ -13642,7 +14028,7 @@ var DataBlock2 = (
       var result = new Array(totalBlocks);
       var numResultBlocks = 0;
       try {
-        for (var ecBlockArray_2 = __values24(ecBlockArray), ecBlockArray_2_1 = ecBlockArray_2.next(); !ecBlockArray_2_1.done; ecBlockArray_2_1 = ecBlockArray_2.next()) {
+        for (var ecBlockArray_2 = __values23(ecBlockArray), ecBlockArray_2_1 = ecBlockArray_2.next(); !ecBlockArray_2_1.done; ecBlockArray_2_1 = ecBlockArray_2.next()) {
           var ecBlock = ecBlockArray_2_1.value;
           for (var i = 0; i < ecBlock.getCount(); i++) {
             var numDataCodewords = ecBlock.getDataCodewords();
@@ -13695,7 +14081,7 @@ var DataBlock2 = (
       return this.codewords;
     };
     return DataBlock3;
-  })()
+  }()
 );
 var DataBlock_default2 = DataBlock2;
 
@@ -13715,7 +14101,7 @@ var ModeValues;
 })(ModeValues || (ModeValues = {}));
 var Mode2 = (
   /** @class */
-  (function() {
+  function() {
     function Mode5(value, stringValue, characterCountBitsForVersions, bits) {
       this.value = value;
       this.stringValue = stringValue;
@@ -13772,17 +14158,17 @@ var Mode2 = (
     Mode5.FNC1_SECOND_POSITION = new Mode5(ModeValues.FNC1_SECOND_POSITION, "FNC1_SECOND_POSITION", Int32Array.from([0, 0, 0]), 9);
     Mode5.HANZI = new Mode5(ModeValues.HANZI, "HANZI", Int32Array.from([8, 10, 12]), 13);
     return Mode5;
-  })()
+  }()
 );
 var Mode_default = Mode2;
 
 // package/esm/core/qrcode/decoder/DecodedBitStreamParser.js
 var DecodedBitStreamParser2 = (
   /** @class */
-  (function() {
-    function DecodedBitStreamParser4() {
+  function() {
+    function DecodedBitStreamParser5() {
     }
-    DecodedBitStreamParser4.decode = function(bytes, version, ecLevel, hints) {
+    DecodedBitStreamParser5.decode = function(bytes, version, ecLevel, hints) {
       var bits = new BitSource_default(bytes);
       var result = new StringBuilder_default();
       var byteSegments = new Array();
@@ -13814,7 +14200,7 @@ var DecodedBitStreamParser2 = (
               parityData = bits.readBits(8);
               break;
             case Mode_default.ECI:
-              var value = DecodedBitStreamParser4.parseECIValue(bits);
+              var value = DecodedBitStreamParser5.parseECIValue(bits);
               currentCharacterSetECI = CharacterSetECI_default.getCharacterSetECIByValue(value);
               if (currentCharacterSetECI === null) {
                 throw new FormatException_default();
@@ -13823,24 +14209,24 @@ var DecodedBitStreamParser2 = (
             case Mode_default.HANZI:
               var subset = bits.readBits(4);
               var countHanzi = bits.readBits(mode.getCharacterCountBits(version));
-              if (subset === DecodedBitStreamParser4.GB2312_SUBSET) {
-                DecodedBitStreamParser4.decodeHanziSegment(bits, result, countHanzi);
+              if (subset === DecodedBitStreamParser5.GB2312_SUBSET) {
+                DecodedBitStreamParser5.decodeHanziSegment(bits, result, countHanzi);
               }
               break;
             default:
               var count = bits.readBits(mode.getCharacterCountBits(version));
               switch (mode) {
                 case Mode_default.NUMERIC:
-                  DecodedBitStreamParser4.decodeNumericSegment(bits, result, count);
+                  DecodedBitStreamParser5.decodeNumericSegment(bits, result, count);
                   break;
                 case Mode_default.ALPHANUMERIC:
-                  DecodedBitStreamParser4.decodeAlphanumericSegment(bits, result, count, fc1InEffect);
+                  DecodedBitStreamParser5.decodeAlphanumericSegment(bits, result, count, fc1InEffect);
                   break;
                 case Mode_default.BYTE:
-                  DecodedBitStreamParser4.decodeByteSegment(bits, result, count, currentCharacterSetECI, byteSegments, hints);
+                  DecodedBitStreamParser5.decodeByteSegment(bits, result, count, currentCharacterSetECI, byteSegments, hints);
                   break;
                 case Mode_default.KANJI:
-                  DecodedBitStreamParser4.decodeKanjiSegment(bits, result, count);
+                  DecodedBitStreamParser5.decodeKanjiSegment(bits, result, count);
                   break;
                 default:
                   throw new FormatException_default();
@@ -13853,7 +14239,7 @@ var DecodedBitStreamParser2 = (
       }
       return new DecoderResult_default(bytes, result.toString(), byteSegments.length === 0 ? null : byteSegments, ecLevel === null ? null : ecLevel.toString(), symbolSequence, parityData);
     };
-    DecodedBitStreamParser4.decodeHanziSegment = function(bits, result, count) {
+    DecodedBitStreamParser5.decodeHanziSegment = function(bits, result, count) {
       if (count * 13 > bits.available()) {
         throw new FormatException_default();
       }
@@ -13880,7 +14266,7 @@ var DecodedBitStreamParser2 = (
         throw new FormatException_default(ignored);
       }
     };
-    DecodedBitStreamParser4.decodeKanjiSegment = function(bits, result, count) {
+    DecodedBitStreamParser5.decodeKanjiSegment = function(bits, result, count) {
       if (count * 13 > bits.available()) {
         throw new FormatException_default();
       }
@@ -13907,7 +14293,7 @@ var DecodedBitStreamParser2 = (
         throw new FormatException_default(ignored);
       }
     };
-    DecodedBitStreamParser4.decodeByteSegment = function(bits, result, count, currentCharacterSetECI, byteSegments, hints) {
+    DecodedBitStreamParser5.decodeByteSegment = function(bits, result, count, currentCharacterSetECI, byteSegments, hints) {
       if (8 * count > bits.available()) {
         throw new FormatException_default();
       }
@@ -13929,28 +14315,28 @@ var DecodedBitStreamParser2 = (
       }
       byteSegments.push(readBytes);
     };
-    DecodedBitStreamParser4.toAlphaNumericChar = function(value) {
-      if (value >= DecodedBitStreamParser4.ALPHANUMERIC_CHARS.length) {
+    DecodedBitStreamParser5.toAlphaNumericChar = function(value) {
+      if (value >= DecodedBitStreamParser5.ALPHANUMERIC_CHARS.length) {
         throw new FormatException_default();
       }
-      return DecodedBitStreamParser4.ALPHANUMERIC_CHARS[value];
+      return DecodedBitStreamParser5.ALPHANUMERIC_CHARS[value];
     };
-    DecodedBitStreamParser4.decodeAlphanumericSegment = function(bits, result, count, fc1InEffect) {
+    DecodedBitStreamParser5.decodeAlphanumericSegment = function(bits, result, count, fc1InEffect) {
       var start = result.length();
       while (count > 1) {
         if (bits.available() < 11) {
           throw new FormatException_default();
         }
         var nextTwoCharsBits = bits.readBits(11);
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(Math.floor(nextTwoCharsBits / 45)));
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(nextTwoCharsBits % 45));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(Math.floor(nextTwoCharsBits / 45)));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(nextTwoCharsBits % 45));
         count -= 2;
       }
       if (count === 1) {
         if (bits.available() < 6) {
           throw new FormatException_default();
         }
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(bits.readBits(6)));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(bits.readBits(6)));
       }
       if (fc1InEffect) {
         for (var i = start; i < result.length(); i++) {
@@ -13964,7 +14350,7 @@ var DecodedBitStreamParser2 = (
         }
       }
     };
-    DecodedBitStreamParser4.decodeNumericSegment = function(bits, result, count) {
+    DecodedBitStreamParser5.decodeNumericSegment = function(bits, result, count) {
       while (count >= 3) {
         if (bits.available() < 10) {
           throw new FormatException_default();
@@ -13973,9 +14359,9 @@ var DecodedBitStreamParser2 = (
         if (threeDigitsBits >= 1e3) {
           throw new FormatException_default();
         }
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(Math.floor(threeDigitsBits / 100)));
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(Math.floor(threeDigitsBits / 10) % 10));
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(threeDigitsBits % 10));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(Math.floor(threeDigitsBits / 100)));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(Math.floor(threeDigitsBits / 10) % 10));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(threeDigitsBits % 10));
         count -= 3;
       }
       if (count === 2) {
@@ -13986,8 +14372,8 @@ var DecodedBitStreamParser2 = (
         if (twoDigitsBits >= 100) {
           throw new FormatException_default();
         }
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(Math.floor(twoDigitsBits / 10)));
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(twoDigitsBits % 10));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(Math.floor(twoDigitsBits / 10)));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(twoDigitsBits % 10));
       } else if (count === 1) {
         if (bits.available() < 4) {
           throw new FormatException_default();
@@ -13996,10 +14382,10 @@ var DecodedBitStreamParser2 = (
         if (digitBits >= 10) {
           throw new FormatException_default();
         }
-        result.append(DecodedBitStreamParser4.toAlphaNumericChar(digitBits));
+        result.append(DecodedBitStreamParser5.toAlphaNumericChar(digitBits));
       }
     };
-    DecodedBitStreamParser4.parseECIValue = function(bits) {
+    DecodedBitStreamParser5.parseECIValue = function(bits) {
       var firstByte = bits.readBits(8);
       if ((firstByte & 128) === 0) {
         return firstByte & 127;
@@ -14014,17 +14400,17 @@ var DecodedBitStreamParser2 = (
       }
       throw new FormatException_default();
     };
-    DecodedBitStreamParser4.ALPHANUMERIC_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
-    DecodedBitStreamParser4.GB2312_SUBSET = 1;
-    return DecodedBitStreamParser4;
-  })()
+    DecodedBitStreamParser5.ALPHANUMERIC_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+    DecodedBitStreamParser5.GB2312_SUBSET = 1;
+    return DecodedBitStreamParser5;
+  }()
 );
 var DecodedBitStreamParser_default2 = DecodedBitStreamParser2;
 
 // package/esm/core/qrcode/decoder/QRCodeDecoderMetaData.js
 var QRCodeDecoderMetaData = (
   /** @class */
-  (function() {
+  function() {
     function QRCodeDecoderMetaData2(mirrored) {
       this.mirrored = mirrored;
     }
@@ -14040,12 +14426,12 @@ var QRCodeDecoderMetaData = (
       points[2] = bottomLeft;
     };
     return QRCodeDecoderMetaData2;
-  })()
+  }()
 );
 var QRCodeDecoderMetaData_default = QRCodeDecoderMetaData;
 
 // package/esm/core/qrcode/decoder/Decoder.js
-var __values25 = function(o) {
+var __values24 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -14058,14 +14444,14 @@ var __values25 = function(o) {
 };
 var Decoder3 = (
   /** @class */
-  (function() {
-    function Decoder4() {
+  function() {
+    function Decoder5() {
       this.rsDecoder = new ReedSolomonDecoder_default(GenericGF_default.QR_CODE_FIELD_256);
     }
-    Decoder4.prototype.decodeBooleanArray = function(image, hints) {
+    Decoder5.prototype.decodeBooleanArray = function(image, hints) {
       return this.decodeBitMatrix(BitMatrix_default.parseFromBooleanArray(image), hints);
     };
-    Decoder4.prototype.decodeBitMatrix = function(bits, hints) {
+    Decoder5.prototype.decodeBitMatrix = function(bits, hints) {
       var parser = new BitMatrixParser_default2(bits);
       var ex = null;
       try {
@@ -14089,7 +14475,7 @@ var Decoder3 = (
         throw e;
       }
     };
-    Decoder4.prototype.decodeBitMatrixParser = function(parser, hints) {
+    Decoder5.prototype.decodeBitMatrixParser = function(parser, hints) {
       var e_1, _a2, e_2, _b;
       var version = parser.readVersion();
       var ecLevel = parser.readFormatInformation().getErrorCorrectionLevel();
@@ -14097,7 +14483,7 @@ var Decoder3 = (
       var dataBlocks = DataBlock_default2.getDataBlocks(codewords, version, ecLevel);
       var totalBytes = 0;
       try {
-        for (var dataBlocks_1 = __values25(dataBlocks), dataBlocks_1_1 = dataBlocks_1.next(); !dataBlocks_1_1.done; dataBlocks_1_1 = dataBlocks_1.next()) {
+        for (var dataBlocks_1 = __values24(dataBlocks), dataBlocks_1_1 = dataBlocks_1.next(); !dataBlocks_1_1.done; dataBlocks_1_1 = dataBlocks_1.next()) {
           var dataBlock = dataBlocks_1_1.value;
           totalBytes += dataBlock.getNumDataCodewords();
         }
@@ -14113,7 +14499,7 @@ var Decoder3 = (
       var resultBytes = new Uint8Array(totalBytes);
       var resultOffset = 0;
       try {
-        for (var dataBlocks_2 = __values25(dataBlocks), dataBlocks_2_1 = dataBlocks_2.next(); !dataBlocks_2_1.done; dataBlocks_2_1 = dataBlocks_2.next()) {
+        for (var dataBlocks_2 = __values24(dataBlocks), dataBlocks_2_1 = dataBlocks_2.next(); !dataBlocks_2_1.done; dataBlocks_2_1 = dataBlocks_2.next()) {
           var dataBlock = dataBlocks_2_1.value;
           var codewordBytes = dataBlock.getCodewords();
           var numDataCodewords = dataBlock.getNumDataCodewords();
@@ -14133,7 +14519,7 @@ var Decoder3 = (
       }
       return DecodedBitStreamParser_default2.decode(resultBytes, version, ecLevel, hints);
     };
-    Decoder4.prototype.correctErrors = function(codewordBytes, numDataCodewords) {
+    Decoder5.prototype.correctErrors = function(codewordBytes, numDataCodewords) {
       var codewordsInts = new Int32Array(codewordBytes);
       try {
         this.rsDecoder.decode(codewordsInts, codewordBytes.length - numDataCodewords);
@@ -14145,32 +14531,34 @@ var Decoder3 = (
         codewordsInts[i];
       }
     };
-    return Decoder4;
-  })()
+    return Decoder5;
+  }()
 );
 var Decoder_default3 = Decoder3;
 
 // package/esm/core/qrcode/detector/AlignmentPattern.js
-var __extends54 = /* @__PURE__ */ (function() {
+var __extends54 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var AlignmentPattern = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends54(AlignmentPattern2, _super);
     function AlignmentPattern2(posX, posY, estimatedModuleSize) {
       var _this = _super.call(this, posX, posY) || this;
@@ -14191,12 +14579,12 @@ var AlignmentPattern = (
       return new AlignmentPattern2(combinedX, combinedY, combinedModuleSize);
     };
     return AlignmentPattern2;
-  })(ResultPoint_default)
+  }(ResultPoint_default)
 );
 var AlignmentPattern_default = AlignmentPattern;
 
 // package/esm/core/qrcode/detector/AlignmentPatternFinder.js
-var __values26 = function(o) {
+var __values25 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -14209,7 +14597,7 @@ var __values26 = function(o) {
 };
 var AlignmentPatternFinder = (
   /** @class */
-  (function() {
+  function() {
     function AlignmentPatternFinder2(image, startX, startY, width, height, moduleSize, resultPointCallback) {
       this.image = image;
       this.startX = startX;
@@ -14349,7 +14737,7 @@ var AlignmentPatternFinder = (
       if (!isNaN(centerI)) {
         var estimatedModuleSize = (stateCount[0] + stateCount[1] + stateCount[2]) / 3;
         try {
-          for (var _b = __values26(this.possibleCenters), _c = _b.next(); !_c.done; _c = _b.next()) {
+          for (var _b = __values25(this.possibleCenters), _c = _b.next(); !_c.done; _c = _b.next()) {
             var center = _c.value;
             if (center.aboutEquals(estimatedModuleSize, centerI, centerJ)) {
               return center.combineEstimate(centerI, centerJ, estimatedModuleSize);
@@ -14373,31 +14761,33 @@ var AlignmentPatternFinder = (
       return null;
     };
     return AlignmentPatternFinder2;
-  })()
+  }()
 );
 var AlignmentPatternFinder_default = AlignmentPatternFinder;
 
 // package/esm/core/qrcode/detector/FinderPattern.js
-var __extends55 = /* @__PURE__ */ (function() {
+var __extends55 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var FinderPattern2 = (
   /** @class */
-  (function(_super) {
+  function(_super) {
     __extends55(FinderPattern3, _super);
     function FinderPattern3(posX, posY, estimatedModuleSize, count) {
       var _this = _super.call(this, posX, posY) || this;
@@ -14429,14 +14819,14 @@ var FinderPattern2 = (
       return new FinderPattern3(combinedX, combinedY, combinedModuleSize, combinedCount);
     };
     return FinderPattern3;
-  })(ResultPoint_default)
+  }(ResultPoint_default)
 );
 var FinderPattern_default2 = FinderPattern2;
 
 // package/esm/core/qrcode/detector/FinderPatternInfo.js
 var FinderPatternInfo = (
   /** @class */
-  (function() {
+  function() {
     function FinderPatternInfo2(patternCenters) {
       this.bottomLeft = patternCenters[0];
       this.topLeft = patternCenters[1];
@@ -14452,12 +14842,12 @@ var FinderPatternInfo = (
       return this.topRight;
     };
     return FinderPatternInfo2;
-  })()
+  }()
 );
 var FinderPatternInfo_default = FinderPatternInfo;
 
 // package/esm/core/qrcode/detector/FinderPatternFinder.js
-var __values27 = function(o) {
+var __values26 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -14470,7 +14860,7 @@ var __values27 = function(o) {
 };
 var FinderPatternFinder = (
   /** @class */
-  (function() {
+  function() {
     function FinderPatternFinder2(image, resultPointCallback) {
       this.image = image;
       this.resultPointCallback = resultPointCallback;
@@ -14497,11 +14887,7 @@ var FinderPatternFinder = (
       var done = false;
       var stateCount = new Int32Array(5);
       for (var i = iSkip - 1; i < maxI && !done; i += iSkip) {
-        stateCount[0] = 0;
-        stateCount[1] = 0;
-        stateCount[2] = 0;
-        stateCount[3] = 0;
-        stateCount[4] = 0;
+        stateCount.fill(0);
         var currentState = 0;
         for (var j = 0; j < maxJ; j++) {
           if (image.get(j, i)) {
@@ -14535,11 +14921,7 @@ var FinderPatternFinder = (
                     continue;
                   }
                   currentState = 0;
-                  stateCount[0] = 0;
-                  stateCount[1] = 0;
-                  stateCount[2] = 0;
-                  stateCount[3] = 0;
-                  stateCount[4] = 0;
+                  stateCount.fill(0);
                 } else {
                   stateCount[0] = stateCount[2];
                   stateCount[1] = stateCount[3];
@@ -14590,13 +14972,8 @@ var FinderPatternFinder = (
       return Math.abs(moduleSize - stateCount[0]) < maxVariance && Math.abs(moduleSize - stateCount[1]) < maxVariance && Math.abs(3 * moduleSize - stateCount[2]) < 3 * maxVariance && Math.abs(moduleSize - stateCount[3]) < maxVariance && Math.abs(moduleSize - stateCount[4]) < maxVariance;
     };
     FinderPatternFinder2.prototype.getCrossCheckStateCount = function() {
-      var crossCheckStateCount = this.crossCheckStateCount;
-      crossCheckStateCount[0] = 0;
-      crossCheckStateCount[1] = 0;
-      crossCheckStateCount[2] = 0;
-      crossCheckStateCount[3] = 0;
-      crossCheckStateCount[4] = 0;
-      return crossCheckStateCount;
+      this.crossCheckStateCount.fill(0);
+      return this.crossCheckStateCount;
     };
     FinderPatternFinder2.prototype.crossCheckDiagonal = function(startI, centerJ, maxCount, originalStateCountTotal) {
       var stateCount = this.getCrossCheckStateCount();
@@ -14816,7 +15193,7 @@ var FinderPatternFinder = (
       }
       var firstConfirmedCenter = null;
       try {
-        for (var _b = __values27(this.possibleCenters), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values26(this.possibleCenters), _c = _b.next(); !_c.done; _c = _b.next()) {
           var center = _c.value;
           if (center.getCount() >= FinderPatternFinder2.CENTER_QUORUM) {
             if (firstConfirmedCenter == null) {
@@ -14847,7 +15224,7 @@ var FinderPatternFinder = (
       var totalModuleSize = 0;
       var max = this.possibleCenters.length;
       try {
-        for (var _c = __values27(this.possibleCenters), _d = _c.next(); !_d.done; _d = _c.next()) {
+        for (var _c = __values26(this.possibleCenters), _d = _c.next(); !_d.done; _d = _c.next()) {
           var pattern = _d.value;
           if (pattern.getCount() >= FinderPatternFinder2.CENTER_QUORUM) {
             confirmedCount++;
@@ -14869,7 +15246,7 @@ var FinderPatternFinder = (
       var average = totalModuleSize / max;
       var totalDeviation = 0;
       try {
-        for (var _e = __values27(this.possibleCenters), _f = _e.next(); !_f.done; _f = _e.next()) {
+        for (var _e = __values26(this.possibleCenters), _f = _e.next(); !_f.done; _f = _e.next()) {
           var pattern = _f.value;
           totalDeviation += Math.abs(pattern.getEstimatedModuleSize() - average);
         }
@@ -14896,7 +15273,7 @@ var FinderPatternFinder = (
         var totalModuleSize = 0;
         var square = 0;
         try {
-          for (var _c = __values27(this.possibleCenters), _d = _c.next(); !_d.done; _d = _c.next()) {
+          for (var _c = __values26(this.possibleCenters), _d = _c.next(); !_d.done; _d = _c.next()) {
             var center = _d.value;
             var size = center.getEstimatedModuleSize();
             totalModuleSize += size;
@@ -14936,7 +15313,7 @@ var FinderPatternFinder = (
       if (possibleCenters.length > 3) {
         var totalModuleSize = 0;
         try {
-          for (var possibleCenters_1 = __values27(possibleCenters), possibleCenters_1_1 = possibleCenters_1.next(); !possibleCenters_1_1.done; possibleCenters_1_1 = possibleCenters_1.next()) {
+          for (var possibleCenters_1 = __values26(possibleCenters), possibleCenters_1_1 = possibleCenters_1.next(); !possibleCenters_1_1.done; possibleCenters_1_1 = possibleCenters_1.next()) {
             var possibleCenter = possibleCenters_1_1.value;
             totalModuleSize += possibleCenter.getEstimatedModuleSize();
           }
@@ -14977,14 +15354,14 @@ var FinderPatternFinder = (
     FinderPatternFinder2.MIN_SKIP = 3;
     FinderPatternFinder2.MAX_MODULES = 57;
     return FinderPatternFinder2;
-  })()
+  }()
 );
 var FinderPatternFinder_default = FinderPatternFinder;
 
 // package/esm/core/qrcode/detector/Detector.js
 var Detector3 = (
   /** @class */
-  (function() {
+  function() {
     function Detector5(image) {
       this.image = image;
     }
@@ -15212,14 +15589,14 @@ var Detector3 = (
       return alignmentFinder.find();
     };
     return Detector5;
-  })()
+  }()
 );
 var Detector_default3 = Detector3;
 
 // package/esm/core/qrcode/QRCodeReader.js
 var QRCodeReader = (
   /** @class */
-  (function() {
+  function() {
     function QRCodeReader2() {
       this.decoder = new Decoder_default3();
     }
@@ -15345,12 +15722,1472 @@ var QRCodeReader = (
     };
     QRCodeReader2.NO_POINTS = new Array();
     return QRCodeReader2;
-  })()
+  }()
 );
 var QRCodeReader_default = QRCodeReader;
 
-// package/esm/core/pdf417/PDF417Common.js
+// package/esm/core/microqr/decoder/MicroQRFormatInformation.js
+var __values27 = function(o) {
+  var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
+  if (m) return m.call(o);
+  if (o && typeof o.length === "number") return {
+    next: function() {
+      if (o && i >= o.length) o = void 0;
+      return { value: o && o[i++], done: !o };
+    }
+  };
+  throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
+};
+var __read8 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var MicroQRFormatInformation = (
+  /** @class */
+  function() {
+    function MicroQRFormatInformation2(data5) {
+      this.versionIndicator = data5 >> 2 & 7;
+      this.dataMask = data5 & 3;
+    }
+    MicroQRFormatInformation2.computeBCHFormatWord = function(data5) {
+      var d = data5 << 10;
+      for (var i = 4; i >= 0; i--) {
+        if (d >> i + 10 & 1) {
+          d ^= MicroQRFormatInformation2.BCH_GENERATOR << i;
+        }
+      }
+      return data5 << 10 | d & 1023;
+    };
+    MicroQRFormatInformation2.buildLookupTable = function() {
+      var table = [];
+      for (var data5 = 0; data5 < 32; data5++) {
+        var formatWord = MicroQRFormatInformation2.computeBCHFormatWord(data5);
+        var masked = formatWord ^ MicroQRFormatInformation2.FORMAT_INFO_MASK_MICRO_QR;
+        table.push([masked, data5]);
+      }
+      return table;
+    };
+    MicroQRFormatInformation2.numBitsDiffering = function(a, b) {
+      return Integer_default.bitCount(a ^ b);
+    };
+    MicroQRFormatInformation2.decodeFormatInformation = function(maskedFormatInfo) {
+      var e_1, _a2, e_2, _b;
+      try {
+        for (var _c = __values27(MicroQRFormatInformation2.FORMAT_INFO_DECODE_LOOKUP), _d = _c.next(); !_d.done; _d = _c.next()) {
+          var _e = __read8(_d.value, 2), tableEntry = _e[0], data5 = _e[1];
+          if (tableEntry === maskedFormatInfo) {
+            return new MicroQRFormatInformation2(data5);
+          }
+        }
+      } catch (e_1_1) {
+        e_1 = { error: e_1_1 };
+      } finally {
+        try {
+          if (_d && !_d.done && (_a2 = _c.return)) _a2.call(_c);
+        } finally {
+          if (e_1) throw e_1.error;
+        }
+      }
+      var bestDifference = Number.MAX_SAFE_INTEGER;
+      var bestData5 = 0;
+      try {
+        for (var _f = __values27(MicroQRFormatInformation2.FORMAT_INFO_DECODE_LOOKUP), _g = _f.next(); !_g.done; _g = _f.next()) {
+          var _h = __read8(_g.value, 2), tableEntry = _h[0], data5 = _h[1];
+          var bitsDiff = MicroQRFormatInformation2.numBitsDiffering(maskedFormatInfo, tableEntry);
+          if (bitsDiff < bestDifference) {
+            bestDifference = bitsDiff;
+            bestData5 = data5;
+          }
+        }
+      } catch (e_2_1) {
+        e_2 = { error: e_2_1 };
+      } finally {
+        try {
+          if (_g && !_g.done && (_b = _f.return)) _b.call(_f);
+        } finally {
+          if (e_2) throw e_2.error;
+        }
+      }
+      if (bestDifference <= 3) {
+        return new MicroQRFormatInformation2(bestData5);
+      }
+      return null;
+    };
+    MicroQRFormatInformation2.prototype.getVersionIndicator = function() {
+      return this.versionIndicator;
+    };
+    MicroQRFormatInformation2.prototype.getDataMask = function() {
+      return this.dataMask;
+    };
+    MicroQRFormatInformation2.prototype.getMicroQRVersionNumber = function() {
+      if (this.versionIndicator === 0)
+        return 1;
+      if (this.versionIndicator <= 2)
+        return 2;
+      if (this.versionIndicator <= 4)
+        return 3;
+      return 4;
+    };
+    MicroQRFormatInformation2.prototype.getECLevelLabel = function() {
+      switch (this.versionIndicator) {
+        case 0:
+          return null;
+        // M1, detection only
+        case 1:
+        case 3:
+        case 5:
+          return "L";
+        case 2:
+        case 4:
+        case 6:
+          return "M";
+        case 7:
+          return "Q";
+        default:
+          return null;
+      }
+    };
+    MicroQRFormatInformation2.FORMAT_INFO_MASK_MICRO_QR = 17477;
+    MicroQRFormatInformation2.BCH_GENERATOR = 1335;
+    MicroQRFormatInformation2.FORMAT_INFO_DECODE_LOOKUP = MicroQRFormatInformation2.buildLookupTable();
+    return MicroQRFormatInformation2;
+  }()
+);
+var MicroQRFormatInformation_default = MicroQRFormatInformation;
+
+// package/esm/core/microqr/decoder/MicroQRVersion.js
+var __read9 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var MicroQRVersion = (
+  /** @class */
+  function() {
+    function MicroQRVersion2(versionNumber, versionIndicator, ecBlocks) {
+      this.versionNumber = versionNumber;
+      this.versionIndicator = versionIndicator;
+      this.ecBlocks = ecBlocks;
+      var ec = ecBlocks;
+      var ecb = ec.getECBlocks()[0];
+      this.totalCodewords = ecb.getCount() * (ecb.getDataCodewords() + ec.getECCodewordsPerBlock());
+    }
+    MicroQRVersion2.prototype.getVersionNumber = function() {
+      return this.versionNumber;
+    };
+    MicroQRVersion2.prototype.getVersionIndicator = function() {
+      return this.versionIndicator;
+    };
+    MicroQRVersion2.prototype.getDimensionForVersion = function() {
+      return 9 + 2 * this.versionNumber;
+    };
+    MicroQRVersion2.prototype.getTotalCodewords = function() {
+      return this.totalCodewords;
+    };
+    MicroQRVersion2.prototype.getNumDataCodewords = function() {
+      return this.ecBlocks.getECBlocks()[0].getDataCodewords();
+    };
+    MicroQRVersion2.prototype.getNumECCodewords = function() {
+      return this.totalCodewords - this.getNumDataCodewords();
+    };
+    MicroQRVersion2.prototype.getECBlocks = function() {
+      return this.ecBlocks;
+    };
+    MicroQRVersion2.prototype.getECLevelLabel = function() {
+      return MicroQRVersion2.VERSION_INFO[this.versionIndicator][1];
+    };
+    MicroQRVersion2.prototype.getModeIndicatorBits = function() {
+      return MicroQRVersion2.MODE_INDICATOR_BITS[this.versionNumber - 1];
+    };
+    MicroQRVersion2.prototype.buildFunctionPattern = function() {
+      var dimension = this.getDimensionForVersion();
+      var bitMatrix = new BitMatrix_default(dimension);
+      bitMatrix.setRegion(0, 0, 9, 9);
+      if (dimension > 9) {
+        bitMatrix.setRegion(9, 0, dimension - 9, 1);
+        bitMatrix.setRegion(0, 9, 1, dimension - 9);
+      }
+      return bitMatrix;
+    };
+    MicroQRVersion2.getVersionForIndicator = function(versionIndicator) {
+      if (versionIndicator < 0 || versionIndicator > 7) {
+        throw new FormatException_default();
+      }
+      var _a2 = __read9(MicroQRVersion2.VERSION_INFO[versionIndicator], 1), versionNumber = _a2[0];
+      return new MicroQRVersion2(versionNumber, versionIndicator, MicroQRVersion2.EC_BLOCKS[versionIndicator]);
+    };
+    MicroQRVersion2.getVersionForDimension = function(dimension) {
+      switch (dimension) {
+        case 11:
+          return MicroQRVersion2.getVersionForIndicator(0);
+        // M1
+        case 13:
+          return MicroQRVersion2.getVersionForIndicator(1);
+        // M2-L (placeholder)
+        case 15:
+          return MicroQRVersion2.getVersionForIndicator(3);
+        // M3-L (placeholder)
+        case 17:
+          return MicroQRVersion2.getVersionForIndicator(5);
+        // M4-L (placeholder)
+        default:
+          throw new FormatException_default();
+      }
+    };
+    MicroQRVersion2.prototype.toString = function() {
+      return "M" + this.versionNumber;
+    };
+    MicroQRVersion2.VERSION_INFO = [
+      [1, null],
+      // 0: M1, no EC
+      [2, "L"],
+      // 1: M2-L
+      [2, "M"],
+      // 2: M2-M
+      [3, "L"],
+      // 3: M3-L
+      [3, "M"],
+      // 4: M3-M
+      [4, "L"],
+      // 5: M4-L
+      [4, "M"],
+      // 6: M4-M
+      [4, "Q"]
+      // 7: M4-Q
+    ];
+    MicroQRVersion2.EC_BLOCKS = [
+      new ECBlocks_default(2, new ECB_default(1, 3)),
+      // 0: M1
+      new ECBlocks_default(5, new ECB_default(1, 5)),
+      // 1: M2-L
+      new ECBlocks_default(6, new ECB_default(1, 4)),
+      // 2: M2-M
+      new ECBlocks_default(6, new ECB_default(1, 11)),
+      // 3: M3-L
+      new ECBlocks_default(8, new ECB_default(1, 9)),
+      // 4: M3-M
+      new ECBlocks_default(8, new ECB_default(1, 16)),
+      // 5: M4-L
+      new ECBlocks_default(10, new ECB_default(1, 14)),
+      // 6: M4-M
+      new ECBlocks_default(14, new ECB_default(1, 10))
+      // 7: M4-Q
+    ];
+    MicroQRVersion2.MODE_INDICATOR_BITS = [0, 1, 2, 3];
+    return MicroQRVersion2;
+  }()
+);
+var MicroQRVersion_default = MicroQRVersion;
+
+// package/esm/core/microqr/decoder/MicroQRDataMask.js
+var MicroQRDataMask = (
+  /** @class */
+  function() {
+    function MicroQRDataMask2(maskIndex, isMasked) {
+      this.maskIndex = maskIndex;
+      this.isMasked = isMasked;
+    }
+    MicroQRDataMask2.forIndex = function(maskIndex) {
+      if (maskIndex < 0 || maskIndex >= MicroQRDataMask2.MASKS.length) {
+        throw new Error("Invalid Micro QR mask index: " + maskIndex);
+      }
+      return MicroQRDataMask2.MASKS[maskIndex];
+    };
+    MicroQRDataMask2.prototype.unmaskBitMatrix = function(bits, dimension) {
+      for (var i = 0; i < dimension; i++) {
+        for (var j = 0; j < dimension; j++) {
+          if (this.isMasked(i, j)) {
+            bits.flip(j, i);
+          }
+        }
+      }
+    };
+    MicroQRDataMask2.MASKS = [
+      // 00: i mod 2 = 0
+      new MicroQRDataMask2(0, function(i, _j) {
+        return (i & 1) === 0;
+      }),
+      // 01: ((i div 2) + (j div 3)) mod 2 = 0
+      new MicroQRDataMask2(1, function(i, j) {
+        return (Math.floor(i / 2) + Math.floor(j / 3)) % 2 === 0;
+      }),
+      // 10: ((i*j mod 2) + (i*j mod 3)) mod 2 = 0
+      new MicroQRDataMask2(2, function(i, j) {
+        var tmp = i * j;
+        return ((tmp & 1) + tmp % 3) % 2 === 0;
+      }),
+      // 11: ((i+j) mod 2 + i*j mod 3) mod 2 = 0
+      new MicroQRDataMask2(3, function(i, j) {
+        return ((i + j & 1) + i * j % 3) % 2 === 0;
+      })
+    ];
+    return MicroQRDataMask2;
+  }()
+);
+var MicroQRDataMask_default = MicroQRDataMask;
+
+// package/esm/core/microqr/decoder/MicroQRBitMatrixParser.js
+var MicroQRBitMatrixParser = (
+  /** @class */
+  function() {
+    function MicroQRBitMatrixParser2(bitMatrix) {
+      this.bitMatrix = bitMatrix;
+      this.parsedFormatInfo = null;
+      this.parsedVersion = null;
+      var dimension = bitMatrix.getHeight();
+      if (dimension < 11 || dimension > 17 || dimension % 2 !== 1) {
+        throw new FormatException_default();
+      }
+    }
+    MicroQRBitMatrixParser2.prototype.readFormatInformation = function() {
+      if (this.parsedFormatInfo !== null) {
+        return this.parsedFormatInfo;
+      }
+      var formatInfoBits = 0;
+      for (var col = 1; col <= 8; col++) {
+        formatInfoBits = this.copyBit(col, 8, formatInfoBits);
+      }
+      for (var row = 7; row >= 1; row--) {
+        formatInfoBits = this.copyBit(8, row, formatInfoBits);
+      }
+      var formatInfo = MicroQRFormatInformation_default.decodeFormatInformation(formatInfoBits);
+      if (formatInfo !== null) {
+        this.parsedFormatInfo = formatInfo;
+        this.parsedVersion = MicroQRVersion_default.getVersionForIndicator(formatInfo.getVersionIndicator());
+        return formatInfo;
+      }
+      throw new FormatException_default();
+    };
+    MicroQRBitMatrixParser2.prototype.copyBit = function(x, y, bits) {
+      return this.bitMatrix.get(x, y) ? bits << 1 | 1 : bits << 1;
+    };
+    MicroQRBitMatrixParser2.prototype.readCodewords = function() {
+      var formatInfo = this.readFormatInformation();
+      var version = this.parsedVersion;
+      var dataMask = MicroQRDataMask_default.forIndex(formatInfo.getDataMask());
+      var dimension = this.bitMatrix.getHeight();
+      dataMask.unmaskBitMatrix(this.bitMatrix, dimension);
+      var functionPattern = version.buildFunctionPattern();
+      var numDataCodewords = version.getNumDataCodewords();
+      var hasHalfCW = version.getVersionNumber() === 1 || version.getVersionNumber() === 3;
+      var readingUp = true;
+      var result = new Uint8Array(version.getTotalCodewords());
+      var resultOffset = 0;
+      var currentByte = 0;
+      var bitsRead = 0;
+      for (var j = dimension - 1; j > 0; j -= 2) {
+        for (var count = 0; count < dimension; count++) {
+          var i = readingUp ? dimension - 1 - count : count;
+          for (var col = 0; col < 2; col++) {
+            var x = j - col;
+            if (!functionPattern.get(x, i)) {
+              bitsRead++;
+              currentByte <<= 1;
+              if (this.bitMatrix.get(x, i)) {
+                currentByte |= 1;
+              }
+              var isLastDataCW = hasHalfCW && resultOffset === numDataCodewords - 1;
+              var cwBits = isLastDataCW ? 4 : 8;
+              if (bitsRead === cwBits) {
+                result[resultOffset++] = isLastDataCW ? currentByte << 4 & 255 : currentByte & 255;
+                bitsRead = 0;
+                currentByte = 0;
+              }
+            }
+          }
+        }
+        readingUp = !readingUp;
+      }
+      if (resultOffset !== version.getTotalCodewords()) {
+        throw new FormatException_default();
+      }
+      return result;
+    };
+    return MicroQRBitMatrixParser2;
+  }()
+);
+var MicroQRBitMatrixParser_default = MicroQRBitMatrixParser;
+
+// package/esm/core/microqr/decoder/MicroQRDecodedBitStreamParser.js
+var MicroQRDecodedBitStreamParser = (
+  /** @class */
+  function() {
+    function MicroQRDecodedBitStreamParser2() {
+    }
+    MicroQRDecodedBitStreamParser2.decode = function(bytes, version, hints) {
+      var bits = new BitSource_default(bytes);
+      var result = new StringBuilder_default();
+      var byteSegments = [];
+      var versionNumber = version.getVersionNumber();
+      var modeIndicatorBits = version.getModeIndicatorBits();
+      try {
+        while (true) {
+          var mode = void 0;
+          if (modeIndicatorBits === 0) {
+            mode = MicroQRDecodedBitStreamParser2.MODE_NUMERIC;
+          } else {
+            if (bits.available() < modeIndicatorBits)
+              break;
+            var modeBits = bits.readBits(modeIndicatorBits);
+            mode = MicroQRDecodedBitStreamParser2.decodeMode(modeBits, versionNumber);
+          }
+          var countBits = MicroQRDecodedBitStreamParser2.charCountBits(mode, versionNumber);
+          if (bits.available() < countBits)
+            break;
+          var count = bits.readBits(countBits);
+          if (count === 0)
+            break;
+          switch (mode) {
+            case MicroQRDecodedBitStreamParser2.MODE_NUMERIC:
+              MicroQRDecodedBitStreamParser2.decodeNumeric(bits, result, count);
+              break;
+            case MicroQRDecodedBitStreamParser2.MODE_ALPHA:
+              MicroQRDecodedBitStreamParser2.decodeAlphanumeric(bits, result, count);
+              break;
+            case MicroQRDecodedBitStreamParser2.MODE_BYTE:
+              MicroQRDecodedBitStreamParser2.decodeByte(bits, result, byteSegments, count, hints);
+              break;
+            case MicroQRDecodedBitStreamParser2.MODE_KANJI:
+              MicroQRDecodedBitStreamParser2.decodeKanji(bits, result, count);
+              break;
+            default:
+              throw new FormatException_default();
+          }
+        }
+      } catch (e) {
+        if (e instanceof FormatException_default)
+          throw e;
+        throw new FormatException_default();
+      }
+      return new DecoderResult_default(bytes, result.toString(), byteSegments.length === 0 ? null : byteSegments, version.getECLevelLabel(), -1, -1);
+    };
+    MicroQRDecodedBitStreamParser2.decodeMode = function(modeBits, versionNumber) {
+      switch (versionNumber) {
+        case 2:
+          return modeBits === 0 ? MicroQRDecodedBitStreamParser2.MODE_NUMERIC : MicroQRDecodedBitStreamParser2.MODE_ALPHA;
+        case 3:
+          switch (modeBits) {
+            case 0:
+              return MicroQRDecodedBitStreamParser2.MODE_NUMERIC;
+            case 1:
+              return MicroQRDecodedBitStreamParser2.MODE_ALPHA;
+            case 2:
+              return MicroQRDecodedBitStreamParser2.MODE_BYTE;
+            case 3:
+              return MicroQRDecodedBitStreamParser2.MODE_KANJI;
+          }
+          break;
+        case 4:
+          switch (modeBits) {
+            case 0:
+              return MicroQRDecodedBitStreamParser2.MODE_NUMERIC;
+            case 1:
+              return MicroQRDecodedBitStreamParser2.MODE_ALPHA;
+            case 2:
+              return MicroQRDecodedBitStreamParser2.MODE_BYTE;
+            case 4:
+              return MicroQRDecodedBitStreamParser2.MODE_KANJI;
+          }
+          break;
+      }
+      throw new FormatException_default();
+    };
+    MicroQRDecodedBitStreamParser2.charCountBits = function(mode, versionNumber) {
+      switch (mode) {
+        case MicroQRDecodedBitStreamParser2.MODE_NUMERIC:
+          return versionNumber + 2;
+        // M1=3, M2=4, M3=5, M4=6
+        case MicroQRDecodedBitStreamParser2.MODE_ALPHA:
+          return versionNumber + 1;
+        // M2=3, M3=4, M4=5
+        case MicroQRDecodedBitStreamParser2.MODE_BYTE:
+          return versionNumber + 1;
+        // M3=4, M4=5
+        case MicroQRDecodedBitStreamParser2.MODE_KANJI:
+          return versionNumber;
+        // M3=3, M4=4
+        default:
+          throw new FormatException_default();
+      }
+    };
+    MicroQRDecodedBitStreamParser2.decodeNumeric = function(bits, result, count) {
+      var remaining = count;
+      while (remaining >= 3) {
+        if (bits.available() < 10)
+          throw new FormatException_default();
+        var threeDigits = bits.readBits(10);
+        if (threeDigits >= 1e3)
+          throw new FormatException_default();
+        result.append(MicroQRDecodedBitStreamParser2.toChar(Math.floor(threeDigits / 100)));
+        result.append(MicroQRDecodedBitStreamParser2.toChar(Math.floor(threeDigits / 10) % 10));
+        result.append(MicroQRDecodedBitStreamParser2.toChar(threeDigits % 10));
+        remaining -= 3;
+      }
+      if (remaining === 2) {
+        if (bits.available() < 7)
+          throw new FormatException_default();
+        var twoDigits = bits.readBits(7);
+        if (twoDigits >= 100)
+          throw new FormatException_default();
+        result.append(MicroQRDecodedBitStreamParser2.toChar(Math.floor(twoDigits / 10)));
+        result.append(MicroQRDecodedBitStreamParser2.toChar(twoDigits % 10));
+      } else if (remaining === 1) {
+        if (bits.available() < 4)
+          throw new FormatException_default();
+        var oneDigit = bits.readBits(4);
+        if (oneDigit >= 10)
+          throw new FormatException_default();
+        result.append(MicroQRDecodedBitStreamParser2.toChar(oneDigit));
+      }
+    };
+    MicroQRDecodedBitStreamParser2.decodeAlphanumeric = function(bits, result, count) {
+      var remaining = count;
+      while (remaining > 1) {
+        if (bits.available() < 11)
+          throw new FormatException_default();
+        var twoChars = bits.readBits(11);
+        result.append(MicroQRDecodedBitStreamParser2.toAlphaNum(Math.floor(twoChars / 45)));
+        result.append(MicroQRDecodedBitStreamParser2.toAlphaNum(twoChars % 45));
+        remaining -= 2;
+      }
+      if (remaining === 1) {
+        if (bits.available() < 6)
+          throw new FormatException_default();
+        result.append(MicroQRDecodedBitStreamParser2.toAlphaNum(bits.readBits(6)));
+      }
+    };
+    MicroQRDecodedBitStreamParser2.decodeByte = function(bits, result, byteSegments, count, hints) {
+      if (8 * count > bits.available())
+        throw new FormatException_default();
+      var readBytes = new Uint8Array(count);
+      for (var i = 0; i < count; i++) {
+        readBytes[i] = bits.readBits(8) & 255;
+      }
+      var encoding = StringUtils_default.guessEncoding(readBytes, hints);
+      try {
+        result.append(StringEncoding_default.decode(readBytes, encoding));
+      } catch (e) {
+        throw new FormatException_default();
+      }
+      byteSegments.push(readBytes);
+    };
+    MicroQRDecodedBitStreamParser2.decodeKanji = function(bits, result, count) {
+      if (13 * count > bits.available())
+        throw new FormatException_default();
+      var buffer = new Uint8Array(2 * count);
+      var offset = 0;
+      for (var i = 0; i < count; i++) {
+        var twoBytes = bits.readBits(13);
+        var assembled = Math.floor(twoBytes / 192) << 8 | twoBytes % 192;
+        assembled += assembled < 7936 ? 33088 : 49472;
+        buffer[offset++] = assembled >> 8 & 255;
+        buffer[offset++] = assembled & 255;
+      }
+      try {
+        result.append(StringEncoding_default.decode(buffer, StringUtils_default.SHIFT_JIS));
+      } catch (e) {
+        throw new FormatException_default();
+      }
+    };
+    MicroQRDecodedBitStreamParser2.toChar = function(value) {
+      if (value >= MicroQRDecodedBitStreamParser2.ALPHANUMERIC_CHARS.length) {
+        throw new FormatException_default();
+      }
+      return MicroQRDecodedBitStreamParser2.ALPHANUMERIC_CHARS[value];
+    };
+    MicroQRDecodedBitStreamParser2.toAlphaNum = function(value) {
+      if (value >= MicroQRDecodedBitStreamParser2.ALPHANUMERIC_CHARS.length) {
+        throw new FormatException_default();
+      }
+      return MicroQRDecodedBitStreamParser2.ALPHANUMERIC_CHARS[value];
+    };
+    MicroQRDecodedBitStreamParser2.ALPHANUMERIC_CHARS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:";
+    MicroQRDecodedBitStreamParser2.MODE_NUMERIC = 0;
+    MicroQRDecodedBitStreamParser2.MODE_ALPHA = 1;
+    MicroQRDecodedBitStreamParser2.MODE_BYTE = 2;
+    MicroQRDecodedBitStreamParser2.MODE_KANJI = 3;
+    return MicroQRDecodedBitStreamParser2;
+  }()
+);
+var MicroQRDecodedBitStreamParser_default = MicroQRDecodedBitStreamParser;
+
+// package/esm/core/microqr/decoder/MicroQRDecoder.js
+var MicroQRDecoder = (
+  /** @class */
+  function() {
+    function MicroQRDecoder2() {
+      this.rsDecoder = new ReedSolomonDecoder_default(GenericGF_default.QR_CODE_FIELD_256);
+    }
+    MicroQRDecoder2.prototype.decodeBitMatrix = function(bits, hints) {
+      var parser = new MicroQRBitMatrixParser_default(bits);
+      var formatInfo = parser.readFormatInformation();
+      var version = MicroQRVersion_default.getVersionForIndicator(formatInfo.getVersionIndicator());
+      var codewords = parser.readCodewords();
+      var numDataCodewords = version.getNumDataCodewords();
+      var numECCodewords = version.getNumECCodewords();
+      if (version.getVersionNumber() === 1) {
+        return MicroQRDecodedBitStreamParser_default.decode(codewords.subarray(0, numDataCodewords), version, hints !== null && hints !== void 0 ? hints : null);
+      }
+      this.correctErrors(codewords, numDataCodewords);
+      return MicroQRDecodedBitStreamParser_default.decode(codewords.subarray(0, numDataCodewords), version, hints !== null && hints !== void 0 ? hints : null);
+    };
+    MicroQRDecoder2.prototype.correctErrors = function(codewords, numDataCodewords) {
+      var codewordsInts = new Int32Array(codewords);
+      try {
+        this.rsDecoder.decode(codewordsInts, codewords.length - numDataCodewords);
+      } catch (e) {
+        throw new ChecksumException_default();
+      }
+      for (var i = 0; i < numDataCodewords; i++) {
+        codewords[i] = codewordsInts[i] & 255;
+      }
+    };
+    return MicroQRDecoder2;
+  }()
+);
+var MicroQRDecoder_default = MicroQRDecoder;
+
+// package/esm/core/microqr/detector/MicroQRFinderPattern.js
+var __extends56 = /* @__PURE__ */ function() {
+  var extendStatics = function(d, b) {
+    extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
+      d2.__proto__ = b2;
+    } || function(d2, b2) {
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
+    };
+    return extendStatics(d, b);
+  };
+  return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
+    extendStatics(d, b);
+    function __() {
+      this.constructor = d;
+    }
+    d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
+  };
+}();
+var MicroQRFinderPattern = (
+  /** @class */
+  function(_super) {
+    __extends56(MicroQRFinderPattern2, _super);
+    function MicroQRFinderPattern2(posX, posY, estimatedModuleSize, count) {
+      if (count === void 0) {
+        count = 1;
+      }
+      var _this = _super.call(this, posX, posY) || this;
+      _this.estimatedModuleSize = estimatedModuleSize;
+      _this.count = count;
+      return _this;
+    }
+    MicroQRFinderPattern2.prototype.getEstimatedModuleSize = function() {
+      return this.estimatedModuleSize;
+    };
+    MicroQRFinderPattern2.prototype.getCount = function() {
+      return this.count;
+    };
+    MicroQRFinderPattern2.prototype.aboutEquals = function(moduleSize, i, j) {
+      if (Math.abs(i - this.getY()) <= moduleSize && Math.abs(j - this.getX()) <= moduleSize) {
+        var moduleSizeDiff = Math.abs(moduleSize - this.estimatedModuleSize);
+        return moduleSizeDiff <= 1 || moduleSizeDiff <= this.estimatedModuleSize;
+      }
+      return false;
+    };
+    MicroQRFinderPattern2.prototype.combineEstimate = function(i, j, newModuleSize) {
+      var combinedCount = this.count + 1;
+      var combinedX = (this.count * this.getX() + j) / combinedCount;
+      var combinedY = (this.count * this.getY() + i) / combinedCount;
+      var combinedModuleSize = (this.count * this.estimatedModuleSize + newModuleSize) / combinedCount;
+      return new MicroQRFinderPattern2(combinedX, combinedY, combinedModuleSize, combinedCount);
+    };
+    return MicroQRFinderPattern2;
+  }(ResultPoint_default)
+);
+var MicroQRFinderPattern_default = MicroQRFinderPattern;
+
+// package/esm/core/microqr/detector/MicroQRDetector.js
+var __read10 = function(o, n) {
+  var m = typeof Symbol === "function" && o[Symbol.iterator];
+  if (!m) return o;
+  var i = m.call(o), r, ar = [], e;
+  try {
+    while ((n === void 0 || n-- > 0) && !(r = i.next()).done) ar.push(r.value);
+  } catch (error) {
+    e = { error };
+  } finally {
+    try {
+      if (r && !r.done && (m = i["return"])) m.call(i);
+    } finally {
+      if (e) throw e.error;
+    }
+  }
+  return ar;
+};
+var MicroQRDetector = (
+  /** @class */
+  function() {
+    function MicroQRDetector2(image) {
+      this.image = image;
+    }
+    MicroQRDetector2.prototype.detect = function(hints) {
+      var _a2;
+      this.resultPointCallback = hints != null ? (_a2 = hints.get(DecodeHintType_default.NEED_RESULT_POINT_CALLBACK)) !== null && _a2 !== void 0 ? _a2 : null : null;
+      var finderPattern = this.findFinderPattern(hints);
+      return this.processFinderPattern(finderPattern);
+    };
+    MicroQRDetector2.prototype.findFinderPattern = function(hints) {
+      var image = this.image;
+      var maxI = image.getHeight();
+      var maxJ = image.getWidth();
+      var tryHarder = hints != null && hints.get(DecodeHintType_default.TRY_HARDER) !== void 0;
+      var iSkip = tryHarder ? 1 : Math.max(1, Math.floor(maxI / 64));
+      var stateCount = new Int32Array(5);
+      var possibleCenters = [];
+      for (var i = iSkip - 1; i < maxI; i += iSkip) {
+        stateCount.fill(0);
+        var currentState = 0;
+        for (var j = 0; j < maxJ; j++) {
+          if (image.get(j, i)) {
+            if ((currentState & 1) === 1) {
+              currentState++;
+            }
+            stateCount[currentState]++;
+          } else {
+            if ((currentState & 1) === 0) {
+              if (currentState === 4) {
+                if (this.foundPatternCross(stateCount)) {
+                  var confirmed = this.handlePossibleCenter(stateCount, i, j, possibleCenters);
+                  if (confirmed) {
+                    stateCount.fill(0);
+                    currentState = 0;
+                    continue;
+                  }
+                }
+                stateCount[0] = stateCount[2];
+                stateCount[1] = stateCount[3];
+                stateCount[2] = stateCount[4];
+                stateCount[3] = 1;
+                stateCount[4] = 0;
+                currentState = 3;
+                continue;
+              } else {
+                stateCount[++currentState]++;
+              }
+            } else {
+              stateCount[currentState]++;
+            }
+          }
+        }
+        if (this.foundPatternCross(stateCount)) {
+          this.handlePossibleCenter(stateCount, i, maxJ, possibleCenters);
+        }
+      }
+      if (possibleCenters.length === 0) {
+        throw new NotFoundException_default("No Micro QR finder pattern found.");
+      }
+      possibleCenters.sort(function(a, b) {
+        return b.getCount() - a.getCount();
+      });
+      return possibleCenters[0];
+    };
+    MicroQRDetector2.prototype.foundPatternCross = function(stateCount) {
+      var totalModuleSize = 0;
+      for (var i = 0; i < 5; i++) {
+        var count = stateCount[i];
+        if (count === 0)
+          return false;
+        totalModuleSize += count;
+      }
+      if (totalModuleSize < 7)
+        return false;
+      var moduleSize = totalModuleSize / 7;
+      var maxVariance = moduleSize / 2;
+      return Math.abs(moduleSize - stateCount[0]) < maxVariance && Math.abs(moduleSize - stateCount[1]) < maxVariance && Math.abs(3 * moduleSize - stateCount[2]) < 3 * maxVariance && Math.abs(moduleSize - stateCount[3]) < maxVariance && Math.abs(moduleSize - stateCount[4]) < maxVariance;
+    };
+    MicroQRDetector2.prototype.handlePossibleCenter = function(stateCount, i, j, possibleCenters) {
+      var stateCountTotal = stateCount[0] + stateCount[1] + stateCount[2] + stateCount[3] + stateCount[4];
+      var centerJ = this.centerFromEnd(stateCount, j);
+      var centerI = this.crossCheckVertical(i, Math.floor(centerJ), stateCount[2], stateCountTotal);
+      if (isNaN(centerI))
+        return false;
+      var estimatedModuleSize = (stateCount[0] + stateCount[1] + stateCount[2] + stateCount[3] + stateCount[4]) / 7;
+      for (var idx = 0; idx < possibleCenters.length; idx++) {
+        var center = possibleCenters[idx];
+        if (center.aboutEquals(estimatedModuleSize, centerI, centerJ)) {
+          possibleCenters[idx] = center.combineEstimate(centerI, centerJ, estimatedModuleSize);
+          return true;
+        }
+      }
+      possibleCenters.push(new MicroQRFinderPattern_default(centerJ, centerI, estimatedModuleSize));
+      if (this.resultPointCallback !== null) {
+        this.resultPointCallback.foundPossibleResultPoint(possibleCenters[possibleCenters.length - 1]);
+      }
+      return false;
+    };
+    MicroQRDetector2.prototype.centerFromEnd = function(stateCount, end) {
+      return end - stateCount[4] - stateCount[3] - stateCount[2] / 2;
+    };
+    MicroQRDetector2.prototype.crossCheckVertical = function(startI, centerJ, centralCount, originalStateCountTotal) {
+      var image = this.image;
+      var maxI = image.getHeight();
+      var stateCount = new Int32Array(5);
+      var i = startI;
+      while (i >= 0 && image.get(centerJ, i)) {
+        stateCount[2]++;
+        i--;
+      }
+      if (i < 0)
+        return NaN;
+      while (i >= 0 && !image.get(centerJ, i) && stateCount[1] <= originalStateCountTotal) {
+        stateCount[1]++;
+        i--;
+      }
+      if (i < 0 || stateCount[1] > originalStateCountTotal)
+        return NaN;
+      while (i >= 0 && image.get(centerJ, i) && stateCount[0] <= originalStateCountTotal) {
+        stateCount[0]++;
+        i--;
+      }
+      if (stateCount[0] > originalStateCountTotal)
+        return NaN;
+      i = startI + 1;
+      while (i < maxI && image.get(centerJ, i)) {
+        stateCount[2]++;
+        i++;
+      }
+      if (i === maxI)
+        return NaN;
+      while (i < maxI && !image.get(centerJ, i) && stateCount[3] < originalStateCountTotal) {
+        stateCount[3]++;
+        i++;
+      }
+      if (i === maxI || stateCount[3] >= originalStateCountTotal)
+        return NaN;
+      while (i < maxI && image.get(centerJ, i) && stateCount[4] < originalStateCountTotal) {
+        stateCount[4]++;
+        i++;
+      }
+      if (stateCount[4] >= originalStateCountTotal)
+        return NaN;
+      var stateCountTotal = stateCount[0] + stateCount[1] + stateCount[2] + stateCount[3] + stateCount[4];
+      if (5 * Math.abs(stateCountTotal - originalStateCountTotal) >= 2 * originalStateCountTotal)
+        return NaN;
+      return this.foundPatternCross(stateCount) ? this.centerFromEnd(stateCount, i) : NaN;
+    };
+    MicroQRDetector2.prototype.processFinderPattern = function(finderPattern) {
+      var fx = finderPattern.getX();
+      var fy = finderPattern.getY();
+      var moduleSize = finderPattern.getEstimatedModuleSize();
+      if (moduleSize < 1) {
+        throw new NotFoundException_default("Module size too small.");
+      }
+      var detected = this.determineDimension(fx, fy, moduleSize);
+      if (detected === null) {
+        throw new NotFoundException_default("Cannot determine Micro QR symbol dimension.");
+      }
+      var dim = detected.dim, orientation = detected.orientation;
+      var dist = (dim - 7) * moduleSize;
+      var trDx = [dist, 0, -dist, 0][orientation];
+      var trDy = [0, dist, 0, -dist][orientation];
+      var blDx = [0, -dist, 0, dist][orientation];
+      var blDy = [dist, 0, -dist, 0][orientation];
+      var topRightX = fx + trDx;
+      var topRightY = fy + trDy;
+      var bottomLeftX = fx + blDx;
+      var bottomLeftY = fy + blDy;
+      var transform = MicroQRDetector2.createTransform(fx, fy, topRightX, topRightY, bottomLeftX, bottomLeftY, dim);
+      var bits = MicroQRDetector2.sampleGrid(this.image, transform, dim);
+      var points = [
+        new ResultPoint_default(fx, fy),
+        new ResultPoint_default(topRightX, topRightY),
+        new ResultPoint_default(bottomLeftX, bottomLeftY)
+      ];
+      return new DetectorResult_default(bits, points);
+    };
+    MicroQRDetector2.prototype.determineDimension = function(fx, fy, ms) {
+      var ORIENTATION_PROBES = [
+        [5, -3, 1, 0, -3, 5, 0, 1],
+        // 0°
+        [3, 5, 0, 1, -5, -3, -1, 0],
+        // 90° CW
+        [-5, 3, -1, 0, 3, -5, 0, -1],
+        // 180°
+        [-3, -5, 0, -1, 5, 3, 1, 0]
+        // 270° CW
+      ];
+      var bestSingle = null;
+      for (var orientation_1 = 0; orientation_1 < 4; orientation_1++) {
+        var _a2 = __read10(ORIENTATION_PROBES[orientation_1], 8), rDx = _a2[0], rDy = _a2[1], rdx = _a2[2], rdy = _a2[3], cDx = _a2[4], cDy = _a2[5], cdx = _a2[6], cdy = _a2[7];
+        var dimH = this.probeTimingLine(fx + rDx * ms, fy + rDy * ms, rdx, rdy, ms);
+        var dimV = this.probeTimingLine(fx + cDx * ms, fy + cDy * ms, cdx, cdy, ms);
+        if (dimH !== null && dimV !== null) {
+          var dim = this.snapDimension(dimH, dimV);
+          if (dim !== null) {
+            return { dim, orientation: orientation_1 };
+          }
+        } else if (bestSingle === null && (dimH !== null || dimV !== null)) {
+          var dim = this.snapDimension(dimH, dimV);
+          if (dim !== null) {
+            bestSingle = { dim, orientation: orientation_1 };
+          }
+        }
+      }
+      return bestSingle;
+    };
+    MicroQRDetector2.prototype.snapDimension = function(dimH, dimV) {
+      if (dimH === null)
+        return dimV;
+      if (dimV === null)
+        return dimH;
+      if (dimH === dimV)
+        return dimH;
+      var avg = Math.round((dimH + dimV) / 2);
+      var nearest = [11, 13, 15, 17].reduce(function(prev, curr) {
+        return Math.abs(curr - avg) < Math.abs(prev - avg) ? curr : prev;
+      });
+      return nearest;
+    };
+    MicroQRDetector2.prototype.probeTimingLine = function(startX, startY, dx, dy, moduleSize) {
+      var darkCount = 0;
+      for (var step = 0; step < 10; step++) {
+        var moduleIdx = 8 + step;
+        var x = Math.round(startX + dx * step * moduleSize);
+        var y = Math.round(startY + dy * step * moduleSize);
+        if (x < 0 || x >= this.image.getWidth() || y < 0 || y >= this.image.getHeight()) {
+          break;
+        }
+        var isDark = this.image.get(x, y);
+        var expectDark = moduleIdx % 2 === 0;
+        if (isDark !== expectDark) {
+          break;
+        }
+        if (expectDark) {
+          darkCount++;
+        }
+      }
+      if (darkCount < 2)
+        return null;
+      var dim = 8 + 2 * darkCount - 1;
+      if (dim === 11 || dim === 13 || dim === 15 || dim === 17) {
+        return dim;
+      }
+      var nearest = [11, 13, 15, 17].reduce(function(prev, curr) {
+        return Math.abs(curr - dim) < Math.abs(prev - dim) ? curr : prev;
+      });
+      return Math.abs(nearest - dim) <= 2 ? nearest : null;
+    };
+    MicroQRDetector2.createTransform = function(topLeftX, topLeftY, topRightX, topRightY, bottomLeftX, bottomLeftY, dimension) {
+      var dimMinusThree = dimension - 3.5;
+      return PerspectiveTransform_default.quadrilateralToQuadrilateral(
+        3.5,
+        3.5,
+        // source top-left (finder center in ideal grid)
+        dimMinusThree,
+        3.5,
+        // source top-right
+        3.5,
+        dimMinusThree,
+        // source bottom-left
+        dimMinusThree,
+        dimMinusThree,
+        // source bottom-right (estimated)
+        topLeftX,
+        topLeftY,
+        topRightX,
+        topRightY,
+        bottomLeftX,
+        bottomLeftY,
+        // bottom-right: project both directions from top-left
+        topRightX + (bottomLeftX - topLeftX),
+        topRightY + (bottomLeftY - topLeftY)
+      );
+    };
+    MicroQRDetector2.sampleGrid = function(image, transform, dimension) {
+      var sampler = GridSamplerInstance_default.getInstance();
+      return sampler.sampleGridWithTransform(image, dimension, dimension, transform);
+    };
+    return MicroQRDetector2;
+  }()
+);
+var MicroQRDetector_default = MicroQRDetector;
+
+// package/esm/core/microqr/MicroQRCodeReader.js
+var MicroQRCodeReader = (
+  /** @class */
+  function() {
+    function MicroQRCodeReader2() {
+      this.decoder = new MicroQRDecoder_default();
+    }
+    MicroQRCodeReader2.prototype.decode = function(image, hints) {
+      var decoderResult;
+      var points;
+      if (hints != null && hints.get(DecodeHintType_default.PURE_BARCODE) !== void 0) {
+        var bits = image.getBlackMatrix();
+        decoderResult = this.decoder.decodeBitMatrix(bits, hints !== null && hints !== void 0 ? hints : void 0);
+        points = [];
+      } else {
+        var detector = new MicroQRDetector_default(image.getBlackMatrix());
+        var detectorResult = detector.detect(hints !== null && hints !== void 0 ? hints : void 0);
+        points = detectorResult.getPoints();
+        decoderResult = this.decoder.decodeBitMatrix(detectorResult.getBits(), hints !== null && hints !== void 0 ? hints : void 0);
+      }
+      var result = new Result_default(decoderResult.getText(), decoderResult.getRawBytes(), decoderResult.getNumBits(), points, BarcodeFormat_default.MICRO_QR_CODE, System_default.currentTimeMillis());
+      var byteSegments = decoderResult.getByteSegments();
+      if (byteSegments !== null) {
+        result.putMetadata(ResultMetadataType_default.BYTE_SEGMENTS, byteSegments);
+      }
+      var ecLevel = decoderResult.getECLevel();
+      if (ecLevel !== null) {
+        result.putMetadata(ResultMetadataType_default.ERROR_CORRECTION_LEVEL, ecLevel);
+      }
+      return result;
+    };
+    MicroQRCodeReader2.prototype.reset = function() {
+    };
+    return MicroQRCodeReader2;
+  }()
+);
+var MicroQRCodeReader_default = MicroQRCodeReader;
+
+// package/esm/core/maxicode/decoder/BitMatrixParser.js
+var BitMatrixParser3 = (
+  /** @class */
+  function() {
+    function BitMatrixParser4(bitMatrix) {
+      this.bitMatrix = bitMatrix;
+    }
+    BitMatrixParser4.prototype.readCodewords = function() {
+      var result = new Uint8Array(144);
+      var height = this.bitMatrix.getHeight();
+      var width = this.bitMatrix.getWidth();
+      for (var y = 0; y < height; y++) {
+        var bitnrRow = BitMatrixParser4.BITNR[y];
+        for (var x = 0; x < width; x++) {
+          var bit = bitnrRow[x];
+          if (bit >= 0 && this.bitMatrix.get(x, y)) {
+            result[Math.floor(bit / 6)] |= 1 << 5 - bit % 6;
+          }
+        }
+      }
+      return result;
+    };
+    BitMatrixParser4.BITNR = [
+      [121, 120, 127, 126, 133, 132, 139, 138, 145, 144, 151, 150, 157, 156, 163, 162, 169, 168, 175, 174, 181, 180, 187, 186, 193, 192, 199, 198, -2, -2],
+      [123, 122, 129, 128, 135, 134, 141, 140, 147, 146, 153, 152, 159, 158, 165, 164, 171, 170, 177, 176, 183, 182, 189, 188, 195, 194, 201, 200, 816, -3],
+      [125, 124, 131, 130, 137, 136, 143, 142, 149, 148, 155, 154, 161, 160, 167, 166, 173, 172, 179, 178, 185, 184, 191, 190, 197, 196, 203, 202, 818, 817],
+      [283, 282, 277, 276, 271, 270, 265, 264, 259, 258, 253, 252, 247, 246, 241, 240, 235, 234, 229, 228, 223, 222, 217, 216, 211, 210, 205, 204, 819, -3],
+      [285, 284, 279, 278, 273, 272, 267, 266, 261, 260, 255, 254, 249, 248, 243, 242, 237, 236, 231, 230, 225, 224, 219, 218, 213, 212, 207, 206, 821, 820],
+      [287, 286, 281, 280, 275, 274, 269, 268, 263, 262, 257, 256, 251, 250, 245, 244, 239, 238, 233, 232, 227, 226, 221, 220, 215, 214, 209, 208, 822, -3],
+      [289, 288, 295, 294, 301, 300, 307, 306, 313, 312, 319, 318, 325, 324, 331, 330, 337, 336, 343, 342, 349, 348, 355, 354, 361, 360, 367, 366, 824, 823],
+      [291, 290, 297, 296, 303, 302, 309, 308, 315, 314, 321, 320, 327, 326, 333, 332, 339, 338, 345, 344, 351, 350, 357, 356, 363, 362, 369, 368, 825, -3],
+      [293, 292, 299, 298, 305, 304, 311, 310, 317, 316, 323, 322, 329, 328, 335, 334, 341, 340, 347, 346, 353, 352, 359, 358, 365, 364, 371, 370, 827, 826],
+      [409, 408, 403, 402, 397, 396, 391, 390, 79, 78, -2, -2, 13, 12, 37, 36, 2, -1, 44, 43, 109, 108, 385, 384, 379, 378, 373, 372, 828, -3],
+      [411, 410, 405, 404, 399, 398, 393, 392, 81, 80, 40, -2, 15, 14, 39, 38, 3, -1, -1, 45, 111, 110, 387, 386, 381, 380, 375, 374, 830, 829],
+      [413, 412, 407, 406, 401, 400, 395, 394, 83, 82, 41, -3, -3, -3, -3, -3, 5, 4, 47, 46, 113, 112, 389, 388, 383, 382, 377, 376, 831, -3],
+      [415, 414, 421, 420, 427, 426, 103, 102, 55, 54, 16, -3, -3, -3, -3, -3, -3, -3, 20, 19, 85, 84, 433, 432, 439, 438, 445, 444, 833, 832],
+      [417, 416, 423, 422, 429, 428, 105, 104, 57, 56, -3, -3, -3, -3, -3, -3, -3, -3, 22, 21, 87, 86, 435, 434, 441, 440, 447, 446, 834, -3],
+      [419, 418, 425, 424, 431, 430, 107, 106, 59, 58, -3, -3, -3, -3, -3, -3, -3, -3, -3, 23, 89, 88, 437, 436, 443, 442, 449, 448, 836, 835],
+      [481, 480, 475, 474, 469, 468, 48, -2, 30, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, 0, 53, 52, 463, 462, 457, 456, 451, 450, 837, -3],
+      [483, 482, 477, 476, 471, 470, 49, -1, -2, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, -2, -1, 465, 464, 459, 458, 453, 452, 839, 838],
+      [485, 484, 479, 478, 473, 472, 51, 50, 31, -3, -3, -3, -3, -3, -3, -3, -3, -3, -3, 1, -2, 42, 467, 466, 461, 460, 455, 454, 840, -3],
+      [487, 486, 493, 492, 499, 498, 97, 96, 61, 60, -3, -3, -3, -3, -3, -3, -3, -3, -3, 26, 91, 90, 505, 504, 511, 510, 517, 516, 842, 841],
+      [489, 488, 495, 494, 501, 500, 99, 98, 63, 62, -3, -3, -3, -3, -3, -3, -3, -3, 28, 27, 93, 92, 507, 506, 513, 512, 519, 518, 843, -3],
+      [491, 490, 497, 496, 503, 502, 101, 100, 65, 64, 17, -3, -3, -3, -3, -3, -3, -3, 18, 29, 95, 94, 509, 508, 515, 514, 521, 520, 845, 844],
+      [559, 558, 553, 552, 547, 546, 541, 540, 73, 72, 32, -3, -3, -3, -3, -3, -3, 10, 67, 66, 115, 114, 535, 534, 529, 528, 523, 522, 846, -3],
+      [561, 560, 555, 554, 549, 548, 543, 542, 75, 74, -2, -1, 7, 6, 35, 34, 11, -2, 69, 68, 117, 116, 537, 536, 531, 530, 525, 524, 848, 847],
+      [563, 562, 557, 556, 551, 550, 545, 544, 77, 76, -2, 33, 9, 8, 25, 24, -1, -2, 71, 70, 119, 118, 539, 538, 533, 532, 527, 526, 849, -3],
+      [565, 564, 571, 570, 577, 576, 583, 582, 589, 588, 595, 594, 601, 600, 607, 606, 613, 612, 619, 618, 625, 624, 631, 630, 637, 636, 643, 642, 851, 850],
+      [567, 566, 573, 572, 579, 578, 585, 584, 591, 590, 597, 596, 603, 602, 609, 608, 615, 614, 621, 620, 627, 626, 633, 632, 639, 638, 645, 644, 852, -3],
+      [569, 568, 575, 574, 581, 580, 587, 586, 593, 592, 599, 598, 605, 604, 611, 610, 617, 616, 623, 622, 629, 628, 635, 634, 641, 640, 647, 646, 854, 853],
+      [727, 726, 721, 720, 715, 714, 709, 708, 703, 702, 697, 696, 691, 690, 685, 684, 679, 678, 673, 672, 667, 666, 661, 660, 655, 654, 649, 648, 855, -3],
+      [729, 728, 723, 722, 717, 716, 711, 710, 705, 704, 699, 698, 693, 692, 687, 686, 681, 680, 675, 674, 669, 668, 663, 662, 657, 656, 651, 650, 857, 856],
+      [731, 730, 725, 724, 719, 718, 713, 712, 707, 706, 701, 700, 695, 694, 689, 688, 683, 682, 677, 676, 671, 670, 665, 664, 659, 658, 653, 652, 858, -3],
+      [733, 732, 739, 738, 745, 744, 751, 750, 757, 756, 763, 762, 769, 768, 775, 774, 781, 780, 787, 786, 793, 792, 799, 798, 805, 804, 811, 810, 860, 859],
+      [735, 734, 741, 740, 747, 746, 753, 752, 759, 758, 765, 764, 771, 770, 777, 776, 783, 782, 789, 788, 795, 794, 801, 800, 807, 806, 813, 812, 861, -3],
+      [737, 736, 743, 742, 749, 748, 755, 754, 761, 760, 767, 766, 773, 772, 779, 778, 785, 784, 791, 790, 797, 796, 803, 802, 809, 808, 815, 814, 863, 862]
+    ];
+    return BitMatrixParser4;
+  }()
+);
+var BitMatrixParser_default3 = BitMatrixParser3;
+
+// package/esm/core/maxicode/decoder/DecodedBitStreamParser.js
 var __values28 = function(o) {
+  var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
+  if (m) return m.call(o);
+  if (o && typeof o.length === "number") return {
+    next: function() {
+      if (o && i >= o.length) o = void 0;
+      return { value: o && o[i++], done: !o };
+    }
+  };
+  throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
+};
+var DecodedBitStreamParser3 = (
+  /** @class */
+  function() {
+    function DecodedBitStreamParser5() {
+    }
+    DecodedBitStreamParser5.decode = function(bytes, mode) {
+      var result = [];
+      switch (mode) {
+        case 2:
+        case 3: {
+          var postcode = void 0;
+          if (mode === 2) {
+            var pc = DecodedBitStreamParser5.getPostCode2(bytes);
+            var ps2Length = DecodedBitStreamParser5.getPostCode2Length(bytes);
+            if (ps2Length > 10) {
+              throw FormatException_default.getFormatInstance();
+            }
+            postcode = String(pc).padStart(ps2Length, "0");
+          } else {
+            postcode = DecodedBitStreamParser5.getPostCode3(bytes);
+          }
+          var country = String(DecodedBitStreamParser5.getCountry(bytes)).padStart(3, "0");
+          var service = String(DecodedBitStreamParser5.getServiceClass(bytes)).padStart(3, "0");
+          var message = DecodedBitStreamParser5.getMessage(bytes, 10, 84);
+          result.push(message);
+          if (result.join("").startsWith("[)>" + DecodedBitStreamParser5.RS + "01" + DecodedBitStreamParser5.GS)) {
+            result.splice(0, result.length);
+            result.push(message.substring(0, 9));
+            result.push(postcode + DecodedBitStreamParser5.GS + country + DecodedBitStreamParser5.GS + service + DecodedBitStreamParser5.GS);
+            result.push(message.substring(9));
+          } else {
+            result.splice(0, result.length);
+            result.push(postcode + DecodedBitStreamParser5.GS + country + DecodedBitStreamParser5.GS + service + DecodedBitStreamParser5.GS);
+            result.push(message);
+          }
+          break;
+        }
+        case 4:
+          result.push(DecodedBitStreamParser5.getMessage(bytes, 1, 93));
+          break;
+        case 5:
+          result.push(DecodedBitStreamParser5.getMessage(bytes, 1, 77));
+          break;
+      }
+      return new DecoderResult_default(bytes, result.join(""), null, String(mode));
+    };
+    DecodedBitStreamParser5.getBit = function(bit, bytes) {
+      bit--;
+      return (bytes[Math.floor(bit / 6)] & 1 << 5 - bit % 6) === 0 ? 0 : 1;
+    };
+    DecodedBitStreamParser5.getInt = function(bytes, x) {
+      var val = 0;
+      for (var i = 0; i < x.length; i++) {
+        val += DecodedBitStreamParser5.getBit(x[i], bytes) << x.length - i - 1;
+      }
+      return val;
+    };
+    DecodedBitStreamParser5.getCountry = function(bytes) {
+      return DecodedBitStreamParser5.getInt(bytes, DecodedBitStreamParser5.COUNTRY_BYTES);
+    };
+    DecodedBitStreamParser5.getServiceClass = function(bytes) {
+      return DecodedBitStreamParser5.getInt(bytes, DecodedBitStreamParser5.SERVICE_CLASS_BYTES);
+    };
+    DecodedBitStreamParser5.getPostCode2Length = function(bytes) {
+      return DecodedBitStreamParser5.getInt(bytes, DecodedBitStreamParser5.POSTCODE_2_LENGTH_BYTES);
+    };
+    DecodedBitStreamParser5.getPostCode2 = function(bytes) {
+      return DecodedBitStreamParser5.getInt(bytes, DecodedBitStreamParser5.POSTCODE_2_BYTES);
+    };
+    DecodedBitStreamParser5.getPostCode3 = function(bytes) {
+      var e_1, _a2;
+      var sb = [];
+      try {
+        for (var _b = __values28(DecodedBitStreamParser5.POSTCODE_3_BYTES), _c = _b.next(); !_c.done; _c = _b.next()) {
+          var p3bytes = _c.value;
+          sb.push(DecodedBitStreamParser5.SETS[0].charAt(DecodedBitStreamParser5.getInt(bytes, p3bytes)));
+        }
+      } catch (e_1_1) {
+        e_1 = { error: e_1_1 };
+      } finally {
+        try {
+          if (_c && !_c.done && (_a2 = _b.return)) _a2.call(_b);
+        } finally {
+          if (e_1) throw e_1.error;
+        }
+      }
+      return sb.join("");
+    };
+    DecodedBitStreamParser5.getMessage = function(bytes, start, len) {
+      var sb = [];
+      var shift = -1;
+      var set = 0;
+      var lastset = 0;
+      for (var i = start; i < start + len; i++) {
+        var c = DecodedBitStreamParser5.SETS[set].charAt(bytes[i]);
+        switch (c) {
+          case DecodedBitStreamParser5.LATCHA:
+            set = 0;
+            shift = -1;
+            break;
+          case DecodedBitStreamParser5.LATCHB:
+            set = 1;
+            shift = -1;
+            break;
+          case DecodedBitStreamParser5.SHIFTA:
+          case DecodedBitStreamParser5.SHIFTB:
+          case DecodedBitStreamParser5.SHIFTC:
+          case DecodedBitStreamParser5.SHIFTD:
+          case DecodedBitStreamParser5.SHIFTE:
+            lastset = set;
+            set = c.charCodeAt(0) - DecodedBitStreamParser5.SHIFTA.charCodeAt(0);
+            shift = 1;
+            break;
+          case DecodedBitStreamParser5.TWOSHIFTA:
+            lastset = set;
+            set = 0;
+            shift = 2;
+            break;
+          case DecodedBitStreamParser5.THREESHIFTA:
+            lastset = set;
+            set = 0;
+            shift = 3;
+            break;
+          case DecodedBitStreamParser5.NS: {
+            var nsval = (bytes[++i] << 24) + (bytes[++i] << 18) + (bytes[++i] << 12) + (bytes[++i] << 6) + bytes[++i];
+            sb.push(String(nsval).padStart(9, "0"));
+            break;
+          }
+          case DecodedBitStreamParser5.LOCK:
+            shift = -1;
+            break;
+          default:
+            sb.push(c);
+        }
+        if (shift-- === 0) {
+          set = lastset;
+        }
+      }
+      while (sb.length > 0 && sb[sb.length - 1] === DecodedBitStreamParser5.PAD) {
+        sb.pop();
+      }
+      return sb.join("");
+    };
+    DecodedBitStreamParser5.SHIFTA = "\uFFF0";
+    DecodedBitStreamParser5.SHIFTB = "\uFFF1";
+    DecodedBitStreamParser5.SHIFTC = "\uFFF2";
+    DecodedBitStreamParser5.SHIFTD = "\uFFF3";
+    DecodedBitStreamParser5.SHIFTE = "\uFFF4";
+    DecodedBitStreamParser5.TWOSHIFTA = "\uFFF5";
+    DecodedBitStreamParser5.THREESHIFTA = "\uFFF6";
+    DecodedBitStreamParser5.LATCHA = "\uFFF7";
+    DecodedBitStreamParser5.LATCHB = "\uFFF8";
+    DecodedBitStreamParser5.LOCK = "\uFFF9";
+    DecodedBitStreamParser5.ECI = "\uFFFA";
+    DecodedBitStreamParser5.NS = "\uFFFB";
+    DecodedBitStreamParser5.PAD = "\uFFFC";
+    DecodedBitStreamParser5.FS = "";
+    DecodedBitStreamParser5.GS = "";
+    DecodedBitStreamParser5.RS = "";
+    DecodedBitStreamParser5.COUNTRY_BYTES = [53, 54, 43, 44, 45, 46, 47, 48, 37, 38];
+    DecodedBitStreamParser5.SERVICE_CLASS_BYTES = [55, 56, 57, 58, 59, 60, 49, 50, 51, 52];
+    DecodedBitStreamParser5.POSTCODE_2_LENGTH_BYTES = [39, 40, 41, 42, 31, 32];
+    DecodedBitStreamParser5.POSTCODE_2_BYTES = [
+      33,
+      34,
+      35,
+      36,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      1,
+      2
+    ];
+    DecodedBitStreamParser5.POSTCODE_3_BYTES = [
+      [39, 40, 41, 42, 31, 32],
+      [33, 34, 35, 36, 25, 26],
+      [27, 28, 29, 30, 19, 20],
+      [21, 22, 23, 24, 13, 14],
+      [15, 16, 17, 18, 7, 8],
+      [9, 10, 11, 12, 1, 2]
+    ];
+    DecodedBitStreamParser5.SETS = [
+      "\rABCDEFGHIJKLMNOPQRSTUVWXYZ" + DecodedBitStreamParser5.ECI + DecodedBitStreamParser5.FS + DecodedBitStreamParser5.GS + DecodedBitStreamParser5.RS + DecodedBitStreamParser5.NS + " " + DecodedBitStreamParser5.PAD + `"#$%&'()*+,-./0123456789:` + DecodedBitStreamParser5.SHIFTB + DecodedBitStreamParser5.SHIFTC + DecodedBitStreamParser5.SHIFTD + DecodedBitStreamParser5.SHIFTE + DecodedBitStreamParser5.LATCHB,
+      "`abcdefghijklmnopqrstuvwxyz" + DecodedBitStreamParser5.ECI + DecodedBitStreamParser5.FS + DecodedBitStreamParser5.GS + DecodedBitStreamParser5.RS + DecodedBitStreamParser5.NS + "{" + DecodedBitStreamParser5.PAD + "}~\x7F;<=>?[\\]^_ ,./:@!|" + DecodedBitStreamParser5.PAD + DecodedBitStreamParser5.TWOSHIFTA + DecodedBitStreamParser5.THREESHIFTA + DecodedBitStreamParser5.PAD + DecodedBitStreamParser5.SHIFTA + DecodedBitStreamParser5.SHIFTC + DecodedBitStreamParser5.SHIFTD + DecodedBitStreamParser5.SHIFTE + DecodedBitStreamParser5.LATCHA,
+      "\xC0\xC1\xC2\xC3\xC4\xC5\xC6\xC7\xC8\xC9\xCA\xCB\xCC\xCD\xCE\xCF\xD0\xD1\xD2\xD3\xD4\xD5\xD6\xD7\xD8\xD9\xDA" + DecodedBitStreamParser5.ECI + DecodedBitStreamParser5.FS + DecodedBitStreamParser5.GS + DecodedBitStreamParser5.RS + DecodedBitStreamParser5.NS + "\xDB\xDC\xDD\xDE\xDF\xAA\xAC\xB1\xB2\xB3\xB5\xB9\xBA\xBC\xBD\xBE\x80\x81\x82\x83\x84\x85\x86\x87\x88\x89" + DecodedBitStreamParser5.LATCHA + " " + DecodedBitStreamParser5.LOCK + DecodedBitStreamParser5.SHIFTD + DecodedBitStreamParser5.SHIFTE + DecodedBitStreamParser5.LATCHB,
+      "\xE0\xE1\xE2\xE3\xE4\xE5\xE6\xE7\xE8\xE9\xEA\xEB\xEC\xED\xEE\xEF\xF0\xF1\xF2\xF3\xF4\xF5\xF6\xF7\xF8\xF9\xFA" + DecodedBitStreamParser5.ECI + DecodedBitStreamParser5.FS + DecodedBitStreamParser5.GS + DecodedBitStreamParser5.RS + DecodedBitStreamParser5.NS + "\xFB\xFC\xFD\xFE\xFF\xA1\xA8\xAB\xAF\xB0\xB4\xB7\xB8\xBB\xBF\x8A\x8B\x8C\x8D\x8E\x8F\x90\x91\x92\x93\x94" + DecodedBitStreamParser5.LATCHA + " " + DecodedBitStreamParser5.SHIFTC + DecodedBitStreamParser5.LOCK + DecodedBitStreamParser5.SHIFTE + DecodedBitStreamParser5.LATCHB,
+      "\0\x07\b	\n\v\f\r" + DecodedBitStreamParser5.ECI + DecodedBitStreamParser5.PAD + DecodedBitStreamParser5.PAD + "\x1B" + DecodedBitStreamParser5.NS + DecodedBitStreamParser5.FS + DecodedBitStreamParser5.GS + DecodedBitStreamParser5.RS + "\x9F\xA0\xA2\xA3\xA4\xA5\xA6\xA7\xA9\xAD\xAE\xB6\x95\x96\x97\x98\x99\x9A\x9B\x9C\x9D\x9E" + DecodedBitStreamParser5.LATCHA + " " + DecodedBitStreamParser5.SHIFTC + DecodedBitStreamParser5.SHIFTD + DecodedBitStreamParser5.LOCK + DecodedBitStreamParser5.LATCHB
+    ];
+    return DecodedBitStreamParser5;
+  }()
+);
+var DecodedBitStreamParser_default3 = DecodedBitStreamParser3;
+
+// package/esm/core/maxicode/decoder/Decoder.js
+var Decoder4 = (
+  /** @class */
+  function() {
+    function Decoder5() {
+      this.rsDecoder = new ReedSolomonDecoder_default(GenericGF_default.MAXICODE_FIELD_64);
+    }
+    Decoder5.prototype.decode = function(bits, hints) {
+      var parser = new BitMatrixParser_default3(bits);
+      var codewords = parser.readCodewords();
+      var errorsCorrected = this.correctErrors(codewords, 0, 10, 10, Decoder5.ALL);
+      var mode = codewords[0] & 15;
+      var datawords;
+      switch (mode) {
+        case 2:
+        case 3:
+        case 4:
+          errorsCorrected += this.correctErrors(codewords, 20, 84, 40, Decoder5.EVEN);
+          errorsCorrected += this.correctErrors(codewords, 20, 84, 40, Decoder5.ODD);
+          datawords = new Uint8Array(94);
+          break;
+        case 5:
+          errorsCorrected += this.correctErrors(codewords, 20, 68, 56, Decoder5.EVEN);
+          errorsCorrected += this.correctErrors(codewords, 20, 68, 56, Decoder5.ODD);
+          datawords = new Uint8Array(78);
+          break;
+        default:
+          throw FormatException_default.getFormatInstance();
+      }
+      for (var i = 0; i < 10; i++) {
+        datawords[i] = codewords[i];
+      }
+      for (var i = 0; i < datawords.length - 10; i++) {
+        datawords[i + 10] = codewords[i + 20];
+      }
+      var result = DecodedBitStreamParser_default3.decode(datawords, mode);
+      result.setErrorsCorrected(errorsCorrected);
+      return result;
+    };
+    Decoder5.prototype.correctErrors = function(codewordBytes, start, dataCodewords, ecCodewords, mode) {
+      var codewords = dataCodewords + ecCodewords;
+      var divisor = mode === Decoder5.ALL ? 1 : 2;
+      var codewordsInts = new Int32Array(Math.floor(codewords / divisor));
+      for (var i = 0; i < codewords; i++) {
+        if (mode === Decoder5.ALL || i % 2 === mode - 1) {
+          codewordsInts[Math.floor(i / divisor)] = codewordBytes[i + start] & 255;
+        }
+      }
+      var errorsCorrected = 0;
+      try {
+        errorsCorrected = this.rsDecoder.decodeWithECCount(codewordsInts, Math.floor(ecCodewords / divisor));
+      } catch (ex) {
+        if (ex instanceof ReedSolomonException_default) {
+          throw ChecksumException_default.getChecksumInstance();
+        }
+        throw ex;
+      }
+      for (var i = 0; i < dataCodewords; i++) {
+        if (mode === Decoder5.ALL || i % 2 === mode - 1) {
+          codewordBytes[i + start] = codewordsInts[Math.floor(i / divisor)];
+        }
+      }
+      return errorsCorrected;
+    };
+    Decoder5.ALL = 0;
+    Decoder5.EVEN = 1;
+    Decoder5.ODD = 2;
+    return Decoder5;
+  }()
+);
+var Decoder_default4 = Decoder4;
+
+// package/esm/core/maxicode/MaxiCodeReader.js
+var MaxiCodeReader = (
+  /** @class */
+  function() {
+    function MaxiCodeReader2() {
+      this.decoder = new Decoder_default4();
+    }
+    MaxiCodeReader2.prototype.decode = function(image, hints) {
+      if (hints === void 0) {
+        hints = null;
+      }
+      var bits = MaxiCodeReader2.extractPureBits(image.getBlackMatrix());
+      var decoderResult = this.decoder.decode(bits, hints);
+      var result = new Result_default(decoderResult.getText(), decoderResult.getRawBytes(), 8 * decoderResult.getRawBytes().length, MaxiCodeReader2.NO_POINTS, BarcodeFormat_default.MAXICODE, System_default.currentTimeMillis());
+      result.putMetadata(ResultMetadataType_default.ERRORS_CORRECTED, decoderResult.getErrorsCorrected());
+      var ecLevel = decoderResult.getECLevel();
+      if (ecLevel != null) {
+        result.putMetadata(ResultMetadataType_default.ERROR_CORRECTION_LEVEL, ecLevel);
+      }
+      return result;
+    };
+    MaxiCodeReader2.prototype.reset = function() {
+    };
+    MaxiCodeReader2.extractPureBits = function(image) {
+      var enclosingRectangle = image.getEnclosingRectangle();
+      if (enclosingRectangle == null) {
+        throw new NotFoundException_default();
+      }
+      var left = enclosingRectangle[0];
+      var top = enclosingRectangle[1];
+      var width = enclosingRectangle[2];
+      var height = enclosingRectangle[3];
+      var bits = new BitMatrix_default(MaxiCodeReader2.MATRIX_WIDTH, MaxiCodeReader2.MATRIX_HEIGHT);
+      for (var y = 0; y < MaxiCodeReader2.MATRIX_HEIGHT; y++) {
+        var iy = top + Math.min(Math.floor((y * height + height / 2) / MaxiCodeReader2.MATRIX_HEIGHT), height - 1);
+        for (var x = 0; x < MaxiCodeReader2.MATRIX_WIDTH; x++) {
+          var ix = left + Math.min(Math.floor((x * width + width / 2 + (y & 1) * Math.floor(width / 2)) / MaxiCodeReader2.MATRIX_WIDTH), width - 1);
+          if (image.get(ix, iy)) {
+            bits.set(x, y);
+          }
+        }
+      }
+      return bits;
+    };
+    MaxiCodeReader2.NO_POINTS = [];
+    MaxiCodeReader2.MATRIX_WIDTH = 30;
+    MaxiCodeReader2.MATRIX_HEIGHT = 33;
+    return MaxiCodeReader2;
+  }()
+);
+var MaxiCodeReader_default = MaxiCodeReader;
+
+// package/esm/core/pdf417/PDF417Common.js
+var __values29 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -15363,7 +17200,7 @@ var __values28 = function(o) {
 };
 var PDF417Common = (
   /** @class */
-  (function() {
+  function() {
     function PDF417Common2() {
     }
     PDF417Common2.prototype.PDF417Common = function() {
@@ -15379,7 +17216,7 @@ var PDF417Common = (
       var result = new Int32Array(list.length);
       var i = 0;
       try {
-        for (var list_1 = __values28(list), list_1_1 = list_1.next(); !list_1_1.done; list_1_1 = list_1.next()) {
+        for (var list_1 = __values29(list), list_1_1 = list_1.next(); !list_1_1.done; list_1_1 = list_1.next()) {
           var integer = list_1_1.value;
           result[i++] = integer;
         }
@@ -20988,14 +22825,14 @@ var PDF417Common = (
       1700
     ]);
     return PDF417Common2;
-  })()
+  }()
 );
 var PDF417Common_default = PDF417Common;
 
 // package/esm/core/pdf417/detector/PDF417DetectorResult.js
 var PDF417DetectorResult = (
   /** @class */
-  (function() {
+  function() {
     function PDF417DetectorResult2(bits, points) {
       this.bits = bits;
       this.points = points;
@@ -21007,12 +22844,12 @@ var PDF417DetectorResult = (
       return this.points;
     };
     return PDF417DetectorResult2;
-  })()
+  }()
 );
 var PDF417DetectorResult_default = PDF417DetectorResult;
 
 // package/esm/core/pdf417/detector/Detector.js
-var __values29 = function(o) {
+var __values30 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -21025,7 +22862,7 @@ var __values29 = function(o) {
 };
 var Detector4 = (
   /** @class */
-  (function() {
+  function() {
     function Detector5() {
     }
     Detector5.detectMultiple = function(image, hints, multiple) {
@@ -21053,7 +22890,7 @@ var Detector4 = (
           foundBarcodeInRow = false;
           column = 0;
           try {
-            for (var barcodeCoordinates_1 = (e_1 = void 0, __values29(barcodeCoordinates)), barcodeCoordinates_1_1 = barcodeCoordinates_1.next(); !barcodeCoordinates_1_1.done; barcodeCoordinates_1_1 = barcodeCoordinates_1.next()) {
+            for (var barcodeCoordinates_1 = (e_1 = void 0, __values30(barcodeCoordinates)), barcodeCoordinates_1_1 = barcodeCoordinates_1.next(); !barcodeCoordinates_1_1.done; barcodeCoordinates_1_1 = barcodeCoordinates_1.next()) {
               var barcodeCoordinate = barcodeCoordinates_1_1.value;
               if (barcodeCoordinate[1] != null) {
                 row = Math.trunc(Math.max(row, barcodeCoordinate[1].getY()));
@@ -21233,12 +23070,12 @@ var Detector4 = (
     Detector5.ROW_STEP = 5;
     Detector5.BARCODE_MIN_HEIGHT = 10;
     return Detector5;
-  })()
+  }()
 );
 var Detector_default4 = Detector4;
 
 // package/esm/core/pdf417/decoder/ec/ModulusPoly.js
-var __values30 = function(o) {
+var __values31 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -21251,21 +23088,15 @@ var __values30 = function(o) {
 };
 var ModulusPoly = (
   /** @class */
-  (function() {
+  function() {
     function ModulusPoly2(field, coefficients) {
       if (coefficients.length === 0) {
         throw new IllegalArgumentException_default();
       }
       this.field = field;
-      var coefficientsLength = (
-        /*int*/
-        coefficients.length
-      );
+      var coefficientsLength = coefficients.length;
       if (coefficientsLength > 1 && coefficients[0] === 0) {
-        var firstNonZero = (
-          /*int*/
-          1
-        );
+        var firstNonZero = 1;
         while (firstNonZero < coefficientsLength && coefficients[firstNonZero] === 0) {
           firstNonZero++;
         }
@@ -21297,12 +23128,9 @@ var ModulusPoly = (
         return this.getCoefficient(0);
       }
       if (a === 1) {
-        var sum = (
-          /*int*/
-          0
-        );
+        var sum = 0;
         try {
-          for (var _b = __values30(this.coefficients), _c = _b.next(); !_c.done; _c = _b.next()) {
+          for (var _b = __values31(this.coefficients), _c = _b.next(); !_c.done; _c = _b.next()) {
             var coefficient = _c.value;
             sum = this.field.add(sum, coefficient);
           }
@@ -21317,14 +23145,8 @@ var ModulusPoly = (
         }
         return sum;
       }
-      var result = (
-        /*int*/
-        this.coefficients[0]
-      );
-      var size = (
-        /*int*/
-        this.coefficients.length
-      );
+      var result = this.coefficients[0];
+      var size = this.coefficients.length;
       for (var i = 1; i < size; i++) {
         result = this.field.add(this.field.multiply(a, result), this.coefficients[i]);
       }
@@ -21348,10 +23170,7 @@ var ModulusPoly = (
         largerCoefficients = temp;
       }
       var sumDiff = new Int32Array(largerCoefficients.length);
-      var lengthDiff = (
-        /*int*/
-        largerCoefficients.length - smallerCoefficients.length
-      );
+      var lengthDiff = largerCoefficients.length - smallerCoefficients.length;
       System_default.arraycopy(largerCoefficients, 0, sumDiff, 0, lengthDiff);
       for (var i = lengthDiff; i < largerCoefficients.length; i++) {
         sumDiff[i] = this.field.add(smallerCoefficients[i - lengthDiff], largerCoefficients[i]);
@@ -21381,21 +23200,12 @@ var ModulusPoly = (
         return new ModulusPoly2(this.field, new Int32Array([0]));
       }
       var aCoefficients = this.coefficients;
-      var aLength = (
-        /*int*/
-        aCoefficients.length
-      );
+      var aLength = aCoefficients.length;
       var bCoefficients = other.coefficients;
-      var bLength = (
-        /*int*/
-        bCoefficients.length
-      );
+      var bLength = bCoefficients.length;
       var product = new Int32Array(aLength + bLength - 1);
       for (var i = 0; i < aLength; i++) {
-        var aCoeff = (
-          /*int*/
-          aCoefficients[i]
-        );
+        var aCoeff = aCoefficients[i];
         for (var j = 0; j < bLength; j++) {
           product[i + j] = this.field.add(product[i + j], this.field.multiply(aCoeff, bCoefficients[j]));
         }
@@ -21403,10 +23213,7 @@ var ModulusPoly = (
       return new ModulusPoly2(this.field, product);
     };
     ModulusPoly2.prototype.negative = function() {
-      var size = (
-        /*int*/
-        this.coefficients.length
-      );
+      var size = this.coefficients.length;
       var negativeCoefficients = new Int32Array(size);
       for (var i = 0; i < size; i++) {
         negativeCoefficients[i] = this.field.subtract(0, this.coefficients[i]);
@@ -21420,10 +23227,7 @@ var ModulusPoly = (
       if (scalar === 1) {
         return this;
       }
-      var size = (
-        /*int*/
-        this.coefficients.length
-      );
+      var size = this.coefficients.length;
       var product = new Int32Array(size);
       for (var i = 0; i < size; i++) {
         product[i] = this.field.multiply(this.coefficients[i], scalar);
@@ -21437,10 +23241,7 @@ var ModulusPoly = (
       if (coefficient === 0) {
         return new ModulusPoly2(this.field, new Int32Array([0]));
       }
-      var size = (
-        /*int*/
-        this.coefficients.length
-      );
+      var size = this.coefficients.length;
       var product = new Int32Array(size + degree);
       for (var i = 0; i < size; i++) {
         product[i] = this.field.multiply(this.coefficients[i], coefficient);
@@ -21452,10 +23253,7 @@ var ModulusPoly = (
         /*8 * this.getDegree()*/
       );
       for (var degree = this.getDegree(); degree >= 0; degree--) {
-        var coefficient = (
-          /*int*/
-          this.getCoefficient(degree)
-        );
+        var coefficient = this.getCoefficient(degree);
         if (coefficient !== 0) {
           if (coefficient < 0) {
             result.append(" - ");
@@ -21481,14 +23279,14 @@ var ModulusPoly = (
       return result.toString();
     };
     return ModulusPoly2;
-  })()
+  }()
 );
 var ModulusPoly_default = ModulusPoly;
 
 // package/esm/core/pdf417/decoder/ec/ModulusBase.js
 var ModulusBase = (
   /** @class */
-  (function() {
+  function() {
     function ModulusBase2() {
     }
     ModulusBase2.prototype.add = function(a, b) {
@@ -21525,41 +23323,40 @@ var ModulusBase = (
       return o === this;
     };
     return ModulusBase2;
-  })()
+  }()
 );
 var ModulusBase_default = ModulusBase;
 
 // package/esm/core/pdf417/decoder/ec/ModulusGF.js
-var __extends56 = /* @__PURE__ */ (function() {
+var __extends57 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var ModulusGF = (
   /** @class */
-  (function(_super) {
-    __extends56(ModulusGF2, _super);
+  function(_super) {
+    __extends57(ModulusGF2, _super);
     function ModulusGF2(modulus, generator) {
       var _this = _super.call(this) || this;
       _this.modulus = modulus;
       _this.expTable = new Int32Array(modulus);
       _this.logTable = new Int32Array(modulus);
-      var x = (
-        /*int*/
-        1
-      );
+      var x = 1;
       for (var i = 0; i < modulus; i++) {
         _this.expTable[i] = x;
         x = x * generator % modulus;
@@ -21590,12 +23387,12 @@ var ModulusGF = (
     };
     ModulusGF2.PDF417_GF = new ModulusGF2(PDF417Common_default.NUMBER_OF_CODEWORDS, 3);
     return ModulusGF2;
-  })(ModulusBase_default)
+  }(ModulusBase_default)
 );
 var ModulusGF_default = ModulusGF;
 
 // package/esm/core/pdf417/decoder/ec/ErrorCorrection.js
-var __values31 = function(o) {
+var __values32 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -21608,7 +23405,7 @@ var __values31 = function(o) {
 };
 var ErrorCorrection = (
   /** @class */
-  (function() {
+  function() {
     function ErrorCorrection3() {
       this.field = ModulusGF_default.PDF417_GF;
     }
@@ -21630,7 +23427,7 @@ var ErrorCorrection = (
       var knownErrors = this.field.getOne();
       if (erasures != null) {
         try {
-          for (var erasures_1 = __values31(erasures), erasures_1_1 = erasures_1.next(); !erasures_1_1.done; erasures_1_1 = erasures_1.next()) {
+          for (var erasures_1 = __values32(erasures), erasures_1_1 = erasures_1.next(); !erasures_1_1.done; erasures_1_1 = erasures_1.next()) {
             var erasure = erasures_1_1.value;
             var b = this.field.exp(received.length - 1 - erasure);
             var term = new ModulusPoly_default(this.field, new Int32Array([this.field.subtract(0, b), 1]));
@@ -21733,14 +23530,14 @@ var ErrorCorrection = (
       return result;
     };
     return ErrorCorrection3;
-  })()
+  }()
 );
 var ErrorCorrection_default = ErrorCorrection;
 
 // package/esm/core/pdf417/decoder/BoundingBox.js
 var BoundingBox = (
   /** @class */
-  (function() {
+  function() {
     function BoundingBox2(image, topLeft, bottomLeft, topRight, bottomRight) {
       if (image instanceof BoundingBox2) {
         this.constructor_2(image);
@@ -21849,14 +23646,14 @@ var BoundingBox = (
       return this.bottomRight;
     };
     return BoundingBox2;
-  })()
+  }()
 );
 var BoundingBox_default = BoundingBox;
 
 // package/esm/core/pdf417/decoder/BarcodeMetadata.js
 var BarcodeMetadata = (
   /** @class */
-  (function() {
+  function() {
     function BarcodeMetadata2(columnCount, rowCountUpperPart, rowCountLowerPart, errorCorrectionLevel) {
       this.columnCount = columnCount;
       this.errorCorrectionLevel = errorCorrectionLevel;
@@ -21880,14 +23677,14 @@ var BarcodeMetadata = (
       return this.rowCountLowerPart;
     };
     return BarcodeMetadata2;
-  })()
+  }()
 );
 var BarcodeMetadata_default = BarcodeMetadata;
 
 // package/esm/core/util/Formatter.js
 var Formatter = (
   /** @class */
-  (function() {
+  function() {
     function Formatter2() {
       this.buffer = "";
     }
@@ -21945,12 +23742,12 @@ var Formatter = (
       return this.buffer;
     };
     return Formatter2;
-  })()
+  }()
 );
 var Formatter_default = Formatter;
 
 // package/esm/core/pdf417/decoder/DetectionResultColumn.js
-var __values32 = function(o) {
+var __values33 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -21963,7 +23760,7 @@ var __values32 = function(o) {
 };
 var DetectionResultColumn = (
   /** @class */
-  (function() {
+  function() {
     function DetectionResultColumn2(boundingBox) {
       this.boundingBox = new BoundingBox_default(boundingBox);
       this.codewords = new Array(boundingBox.getMaxY() - boundingBox.getMinY() + 1);
@@ -22011,7 +23808,7 @@ var DetectionResultColumn = (
       var formatter = new Formatter_default();
       var row = 0;
       try {
-        for (var _b = __values32(this.codewords), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values33(this.codewords), _c = _b.next(); !_c.done; _c = _b.next()) {
           var codeword = _c.value;
           if (codeword == null) {
             formatter.format("%3d:    |   %n", row++);
@@ -22032,12 +23829,12 @@ var DetectionResultColumn = (
     };
     DetectionResultColumn2.MAX_NEARBY_DISTANCE = 5;
     return DetectionResultColumn2;
-  })()
+  }()
 );
 var DetectionResultColumn_default = DetectionResultColumn;
 
 // package/esm/core/pdf417/decoder/BarcodeValue.js
-var __values33 = function(o) {
+var __values34 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -22048,7 +23845,7 @@ var __values33 = function(o) {
   };
   throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
 };
-var __read = function(o, n) {
+var __read11 = function(o, n) {
   var m = typeof Symbol === "function" && o[Symbol.iterator];
   if (!m) return o;
   var i = m.call(o), r, ar = [], e;
@@ -22067,7 +23864,7 @@ var __read = function(o, n) {
 };
 var BarcodeValue = (
   /** @class */
-  (function() {
+  function() {
     function BarcodeValue2() {
       this.values = /* @__PURE__ */ new Map();
     }
@@ -22102,8 +23899,8 @@ var BarcodeValue = (
         }
       };
       try {
-        for (var _b = __values33(this.values.entries()), _c = _b.next(); !_c.done; _c = _b.next()) {
-          var _d = __read(_c.value, 2), key = _d[0], value = _d[1];
+        for (var _b = __values34(this.values.entries()), _c = _b.next(); !_c.done; _c = _b.next()) {
+          var _d = __read11(_c.value, 2), key = _d[0], value = _d[1];
           _loop_1(key, value);
         }
       } catch (e_1_1) {
@@ -22121,29 +23918,31 @@ var BarcodeValue = (
       return this.values.get(value);
     };
     return BarcodeValue2;
-  })()
+  }()
 );
 var BarcodeValue_default = BarcodeValue;
 
 // package/esm/core/pdf417/decoder/DetectionResultRowIndicatorColumn.js
-var __extends57 = /* @__PURE__ */ (function() {
+var __extends58 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
-var __values34 = function(o) {
+}();
+var __values35 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -22156,8 +23955,8 @@ var __values34 = function(o) {
 };
 var DetectionResultRowIndicatorColumn = (
   /** @class */
-  (function(_super) {
-    __extends57(DetectionResultRowIndicatorColumn2, _super);
+  function(_super) {
+    __extends58(DetectionResultRowIndicatorColumn2, _super);
     function DetectionResultRowIndicatorColumn2(boundingBox, isLeft) {
       var _this = _super.call(this, boundingBox) || this;
       _this._isLeft = isLeft;
@@ -22166,7 +23965,7 @@ var DetectionResultRowIndicatorColumn = (
     DetectionResultRowIndicatorColumn2.prototype.setRowNumbers = function() {
       var e_1, _a2;
       try {
-        for (var _b = __values34(this.getCodewords()), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values35(this.getCodewords()), _c = _b.next(); !_c.done; _c = _b.next()) {
           var codeword = _c.value;
           if (codeword != null) {
             codeword.setRowNumberAsRowIndicatorColumn();
@@ -22237,7 +24036,7 @@ var DetectionResultRowIndicatorColumn = (
       this.adjustIncompleteIndicatorColumnRowNumbers(barcodeMetadata);
       var result = new Int32Array(barcodeMetadata.getRowCount());
       try {
-        for (var _b = __values34(this.getCodewords()), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values35(this.getCodewords()), _c = _b.next(); !_c.done; _c = _b.next()) {
           var codeword = _c.value;
           if (codeword != null) {
             var rowNumber = codeword.getRowNumber();
@@ -22297,7 +24096,7 @@ var DetectionResultRowIndicatorColumn = (
       var barcodeRowCountLowerPart = new BarcodeValue_default();
       var barcodeECLevel = new BarcodeValue_default();
       try {
-        for (var codewords_1 = __values34(codewords), codewords_1_1 = codewords_1.next(); !codewords_1_1.done; codewords_1_1 = codewords_1.next()) {
+        for (var codewords_1 = __values35(codewords), codewords_1_1 = codewords_1.next(); !codewords_1_1.done; codewords_1_1 = codewords_1.next()) {
           var codeword = codewords_1_1.value;
           if (codeword == null) {
             continue;
@@ -22378,12 +24177,12 @@ var DetectionResultRowIndicatorColumn = (
       return "IsLeft: " + this._isLeft + "\n" + _super.prototype.toString.call(this);
     };
     return DetectionResultRowIndicatorColumn2;
-  })(DetectionResultColumn_default)
+  }(DetectionResultColumn_default)
 );
 var DetectionResultRowIndicatorColumn_default = DetectionResultRowIndicatorColumn;
 
 // package/esm/core/pdf417/decoder/DetectionResult.js
-var __values35 = function(o) {
+var __values36 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -22396,7 +24195,7 @@ var __values35 = function(o) {
 };
 var DetectionResult = (
   /** @class */
-  (function() {
+  function() {
     function DetectionResult2(barcodeMetadata, boundingBox) {
       this.ADJUST_ROW_NUMBER_SKIP = 2;
       this.barcodeMetadata = barcodeMetadata;
@@ -22561,7 +24360,7 @@ var DetectionResult = (
         otherCodewords[13] = nextColumnCodewords[codewordsRow + 2];
       }
       try {
-        for (var otherCodewords_1 = __values35(otherCodewords), otherCodewords_1_1 = otherCodewords_1.next(); !otherCodewords_1_1.done; otherCodewords_1_1 = otherCodewords_1.next()) {
+        for (var otherCodewords_1 = __values36(otherCodewords), otherCodewords_1_1 = otherCodewords_1.next(); !otherCodewords_1_1.done; otherCodewords_1_1 = otherCodewords_1.next()) {
           var otherCodeword = otherCodewords_1_1.value;
           if (DetectionResult2.adjustRowNumber(codeword, otherCodeword)) {
             return;
@@ -22633,14 +24432,14 @@ var DetectionResult = (
       return formatter.toString();
     };
     return DetectionResult2;
-  })()
+  }()
 );
 var DetectionResult_default = DetectionResult;
 
 // package/esm/core/pdf417/decoder/Codeword.js
 var Codeword = (
   /** @class */
-  (function() {
+  function() {
     function Codeword2(startX, endX, bucket, value) {
       this.rowNumber = Codeword2.BARCODE_ROW_UNKNOWN;
       this.startX = Math.trunc(startX);
@@ -22683,14 +24482,14 @@ var Codeword = (
     };
     Codeword2.BARCODE_ROW_UNKNOWN = -1;
     return Codeword2;
-  })()
+  }()
 );
 var Codeword_default = Codeword;
 
 // package/esm/core/pdf417/decoder/PDF417CodewordDecoder.js
 var PDF417CodewordDecoder = (
   /** @class */
-  (function() {
+  function() {
     function PDF417CodewordDecoder2() {
     }
     PDF417CodewordDecoder2.initialize = function() {
@@ -22739,10 +24538,7 @@ var PDF417CodewordDecoder = (
       return PDF417Common_default.getCodeword(decodedValue) === -1 ? -1 : decodedValue;
     };
     PDF417CodewordDecoder2.getBitValue = function(moduleBitCount) {
-      var result = (
-        /*long*/
-        0
-      );
+      var result = 0;
       for (var i = 0; i < moduleBitCount.length; i++) {
         for (var bit = 0; bit < moduleBitCount[i]; bit++) {
           result = result << 1 | (i % 2 === 0 ? 1 : 0);
@@ -22785,14 +24581,14 @@ var PDF417CodewordDecoder = (
       return x = new Array(PDF417Common_default.BARS_IN_MODULE);
     });
     return PDF417CodewordDecoder2;
-  })()
+  }()
 );
 var PDF417CodewordDecoder_default = PDF417CodewordDecoder;
 
 // package/esm/core/pdf417/PDF417ResultMetadata.js
 var PDF417ResultMetadata = (
   /** @class */
-  (function() {
+  function() {
     function PDF417ResultMetadata2() {
       this.segmentCount = -1;
       this.fileSize = -1;
@@ -22866,14 +24662,14 @@ var PDF417ResultMetadata = (
       this.timestamp = timestamp;
     };
     return PDF417ResultMetadata2;
-  })()
+  }()
 );
 var PDF417ResultMetadata_default = PDF417ResultMetadata;
 
 // package/esm/core/util/Long.js
 var Long = (
   /** @class */
-  (function() {
+  function() {
     function Long2() {
     }
     Long2.parseLong = function(num, radix) {
@@ -22883,45 +24679,47 @@ var Long = (
       return parseInt(num, radix);
     };
     return Long2;
-  })()
+  }()
 );
 var Long_default = Long;
 
 // package/esm/core/NullPointerException.js
-var __extends58 = /* @__PURE__ */ (function() {
+var __extends59 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var NullPointerException = (
   /** @class */
-  (function(_super) {
-    __extends58(NullPointerException2, _super);
+  function(_super) {
+    __extends59(NullPointerException2, _super);
     function NullPointerException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     NullPointerException2.kind = "NullPointerException";
     return NullPointerException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var NullPointerException_default = NullPointerException;
 
 // package/esm/core/util/OutputStream.js
 var OutputStream = (
   /** @class */
-  (function() {
+  function() {
     function OutputStream2() {
     }
     OutputStream2.prototype.writeBytes = function(b) {
@@ -22944,62 +24742,66 @@ var OutputStream = (
     OutputStream2.prototype.close = function() {
     };
     return OutputStream2;
-  })()
+  }()
 );
 var OutputStream_default = OutputStream;
 
 // package/esm/core/OutOfMemoryError.js
-var __extends59 = /* @__PURE__ */ (function() {
+var __extends60 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var OutOfMemoryError = (
   /** @class */
-  (function(_super) {
-    __extends59(OutOfMemoryError2, _super);
+  function(_super) {
+    __extends60(OutOfMemoryError2, _super);
     function OutOfMemoryError2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     return OutOfMemoryError2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var OutOfMemoryError_default = OutOfMemoryError;
 
 // package/esm/core/util/ByteArrayOutputStream.js
-var __extends60 = /* @__PURE__ */ (function() {
+var __extends61 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var ByteArrayOutputStream = (
   /** @class */
-  (function(_super) {
-    __extends60(ByteArrayOutputStream2, _super);
+  function(_super) {
+    __extends61(ByteArrayOutputStream2, _super);
     function ByteArrayOutputStream2(size) {
       if (size === void 0) {
         size = 32;
@@ -23084,7 +24886,7 @@ var ByteArrayOutputStream = (
     ByteArrayOutputStream2.prototype.close = function() {
     };
     return ByteArrayOutputStream2;
-  })(OutputStream_default)
+  }(OutputStream_default)
 );
 var ByteArrayOutputStream_default = ByteArrayOutputStream;
 
@@ -23102,8 +24904,8 @@ function getBigIntConstructor() {
   if (typeof window !== "undefined") {
     return window["BigInt"] || null;
   }
-  if (typeof global !== "undefined") {
-    return global["BigInt"] || null;
+  if (typeof globalThis !== "undefined") {
+    return globalThis["BigInt"] || null;
   }
   if (typeof self !== "undefined") {
     return self["BigInt"] || null;
@@ -23130,12 +24932,12 @@ function getEXP900() {
   }
   return EXP900;
 }
-var DecodedBitStreamParser3 = (
+var DecodedBitStreamParser4 = (
   /** @class */
-  (function() {
-    function DecodedBitStreamParser4() {
+  function() {
+    function DecodedBitStreamParser5() {
     }
-    DecodedBitStreamParser4.decode = function(codewords, ecLevel) {
+    DecodedBitStreamParser5.decode = function(codewords, ecLevel) {
       var result = new StringBuilder_default("");
       var encoding = CharacterSetECI_default.ISO8859_1;
       result.enableDecoding(encoding);
@@ -23144,40 +24946,40 @@ var DecodedBitStreamParser3 = (
       var resultMetadata = new PDF417ResultMetadata_default();
       while (codeIndex < codewords[0]) {
         switch (code) {
-          case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
-            codeIndex = DecodedBitStreamParser4.textCompaction(codewords, codeIndex, result);
+          case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
+            codeIndex = DecodedBitStreamParser5.textCompaction(codewords, codeIndex, result);
             break;
-          case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH:
-          case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH_6:
-            codeIndex = DecodedBitStreamParser4.byteCompaction(code, codewords, encoding, codeIndex, result);
+          case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH:
+          case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH_6:
+            codeIndex = DecodedBitStreamParser5.byteCompaction(code, codewords, encoding, codeIndex, result);
             break;
-          case DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
+          case DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
             result.append(
               /*(char)*/
               codewords[codeIndex++]
             );
             break;
-          case DecodedBitStreamParser4.NUMERIC_COMPACTION_MODE_LATCH:
-            codeIndex = DecodedBitStreamParser4.numericCompaction(codewords, codeIndex, result);
+          case DecodedBitStreamParser5.NUMERIC_COMPACTION_MODE_LATCH:
+            codeIndex = DecodedBitStreamParser5.numericCompaction(codewords, codeIndex, result);
             break;
-          case DecodedBitStreamParser4.ECI_CHARSET:
+          case DecodedBitStreamParser5.ECI_CHARSET:
             var charsetECI = CharacterSetECI_default.getCharacterSetECIByValue(codewords[codeIndex++]);
             break;
-          case DecodedBitStreamParser4.ECI_GENERAL_PURPOSE:
+          case DecodedBitStreamParser5.ECI_GENERAL_PURPOSE:
             codeIndex += 2;
             break;
-          case DecodedBitStreamParser4.ECI_USER_DEFINED:
+          case DecodedBitStreamParser5.ECI_USER_DEFINED:
             codeIndex++;
             break;
-          case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
-            codeIndex = DecodedBitStreamParser4.decodeMacroBlock(codewords, codeIndex, resultMetadata);
+          case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
+            codeIndex = DecodedBitStreamParser5.decodeMacroBlock(codewords, codeIndex, resultMetadata);
             break;
-          case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
-          case DecodedBitStreamParser4.MACRO_PDF417_TERMINATOR:
+          case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
+          case DecodedBitStreamParser5.MACRO_PDF417_TERMINATOR:
             throw new FormatException_default();
           default:
             codeIndex--;
-            codeIndex = DecodedBitStreamParser4.textCompaction(codewords, codeIndex, result);
+            codeIndex = DecodedBitStreamParser5.textCompaction(codewords, codeIndex, result);
             break;
         }
         if (codeIndex < codewords.length) {
@@ -23193,67 +24995,67 @@ var DecodedBitStreamParser3 = (
       decoderResult.setOther(resultMetadata);
       return decoderResult;
     };
-    DecodedBitStreamParser4.decodeMacroBlock = function(codewords, codeIndex, resultMetadata) {
-      if (codeIndex + DecodedBitStreamParser4.NUMBER_OF_SEQUENCE_CODEWORDS > codewords[0]) {
+    DecodedBitStreamParser5.decodeMacroBlock = function(codewords, codeIndex, resultMetadata) {
+      if (codeIndex + DecodedBitStreamParser5.NUMBER_OF_SEQUENCE_CODEWORDS > codewords[0]) {
         throw FormatException_default.getFormatInstance();
       }
-      var segmentIndexArray = new Int32Array(DecodedBitStreamParser4.NUMBER_OF_SEQUENCE_CODEWORDS);
-      for (var i = 0; i < DecodedBitStreamParser4.NUMBER_OF_SEQUENCE_CODEWORDS; i++, codeIndex++) {
+      var segmentIndexArray = new Int32Array(DecodedBitStreamParser5.NUMBER_OF_SEQUENCE_CODEWORDS);
+      for (var i = 0; i < DecodedBitStreamParser5.NUMBER_OF_SEQUENCE_CODEWORDS; i++, codeIndex++) {
         segmentIndexArray[i] = codewords[codeIndex];
       }
-      resultMetadata.setSegmentIndex(Integer_default.parseInt(DecodedBitStreamParser4.decodeBase900toBase10(segmentIndexArray, DecodedBitStreamParser4.NUMBER_OF_SEQUENCE_CODEWORDS)));
+      resultMetadata.setSegmentIndex(Integer_default.parseInt(DecodedBitStreamParser5.decodeBase900toBase10(segmentIndexArray, DecodedBitStreamParser5.NUMBER_OF_SEQUENCE_CODEWORDS)));
       var fileId = new StringBuilder_default();
-      codeIndex = DecodedBitStreamParser4.textCompaction(codewords, codeIndex, fileId);
+      codeIndex = DecodedBitStreamParser5.textCompaction(codewords, codeIndex, fileId);
       resultMetadata.setFileId(fileId.toString());
       var optionalFieldsStart = -1;
-      if (codewords[codeIndex] === DecodedBitStreamParser4.BEGIN_MACRO_PDF417_OPTIONAL_FIELD) {
+      if (codewords[codeIndex] === DecodedBitStreamParser5.BEGIN_MACRO_PDF417_OPTIONAL_FIELD) {
         optionalFieldsStart = codeIndex + 1;
       }
       while (codeIndex < codewords[0]) {
         switch (codewords[codeIndex]) {
-          case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
+          case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
             codeIndex++;
             switch (codewords[codeIndex]) {
-              case DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_FILE_NAME:
+              case DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_FILE_NAME:
                 var fileName = new StringBuilder_default();
-                codeIndex = DecodedBitStreamParser4.textCompaction(codewords, codeIndex + 1, fileName);
+                codeIndex = DecodedBitStreamParser5.textCompaction(codewords, codeIndex + 1, fileName);
                 resultMetadata.setFileName(fileName.toString());
                 break;
-              case DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_SENDER:
+              case DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_SENDER:
                 var sender = new StringBuilder_default();
-                codeIndex = DecodedBitStreamParser4.textCompaction(codewords, codeIndex + 1, sender);
+                codeIndex = DecodedBitStreamParser5.textCompaction(codewords, codeIndex + 1, sender);
                 resultMetadata.setSender(sender.toString());
                 break;
-              case DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_ADDRESSEE:
+              case DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_ADDRESSEE:
                 var addressee = new StringBuilder_default();
-                codeIndex = DecodedBitStreamParser4.textCompaction(codewords, codeIndex + 1, addressee);
+                codeIndex = DecodedBitStreamParser5.textCompaction(codewords, codeIndex + 1, addressee);
                 resultMetadata.setAddressee(addressee.toString());
                 break;
-              case DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_SEGMENT_COUNT:
+              case DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_SEGMENT_COUNT:
                 var segmentCount = new StringBuilder_default();
-                codeIndex = DecodedBitStreamParser4.numericCompaction(codewords, codeIndex + 1, segmentCount);
+                codeIndex = DecodedBitStreamParser5.numericCompaction(codewords, codeIndex + 1, segmentCount);
                 resultMetadata.setSegmentCount(Integer_default.parseInt(segmentCount.toString()));
                 break;
-              case DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_TIME_STAMP:
+              case DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_TIME_STAMP:
                 var timestamp = new StringBuilder_default();
-                codeIndex = DecodedBitStreamParser4.numericCompaction(codewords, codeIndex + 1, timestamp);
+                codeIndex = DecodedBitStreamParser5.numericCompaction(codewords, codeIndex + 1, timestamp);
                 resultMetadata.setTimestamp(Long_default.parseLong(timestamp.toString()));
                 break;
-              case DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_CHECKSUM:
+              case DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_CHECKSUM:
                 var checksum = new StringBuilder_default();
-                codeIndex = DecodedBitStreamParser4.numericCompaction(codewords, codeIndex + 1, checksum);
+                codeIndex = DecodedBitStreamParser5.numericCompaction(codewords, codeIndex + 1, checksum);
                 resultMetadata.setChecksum(Integer_default.parseInt(checksum.toString()));
                 break;
-              case DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_FILE_SIZE:
+              case DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_FILE_SIZE:
                 var fileSize = new StringBuilder_default();
-                codeIndex = DecodedBitStreamParser4.numericCompaction(codewords, codeIndex + 1, fileSize);
+                codeIndex = DecodedBitStreamParser5.numericCompaction(codewords, codeIndex + 1, fileSize);
                 resultMetadata.setFileSize(Long_default.parseLong(fileSize.toString()));
                 break;
               default:
                 throw FormatException_default.getFormatInstance();
             }
             break;
-          case DecodedBitStreamParser4.MACRO_PDF417_TERMINATOR:
+          case DecodedBitStreamParser5.MACRO_PDF417_TERMINATOR:
             codeIndex++;
             resultMetadata.setLastSegment(true);
             break;
@@ -23270,33 +25072,33 @@ var DecodedBitStreamParser3 = (
       }
       return codeIndex;
     };
-    DecodedBitStreamParser4.textCompaction = function(codewords, codeIndex, result) {
+    DecodedBitStreamParser5.textCompaction = function(codewords, codeIndex, result) {
       var textCompactionData = new Int32Array((codewords[0] - codeIndex) * 2);
       var byteCompactionData = new Int32Array((codewords[0] - codeIndex) * 2);
       var index = 0;
       var end = false;
       while (codeIndex < codewords[0] && !end) {
         var code = codewords[codeIndex++];
-        if (code < DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH) {
+        if (code < DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH) {
           textCompactionData[index] = code / 30;
           textCompactionData[index + 1] = code % 30;
           index += 2;
         } else {
           switch (code) {
-            case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
-              textCompactionData[index++] = DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH;
+            case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
+              textCompactionData[index++] = DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH;
               break;
-            case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH:
-            case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH_6:
-            case DecodedBitStreamParser4.NUMERIC_COMPACTION_MODE_LATCH:
-            case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
-            case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
-            case DecodedBitStreamParser4.MACRO_PDF417_TERMINATOR:
+            case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH:
+            case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH_6:
+            case DecodedBitStreamParser5.NUMERIC_COMPACTION_MODE_LATCH:
+            case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
+            case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
+            case DecodedBitStreamParser5.MACRO_PDF417_TERMINATOR:
               codeIndex--;
               end = true;
               break;
-            case DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
-              textCompactionData[index] = DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE;
+            case DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
+              textCompactionData[index] = DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE;
               code = codewords[codeIndex++];
               byteCompactionData[index] = code;
               index++;
@@ -23304,19 +25106,16 @@ var DecodedBitStreamParser3 = (
           }
         }
       }
-      DecodedBitStreamParser4.decodeTextCompaction(textCompactionData, byteCompactionData, index, result);
+      DecodedBitStreamParser5.decodeTextCompaction(textCompactionData, byteCompactionData, index, result);
       return codeIndex;
     };
-    DecodedBitStreamParser4.decodeTextCompaction = function(textCompactionData, byteCompactionData, length, result) {
+    DecodedBitStreamParser5.decodeTextCompaction = function(textCompactionData, byteCompactionData, length, result) {
       var subMode = Mode3.ALPHA;
       var priorToShiftMode = Mode3.ALPHA;
       var i = 0;
       while (i < length) {
         var subModeCh = textCompactionData[i];
-        var ch = (
-          /*char*/
-          ""
-        );
+        var ch = "";
         switch (subMode) {
           case Mode3.ALPHA:
             if (subModeCh < 26) {
@@ -23327,23 +25126,23 @@ var DecodedBitStreamParser3 = (
                 case 26:
                   ch = " ";
                   break;
-                case DecodedBitStreamParser4.LL:
+                case DecodedBitStreamParser5.LL:
                   subMode = Mode3.LOWER;
                   break;
-                case DecodedBitStreamParser4.ML:
+                case DecodedBitStreamParser5.ML:
                   subMode = Mode3.MIXED;
                   break;
-                case DecodedBitStreamParser4.PS:
+                case DecodedBitStreamParser5.PS:
                   priorToShiftMode = subMode;
                   subMode = Mode3.PUNCT_SHIFT;
                   break;
-                case DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
+                case DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
                   result.append(
                     /*(char)*/
                     byteCompactionData[i]
                   );
                   break;
-                case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
                   subMode = Mode3.ALPHA;
                   break;
               }
@@ -23358,77 +25157,77 @@ var DecodedBitStreamParser3 = (
                 case 26:
                   ch = " ";
                   break;
-                case DecodedBitStreamParser4.AS:
+                case DecodedBitStreamParser5.AS:
                   priorToShiftMode = subMode;
                   subMode = Mode3.ALPHA_SHIFT;
                   break;
-                case DecodedBitStreamParser4.ML:
+                case DecodedBitStreamParser5.ML:
                   subMode = Mode3.MIXED;
                   break;
-                case DecodedBitStreamParser4.PS:
+                case DecodedBitStreamParser5.PS:
                   priorToShiftMode = subMode;
                   subMode = Mode3.PUNCT_SHIFT;
                   break;
-                case DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
+                case DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
                   result.append(
                     /*(char)*/
                     byteCompactionData[i]
                   );
                   break;
-                case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
                   subMode = Mode3.ALPHA;
                   break;
               }
             }
             break;
           case Mode3.MIXED:
-            if (subModeCh < DecodedBitStreamParser4.PL) {
-              ch = DecodedBitStreamParser4.MIXED_CHARS[subModeCh];
+            if (subModeCh < DecodedBitStreamParser5.PL) {
+              ch = DecodedBitStreamParser5.MIXED_CHARS[subModeCh];
             } else {
               switch (subModeCh) {
-                case DecodedBitStreamParser4.PL:
+                case DecodedBitStreamParser5.PL:
                   subMode = Mode3.PUNCT;
                   break;
                 case 26:
                   ch = " ";
                   break;
-                case DecodedBitStreamParser4.LL:
+                case DecodedBitStreamParser5.LL:
                   subMode = Mode3.LOWER;
                   break;
-                case DecodedBitStreamParser4.AL:
+                case DecodedBitStreamParser5.AL:
                   subMode = Mode3.ALPHA;
                   break;
-                case DecodedBitStreamParser4.PS:
+                case DecodedBitStreamParser5.PS:
                   priorToShiftMode = subMode;
                   subMode = Mode3.PUNCT_SHIFT;
                   break;
-                case DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
+                case DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
                   result.append(
                     /*(char)*/
                     byteCompactionData[i]
                   );
                   break;
-                case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
                   subMode = Mode3.ALPHA;
                   break;
               }
             }
             break;
           case Mode3.PUNCT:
-            if (subModeCh < DecodedBitStreamParser4.PAL) {
-              ch = DecodedBitStreamParser4.PUNCT_CHARS[subModeCh];
+            if (subModeCh < DecodedBitStreamParser5.PAL) {
+              ch = DecodedBitStreamParser5.PUNCT_CHARS[subModeCh];
             } else {
               switch (subModeCh) {
-                case DecodedBitStreamParser4.PAL:
+                case DecodedBitStreamParser5.PAL:
                   subMode = Mode3.ALPHA;
                   break;
-                case DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
+                case DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
                   result.append(
                     /*(char)*/
                     byteCompactionData[i]
                   );
                   break;
-                case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
                   subMode = Mode3.ALPHA;
                   break;
               }
@@ -23444,7 +25243,7 @@ var DecodedBitStreamParser3 = (
                 case 26:
                   ch = " ";
                   break;
-                case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
                   subMode = Mode3.ALPHA;
                   break;
               }
@@ -23452,20 +25251,20 @@ var DecodedBitStreamParser3 = (
             break;
           case Mode3.PUNCT_SHIFT:
             subMode = priorToShiftMode;
-            if (subModeCh < DecodedBitStreamParser4.PAL) {
-              ch = DecodedBitStreamParser4.PUNCT_CHARS[subModeCh];
+            if (subModeCh < DecodedBitStreamParser5.PAL) {
+              ch = DecodedBitStreamParser5.PUNCT_CHARS[subModeCh];
             } else {
               switch (subModeCh) {
-                case DecodedBitStreamParser4.PAL:
+                case DecodedBitStreamParser5.PAL:
                   subMode = Mode3.ALPHA;
                   break;
-                case DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
+                case DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE:
                   result.append(
                     /*(char)*/
                     byteCompactionData[i]
                   );
                   break;
-                case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
                   subMode = Mode3.ALPHA;
                   break;
               }
@@ -23478,16 +25277,13 @@ var DecodedBitStreamParser3 = (
         i++;
       }
     };
-    DecodedBitStreamParser4.byteCompaction = function(mode, codewords, encoding, codeIndex, result) {
+    DecodedBitStreamParser5.byteCompaction = function(mode, codewords, encoding, codeIndex, result) {
       var decodedBytes = new ByteArrayOutputStream_default();
       var count = 0;
-      var value = (
-        /*long*/
-        0
-      );
+      var value = 0;
       var end = false;
       switch (mode) {
-        case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH:
+        case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH:
           var byteCompactedCodewords = new Int32Array(6);
           var nextCode = codewords[codeIndex++];
           while (codeIndex < codewords[0] && !end) {
@@ -23495,13 +25291,13 @@ var DecodedBitStreamParser3 = (
             value = 900 * value + nextCode;
             nextCode = codewords[codeIndex++];
             switch (nextCode) {
-              case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
-              case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH:
-              case DecodedBitStreamParser4.NUMERIC_COMPACTION_MODE_LATCH:
-              case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH_6:
-              case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
-              case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
-              case DecodedBitStreamParser4.MACRO_PDF417_TERMINATOR:
+              case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
+              case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH:
+              case DecodedBitStreamParser5.NUMERIC_COMPACTION_MODE_LATCH:
+              case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH_6:
+              case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
+              case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
+              case DecodedBitStreamParser5.MACRO_PDF417_TERMINATOR:
                 codeIndex--;
                 end = true;
                 break;
@@ -23519,7 +25315,7 @@ var DecodedBitStreamParser3 = (
                 break;
             }
           }
-          if (codeIndex === codewords[0] && nextCode < DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH) {
+          if (codeIndex === codewords[0] && nextCode < DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH) {
             byteCompactedCodewords[count++] = nextCode;
           }
           for (var i = 0; i < count; i++) {
@@ -23529,21 +25325,21 @@ var DecodedBitStreamParser3 = (
             );
           }
           break;
-        case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH_6:
+        case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH_6:
           while (codeIndex < codewords[0] && !end) {
             var code = codewords[codeIndex++];
-            if (code < DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH) {
+            if (code < DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH) {
               count++;
               value = 900 * value + code;
             } else {
               switch (code) {
-                case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
-                case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH:
-                case DecodedBitStreamParser4.NUMERIC_COMPACTION_MODE_LATCH:
-                case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH_6:
-                case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
-                case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
-                case DecodedBitStreamParser4.MACRO_PDF417_TERMINATOR:
+                case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.NUMERIC_COMPACTION_MODE_LATCH:
+                case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH_6:
+                case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
+                case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
+                case DecodedBitStreamParser5.MACRO_PDF417_TERMINATOR:
                   codeIndex--;
                   end = true;
                   break;
@@ -23565,42 +25361,42 @@ var DecodedBitStreamParser3 = (
       result.append(StringEncoding_default.decode(decodedBytes.toByteArray(), encoding));
       return codeIndex;
     };
-    DecodedBitStreamParser4.numericCompaction = function(codewords, codeIndex, result) {
+    DecodedBitStreamParser5.numericCompaction = function(codewords, codeIndex, result) {
       var count = 0;
       var end = false;
-      var numericCodewords = new Int32Array(DecodedBitStreamParser4.MAX_NUMERIC_CODEWORDS);
+      var numericCodewords = new Int32Array(DecodedBitStreamParser5.MAX_NUMERIC_CODEWORDS);
       while (codeIndex < codewords[0] && !end) {
         var code = codewords[codeIndex++];
         if (codeIndex === codewords[0]) {
           end = true;
         }
-        if (code < DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH) {
+        if (code < DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH) {
           numericCodewords[count] = code;
           count++;
         } else {
           switch (code) {
-            case DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH:
-            case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH:
-            case DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH_6:
-            case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
-            case DecodedBitStreamParser4.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
-            case DecodedBitStreamParser4.MACRO_PDF417_TERMINATOR:
+            case DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH:
+            case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH:
+            case DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH_6:
+            case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_CONTROL_BLOCK:
+            case DecodedBitStreamParser5.BEGIN_MACRO_PDF417_OPTIONAL_FIELD:
+            case DecodedBitStreamParser5.MACRO_PDF417_TERMINATOR:
               codeIndex--;
               end = true;
               break;
           }
         }
-        if ((count % DecodedBitStreamParser4.MAX_NUMERIC_CODEWORDS === 0 || code === DecodedBitStreamParser4.NUMERIC_COMPACTION_MODE_LATCH || end) && count > 0) {
-          result.append(DecodedBitStreamParser4.decodeBase900toBase10(numericCodewords, count));
+        if ((count % DecodedBitStreamParser5.MAX_NUMERIC_CODEWORDS === 0 || code === DecodedBitStreamParser5.NUMERIC_COMPACTION_MODE_LATCH || end) && count > 0) {
+          result.append(DecodedBitStreamParser5.decodeBase900toBase10(numericCodewords, count));
           count = 0;
         }
       }
       return codeIndex;
     };
-    DecodedBitStreamParser4.decodeBase900toBase10 = function(codewords, count) {
+    DecodedBitStreamParser5.decodeBase900toBase10 = function(codewords, count) {
       var result = createBigInt(0);
       for (var i = 0; i < count; i++) {
-        result += DecodedBitStreamParser4.EXP900[count - i - 1] * createBigInt(codewords[i]);
+        result += DecodedBitStreamParser5.EXP900[count - i - 1] * createBigInt(codewords[i]);
       }
       var resultString = result.toString();
       if (resultString.charAt(0) !== "1") {
@@ -23608,43 +25404,43 @@ var DecodedBitStreamParser3 = (
       }
       return resultString.substring(1);
     };
-    DecodedBitStreamParser4.TEXT_COMPACTION_MODE_LATCH = 900;
-    DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH = 901;
-    DecodedBitStreamParser4.NUMERIC_COMPACTION_MODE_LATCH = 902;
-    DecodedBitStreamParser4.BYTE_COMPACTION_MODE_LATCH_6 = 924;
-    DecodedBitStreamParser4.ECI_USER_DEFINED = 925;
-    DecodedBitStreamParser4.ECI_GENERAL_PURPOSE = 926;
-    DecodedBitStreamParser4.ECI_CHARSET = 927;
-    DecodedBitStreamParser4.BEGIN_MACRO_PDF417_CONTROL_BLOCK = 928;
-    DecodedBitStreamParser4.BEGIN_MACRO_PDF417_OPTIONAL_FIELD = 923;
-    DecodedBitStreamParser4.MACRO_PDF417_TERMINATOR = 922;
-    DecodedBitStreamParser4.MODE_SHIFT_TO_BYTE_COMPACTION_MODE = 913;
-    DecodedBitStreamParser4.MAX_NUMERIC_CODEWORDS = 15;
-    DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_FILE_NAME = 0;
-    DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_SEGMENT_COUNT = 1;
-    DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_TIME_STAMP = 2;
-    DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_SENDER = 3;
-    DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_ADDRESSEE = 4;
-    DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_FILE_SIZE = 5;
-    DecodedBitStreamParser4.MACRO_PDF417_OPTIONAL_FIELD_CHECKSUM = 6;
-    DecodedBitStreamParser4.PL = 25;
-    DecodedBitStreamParser4.LL = 27;
-    DecodedBitStreamParser4.AS = 27;
-    DecodedBitStreamParser4.ML = 28;
-    DecodedBitStreamParser4.AL = 28;
-    DecodedBitStreamParser4.PS = 29;
-    DecodedBitStreamParser4.PAL = 29;
-    DecodedBitStreamParser4.PUNCT_CHARS = ";<>@[\\]_`~!\r	,:\n-.$/\"|*()?{}'";
-    DecodedBitStreamParser4.MIXED_CHARS = "0123456789&\r	,:#-.$/+%*=^";
-    DecodedBitStreamParser4.EXP900 = getBigIntConstructor() ? getEXP900() : [];
-    DecodedBitStreamParser4.NUMBER_OF_SEQUENCE_CODEWORDS = 2;
-    return DecodedBitStreamParser4;
-  })()
+    DecodedBitStreamParser5.TEXT_COMPACTION_MODE_LATCH = 900;
+    DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH = 901;
+    DecodedBitStreamParser5.NUMERIC_COMPACTION_MODE_LATCH = 902;
+    DecodedBitStreamParser5.BYTE_COMPACTION_MODE_LATCH_6 = 924;
+    DecodedBitStreamParser5.ECI_USER_DEFINED = 925;
+    DecodedBitStreamParser5.ECI_GENERAL_PURPOSE = 926;
+    DecodedBitStreamParser5.ECI_CHARSET = 927;
+    DecodedBitStreamParser5.BEGIN_MACRO_PDF417_CONTROL_BLOCK = 928;
+    DecodedBitStreamParser5.BEGIN_MACRO_PDF417_OPTIONAL_FIELD = 923;
+    DecodedBitStreamParser5.MACRO_PDF417_TERMINATOR = 922;
+    DecodedBitStreamParser5.MODE_SHIFT_TO_BYTE_COMPACTION_MODE = 913;
+    DecodedBitStreamParser5.MAX_NUMERIC_CODEWORDS = 15;
+    DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_FILE_NAME = 0;
+    DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_SEGMENT_COUNT = 1;
+    DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_TIME_STAMP = 2;
+    DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_SENDER = 3;
+    DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_ADDRESSEE = 4;
+    DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_FILE_SIZE = 5;
+    DecodedBitStreamParser5.MACRO_PDF417_OPTIONAL_FIELD_CHECKSUM = 6;
+    DecodedBitStreamParser5.PL = 25;
+    DecodedBitStreamParser5.LL = 27;
+    DecodedBitStreamParser5.AS = 27;
+    DecodedBitStreamParser5.ML = 28;
+    DecodedBitStreamParser5.AL = 28;
+    DecodedBitStreamParser5.PS = 29;
+    DecodedBitStreamParser5.PAL = 29;
+    DecodedBitStreamParser5.PUNCT_CHARS = ";<>@[\\]_`~!\r	,:\n-.$/\"|*()?{}'";
+    DecodedBitStreamParser5.MIXED_CHARS = "0123456789&\r	,:#-.$/+%*=^";
+    DecodedBitStreamParser5.EXP900 = getBigIntConstructor() ? getEXP900() : [];
+    DecodedBitStreamParser5.NUMBER_OF_SEQUENCE_CODEWORDS = 2;
+    return DecodedBitStreamParser5;
+  }()
 );
-var DecodedBitStreamParser_default3 = DecodedBitStreamParser3;
+var DecodedBitStreamParser_default4 = DecodedBitStreamParser4;
 
 // package/esm/core/pdf417/decoder/PDF417ScanningDecoder.js
-var __values36 = function(o) {
+var __values37 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -23657,7 +25453,7 @@ var __values36 = function(o) {
 };
 var PDF417ScanningDecoder = (
   /** @class */
-  (function() {
+  function() {
     function PDF417ScanningDecoder2() {
     }
     PDF417ScanningDecoder2.decode = function(image, imageTopLeft, imageBottomLeft, imageTopRight, imageBottomRight, minCodewordWidth, maxCodewordWidth) {
@@ -23745,7 +25541,7 @@ var PDF417ScanningDecoder = (
       var maxRowHeight = PDF417ScanningDecoder2.getMax(rowHeights);
       var missingStartRows = 0;
       try {
-        for (var rowHeights_1 = __values36(rowHeights), rowHeights_1_1 = rowHeights_1.next(); !rowHeights_1_1.done; rowHeights_1_1 = rowHeights_1.next()) {
+        for (var rowHeights_1 = __values37(rowHeights), rowHeights_1_1 = rowHeights_1.next(); !rowHeights_1_1.done; rowHeights_1_1 = rowHeights_1.next()) {
           var rowHeight = rowHeights_1_1.value;
           missingStartRows += maxRowHeight - rowHeight;
           if (rowHeight > 0) {
@@ -23781,7 +25577,7 @@ var PDF417ScanningDecoder = (
       var e_2, _a2;
       var maxValue = -1;
       try {
-        for (var values_1 = __values36(values), values_1_1 = values_1.next(); !values_1_1.done; values_1_1 = values_1.next()) {
+        for (var values_1 = __values37(values), values_1_1 = values_1.next(); !values_1_1.done; values_1_1 = values_1.next()) {
           var value = values_1_1.value;
           maxValue = Math.max(maxValue, value);
         }
@@ -23847,14 +25643,8 @@ var PDF417ScanningDecoder = (
       PDF417ScanningDecoder2.adjustCodewordCount(detectionResult, barcodeMatrix);
       var erasures = new Array();
       var codewords = new Int32Array(detectionResult.getBarcodeRowCount() * detectionResult.getBarcodeColumnCount());
-      var ambiguousIndexValuesList = (
-        /*List<int[]>*/
-        []
-      );
-      var ambiguousIndexesList = (
-        /*Collection<Integer>*/
-        new Array()
-      );
+      var ambiguousIndexValuesList = [];
+      var ambiguousIndexesList = new Array();
       for (var row = 0; row < detectionResult.getBarcodeRowCount(); row++) {
         for (var column = 0; column < detectionResult.getBarcodeColumnCount(); column++) {
           var values = barcodeMatrix[row][column + 1].getValue();
@@ -23919,11 +25709,11 @@ var PDF417ScanningDecoder = (
       }
       var column = 0;
       try {
-        for (var _c = __values36(detectionResult.getDetectionResultColumns()), _d = _c.next(); !_d.done; _d = _c.next()) {
+        for (var _c = __values37(detectionResult.getDetectionResultColumns()), _d = _c.next(); !_d.done; _d = _c.next()) {
           var detectionResultColumn = _d.value;
           if (detectionResultColumn != null) {
             try {
-              for (var _e = (e_4 = void 0, __values36(detectionResultColumn.getCodewords())), _f = _e.next(); !_f.done; _f = _e.next()) {
+              for (var _e = (e_4 = void 0, __values37(detectionResultColumn.getCodewords())), _f = _e.next(); !_f.done; _f = _e.next()) {
                 var codeword = _f.value;
                 if (codeword != null) {
                   var rowNumber = codeword.getRowNumber();
@@ -23985,7 +25775,7 @@ var PDF417ScanningDecoder = (
       while (PDF417ScanningDecoder2.isValidBarcodeColumn(detectionResult, barcodeColumn - offset)) {
         barcodeColumn -= offset;
         try {
-          for (var _b = (e_5 = void 0, __values36(detectionResult.getDetectionResultColumn(barcodeColumn).getCodewords())), _c = _b.next(); !_c.done; _c = _b.next()) {
+          for (var _b = (e_5 = void 0, __values37(detectionResult.getDetectionResultColumn(barcodeColumn).getCodewords())), _c = _b.next(); !_c.done; _c = _b.next()) {
             var previousRowCodeword = _c.value;
             if (previousRowCodeword != null) {
               return (leftToRight ? previousRowCodeword.getEndX() : previousRowCodeword.getStartX()) + offset * skippedColumns * (previousRowCodeword.getEndX() - previousRowCodeword.getStartX());
@@ -24081,7 +25871,7 @@ var PDF417ScanningDecoder = (
       var numECCodewords = 1 << ecLevel + 1;
       var correctedErrorsCount = PDF417ScanningDecoder2.correctErrors(codewords, erasures, numECCodewords);
       PDF417ScanningDecoder2.verifyCodewordCount(codewords, numECCodewords);
-      var decoderResult = DecodedBitStreamParser_default3.decode(codewords, "" + ecLevel);
+      var decoderResult = DecodedBitStreamParser_default4.decode(codewords, "" + ecLevel);
       decoderResult.setErrorsCorrected(correctedErrorsCount);
       decoderResult.setErasures(erasures.length);
       return decoderResult;
@@ -24158,12 +25948,12 @@ var PDF417ScanningDecoder = (
     PDF417ScanningDecoder2.MAX_EC_CODEWORDS = 512;
     PDF417ScanningDecoder2.errorCorrection = new ErrorCorrection_default();
     return PDF417ScanningDecoder2;
-  })()
+  }()
 );
 var PDF417ScanningDecoder_default = PDF417ScanningDecoder;
 
 // package/esm/core/pdf417/PDF417Reader.js
-var __values37 = function(o) {
+var __values38 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -24176,7 +25966,7 @@ var __values37 = function(o) {
 };
 var PDF417Reader = (
   /** @class */
-  (function() {
+  function() {
     function PDF417Reader2() {
     }
     PDF417Reader2.prototype.decode = function(image, hints) {
@@ -24207,7 +25997,7 @@ var PDF417Reader = (
       var results = new Array();
       var detectorResult = Detector_default4.detectMultiple(image, hints, multiple);
       try {
-        for (var _b = __values37(detectorResult.getPoints()), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values38(detectorResult.getPoints()), _c = _b.next(); !_c.done; _c = _b.next()) {
           var points = _c.value;
           var decoderResult = PDF417ScanningDecoder_default.decode(detectorResult.getBits(), points[4], points[5], points[6], points[7], PDF417Reader2.getMinCodewordWidth(points), PDF417Reader2.getMaxCodewordWidth(points));
           var result = new Result_default(decoderResult.getText(), decoderResult.getRawBytes(), void 0, points, BarcodeFormat_default.PDF_417);
@@ -24252,43 +26042,45 @@ var PDF417Reader = (
     PDF417Reader2.prototype.reset = function() {
     };
     return PDF417Reader2;
-  })()
+  }()
 );
 var PDF417Reader_default = PDF417Reader;
 
 // package/esm/core/ReaderException.js
-var __extends61 = /* @__PURE__ */ (function() {
+var __extends62 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var ReaderException = (
   /** @class */
-  (function(_super) {
-    __extends61(ReaderException2, _super);
+  function(_super) {
+    __extends62(ReaderException2, _super);
     function ReaderException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     ReaderException2.kind = "ReaderException";
     return ReaderException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var ReaderException_default = ReaderException;
 
 // package/esm/core/MultiFormatReader.js
-var __values38 = function(o) {
+var __values39 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -24301,11 +26093,13 @@ var __values38 = function(o) {
 };
 var MultiFormatReader = (
   /** @class */
-  (function() {
+  function() {
     function MultiFormatReader2() {
     }
     MultiFormatReader2.prototype.decode = function(image, hints) {
-      this.setHints(hints);
+      if (this.hints !== hints) {
+        this.setHints(hints);
+      }
       return this.decodeInternal(image);
     };
     MultiFormatReader2.prototype.decodeWithState = function(image) {
@@ -24329,6 +26123,9 @@ var MultiFormatReader = (
         if (formats.includes(BarcodeFormat_default.QR_CODE)) {
           readers.push(new QRCodeReader_default());
         }
+        if (formats.includes(BarcodeFormat_default.MICRO_QR_CODE)) {
+          readers.push(new MicroQRCodeReader_default());
+        }
         if (formats.includes(BarcodeFormat_default.DATA_MATRIX)) {
           readers.push(new DataMatrixReader_default());
         }
@@ -24337,6 +26134,9 @@ var MultiFormatReader = (
         }
         if (formats.includes(BarcodeFormat_default.PDF_417)) {
           readers.push(new PDF417Reader_default());
+        }
+        if (formats.includes(BarcodeFormat_default.MAXICODE)) {
+          readers.push(new MaxiCodeReader_default());
         }
         if (addOneDReader && tryHarder) {
           readers.push(new MultiFormatOneDReader_default(hints));
@@ -24347,9 +26147,11 @@ var MultiFormatReader = (
           readers.push(new MultiFormatOneDReader_default(hints));
         }
         readers.push(new QRCodeReader_default());
+        readers.push(new MicroQRCodeReader_default());
         readers.push(new DataMatrixReader_default());
         readers.push(new AztecReader_default());
         readers.push(new PDF417Reader_default());
+        readers.push(new MaxiCodeReader_default());
         if (tryHarder) {
           readers.push(new MultiFormatOneDReader_default(hints));
         }
@@ -24360,7 +26162,7 @@ var MultiFormatReader = (
       var e_1, _a2;
       if (this.readers !== null) {
         try {
-          for (var _b = __values38(this.readers), _c = _b.next(); !_c.done; _c = _b.next()) {
+          for (var _b = __values39(this.readers), _c = _b.next(); !_c.done; _c = _b.next()) {
             var reader = _c.value;
             reader.reset();
           }
@@ -24381,7 +26183,7 @@ var MultiFormatReader = (
         throw new ReaderException_default("No readers where selected, nothing can be read.");
       }
       try {
-        for (var _b = __values38(this.readers), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values39(this.readers), _c = _b.next(); !_c.done; _c = _b.next()) {
           var reader = _c.value;
           try {
             return reader.decode(image, this.hints);
@@ -24389,6 +26191,8 @@ var MultiFormatReader = (
             if (ex instanceof ReaderException_default) {
               continue;
             }
+            console.warn("MultiFormatReader: non-ReaderException from reader:", ex);
+            continue;
           }
         }
       } catch (e_2_1) {
@@ -24403,32 +26207,34 @@ var MultiFormatReader = (
       throw new NotFoundException_default("No MultiFormat Readers were able to detect the code.");
     };
     return MultiFormatReader2;
-  })()
+  }()
 );
 var MultiFormatReader_default = MultiFormatReader;
 
 // package/esm/browser/BrowserMultiFormatReader.js
-var __extends62 = /* @__PURE__ */ (function() {
+var __extends63 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var BrowserMultiFormatReader = (
   /** @class */
-  (function(_super) {
-    __extends62(BrowserMultiFormatReader2, _super);
+  function(_super) {
+    __extends63(BrowserMultiFormatReader2, _super);
     function BrowserMultiFormatReader2(hints, timeBetweenScansMillis) {
       if (hints === void 0) {
         hints = null;
@@ -24436,41 +26242,53 @@ var BrowserMultiFormatReader = (
       if (timeBetweenScansMillis === void 0) {
         timeBetweenScansMillis = 500;
       }
-      var _this = this;
       var reader = new MultiFormatReader_default();
       reader.setHints(hints);
-      _this = _super.call(this, reader, timeBetweenScansMillis) || this;
-      return _this;
+      return _super.call(this, reader, timeBetweenScansMillis) || this;
     }
+    Object.defineProperty(BrowserMultiFormatReader2.prototype, "hints", {
+      set: function(hints) {
+        this._hints = hints || null;
+        this.reader.setHints(hints);
+      },
+      enumerable: false,
+      configurable: true
+    });
     BrowserMultiFormatReader2.prototype.decodeBitmap = function(binaryBitmap) {
-      return this.reader.decodeWithState(binaryBitmap);
+      try {
+        return this.reader.decodeWithState(binaryBitmap);
+      } finally {
+        this.reader.reset();
+      }
     };
     return BrowserMultiFormatReader2;
-  })(BrowserCodeReader)
+  }(BrowserCodeReader)
 );
 
 // package/esm/browser/BrowserPDF417Reader.js
-var __extends63 = /* @__PURE__ */ (function() {
+var __extends64 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var BrowserPDF417Reader = (
   /** @class */
-  (function(_super) {
-    __extends63(BrowserPDF417Reader2, _super);
+  function(_super) {
+    __extends64(BrowserPDF417Reader2, _super);
     function BrowserPDF417Reader2(timeBetweenScansMillis) {
       if (timeBetweenScansMillis === void 0) {
         timeBetweenScansMillis = 500;
@@ -24478,31 +26296,33 @@ var BrowserPDF417Reader = (
       return _super.call(this, new PDF417Reader_default(), timeBetweenScansMillis) || this;
     }
     return BrowserPDF417Reader2;
-  })(BrowserCodeReader)
+  }(BrowserCodeReader)
 );
 
 // package/esm/browser/BrowserQRCodeReader.js
-var __extends64 = /* @__PURE__ */ (function() {
+var __extends65 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var BrowserQRCodeReader = (
   /** @class */
-  (function(_super) {
-    __extends64(BrowserQRCodeReader2, _super);
+  function(_super) {
+    __extends65(BrowserQRCodeReader2, _super);
     function BrowserQRCodeReader2(timeBetweenScansMillis) {
       if (timeBetweenScansMillis === void 0) {
         timeBetweenScansMillis = 500;
@@ -24510,7 +26330,7 @@ var BrowserQRCodeReader = (
       return _super.call(this, new QRCodeReader_default(), timeBetweenScansMillis) || this;
     }
     return BrowserQRCodeReader2;
-  })(BrowserCodeReader)
+  }(BrowserCodeReader)
 );
 
 // package/esm/core/EncodeHintType.js
@@ -24536,7 +26356,7 @@ var EncodeHintType_default = EncodeHintType;
 // package/esm/core/common/reedsolomon/ReedSolomonEncoder.js
 var ReedSolomonEncoder = (
   /** @class */
-  (function() {
+  function() {
     function ReedSolomonEncoder2(field) {
       this.field = field;
       this.cachedGenerators = [];
@@ -24577,14 +26397,14 @@ var ReedSolomonEncoder = (
       System_default.arraycopy(coefficients, 0, toEncode, dataBytes + numZeroCoefficients, coefficients.length);
     };
     return ReedSolomonEncoder2;
-  })()
+  }()
 );
 var ReedSolomonEncoder_default = ReedSolomonEncoder;
 
 // package/esm/core/qrcode/encoder/MaskUtil.js
 var MaskUtil = (
   /** @class */
-  (function() {
+  function() {
     function MaskUtil2() {
     }
     MaskUtil2.applyMaskPenaltyRule1 = function(matrix) {
@@ -24728,12 +26548,12 @@ var MaskUtil = (
     MaskUtil2.N3 = 40;
     MaskUtil2.N4 = 10;
     return MaskUtil2;
-  })()
+  }()
 );
 var MaskUtil_default = MaskUtil;
 
 // package/esm/core/qrcode/encoder/ByteMatrix.js
-var __values39 = function(o) {
+var __values40 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -24746,7 +26566,7 @@ var __values39 = function(o) {
 };
 var ByteMatrix = (
   /** @class */
-  (function() {
+  function() {
     function ByteMatrix2(width, height) {
       this.width = width;
       this.height = height;
@@ -24778,7 +26598,7 @@ var ByteMatrix = (
     ByteMatrix2.prototype.clear = function(value) {
       var e_1, _a2;
       try {
-        for (var _b = __values39(this.bytes), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values40(this.bytes), _c = _b.next(); !_c.done; _c = _b.next()) {
           var aByte = _c.value;
           Arrays_default.fill(aByte, value);
         }
@@ -24836,14 +26656,14 @@ var ByteMatrix = (
       return result.toString();
     };
     return ByteMatrix2;
-  })()
+  }()
 );
 var ByteMatrix_default = ByteMatrix;
 
 // package/esm/core/qrcode/encoder/QRCode.js
 var QRCode = (
   /** @class */
-  (function() {
+  function() {
     function QRCode2() {
       this.maskPattern = -1;
     }
@@ -24902,45 +26722,47 @@ var QRCode = (
     };
     QRCode2.NUM_MASK_PATTERNS = 8;
     return QRCode2;
-  })()
+  }()
 );
 var QRCode_default = QRCode;
 
 // package/esm/core/WriterException.js
-var __extends65 = /* @__PURE__ */ (function() {
+var __extends66 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var WriterException = (
   /** @class */
-  (function(_super) {
-    __extends65(WriterException2, _super);
+  function(_super) {
+    __extends66(WriterException2, _super);
     function WriterException2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
     WriterException2.kind = "WriterException";
     return WriterException2;
-  })(Exception_default)
+  }(Exception_default)
 );
 var WriterException_default = WriterException;
 
 // package/esm/core/qrcode/encoder/MatrixUtil.js
 var MatrixUtil = (
   /** @class */
-  (function() {
+  function() {
     function MatrixUtil2() {
     }
     MatrixUtil2.clearMatrix = function(matrix) {
@@ -25175,45 +26997,85 @@ var MatrixUtil = (
     ]);
     MatrixUtil2.POSITION_ADJUSTMENT_PATTERN_COORDINATE_TABLE = Array.from([
       Int32Array.from([-1, -1, -1, -1, -1, -1, -1]),
+      // Version 1
       Int32Array.from([6, 18, -1, -1, -1, -1, -1]),
+      // Version 2
       Int32Array.from([6, 22, -1, -1, -1, -1, -1]),
+      // Version 3
       Int32Array.from([6, 26, -1, -1, -1, -1, -1]),
+      // Version 4
       Int32Array.from([6, 30, -1, -1, -1, -1, -1]),
+      // Version 5
       Int32Array.from([6, 34, -1, -1, -1, -1, -1]),
+      // Version 6
       Int32Array.from([6, 22, 38, -1, -1, -1, -1]),
+      // Version 7
       Int32Array.from([6, 24, 42, -1, -1, -1, -1]),
+      // Version 8
       Int32Array.from([6, 26, 46, -1, -1, -1, -1]),
+      // Version 9
       Int32Array.from([6, 28, 50, -1, -1, -1, -1]),
+      // Version 10
       Int32Array.from([6, 30, 54, -1, -1, -1, -1]),
+      // Version 11
       Int32Array.from([6, 32, 58, -1, -1, -1, -1]),
+      // Version 12
       Int32Array.from([6, 34, 62, -1, -1, -1, -1]),
+      // Version 13
       Int32Array.from([6, 26, 46, 66, -1, -1, -1]),
+      // Version 14
       Int32Array.from([6, 26, 48, 70, -1, -1, -1]),
+      // Version 15
       Int32Array.from([6, 26, 50, 74, -1, -1, -1]),
+      // Version 16
       Int32Array.from([6, 30, 54, 78, -1, -1, -1]),
+      // Version 17
       Int32Array.from([6, 30, 56, 82, -1, -1, -1]),
+      // Version 18
       Int32Array.from([6, 30, 58, 86, -1, -1, -1]),
+      // Version 19
       Int32Array.from([6, 34, 62, 90, -1, -1, -1]),
+      // Version 20
       Int32Array.from([6, 28, 50, 72, 94, -1, -1]),
+      // Version 21
       Int32Array.from([6, 26, 50, 74, 98, -1, -1]),
+      // Version 22
       Int32Array.from([6, 30, 54, 78, 102, -1, -1]),
+      // Version 23
       Int32Array.from([6, 28, 54, 80, 106, -1, -1]),
+      // Version 24
       Int32Array.from([6, 32, 58, 84, 110, -1, -1]),
+      // Version 25
       Int32Array.from([6, 30, 58, 86, 114, -1, -1]),
+      // Version 26
       Int32Array.from([6, 34, 62, 90, 118, -1, -1]),
+      // Version 27
       Int32Array.from([6, 26, 50, 74, 98, 122, -1]),
+      // Version 28
       Int32Array.from([6, 30, 54, 78, 102, 126, -1]),
+      // Version 29
       Int32Array.from([6, 26, 52, 78, 104, 130, -1]),
+      // Version 30
       Int32Array.from([6, 30, 56, 82, 108, 134, -1]),
+      // Version 31
       Int32Array.from([6, 34, 60, 86, 112, 138, -1]),
+      // Version 32
       Int32Array.from([6, 30, 58, 86, 114, 142, -1]),
+      // Version 33
       Int32Array.from([6, 34, 62, 90, 118, 146, -1]),
+      // Version 34
       Int32Array.from([6, 30, 54, 78, 102, 126, 150]),
+      // Version 35
       Int32Array.from([6, 24, 50, 76, 102, 128, 154]),
+      // Version 36
       Int32Array.from([6, 28, 54, 80, 106, 132, 158]),
+      // Version 37
       Int32Array.from([6, 32, 58, 84, 110, 136, 162]),
+      // Version 38
       Int32Array.from([6, 26, 54, 82, 110, 138, 166]),
+      // Version 39
       Int32Array.from([6, 30, 58, 86, 114, 142, 170])
+      // Version 40
     ]);
     MatrixUtil2.TYPE_INFO_COORDINATES = Array.from([
       Int32Array.from([8, 0]),
@@ -25236,14 +27098,14 @@ var MatrixUtil = (
     MatrixUtil2.TYPE_INFO_POLY = 1335;
     MatrixUtil2.TYPE_INFO_MASK_PATTERN = 21522;
     return MatrixUtil2;
-  })()
+  }()
 );
 var MatrixUtil_default = MatrixUtil;
 
 // package/esm/core/qrcode/encoder/BlockPair.js
 var BlockPair = (
   /** @class */
-  (function() {
+  function() {
     function BlockPair2(dataBytes, errorCorrectionBytes) {
       this.dataBytes = dataBytes;
       this.errorCorrectionBytes = errorCorrectionBytes;
@@ -25255,12 +27117,12 @@ var BlockPair = (
       return this.errorCorrectionBytes;
     };
     return BlockPair2;
-  })()
+  }()
 );
 var BlockPair_default = BlockPair;
 
 // package/esm/core/qrcode/encoder/Encoder.js
-var __values40 = function(o) {
+var __values41 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -25273,7 +27135,7 @@ var __values40 = function(o) {
 };
 var Encoder = (
   /** @class */
-  (function() {
+  function() {
     function Encoder3() {
     }
     Encoder3.calculateMaskPenalty = function(matrix) {
@@ -25501,7 +27363,7 @@ var Encoder = (
       var result = new BitArray_default();
       for (var i = 0; i < maxNumDataBytes; ++i) {
         try {
-          for (var blocks_1 = (e_1 = void 0, __values40(blocks)), blocks_1_1 = blocks_1.next(); !blocks_1_1.done; blocks_1_1 = blocks_1.next()) {
+          for (var blocks_1 = (e_1 = void 0, __values41(blocks)), blocks_1_1 = blocks_1.next(); !blocks_1_1.done; blocks_1_1 = blocks_1.next()) {
             var block = blocks_1_1.value;
             var dataBytes = block.getDataBytes();
             if (i < dataBytes.length) {
@@ -25520,7 +27382,7 @@ var Encoder = (
       }
       for (var i = 0; i < maxNumEcBytes; ++i) {
         try {
-          for (var blocks_2 = (e_2 = void 0, __values40(blocks)), blocks_2_1 = blocks_2.next(); !blocks_2_1.done; blocks_2_1 = blocks_2.next()) {
+          for (var blocks_2 = (e_2 = void 0, __values41(blocks)), blocks_2_1 = blocks_2.next(); !blocks_2_1.done; blocks_2_1 = blocks_2.next()) {
             var block = blocks_2_1.value;
             var ecBytes = block.getErrorCorrectionBytes();
             if (i < ecBytes.length) {
@@ -25690,6 +27552,7 @@ var Encoder = (
       -1,
       -1,
       -1,
+      // 0x00-0x0f
       -1,
       -1,
       -1,
@@ -25706,6 +27569,7 @@ var Encoder = (
       -1,
       -1,
       -1,
+      // 0x10-0x1f
       36,
       -1,
       -1,
@@ -25722,6 +27586,7 @@ var Encoder = (
       41,
       42,
       43,
+      // 0x20-0x2f
       0,
       1,
       2,
@@ -25738,6 +27603,7 @@ var Encoder = (
       -1,
       -1,
       -1,
+      // 0x30-0x3f
       -1,
       10,
       11,
@@ -25754,6 +27620,7 @@ var Encoder = (
       22,
       23,
       24,
+      // 0x40-0x4f
       25,
       26,
       27,
@@ -25770,17 +27637,18 @@ var Encoder = (
       -1,
       -1,
       -1
+      // 0x50-0x5f
     ]);
     Encoder3.DEFAULT_BYTE_MODE_ENCODING = CharacterSetECI_default.UTF8.getName();
     return Encoder3;
-  })()
+  }()
 );
 var Encoder_default = Encoder;
 
 // package/esm/browser/BrowserQRCodeSvgWriter.js
 var BrowserQRCodeSvgWriter = (
   /** @class */
-  (function() {
+  function() {
     function BrowserQRCodeSvgWriter2() {
     }
     BrowserQRCodeSvgWriter2.prototype.write = function(contents, width, height, hints) {
@@ -25860,13 +27728,13 @@ var BrowserQRCodeSvgWriter = (
     BrowserQRCodeSvgWriter2.QUIET_ZONE_SIZE = 4;
     BrowserQRCodeSvgWriter2.SVG_NS = "http://www.w3.org/2000/svg";
     return BrowserQRCodeSvgWriter2;
-  })()
+  }()
 );
 
 // package/esm/core/qrcode/QRCodeWriter.js
 var QRCodeWriter = (
   /** @class */
-  (function() {
+  function() {
     function QRCodeWriter2() {
     }
     QRCodeWriter2.prototype.encode = function(contents, format, width, height, hints) {
@@ -25877,7 +27745,7 @@ var QRCodeWriter = (
         throw new IllegalArgumentException_default("Can only encode QR_CODE, but got " + format);
       }
       if (width < 0 || height < 0) {
-        throw new IllegalArgumentException_default("Requested dimensions are too small: " + width + "x" + height);
+        throw new IllegalArgumentException_default("Requested dimensions are too small: ".concat(width, "x").concat(height));
       }
       var errorCorrectionLevel = ErrorCorrectionLevel_default.L;
       var quietZone = QRCodeWriter2.QUIET_ZONE_SIZE;
@@ -25918,14 +27786,14 @@ var QRCodeWriter = (
     };
     QRCodeWriter2.QUIET_ZONE_SIZE = 4;
     return QRCodeWriter2;
-  })()
+  }()
 );
 var QRCodeWriter_default = QRCodeWriter;
 
 // package/esm/core/MultiFormatWriter.js
 var MultiFormatWriter = (
   /** @class */
-  (function() {
+  function() {
     function MultiFormatWriter2() {
     }
     MultiFormatWriter2.prototype.encode = function(contents, format, width, height, hints) {
@@ -25976,32 +27844,34 @@ var MultiFormatWriter = (
       return writer.encode(contents, format, width, height, hints);
     };
     return MultiFormatWriter2;
-  })()
+  }()
 );
 var MultiFormatWriter_default = MultiFormatWriter;
 
 // package/esm/core/PlanarYUVLuminanceSource.js
-var __extends66 = /* @__PURE__ */ (function() {
+var __extends67 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var PlanarYUVLuminanceSource = (
   /** @class */
-  (function(_super) {
-    __extends66(PlanarYUVLuminanceSource2, _super);
+  function(_super) {
+    __extends67(PlanarYUVLuminanceSource2, _super);
     function PlanarYUVLuminanceSource2(yuvData, dataWidth, dataHeight, left, top, width, height, reverseHorizontal) {
       var _this = _super.call(this, width, height) || this;
       _this.yuvData = yuvData;
@@ -26093,32 +27963,34 @@ var PlanarYUVLuminanceSource = (
     };
     PlanarYUVLuminanceSource2.THUMBNAIL_SCALE_FACTOR = 2;
     return PlanarYUVLuminanceSource2;
-  })(LuminanceSource_default)
+  }(LuminanceSource_default)
 );
 var PlanarYUVLuminanceSource_default = PlanarYUVLuminanceSource;
 
 // package/esm/core/RGBLuminanceSource.js
-var __extends67 = /* @__PURE__ */ (function() {
+var __extends68 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var RGBLuminanceSource = (
   /** @class */
-  (function(_super) {
-    __extends67(RGBLuminanceSource2, _super);
+  function(_super) {
+    __extends68(RGBLuminanceSource2, _super);
     function RGBLuminanceSource2(luminances, width, height, dataWidth, dataHeight, left, top) {
       var _this = _super.call(this, width, height) || this;
       _this.dataWidth = dataWidth;
@@ -26199,32 +28071,34 @@ var RGBLuminanceSource = (
       return new InvertedLuminanceSource_default(this);
     };
     return RGBLuminanceSource2;
-  })(LuminanceSource_default)
+  }(LuminanceSource_default)
 );
 var RGBLuminanceSource_default = RGBLuminanceSource;
 
 // package/esm/core/util/Charset.js
-var __extends68 = /* @__PURE__ */ (function() {
+var __extends69 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var Charset = (
   /** @class */
-  (function(_super) {
-    __extends68(Charset2, _super);
+  function(_super) {
+    __extends69(Charset2, _super);
     function Charset2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
@@ -26232,26 +28106,26 @@ var Charset = (
       return this.getCharacterSetECIByName(name);
     };
     return Charset2;
-  })(CharacterSetECI_default)
+  }(CharacterSetECI_default)
 );
 var Charset_default = Charset;
 
 // package/esm/core/util/StandardCharsets.js
 var StandardCharsets = (
   /** @class */
-  (function() {
+  function() {
     function StandardCharsets2() {
     }
     StandardCharsets2.ISO_8859_1 = CharacterSetECI_default.ISO8859_1;
     return StandardCharsets2;
-  })()
+  }()
 );
 var StandardCharsets_default = StandardCharsets;
 
 // package/esm/core/datamatrix/encoder/DefaultPlacement.js
 var DefaultPlacement = (
   /** @class */
-  (function() {
+  function() {
     function DefaultPlacement2(codewords, numcols, numrows) {
       this.codewords = codewords;
       this.numcols = numcols;
@@ -26382,7 +28256,7 @@ var DefaultPlacement = (
       this.module(1, this.numcols - 1, pos, 8);
     };
     return DefaultPlacement2;
-  })()
+  }()
 );
 var DefaultPlacement_default = DefaultPlacement;
 
@@ -26884,7 +28758,7 @@ var BASE256_ENCODATION = 5;
 // package/esm/core/datamatrix/encoder/ErrorCorrection.js
 var ErrorCorrection2 = (
   /** @class */
-  (function() {
+  function() {
     function ErrorCorrection3() {
     }
     ErrorCorrection3.encodeECC200 = function(codewords, symbolInfo) {
@@ -26958,14 +28832,14 @@ var ErrorCorrection2 = (
       }).join("");
     };
     return ErrorCorrection3;
-  })()
+  }()
 );
 var ErrorCorrection_default2 = ErrorCorrection2;
 
 // package/esm/core/datamatrix/encoder/ASCIIEncoder.js
 var ASCIIEncoder = (
   /** @class */
-  (function() {
+  function() {
     function ASCIIEncoder2() {
     }
     ASCIIEncoder2.prototype.getEncodingMode = function() {
@@ -27022,13 +28896,13 @@ var ASCIIEncoder = (
       throw new Error("not digits: " + digit1 + digit2);
     };
     return ASCIIEncoder2;
-  })()
+  }()
 );
 
 // package/esm/core/datamatrix/encoder/Base256Encoder.js
 var Base256Encoder = (
   /** @class */
-  (function() {
+  function() {
     function Base256Encoder2() {
     }
     Base256Encoder2.prototype.getEncodingMode = function() {
@@ -27076,13 +28950,13 @@ var Base256Encoder = (
       }
     };
     return Base256Encoder2;
-  })()
+  }()
 );
 
 // package/esm/core/datamatrix/encoder/C40Encoder.js
 var C40Encoder = (
   /** @class */
-  (function() {
+  function() {
     function C40Encoder2() {
     }
     C40Encoder2.prototype.getEncodingMode = function() {
@@ -27237,7 +29111,7 @@ var C40Encoder = (
         sb.append(c - 96);
         return 2;
       }
-      sb.append("1");
+      sb.append("".concat(1, ""));
       var len = 2;
       len += this.encodeChar(c - 128, sb);
       return len;
@@ -27252,13 +29126,13 @@ var C40Encoder = (
       return result.toString();
     };
     return C40Encoder2;
-  })()
+  }()
 );
 
 // package/esm/core/datamatrix/encoder/EdifactEncoder.js
 var EdifactEncoder = (
   /** @class */
-  (function() {
+  function() {
     function EdifactEncoder2() {
     }
     EdifactEncoder2.prototype.getEncodingMode = function() {
@@ -27273,9 +29147,9 @@ var EdifactEncoder = (
         var count = buffer.length();
         if (count >= 4) {
           context.writeCodewords(this.encodeToCodewords(buffer.toString()));
-          var test_1 = buffer.toString().substring(4);
+          var test = buffer.toString().substring(4);
           buffer.setLengthToZero();
-          buffer.append(test_1);
+          buffer.append(test);
           var newMode = HighLevelEncoder_default.lookAheadTest(context.getMessage(), context.pos, this.getEncodingMode());
           if (newMode !== this.getEncodingMode()) {
             context.signalEncoderChange(ASCII_ENCODATION);
@@ -27362,28 +29236,30 @@ var EdifactEncoder = (
       return res.toString();
     };
     return EdifactEncoder2;
-  })()
+  }()
 );
 
 // package/esm/core/datamatrix/encoder/SymbolInfo.js
-var __extends69 = /* @__PURE__ */ (function() {
+var __extends70 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
-var __values41 = function(o) {
+}();
+var __values42 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -27396,7 +29272,7 @@ var __values41 = function(o) {
 };
 var SymbolInfo = (
   /** @class */
-  (function() {
+  function() {
     function SymbolInfo2(rectangular, dataCapacity, errorCodewords, matrixWidth, matrixHeight, dataRegions, rsBlockData, rsBlockError) {
       if (rsBlockData === void 0) {
         rsBlockData = 0;
@@ -27428,7 +29304,7 @@ var SymbolInfo = (
         fail = true;
       }
       try {
-        for (var PROD_SYMBOLS_1 = __values41(PROD_SYMBOLS), PROD_SYMBOLS_1_1 = PROD_SYMBOLS_1.next(); !PROD_SYMBOLS_1_1.done; PROD_SYMBOLS_1_1 = PROD_SYMBOLS_1.next()) {
+        for (var PROD_SYMBOLS_1 = __values42(PROD_SYMBOLS), PROD_SYMBOLS_1_1 = PROD_SYMBOLS_1.next(); !PROD_SYMBOLS_1_1.done; PROD_SYMBOLS_1_1 = PROD_SYMBOLS_1.next()) {
           var symbol = PROD_SYMBOLS_1_1.value;
           if (shape === 1 && symbol.rectangular) {
             continue;
@@ -27523,13 +29399,13 @@ var SymbolInfo = (
       return this.rsBlockError;
     };
     return SymbolInfo2;
-  })()
+  }()
 );
 var SymbolInfo_default = SymbolInfo;
 var DataMatrixSymbolInfo144 = (
   /** @class */
-  (function(_super) {
-    __extends69(DataMatrixSymbolInfo1442, _super);
+  function(_super) {
+    __extends70(DataMatrixSymbolInfo1442, _super);
     function DataMatrixSymbolInfo1442() {
       return _super.call(this, false, 1558, 620, 22, 22, 36, -1, 62) || this;
     }
@@ -27540,7 +29416,7 @@ var DataMatrixSymbolInfo144 = (
       return index <= 8 ? 156 : 155;
     };
     return DataMatrixSymbolInfo1442;
-  })(SymbolInfo)
+  }(SymbolInfo)
 );
 var PROD_SYMBOLS = [
   new SymbolInfo(false, 3, 5, 8, 8, 1),
@@ -27584,7 +29460,7 @@ var PROD_SYMBOLS = [
 // package/esm/core/datamatrix/encoder/EncoderContext.js
 var EncoderContext = (
   /** @class */
-  (function() {
+  function() {
     function EncoderContext2(msg) {
       this.msg = msg;
       this.pos = 0;
@@ -27669,31 +29545,33 @@ var EncoderContext = (
       this.symbolInfo = null;
     };
     return EncoderContext2;
-  })()
+  }()
 );
 
 // package/esm/core/datamatrix/encoder/X12Encoder.js
-var __extends70 = /* @__PURE__ */ (function() {
+var __extends71 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var X12Encoder = (
   /** @class */
-  (function(_super) {
-    __extends70(X12Encoder2, _super);
+  function(_super) {
+    __extends71(X12Encoder2, _super);
     function X12Encoder2() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
@@ -27757,31 +29635,33 @@ var X12Encoder = (
       }
     };
     return X12Encoder2;
-  })(C40Encoder)
+  }(C40Encoder)
 );
 
 // package/esm/core/datamatrix/encoder/TextEncoder.js
-var __extends71 = /* @__PURE__ */ (function() {
+var __extends72 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var TextEncoder2 = (
   /** @class */
-  (function(_super) {
-    __extends71(TextEncoder3, _super);
+  function(_super) {
+    __extends72(TextEncoder3, _super);
     function TextEncoder3() {
       return _super !== null && _super.apply(this, arguments) || this;
     }
@@ -27836,19 +29716,19 @@ var TextEncoder2 = (
         sb.append(c - 123 + 27);
         return 2;
       }
-      sb.append("1");
+      sb.append("".concat(1, ""));
       var len = 2;
       len += this.encodeChar(c - 128, sb);
       return len;
     };
     return TextEncoder3;
-  })(C40Encoder)
+  }(C40Encoder)
 );
 
 // package/esm/core/datamatrix/encoder/HighLevelEncoder.js
 var HighLevelEncoder = (
   /** @class */
-  (function() {
+  function() {
     function HighLevelEncoder3() {
     }
     HighLevelEncoder3.randomize253State = function(codewordPosition) {
@@ -28131,12 +30011,12 @@ var HighLevelEncoder = (
       throw new Error("Illegal character: " + singleCharacter + " (0x" + hex + ")");
     };
     return HighLevelEncoder3;
-  })()
+  }()
 );
 var HighLevelEncoder_default = HighLevelEncoder;
 
 // package/esm/core/common/ECIEncoderSet.js
-var __values42 = function(o) {
+var __values43 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -28149,7 +30029,7 @@ var __values42 = function(o) {
 };
 var CharsetEncoder = (
   /** @class */
-  (function() {
+  function() {
     function CharsetEncoder2(charset) {
       this.charset = charset;
       this.name = charset.name;
@@ -28162,11 +30042,11 @@ var CharsetEncoder = (
       }
     };
     return CharsetEncoder2;
-  })()
+  }()
 );
 var ECIEncoderSet = (
   /** @class */
-  (function() {
+  function() {
     function ECIEncoderSet2(stringToEncode, priorityCharset, fnc1) {
       var e_1, _a2, e_2, _b, e_3, _c;
       this.ENCODERS = [
@@ -28200,7 +30080,7 @@ var ECIEncoderSet = (
       for (var i = 0; i < stringToEncode.length; i++) {
         var canEncode = false;
         try {
-          for (var neededEncoders_1 = (e_1 = void 0, __values42(neededEncoders)), neededEncoders_1_1 = neededEncoders_1.next(); !neededEncoders_1_1.done; neededEncoders_1_1 = neededEncoders_1.next()) {
+          for (var neededEncoders_1 = (e_1 = void 0, __values43(neededEncoders)), neededEncoders_1_1 = neededEncoders_1.next(); !neededEncoders_1_1.done; neededEncoders_1_1 = neededEncoders_1.next()) {
             var encoder = neededEncoders_1_1.value;
             var singleCharacter = stringToEncode.charAt(i);
             var c = singleCharacter.charCodeAt(0);
@@ -28220,7 +30100,7 @@ var ECIEncoderSet = (
         }
         if (!canEncode) {
           try {
-            for (var _d = (e_2 = void 0, __values42(this.ENCODERS)), _e = _d.next(); !_e.done; _e = _d.next()) {
+            for (var _d = (e_2 = void 0, __values43(this.ENCODERS)), _e = _d.next(); !_e.done; _e = _d.next()) {
               var encoder = _e.value;
               if (encoder.canEncode(stringToEncode.charAt(i))) {
                 neededEncoders.push(encoder);
@@ -28248,7 +30128,7 @@ var ECIEncoderSet = (
         this.encoders = [];
         var index = 0;
         try {
-          for (var neededEncoders_2 = __values42(neededEncoders), neededEncoders_2_1 = neededEncoders_2.next(); !neededEncoders_2_1.done; neededEncoders_2_1 = neededEncoders_2.next()) {
+          for (var neededEncoders_2 = __values43(neededEncoders), neededEncoders_2_1 = neededEncoders_2.next(); !neededEncoders_2_1.done; neededEncoders_2_1 = neededEncoders_2.next()) {
             var encoder = neededEncoders_2_1.value;
             this.encoders[index++] = encoder;
           }
@@ -28307,14 +30187,14 @@ var ECIEncoderSet = (
       return StringEncoding_default.encode(StringUtils_default.getCharAt(c), this.encoders[encoderIndex].name);
     };
     return ECIEncoderSet2;
-  })()
+  }()
 );
 
 // package/esm/core/common/MinimalECIInput.js
 var COST_PER_ECI = 3;
 var MinimalECIInput = (
   /** @class */
-  (function() {
+  function() {
     function MinimalECIInput2(stringToEncode, priorityCharset, fnc1) {
       this.fnc1 = fnc1;
       var encoderSet = new ECIEncoderSet(stringToEncode, priorityCharset, fnc1);
@@ -28458,11 +30338,11 @@ var MinimalECIInput = (
       return ints;
     };
     return MinimalECIInput2;
-  })()
+  }()
 );
 var InputEdge = (
   /** @class */
-  (function() {
+  function() {
     function InputEdge2(c, encoderSet, encoderIndex, previous, fnc1) {
       this.c = c;
       this.encoderSet = encoderSet;
@@ -28484,28 +30364,30 @@ var InputEdge = (
       return this.c === 1e3;
     };
     return InputEdge2;
-  })()
+  }()
 );
 
 // package/esm/core/datamatrix/encoder/MinimalEncoder.js
-var __extends72 = /* @__PURE__ */ (function() {
+var __extends73 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
-var __values43 = function(o) {
+}();
+var __values44 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -28516,7 +30398,7 @@ var __values43 = function(o) {
   };
   throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
 };
-var __read2 = function(o, n) {
+var __read12 = function(o, n) {
   var m = typeof Symbol === "function" && o[Symbol.iterator];
   if (!m) return o;
   var i = m.call(o), r, ar = [], e;
@@ -28533,9 +30415,14 @@ var __read2 = function(o, n) {
   }
   return ar;
 };
-var __spread = function() {
-  for (var ar = [], i = 0; i < arguments.length; i++) ar = ar.concat(__read2(arguments[i]));
-  return ar;
+var __spreadArray8 = function(to, from, pack) {
+  if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
+    if (ar || !(i in from)) {
+      if (!ar) ar = Array.prototype.slice.call(from, 0, i);
+      ar[i] = from[i];
+    }
+  }
+  return to.concat(ar || Array.prototype.slice.call(from));
 };
 var Mode4;
 (function(Mode5) {
@@ -28577,7 +30464,7 @@ var C40_SHIFT2_CHARS = [
 ];
 var MinimalEncoder = (
   /** @class */
-  (function() {
+  function() {
     function MinimalEncoder2() {
     }
     MinimalEncoder2.isExtendedASCII = function(ch, fnc1) {
@@ -28589,7 +30476,7 @@ var MinimalEncoder = (
     MinimalEncoder2.isInC40Shift2Set = function(ch, fnc1) {
       var e_1, _a2;
       try {
-        for (var C40_SHIFT2_CHARS_1 = __values43(C40_SHIFT2_CHARS), C40_SHIFT2_CHARS_1_1 = C40_SHIFT2_CHARS_1.next(); !C40_SHIFT2_CHARS_1_1.done; C40_SHIFT2_CHARS_1_1 = C40_SHIFT2_CHARS_1.next()) {
+        for (var C40_SHIFT2_CHARS_1 = __values44(C40_SHIFT2_CHARS), C40_SHIFT2_CHARS_1_1 = C40_SHIFT2_CHARS_1.next(); !C40_SHIFT2_CHARS_1_1.done; C40_SHIFT2_CHARS_1_1 = C40_SHIFT2_CHARS_1.next()) {
           var c40Shift2Char = C40_SHIFT2_CHARS_1_1.value;
           if (c40Shift2Char.charCodeAt(0) === ch) {
             return true;
@@ -28630,7 +30517,7 @@ var MinimalEncoder = (
         macroId = 6;
         msg = msg.substring(MACRO_06_HEADER.length, msg.length - 2);
       }
-      return decodeURIComponent(escape(String.fromCharCode.apply(String, __spread(this.encode(msg, priorityCharset, fnc1, shape, macroId)))));
+      return decodeURIComponent(escape(String.fromCharCode.apply(String, __spreadArray8([], __read12(this.encode(msg, priorityCharset, fnc1, shape, macroId)), false))));
     };
     MinimalEncoder2.encode = function(input, priorityCharset, fnc1, shape, macroId) {
       return this.encodeMinimally(new Input(input, priorityCharset, fnc1, shape, macroId)).getBytes();
@@ -28684,7 +30571,7 @@ var MinimalEncoder = (
         }
         var modes = [Mode4.C40, Mode4.TEXT];
         try {
-          for (var modes_1 = __values43(modes), modes_1_1 = modes_1.next(); !modes_1_1.done; modes_1_1 = modes_1.next()) {
+          for (var modes_1 = __values44(modes), modes_1_1 = modes_1.next(); !modes_1_1.done; modes_1_1 = modes_1.next()) {
             var mode = modes_1_1.value;
             var characterLength = [];
             if (MinimalEncoder2.getNumberOfC40Words(input, from, mode === Mode4.C40, characterLength) > 0) {
@@ -28752,11 +30639,11 @@ var MinimalEncoder = (
       return new Result2(edges[inputLength][minimalJ]);
     };
     return MinimalEncoder2;
-  })()
+  }()
 );
 var Result2 = (
   /** @class */
-  (function() {
+  function() {
     function Result3(solution) {
       var input = solution.input;
       var size = 0;
@@ -28834,11 +30721,11 @@ var Result2 = (
       return this.bytes;
     };
     return Result3;
-  })()
+  }()
 );
 var Edge = (
   /** @class */
-  (function() {
+  function() {
     function Edge2(input, mode, fromPosition, characterLength, previous) {
       this.input = input;
       this.mode = mode;
@@ -29035,7 +30922,7 @@ var Edge = (
       switch (this.input.getShapeHint()) {
         case 1:
           try {
-            for (var _d = __values43(this.squareCodewordCapacities), _e = _d.next(); !_e.done; _e = _d.next()) {
+            for (var _d = __values44(this.squareCodewordCapacities), _e = _d.next(); !_e.done; _e = _d.next()) {
               var capacity = _e.value;
               if (capacity >= minimum) {
                 return capacity;
@@ -29053,7 +30940,7 @@ var Edge = (
           break;
         case 2:
           try {
-            for (var _f = __values43(this.rectangularCodewordCapacities), _g = _f.next(); !_g.done; _g = _f.next()) {
+            for (var _f = __values44(this.rectangularCodewordCapacities), _g = _f.next(); !_g.done; _g = _f.next()) {
               var capacity = _g.value;
               if (capacity >= minimum) {
                 return capacity;
@@ -29071,7 +30958,7 @@ var Edge = (
           break;
       }
       try {
-        for (var _h = __values43(this.allCodewordCapacities), _j = _h.next(); !_j.done; _j = _h.next()) {
+        for (var _h = __values44(this.allCodewordCapacities), _j = _h.next(); !_j.done; _j = _h.next()) {
           var capacity = _j.value;
           if (capacity >= minimum) {
             return capacity;
@@ -29268,12 +31155,12 @@ var Edge = (
       }
     };
     return Edge2;
-  })()
+  }()
 );
 var Input = (
   /** @class */
-  (function(_super) {
-    __extends72(Input2, _super);
+  function(_super) {
+    __extends73(Input2, _super);
     function Input2(stringToEncode, priorityCharset, fnc1, shape, macroId) {
       var _this = _super.call(this, stringToEncode, priorityCharset, fnc1) || this;
       _this.shape = shape;
@@ -29287,13 +31174,13 @@ var Input = (
       return this.shape;
     };
     return Input2;
-  })(MinimalECIInput)
+  }(MinimalECIInput)
 );
 
 // package/esm/core/datamatrix/DataMatrixWriter.js
 var DataMatrixWriter = (
   /** @class */
-  (function() {
+  function() {
     function DataMatrixWriter2() {
     }
     DataMatrixWriter2.prototype.encode = function(contents, format, width, height, hints) {
@@ -29413,14 +31300,14 @@ var DataMatrixWriter = (
       return output;
     };
     return DataMatrixWriter2;
-  })()
+  }()
 );
 var DataMatrixWriter_default = DataMatrixWriter;
 
 // package/esm/core/aztec/encoder/AztecCode.js
 var AztecCode = (
   /** @class */
-  (function() {
+  function() {
     function AztecCode2() {
     }
     AztecCode2.prototype.isCompact = function() {
@@ -29454,14 +31341,14 @@ var AztecCode = (
       this.matrix = matrix;
     };
     return AztecCode2;
-  })()
+  }()
 );
 var AztecCode_default = AztecCode;
 
 // package/esm/core/util/Collections.js
 var Collections = (
   /** @class */
-  (function() {
+  function() {
     function Collections2() {
     }
     Collections2.singletonList = function(item) {
@@ -29471,14 +31358,14 @@ var Collections = (
       return collection.sort(comparator)[0];
     };
     return Collections2;
-  })()
+  }()
 );
 var Collections_default = Collections;
 
 // package/esm/core/aztec/encoder/Token.js
 var Token = (
   /** @class */
-  (function() {
+  function() {
     function Token2(previous) {
       this.previous = previous;
     }
@@ -29486,32 +31373,34 @@ var Token = (
       return this.previous;
     };
     return Token2;
-  })()
+  }()
 );
 var Token_default = Token;
 
 // package/esm/core/aztec/encoder/SimpleToken.js
-var __extends73 = /* @__PURE__ */ (function() {
+var __extends74 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var SimpleToken = (
   /** @class */
-  (function(_super) {
-    __extends73(SimpleToken2, _super);
+  function(_super) {
+    __extends74(SimpleToken2, _super);
     function SimpleToken2(previous, value, bitCount) {
       var _this = _super.call(this, previous) || this;
       _this.value = value;
@@ -29534,32 +31423,34 @@ var SimpleToken = (
       return "<" + Integer_default.toBinaryString(value | 1 << this.bitCount).substring(1) + ">";
     };
     return SimpleToken2;
-  })(Token_default)
+  }(Token_default)
 );
 var SimpleToken_default = SimpleToken;
 
 // package/esm/core/aztec/encoder/BinaryShiftToken.js
-var __extends74 = /* @__PURE__ */ (function() {
+var __extends75 = /* @__PURE__ */ function() {
   var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf || { __proto__: [] } instanceof Array && function(d2, b2) {
       d2.__proto__ = b2;
     } || function(d2, b2) {
-      for (var p in b2) if (b2.hasOwnProperty(p)) d2[p] = b2[p];
+      for (var p in b2) if (Object.prototype.hasOwnProperty.call(b2, p)) d2[p] = b2[p];
     };
     return extendStatics(d, b);
   };
   return function(d, b) {
+    if (typeof b !== "function" && b !== null)
+      throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
     extendStatics(d, b);
     function __() {
       this.constructor = d;
     }
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
   };
-})();
+}();
 var BinaryShiftToken = (
   /** @class */
-  (function(_super) {
-    __extends74(BinaryShiftToken2, _super);
+  function(_super) {
+    __extends75(BinaryShiftToken2, _super);
     function BinaryShiftToken2(previous, binaryShiftStart, binaryShiftByteCount) {
       var _this = _super.call(this, previous, 0, 0) || this;
       _this.binaryShiftStart = binaryShiftStart;
@@ -29588,7 +31479,7 @@ var BinaryShiftToken = (
       return "<" + this.binaryShiftStart + "::" + (this.binaryShiftStart + this.binaryShiftByteCount - 1) + ">";
     };
     return BinaryShiftToken2;
-  })(SimpleToken_default)
+  }(SimpleToken_default)
 );
 var BinaryShiftToken_default = BinaryShiftToken;
 
@@ -29620,46 +31511,62 @@ var LATCH_TABLE = [
   Int32Array.from([
     0,
     (5 << 16) + 28,
+    // UPPER -> LOWER
     (5 << 16) + 30,
+    // UPPER -> DIGIT
     (5 << 16) + 29,
+    // UPPER -> MIXED
     (10 << 16) + (29 << 5) + 30
     // UPPER -> MIXED -> PUNCT
   ]),
   Int32Array.from([
     (9 << 16) + (30 << 4) + 14,
+    // LOWER -> DIGIT -> UPPER
     0,
     (5 << 16) + 30,
+    // LOWER -> DIGIT
     (5 << 16) + 29,
+    // LOWER -> MIXED
     (10 << 16) + (29 << 5) + 30
     // LOWER -> MIXED -> PUNCT
   ]),
   Int32Array.from([
     (4 << 16) + 14,
+    // DIGIT -> UPPER
     (9 << 16) + (14 << 5) + 28,
+    // DIGIT -> UPPER -> LOWER
     0,
     (9 << 16) + (14 << 5) + 29,
+    // DIGIT -> UPPER -> MIXED
     (14 << 16) + (14 << 10) + (29 << 5) + 30
     // DIGIT -> UPPER -> MIXED -> PUNCT
   ]),
   Int32Array.from([
     (5 << 16) + 29,
+    // MIXED -> UPPER
     (5 << 16) + 28,
+    // MIXED -> LOWER
     (10 << 16) + (29 << 5) + 30,
+    // MIXED -> UPPER -> DIGIT
     0,
     (5 << 16) + 30
     // MIXED -> PUNCT
   ]),
   Int32Array.from([
     (5 << 16) + 31,
+    // PUNCT -> UPPER
     (10 << 16) + (31 << 5) + 28,
+    // PUNCT -> UPPER -> LOWER
     (10 << 16) + (31 << 5) + 30,
+    // PUNCT -> UPPER -> DIGIT
     (10 << 16) + (31 << 5) + 29,
+    // PUNCT -> UPPER -> MIXED
     0
   ])
 ];
 
 // package/esm/core/aztec/encoder/ShiftTable.js
-var __values44 = function(o) {
+var __values45 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -29673,7 +31580,7 @@ var __values44 = function(o) {
 function static_SHIFT_TABLE(SHIFT_TABLE2) {
   var e_1, _a2;
   try {
-    for (var SHIFT_TABLE_1 = __values44(SHIFT_TABLE2), SHIFT_TABLE_1_1 = SHIFT_TABLE_1.next(); !SHIFT_TABLE_1_1.done; SHIFT_TABLE_1_1 = SHIFT_TABLE_1.next()) {
+    for (var SHIFT_TABLE_1 = __values45(SHIFT_TABLE2), SHIFT_TABLE_1_1 = SHIFT_TABLE_1.next(); !SHIFT_TABLE_1_1.done; SHIFT_TABLE_1_1 = SHIFT_TABLE_1.next()) {
       var table = SHIFT_TABLE_1_1.value;
       Arrays_default.fill(table, -1);
     }
@@ -29697,7 +31604,7 @@ function static_SHIFT_TABLE(SHIFT_TABLE2) {
 var SHIFT_TABLE = static_SHIFT_TABLE(Arrays_default.createInt32Array(6, 6));
 
 // package/esm/core/aztec/encoder/State.js
-var __values45 = function(o) {
+var __values46 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -29708,28 +31615,28 @@ var __values45 = function(o) {
   };
   throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
 };
-var State = (
+var State2 = (
   /** @class */
-  (function() {
-    function State2(token, mode, binaryBytes, bitCount) {
+  function() {
+    function State3(token, mode, binaryBytes, bitCount) {
       this.token = token;
       this.mode = mode;
       this.binaryShiftByteCount = binaryBytes;
       this.bitCount = bitCount;
     }
-    State2.prototype.getMode = function() {
+    State3.prototype.getMode = function() {
       return this.mode;
     };
-    State2.prototype.getToken = function() {
+    State3.prototype.getToken = function() {
       return this.token;
     };
-    State2.prototype.getBinaryShiftByteCount = function() {
+    State3.prototype.getBinaryShiftByteCount = function() {
       return this.binaryShiftByteCount;
     };
-    State2.prototype.getBitCount = function() {
+    State3.prototype.getBitCount = function() {
       return this.bitCount;
     };
-    State2.prototype.latchAndAppend = function(mode, value) {
+    State3.prototype.latchAndAppend = function(mode, value) {
       var bitCount = this.bitCount;
       var token = this.token;
       if (mode !== this.mode) {
@@ -29739,16 +31646,16 @@ var State = (
       }
       var latchModeBitCount = mode === MODE_DIGIT ? 4 : 5;
       token = add(token, value, latchModeBitCount);
-      return new State2(token, mode, 0, bitCount + latchModeBitCount);
+      return new State3(token, mode, 0, bitCount + latchModeBitCount);
     };
-    State2.prototype.shiftAndAppend = function(mode, value) {
+    State3.prototype.shiftAndAppend = function(mode, value) {
       var token = this.token;
       var thisModeBitCount = this.mode === MODE_DIGIT ? 4 : 5;
       token = add(token, SHIFT_TABLE[this.mode][mode], thisModeBitCount);
       token = add(token, value, 5);
-      return new State2(token, this.mode, 0, this.bitCount + thisModeBitCount + 5);
+      return new State3(token, this.mode, 0, this.bitCount + thisModeBitCount + 5);
     };
-    State2.prototype.addBinaryShiftChar = function(index) {
+    State3.prototype.addBinaryShiftChar = function(index) {
       var token = this.token;
       var mode = this.mode;
       var bitCount = this.bitCount;
@@ -29759,30 +31666,30 @@ var State = (
         mode = MODE_UPPER;
       }
       var deltaBitCount = this.binaryShiftByteCount === 0 || this.binaryShiftByteCount === 31 ? 18 : this.binaryShiftByteCount === 62 ? 9 : 8;
-      var result = new State2(token, mode, this.binaryShiftByteCount + 1, bitCount + deltaBitCount);
+      var result = new State3(token, mode, this.binaryShiftByteCount + 1, bitCount + deltaBitCount);
       if (result.binaryShiftByteCount === 2047 + 31) {
         result = result.endBinaryShift(index + 1);
       }
       return result;
     };
-    State2.prototype.endBinaryShift = function(index) {
+    State3.prototype.endBinaryShift = function(index) {
       if (this.binaryShiftByteCount === 0) {
         return this;
       }
       var token = this.token;
       token = addBinaryShift(token, index - this.binaryShiftByteCount, this.binaryShiftByteCount);
-      return new State2(token, this.mode, 0, this.bitCount);
+      return new State3(token, this.mode, 0, this.bitCount);
     };
-    State2.prototype.isBetterThanOrEqualTo = function(other) {
+    State3.prototype.isBetterThanOrEqualTo = function(other) {
       var newModeBitCount = this.bitCount + (LATCH_TABLE[this.mode][other.mode] >> 16);
       if (this.binaryShiftByteCount < other.binaryShiftByteCount) {
-        newModeBitCount += State2.calculateBinaryShiftCost(other) - State2.calculateBinaryShiftCost(this);
+        newModeBitCount += State3.calculateBinaryShiftCost(other) - State3.calculateBinaryShiftCost(this);
       } else if (this.binaryShiftByteCount > other.binaryShiftByteCount && other.binaryShiftByteCount > 0) {
         newModeBitCount += 10;
       }
       return newModeBitCount <= other.bitCount;
     };
-    State2.prototype.toBitArray = function(text) {
+    State3.prototype.toBitArray = function(text) {
       var e_1, _a2;
       var symbols = [];
       for (var token = this.endBinaryShift(text.length).token; token !== null; token = token.getPrevious()) {
@@ -29790,7 +31697,7 @@ var State = (
       }
       var bitArray = new BitArray_default();
       try {
-        for (var symbols_1 = __values45(symbols), symbols_1_1 = symbols_1.next(); !symbols_1_1.done; symbols_1_1 = symbols_1.next()) {
+        for (var symbols_1 = __values46(symbols), symbols_1_1 = symbols_1.next(); !symbols_1_1.done; symbols_1_1 = symbols_1.next()) {
           var symbol = symbols_1_1.value;
           symbol.appendTo(bitArray, text);
         }
@@ -29805,10 +31712,10 @@ var State = (
       }
       return bitArray;
     };
-    State2.prototype.toString = function() {
+    State3.prototype.toString = function() {
       return StringUtils_default.format("%s bits=%d bytes=%d", MODE_NAMES[this.mode], this.bitCount, this.binaryShiftByteCount);
     };
-    State2.calculateBinaryShiftCost = function(state) {
+    State3.calculateBinaryShiftCost = function(state) {
       if (state.binaryShiftByteCount > 62) {
         return 21;
       }
@@ -29820,11 +31727,11 @@ var State = (
       }
       return 0;
     };
-    State2.INITIAL_STATE = new State2(EMPTY_TOKEN, MODE_UPPER, 0, 0);
-    return State2;
-  })()
+    State3.INITIAL_STATE = new State3(EMPTY_TOKEN, MODE_UPPER, 0, 0);
+    return State3;
+  }()
 );
-var State_default = State;
+var State_default = State2;
 
 // package/esm/core/aztec/encoder/CharMap.js
 function static_CHAR_MAP(CHAR_MAP2) {
@@ -29927,7 +31834,7 @@ function static_CHAR_MAP(CHAR_MAP2) {
 var CHAR_MAP = static_CHAR_MAP(Arrays_default.createInt32Array(5, 256));
 
 // package/esm/core/aztec/encoder/HighLevelEncoder.js
-var __values46 = function(o) {
+var __values47 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -29940,7 +31847,7 @@ var __values46 = function(o) {
 };
 var HighLevelEncoder2 = (
   /** @class */
-  (function() {
+  function() {
     function HighLevelEncoder3(text) {
       this.text = text;
     }
@@ -29983,7 +31890,7 @@ var HighLevelEncoder2 = (
       var e_1, _a2;
       var result = [];
       try {
-        for (var states_1 = __values46(states), states_1_1 = states_1.next(); !states_1_1.done; states_1_1 = states_1.next()) {
+        for (var states_1 = __values47(states), states_1_1 = states_1.next(); !states_1_1.done; states_1_1 = states_1.next()) {
           var state = states_1_1.value;
           this.updateStateForChar(state, index, result);
         }
@@ -30027,7 +31934,7 @@ var HighLevelEncoder2 = (
       var e_2, _a2;
       var result = [];
       try {
-        for (var states_2 = __values46(states), states_2_1 = states_2.next(); !states_2_1.done; states_2_1 = states_2.next()) {
+        for (var states_2 = __values47(states), states_2_1 = states_2.next(); !states_2_1.done; states_2_1 = states_2.next()) {
           var state = states_2_1.value;
           this.updateStateForPair(state, index, pairCode, result);
         }
@@ -30061,7 +31968,7 @@ var HighLevelEncoder2 = (
       var e_3, _a2, e_4, _b;
       var result = [];
       try {
-        for (var states_3 = __values46(states), states_3_1 = states_3.next(); !states_3_1.done; states_3_1 = states_3.next()) {
+        for (var states_3 = __values47(states), states_3_1 = states_3.next(); !states_3_1.done; states_3_1 = states_3.next()) {
           var newState = states_3_1.value;
           var add2 = true;
           var _loop_1 = function(oldState2) {
@@ -30076,7 +31983,7 @@ var HighLevelEncoder2 = (
             }
           };
           try {
-            for (var result_1 = (e_4 = void 0, __values46(result)), result_1_1 = result_1.next(); !result_1_1.done; result_1_1 = result_1.next()) {
+            for (var result_1 = (e_4 = void 0, __values47(result)), result_1_1 = result_1.next(); !result_1_1.done; result_1_1 = result_1.next()) {
               var oldState = result_1_1.value;
               var state_1 = _loop_1(oldState);
               if (state_1 === "break")
@@ -30107,12 +32014,12 @@ var HighLevelEncoder2 = (
       return result;
     };
     return HighLevelEncoder3;
-  })()
+  }()
 );
 var HighLevelEncoder_default2 = HighLevelEncoder2;
 
 // package/esm/core/aztec/encoder/Encoder.js
-var __values47 = function(o) {
+var __values48 = function(o) {
   var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
   if (m) return m.call(o);
   if (o && typeof o.length === "number") return {
@@ -30125,7 +32032,7 @@ var __values47 = function(o) {
 };
 var Encoder2 = (
   /** @class */
-  (function() {
+  function() {
     function Encoder3() {
     }
     Encoder3.encodeBytes = function(data) {
@@ -30323,7 +32230,7 @@ var Encoder2 = (
       var messageBits = new BitArray_default();
       messageBits.appendBits(0, startPad);
       try {
-        for (var _b = __values47(Array.from(messageWords)), _c = _b.next(); !_c.done; _c = _b.next()) {
+        for (var _b = __values48(Array.from(messageWords)), _c = _b.next(); !_c.done; _c = _b.next()) {
           var messageWord = _c.value;
           messageBits.appendBits(messageWord, wordSize);
         }
@@ -30433,14 +32340,14 @@ var Encoder2 = (
       12
     ]);
     return Encoder3;
-  })()
+  }()
 );
 var Encoder_default2 = Encoder2;
 
 // package/esm/core/aztec/AztecWriter.js
 var AztecWriter = (
   /** @class */
-  (function() {
+  function() {
     function AztecWriter2() {
     }
     AztecWriter2.prototype.encode = function(contents, format, width, height) {
@@ -30493,7 +32400,7 @@ var AztecWriter = (
       return output;
     };
     return AztecWriter2;
-  })()
+  }()
 );
 var AztecWriter_default = AztecWriter;
 export {
@@ -30544,6 +32451,7 @@ export {
   EAN13Reader_default as EAN13Reader,
   EncodeHintType_default as EncodeHintType,
   Exception_default as Exception,
+  FinderPattern_default as FinderPattern,
   FormatException_default as FormatException,
   GenericGF_default as GenericGF,
   GenericGFPoly_default as GenericGFPoly,
@@ -30558,12 +32466,19 @@ export {
   InvertedLuminanceSource_default as InvertedLuminanceSource,
   LuminanceSource_default as LuminanceSource,
   MathUtils_default as MathUtils,
+  DecodedBitStreamParser_default3 as MaxiCodeDecodedBitStreamParser,
+  Decoder_default4 as MaxiCodeDecoder,
+  MaxiCodeReader_default as MaxiCodeReader,
+  MicroQRCodeReader_default as MicroQRCodeReader,
+  MicroQRDetector_default as MicroQRDetector,
+  MicroQRFormatInformation_default as MicroQRFormatInformation,
+  MicroQRVersion_default as MicroQRVersion,
   MultiFormatOneDReader_default as MultiFormatOneDReader,
   MultiFormatReader_default as MultiFormatReader,
   MultiFormatWriter_default as MultiFormatWriter,
   NotFoundException_default as NotFoundException,
   OneDReader_default as OneDReader,
-  DecodedBitStreamParser_default3 as PDF417DecodedBitStreamParser,
+  DecodedBitStreamParser_default4 as PDF417DecodedBitStreamParser,
   ErrorCorrection_default as PDF417DecoderErrorCorrection,
   PDF417Reader_default as PDF417Reader,
   PDF417ResultMetadata_default as PDF417ResultMetadata,
