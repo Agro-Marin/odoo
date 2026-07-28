@@ -1919,7 +1919,19 @@ Please change the quantity done or the rounding precision of your unit of measur
             moves_needing_reservation.location_id,
         )
         serial_move_ids_by_qty = defaultdict(OrderedSet)
-        for move in moves_to_assign.with_context(quants_cache=quants_cache):
+        # `preserve_state` suppresses the per-move `_recompute_state` that every
+        # in-loop `stock.move.line.create` would otherwise trigger (via
+        # `_reserve_new_move_lines`). This loop already tracks the resulting states
+        # in `assigned_moves_ids`/`partially_available_moves_ids` and writes them
+        # once below, so recomputing them per move is pure duplication -- and each
+        # such state write drags a `stock.warehouse.orderpoint` search behind it
+        # (`write` -> `_update_orderpoints`). The chained branch reads sibling
+        # states through those two accumulators, not the field, precisely because
+        # the write is deferred (see `_get_available_move_lines_out`).
+        for move in moves_to_assign.with_context(
+            quants_cache=quants_cache,
+            preserve_state=True,
+        ):
             move = move.with_company(move.company_id)
             rounding = roundings[move]
             if not force_qty:

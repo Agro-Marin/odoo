@@ -844,11 +844,11 @@ class StockMoveLine(models.Model):
                 self.env["stock.package.history"].create(package_history_vals)
 
         for ml in mls_todo.with_context(quants_cache=quants_cache):
-            # if this move line is force assigned, unreserve elsewhere if needed
-            ml._synchronize_quant(
-                -ml.quantity_product_uom, ml.location_id, action="reserved"
-            )
-            available_qty, _in_date = ml._apply_quant_move()
+            # Consuming the line releases whatever it had reserved and removes the
+            # stock from the source. Both deltas land on the same quant row, so
+            # `release_reserved` folds them into one update instead of gathering,
+            # locking and re-reading that row twice.
+            available_qty, _in_date = ml._apply_quant_move(release_reserved=True)
             if ml.product_id.uom_id.compare(available_qty, 0) < 0:
                 ml.with_context(
                     quants_cache=None, bypass_entire_pack=True
@@ -1016,7 +1016,9 @@ class StockMoveLine(models.Model):
                         sml.location_dest_id = putaway_loc_id
                     excluded_smls.discard(sml.id)
 
-    def _apply_quant_move(self, *, reverse=False, in_date=False):
+    def _apply_quant_move(
+        self, *, reverse=False, in_date=False, release_reserved=False
+    ):
         """Move this line's `quantity_product_uom` of *available* stock between its source and
         destination, threading the removed stock's incoming date onto the addition so FIFO
         ordering is preserved.
@@ -1025,6 +1027,11 @@ class StockMoveLine(models.Model):
         the destination; pass ``reverse=True`` to undo it (destination -> source).
         `_synchronize_quant` compensates negative quants with untracked ones on its own.
 
+        :param release_reserved: also drop this line's reservation from the source quant.
+            Validating a line consumes what it had reserved, so on-hand and reserved both
+            fall by the same amount on the same row; passing this folds the pair into a
+            single quant update rather than two that each gather, lock and re-read it.
+            Meaningless for ``reverse=True`` (an undo restores stock, it releases nothing).
         :return: tuple (available_qty at the location we removed from, in_date), so callers can
                  free over-reservations when the source went negative.
         """
@@ -1043,7 +1050,11 @@ class StockMoveLine(models.Model):
                 self.package_id,
             )
         available_qty, in_date = self._synchronize_quant(
-            -qty, from_loc, package=from_package, in_date=in_date
+            -qty,
+            from_loc,
+            package=from_package,
+            in_date=in_date,
+            reserved_delta=-qty if release_reserved and not reverse else None,
         )
         self._synchronize_quant(
             qty,
@@ -2002,9 +2013,22 @@ class StockMoveLine(models.Model):
         return moves_to_recompute_state
 
     def _synchronize_quant(
-        self, quantity, location, action="available", in_date=False, **quants_value
+        self,
+        quantity,
+        location,
+        action="available",
+        in_date=False,
+        reserved_delta=None,
+        **quants_value,
     ):
-        """quantity is expressed in the product's UoM."""
+        """quantity is expressed in the product's UoM.
+
+        ``reserved_delta`` is a signed reservation change applied to the *same* quant
+        row, in the *same* update, as ``quantity`` -- for callers that change both at
+        once (see `_apply_quant_move`'s ``release_reserved``). It is subject to the same
+        bypass rule as ``action="reserved"``: a location that bypasses reservation holds
+        none to change.
+        """
         lot = quants_value.get("lot", self.lot_id)
         package = quants_value.get("package", self.package_id)
         owner = quants_value.get("owner", self.owner_id)
@@ -2013,10 +2037,13 @@ class StockMoveLine(models.Model):
         if not self.product_id.is_storable or self.product_id.uom_id.is_zero(quantity):
             return 0, False
         if action == "available":
+            if reserved_delta and self._should_bypass_reservation(location):
+                reserved_delta = None
             available_qty, in_date = self.env["stock.quant"]._update_available_quantity(
                 self.product_id,
                 location,
                 quantity,
+                reserved_quantity=reserved_delta or False,
                 lot_id=lot,
                 package_id=package,
                 owner_id=owner,

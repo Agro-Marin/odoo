@@ -1,7 +1,8 @@
 import heapq
 import logging
+import typing
 from ast import literal_eval
-from collections import defaultdict, namedtuple
+from collections import defaultdict
 
 from markupsafe import escape
 from psycopg import Error
@@ -41,11 +42,12 @@ class _LeastPackagesPriorityQueue:
         return heapq.heappop(self.elements)[2]
 
 
-# Search node: remaining quantity to cover, the packages taken so far, and the
-# index of the next candidate package to consider.
-_LeastPackagesNode = namedtuple(
-    "_LeastPackagesNode", "count_remaining taken_packages next_index"
-)
+class _LeastPackagesNode(typing.NamedTuple):
+    """A node of the least_packages A* search."""
+
+    count_remaining: float  # quantity still to cover
+    taken_packages: tuple  # (key, available_qty) pairs chosen so far
+    next_index: int  # index of the next candidate package to consider
 
 
 def _least_packages_search(qty_by_package, qty):
@@ -126,15 +128,16 @@ def _least_packages_search(qty_by_package, qty):
     return best_leaf.taken_packages
 
 
-# Reservation candidate: opaque handle returned to the caller (a stock.quant in
-# production), its on-hand and reserved quantities, and the characteristics key
-# grouping interchangeable candidates for over-reservation absorption.
-_ReservationCandidate = namedtuple(
-    "_ReservationCandidate", "handle on_hand reserved key"
-)
+class _ReservationCandidate(typing.NamedTuple):
+    """One candidate row offered to :func:`_distribute_reservation`."""
+
+    handle: object  # echoed back verbatim (a stock.quant in production)
+    on_hand: float
+    reserved: float
+    key: object  # characteristics grouping interchangeable candidates
 
 
-def _distribute_reservation(candidates, quantity, available_quantity, precision_digits):
+def _distribute_reservation(candidates, quantity, precision_digits):
     """Distribute a signed ``quantity`` across pre-ordered reservation ``candidates``.
 
     Pure and DB-free (like :func:`_least_packages_search`): operates on plain numbers
@@ -148,10 +151,18 @@ def _distribute_reservation(candidates, quantity, available_quantity, precision_
     :param quantity: signed target in the candidates' UoM -- ``> 0`` reserves,
         ``< 0`` unreserves. Its sign is fixed for the run: reserving never takes more
         than is left, so it converges to zero without crossing it.
-    :param available_quantity: running budget the reserve branch draws down;
-        allocation stops once it or ``quantity`` rounds to zero. The caller sizes it
-        (positive branch: on-hand-minus-reserved of the whole set; negative branch:
-        total reserved), so the loop needs no global view.
+
+        ``quantity`` is the *only* bound on the run, and that is deliberate. Two
+        clamps already make it sufficient: the caller caps it to real availability
+        (``_get_reserve_quantity`` -> ``_sum_available_quantity``), and each
+        allocation below is capped by that candidate's own post-absorption slack.
+        A second "running budget" argument used to be threaded in as well, sized as
+        ``sum(positive on_hand) - sum(all reserved)``. That total is *not* the
+        availability ``quantity`` was capped to -- it nets a negative-available
+        quant against unrelated keys instead of dropping it -- so on a set holding
+        one over-reserved quant it came out smaller than the true availability and
+        broke the loop early, silently reserving less than the caller had already
+        established was there.
     :param precision_digits: 'Product Unit' decimal precision; every comparison rounds
         to it, matching ``uom.compare`` / ``uom.is_zero``.
     :return: list of ``(handle, amount)`` pairs -- ``amount`` positive when reserving,
@@ -185,7 +196,6 @@ def _distribute_reservation(candidates, quantity, available_quantity, precision_
             max_on_cand = min(max_on_cand, quantity)
             reserved.append((cand.handle, max_on_cand))
             quantity -= max_on_cand
-            available_quantity -= max_on_cand
         else:
             max_on_cand = min(cand.reserved, abs(quantity))
             if float_is_zero(max_on_cand, precision_digits=precision_digits):
@@ -194,11 +204,8 @@ def _distribute_reservation(candidates, quantity, available_quantity, precision_
                 continue
             reserved.append((cand.handle, -max_on_cand))
             quantity += max_on_cand
-            available_quantity += max_on_cand
 
-        if float_is_zero(quantity, precision_digits=precision_digits) or float_is_zero(
-            available_quantity, precision_digits=precision_digits
-        ):
+        if float_is_zero(quantity, precision_digits=precision_digits):
             break
     return reserved
 
@@ -2382,8 +2389,27 @@ class StockQuant(models.Model):
                 ["id:recordset"],
                 order="lot_id",
             )
+            quant_ids = []
             for product, loc, lot, package, owner, quants in needed_quants:
                 res[product.id, loc.id, lot.id, package.id, owner.id] = quants
+                quant_ids.extend(quants.ids)
+            # `id:recordset` yields ids with no values loaded, and consumers read the
+            # cache one gathered group at a time -- so each group would fetch its own
+            # row (`_action_done` reading `in_date` per move line was one SELECT per
+            # line). Warm every cached quant in a single read instead; the caller built
+            # this cache for exactly the products/locations it is about to process.
+            self.env["stock.quant"].browse(quant_ids).fetch(
+                [
+                    "quantity",
+                    "reserved_quantity",
+                    "in_date",
+                    "product_id",
+                    "location_id",
+                    "lot_id",
+                    "package_id",
+                    "owner_id",
+                ]
+            )
         return res
 
     @api.model
@@ -2538,18 +2564,14 @@ class StockQuant(models.Model):
             if product_id.uom_id.compare(quantity, int(quantity)) != 0:
                 quantity = 0
 
-        # Size the running budget from the whole gathered set, then hand
-        # per-candidate allocation to the pure `_distribute_reservation`. Only
-        # reservation requests reach this method (releases go through
+        # `quantity` is already capped to the availability measured above, so hand
+        # per-candidate allocation straight to the pure `_distribute_reservation`
+        # (which caps each take by that candidate's own slack). Only reservation
+        # requests reach this method (releases go through
         # `_update_reserved_quantity` with a negative delta), so a non-positive
         # quantity means there is nothing to allocate.
         if product_id.uom_id.compare(quantity, 0) <= 0:
             return []
-        available_quantity = sum(
-            quants.filtered(
-                lambda q: product_id.uom_id.compare(q.quantity, 0) > 0
-            ).mapped("quantity")
-        ) - sum(quants.mapped("reserved_quantity"))
 
         precision_digits = self.env["decimal.precision"].precision_get("Product Unit")
         candidates = [
@@ -2558,9 +2580,7 @@ class StockQuant(models.Model):
             )
             for quant in quants
         ]
-        return _distribute_reservation(
-            candidates, quantity, available_quantity, precision_digits
-        )
+        return _distribute_reservation(candidates, quantity, precision_digits)
 
     @api.model
     def _merge_quants(self):
