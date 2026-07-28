@@ -55,6 +55,9 @@ class CustomerPortalLoyalty(CustomerPortal):
 
         LoyaltyHistorySudo = request.env['loyalty.history'].sudo()
         searchbar_sortings = self._get_loyalty_searchbar_sortings()
+        # The route signature's `sortby='date'` only covers an *absent* param;
+        # a supplied unknown key reached this indexing as a KeyError (HTTP 500).
+        sortby = self._resolve_searchbar_option(searchbar_sortings, sortby, 'date')
         order = searchbar_sortings[sortby]['order']
         lines_count = LoyaltyHistorySudo.search_count([('card_id', '=', card_id)])
         pager = portal_pager(
