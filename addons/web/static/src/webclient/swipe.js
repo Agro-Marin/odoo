@@ -6,12 +6,6 @@
 /**
  * Minimum horizontal travel, in CSS pixels, before a touch counts as a
  * dismissing swipe rather than a stray drag.
- *
- * Declared once here because the navbar's app-menu sidebar and the mobile
- * burger overlay each carried their own `SWIPE_ACTIVATION_THRESHOLD = 100`
- * plus their own copy of the gesture arithmetic — with the delta subtraction
- * written in opposite orders, which is the only thing that actually differs
- * between them.
  */
 export const SWIPE_ACTIVATION_THRESHOLD = 100;
 
@@ -46,8 +40,7 @@ export class SwipeTracker {
      *
      * The pending check is `=== null`, not falsy: `clientX === 0` is a real
      * coordinate — a touch begun at the very left edge of the screen, which is
-     * exactly where an edge swipe starts — and both previous copies discarded
-     * that gesture as "never started".
+     * exactly where an edge swipe starts.
      *
      * @param {TouchEvent} ev
      * @returns {boolean} true if the swipe travelled far enough to dismiss

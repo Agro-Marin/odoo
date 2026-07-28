@@ -43,14 +43,6 @@ export function computeAppsAndMenuItems(menuTree) {
             appID: menuItem.appID,
         };
         if (!isApp) {
-            // A non-app item used to also get `menuID = parents[1].id`. That was
-            // the app's menu id — i.e. exactly `menuItem.appID`, already on
-            // `item` above — recomputed by indexing the ancestor chain, which
-            // silently assumes the traversal started at the "root" pseudo-menu.
-            // It was also read by nothing in odoo/enterprise/agromarin/
-            // design-themes. Dropped: it was write-only output whose only effect
-            // was to make this function throw on any subtree that is not rooted
-            // at "root".
             menuItems.push(item);
             return;
         }

@@ -60,11 +60,10 @@ export const shareTargetService = {
         ) {
             const app = menu.getApps().find((app) => "expenses" === app.actionPath);
             if (app) {
-                // `{ once: true }` rather than a self-removing listener: the
-                // removal used to be the last statement of an async body, so a
-                // rejecting `selectMenu` skipped it AND surfaced as an unhandled
-                // rejection. The event fires once per page either way, so the
-                // leak was benign — the unhandled rejection was not.
+                // `{ once: true }` rather than a self-removing listener: a
+                // removal placed last in an async body is skipped by a rejecting
+                // `selectMenu`, which then also surfaces as an unhandled
+                // rejection.
                 env.bus.addEventListener(
                     AppEvent.WEB_CLIENT_READY,
                     async () => {

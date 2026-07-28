@@ -151,6 +151,66 @@ test('target "download" opens a new tab and never chains a close', async () => {
     expect(am.__calls.doAction).toEqual([]);
 });
 
+/**
+ * ``options.onClose`` is the caller's continuation, and ``doAction(..., {
+ * onClose: resolve })`` is a supported way to AWAIT a url action. A path that
+ * skips it strands that caller — so every path settles it, and each of these
+ * three used not to. ``target: "download"`` was inherited from upstream; the
+ * missing-url and blocked-scheme guards are this fork's own additions, and
+ * upstream's missing-url path did reach ``onClose`` through the default branch.
+ */
+test("every path settles options.onClose — download", async () => {
+    patchBrowser();
+    let called = 0;
+    await executeActURLAction(
+        /** @type {any} */ ({ url: "/f.pdf", target: "download" }),
+        { onClose: () => called++ },
+        makeFakeAm(),
+    );
+    expect(called).toBe(1);
+});
+
+test("every path settles options.onClose — no url at all", async () => {
+    const browserCalls = patchBrowser();
+    const am = makeFakeAm();
+    let called = 0;
+    await executeActURLAction(
+        /** @type {any} */ ({ url: "" }),
+        { onClose: () => called++ },
+        am,
+    );
+    expect(called).toBe(1);
+    expect(browserCalls.open).toEqual([]);
+    expect(browserCalls.assign).toEqual([]);
+    expect(am.__calls.notifications).toEqual([]);
+});
+
+test("every path settles options.onClose — blocked unsafe scheme", async () => {
+    const browserCalls = patchBrowser();
+    const am = makeFakeAm();
+    let called = 0;
+    await executeActURLAction(
+        /** @type {any} */ ({ url: "httpjavascript:alert(1)" }),
+        { onClose: () => called++ },
+        am,
+    );
+    expect(called).toBe(1);
+    expect(browserCalls.open).toEqual([]);
+    expect(am.__calls.notifications).toHaveLength(1);
+});
+
+test("every path settles options.onClose — target self", async () => {
+    const browserCalls = patchBrowser();
+    let called = 0;
+    await executeActURLAction(
+        /** @type {any} */ ({ url: "/here", target: "self" }),
+        { onClose: () => called++ },
+        makeFakeAm(),
+    );
+    expect(browserCalls.assign).toEqual(["/here"]);
+    expect(called).toBe(1);
+});
+
 test("default target with close:true chains an act_window_close carrying onClose", async () => {
     patchBrowser();
     const am = makeFakeAm();

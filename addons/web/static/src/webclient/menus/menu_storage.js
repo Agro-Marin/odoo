@@ -22,9 +22,9 @@ import { session } from "@web/session";
  * - the **version is written last**: it gates reuse on the next boot, so
  *   writing it first would leave a current stamp over a payload whose write
  *   then failed on quota;
- * - a **failed or corrupt read discards the whole trio**. Before that, one
- *   corrupt value made ``start()`` throw on EVERY subsequent boot — a
- *   permanently blank webclient until the user cleared storage by hand.
+ * - a **failed or corrupt read discards the whole trio**, so one corrupt value
+ *   cannot make ``start()`` throw on every subsequent boot — that is a
+ *   permanently blank webclient until the user clears storage by hand.
  */
 
 const PAYLOAD_KEY = "webclient_menus";

@@ -50,8 +50,7 @@ export function executeReportClientAction(action, options, am) {
  *
  * Both terminal paths of {@link executeReportAction} — a registry handler
  * claiming the report, and the built-in PDF/text download — owe the caller the
- * same thing once the document has been produced, and carried identical copies
- * of it.
+ * same thing once the document has been produced.
  *
  * @param {ReportActionType} action
  * @param {Object} options

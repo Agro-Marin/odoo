@@ -66,9 +66,7 @@ export const MAX_ACTION_DEPTH = 20;
 /**
  * Advance and check the action-chaining depth carried in ``options``.
  *
- * Was duplicated verbatim (limit and message) in the client and server
- * executors; hoisted so a third chaining executor cannot silently pick a
- * different bound.
+ * Shared by every chaining executor so a new one cannot pick a different bound.
  *
  * @param {{ _actionDepth?: number }} [options]
  * @returns {number} the depth to stamp on the follow-up ``doAction``

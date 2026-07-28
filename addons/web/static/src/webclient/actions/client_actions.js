@@ -90,12 +90,10 @@ const HOME_POLL_DEADLINE = 2 * 60 * 1000;
  * Dispatched after an install/upgrade (``base_install_request``,
  * ``spreadsheet_edition``), i.e. exactly when the server is restarting.
  *
- * Previously this retried on a FIXED 250 ms period with no attempt cap and no
- * deadline: a server that never came back was hammered at 4 req/s forever
- * while the action's promise never settled. Both are bounded now — the delay
- * grows to ``HOME_POLL_MAX_DELAY`` (matching the anti-thundering-herd intent
- * of ``rpc.js``'s own retry backoff) and the wait ends at
- * ``HOME_POLL_DEADLINE``.
+ * Both the period and the total wait are bounded: the delay grows to
+ * ``HOME_POLL_MAX_DELAY`` (matching the anti-thundering-herd intent of
+ * ``rpc.js``'s own retry backoff) and the wait ends at ``HOME_POLL_DEADLINE``,
+ * so a server that never comes back is neither hammered nor awaited forever.
  *
  * @returns {Promise<boolean>} whether the server answered before the deadline
  */
