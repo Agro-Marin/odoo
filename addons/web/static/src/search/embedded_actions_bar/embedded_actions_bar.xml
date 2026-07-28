@@ -24,7 +24,7 @@
 
     <t t-name="web.embeddedActionsDropdown">
         <Dropdown state="embeddedActionsDropdown" menuClass="'o_embedded_actions_dropdown_menu'">
-            <button name="openEmbeddedActions" class="btn btn-secondary">
+            <button name="openEmbeddedActions" class="btn btn-secondary" title="Embedded actions" aria-label="Embedded actions">
                 <i class="fa-solid fa-sliders"/>
             </button>
             <t t-set-slot="content">

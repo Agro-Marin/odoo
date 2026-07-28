@@ -10,7 +10,7 @@
         <div t-if="collapsedBreadcrumbs.length || visiblePathBreadcrumbs.length" class="o_breadcrumb d-flex flex-row flex-md-column align-self-stretch justify-content-between min-w-0">
             <t t-if="env.isSmall">
                 <t t-set="previousBreadcrumb" t-value="visiblePathBreadcrumbs.at(-1)"/>
-                <button class="o_back_button btn btn-link d-print-none px-1 py-0" t-on-click.prevent="previousBreadcrumb.onSelected">
+                <button class="o_back_button btn btn-link d-print-none px-1 py-0" title="Back" aria-label="Back" t-on-click.prevent="previousBreadcrumb.onSelected">
                     <i class="oi oi-fw oi-arrow-left"/>
                 </button>
             </t>
@@ -18,7 +18,7 @@
                 <ol class="breadcrumb flex-nowrap text-nowrap lh-sm">
                     <li t-if="collapsedBreadcrumbs.length" class="breadcrumb-item d-inline-flex min-w-0">
                         <Dropdown>
-                            <button class="btn btn-light btn-sm px-1 p-0">
+                            <button class="btn btn-light btn-sm px-1 p-0" title="Show the hidden breadcrumbs" aria-label="Show the hidden breadcrumbs">
                                 <i class="oi oi-ellipsis-h"/>
                             </button>
                             <t t-set-slot="content">
