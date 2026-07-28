@@ -176,6 +176,33 @@ describe("navigation accessibility", () => {
         );
     });
 
+    test("an item's own id is never overwritten by the generated one", async () => {
+        // The generated id is a DOM mutation on an element another component
+        // owns. `search_bar` reads it back with `Number.parseInt(itemEl.id)` to
+        // recover its item, so clobbering a caller's id would resolve to NaN.
+        class OwnIds extends Component {
+            static props = [];
+            static template = xml`
+                <div class="container" role="menu" t-ref="containerRef">
+                    <div id="42" class="o-navigable first" role="menuitem" tabindex="0">one</div>
+                    <div id="43" class="o-navigable second" role="menuitem" tabindex="0">two</div>
+                </div>`;
+            setup() {
+                this.navigation = useNavigation("containerRef", {});
+                onMounted(() => this.navigation.items[0]?.setActive());
+            }
+        }
+        await makeMockEnv();
+        await mountWithCleanup(OwnIds);
+        await animationFrame();
+        expect(queryOne(".o-navigable.first").id).toBe("42");
+        expect(queryOne(".container").getAttribute("aria-activedescendant")).toBe("42");
+        await press("arrowdown");
+        await animationFrame();
+        expect(queryOne(".o-navigable.second").id).toBe("43");
+        expect(queryOne(".container").getAttribute("aria-activedescendant")).toBe("43");
+    });
+
     test("aria-activedescendant follows the selection and clears with it", async () => {
         await makeMockEnv();
         const parent = await mountWithCleanup(MenuParent);
