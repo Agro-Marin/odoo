@@ -1060,3 +1060,92 @@ class TestDomainEvaluatorParityGenerated(TransactionCase):
             "most generated domains were refused — the generator stopped "
             "exercising the evaluators",
         )
+
+
+class TestDomainPartition(TestDomainEvaluatorParityGenerated):
+    """``search(d)`` and ``search(~d)`` must partition the record set.
+
+    The parity sweep above compares two evaluators on the *same* domain, which
+    leaves a blind spot: it only ever evaluates the form the generator wrote.
+    A three-valued-logic bug lives in the *negation* -- ``NOT (col = x)`` and
+    ``col NOT IN (...)`` are NULL, not TRUE, on a NULL column, so the rows with
+    no value fall out of both halves unless the compiler adds the null arm.
+    Neither evaluator disagrees with itself about that; they simply both miss
+    the rows, and a positive domain never exercises it at all.
+
+    Two set laws catch it without needing a second implementation:
+
+    * ``search(d) & search(~d)`` is empty (no record satisfies both), and
+    * ``search(d) | search(~d)`` is everything (no record satisfies neither).
+
+    Measured worth: with the ``IS NULL`` arm deliberately removed from ``not
+    in``, this found 36 offending domains where the evaluator-parity oracle
+    found 17, and 19 of them were domains parity could not see -- including
+    plain positive ones such as ``[('email', 'in', ['A', 'z', 'a'])]``, whose
+    bug only shows in the complement.
+
+    Inherits the fixture and generator of
+    :class:`TestDomainEvaluatorParityGenerated`; only the oracle differs.
+    """
+
+    SEED = 20260727
+
+    def test_generated_domains_partition_the_record_set(self):
+        rng = random.Random(self.SEED)
+        specs = self._specs()
+        records = self.records.with_context(active_test=False)
+        model = self.Partner.with_context(active_test=False)
+        all_ids = set(records.ids)
+        checked = 0
+        for index in range(self.DOMAINS):
+            domain = self._domain(rng, specs)
+            with self.subTest(index=index, domain=list(domain)):
+                error, ids = self._evaluate(model, records, domain)
+                if error is not None:
+                    continue
+                neg_error, neg_ids = self._evaluate(model, records, ~domain)
+                context = f"for {list(domain)!r} (seed={self.SEED}, index={index})"
+                self.assertIsNone(
+                    neg_error,
+                    f"search accepted a domain but refused its negation {context}: "
+                    f"{neg_error}",
+                )
+                self.assertFalse(
+                    ids & neg_ids,
+                    f"records satisfy both a domain and its negation {context}: "
+                    f"{sorted(ids & neg_ids)[:5]}",
+                )
+                self.assertEqual(
+                    ids | neg_ids,
+                    all_ids,
+                    f"records satisfy neither a domain nor its negation {context}: "
+                    f"{sorted(all_ids - (ids | neg_ids))[:5]}",
+                )
+                checked += 1
+        self.assertGreater(
+            checked,
+            self.DOMAINS // 2,
+            "most generated domains were refused — the generator stopped "
+            "exercising the partition law",
+        )
+
+    def test_search_count_agrees_with_search(self):
+        """``search_count`` and ``len(search())`` compile the same domain twice."""
+        rng = random.Random(self.SEED + 1)
+        specs = self._specs()
+        records = self.records.with_context(active_test=False)
+        model = self.Partner.with_context(active_test=False)
+        for index in range(self.DOMAINS):
+            domain = self._domain(rng, specs)
+            with self.subTest(index=index, domain=list(domain)):
+                error, ids = self._evaluate(model, records, domain)
+                if error is not None:
+                    continue
+                # ``_evaluate`` scopes to the fixture; count the same domain.
+                scoped = Domain("id", "in", records.ids) & domain
+                self.assertEqual(
+                    model.search_count(scoped),
+                    len(ids),
+                    f"search_count disagrees with search on {list(domain)!r} "
+                    f"(seed={self.SEED + 1}, index={index})",
+                )

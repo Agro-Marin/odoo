@@ -1,4 +1,5 @@
 from . import test_formatted_read_group
+from . import test_group_count_reproducible
 from . import test_private_read_group
 from . import test_read_grouping_sets
 from . import test_read_progress_bar
