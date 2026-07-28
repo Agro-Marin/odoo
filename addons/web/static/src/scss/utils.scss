@@ -73,6 +73,45 @@
     }
 }
 
+// Here rather than in `html_editor`, where these used to live: `web`'s own
+// `bootstrap_review_frontend.scss` builds every `.btn-outline-*` with
+// `increase-contrast()`, and `web` does not depend on `html_editor`. Sass treats
+// an unknown function name as a plain CSS function and passes it through, so
+// removing html_editor surfaced the failure far from its cause, as
+// `$color: increase-contrast(…) is not a color` inside Bootstrap's `opaque()`.
+@function has-enough-contrast($color1, $color2, $threshold: 500) {
+    $-r: abs(red($color1) - red($color2));
+    $-g: abs(green($color1) - green($color2));
+    $-b: abs(blue($color1) - blue($color2));
+    @return $-r + $-g + $-b >= $threshold;
+}
+
+@function increase-contrast($color1, $color2) {
+    @if not $color1 or not $color2 {
+        @return null;
+    }
+
+    $-lightness: lightness($color1);
+    $-step: if(luma($color1) < luma($color2), -1%, 1%);
+    $-iterations: 0;
+
+    // Give up after 25 steps even if still not contrasted enough.
+    @while $-lightness >
+        0.1% and
+        $-lightness <
+        99.9% and
+        $-iterations <
+        25 and not
+        has-enough-contrast($color1, $color2)
+    {
+        $color1: adjust-color($color1, $lightness: $-step);
+        $-lightness: $-lightness + $-step;
+        $-iterations: $-iterations + 1;
+    }
+
+    @return $color1;
+}
+
 @function adjust-color-to-background(
     $color,
     $background-color,

@@ -3,8 +3,18 @@
 // absent nothing else maps the frontend greys, and the Bootstrap-default
 // `#ced4da` left `$gray-400` lighter than `$gray-300` (`#cbd5e1`) - a ramp that
 // inverts between two of its steps.
+//
+// Every step this file reads, not just the two it rebinds for the ramp: `$black`,
+// `$gray-200` and `$gray-900` are used below and their only other definition is
+// `html_editor`'s `bootstrap_overridden.scss`. `web` does not depend on
+// `html_editor`, so uninstalling it aborted the whole frontend bundle on
+// "Undefined variable" and served an error stub in place of the stylesheet.
+// `pre_variables.scss` defines them too, but loads after this file.
 $white: $o-white !default;
+$black: $o-black !default;
+$gray-200: $o-gray-200 !default;
 $gray-400: $o-gray-400 !default;
+$gray-900: $o-gray-900 !default;
 
 $blue: #0d6efd !default;
 
