@@ -31,11 +31,17 @@ def _webhook_url_blocked_reason(url: str) -> str | None:
     """Return a reason string if ``url`` targets a private/reserved address.
 
     SSRF guard for admin-configured webhook server actions: rejects a URL whose
-    host is (or resolves to) a loopback/private/link-local/reserved IP — notably
+    host is (or resolves to) an address that is not globally routable — notably
     the ``169.254.169.254`` cloud-metadata endpoint. Unlike the report fetcher
     (which allows DNS because WeasyPrint re-enters ``fetch()`` on each redirect),
     a webhook is a one-shot POST, so we also resolve the hostname. Returns None
     when the URL is allowed.
+
+    Neither half of the test below subsumes the other, so both are kept:
+    enumerating the ranges omits ``100.64.0.0/10`` (carrier-grade NAT, which
+    cloud providers route internal endpoints through), while ``is_global``
+    alone lets every multicast address past — ``is_private`` does not cover
+    ``224.0.0.0/4`` or ``ff00::/8``, so ``is_global`` reports them global.
     """
     try:
         parsed = urlparse(url)
@@ -63,14 +69,15 @@ def _webhook_url_blocked_reason(url: str) -> str | None:
 
     for ip in candidates:
         if (
-            ip.is_private
+            not ip.is_global
+            or ip.is_private
             or ip.is_loopback
             or ip.is_link_local
             or ip.is_reserved
             or ip.is_multicast
             or ip.is_unspecified
         ):
-            return f"blocked address {ip} (private/reserved range)"
+            return f"blocked address {ip} (not a globally routable range)"
     return None
 
 
