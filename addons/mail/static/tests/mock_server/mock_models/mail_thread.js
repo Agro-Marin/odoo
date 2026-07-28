@@ -266,7 +266,6 @@ export class MailThread extends models.ServerModel {
         /** @type {import("mock_models").ResPartner} */
         const ResPartner = this.env["res.partner"];
 
-        // Query matching notifications
         const notifications = MailNotification._filter([
             ["notification_type", "=", notification_type],
             ["notification_status", "in", ["bounce", "exception"]],
@@ -277,12 +276,10 @@ export class MailThread extends models.ServerModel {
                 message.author_id === this.env.user.partner_id
             );
         });
-        // Update notification status
         MailNotification.write(
             notifications.map((notification) => notification.id),
             { notification_status: "canceled" },
         );
-        // Send bus notifications to update status of notifications in the web client
         const [partner] = ResPartner.read(this.env.user.partner_id);
         const store = new mailDataHelpers.Store();
         MailMessage._message_notifications_to_store(
@@ -476,7 +473,6 @@ export class MailThread extends models.ServerModel {
         const [message] = MailMessage.browse(message_id);
         const notifications = [];
         if (this._name === "discuss.channel") {
-            // members
             const channels = DiscussChannel.browse(message.res_id);
             for (const channel of channels) {
                 notifications.push([

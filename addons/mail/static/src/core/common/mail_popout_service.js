@@ -87,7 +87,7 @@ export const mailPopoutService = {
                 popouts.get(id).generation === generation
             ) {
                 const popout = popouts.get(id);
-                await new Promise((r) => setTimeout(r, 1000));
+                await new Promise((r) => browser.setTimeout(r, 1000));
                 if (popout.generation !== generation) {
                     return;
                 }

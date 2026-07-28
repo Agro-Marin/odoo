@@ -50,7 +50,6 @@ export class NavigableList extends Component {
             // not hide them.
             this.close();
         });
-        // position and size
         usePosition("root", () => this.props.anchorRef, {
             position: this.props.position,
         });

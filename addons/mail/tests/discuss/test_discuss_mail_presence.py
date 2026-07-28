@@ -16,7 +16,7 @@ from odoo.addons.mail.tests.common import MailCommon, freeze_all_time
 
 @tagged("post_install", "-at_install")
 class TestMailPresence(WebsocketCase, MailCommon):
-    def _receive_presence(self, requested_by, target, has_token=False):
+    def _receive_presence(self, requested_by, target, has_token=False, timeout=10):
         self.env["mail.presence"].search([]).unlink()
         target_user = isinstance(target, self.env.registry["res.users"])
         if isinstance(requested_by, self.env.registry["res.users"]):
@@ -27,7 +27,7 @@ class TestMailPresence(WebsocketCase, MailCommon):
             auth_cookie = (
                 f"{requested_by._cookie_name}={requested_by._format_auth_cookie()};"
             )
-        websocket = self.websocket_connect(cookie=auth_cookie)
+        websocket = self.websocket_connect(cookie=auth_cookie, timeout=timeout)
         target_channel = target.partner_id if target_user else target
         channel_parts = ["odoo-presence", f"{target_channel._name}_{target_channel.id}"]
         if has_token:
@@ -97,5 +97,5 @@ class TestMailPresence(WebsocketCase, MailCommon):
                 else:
                     with self.assertRaises(ws._exceptions.WebSocketTimeoutException):
                         self._receive_presence(
-                            requested_by, target, has_token=has_token
+                            requested_by, target, has_token=has_token, timeout=1
                         )

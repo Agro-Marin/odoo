@@ -187,7 +187,6 @@ def get_link_preview_from_html(url, response, deadline=None):
     for chunk in response.iter_content(chunk_size=8192):
         content += chunk
         pos = content.find(b"</head>", -8196 * 2)
-        # Stop reading once all the <head> data is found
         if pos != -1:
             content = content[: pos + 7]
             break
@@ -246,7 +245,6 @@ def get_link_preview_from_html(url, response, deadline=None):
     if og_title:
         og_title = og_title[0]
     elif tree.find(".//title") is not None:
-        # Fallback on the <title> tag if it exists
         og_title = tree.find(".//title").text
     else:
         return False

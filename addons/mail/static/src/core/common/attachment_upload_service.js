@@ -72,7 +72,20 @@ export class AttachmentUploadService {
                     this._cleanupUploading(tmpId);
                     return;
                 }
-                const response = JSON.parse(upload.xhr.response);
+                let response;
+                try {
+                    response = JSON.parse(upload.xhr.response);
+                } catch {
+                    // a 200 carrying non-JSON (proxy/login interstitial, HTML
+                    // error page) threw inside this bus listener, leaving the
+                    // deferred pending and the attachment stuck "uploading"
+                    this.notificationService.add(_t("Server error"), {
+                        type: "danger",
+                    });
+                    def.resolve();
+                    this._cleanupUploading(tmpId);
+                    return;
+                }
                 if (response.error) {
                     this.notificationService.add(response.error, { type: "danger" });
                     def.resolve();

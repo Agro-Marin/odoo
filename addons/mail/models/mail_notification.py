@@ -15,7 +15,6 @@ class MailNotification(models.Model):
     _log_access = False
     _description = "Message Notifications"
 
-    # origin
     author_id = fields.Many2one("res.partner", "Author", ondelete="set null")
     mail_message_id = fields.Many2one(
         "mail.message", "Message", index=True, ondelete="cascade", required=True
@@ -26,14 +25,12 @@ class MailNotification(models.Model):
         index=True,
         help="Optional mail_mail ID. Used mainly to optimize searches.",
     )
-    # recipient
     res_partner_id = fields.Many2one(
         "res.partner", "Recipient", index=True, ondelete="cascade"
     )
     # set if no matching partner exists (mass mail)
     # must be normalized except if notification is cancel/failure from invalid email
     mail_email_address = fields.Char(help="Recipient email address")
-    # status
     notification_type = fields.Selection(
         [("inbox", "Inbox"), ("email", "Email")],
         string="Notification Type",
@@ -62,9 +59,7 @@ class MailNotification(models.Model):
     read_date = fields.Datetime("Read Date", copy=False)
     failure_type = fields.Selection(
         selection=[
-            # generic
             ("unknown", "Unknown error"),
-            # mail
             ("mail_bounce", "Bounce"),
             ("mail_spam", "Detected As Spam"),
             ("mail_email_invalid", "Invalid email address"),
@@ -72,7 +67,6 @@ class MailNotification(models.Model):
             ("mail_from_invalid", "Invalid from address"),
             ("mail_from_missing", "Missing from address"),
             ("mail_smtp", "Connection failed (outgoing mail server problem)"),
-            # mass mode
             ("mail_bl", "Blacklisted Address"),
             ("mail_optout", "Opted Out"),
             ("mail_dup", "Duplicated Email"),
@@ -98,10 +92,6 @@ class MailNotification(models.Model):
     _unique_mail_message_id_res_partner_id_ = models.UniqueIndex(
         "(mail_message_id, res_partner_id) WHERE res_partner_id IS NOT NULL"
     )
-
-    # ------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -149,10 +139,6 @@ class MailNotification(models.Model):
         records.unlink()
         return len(records), len(records) == GC_UNLINK_LIMIT  # done, remaining
 
-    # ------------------------------------------------------------
-    # TOOLS
-    # ------------------------------------------------------------
-
     def format_failure_reason(self):
         self.ensure_one()
         if self.failure_type != "unknown":
@@ -163,10 +149,6 @@ class MailNotification(models.Model):
             if self.failure_reason:
                 return _("Unknown error: %(error)s", error=self.failure_reason)
             return _("Unknown error")
-
-    # ------------------------------------------------------------
-    # DISCUSS
-    # ------------------------------------------------------------
 
     def _filtered_for_web_client(self):
         """Returns only the notifications to show on the web client."""

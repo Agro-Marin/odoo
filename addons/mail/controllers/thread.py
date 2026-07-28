@@ -61,9 +61,6 @@ def _to_record_ids(values, limit=None):
 
 
 class ThreadController(http.Controller):
-    # access helpers
-    # ------------------------------------------------------------
-
     @classmethod
     def _get_message_with_access(cls, message_id, mode="read", **kwargs):
         """Simplified getter that filters access params only, making model methods
@@ -127,9 +124,6 @@ class ThreadController(http.Controller):
                 if key in request.env[thread_model]._get_allowed_access_params()
             },
         )
-
-    # main routes
-    # ------------------------------------------------------------
 
     @http.route("/mail/thread/messages", methods=["POST"], type="jsonrpc", auth="user")
     def mail_thread_messages(self, thread_model, thread_id, fetch_params=None):
@@ -291,7 +285,6 @@ class ThreadController(http.Controller):
             raise NotFound
         record = request.env[follower.res_model].browse(follower.res_id)
         record.check_access("read")
-        # find current model subtypes, add them to a dictionary
         subtypes = record._mail_get_message_subtypes()
         store = Store().add(subtypes, ["name"]).add(follower, ["subtype_ids"])
         return {
@@ -483,9 +476,6 @@ class ThreadController(http.Controller):
             ),
         )
         return Store().add(message).get_result()
-
-    # side check for access
-    # ------------------------------------------------------------
 
     @classmethod
     def _can_edit_message(cls, message, **kwargs):

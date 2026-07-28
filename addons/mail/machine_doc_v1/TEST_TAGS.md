@@ -1,7 +1,7 @@
 # Mail Module Test Tags
 
 Reference for running targeted subsets of the `mail` module's tests — Python
-(`tests/`, 58 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 127 `*.test.js`).
+(`tests/`, 62 `test_*.py` files) and JavaScript HOOT (`static/tests/`, 128 `*.test.js`).
 
 > **See also**: `CONVENTIONS.md` (the mock-gateway / bus test helpers), `ROUTE_MAP.md`
 > (the controller-contract tests), `STATE_MANAGEMENT.md` (what the JS store tests exercise).
@@ -10,7 +10,10 @@ Reference for running targeted subsets of the `mail` module's tests — Python
 
 Almost every mail test class is decorated `@tagged("post_install", "-at_install", …)` — the
 suites need a fully-installed database (mail wires into `res.partner`, `res.users`, the bus,
-etc.). **97** classes carry `post_install`/`-at_install`. Topic tags on top of that are
+etc.). Of **131** tagged classes, **116** carry `post_install`/`-at_install`. Note both
+decorator spellings are in use (`@tagged(...)` and `@odoo.tests.tagged(...)`, the latter in
+e.g. `test_js.py` and `discuss/test_discuss_attachment_controller.py`) — grep for both or you
+will undercount. Topic tags on top of that are
 **sparse** — many files carry only the install-phase tags and are selected by the module
 filter (`-u mail`) alone, not by a topic tag.
 
@@ -23,7 +26,7 @@ filter (`-u mail`) alone, not by a topic tag.
 | `mail_hardening_v8` (1) | `test_mail_hardening_v8.py` | Hardening v8 |
 | `mail_hardening_v9` (7) | `test_mail_hardening_v9.py` | Hardening v9 |
 | `mail_hardening_v10` (3) | `test_mail_hardening_v10.py` | Hardening v10 |
-| `mail_hardening_v11` (3) | `test_mail_hardening_v11.py` | Hardening v11: `/mail/data` fetch-param isolation, dynamic-model-name guards, controller id coercion, inbox fan-out cost |
+| `mail_hardening_v11` (7) | `test_mail_hardening_v11.py` | Hardening v11: `/mail/data` fetch-param isolation, dynamic-model-name guards, controller id coercion, inbox fan-out cost |
 | `mail_hardening_v12` (2) | `test_mail_hardening_v12.py` | Hardening v12: regex-render root resolution, `_prepare_message_data` `from_create` contract |
 | `mail_controller` (7) | `test_mock_server_contract.py`, `discuss/test_*_controller.py` (message, reaction, binary, message_update, thread, attachment) | HTTP controller ↔ store-payload contract |
 | `mail_store_contract` | `test_mock_server_contract.py` | The JS-store ↔ server payload shape contract |
@@ -89,25 +92,27 @@ $PY -c $CONF -d <db> -u mail --test-enable --stop-after-init --no-http
 
 ## JavaScript — HOOT suites (`static/tests/`)
 
-127 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
+128 `*.test.js` files. They run in a headless browser via `test_js.py` (tag `mail_js`), or
 interactively at `/web/tests` (mail is included in `web.assets_unit_tests`).
 
 ### File groups (by subdirectory)
 
+Rows below sum to 128.
+
 | Directory | Files | Scope |
 |-----------|------:|-------|
 | `discuss/` | 40 | Discuss app: channels, members, calls, sidebar, sub-channels |
-| `core/` | 15 | Store/Record framework, personas, notifications, settings |
+| `core/` | 16 | Store/Record framework, personas, notifications, settings, presence |
 | `web/` | 9 | Backend-web integration (systray, form chatter wiring) |
 | `chatter/` | 9 | Form-view chatter |
 | `discuss_app/` | 6 | Discuss client-action shell |
 | `thread/` | 5 | Thread rendering + message list |
 | `utils/` | 5 | Date/format/misc helper units |
 | `composer/` | 4 | Message composer |
-| `activity/`, `message/`, `mock_server/` | 3 each | Activities · message component · mock-server units |
-| `chat_window/`, `emoji/`, `inline/`, `messaging_menu/`, `views/`, `widgets/` | 2 each | — |
-| `chat_bubble/`, `crosstab/`, `gif_picker/`, `html_editor/`, `messaging/`, `mobile/`, `quick_reaction_menu/`, `scheduled_message/`, `suggestion/`, `translation/` | 1 each | — |
 | `(root)` | 4 | Cross-cutting suites + helpers |
+| `activity/`, `message/`, `mock_server/` | 3 each | Activities · message component · mock-server units |
+| `chat_window/`, `emoji/`, `inline/`, `messaging_menu/`, `views/` | 2 each | — |
+| `chat_bubble/`, `crosstab/`, `gif_picker/`, `html_editor/`, `messaging/`, `mobile/`, `quick_reaction_menu/`, `scheduled_message/`, `suggestion/`, `translation/`, `widgets/` | 1 each | — |
 | `tours/` | 0 | Browser tours — excluded from the unit bundle (ship in `web.assets_tests`) |
 
 ### JS test helpers
@@ -129,7 +134,7 @@ interactively at `/web/tests` (mail is included in `web.assets_unit_tests`).
 
 Other helper files: `mail_test_helpers_contains.js` (DOM `contains`-style assertions),
 `mail_shared_tests.js` (reusable test bodies),
-`mock_server/mail_mock_server.js` (~52 mocked RPC routes),
+`mock_server/mail_mock_server.js` (39 mocked RPC routes, all via `registerRoute("<path>", …)`),
 `mock_server/mock_models/` (35 mock model files: `mail_thread.js`, `mail_message.js`,
 `discuss_channel.js`, `discuss_channel_member.js`, `discuss_channel_rtc_session.js`,
 `mail_activity.js`, `res_partner.js`, `mail_guest.js`, `mail_notification.js`,
@@ -144,3 +149,12 @@ $PY -c $CONF -d <db> --test-tags mail_js --stop-after-init
 # Interactively: start the server and open
 #   http://localhost:8069/web/tests  → filter to @mail suites
 ```
+
+> **Scoped bundle.** `_run_hoot` appends `&module_scope=mail`, so these runs load
+> only mail's manifest dependency closure (`mail`, `web_tour`, `html_editor`,
+> `bus`, `web`, `base`) instead of every installed addon's `src`. Enterprise
+> addons that patch mail (`ai`, `mail_enterprise`, `mail_bot`, `sms`, …) are
+> absent, which is why `@mail` suites no longer log `[ai] CommandPalette:
+> ai.agent unavailable`. Opening `/web/tests` by hand has no scope and still
+> loads everything — expect that noise back. See `web/machine_doc_v1/TEST_TAGS.md`
+> § "HOOT suite scoping".

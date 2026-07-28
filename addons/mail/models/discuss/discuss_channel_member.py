@@ -28,13 +28,11 @@ class DiscussChannelMember(models.Model):
     _rec_names_search = ["channel_id", "partner_id", "guest_id"]
     _bypass_create_check = {}
 
-    # identity
     partner_id = fields.Many2one(
         "res.partner", "Partner", ondelete="cascade", index=True
     )
     guest_id = fields.Many2one("mail.guest", "Guest", ondelete="cascade", index=True)
     is_self = fields.Boolean(compute="_compute_is_self", search="_search_is_self")
-    # channel
     channel_id = fields.Many2one(
         "discuss.channel",
         "Channel",
@@ -42,7 +40,6 @@ class DiscussChannelMember(models.Model):
         required=True,
         bypass_search_access=True,
     )
-    # state
     custom_channel_name = fields.Char("Custom channel name")
     fetched_message_id = fields.Many2one(
         "mail.message", string="Last Fetched", index="btree_not_null"
@@ -88,7 +85,6 @@ class DiscussChannelMember(models.Model):
         help="Contains the date and time of the last interesting event that happened in this channel for this user. This includes: creating, joining, pinning",
     )
     last_seen_dt = fields.Datetime("Last seen date")
-    # RTC
     rtc_session_ids = fields.One2many(
         string="RTC Sessions",
         comodel_name="discuss.channel.rtc.session",
@@ -504,10 +500,6 @@ class DiscussChannelMember(models.Model):
     def _get_store_guest_fields(self, fields):
         self.ensure_one()
         return fields
-
-    # --------------------------------------------------------------------------
-    # RTC (voice/video)
-    # --------------------------------------------------------------------------
 
     def _rtc_join_call(
         self, store: Store = None, check_rtc_session_ids=None, camera=False

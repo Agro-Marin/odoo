@@ -107,9 +107,7 @@ class DiscussCommand extends Component {
     }
 }
 
-// -----------------------------------------------------------------------------
 // add @ namespace + provider
-// -----------------------------------------------------------------------------
 commandSetupRegistry.add("@", {
     debounceDelay: 200,
     emptyMessage: _t("No conversation found"),

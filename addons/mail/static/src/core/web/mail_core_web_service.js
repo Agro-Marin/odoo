@@ -98,7 +98,6 @@ export class MailCoreWeb {
                             busId: notifId,
                         });
                     }
-                    // move messages from Inbox to history
                     message.needaction = false;
                     inbox.messages.delete({ id: messageId });
                     const history = this.store.history;

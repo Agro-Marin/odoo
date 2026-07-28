@@ -96,10 +96,6 @@ class MailFollowers(models.Model):
             # by-passing multi-company ACL for portal partners
             follower.display_name = follower.partner_id.sudo().display_name
 
-    # --------------------------------------------------
-    # Private tools methods to fetch followers data
-    # --------------------------------------------------
-
     @api.model
     def _get_mail_doc_to_followers(self, mail_ids):
         """Get partner mail recipients that follows the related record of the mails.
@@ -403,7 +399,6 @@ class MailFollowers(models.Model):
                     "uid": uid,
                     "ushare": ushare,
                 }
-                # additional information
                 if follower_data["ushare"]:  # any type of share user
                     follower_data["type"] = "portal"
                 elif follower_data[
@@ -440,7 +435,6 @@ class MailFollowers(models.Model):
             ["partner_id", "res_id", "res_model", "subtype_ids"]
         )
         self.env["res.partner"].flush_model(["active", "partner_share"])
-        # base query: fetch followers of given documents
         where_clause = " OR ".join(
             ["fol.res_model = %s AND fol.res_id = ANY(%s)"] * len(doc_data)
         )
@@ -448,7 +442,6 @@ class MailFollowers(models.Model):
             itertools.chain.from_iterable((rm, list(rids)) for rm, rids in doc_data)
         )
 
-        # additional: filter on optional pids
         sub_where = []
         if pids:
             sub_where += ["fol.partner_id = ANY(%s)"]
@@ -480,10 +473,6 @@ GROUP BY fol.id%s%s""" % (
         )
         self.env.cr.execute(query, tuple(where_params))
         return self.env.cr.fetchall()
-
-    # --------------------------------------------------
-    # Private tools methods to generate new subscription
-    # --------------------------------------------------
 
     def _insert_followers(
         self,
@@ -693,10 +682,6 @@ GROUP BY fol.id%s%s""" % (
                         update[fol_id] = {"subtype_ids": update_cmd}
 
         return new, update
-
-    # --------------------------------------------------
-    # Misc discuss
-    # --------------------------------------------------
 
     def _to_store_defaults(self, target):
         return [

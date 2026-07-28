@@ -50,14 +50,14 @@ export function isCommand(data) {
  * @param {string} fieldName
  */
 export function isOne(Model, fieldName) {
-    return Model._.fieldsOne.get(fieldName);
+    return Model._.fields.get(fieldName) === ONE_SYM;
 }
 /**
  * @param {typeof import("./record").Record} Model
  * @param {string} fieldName
  */
 export function isMany(Model, fieldName) {
-    return Model._.fieldsMany.get(fieldName);
+    return Model._.fields.get(fieldName) === MANY_SYM;
 }
 /** @param {Record} record */
 export function isRecord(record) {
@@ -68,7 +68,8 @@ export function isRecord(record) {
  * @param {string} fieldName
  */
 export function isRelation(Model, fieldName) {
-    return isMany(Model, fieldName) || isOne(Model, fieldName);
+    const kind = Model._.fields.get(fieldName);
+    return kind === ONE_SYM || kind === MANY_SYM;
 }
 export function isFieldDefinition(val) {
     return val?.[FIELD_DEFINITION_SYM];

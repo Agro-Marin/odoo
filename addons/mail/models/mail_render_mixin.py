@@ -58,14 +58,12 @@ class MailRenderMixin(models.AbstractModel):
     # If False, we need the group "Template Editor" to render the model fields
     _unrestricted_rendering = False
 
-    # language for rendering
     lang = fields.Char(
         "Language",
         help="Optional translation language (ISO code) to select when sending out an email. "
         "If not set, the main partner's language will be used. This should usually be a placeholder expression "
         "that provides the appropriate language, e.g. {{ object.partner_id.lang }}.",
     )
-    # rendering context
     render_model = fields.Char(
         "Rendering Model", compute="_compute_render_model", store=False
     )
@@ -120,10 +118,6 @@ class MailRenderMixin(models.AbstractModel):
             expression += " }}"
         return expression
 
-    # ------------------------------------------------------------
-    # ORM
-    # ------------------------------------------------------------
-
     def _valid_field_parameter(self, field, name):
         # allow specifying rendering options directly from field when using the render mixin
         return name in [
@@ -160,10 +154,6 @@ class MailRenderMixin(models.AbstractModel):
                 # check the user is part of the mail editor group to modify a template if the template is dynamic
                 self.with_context(lang=lang)._check_access_right_dynamic_template()
         return res
-
-    # ------------------------------------------------------------
-    # TOOLS
-    # ------------------------------------------------------------
 
     def _replace_local_links(self, html, base_url=None):
         """Replace local links by absolute links. It is required in various
@@ -252,7 +242,6 @@ class MailRenderMixin(models.AbstractModel):
                     {"model": context_record._name, "res_id": context_record.id}
                 )
             template_ctx["message"] = self.env["mail.message"].sudo().new(msg_vals)
-        # other message info
         if not subtype:
             template_ctx["is_discussion"] = False
             template_ctx["subtype_internal"] = False
@@ -265,7 +254,6 @@ class MailRenderMixin(models.AbstractModel):
                 template_ctx["subtype_internal"] = subtype.is_internal
         template_ctx.setdefault("subtype", subtype)
         template_ctx.setdefault("tracking_values", [])
-        # record info
         if "model_description" not in template_ctx:
             template_ctx["model_description"] = (
                 self.env["ir.model"]._get(context_record._name).display_name
@@ -273,7 +261,6 @@ class MailRenderMixin(models.AbstractModel):
                 else False
             )
         template_ctx.setdefault("subtitles", [record_name])
-        # user / environment
         template_ctx.setdefault("author_user", False)
         if "company" not in template_ctx:
             template_ctx["company"] = (
@@ -288,10 +275,8 @@ class MailRenderMixin(models.AbstractModel):
         template_ctx.setdefault("signature", "")
         template_ctx.setdefault("show_unfollow", False)
         template_ctx.setdefault("website_url", "")
-        # display: actions / buttons
         template_ctx.setdefault("button_access", False)
         template_ctx.setdefault("has_button_access", False)
-        # display
         template_ctx.setdefault(
             "email_notification_force_header",
             self.env.context.get("email_notification_force_header", False),
@@ -308,7 +293,6 @@ class MailRenderMixin(models.AbstractModel):
             "email_notification_allow_footer",
             self.env.context.get("email_notification_allow_footer", False),
         )
-        # tools
         template_ctx.setdefault("is_html_empty", is_html_empty)
 
         html = self.env["ir.qweb"]._render(
@@ -343,10 +327,6 @@ class MailRenderMixin(models.AbstractModel):
             """).format(preview_markup)
             return prepend_html_content(html, html_preview)
         return html
-
-    # ------------------------------------------------------------
-    # SECURITY
-    # ------------------------------------------------------------
 
     def _is_restricted(self):
         return (
@@ -429,10 +409,6 @@ class MailRenderMixin(models.AbstractModel):
                 )
             )
 
-    # ------------------------------------------------------------
-    # RENDERING
-    # ------------------------------------------------------------
-
     @api.model
     def _render_eval_context(self):
         """Evaluation context used in all rendering engines. Contains
@@ -493,10 +469,8 @@ class MailRenderMixin(models.AbstractModel):
             return results
 
         if not self._has_unsafe_expression_template_qweb(template_src, model):
-            # do not call the qweb engine
             return self._render_template_qweb_regex(template_src, model, res_ids)
 
-        # prepare template variables
         variables = self._render_eval_context()
         if add_context:
             variables.update(**add_context)
@@ -561,7 +535,6 @@ class MailRenderMixin(models.AbstractModel):
                     error_details = str(e)
                 error_traceback = traceback.format_exc()
 
-                # Identify the template safely
                 template_label = _("Template name not identified")
 
                 if self._name == "mail.template" and self.id:
@@ -608,7 +581,6 @@ class MailRenderMixin(models.AbstractModel):
                     error_details,
                     log_src,
                 )
-                # Log the full technical traceback for the sysadmin/developer
                 _logger.debug(
                     "Failed to render QWeb template for %s - Context language:%s\nTarget Model: %s\nError: %s\n%s",
                     template_label,
@@ -618,7 +590,6 @@ class MailRenderMixin(models.AbstractModel):
                     error_traceback,
                 )
 
-                # Raise a cleaner error for the UI
                 raise UserError(
                     _(
                         "Failed to render QWeb template for %(template_label)s\n"
@@ -755,7 +726,6 @@ class MailRenderMixin(models.AbstractModel):
         if not res_ids:
             return results
 
-        # prepare template variables
         variables = self._render_eval_context()
         if add_context:
             variables.update(**add_context)
@@ -811,7 +781,6 @@ class MailRenderMixin(models.AbstractModel):
         if not self._has_unsafe_expression_template_inline_template(
             str(template_txt), model
         ):
-            # do not call the qweb engine
             return self._render_template_inline_template_regex(
                 str(template_txt), model, res_ids
             )
@@ -825,7 +794,6 @@ class MailRenderMixin(models.AbstractModel):
                 )
             )
 
-        # prepare template variables
         variables = self._render_eval_context()
         if add_context:
             variables.update(**add_context)
@@ -1077,11 +1045,9 @@ class MailRenderMixin(models.AbstractModel):
         field,
         res_ids,
         engine="inline_template",
-        # lang options
         compute_lang=False,
         res_ids_lang=False,
         set_lang=False,
-        # rendering context and options
         add_context=None,
         options=None,
     ):
@@ -1152,7 +1118,6 @@ class MailRenderMixin(models.AbstractModel):
         else:
             templates_res_ids = {self.env.context.get("lang"): (self, res_ids)}
 
-        # rendering options (update default defined on field by asked options)
         f = self._fields[field]
         if hasattr(f, "render_engine") and f.render_engine:
             engine = f.render_engine

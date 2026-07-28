@@ -45,10 +45,6 @@ function commonParentGet(node1, node2, root = undefined) {
     return n1p[0] === n2p[0] ? n1p[0] : null;
 }
 
-//--------------------------------------------------------------------------
-// Constants
-//--------------------------------------------------------------------------
-
 const RE_COL_MATCH = /(^| )col(-[\w\d]+)*( |$)/;
 const RE_COL_MD_MATCH = /(^| )col-md(-\d+)*( |$)/;
 const RE_OFFSET_MATCH = /(^| )offset(-[\w\d]+)+( |$)/;
@@ -172,10 +168,6 @@ function isDroppedFlexDeclaration(propertyName, propertyValue) {
     );
 }
 
-//--------------------------------------------------------------------------
-// Public
-//--------------------------------------------------------------------------
-
 /**
  * Convert snippets and mailing bodies to tables.
  *
@@ -195,7 +187,6 @@ export function addTables(element) {
                 snippet.style.setProperty(property, value);
             }
         }
-        // Convert all snippets and the mailing itself into table > tr > td
         const table = _createTable(snippet.attributes);
 
         const row = document.createElement("tr");
@@ -226,7 +217,6 @@ export function addTables(element) {
         snippet.before(table);
         snippet.remove();
 
-        // If snippet doesn't have a table as child, wrap its contents in one.
         const childTables = [...col.children].filter(
             (child) => child.nodeName === "TABLE",
         );
@@ -281,14 +271,12 @@ function attachmentThumbnailToLinkImg(element) {
  * @param {Element} element
  */
 export function bootstrapToTable(element) {
-    // First give all rows in columns a separate container parent.
     for (const rowInColumn of [...element.querySelectorAll(".row")].filter((row) =>
         RE_COL_MATCH.test(row.parentElement.className),
     )) {
         const parentColumn = rowInColumn.parentElement;
         const previous = rowInColumn.previousElementSibling;
         if (previous && previous.classList.contains("o_fake_table")) {
-            // If a container was already created there, append to it.
             previous.append(rowInColumn);
         } else {
             _wrap(rowInColumn, "div", "o_fake_table");
@@ -339,7 +327,6 @@ export function bootstrapToTable(element) {
     for (const container of containers) {
         container.setAttribute("o-temp-width", _getWidth(container));
     }
-    // Now convert all containers with rows to tables.
     for (const container of [...containers].filter((n) =>
         [...n.children].some((c) => c.classList.contains("row")),
     )) {
@@ -347,7 +334,6 @@ export function bootstrapToTable(element) {
         // for use in `_applyColspan` and remove the attribute at the end.
         const containerWidth = parseFloat(container.getAttribute("o-temp-width"));
 
-        // TABLE
         const table = _createTable(container.attributes);
         for (const child of [...container.childNodes]) {
             table.append(child);
@@ -359,8 +345,6 @@ export function bootstrapToTable(element) {
         container.before(table);
         container.remove();
 
-        // ROWS
-        // First give all siblings of rows a separate row/col parent combo.
         for (const row of [...table.children].filter(
             (child) => isBlock(child) && !child.classList.contains("row"),
         )) {
@@ -386,7 +370,6 @@ export function bootstrapToTable(element) {
             bootstrapRow.before(tr);
             bootstrapRow.remove();
 
-            // COLUMNS
             const bootstrapColumns = [...tr.children].filter((column) => {
                 let match = column.className && column.className.match(RE_COL_MATCH);
                 const size = match ? _getColumnSize(column) : undefined;
@@ -453,7 +436,6 @@ export function bootstrapToTable(element) {
                     _applyColspan(currentCol, columnSize, containerWidth);
                     gridIndex += columnSize;
                 } else if (gridIndex + columnSize === 12) {
-                    // Finish the row.
                     currentCol = grid[gridIndex];
                     _applyColspan(currentCol, columnSize, containerWidth);
                     currentRow.append(
@@ -479,7 +461,6 @@ export function bootstrapToTable(element) {
                     currentRow.append(
                         ...grid.filter((td) => td.getAttribute("colspan")),
                     );
-                    // Start a new row that starts with the current col.
                     const previousRow = currentRow;
                     currentRow = currentRow.cloneNode();
                     // An id must not be duplicated on continuation rows.
@@ -514,7 +495,6 @@ export function bootstrapToTable(element) {
                     for (const child of [...bootstrapColumn.childNodes]) {
                         currentCol.append(child);
                     }
-                    // Adapt width to colspan.
                     _applyColspan(
                         currentCol,
                         +currentCol.getAttribute("colspan"),
@@ -608,7 +588,6 @@ export function cardToTable(element) {
                         node.closest(".card") === table,
                 );
                 if (hasImgTop) {
-                    // Collect .card-img-top superRows to manipulate their heights.
                     cardImgTopSuperRows.push(superRow);
                 }
             }
@@ -794,7 +773,6 @@ export function classToStyle(element, cssRules) {
         }
         // Apple Mail
         if (node.nodeName === "TD" && !node.childNodes.length) {
-            // Append non-breaking spaces to empty table cells.
             writes.push(() => {
                 node.appendChild(document.createTextNode("\u00A0"));
             });
@@ -866,14 +844,11 @@ export function classToStyle(element, cssRules) {
             }
         }
 
-        // Find styles to remove if they are from a blacklisted class and match
-        // existing styles.
         const stylesToRemove = Object.fromEntries(
             Object.entries(css).filter(
                 ([key, value]) => blacklistedStyles[key] === value,
             ),
         );
-        // Remove style from blacklisted classes.
         writes.push(() => {
             for (const [key] of Object.entries(stylesToRemove)) {
                 if (node.style[key]) {
@@ -890,7 +865,6 @@ export function classToStyle(element, cssRules) {
     const computedWrites = [];
     for (const node of nodeToRules.keys()) {
         let computedStyle;
-        // Compute dynamic styles (var, calc).
         const dynamicStyles = [];
         for (const styleName of node.style) {
             const styleValue = node.style.getPropertyValue(styleName);
@@ -1007,7 +981,6 @@ function handleMasonry(element) {
         );
         if (tdsWithTable.length) {
             // TODO: this seems a duplicate of the other o_desktop_h100 set below.
-            // Set the cells' heights to fill their parents.
             for (const tdWithTable of tdsWithTable) {
                 tdWithTable.classList.add("o_desktop_h100");
                 tdWithTable.style.setProperty("height", "100%");
@@ -1217,7 +1190,6 @@ export async function toInline(element, cssRules) {
         }
     }
 
-    // Remove contenteditable attributes
     [element, ...element.querySelectorAll("[contenteditable]")].forEach((node) =>
         node.removeAttribute("contenteditable"),
     );
@@ -1316,7 +1288,6 @@ function fontToImg(element) {
             const width = _getWidth(font);
             const height = _getHeight(font);
             const lineHeight = _getStylePropertyValue(font, "line-height");
-            // Compute the padding.
             // First get the dimensions of the icon itself (::before)
             font.style.setProperty("height", "fit-content");
             font.style.setProperty("width", "fit-content");
@@ -1924,10 +1895,6 @@ async function svgToPng(element) {
     }
 }
 
-//--------------------------------------------------------------------------
-// Private
-//--------------------------------------------------------------------------
-
 /**
  * Take an element and apply a colspan to it. In this context, this implies to
  * also apply a width to it, that corresponds to the colspan.
@@ -1939,7 +1906,6 @@ async function svgToPng(element) {
 function _applyColspan(element, colspan, tableWidth) {
     element.setAttribute("colspan", colspan);
     const widthPercentage = +element.getAttribute("colspan") / 12;
-    // Round to 2 decimal places.
     const width = Math.round(tableWidth * widthPercentage * 100) / 100;
     element.style.setProperty("max-width", width + "px");
     element.classList.add("o_converted_col");
@@ -1962,7 +1928,6 @@ function _backgroundImageToVml(backgroundImage) {
     const matches = backgroundImage.style.backgroundImage.match(/url\("?(.+?)"?\)/);
     const url = matches && matches[1];
     if (url) {
-        // Create the outer structure.
         const clone = backgroundImage.cloneNode(true);
         const div = document.createElement("div");
         div.replaceChildren(...clone.childNodes);
@@ -1986,7 +1951,6 @@ function _backgroundImageToVml(backgroundImage) {
             ),
         );
 
-        // Prepare the top element for hosting the VML image.
         for (const prop of [
             "background",
             "background-image",
@@ -2000,7 +1964,6 @@ function _backgroundImageToVml(backgroundImage) {
         clone.setAttribute("background", url);
         clone.setAttribute("valign", "middle");
 
-        // Create the VML structure, with the content of the original element inside.
         const [width, height] = [
             _getWidth(backgroundImage),
             _getHeight(backgroundImage),
@@ -2020,7 +1983,6 @@ function _backgroundImageToVml(backgroundImage) {
             </v:textbox>
         </v:rect>`;
 
-        // Wrap the VML in the original opening and closing tags.
         return `${clone.outerHTML.replace(
             /<\/[\w-]+>[\s\n]*$/,
             "",

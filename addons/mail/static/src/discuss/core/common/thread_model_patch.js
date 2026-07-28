@@ -2,10 +2,10 @@
 import { fields } from "@mail/core/common/record";
 import { Thread } from "@mail/core/common/thread_model";
 import { generateEmojisOnHtml } from "@mail/utils/common/format";
-import { useSequential } from "@mail/utils/common/hooks";
 import {
     compareDatetime,
     effectWithCleanup,
+    makeSequential,
     nearestGreaterThanOrEqual,
 } from "@mail/utils/common/misc";
 import { _t } from "@web/core/l10n/translation";
@@ -275,7 +275,7 @@ const threadPatch = {
                 return res;
             },
         });
-        this.markReadSequential = useSequential();
+        this.markReadSequential = makeSequential();
         this.markedAsUnread = false;
         this.markingAsRead = false;
         /** @type {number|undefined} */
@@ -312,7 +312,6 @@ const threadPatch = {
             inverse: "threadAsSelf",
         });
         this.scrollUnread = true;
-        // memberBusSubscription
         this.toggleBusSubscription = fields.Attr(false, {
             /** @this {import("models").Thread} */
             compute() {
@@ -799,7 +798,7 @@ const threadPatch = {
             return;
         }
         // Reset inside the callback, not on the outer markReadSequential
-        // promise: those are different chains. useSequential resolves a queued
+        // promise: those are different chains. makeSequential resolves a queued
         // call immediately when a newer one supersedes it, and runs the next
         // callback synchronously after resolving the previous one -- so an
         // outer .finally() cleared the flag while a later RPC was still in

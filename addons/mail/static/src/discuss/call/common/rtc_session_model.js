@@ -58,7 +58,6 @@ export class RtcSession extends Record {
         return record;
     }
 
-    // Server data
     channel_member_id = fields.One("discuss.channel.member", { inverse: "rtcSession" });
     partner_id = fields.One("res.partner", {
         compute() {
@@ -93,7 +92,6 @@ export class RtcSession extends Record {
     is_deaf;
     /** @type {boolean} */
     is_muted;
-    // Client data
     /** @type {HTMLAudioElement} */
     audioElement;
     /** @type {MediaStream} */
@@ -164,7 +162,6 @@ export class RtcSession extends Record {
      *  @type {number}
      */
     sequence = 0;
-    // RTC stats
     connectionState;
     logStep;
 

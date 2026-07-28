@@ -3,7 +3,6 @@ from . import mail_alias
 from . import mail_alias_domain
 from . import base
 
-# mixin
 from . import mail_activity_mixin
 from . import mail_alias_mixin_optional
 from . import mail_alias_mixin
@@ -16,7 +15,6 @@ from . import mail_thread_main_attachment
 from . import mail_tracking_duration_mixin
 from . import template_reset_mixin
 
-# mail models
 from . import fetchmail
 from . import mail_notification  # keep before as decorated m2m
 from . import mail_activity_type
@@ -41,13 +39,11 @@ from . import mail_scheduled_message
 from . import mail_tracking_value
 from . import mail_template
 
-# discuss
 from . import mail_ice_server
 from . import mail_canned_response
 from . import res_users_settings
 from . import res_users_settings_volumes
 
-# odoo models
 from . import ir_action_act_window
 from . import ir_actions_server
 from . import ir_attachment

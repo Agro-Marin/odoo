@@ -66,7 +66,6 @@ class DiscussChannel(models.Model):
             for _i in range(10)
         )
 
-    # description
     name = fields.Char("Name", required=True)
     active = fields.Boolean(
         default=True,
@@ -168,7 +167,6 @@ class DiscussChannel(models.Model):
         "Note that they will be able to manage their subscription manually "
         "if necessary.",
     )
-    # access
     uuid = fields.Char("UUID", size=50, default=_generate_random_token, copy=False)
     group_public_id = fields.Many2one(
         "res.groups",
@@ -197,7 +195,6 @@ class DiscussChannel(models.Model):
         "Group authorization and group auto-subscription are only supported on channels.",
     )
 
-    # CONSTRAINTS
     @api.constrains("from_message_id")
     def _constraint_from_message_id(self):
         # sudo: discuss.channel - skipping ACL for constraint, more performant and no sensitive information is leaked
@@ -264,8 +261,6 @@ class DiscussChannel(models.Model):
                     channels=", ".join([ch.name for ch in failing_channels]),
                 )
             )
-
-    # COMPUTE / INVERSE
 
     @api.depends("channel_name_member_ids", "name")
     def _compute_display_name(self):
@@ -492,10 +487,6 @@ class DiscussChannel(models.Model):
         for channel in self:
             channel.invitation_url = f"/chat/{channel.id}/{channel.uuid}"
 
-    # ------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------
-
     @api.model
     def _get_allowed_channel_member_create_params(self):
         return ["partner_id", "guest_id", "unpin_dt", "last_interest_dt"]
@@ -503,7 +494,6 @@ class DiscussChannel(models.Model):
     @api.model_create_multi
     def create(self, vals_list):
         for vals in vals_list:
-            # find partners to add from partner_ids
             partner_ids_cmd = vals.get("channel_partner_ids") or []
             if any(cmd[0] not in (4, 6) for cmd in partner_ids_cmd):
                 raise ValidationError(
@@ -514,7 +504,6 @@ class DiscussChannel(models.Model):
             partner_ids = [cmd[1] for cmd in partner_ids_cmd if cmd[0] == 4]
             partner_ids += [cmd[2] for cmd in partner_ids_cmd if cmd[0] == 6]
 
-            # find partners to add from channel_member_ids
             membership_ids_cmd = vals.get("channel_member_ids", [])
             for cmd in membership_ids_cmd:
                 if cmd[0] != 0:
@@ -556,10 +545,8 @@ class DiscussChannel(models.Model):
                 if pid not in membership_pids
             ]
 
-            # clean vals
             vals.pop("channel_partner_ids", False)
 
-        # Create channel and alias
         channels = super(
             DiscussChannel,
             self.with_context(
@@ -579,7 +566,6 @@ class DiscussChannel(models.Model):
 
     @api.ondelete(at_uninstall=False)
     def _unlink_except_all_employee_channel(self):
-        # Delete discuss.channel
         try:
             all_emp_group = self.env.ref("mail.channel_all_employees")
         except ValueError:
@@ -766,10 +752,6 @@ class DiscussChannel(models.Model):
             "uuid",
         ]
         return res
-
-    # ------------------------------------------------------------
-    # MEMBERS MANAGEMENT
-    # ------------------------------------------------------------
 
     def _subscribe_users_automatically(self):
         if not (
@@ -1021,7 +1003,6 @@ class DiscussChannel(models.Model):
         eligible_emails = OrderedSet(
             norm for email in emails if email and (norm := email_normalize(email))
         )
-        # Removing emails linked to members of this channel.
         member_domain = Domain("channel_id", "=", self.id) & Domain.OR(
             [
                 [(field, "=ilike", email)]
@@ -1090,10 +1071,6 @@ class DiscussChannel(models.Model):
                 )
             raise UserError(error_msg) from mde
 
-    # ------------------------------------------------------------
-    # RTC
-    # ------------------------------------------------------------
-
     def _get_call_notification_tag(self):
         self.ensure_one()
         return f"call_{self.id}"
@@ -1148,17 +1125,12 @@ class DiscussChannel(models.Model):
                     },
                 )
 
-    # ------------------------------------------------------------
-    # MAILING
-    # ------------------------------------------------------------
-
     def _notify_get_recipients(self, message, msg_vals=False, **kwargs):
         # Override recipients computation as channel is not a standard
         # mail.thread document. Indeed there are no followers on a channel.
         # Instead of followers it has members that should be notified.
         msg_vals = msg_vals or {}
 
-        # notify only user input (comment, whatsapp messages or incoming / outgoing emails)
         message_type = msg_vals.get("message_type", message.message_type)
         if message_type not in (
             "comment",
@@ -1341,7 +1313,6 @@ class DiscussChannel(models.Model):
         return super()._get_notify_valid_parameters() | {"silent"}
 
     def _notify_thread(self, message, msg_vals=False, **kwargs):
-        # link message to channel
         rdata = super()._notify_thread(message, msg_vals=msg_vals, **kwargs)
         payload = {
             "data": Store(bus_channel=self).add(message).get_result(),
@@ -1484,11 +1455,9 @@ class DiscussChannel(models.Model):
         )
 
     def _message_post_after_hook(self, message, msg_vals):
-        # Automatically set the message posted by the current user as seen for themselves.
         if self.self_member_id and message.is_current_user_or_guest_author:
             self.self_member_id._set_last_seen_message(message, notify=False)
             self.self_member_id._set_new_message_separator(message.id + 1)
-        # Invite mentioned partners to sub-channel.
         if self.parent_channel_id and message.partner_ids:
             members = self.env["discuss.channel.member"].search(
                 [
@@ -1525,7 +1494,6 @@ class DiscussChannel(models.Model):
             )
 
     def _create_attachments_for_post(self, values_list, extra_list):
-        # Create voice metadata from meta information
         attachments = super()._create_attachments_for_post(values_list, extra_list)
         voice = attachments.env["ir.attachment"]  # keep env, notably for potential sudo
         for attachment, (_cid, _name, _token, info) in zip(
@@ -1565,11 +1533,6 @@ class DiscussChannel(models.Model):
             "target": "self",
         }
 
-    # ------------------------------------------------------------
-    # BROADCAST
-    # ------------------------------------------------------------
-
-    # Anonymous method
     def _broadcast(self, partner_ids):
         """Broadcast the current channel header to the given partner ids
         :param partner_ids : the partner to notify
@@ -1580,15 +1543,11 @@ class DiscussChannel(models.Model):
                     self.with_user(user).with_context(allowed_company_ids=[]),
                 ).bus_send()
 
-    # ------------------------------------------------------------
-    # INSTANT MESSAGING API
-    # ------------------------------------------------------------
     # A channel header should be broadcasted:
     #   - when adding user to channel (only to the new added partners)
     #   - when folding/minimizing a channel (only to the user making the action)
     # A message should be broadcasted:
     #   - when a message is posted on a channel (to the channel, using _notify() method)
-    # ------------------------------------------------------------
 
     def set_message_pin(self, message_id, pinned):
         """(Un)pin a message on the channel and send a notification to the
@@ -1834,8 +1793,6 @@ class DiscussChannel(models.Model):
     def _to_store(self, store: Store, fields):
         store.add_records_fields(self, fields)
 
-    # User methods
-
     @api.model
     def _get_or_create_chat(self, partners_to, pin=True):
         """Get the canonical private channel between some partners, create it if needed.
@@ -1857,7 +1814,6 @@ class DiscussChannel(models.Model):
                     "A chat should not be created with more than 2 persons. Create a group instead."
                 )
             )
-        # determine type according to the number of partner in the channel
         self.flush_model()
         self.env["discuss.channel.member"].flush_model()
         self.env.cr.execute(
@@ -1887,16 +1843,13 @@ class DiscussChannel(models.Model):
         now = fields.Datetime.now()
         last_interest_dt = now - timedelta(seconds=1)
         if result:
-            # get the existing channel between the given partners
             channel = self.browse(result[0].get("channel_id"))
-            # pin or open the channel for the current partner
             if pin:
                 channel.self_member_id.write(
                     {"last_interest_dt": last_interest_dt, "unpin_dt": False}
                 )
             channel._broadcast(self.env.user.partner_id.ids)
         else:
-            # create a new one
             channel = self.create(
                 {
                     "channel_member_ids": [
@@ -1982,10 +1935,8 @@ class DiscussChannel(models.Model):
                 limit=1,
             )
             if not member:
-                # member not a part of the channel
                 continue
             if member.fetched_message_id.id == last_message_id:
-                # last message fetched by user is already up-to-date
                 continue
             # Avoid serialization error when multiple tabs are opened.
             query = """
@@ -2046,7 +1997,6 @@ class DiscussChannel(models.Model):
         :param group_id : the group allowed to join the channel.
         :return dict : channel header
         """
-        # create the channel
         vals = {
             "channel_type": "channel",
             "name": name,
@@ -2186,10 +2136,6 @@ class DiscussChannel(models.Model):
         return super()._get_store_message_update_extra_fields() + [
             Store.One("parent_id")
         ]
-
-    # ------------------------------------------------------------
-    # COMMANDS
-    # ------------------------------------------------------------
 
     def execute_command_help(self, **kwargs):
         self.ensure_one()

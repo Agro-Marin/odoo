@@ -63,7 +63,6 @@ class MailMail(models.Model):
             self = self.with_context(dict(self.env.context, default_state="outgoing"))
         return super().default_get(fields)
 
-    # content
     mail_message_id = fields.Many2one(
         "mail.message",
         "Message",
@@ -116,7 +115,6 @@ class MailMail(models.Model):
     recipient_ids = fields.Many2many(
         "res.partner", string="To (Partners)", context={"active_test": False}
     )
-    # process
     state = fields.Selection(
         [
             ("outgoing", "Outgoing"),
@@ -132,16 +130,13 @@ class MailMail(models.Model):
     )
     failure_type = fields.Selection(
         selection=[
-            # generic
             ("unknown", "Unknown error"),
-            # mail
             ("mail_spam", "Detected As Spam"),
             ("mail_email_invalid", "Invalid email address"),
             ("mail_email_missing", "Missing email"),
             ("mail_from_invalid", "Invalid from address"),
             ("mail_from_missing", "Missing from address"),
             ("mail_smtp", "Connection failed (outgoing mail server problem)"),
-            # mass mode
             ("mail_bl", "Blacklisted Address"),
             ("mail_optout", "Opted Out"),
             ("mail_dup", "Duplicated Email"),
@@ -334,7 +329,6 @@ class MailMail(models.Model):
                 processed = set(ids) - ids_done
                 ids_done.update(processed)
                 if self.env.context.get("ir_cron_progress_id"):
-                    # commit progress only when running from a cron job
                     self.env["ir.cron"]._commit_progress(
                         len(processed), remaining=total - len(ids_done)
                     )
@@ -347,7 +341,6 @@ class MailMail(models.Model):
 
         res = None
         try:
-            # auto-commit except in testing mode
             auto_commit = not modules.module.current_test
             res = self.browse(send_ids).send(
                 auto_commit=auto_commit, post_send_callback=post_send_callback
@@ -387,7 +380,6 @@ class MailMail(models.Model):
                 self._pending_email_notifications_domain(notif_mails_ids)
             )
             if notifications:
-                # find all notification linked to a failure
                 failed = self.env["mail.notification"]
                 if failure_type:
                     failed = notifications.filtered(
@@ -415,7 +407,7 @@ class MailMail(models.Model):
                         lambda m: m._is_thread_message()
                     )
                     # TDE TODO: could be great to notify message-based, not notifications-based, to lessen number of notifs
-                    messages._notify_message_notification_update()  # notify user that we have a failure
+                    messages._notify_message_notification_update()
         if not failure_type or failure_type in [
             "mail_email_invalid",
             "mail_email_missing",
@@ -470,10 +462,6 @@ class MailMail(models.Model):
                     )
                     parsed_datetime = False
         return parsed_datetime
-
-    # ------------------------------------------------------
-    # mail_mail formatting, tools and send mechanism
-    # ------------------------------------------------------
 
     @api.model
     def _estimate_email_size(self, headers, body, attachments_size):
@@ -535,11 +523,11 @@ class MailMail(models.Model):
         if (
             partner
             and self.model
-            and self.id  # document based only
+            and self.id
             and (
                 getattr(self.env[self.model], "_partner_unfollow_enabled", False)
                 or not partner.partner_share
-            )  # internal or model-allowance
+            )
             and (doc_to_followers or {}).get((self.model, self.res_id))
         ):
             unfollow_url = self.env["mail.thread"]._notify_get_action_link(
@@ -568,7 +556,6 @@ class MailMail(models.Model):
         self.ensure_one()
         body = self._prepare_outgoing_body()
 
-        # headers
         headers = {}
         if self.headers:
             try:
@@ -659,9 +646,7 @@ class MailMail(models.Model):
                 recipients = recipients.filtered(
                     lambda partner: partner.id not in already_sent_pids
                 )
-        # specific behavior to customize the send email for notified partners
         for partner in recipients:
-            # check partner email content
             email_to_normalized = tools.mail.email_normalize_all(partner.email)
             email_to = [
                 tools.formataddr((partner.name or "", email or "False"))
@@ -692,7 +677,6 @@ class MailMail(models.Model):
                     list(link_ids)
                 )
 
-        # Convert URL-only attachments (e.g. cloud or plain external links) into email links
         url_attachments = attachments.sudo().filtered(
             lambda a: (
                 a.url
@@ -727,7 +711,6 @@ class MailMail(models.Model):
                 * 1024
             )
             if estimated_email_size_bytes > max_email_size_bytes:
-                # Remove attachments and prepare downloadable links to be added in the body
                 record_owned_attachments.sudo().generate_access_token()
                 attachments_links = self.env["ir.qweb"]._render(
                     "mail.mail_attachment_links",
@@ -755,7 +738,6 @@ class MailMail(models.Model):
         # batch of large mails from accumulating unbounded memory.
         attachments.invalidate_recordset(["raw", "datas"])
 
-        # Build final list of email values with personalized body for recipient
         results = []
         for email_values in email_list:
             partner_id = email_values["partner_id"]
@@ -806,7 +788,6 @@ class MailMail(models.Model):
             self.env["ir.mail_server"].sudo().search([], order="sequence, id")
         )
 
-        # First group the <mail.mail> per mail_server_id, per alias_domain (if no server) and per email_from
         group_per_email_from = defaultdict(list)
         for mail, values in zip(self, mail_values, strict=False):
             # protect against ill-formatted email_from when formataddr was used on an already formatted email
@@ -968,7 +949,6 @@ class MailMail(models.Model):
                 to_send |= mail
                 mail_server.owner_limit_count += len(mail.recipient_ids) or 1
 
-        # Delay if necessary
         if to_delay:
             owner_limit_count = mail_server.owner_limit_count
             for mail in to_delay:
@@ -1041,7 +1021,6 @@ class MailMail(models.Model):
             mail_server = self.env["ir.mail_server"].browse(mail_server_id)
 
             if mail_server and mail_server.owner_user_id:
-                # Throttle the sending that use personal mail servers
                 batch_ids = (
                     self.browse(batch_ids)._split_by_delayed_batch(mail_server).ids
                 )
@@ -1151,10 +1130,8 @@ class MailMail(models.Model):
         if IrMailServer._disable_send():
             # during testing skip sending e-mails unless monkeypatched
             return True
-        # check that every email is allowed on this mail server
         if mail_server and not self._filter_mail_mail_servers(mail_server):
             raise UserError(_("Unauthorized server for some of the sending mails."))
-        # Only retrieve recipient followers of the mails if needed
         mails_with_unfollow_link = self.filtered(
             lambda m: m.body_html and "/mail/unfollow" in m.body_html
         )
@@ -1223,7 +1200,6 @@ class MailMail(models.Model):
                 )
                 email_from = emails_from[0] if emails_from else mail.email_from
 
-                # build an RFC2822 email.message.Message object and send it without queuing
                 res = None
                 # Remember the last per-recipient delivery failure so that, if no
                 # recipient at all succeeds, a strict caller (raise_exception=True)
@@ -1237,12 +1213,10 @@ class MailMail(models.Model):
                     smtp_session=smtp_session,
                 )
 
-                # send each sub-email
                 for email in email_list:
                     # give indication to 'send_mail' about emails already considered
                     # as being valid
                     email_to_normalized = email.pop("email_to_normalized", [])
-                    # if given, contextualize sending using alias domains
                     if alias_domain_id:
                         alias_domain = (
                             self.env["mail.alias.domain"].sudo().browse(alias_domain_id)
@@ -1511,16 +1485,11 @@ class MailMail(models.Model):
         ):
             # OutboundSpamException: Outlook spam error
             failure_type = "mail_spam"
-        # generic (unknown) error as fallback
         if not failure_reason:
             failure_reason = str(exception)
         if not failure_type:
             failure_type = "unknown"
         return failure_type, failure_reason
-
-    # ============================================================
-    # Mail -> Notification Helpers
-    # ============================================================
 
     def _get_notification_values(self):
         """Get list of base notification values to create a notification for existing emails.

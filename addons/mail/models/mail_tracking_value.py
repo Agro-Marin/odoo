@@ -289,7 +289,6 @@ class MailTrackingValue(models.Model):
         if not self:
             return []
 
-        # fetch model-based information
         if model:
             TrackedModel = self.env[model]
             tracked_fields = TrackedModel.fields_get(
@@ -303,7 +302,6 @@ class MailTrackingValue(models.Model):
         else:
             tracked_fields, model_sequence_info = {}, {}
 
-        # generate sequence of trackings
         fields_sequence_map = dict(
             {
                 tracking.field_info["name"]: tracking.field_info.get("sequence", 100)
@@ -311,7 +309,6 @@ class MailTrackingValue(models.Model):
             },
             **model_sequence_info,
         )
-        # generate dict of field information, if available
         fields_col_info = (
             (
                 tracking.field_id.ttype != "properties"

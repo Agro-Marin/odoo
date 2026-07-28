@@ -55,7 +55,6 @@ export class FieldMany2ManyTagsEmail extends Many2ManyTagsField {
     }
 
     get tags() {
-        // Add email to our tags
         const tags = super.tags;
         const emailByResId = this.props.record.data[this.props.name].records.reduce(
             (acc, record) => {

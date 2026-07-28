@@ -28,7 +28,6 @@ export async function generatePdfThumbnail(
         if (pdf) {
             isPdfValid = true;
             const page = await pdf.getPage(1);
-            // Render first page onto a canvas
             const viewPort = page.getViewport({ scale: 1 });
             const canvas = document.createElement("canvas");
             canvas.width = options.width;

@@ -13,7 +13,6 @@ class ActivityScheduleCase(MailCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # prepare activities
         cls.activity_type_todo = cls.env.ref("mail.mail_activity_data_todo")
         cls.activity_type_todo.delay_count = 4
         cls.activity_type_todo.sequence = 1
@@ -38,10 +37,6 @@ class ActivityScheduleCase(MailCommon):
                 limit=limit,
             )
         )
-
-    # ------------------------------------------------------------
-    # ACTIVITIES MOCK
-    # ------------------------------------------------------------
 
     @contextmanager
     def _mock_activities(self):

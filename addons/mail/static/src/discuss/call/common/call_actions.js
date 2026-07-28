@@ -361,6 +361,26 @@ registerCallAction("disconnect", {
     tags: [ACTION_TAGS.JOIN_LEAVE_CALL, ACTION_TAGS.DANGER],
 });
 
+/**
+ * Stack of the currently active tracked call actions, most recently activated
+ * first. Actions that are no longer active drop out; newly active ones are
+ * pushed on top in the order they are given.
+ *
+ * @param {string[]} stack previous stack
+ * @param {Iterable<string>} activeIds ids of the currently active tracked actions
+ * @returns {string[]}
+ */
+export function computeActionsStack(stack, activeIds) {
+    const active = new Set(activeIds);
+    const nextStack = stack.filter((id) => active.has(id));
+    for (const id of active) {
+        if (!nextStack.includes(id)) {
+            nextStack.unshift(id);
+        }
+    }
+    return nextStack;
+}
+
 export class CallAction extends Action {
     /** @type {() => Thread} */
     threadFn;

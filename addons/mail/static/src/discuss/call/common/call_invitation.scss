@@ -19,7 +19,7 @@ $expand-curve: cubic-bezier(0.22, 1, 0.36, 1);
     width: 40px;
     height: 40px;
     --pulse-spread-radius: 0.6rem;
-    animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate;
+    animation: o-pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite alternate;
 }
 
 .o-discuss-CallInvitation-cameraPreview {

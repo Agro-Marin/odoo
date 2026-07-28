@@ -175,7 +175,7 @@ test.todo(
 test("discuss: markingAsRead stays set for the whole in-flight RPC (bd882ff4)", async () => {
     // The reset was moved from .then to .finally, but onto the *outer*
     // markReadSequential(...) promise while the flag is set inside the
-    // callback -- different chains. useSequential resolves a superseded call
+    // callback -- different chains. makeSequential resolves a superseded call
     // immediately and starts the next callback synchronously after resolving
     // the previous one, so the flag was cleared while a later RPC was still in
     // flight. thread_read.markThreadAsReadIfAtBottom uses `!markingAsRead` as

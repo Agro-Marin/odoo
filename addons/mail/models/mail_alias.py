@@ -35,7 +35,6 @@ class MailAlias(models.Model):
     _rec_name = "alias_name"
     _rec_names_search = ["alias_name", "alias_domain"]
 
-    # email definition
     alias_name = fields.Char(
         "Alias Name",
         copy=False,
@@ -54,7 +53,6 @@ class MailAlias(models.Model):
         default=lambda self: self.env.company.alias_domain_id,
     )
     alias_domain = fields.Char("Alias domain name", related="alias_domain_id.name")
-    # target: create / update
     alias_model_id = fields.Many2one(
         "ir.model",
         "Aliased Model",
@@ -80,7 +78,6 @@ class MailAlias(models.Model):
         help="Optional ID of a thread (record) to which all incoming messages will be attached, even "
         "if they did not reply to it. If set, this will disable the creation of new records completely.",
     )
-    # owner
     alias_parent_model_id = fields.Many2one(
         "ir.model",
         "Parent Model",
@@ -92,7 +89,6 @@ class MailAlias(models.Model):
         "Parent Record Thread ID",
         help="ID of the parent record holding the alias (example: project holding the task creation alias)",
     )
-    # incoming configuration (mailgateway)
     alias_contact = fields.Selection(
         [
             ("everyone", "Everyone"),
@@ -160,7 +156,6 @@ class MailAlias(models.Model):
         if not tocheck:
             return
 
-        # helpers to find owner / target models
         def _owner_model(alias):
             return alias.alias_parent_model_id.model
 
@@ -173,7 +168,6 @@ class MailAlias(models.Model):
         def _target_env(alias):
             return self.env[_target_model(alias)]
 
-        # fetch impacted records, classify by model
         recs_by_model = defaultdict(list)
         for alias in tocheck:
             # owner record (like 'project.project' for aliases creating new 'project.task')
@@ -189,7 +183,6 @@ class MailAlias(models.Model):
                         alias.alias_force_thread_id
                     )
 
-        # helpers to fetch owner / target with prefetching
         def _fetch_owner(alias):
             if (
                 alias.alias_parent_thread_id
@@ -211,7 +204,6 @@ class MailAlias(models.Model):
                 )
             return None
 
-        # check company domains are compatible
         for alias in tocheck:
             if owner := _fetch_owner(alias):
                 company = owner[owner._mail_get_company_field()]
@@ -428,7 +420,6 @@ class MailAlias(models.Model):
             if alias_name:
                 domain_to_names[alias_domain].append(alias_name)
 
-        # matches existing alias
         domain = Domain.OR(
             Domain("alias_name", "in", alias_names)
             & Domain("alias_domain_id", "=", alias_domain.id)
@@ -539,10 +530,6 @@ class MailAlias(models.Model):
             return False
         return True
 
-    # ------------------------------------------------------------
-    # ACTIONS
-    # ------------------------------------------------------------
-
     def open_document(self):
         if not self.alias_model_id or not self.alias_force_thread_id:
             return False
@@ -562,10 +549,6 @@ class MailAlias(models.Model):
             "res_id": self.alias_parent_thread_id,
             "type": "ir.actions.act_window",
         }
-
-    # ------------------------------------------------------------
-    # MAIL GATEWAY
-    # ------------------------------------------------------------
 
     def _get_alias_bounced_body(self, message_dict):
         """Get the body of the email return in case of bounced email when the

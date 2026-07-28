@@ -178,7 +178,6 @@ function triggerEvent(el, selector, eventType, eventInit, options = {}) {
     const errors = [];
     const target = findElement(el, selector);
 
-    // Error handling
     if (typeof eventType !== "string") {
         errors.push("event type must be a string");
     }
@@ -195,7 +194,6 @@ function triggerEvent(el, selector, eventType, eventInit, options = {}) {
         );
     }
 
-    // Actual dispatch
     const [Constructor, processParams] = getEventConstructor(eventType);
     const event = new Constructor(eventType, processParams(eventInit));
     target.dispatchEvent(event);

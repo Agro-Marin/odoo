@@ -35,7 +35,6 @@ class IrActionsServer(models.Model):
             "next_activity": "cascade",
         },
     )
-    # Followers
     followers_type = fields.Selection(
         selection=[
             ("specific", "Specific Followers"),
@@ -60,7 +59,6 @@ class IrActionsServer(models.Model):
         "res.partner", compute="_compute_followers_info", readonly=False, store=True
     )
 
-    # Message Post / Email
     template_id = fields.Many2one(
         "mail.template",
         "Email Template",
@@ -70,7 +68,6 @@ class IrActionsServer(models.Model):
         readonly=False,
         store=True,
     )
-    # Message post
     mail_post_autofollow = fields.Boolean(
         "Subscribe Recipients",
         compute="_compute_mail_post_autofollow",
@@ -85,7 +82,6 @@ class IrActionsServer(models.Model):
         store=True,
     )
 
-    # Next Activity
     activity_type_id = fields.Many2one(
         "mail.activity.type",
         string="Activity Type",

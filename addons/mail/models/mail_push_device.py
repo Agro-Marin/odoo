@@ -48,7 +48,6 @@ class MailPushDevice(models.Model):
         ir_params_sudo = self.env["ir.config_parameter"].sudo()
         public_key = "mail.web_push_vapid_public_key"
         public_key_value = ir_params_sudo.get_param(public_key)
-        # Regenerate new Keys if public key not present
         if not public_key_value:
             self.sudo().search([]).unlink()  # Reset all devices (ServiceWorker)
             private_key_value, public_key_value = generate_vapid_keys()

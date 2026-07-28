@@ -20,10 +20,6 @@ class Base(models.AbstractModel):
     _inherit = "base"
     _mail_defaults_to_email = False
 
-    # ------------------------------------------------------------
-    # ORM
-    # ------------------------------------------------------------
-
     def _valid_field_parameter(self, field, name):
         # allow tracking on abstract models; see also 'mail.thread'
         return (
@@ -35,12 +31,7 @@ class Base(models.AbstractModel):
         never be considered as being the guest of the outside env."""
         return super().with_user(user).with_context(guest=None)
 
-    # ------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------
-
     def unlink(self):
-        # Override unlink to delete records activities through (res_model, res_id)
         record_ids = self.ids if (not self._abstract and not self._transient) else []
         result = super().unlink()
         if record_ids and (
@@ -55,10 +46,6 @@ class Base(models.AbstractModel):
                 [("res_model", "=", self._name), ("res_id", "in", record_ids)]
             ).unlink()
         return result
-
-    # ------------------------------------------------------------
-    # CHECK ACCESS
-    # ------------------------------------------------------------
 
     def _mail_get_operation_for_mail_message_operation(self, message_operation):
         """Give document permission based on mail.message check permission.
@@ -96,10 +83,6 @@ class Base(models.AbstractModel):
         operation_documents.pop(None, None)  # discard documents without a permission
         return operation_documents
 
-    # ------------------------------------------------------------
-    # FIELDS HELPERS
-    # ------------------------------------------------------------
-
     def _mail_get_alias_domains(self, default_company=False):
         """Return alias domain linked to each record in self. It is based
         on the company (record's company, environment company) and fallback
@@ -114,12 +97,10 @@ class Base(models.AbstractModel):
             default=(default_company or self.env.company)
         )
 
-        # prepare default alias domain, fetch only if necessary
         default_domain = (default_company or self.env.company).alias_domain_id
         all_companies = self.env["res.company"].browse(
             {comp.id for comp in record_companies.values()}
         )
-        # early optimization: search only if necessary
         if not default_domain and any(
             not comp.alias_domain_id for comp in all_companies
         ):
@@ -241,10 +222,6 @@ class Base(models.AbstractModel):
             "object.user_id.signature",
         )
 
-    # ------------------------------------------------------------
-    # GENERIC MAIL FEATURES
-    # ------------------------------------------------------------
-
     def _mail_track(self, tracked_fields, initial_values):
         """For a given record, fields to check (tuple column name, column info)
         and initial values, return a valid command to create tracking values.
@@ -289,7 +266,6 @@ class Base(models.AbstractModel):
                     self[definition_record_field]
                     == initial_values[definition_record_field]
                 ):
-                    # track the change only if the parent changed
                     continue
 
                 updated.add(col_name)
@@ -389,7 +365,6 @@ class Base(models.AbstractModel):
             email_cc_lst, email_to_lst = [], []
             # consider caller is going to filter / handle so don't filter anything
             recipients_all = customers.get(record.id)
-            # to computation
             email_to = primary_emails[record.id]
             if not email_to:
                 email_to = next(
@@ -412,7 +387,6 @@ class Base(models.AbstractModel):
                 email_to_lst = tools.mail.email_split_and_format_normalize(
                     email_to
                 ) or [email_to]
-            # cc computation
             cc_fn = next(
                 (
                     fname
@@ -467,14 +441,12 @@ class Base(models.AbstractModel):
             ._find_aliases([email_key(e) for e in all_emails if e and e.strip()])
         )
 
-        # fetch default recipients for each record
         for record in self:
             defaults = found[record.id]
             customers = defaults["partners"]
             email_cc_lst = defaults["email_cc_lst"] if with_cc else []
             email_to_lst = defaults["email_to_lst"]
 
-            # pure default recipients, skip public and banned emails
             recipients_all = customers.filtered(
                 lambda p: (
                     not p.is_public
@@ -542,7 +514,6 @@ class Base(models.AbstractModel):
         }
         defaults = self._message_add_default_recipients()
 
-        # add responsible
         user_field = self._fields.get("user_id")
         if (
             user_field
@@ -555,11 +526,9 @@ class Base(models.AbstractModel):
                     continue
                 suggested[record_su.id]["partners"] += record_su.user_id.partner_id
 
-        # add customers
         for record_id, values in defaults.items():
             suggested[record_id]["partners"] |= values["partners"]
 
-        # add email
         for record in self:
             if force_primary_email:
                 suggested[record.id]["email_to_lst"] += (
@@ -609,7 +578,6 @@ class Base(models.AbstractModel):
             force_primary_email=primary_email
         )
 
-        # copy suggested based on records, then add those from context
         suggested = {}
         for record in self:
             suggested[record.id] = {
@@ -618,11 +586,9 @@ class Base(models.AbstractModel):
                 + (additional_partners or self.env["res.partner"]),
             }
 
-        # find last relevant message
         messages = self.env["mail.message"]
         if reply_discussion and "message_ids" in self:
             messages = self._sort_suggested_messages(self.message_ids)
-        # fetch answer-based recipients as well as author
         if reply_message or messages:
             for record in self:
                 record_msg = reply_message or next(
@@ -636,7 +602,6 @@ class Base(models.AbstractModel):
                 )
                 if not record_msg:
                     continue
-                # direct recipients, and author if not archived / root
                 suggested[record.id]["partners"] += (
                     record_msg.partner_ids | record_msg.author_id
                 ).filtered(lambda p: p.active)
@@ -653,7 +618,6 @@ class Base(models.AbstractModel):
                 ):
                     suggested[record.id]["email_to_lst"].append(record_msg.email_from)
 
-        # make a record-based list of emails to give to '_partner_find_from_emails'
         records_emails = {}
         all_emails = set()
         for record in self:
@@ -661,13 +625,11 @@ class Base(models.AbstractModel):
                 suggested[record.id]["email_to_lst"],
                 suggested[record.id]["partners"],
             )
-            # organize and deduplicate partners, exclude followers, keep ordering
             followers = (
                 record.message_partner_ids
                 if is_mail_thread
                 else record.env["res.partner"]
             )
-            # sanitize email inputs, exclude followers and aliases, add some banned emails, keep ordering, then link to partners
             skip_emails_normalized = (followers | partners).mapped(
                 "email_normalized"
             ) + (followers | partners).mapped("email")
@@ -696,7 +658,6 @@ class Base(models.AbstractModel):
             no_create=no_create,
         )
 
-        # final filtering, and fetch model-related additional information for create values
         emails_normalized_info = (
             self._get_customer_information() if is_mail_thread else {}
         )
@@ -866,7 +827,6 @@ class Base(models.AbstractModel):
         if author_ids is None:
             author_ids = dict.fromkeys(_res_ids, False)
 
-        # sanity check
         if set(defaults.keys()) != set(_res_ids):
             raise ValueError(
                 f"Invalid defaults, keys {defaults.keys()} does not match recordset IDs {_res_ids}"
@@ -876,7 +836,6 @@ class Base(models.AbstractModel):
                 f"Invalid author_ids, keys {author_ids.keys()} does not match recordset IDs {_res_ids}"
             )
 
-        # group ids per company
         if res_ids:
             company_to_res_ids = defaultdict(list)
             record_ids_to_company = _records_sudo._mail_get_companies(
@@ -909,7 +868,6 @@ class Base(models.AbstractModel):
                     alias.alias_parent_thread_id, alias.alias_full_name
                 )
 
-        # continue with company alias
         left_ids = set(_res_ids) - set(reply_to_email)
         if left_ids:
             for company, record_ids in company_to_res_ids.items():
@@ -973,10 +931,6 @@ class Base(models.AbstractModel):
             formatted_email = record_email
         return formatted_email
 
-    # ------------------------------------------------------------
-    # ALIAS MANAGEMENT
-    # ------------------------------------------------------------
-
     def _alias_get_error(self, message, message_dict, alias):
         """Generic method that takes a record not necessarily inheriting from
         mail.alias.mixin.
@@ -1008,10 +962,6 @@ class Base(models.AbstractModel):
             )
         return False
 
-    # ------------------------------------------------------------
-    # ACTIVITY
-    # ------------------------------------------------------------
-
     @api.model
     def _get_default_activity_view(self):
         """Generates an empty activity view.
@@ -1024,10 +974,6 @@ class Base(models.AbstractModel):
         templates = E.templates(activity_box)
         return E.activity(templates, string=self._description)
 
-    # ------------------------------------------------------------
-    # DISCUSS
-    # ------------------------------------------------------------
-
     def _mail_get_message_subtypes(self):
         return self.env["mail.message.subtype"].search(
             [
@@ -1038,10 +984,6 @@ class Base(models.AbstractModel):
                 ("res_model", "=", False),
             ]
         )
-
-    # ------------------------------------------------------------
-    # GATEWAY: NOTIFICATION
-    # ------------------------------------------------------------
 
     def _notify_by_email_get_headers(self, headers=None):
         """Generate the email headers based on record. Each header not already
@@ -1056,10 +998,6 @@ class Base(models.AbstractModel):
             if company.bounce_email:
                 headers["Return-Path"] = company.bounce_email
         return headers
-
-    # ------------------------------------------------------------
-    # TOOLS
-    # ------------------------------------------------------------
 
     def _get_html_link(self, title=None):
         """Generate the record html reference for chatter use.

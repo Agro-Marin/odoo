@@ -2,8 +2,7 @@
 import { getMessagePostParams } from "@mail/core/common/message_post";
 import { AND, fields, Record } from "@mail/core/common/record";
 import { applyCounterDelta, snapshotCounter } from "@mail/utils/common/counters";
-import { useSequential } from "@mail/utils/common/hooks";
-import { assignDefined } from "@mail/utils/common/misc";
+import { assignDefined, makeSequential } from "@mail/utils/common/misc";
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { rpc } from "@web/core/network/rpc";
@@ -100,6 +99,23 @@ export class Thread extends Record {
     storeAsAllChannels = fields.One("Store", {
         compute() {
             if (this.isChannelKind) {
+                return this.store;
+            }
+        },
+    });
+    /**
+     * Membership of `Store.menuThreadCandidates`: whether this thread can show
+     * up in the messaging menu at all, before the menu's own search and tab
+     * filtering. Maintained per thread rather than rescanned, so that
+     * `Store.menuThreads` depends on the candidates alone instead of on
+     * `Thread.records` and on two fields of every thread in the store.
+     */
+    storeAsMenuThreadCandidate = fields.One("Store", {
+        compute() {
+            if (
+                this.displayToSelf ||
+                (this.needactionMessages.length > 0 && !this.isMailbox)
+            ) {
                 return this.store;
             }
         },
@@ -744,7 +760,6 @@ export class Thread extends Record {
         } catch {
             return;
         }
-        // feed messages
         // could have received a new message as notification during fetch
         // filter out already fetched (e.g. received as notification in the meantime)
         let startIndex;
@@ -817,7 +832,7 @@ export class Thread extends Record {
         return "/mail/thread/messages";
     }
 
-    _loadAroundSequential = useSequential();
+    _loadAroundSequential = makeSequential();
 
     /**
      * Get ready to jump to a message in a thread. This method will fetch the

@@ -18,10 +18,13 @@ export class CallMenu extends Component {
     }
 
     get icon() {
-        const res = this.rtc.callActions.find(
-            (action) => action.id === this.rtc.lastSelfCallAction,
-        )?.icon;
-        return (typeof res === "function" ? res() : res) ?? "fa-solid fa-microphone";
+        // `Action.icon` already resolves a function definition, so the value
+        // here is never callable.
+        return (
+            this.rtc.callActions.find(
+                (action) => action.id === this.rtc.lastSelfCallAction,
+            )?.icon ?? "fa-solid fa-microphone"
+        );
     }
 }
 

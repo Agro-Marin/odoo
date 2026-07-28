@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 
-import { isRecord } from "./misc.js";
+import { isOne as isOneField, isRecord } from "./misc.js";
 
 /** @param {RecordList} reclist */
 function getInverse(reclist) {
@@ -15,7 +15,39 @@ function getTargetModel(reclist) {
 
 /** @param {RecordList} reclist */
 function isOne(reclist) {
-    return reclist._.owner.Model._.fieldsOne.get(reclist._.name);
+    return isOneField(reclist._.owner.Model, reclist._.name);
+}
+
+/**
+ * The localId -> record map the read methods below should resolve through.
+ *
+ * `store.recordByLocalId` is an OWL-reactive Map, and its `get` re-wraps every
+ * record it returns with the *reader's* callback. That re-wrap is what makes a
+ * compute (or a component template) reading `list.map((r) => r.field)` a
+ * dependent of `field` on each related record, so it is load-bearing whenever
+ * the caller reads through a subscribing reactive.
+ *
+ * When the receiver is the internal proxy or the raw list, the observer is
+ * OWL's `NO_CALLBACK`: `observeTargetKey` returns immediately and
+ * `possiblyReactive` resolves back to the very same `record._proxy`, so the
+ * reactive Map contributes nothing but overhead there — ~614ns per element
+ * against ~3ns for the raw Map, essentially the whole cost of iterating a
+ * record list.
+ *
+ * @see core/record_list_tracking.test.js pins the tracking contract for every
+ *   read method, so a wrong split here fails loudly instead of silently
+ *   freezing computes and renders.
+ *
+ * @param {RecordList} recordList
+ * @param {RecordList} recordListFullProxy the (possibly downgraded) receiver
+ * @returns {Map<string, Record>}
+ */
+function recordByLocalIdFor(recordList, recordListFullProxy) {
+    const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+    const subscribes =
+        recordListFullProxy !== recordList._proxyInternal &&
+        recordListFullProxy !== recordList;
+    return subscribes ? recordByLocalId : toRaw(recordByLocalId);
 }
 
 export class RecordListInternal {
@@ -259,7 +291,6 @@ export class RecordListInternal {
                     }": target model "${targetModel}" doesn't support single-id data!`,
                 );
             }
-            // single-id data
             val = { [recordList._store[targetModel].id]: val };
         }
         if (inverse && inv) {
@@ -354,7 +385,6 @@ export class RecordList extends Array {
                         recordListFullProxy.data[index],
                     );
                 }
-                // Attempt an unimplemented array method call
                 const array = [
                     ...recordList[Symbol.iterator].call(recordListFullProxy),
                 ];
@@ -428,16 +458,25 @@ export class RecordList extends Array {
                         );
                     } else if (name === "length") {
                         const newLength = parseInt(val);
-                        if (newLength !== recordList.data.length) {
-                            if (newLength < recordList.data.length) {
-                                recordList.splice.call(
-                                    recordListProxy,
-                                    newLength,
-                                    recordList.length - newLength,
-                                );
-                            }
-                            recordListProxy.data.length = newLength;
-                            recordList._.syncLength(recordList);
+                        if (newLength > recordList.data.length) {
+                            // growing padded `data` with holes: `at()`/iteration
+                            // then yielded undefined "records" and `uses`
+                            // bookkeeping had no entry for them
+                            throw new Error(
+                                `Cannot grow record list "${recordList._.owner.Model.getName()}/${
+                                    recordList._.name
+                                }" from ${
+                                    recordList.data.length
+                                } to ${newLength} by assigning length: use add()/push() to insert records`,
+                            );
+                        }
+                        if (newLength < recordList.data.length) {
+                            // splice writes `data` and syncs the array length
+                            recordList.splice.call(
+                                recordListProxy,
+                                newLength,
+                                recordList.data.length - newLength,
+                            );
                         }
                     } else {
                         return Reflect.set(recordList, name, val, recordListProxy);
@@ -578,13 +617,32 @@ export class RecordList extends Array {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
         const store = recordList._store;
-        if (deleteCount === undefined) {
-            // Array.prototype.splice(start) removes to the end; the
-            // undefined count silently removed NOTHING here (NaN slice)
-            deleteCount = recordList.data.length - start;
-        }
+        // Normalize to Array.prototype.splice semantics once, up front: the
+        // teardown slice below and the splice further down must agree on which
+        // entries are leaving. Used raw, a negative `start` made the slice
+        // empty (`slice(-1, 0)`) while the splice still removed the last
+        // entry — dropping it from `data` with its `uses`/inverse bookkeeping
+        // left dangling.
+        const length = recordList.data.length;
+        const relativeStart = Math.trunc(start) || 0;
+        const actualStart =
+            relativeStart < 0
+                ? Math.max(length + relativeStart, 0)
+                : Math.min(relativeStart, length);
+        const actualDeleteCount =
+            start === undefined
+                ? 0
+                : deleteCount === undefined
+                  ? length - actualStart
+                  : Math.min(
+                        Math.max(Math.trunc(deleteCount) || 0, 0),
+                        length - actualStart,
+                    );
         return store.MAKE_UPDATE(function recordListSplice() {
-            const oldRecordLocalIds = recordList.data.slice(start, start + deleteCount);
+            const oldRecordLocalIds = recordList.data.slice(
+                actualStart,
+                actualStart + actualDeleteCount,
+            );
             // Defensive symmetry with clear()/shift(): skip localIds that no
             // longer resolve to a record instead of dereferencing undefined.
             // No reachable trigger is known — the removal from `data` below is
@@ -595,13 +653,13 @@ export class RecordList extends Array {
                 .map((oldRecordProxy) => toRaw(oldRecordProxy)._raw);
             const list = recordListFullProxy.data.slice(); // splice on copy of list so that reactive observers not triggered while splicing
             list.splice(
-                start,
-                deleteCount,
+                actualStart,
+                actualDeleteCount,
                 ...newRecordsProxy.map(
                     (newRecordProxy) => toRaw(newRecordProxy)._raw.localId,
                 ),
             );
-            if (isOne(recordList) && start === 0 && deleteCount === 1) {
+            if (isOne(recordList) && actualStart === 0 && actualDeleteCount === 1) {
                 // avoid replacing whole list, to avoid triggering observers too much
                 if (list.length === 0) {
                     recordList._proxy.data.pop();
@@ -655,13 +713,16 @@ export class RecordList extends Array {
     concat(...collections) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         return recordListFullProxy.data
-            .map((localId) => recordListFullProxy._store.recordByLocalId.get(localId))
+            .map((localId) => recordByLocalId.get(localId))
             .concat(...collections.map((c) => [...c]));
     }
     /**
      * @param {...R}
-     * @returns {R|R[]} the added record(s)
+     * @returns {R|R[]} the record(s) now in the relation, one per argument
+     *   (a single record for a single argument), as reactive proxies. Values
+     *   that resolve to no record (nullish entries) yield `undefined`.
      */
     add(...records) {
         const recordList = toRaw(this)._raw;
@@ -673,7 +734,7 @@ export class RecordList extends Array {
                     isRecord(last) &&
                     recordList.data.includes(toRaw(last)._raw.localId)
                 ) {
-                    return last;
+                    return toRaw(last)._raw._proxy;
                 }
                 return recordList._.insert(
                     recordList,
@@ -683,7 +744,7 @@ export class RecordList extends Array {
                             recordList.splice.call(recordList._proxy, 0, 1, record);
                         }
                     },
-                );
+                )?._proxy;
             }
             const res = [];
             // Set-based membership so that bulk adds are O(n), not O(n²)
@@ -692,6 +753,10 @@ export class RecordList extends Array {
                 known ? known.has(localId) : recordList.data.includes(localId);
             for (const val of records) {
                 if (isRecord(val) && has(toRaw(val)._raw.localId)) {
+                    // already a member: still report it, so the result has one
+                    // entry per argument (it used to be skipped, which made
+                    // add(x) return [] and add(known, new) return a bare record)
+                    res.push(toRaw(val)._raw._proxy);
                     continue;
                 }
                 const rec = recordList._.insert(
@@ -704,9 +769,9 @@ export class RecordList extends Array {
                         }
                     },
                 );
-                res.push(rec);
+                res.push(rec?._proxy);
             }
-            return res.length === 1 ? res[0] : res;
+            return records.length === 1 ? res[0] : res;
         });
     }
     /** @param {...R}  */
@@ -787,8 +852,11 @@ export class RecordList extends Array {
     *[Symbol.iterator]() {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
+        // hoisted like map()/filter()/find(): resolving `_store.recordByLocalId`
+        // per element costs two proxy traps on every iteration step
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         for (const localId of recordListFullProxy.data) {
-            yield recordListFullProxy._store.recordByLocalId.get(localId);
+            yield recordByLocalId.get(localId);
         }
     }
     /** @param {number} index */
@@ -796,7 +864,7 @@ export class RecordList extends Array {
         // this custom implement of "at" is slightly faster than auto-calling unimplement array method
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        return recordListFullProxy._store.recordByLocalId.get(
+        return recordByLocalIdFor(recordList, recordListFullProxy).get(
             recordListFullProxy.data.at(index),
         );
     }
@@ -808,7 +876,7 @@ export class RecordList extends Array {
     map(fn) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         return recordListFullProxy.data.map((localId, index) =>
             fn(recordByLocalId.get(localId), index, this),
         );
@@ -820,7 +888,7 @@ export class RecordList extends Array {
     filter(fn) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         const result = [];
         const data = recordListFullProxy.data;
         for (let index = 0; index < data.length; index++) {
@@ -838,7 +906,7 @@ export class RecordList extends Array {
     find(fn) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         const data = recordListFullProxy.data;
         for (let index = 0; index < data.length; index++) {
             const recordProxy = recordByLocalId.get(data[index]);
@@ -855,7 +923,7 @@ export class RecordList extends Array {
         // paths (thread scroll bookkeeping reads the newest message)
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         const data = recordListFullProxy.data;
         for (let index = data.length - 1; index >= 0; index--) {
             const recordProxy = recordByLocalId.get(data[index]);
@@ -869,7 +937,7 @@ export class RecordList extends Array {
     findLastIndex(fn) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         const data = recordListFullProxy.data;
         for (let index = data.length - 1; index >= 0; index--) {
             const recordProxy = recordByLocalId.get(data[index]);
@@ -883,7 +951,7 @@ export class RecordList extends Array {
     findIndex(fn) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         const data = recordListFullProxy.data;
         for (let index = 0; index < data.length; index++) {
             if (fn(recordByLocalId.get(data[index]), index, this)) {
@@ -900,7 +968,7 @@ export class RecordList extends Array {
     every(fn) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         const data = recordListFullProxy.data;
         for (let index = 0; index < data.length; index++) {
             if (!fn(recordByLocalId.get(data[index]), index, this)) {
@@ -913,7 +981,7 @@ export class RecordList extends Array {
     forEach(fn) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         const data = recordListFullProxy.data;
         for (let index = 0; index < data.length; index++) {
             fn(recordByLocalId.get(data[index]), index, this);
@@ -923,7 +991,7 @@ export class RecordList extends Array {
     reduce(fn, ...init) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         const data = recordListFullProxy.data;
         let acc;
         let start = 0;
@@ -951,7 +1019,7 @@ export class RecordList extends Array {
     slice(start, end) {
         const recordList = toRaw(this)._raw;
         const recordListFullProxy = recordList._.downgradeProxy(recordList, this);
-        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
+        const recordByLocalId = recordByLocalIdFor(recordList, recordListFullProxy);
         return recordListFullProxy.data
             .slice(start, end)
             .map((localId) => recordByLocalId.get(localId));

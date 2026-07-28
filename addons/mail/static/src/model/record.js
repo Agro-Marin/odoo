@@ -76,7 +76,7 @@ export class Record {
         const Model = toRaw(this);
         if (!Array.isArray(expr)) {
             if (Model._.fields.get(expr)) {
-                if (Model._.fieldsMany.get(expr)) {
+                if (isMany(Model, expr)) {
                     throw new Error(
                         "Using a fields.Many() as id is not (yet) supported",
                     );
@@ -308,7 +308,6 @@ export class Record {
                         `Cannot insert "${data}" on model "${record.Model.getName()}": this model doesn't support single-id data!`,
                     );
                 }
-                // update on single-id data
                 store._.updateFields(record, { [record.Model.id]: data });
             }
         });

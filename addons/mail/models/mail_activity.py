@@ -56,7 +56,6 @@ class MailActivity(models.Model):
             [("res_model", "=", False)], limit=1
         )
 
-    # owner
     res_model_id = fields.Many2one(
         "ir.model", "Document Model", index=True, ondelete="cascade", required=False
     )
@@ -78,7 +77,6 @@ class MailActivity(models.Model):
         store=True,
         readonly=True,
     )
-    # activity
     activity_type_id = fields.Many2one(
         "mail.activity.type",
         string="Activity Type",
@@ -114,7 +112,6 @@ class MailActivity(models.Model):
         string="Attachments",
         bypass_search_access=True,
     )
-    # description
     user_id = fields.Many2one(
         "res.users", "Assigned to", index=True, required=False, ondelete="cascade"
     )
@@ -144,7 +141,6 @@ class MailActivity(models.Model):
     chaining_type = fields.Selection(
         related="activity_type_id.chaining_type", readonly=True
     )
-    # access
     can_write = fields.Boolean(
         compute="_compute_can_write"
     )  # used to hide buttons if the current user has no access
@@ -290,21 +286,17 @@ class MailActivity(models.Model):
         if not self:
             return result
 
-        # determine activities on which to check the related document
         if operation == "read":
-            # check activities allowed by access rules
             activities = self - result[0] if result else self
             activities -= activities.sudo().filtered_domain(
                 [("user_id", "=", self.env.uid)]
             )
         elif operation == "create":
-            # check activities allowed by access rules
             activities = self - result[0] if result else self
         else:
             assert operation in ("write", "unlink"), (
                 f"Unexpected operation {operation!r}"
             )
-            # check access to the model, and check the forbidden records only
             if self.browse()._check_access(operation):
                 return result
             activities = result[0] if result else self.browse()
@@ -357,22 +349,16 @@ class MailActivity(models.Model):
             )
         )
 
-    # ------------------------------------------------------
-    # ORM overrides
-    # ------------------------------------------------------
-
     @api.model_create_multi
     def create(self, vals_list):
         activities = super().create(vals_list)
 
-        # find partners related to responsible users, separate readable from unreadable
         if any(user != self.env.user for user in activities.user_id):
             user_partners = activities.user_id.partner_id
             readable_user_partners = user_partners._filtered_access("read")
         else:
             readable_user_partners = self.env.user.partner_id
 
-        # when creating activities for other: send a notification to assigned user;
         if self.env.context.get("mail_activity_quick_update"):
             activities_to_notify = self.env["mail.activity"]
         else:
@@ -404,7 +390,6 @@ class MailActivity(models.Model):
                 )
                 self.env[model].browse(res_ids).message_subscribe(partner_ids=pids)
 
-        # send notifications about activity creation
         todo_activities = activities.filtered(
             lambda act: (
                 act.active and act.date_deadline <= fields.Date.today() and act.user_id
@@ -444,7 +429,6 @@ class MailActivity(models.Model):
 
         res = super().write(vals)
 
-        # notify new responsibles
         if vals.get("user_id"):
             if vals["user_id"] != self.env.uid:
                 if not self.env.context.get("mail_activity_quick_update", False):
@@ -462,7 +446,6 @@ class MailActivity(models.Model):
                     partner_ids=new_user.partner_id.ids
                 )
 
-        # update activity counter
         if original_user_todo_activity_count is not None:
             new_user_todo_activity_count = get_user_todo_activity_count(self)
             for user in (
@@ -509,7 +492,6 @@ class MailActivity(models.Model):
 
         The method is inspired by what has been done on mail.message."""
 
-        # Rules do not apply to administrator
         if self.env.is_superuser() or bypass_access:
             return super()._search(
                 domain, offset, limit, order, bypass_access=True, **kwargs
@@ -529,7 +511,6 @@ class MailActivity(models.Model):
             )
         )
 
-        # group res_ids by model, and determine accessible records
         # Note: the user can read all activities assigned to him (see at the end of the method)
         model_ids = defaultdict(set)
         for __, res_model, res_id, user_id in rows:
@@ -563,10 +544,6 @@ class MailActivity(models.Model):
             name = record.summary or record.activity_type_id.display_name
             record.display_name = name
 
-    # ------------------------------------------------------
-    # Business Methods
-    # ------------------------------------------------------
-
     def action_notify(self):
         classified = self._classify_by_model()
         for model, activity_data in classified.items():
@@ -580,7 +557,6 @@ class MailActivity(models.Model):
                 continue
 
             if activity.user_id.lang:
-                # Send the notification in the assigned user's language
                 activity = activity.with_context(lang=activity.user_id.lang)
 
             model_description = (
@@ -698,7 +674,6 @@ class MailActivity(models.Model):
             - messages is a recordset of posted mail.message
             - activities is a recordset of mail.activity of forced automically created activities
         """
-        # marking as 'done'
         messages = self.env["mail.message"]
         next_activities_values = []
 
@@ -764,7 +739,6 @@ class MailActivity(models.Model):
                 if attachment_ids:
                     activity.attachment_ids = attachment_ids
 
-                # Moving the attachments in the message
                 # TODO: Fix void res_id on attachment when you create an activity with an image
                 # directly, see route /web_editor/attachment/add
                 message_attachments = activity_attachments.get(activity.id)
@@ -776,7 +750,6 @@ class MailActivity(models.Model):
                         }
                     )
                     activity_message.attachment_ids = message_attachments
-                # removing attachments linked to activity if record is missing
                 elif message_attachments:
                     attachments_to_remove += message_attachments
                 messages += activity_message
@@ -946,7 +919,6 @@ class MailActivity(models.Model):
         DocModel = self.env[res_model]
         Activity = self.env["mail.activity"]
 
-        # 1. Retrieve all ongoing and completed activities according to the parameters
         activity_types = self.env["mail.activity.type"].search(
             [("res_model", "in", (res_model, False))]
         )
@@ -966,7 +938,6 @@ class MailActivity(models.Model):
         all_ongoing = all_activities.filtered("active")
         all_completed = all_activities.filtered(lambda act: not act.active)
 
-        # 2. Get attachment of completed activities
         if all_completed:
             attachment_ids = all_completed.attachment_ids.ids
             attachments_by_id = (
@@ -982,7 +953,6 @@ class MailActivity(models.Model):
         else:
             attachments_by_id = {}
 
-        # 3. Group activities per records and activity type
         grouped_completed = {
             group: Activity.browse([v.id for v in values])
             for group, values in groupby(
@@ -996,7 +966,6 @@ class MailActivity(models.Model):
             )
         }
 
-        # 4. Filter out unreadable records
         res_id_type_tuples = grouped_ongoing.keys() | grouped_completed.keys()
         if not is_filtered:
             filtered = set(
@@ -1006,7 +975,6 @@ class MailActivity(models.Model):
                 filter(lambda r: r[0] in filtered, res_id_type_tuples)
             )
 
-        # 5. Format data
         res_id_to_date_done = {}
         res_id_to_deadline = {}
         grouped_activities = defaultdict(dict)
@@ -1092,10 +1060,6 @@ class MailActivity(models.Model):
             ],
             "grouped_activities": grouped_activities,
         }
-
-    # ----------------------------------------------------------------------
-    # TOOLS
-    # ----------------------------------------------------------------------
 
     def _classify_by_model(self):
         """To ease batch computation of various activities related methods they

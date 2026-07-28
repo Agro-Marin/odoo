@@ -70,3 +70,33 @@ test("closing the preview tears down the blur manager and its stream", async () 
     expect(manager.closed).toBe(true);
     expect(manager.blurStream.getVideoTracks()[0].readyState).toBe("ended");
 });
+
+test("a destroyed preview stops reacting to call settings", async () => {
+    mockGetMedia();
+    const managers = mockBlurManager();
+    await start();
+    class Parent extends Component {
+        static components = { CallPreview };
+        static props = [];
+        static template = xml`
+            <CallPreview t-if="state.show" activateCamera="1" onSettingsChanged="() => {}"/>
+        `;
+        setup() {
+            this.state = useState({ show: true });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await contains("video");
+    parent.state.show = false;
+    await animationFrame();
+
+    // The preview observes `store.settings` / the Rtc record from setup().
+    // Those observers used to outlive the component (mail's `onChange` had no
+    // disposal), so settings changed after the preview was dismissed still ran
+    // enableBlur()/enableMicrophone()/enableCamera() on a destroyed component —
+    // re-acquiring devices with no UI attached, and pinning the whole component
+    // graph for the rest of the page's life.
+    getService("mail.store").settings.setUseBlur(true);
+    await animationFrame();
+    expect(managers).toHaveLength(0);
+});

@@ -2,9 +2,10 @@
 import { markRaw, reactive, toRaw } from "@odoo/owl";
 
 import {
+    ATTR_SYM,
     isFieldDefinition,
-    isMany,
     isRelation,
+    MANY_SYM,
     modelRegistry,
     STORE_SYM,
 } from "./misc.js";
@@ -67,14 +68,18 @@ export function makeStore(env, { localRegistry } = {}) {
                                 record,
                                 recordFullProxy,
                             );
-                            if (record._.gettingField || !Model._.fields.get(name)) {
+                            // one lookup answers all three questions this trap
+                            // asks; it runs on every property read of every
+                            // record, so the parallel-Map version cost three
+                            const kind = Model._.fields.get(name);
+                            if (record._.gettingField || kind === undefined) {
                                 let res = Reflect.get(...arguments);
                                 if (typeof res === "function") {
                                     res = res.bind(recordFullProxy);
                                 }
                                 return res;
                             }
-                            if (isRelation(Model, name)) {
+                            if (kind !== ATTR_SYM) {
                                 // read through the receiver so a reactive
                                 // receiver wraps the returned list; the flag
                                 // makes the re-entrant trap call fall through.
@@ -89,14 +94,17 @@ export function makeStore(env, { localRegistry } = {}) {
                                     record._.gettingField--;
                                 }
                                 const recordListFullProxy = recordList._proxy;
-                                if (isMany(Model, name)) {
+                                if (kind === MANY_SYM) {
                                     return recordListFullProxy;
                                 }
                                 return recordListFullProxy[0];
                             }
-                            // attrs: single raw read (OWL's own reactive trap
-                            // already subscribed the receiver before this ran)
-                            return Reflect.get(record, name, recordFullProxy);
+                            // attrs are own data properties written by
+                            // `prepareField`, so the receiver cannot change what
+                            // is read and a plain read beats Reflect.get here
+                            // (OWL's own reactive trap already subscribed the
+                            // receiver before this ran)
+                            return record[name];
                         },
                         /**
                          * @param {Record} record
@@ -187,7 +195,6 @@ export function makeStore(env, { localRegistry } = {}) {
             }
         })(Model.id);
     }
-    // Sync inverse fields
     for (const Model of Object.values(Models)) {
         for (const name of Model._.fields.keys()) {
             if (!isRelation(Model, name)) {

@@ -47,7 +47,6 @@ class TestMailTools(MailCommon):
         self.assertEqual(found, [self.env["res.partner"]])
 
         # test partners with encapsulated emails
-        # ------------------------------------------------------------
         test_partner.sudo().write(
             {"email": f'"Alfred Mighty Power Astaire" <{self._test_email}>'}
         )
@@ -260,7 +259,6 @@ class TestMailTools(MailCommon):
                 )
 
         # test users with same email, priority given to current user
-        # --------------------------------------------------------------
         self.user_employee.sudo().write(
             {
                 "email": '"Alfred Astaire" <%s>'

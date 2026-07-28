@@ -60,6 +60,9 @@ class TestIrWebsocket(WebsocketCase):
             self.env["mail.presence"]._update_presence(bob)
             self.trigger_notification_dispatching([(bob.partner_id, "presence")])
             timeout_occurred = False
+            # The dispatch above already ran; nothing more will arrive, so the
+            # connection-wide timeout would only be dead waiting here.
+            websocket.settimeout(1)
             # Save point rollback of `assertRaises` can compete with `on_websocket_close`
             # leading to `InvalidSavepoint` errors. We need to avoid it.
             try:

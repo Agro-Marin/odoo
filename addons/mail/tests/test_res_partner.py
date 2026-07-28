@@ -309,7 +309,6 @@ class TestPartner(MailCommon):
                 },
             ]
         )
-        # check data used for finding / searching
         self.assertEqual(
             partners.mapped("email_formatted"),
             [
@@ -539,11 +538,9 @@ class TestPartner(MailCommon):
                             additional_values=None,
                         )
                     )
-                # calls
                 self.assertEqual(self._mock_partner_create.call_count, 1)
                 self.assertEqual(self._mock_partner_search.call_count, 1)
                 self.assertEqual(len(self._new_partners), 1)
-                # results
                 self.assertEqual(len(partner_list), len(samples))
                 self.assertTrue(
                     len({partner.id for partner in partner_list}) == 1
@@ -591,7 +588,6 @@ class TestPartner(MailCommon):
                     additional_values=None,
                 )
             )
-        # calls
         self.assertEqual(self._mock_partner_create.call_count, 1)
         self.assertEqual(
             self._mock_partner_search.call_count,
@@ -609,7 +605,6 @@ class TestPartner(MailCommon):
                 ]
             ),
         )
-        # results
         self.assertEqual(len(new_partners), len(new_samples))
         for partner, (expected_partner, expected_name, expected_email) in zip(
             new_partners, expected, strict=False
@@ -651,7 +646,6 @@ class TestPartner(MailCommon):
                     additional_values=None,
                 )
             )
-        # calls
         self.assertEqual(self._mock_partner_create.call_count, 1)
         self.assertEqual(self._mock_partner_search.call_count, 1)
         self.assertEqual(len(self._new_partners), 2)
@@ -840,7 +834,6 @@ class TestPartner(MailCommon):
         merge_form = MergeForm.save()
         merge_form.action_merge()
 
-        # check destination and removal
         self.assertFalse(p1.exists())
         self.assertTrue(p2.exists())
         # check mail documents have been moved

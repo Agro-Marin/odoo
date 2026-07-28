@@ -115,7 +115,6 @@ class Publisher_WarrantyContract(AbstractModel):
                         partner_ids=[user.partner_id.id],
                     )
             if result.get("enterprise_info"):
-                # Update expiration date
                 set_param = self.env["ir.config_parameter"].sudo().set_param
                 set_param(
                     "database.expiration_date",

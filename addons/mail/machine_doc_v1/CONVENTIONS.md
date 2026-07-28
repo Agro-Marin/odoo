@@ -76,7 +76,8 @@ their copy; the reset wizard is the sanctioned way back to source.
 ### 7. Define a model with `class extends Record` + `<Class>.register()`
 
 Every JS model is a `Record` subclass with a `static id`, `fields.*` declarations, and a
-trailing `.register()` (see `STATE_MANAGEMENT.md`). There are **38** such classes. When
+trailing `.register()` (see `STATE_MANAGEMENT.md`). There are **38** such classes (counted
+by `.register()` call sites, not by grepping `extends Record` — see `ARCHITECTURE.md`). When
 adding one:
 1. `static _name = "<python.model>"` (omit only for JS-only models like `Composer`, `ChatHub`).
 2. Declare relations with `fields.One(Target, {inverse})` / `fields.Many(Target, {inverse})` —
@@ -158,8 +159,9 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    it when there is no `as` clause, and this fork's ruff config enforces the bracketless form.
    Do **not** "fix" it to `except (A, B):` — that causes a lint loop (see workspace CLAUDE.md).
 
-2. **The service worker is not bundled.** `static/src/service_worker.js` is served as **raw
-   text** (`@odoo-module ignore` semantics), not compiled into a bundle. Its pure-logic
+2. **The service worker is not bundled.** `static/src/service_worker.js` appears in **no**
+   manifest bundle — it is served as **raw text** and never compiled in (its own header is
+   `/** @odoo-module native */`, which is irrelevant here: nothing includes it). Its pure-logic
    helpers live in `service_worker_utils.js`, which **is** added to `web.assets_unit_tests` so
    HOOT can test them. `webmanifest.py` injects push-notification code into the worker for
    internal users by overriding `_get_service_worker_content` (it declares **no** routes).
@@ -169,9 +171,21 @@ a dedicated route for genuinely separate operations (uploads, RTC signaling, wor
    loaded library — the exact hazard web's `CONVENTIONS.md` warns about. The truly lazy libs
    are `lame.js` and `odoo_sfu.js` (declared as `dynamic_children` for `import()`).
 
-4. **`Composer`, `ChatHub`, `ChatWindow`, `Failure`, `DataResponse` are JS-only models** — no
-   `static _name`, no python counterpart. Their `getName()` falls back to the class name.
-   Don't try to `store.insert` them from a server payload keyed by a python model.
+4. **14 of the 39 registered models have no `static _name`** and are keyed by class name:
+   `ChatHub`, `ChatWindow`, `Composer`, `DataResponse`, `DiscussApp`, `DiscussAppCategory`,
+   `Failure`, `MessageReactions`, `Record`, `Rtc`, `Settings`, `Store`, `Thread`, `Volume`.
+   (The other 25 declare one.) Their `getName()` falls back to the class name, so a server
+   payload keyed by a python model cannot address them.
+
+   **"No `static _name`" does not mean "no python counterpart"** — that is the trap:
+   - `Thread` is the one exception to the rule above: python payloads *do* reach it, because
+     `pyToJsModels` maps `discuss.channel` and `mail.thread` onto it (gotcha 6).
+   - `Settings` mirrors `res.users.settings`, but is fed by the dedicated
+     `res.users.settings` **bus type** (`res_users_settings.py` → `_bus_send`), not by
+     model-keyed insertion.
+
+   Only `Composer`, `ChatHub`, `ChatWindow`, `Failure` and `DataResponse` are truly
+   client-side-only state with no server model behind them at all.
 
 5. **Persona = `res.partner` ∪ `mail.guest`.** There is no single `Persona` model. `store.self`
    resolves to `self_partner || self_guest`. Author of a message may be `author_id`

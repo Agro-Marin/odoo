@@ -20,7 +20,11 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 | `utils/` | 9 | Shared date/format/DOM helpers |
 | `js/` | 13 | Legacy-style widgets (rotting kanban, tours, debug menu) |
 | `webclient/` | 1 | Webclient-level wiring |
+| `worklets/` | 1 | `audio_processor.js` — the RTC audio worklet, served raw by `/mail/rtc/audio_worklet_processor_v2` (not bundled) |
 | `(root)` | 2 | `service_worker.js` + `service_worker_utils.js` |
+
+The rows above sum to **392**, the module's full `static/src` JS count. (`audio/`, `img/`
+and `scss/` carry no JS.)
 
 ## `model/` — the reactive ORM (layer: bundled everywhere)
 
@@ -32,7 +36,7 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 
 | Directory | Layer | Files | Responsibility |
 |-----------|-------|------:|----------------|
-| `core/common/` | common | 92 | Store service, the 30 core JS models (Thread, Message, Attachment, Composer, Follower, Notification, Activity, personas…), base components (composer, message, thread, chat window/hub, attachment views), core services |
+| `core/common/` | common | 92 | Store service, the 30 core JS models (Thread, Message, Attachment, Composer, Follower, Notification, Activity, personas…) — 31 `.register()` calls counting the `Store` singleton itself — base components (composer, message, thread, chat window/hub, attachment views), core services |
 | `core/common/plugin/` | common | 3 | html_editor plugins for the composer |
 | `core/public_web/` | public_web | 13 | `DiscussClientAction`, the `Discuss` app UI, `MessagingMenu`, `DiscussApp` model — shared by backend + public page |
 | `core/web/` | web | 40 | Backend-only: activity UI (menu, list popover, mark-as-done), follower list, backend chatter wiring, command palette, systray patches |
@@ -66,6 +70,9 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 | `chatter/web_portal/` | web_portal | 3 | The `Chatter` component (form-view + portal) — shipped standalone as `mail.assets_chatter_web_portal` |
 
 ## `views/` — backend view integrations (layer: web)
+
+Unlike the tables above, these rows are **recursive** (each widget lives in its own
+subdirectory); they sum to the subtree's 50 files.
 
 | Directory | Files | Responsibility |
 |-----------|------:|----------------|
@@ -102,7 +109,7 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 | Directory | What |
 |-----------|------|
 | `models/` (+ `models/discuss/`) | 76 Python model files — see `MODEL_MAP.md` |
-| `controllers/` (+ `controllers/discuss/`) | 21 controller files, 65 routes — see `ROUTE_MAP.md` |
+| `controllers/` (+ `controllers/discuss/`) | 19 controller files, 65 routes — see `ROUTE_MAP.md` |
 | `wizard/` | 9 wizard `.py` files (composer, activity schedule + summary, blacklist remove, followers edit, template preview/reset, + 2 `_inherit` hooks) |
 | `tools/` | Pure-Python helpers: `discuss.py` (guest context), `jwt.py`, `link_preview.py`, `mail_validation.py`, `parser.py`, `web_push.py`, `alias_error.py` |
 | `data/` | 15 XML data files (subtypes, activity types, templates, channels, crons) |
@@ -111,5 +118,5 @@ see `ASSET_LAYERS.md`) + primary responsibility. JS file counts are per-director
 | `security/` | `ir.model.access.csv` + `mail_security.xml` |
 | `migrations/` | `19.0.1.20/post-migration.py`, `19.0.1.21/pre-migration.py` |
 | `static/lib/` | Vendored libs: idb-keyval, lame, odoo_sfu, selfie_segmentation (see `ASSET_LAYERS.md`) |
-| `static/tests/` | 127 HOOT `*.test.js` + helpers + tours — see `TEST_TAGS.md` |
+| `static/tests/` | 128 HOOT `*.test.js` + helpers + tours — see `TEST_TAGS.md` |
 | `push-to-talk-extension/` | Browser extension source for the push-to-talk feature |

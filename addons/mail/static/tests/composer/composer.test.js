@@ -46,7 +46,6 @@ describe.current.tags("desktop");
 defineMailModels();
 
 beforeEach(() => {
-    // Simulate real user interactions
     patchWithCleanup(Composer.prototype, {
         isEventTrusted() {
             return true;

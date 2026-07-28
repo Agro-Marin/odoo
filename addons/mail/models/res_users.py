@@ -43,7 +43,6 @@ class ResUsers(models.Model):
     presence_ids = fields.One2many(
         "mail.presence", "user_id", groups="base.group_system"
     )
-    # OOO management
     out_of_office_from = fields.Datetime()
     out_of_office_to = fields.Datetime()
     out_of_office_message = fields.Html("Vacation Responder")
@@ -183,10 +182,6 @@ class ResUsers(models.Model):
                 if server.smtp_authentication in type_options
                 else "default"
             )
-
-    # ------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------
 
     @property
     def SELF_READABLE_FIELDS(self):
@@ -467,10 +462,6 @@ class ResUsers(models.Model):
                 ),
             )
 
-    # ------------------------------------------------------------
-    # DISCUSS
-    # ------------------------------------------------------------
-
     @api.model
     def _init_store_data(self, store: Store):
         """Initialize the store of the user."""
@@ -681,10 +672,6 @@ class ResUsers(models.Model):
             ),
         ]
 
-    # ------------------------------------------------------------
-    # Mail Servers
-    # ------------------------------------------------------------
-
     @api.autovacuum
     def _gc_personal_mail_servers(self):
         """In case the user change their email, we need to delete the old personal servers."""
@@ -718,7 +705,6 @@ class ResUsers(models.Model):
         )
 
         if server_type == "default":
-            # Use the default server
             if existing_mail_server:
                 existing_mail_server.unlink()
 
@@ -768,7 +754,6 @@ class ResUsers(models.Model):
             and user.outgoing_mail_server_id.from_filter == normalized_email
             and user.outgoing_mail_server_id.smtp_user == normalized_email
         ):
-            # Re-connect the account
             return self._get_mail_server_setup_end_action(user.outgoing_mail_server_id)
 
         if existing_mail_server:

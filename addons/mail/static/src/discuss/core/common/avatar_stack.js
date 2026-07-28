@@ -47,7 +47,6 @@ export class AvatarStack extends Component {
             `z-index: ${this.props.personas.length - index}`,
         ];
         if (index !== 0) {
-            // Compute cumulative offset,
             const marginDirection = this.props.direction === "v" ? "top" : "left";
             styles.push(`margin-${marginDirection}: -${this.props.size / 4.5}px`);
         }

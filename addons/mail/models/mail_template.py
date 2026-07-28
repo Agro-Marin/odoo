@@ -33,7 +33,6 @@ class MailTemplate(models.Model):
         abstract_models = [model for model in registry if registry[model]._abstract]
         return [("model", "not in", abstract_models)]
 
-    # description
     name = fields.Char("Name", translate=True)
     description = fields.Text(
         "Template Description",
@@ -77,7 +76,6 @@ class MailTemplate(models.Model):
     user_id = fields.Many2one(
         "res.users", string="Owner", domain="[('share', '=', False)]"
     )
-    # recipients
     use_default_to = fields.Boolean(
         "Default Recipients",
         default=True,
@@ -100,7 +98,6 @@ class MailTemplate(models.Model):
         "Reply To",
         help="Email address to which replies will be redirected when sending emails in mass; only used when the reply is not logged in the original discussion thread.",
     )
-    # content
     body_html = fields.Html(
         "Body",
         render_engine="qweb",
@@ -126,7 +123,6 @@ class MailTemplate(models.Model):
         domain="[('model', '=', model)]",
     )
     email_layout_xmlid = fields.Char("Email Notification Layout", copy=False)
-    # options
     mail_server_id = fields.Many2one(
         "ir.mail_server",
         "Outgoing Mail Server",
@@ -144,7 +140,6 @@ class MailTemplate(models.Model):
         default=True,
         help="This option permanently removes any track of email after it's been sent, including from the Technical menu in the Settings, in order to preserve storage space of your Odoo database.",
     )
-    # contextual action
     ref_ir_act_window = fields.Many2one(
         "ir.actions.act_window",
         "Sidebar action",
@@ -154,13 +149,11 @@ class MailTemplate(models.Model):
         "of the related document model",
     )
 
-    # access
     can_write = fields.Boolean(
         compute="_compute_can_write", help="The current user can edit the template."
     )
     is_template_editor = fields.Boolean(compute="_compute_is_template_editor")
 
-    # view display
     has_dynamic_reports = fields.Boolean(compute="_compute_has_dynamic_reports")
     has_mail_server = fields.Boolean(compute="_compute_has_mail_server")
 
@@ -186,7 +179,6 @@ class MailTemplate(models.Model):
         for template in self:
             template.has_mail_server = has_mail_server
 
-    # Overrides of mail.render.mixin
     @api.depends("model")
     def _compute_render_model(self):
         for template in self:
@@ -279,10 +271,6 @@ class MailTemplate(models.Model):
             if hasattr(target, "_mail_template_default_values"):
                 upd_values = target._mail_template_default_values()
                 template.update(upd_values)
-
-    # ------------------------------------------------------------
-    # CRUD
-    # ------------------------------------------------------------
 
     def _fix_attachment_ownership(self):
         for record in self:
@@ -468,10 +456,6 @@ class MailTemplate(models.Model):
         )
         return action
 
-    # ------------------------------------------------------------
-    # MESSAGE/EMAIL VALUES GENERATION
-    # ------------------------------------------------------------
-
     def _generate_template_attachments(
         self, res_ids, render_fields, render_results=None
     ):
@@ -511,14 +495,11 @@ class MailTemplate(models.Model):
         for res_id in res_ids:
             values = render_results.setdefault(res_id, {})
 
-            # link template attachments directly
             if "attachment_ids" in render_fields:
                 values["attachment_ids"] = self.attachment_ids.ids
 
-            # generate attachments (reports)
             if "report_template_ids" in render_fields and self.report_template_ids:
                 for report in self.report_template_ids:
-                    # generate content
                     if report.report_type in ["qweb-html", "qweb-pdf"]:
                         report_content, report_format = self.env[
                             "ir.actions.report"
@@ -536,7 +517,6 @@ class MailTemplate(models.Model):
                             )
                         report_content, report_format = render_res
                     report_content = base64.b64encode(report_content)
-                    # generate name
                     if report.print_report_name:
                         report_name = safe_eval(
                             report.print_report_name,
@@ -649,7 +629,6 @@ class MailTemplate(models.Model):
                 )._message_get_default_recipients()
                 for res_id, recipients in default_recipients.items():
                     render_results.setdefault(res_id, {}).update(recipients)
-        # render fields dynamically which generates recipients
         else:
             for field in set(render_fields) & {"email_cc", "email_to", "partner_to"}:
                 generated_field_values = self._render_field(field, res_ids)
@@ -658,7 +637,6 @@ class MailTemplate(models.Model):
                         generated_field_values[res_id]
                     )
 
-        # create partners from emails if asked to
         if find_or_create_partners:
             records_emails = {}
             for record in Model.browse(res_ids):
@@ -681,7 +659,6 @@ class MailTemplate(models.Model):
                     partners.ids
                 )
 
-        # update 'partner_to' rendered value to 'partner_ids'
         all_partner_to = {
             pid
             for record_values in render_results.values()
@@ -745,7 +722,6 @@ class MailTemplate(models.Model):
         for res_id in res_ids:
             values = render_results.setdefault(res_id, {})
 
-            # technical settings
             if "auto_delete" in render_fields:
                 values["auto_delete"] = self.auto_delete
             if "email_layout_xmlid" in render_fields:
@@ -789,13 +765,12 @@ class MailTemplate(models.Model):
         self.ensure_one()
         render_fields_set = set(render_fields)
         fields_specific = {
-            "attachment_ids",  # attachments
-            "email_cc",  # recipients
-            "email_to",  # recipients
-            "partner_to",  # recipients
-            "report_template_ids",  # attachments
-            "scheduled_date",  # specific
-            # not rendered (static)
+            "attachment_ids",
+            "email_cc",
+            "email_to",
+            "partner_to",
+            "report_template_ids",
+            "scheduled_date",
             "auto_delete",
             "email_layout_xmlid",
             "mail_server_id",
@@ -805,7 +780,6 @@ class MailTemplate(models.Model):
 
         render_results = {}
         for template, template_res_ids in self._classify_per_lang(res_ids).values():
-            # render fields not rendered by sub methods
             fields_torender = {
                 field for field in render_fields_set if field not in fields_specific
             }
@@ -814,7 +788,6 @@ class MailTemplate(models.Model):
                 for res_id, field_value in generated_field_values.items():
                     render_results.setdefault(res_id, {})[field] = field_value
 
-            # render recipients
             if render_fields_set & {"email_cc", "email_to", "partner_to"}:
                 template._generate_template_recipients(
                     template_res_ids,
@@ -824,18 +797,15 @@ class MailTemplate(models.Model):
                     find_or_create_partners=find_or_create_partners,
                 )
 
-            # render scheduled_date
             if "scheduled_date" in render_fields_set:
                 template._generate_template_scheduled_date(
                     template_res_ids, render_results=render_results
                 )
 
-            # add values static for all res_ids
             template._generate_template_static_values(
                 template_res_ids, render_fields_set, render_results=render_results
             )
 
-            # generate attachments if requested
             if render_fields_set & {"attachment_ids", "report_template_ids"}:
                 template._generate_template_attachments(
                     template_res_ids, render_fields_set, render_results=render_results
@@ -857,10 +827,6 @@ class MailTemplate(models.Model):
             if (isinstance(pid, str) and pid.strip().isdigit())
             or (pid and not isinstance(pid, str))
         ]
-
-    # ------------------------------------------------------------
-    # EMAIL
-    # ------------------------------------------------------------
 
     def _send_check_access(self, res_ids):
         records = self.env[self.model].browse(res_ids)
@@ -972,7 +938,6 @@ class MailTemplate(models.Model):
                 if "email_from" in values and not values.get("email_from"):
                     values.pop("email_from")
 
-                # encapsulate body
                 if not sending_email_layout_xmlid:
                     values["body"] = values["body_html"]
                     continue
@@ -996,7 +961,6 @@ class MailTemplate(models.Model):
 
             mails = self.env["mail.mail"].sudo().create(values_list)
 
-            # manage attachments
             for mail, attachments in zip(mails, attachments_list, strict=False):
                 if attachments:
                     attachments_values = [
@@ -1022,10 +986,6 @@ class MailTemplate(models.Model):
         if force_send:
             mails_sudo.send(raise_exception=raise_exception)
         return mails_sudo
-
-    # ----------------------------------------
-    # MAIL RENDER INTERNALS
-    # ----------------------------------------
 
     def _has_unsafe_expression_template_qweb(self, source, model, fname=None):
         if self._expression_is_default(source, model, fname):

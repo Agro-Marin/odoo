@@ -113,7 +113,6 @@ patch(Message.prototype, {
                 childEl.nodeType === TEXT_NODE &&
                 prevAll(childEl, '[id*="stopSpelling"]').length > 0
             ) {
-                // Convert Text nodes to Element nodes
                 const newChildEl = document.createElement("span");
                 newChildEl.textContent = childEl.textContent;
                 newChildEl.dataset.oMailQuote = "1";
@@ -146,7 +145,6 @@ patch(Message.prototype, {
             iconellipsisEl.className = "oi oi-ellipsis-h oi-large";
             ellipsisbtnEl.append(iconellipsisEl);
             group[0].parentNode.insertBefore(ellipsisbtnEl, group[0]);
-            // Toggle All next nodes
             if (!this.state.isReadMoreByIndex.has(index)) {
                 this.state.isReadMoreByIndex.set(index, true);
             }

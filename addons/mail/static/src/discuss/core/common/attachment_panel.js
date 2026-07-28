@@ -2,7 +2,8 @@
 import { ActionPanel } from "@mail/core/common/action_panel";
 import { AttachmentList } from "@mail/core/common/attachment_list";
 import { DateSection } from "@mail/core/common/date_section";
-import { useSequential, useVisible } from "@mail/utils/common/hooks";
+import { useVisible } from "@mail/utils/common/hooks";
+import { makeSequential } from "@mail/utils/common/misc";
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /**
@@ -17,7 +18,7 @@ export class AttachmentPanel extends Component {
 
     setup() {
         super.setup();
-        this.sequential = useSequential();
+        this.sequential = makeSequential();
         this.store = useService("mail.store");
         this.ormService = useService("orm");
         this.attachmentUploadService = useService("mail.attachment_upload");

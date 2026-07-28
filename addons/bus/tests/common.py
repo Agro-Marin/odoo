@@ -146,9 +146,10 @@ class WebsocketCase(HttpCase):
         if "cookie" not in kwargs:
             self.session = self.authenticate(None, None)
             kwargs["cookie"] = f"session_id={self.session.sid}"
-        kwargs["timeout"] = (
-            10  # keep a large timeout to avoid aving a websocket request escaping the test
-        )
+        # Large default so a slow dispatch never escapes the test. Tests that
+        # assert *absence* of a notification must pass a short timeout: for them
+        # the wait is dead time, not a safety margin.
+        kwargs.setdefault("timeout", 10)
         # The cursor lock is already released, we just need to pass the right cookie.
         kwargs["cookie"] += f";{TEST_CURSOR_COOKIE_NAME}={self.http_request_key}"
         ws = websocket.create_connection(self._WEBSOCKET_URL, *args, **kwargs)

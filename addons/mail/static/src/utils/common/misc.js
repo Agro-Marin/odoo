@@ -77,15 +77,34 @@ export function isDragSourceExternalFile(dataTransfer) {
 }
 
 /**
+ * Observe one or several keys of a reactive object.
+ *
+ * Mirrors the contract of `Store.onChange` (@see model/store.js `_onChange`),
+ * including its disposal semantics: OWL has no unsubscribe API, so the
+ * registered callback stays in `targetToKeysToCallbacks` — holding a STRONG
+ * reference to everything it closes over — until the observed key next
+ * changes, and forever if it never does. Callers with a bounded lifetime
+ * (components above all) MUST call the returned disposer, which both latches
+ * the callback off and drops its captures.
+ *
  * @param {Object} target
  * @param {string|string[]} key
  * @param {Function} callback
+ * @returns {() => void} disposer; idempotent
  */
 export function onChange(target, key, callback) {
+    if (Array.isArray(key)) {
+        const disposers = key.map((k) => onChange(target, k, callback));
+        return () => {
+            for (const dispose of disposers) {
+                dispose();
+            }
+        };
+    }
     let proxy;
     function _observe() {
         // access proxy[key] only once to avoid triggering reactive get() many times
-        const val = proxy[key];
+        const val = proxy?.[key];
         if (typeof val === "object" && val !== null) {
             void Object.keys(val);
         }
@@ -94,15 +113,21 @@ export function onChange(target, key, callback) {
             void val.forEach((i) => i);
         }
     }
-    if (Array.isArray(key)) {
-        return key.map((k) => onChange(target, k, callback));
-    }
+    let ready = true;
     proxy = reactive(target, () => {
+        if (!ready) {
+            return;
+        }
         _observe();
         callback();
     });
     _observe();
-    return proxy;
+    return () => {
+        ready = false;
+        proxy = undefined;
+        target = undefined;
+        callback = undefined;
+    };
 }
 
 /**
@@ -372,4 +397,54 @@ export async function loadCssFromBundle(targetNode, bundleName) {
             throw e;
         }
     }
+}
+
+/**
+ * Serialize calls: while one call is running, a newly submitted one waits, and
+ * any call queued behind it is superseded (its promise resolves with
+ * `undefined`) so only the latest queued work runs.
+ *
+ * Not an OWL hook despite its former `makeSequential` name: it registers no
+ * lifecycle hook and must be callable outside `setup()` — it is used as a
+ * `Record` field initializer (@see core/common/thread_model.js
+ * `_loadAroundSequential`), where a real hook would throw.
+ *
+ * @returns {(func: () => Promise<any>) => Promise<any>}
+ */
+export function makeSequential() {
+    let inProgress = false;
+    let nextFunction;
+    let nextResolve;
+    let nextReject;
+    async function call() {
+        const resolve = nextResolve;
+        const reject = nextReject;
+        const func = nextFunction;
+        nextResolve = undefined;
+        nextReject = undefined;
+        nextFunction = undefined;
+        inProgress = true;
+        try {
+            const data = await func();
+            resolve(data);
+        } catch (e) {
+            reject(e);
+        }
+        inProgress = false;
+        if (nextFunction && nextResolve) {
+            call();
+        }
+    }
+    return (func) => {
+        nextResolve?.();
+        const prom = new Promise((resolve, reject) => {
+            nextResolve = resolve;
+            nextReject = reject;
+        });
+        nextFunction = func;
+        if (!inProgress) {
+            call();
+        }
+        return prom;
+    };
 }

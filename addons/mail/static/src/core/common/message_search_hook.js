@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { useSequential } from "@mail/utils/common/hooks";
+import { makeSequential } from "@mail/utils/common/misc";
 import { markup, onWillUnmount, useState } from "@odoo/owl";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { escapeRegExp } from "@web/core/utils/format/strings";
@@ -67,7 +67,7 @@ export function searchHighlight(searchTerm, target) {
 /** @param {import('models').Thread} thread */
 export function useMessageSearch(thread) {
     const store = useService("mail.store");
-    const sequential = useSequential();
+    const sequential = makeSequential();
     const state = useState({
         thread,
         async search(before = false) {

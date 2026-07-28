@@ -96,10 +96,6 @@ addBusMessageHandler("mail.record/insert", (_env, _id, payload) => {
     }
 });
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export function defineMailModels() {
     // Bind the mail mock-server routes to the calling test file's suite: the
     // module-level registrations in mail_mock_server.js only bind to the file
@@ -674,7 +670,6 @@ function prepareRegistry(registry, { keepContent = false } = {}) {
 }
 
 export function prepareRegistriesWithCleanup() {
-    // Clone registries
     registryNamesToCloneWithCleanup.forEach((registryName) =>
         cloneRegistryWithCleanup(registry.category(registryName)),
     );

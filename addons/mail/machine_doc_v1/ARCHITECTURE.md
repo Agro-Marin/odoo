@@ -166,16 +166,25 @@ public page, where `web/` is absent).
 
 ## File counts
 
+All counts exclude `__init__.py`.
+
 | Category | Count |
 |----------|------:|
-| Python models (`models/`, incl. `discuss/`) | 76 (+ `__init__`) |
-| Python controllers | 21 files · **65** routes |
-| Python wizards | 10 |
-| Python tests | 58 `test_*.py` |
+| Python models (`models/`, incl. `discuss/`) | 76 |
+| Python controllers | 19 files · **65** routes |
+| Python wizards | 9 |
+| Python tests | 62 `test_*.py` |
 | JavaScript (`static/src/`) | 392 |
-| JS model classes (`extends Record`) | 38 |
+| JS model classes (registered with `.register()`) | 38 (+ the base `Record` itself → 39 calls) |
 | JS OWL services | 22 |
-| JS tests (`static/tests/`, `*.test.js`) | 127 |
-| SCSS | 132 |
-| XML (views + data + demo + OWL templates) | ~380 (41 views + 15 data + 4 demo + 164 static OWL) |
+| JS tests (`static/tests/`, `*.test.js`) | 128 |
+| SCSS (`static/src/`) | 132 |
+| XML (module-wide) | 232 = 164 static OWL + 41 views + 15 data + 6 wizard + 4 demo + 1 security + 1 test |
 | i18n (.po/.pot) | 64 |
+
+> **Counting the JS models:** grep for `extends Record` and you get 38 by coincidence, not
+> by correctness — it misses `Attachment extends FileModelMixin(Record)`
+> (`core/common/attachment_model.js`) and falsely matches `class StoreInternal extends
+> RecordInternal` (`model/store_internal.js`). Count `.register()` call sites instead: 39,
+> of which one is `Record.register()` in `model/record.js` (the base class), leaving 38
+> model classes.

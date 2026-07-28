@@ -98,6 +98,18 @@ export class Message extends Record {
         return this.author_id || this.author_guest_id;
     }
     body = fields.Html("");
+    // Declared next to `body` and before every compute that reads it
+    // (`hasLink`, `isEmpty`): fields are computed in declaration order, so a
+    // compute reading a *computed* field declared after it runs once against
+    // that field's default and again once it settles. Ordering dependencies
+    // first costs nothing and removes the wasted pass.
+    isBodyEmpty = fields.Attr(undefined, {
+        compute() {
+            return (
+                !this.body || isEmptyBlock(createElementWithContent("div", this.body))
+            );
+        },
+    });
     call_history_ids = fields.Many("discuss.call.history");
     richBody = fields.Html("", {
         compute() {
@@ -422,13 +434,6 @@ export class Message extends Record {
             return this.computeIsEmpty();
         },
     });
-    isBodyEmpty = fields.Attr(undefined, {
-        compute() {
-            return (
-                !this.body || isEmptyBlock(createElementWithContent("div", this.body))
-            );
-        },
-    });
 
     computeIsEmpty() {
         return (
@@ -453,7 +458,10 @@ export class Message extends Record {
             this.body &&
             this.body.startsWith("<a") &&
             this.body.endsWith("/a>") &&
-            this.body.match(/<\/a>/im)?.length === 1 &&
+            // global flag: a non-global match() returns the single match plus
+            // its capture groups, so `.length === 1` held for ANY body with a
+            // link and the "only one link" condition was never enforced
+            this.body.match(/<\/a>/gi)?.length === 1 &&
             this.message_link_preview_ids.length === 1 &&
             this.message_link_preview_ids[0].link_preview_id.isImage
         );

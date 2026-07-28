@@ -9,7 +9,6 @@ import { MessageNotificationPopover } from "@mail/core/common/message_notificati
 import { handleValidChannelMention } from "@mail/core/common/message_post";
 import { MessageReactionMenu } from "@mail/core/common/message_reaction_menu";
 import { MessageReactions } from "@mail/core/common/message_reactions";
-import { RelativeTime } from "@mail/core/common/relative_time";
 import { htmlToTextContentInline } from "@mail/utils/common/format";
 import { useLongPress } from "@mail/utils/common/hooks";
 import { loadCssFromBundle } from "@mail/utils/common/misc";
@@ -78,7 +77,6 @@ export class Message extends Component {
         MessageLinkPreviewList,
         MessageReactions,
         Popover: MessageNotificationPopover,
-        RelativeTime,
         NotificationMessage,
     };
     static defaultProps = {

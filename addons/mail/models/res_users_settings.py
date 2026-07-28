@@ -11,7 +11,6 @@ class ResUsersSettings(models.Model):
         string="Is discuss sidebar category chat open?", default=True
     )
 
-    # RTC
     push_to_talk_key = fields.Char(
         string="Push-To-Talk shortcut",
         help="String formatted to represent a key with modifiers following this pattern: shift.ctrl.alt.key, e.g: truthy.1.true.b",
@@ -30,7 +29,6 @@ class ResUsersSettings(models.Model):
         string="Volumes of other partners",
     )
 
-    # Notifications
     channel_notifications = fields.Selection(
         [("all", "All Messages"), ("no_notif", "Nothing")],
         "Channel Notifications",

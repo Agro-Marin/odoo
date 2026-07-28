@@ -174,7 +174,6 @@ class TestMailTemplate(MailCommon):
     @users("admin")
     def test_mail_template_abstract_model(self):
         """Check abstract models cannot be set on templates."""
-        # create
         with self.assertRaises(ValidationError):
             self.env["mail.template"].create(
                 {
@@ -184,7 +183,6 @@ class TestMailTemplate(MailCommon):
                     .id,  # abstract model
                 }
             )
-        # write
         template = self.env["mail.template"].create(
             {
                 "name": "Test abstract template",
@@ -200,7 +198,6 @@ class TestMailTemplate(MailCommon):
             )
 
     def test_mail_template_acl(self):
-        # Sanity check
         self.assertTrue(self.user_admin.has_group("mail.group_mail_template_editor"))
         self.assertTrue(self.user_admin.has_group("base.group_sanitize_override"))
         self.assertFalse(
@@ -836,7 +833,6 @@ class TestMailTemplateUI(HttpCase):
 @tagged("mail_template", "-at_install", "post_install")
 class TestTemplateConfigRestrictEditor(MailCommon):
     def test_switch_icp_value(self):
-        # Sanity check
         group = self.env.ref("mail.group_mail_template_editor")
 
         self.assertTrue(self.user_employee.has_group("mail.group_mail_template_editor"))
@@ -870,7 +866,6 @@ class TestSearchTemplateCategory(MailCommon):
 
         cls.existing = MailTemplate.search([])
 
-        # Create templates
         # 2 Hidden templates
         cls.hidden_templates = MailTemplate.create(
             [
@@ -921,7 +916,6 @@ class TestSearchTemplateCategory(MailCommon):
     def test_search_template_category(self):
         MailTemplate = self.env["mail.template"].with_context(active_test=False)
 
-        # Search by hidden templates
         hidden_domain = [("template_category", "in", ["hidden_template"])]
         hidden_templates = MailTemplate.search(hidden_domain) - self.existing
         self.assertEqual(
@@ -935,7 +929,6 @@ class TestSearchTemplateCategory(MailCommon):
             "Computed field doesn't match 'hidden_template'",
         )
 
-        # Search by base templates
         base_domain = [("template_category", "in", ["base_template"])]
         base_templates = MailTemplate.search(base_domain) - self.existing
         self.assertEqual(
@@ -949,7 +942,6 @@ class TestSearchTemplateCategory(MailCommon):
             "Computed field doesn't match 'base_template'",
         )
 
-        # Search by custom templates
         custom_domain = [("template_category", "in", ["custom_template"])]
         custom_templates = MailTemplate.search(custom_domain) - self.existing
         self.assertEqual(
@@ -963,7 +955,6 @@ class TestSearchTemplateCategory(MailCommon):
             "Computed field doesn't match 'custom_template'",
         )
 
-        # Combined search
         combined_domain = [
             (
                 "template_category",
@@ -983,7 +974,6 @@ class TestSearchTemplateCategory(MailCommon):
             "Combined templates count mismatch",
         )
 
-        # Search with '=' operator
         hidden_domain = [("template_category", "=", "hidden_template")]
         hidden_templates = MailTemplate.search(hidden_domain) - self.existing
         self.assertEqual(
@@ -992,7 +982,6 @@ class TestSearchTemplateCategory(MailCommon):
             "Hidden templates count mismatch",
         )
 
-        # Search with '!=' operator
         not_in_domain = [("template_category", "!=", "hidden_template")]
         not_in_templates = MailTemplate.search(not_in_domain) - self.existing
         expected_templates = len(self.base_templates) + len(self.custom_templates)
@@ -1000,7 +989,6 @@ class TestSearchTemplateCategory(MailCommon):
             len(not_in_templates), expected_templates, "Not in templates count mismatch"
         )
 
-        # Search with 'not in' operator
         not_in_domain = [("template_category", "not in", ["hidden_template"])]
         not_in_templates = MailTemplate.search(not_in_domain) - self.existing
         expected_templates = len(self.base_templates) + len(self.custom_templates)
@@ -1008,7 +996,6 @@ class TestSearchTemplateCategory(MailCommon):
             len(not_in_templates), expected_templates, "Not in templates count mismatch"
         )
 
-        # Search with 'not in' operator
         not_in_domain = [
             ("template_category", "not in", ["hidden_template", "base_template"])
         ]

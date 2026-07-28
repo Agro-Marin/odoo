@@ -136,8 +136,9 @@ export class StoreInternal extends RecordInternal {
     sortRecordList(recordListFullProxy, func) {
         const recordList = toRaw(recordListFullProxy)._raw;
         // sort on copy of list so that reactive observers not triggered while sorting
+        const recordByLocalId = recordListFullProxy._store.recordByLocalId;
         const recordsFullProxy = recordListFullProxy.data.map((localId) =>
-            recordListFullProxy._store.recordByLocalId.get(localId),
+            recordByLocalId.get(localId),
         );
         recordsFullProxy.sort(func);
         const data = recordsFullProxy.map(
@@ -292,13 +293,10 @@ export class StoreInternal extends RecordInternal {
             ) {
                 this.ensureIdFieldUnchanged(record, fieldName, value);
             }
-            if (
-                !record.Model._.fields.get(fieldName) ||
-                record.Model._.fieldsAttr.get(fieldName)
-            ) {
-                this.updateAttr(record, fieldName, value);
-            } else {
+            if (isRelation(record.Model, fieldName)) {
                 this.updateRelation(record, fieldName, value);
+            } else {
+                this.updateAttr(record, fieldName, value);
             }
         }
     }

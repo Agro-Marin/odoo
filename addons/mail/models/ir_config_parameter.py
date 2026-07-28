@@ -157,7 +157,6 @@ class IrConfig_Parameter(models.Model):
             # parameter its own value instead of leaking the last record's (A2).
             records_by_value = defaultdict(self.browse)
             for record in self:
-                # key: from vals if being changed, otherwise from the record
                 key = vals.get("key", record.key)
                 records_by_value[self._sanitize_param_value(key, vals["value"])] |= (
                     record

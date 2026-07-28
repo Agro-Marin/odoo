@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { NavigableList } from "@mail/core/common/navigable_list";
 import { mapSuggestionsToOptions } from "@mail/core/common/suggestion_hook";
-import { useSequential } from "@mail/utils/common/hooks";
+import { makeSequential } from "@mail/utils/common/misc";
 import { Component, useEffect, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
@@ -28,7 +28,7 @@ export class MentionList extends Component {
         this.orm = useService("orm");
         this.store = useService("mail.store");
         this.suggestionService = useService("mail.suggestion");
-        this.sequential = useSequential();
+        this.sequential = makeSequential();
         this.ref = useAutofocus({ mobile: true });
 
         useEffect(

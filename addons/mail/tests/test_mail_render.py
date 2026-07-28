@@ -14,11 +14,9 @@ class TestMailRenderCommon(common.MailCommon):
     def setUpClass(cls):
         super().setUpClass()
 
-        # activate multi language support
         cls.env["res.lang"]._activate_lang("fr_FR")
         cls.user_admin.write({"lang": "en_US"})
 
-        # test records
         cls.render_object = cls.env["res.partner"].create(
             {
                 "name": "TestRecord",
@@ -32,7 +30,6 @@ class TestMailRenderCommon(common.MailCommon):
             }
         )
 
-        # some jinja templates
         cls.base_inline_template_bits = [
             "<p>Hello</p>",
             "<p>Hello {{ object.name }}</p>",
@@ -56,7 +53,6 @@ class TestMailRenderCommon(common.MailCommon):
 </p>""",
         ]
 
-        # some qweb templates, their views and their xml ids
         cls.base_qweb_bits = [
             "<p>Hello</p>",
             '<p>Hello <t t-esc="object.name"/></p>',
@@ -129,7 +125,6 @@ class TestMailRenderCommon(common.MailCommon):
 </p>""",
         ]
 
-        # link to mail template
         cls.test_template = cls.env["mail.template"].create(
             {
                 "name": "Test Template",
@@ -141,7 +136,6 @@ class TestMailRenderCommon(common.MailCommon):
             }
         )
 
-        # some translations
         cls.test_template.with_context(lang="fr_FR").subject = cls.base_qweb_bits_fr[0]
         cls.test_template.with_context(lang="fr_FR").body_html = cls.base_qweb_bits_fr[
             1

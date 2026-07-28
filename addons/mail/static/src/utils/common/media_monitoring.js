@@ -2,10 +2,6 @@
 // Broad human voice range of frequencies in hz.
 const HUMAN_VOICE_FREQUENCY_RANGE = [80, 1000];
 
-//------------------------------------------------------------------------------
-// Public
-//------------------------------------------------------------------------------
-
 /**
  * monitors the activity of an audio mediaStreamTrack
  *
@@ -61,10 +57,6 @@ export async function monitorAudio(track, processorOptions) {
     };
 }
 
-//------------------------------------------------------------------------------
-// Private
-//------------------------------------------------------------------------------
-
 /**
  * @param {MediaStreamSource} source
  * @param {AudioContext} audioContext
@@ -84,7 +76,6 @@ function _loadScriptProcessor(
         volumeThreshold = 0.3,
     } = {},
 ) {
-    // audio setup
     const bitSize = 1024;
     const analyser = audioContext.createAnalyser();
     source.connect(analyser);
@@ -93,7 +84,6 @@ function _loadScriptProcessor(
     analyser.fftSize = bitSize;
     scriptProcessorNode.connect(audioContext.destination);
 
-    // timing variables
     const intervalInFrames = (processInterval / 1000) * analyser.context.sampleRate;
     // Count down in frames (onaudioprocess decrements by bitSize per block and
     // re-adds intervalInFrames), so seed it in frames too. Seeding with the raw
@@ -101,7 +91,6 @@ function _loadScriptProcessor(
     // audio block in (~21ms) instead of after processInterval.
     let nextUpdateFrame = intervalInFrames;
 
-    // process variables
     let activityBuffer = 0;
     let wasAboveThreshold = undefined;
     let isAboveThreshold = false;
@@ -114,7 +103,6 @@ function _loadScriptProcessor(
         }
         nextUpdateFrame += intervalInFrames;
 
-        // computes volume and threshold
         const normalizedVolume = getFrequencyAverage(
             analyser,
             frequencyRange[0],

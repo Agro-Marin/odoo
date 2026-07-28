@@ -47,6 +47,21 @@ export class UseSuggestion {
             this.fetchSuggestions.bind(this),
             DELAY_FETCH,
         );
+        // `detect()` recomputes `this.search`, which the effect below reads as
+        // its dependencies. It must run first: registered the other way round,
+        // the search effect saw the previous render's search and only caught up
+        // on a second render forced by bumping a counter nobody read.
+        useEffect(
+            () => {
+                this.detect();
+            },
+            () => [
+                this.composer.selection.start,
+                this.composer.selection.end,
+                this.composer.composerText,
+                this.composer.composerHtml,
+            ],
+        );
         useEffect(
             () => {
                 this.update();
@@ -66,17 +81,6 @@ export class UseSuggestion {
             },
             () => [this.search.delimiter, this.search.position, this.search.term],
         );
-        useEffect(
-            () => {
-                this.detect();
-            },
-            () => [
-                this.composer.selection.start,
-                this.composer.selection.end,
-                this.composer.composerText,
-                this.composer.composerHtml,
-            ],
-        );
     }
     /** @type {import("@mail/core/common/composer").Composer} */
     comp;
@@ -85,7 +89,6 @@ export class UseSuggestion {
     }
     suggestionService = useService("mail.suggestion");
     state = useState({
-        count: 0,
         items: undefined,
         isFetching: false,
     });
@@ -146,7 +149,6 @@ export class UseSuggestion {
             return;
         }
         const candidatePositions = [];
-        // consider the chars before the current cursor position
         let numberOfSpaces = 0;
         for (let index = start - 1; index >= 0; --index) {
             if (/\s/.test(text[index])) {
@@ -188,7 +190,7 @@ export class UseSuggestion {
                         (minCharCountAfter === undefined ||
                             start - candidatePosition - delimiter.length + 1 >
                                 minCharCountAfter) && // delimiter is allowed (enough custom char typed after)
-                        (!goodCandidate || delimiter.length > goodCandidate) // delimiter is more specific
+                        (!goodCandidate || delimiter.length > goodCandidate.length) // delimiter is more specific
                     ) {
                         goodCandidate = delimiter;
                     }
@@ -212,7 +214,6 @@ export class UseSuggestion {
                     start,
                 ),
             });
-            this.state.count++;
             return;
         }
         this.clearSearch();
@@ -266,7 +267,6 @@ export class UseSuggestion {
             this.comp.editor.shared.dom.insert("\u00A0");
             this.comp.editor.shared.history.addStep();
         } else {
-            // remove the user-typed search delimiter
             this.composer.composerText =
                 this.composer.composerText.substring(0, position) +
                 this.composer.composerText.substring(this.composer.selection.end);

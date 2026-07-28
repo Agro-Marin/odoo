@@ -221,7 +221,6 @@ export class ChatWindow extends Component {
     }
 
     async onActionsMenuStateChanged(isOpen) {
-        // await new Promise(setTimeout); // wait for bubbling header
         this.state.actionsMenuOpened = isOpen;
     }
 }
