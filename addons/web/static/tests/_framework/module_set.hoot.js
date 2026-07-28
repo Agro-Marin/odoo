@@ -115,10 +115,19 @@ export function setupTestEnvironment() {
         return;
     }
 
-    const origAdd = registryModule.Registry.prototype.add;
-    registryModule.Registry.prototype.add = function (key, value, options = {}) {
-        return origAdd.call(this, key, value, { ...options, force: true });
-    };
+    /**
+     * Registry semantics are NOT relaxed for tests. Production `add` is
+     * first-registration-wins (see `registry.js`); forcing every add here made
+     * the suite last-registration-wins, which does not merely loosen the rule,
+     * it INVERTS it — a duplicate registration keeps the other entry than the
+     * one production keeps. Bugs in that exact class (two envs each starting
+     * the same service, an addon colliding with a core key) could therefore
+     * pass their test while doing the opposite in the browser, and a test
+     * written to pin the correct behaviour was structurally unable to fail.
+     *
+     * Tests that legitimately need to replace an entry pass `{ force: true }`
+     * themselves, which is also what an addon does in production.
+     */
 
     const translationModule = loader.modules.get("@web/core/l10n/translation");
     if (translationModule?.translatedTerms && translationModule.translationLoaded) {

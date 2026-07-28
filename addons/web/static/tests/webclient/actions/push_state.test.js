@@ -168,7 +168,13 @@ class TestClientAction extends Component {
 onRpc("has_group", () => true);
 
 beforeEach(() => {
-    actionRegistry.add("__test__client__action__", TestClientAction);
+    // `force`: `__test__client__action__` is the shared tag
+    // `useTestClientAction` claims at module scope, so it is already in the
+    // registry baseline; replacing it with this test's own component is a
+    // deliberate override, not a first registration.
+    actionRegistry.add("__test__client__action__", TestClientAction, {
+        force: true,
+    });
     patchWithCleanup(browser.location, {
         origin: "http://example.com",
     });
