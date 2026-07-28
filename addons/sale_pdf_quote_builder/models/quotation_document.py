@@ -1,7 +1,5 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
-import base64
-
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 from odoo.fields import Command
@@ -62,7 +60,7 @@ class QuotationDocument(models.Model):
         for doc in self:
             if doc.datas and not doc.mimetype.endswith('pdf'):
                 raise ValidationError(_("Only PDF documents can be used as header or footer."))
-            utils._ensure_document_not_encrypted(base64.b64decode(doc.datas))
+            utils._ensure_document_not_encrypted(doc.ir_attachment_id._read_prefix())
 
     # === COMPUTE METHODS === #
 
