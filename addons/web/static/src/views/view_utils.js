@@ -3,6 +3,7 @@
 
 /** @module @web/views/view_utils - Shared utilities for view controllers (class names, active actions, archive, formatting) */
 
+import { status, useComponent } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors/error_dialogs";
 import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/l10n/translation";
@@ -325,11 +326,17 @@ export function buildMultiRecordModelParams({
  * @returns {{ action: Object, dialog: Object, notification: Object, orm: Object, uiHooks: Object }}
  */
 export function useControllerServices() {
+    const component = useComponent();
     const action = useService("action");
     const dialog = useService("dialog");
     const notification = useService("notification");
     const orm = useService("orm");
-    const uiHooks = makeModelUIHooks({ action, dialog, notification });
+    const uiHooks = makeModelUIHooks({
+        action,
+        dialog,
+        notification,
+        isAlive: () => status(component) !== "destroyed",
+    });
     return { action, dialog, notification, orm, uiHooks };
 }
 
@@ -395,10 +402,21 @@ export function buildActionMenuItems(staticItems, actionMenus) {
  * (RelationalModel / Record / DynamicList) never imports or calls UI
  * services directly.
  *
- * @param {{ action: Object, dialog: Object, notification: Object }} services
+ * @param {Object} services
+ * @param {Object} services.action
+ * @param {Object} services.dialog
+ * @param {Object} services.notification
+ * @param {() => boolean} [services.isAlive] whether the controller that owns
+ *   these services is still mounted. Defaults to always-alive for direct
+ *   callers; ``useControllerServices`` supplies the real check.
  * @returns {Object} hook implementations keyed by hook name
  */
-export function makeModelUIHooks({ action, dialog, notification }) {
+export function makeModelUIHooks({
+    action,
+    dialog,
+    notification,
+    isAlive = () => true,
+}) {
     return {
         onDisplayOnchangeWarning(warning) {
             const { type, title, message, className, sticky } = warning;
@@ -425,10 +443,20 @@ export function makeModelUIHooks({ action, dialog, notification }) {
             notification.add(message, { type: "warning" });
         },
         onDisplayArchiveAction(actionResult, reload) {
+            // `onClose` fires whenever the dialog goes away — including when it
+            // is torn down along with the controller that owns `reload`. That
+            // reload reaches `model.load()`, which calls the ORM through the
+            // controller's PROTECTED service proxy; on a destroyed component
+            // that proxy returns a rejected promise nobody is left to catch,
+            // surfacing as an unhandled "Component is destroyed". Reloading a
+            // model whose view is gone has no observable effect anyway, so the
+            // fix is to not schedule the work rather than to swallow its
+            // rejection.
+            const reloadIfAlive = () => (isAlive() ? reload() : undefined);
             if (actionResult && Object.keys(actionResult).length) {
-                return action.doAction(actionResult, { onClose: reload });
+                return action.doAction(actionResult, { onClose: reloadIfAlive });
             } else {
-                return reload();
+                return reloadIfAlive();
             }
         },
         onConfirmArchive(archiveFn, dialogProps = {}) {
