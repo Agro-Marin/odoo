@@ -216,7 +216,3 @@ $input-placeholder-color: mix($gray-400, $gray-500) !default;
 $card-bg: $o-view-background-color !default;
 $card-spacer-y: $spacer !default;
 $card-cap-padding-y: $card-spacer-y !default;
-
-.user-select-none {
-    -webkit-user-select: none !important;
-}

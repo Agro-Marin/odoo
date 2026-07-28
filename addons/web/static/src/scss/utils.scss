@@ -268,14 +268,6 @@ $o-generic-font-families:
     @return if($value != null, $value, $default);
 }
 
-@mixin o-kanban-record-title($font-size: $h5-font-size) {
-    color: $headings-color;
-    font-size: $font-size;
-    font-weight: 500;
-    margin-bottom: 0;
-    margin-top: 0;
-}
-
 @mixin o-kanban-dashboard-dropdown-link($link-padding-gap: $o-dropdown-hpadding) {
     padding: 0;
 
