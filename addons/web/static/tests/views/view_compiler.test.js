@@ -8,10 +8,12 @@
  */
 
 import { describe, expect, test } from "@odoo/hoot";
+import { App, Component } from "@odoo/owl";
 import {
     makeIsVisibleExpr,
     resetViewCompilerCache,
     useViewCompiler,
+    ViewCompiler,
 } from "@web/views/view_compiler";
 import { toStringExpression } from "@web/views/view_utils";
 
@@ -236,5 +238,106 @@ describe("useViewCompiler — cache hits", () => {
         useViewCompiler(CountingCompiler, templates);
 
         expect(compilations).toBe(2);
+    });
+});
+
+describe("ViewCompiler — codegen escaping", () => {
+    /**
+     * Compile a one-node arch through the real ViewCompiler.
+     *
+     * @param {string} raw
+     * @returns {string} the compiled template's outerHTML
+     */
+    function compileArch(raw) {
+        const el = new DOMParser().parseFromString(raw, "text/xml").documentElement;
+        return new ViewCompiler({ root: el }).compile("root").outerHTML;
+    }
+
+    /**
+     * Whether OWL can actually tokenize + compile the produced template. A
+     * template that only *looks* right is worthless: the failure mode being
+     * guarded here is a tokenizer error that kills the whole view.
+     *
+     * @param {string} compiled
+     * @param {string} name
+     * @returns {string | null} the error message, or null when it compiles
+     */
+    function owlCompileError(compiled, name) {
+        try {
+            App.registerTemplate(name, compiled);
+            new App(Component, { templates: {} }).getTemplate(name);
+            return null;
+        } catch (error) {
+            return String(error);
+        }
+    }
+
+    test("a widget class holding a quote still produces a compilable template", () => {
+        const compiled = compileArch(
+            `<widget name="w" widget_id="w1" class="a'b"/>`,
+        );
+        expect(compiled).toInclude(toStringExpression("a'b"));
+        expect(owlCompileError(compiled, "test.widget.quote")).toBe(null);
+    });
+
+    test("a widget class holding a backtick still produces a compilable template", () => {
+        const compiled = compileArch(
+            "<widget name=\"w\" widget_id=\"w2\" class=\"a`b\"/>",
+        );
+        expect(owlCompileError(compiled, "test.widget.backtick")).toBe(null);
+    });
+
+    test("a widget class holding ${} is not evaluated as an expression", () => {
+        const compiled = compileArch(
+            `<widget name="w" widget_id="w3" class="a\${boom}b"/>`,
+        );
+        expect(compiled).toInclude("\\${");
+        expect(owlCompileError(compiled, "test.widget.interp")).toBe(null);
+    });
+
+    test("field ids and widget names go through toStringExpression", () => {
+        const compiled = compileArch(
+            `<field name="foo" field_id="foo_0" widget="badge"/>`,
+        );
+        expect(compiled).toInclude(toStringExpression("foo_0"));
+        expect(compiled).toInclude(toStringExpression("foo"));
+        expect(compiled).toInclude(toStringExpression("badge"));
+        expect(owlCompileError(compiled, "test.field.escape")).toBe(null);
+    });
+});
+
+describe("ViewCompiler — button disabled", () => {
+    /**
+     * @param {string} raw
+     * @returns {string | null}
+     */
+    function compiledDisabled(raw) {
+        const el = new DOMParser().parseFromString(raw, "text/xml").documentElement;
+        const compiled = new ViewCompiler({ root: el }).compile("root");
+        return compiled.firstElementChild.getAttribute("disabled");
+    }
+
+    test(`disabled="1" disables the button`, () => {
+        expect(compiledDisabled(`<button type="object" name="x" disabled="1"/>`)).toBe(
+            "true",
+        );
+    });
+
+    test(`disabled="0" does NOT disable the button`, () => {
+        expect(compiledDisabled(`<button type="object" name="x" disabled="0"/>`)).toBe(
+            "false",
+        );
+    });
+
+    test(`disabled="False" does NOT disable the button`, () => {
+        expect(
+            compiledDisabled(`<button type="object" name="x" disabled="False"/>`),
+        ).toBe("false");
+    });
+
+    test(`disabled="" does NOT disable the button`, () => {
+        expect(compiledDisabled(`<button type="object" name="x" disabled=""/>`)).toBe(
+            "false",
+        );
     });
 });

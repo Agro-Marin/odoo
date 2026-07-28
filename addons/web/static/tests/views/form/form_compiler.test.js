@@ -43,8 +43,8 @@ test("label with empty string compiles to FormLabel with empty string", () => {
     const expected = `
         <t t-translation="off">
             <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
-                <Field id="'test'" name="'test'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['test']" readonly="__comp__.props.readonly"/>
-                <FormLabel id="'test'" fieldName="'test'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['test']" className="&quot;&quot;" string="\`\`" />
+                <Field id="\`test\`" name="\`test\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`test\`]" readonly="__comp__.props.readonly"/>
+                <FormLabel id="\`test\`" fieldName="\`test\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`test\`]" className="\`\`" string="\`\`" />
             </div>
         </t>
     `;
@@ -58,7 +58,7 @@ test("properly compile simple div with field", () => {
             <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div class="someClass">
                     lol
-                    <Field id="'display_name'" name="'display_name'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['display_name']" readonly="__comp__.props.readonly"/>
+                    <Field id="\`display_name\`" name="\`display_name\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`display_name\`]" readonly="__comp__.props.readonly"/>
                 </div>
             </div>
         </t>
@@ -81,15 +81,15 @@ test("properly compile inner groups", () => {
                 <OuterGroup>
                     <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" isVisible="true" itemSpan="1">
                         <InnerGroup class="scope &amp;&amp; scope.className">
-                            <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" props="{id:'display_name',fieldName:'display_name',record:__comp__.props.record,string:__comp__.props.record.fields.display_name.string,fieldInfo:__comp__.props.archInfo.fieldNodes['display_name']}" Component="__comp__.constructor.components.FormLabel" subType="'item_component'" isVisible="true" itemSpan="2">
-                                <Field id="'display_name'" name="'display_name'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['display_name']" readonly="__comp__.props.readonly" class="scope &amp;&amp; scope.className"/>
+                            <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" props="{id:\`display_name\`,fieldName:\`display_name\`,record:__comp__.props.record,string:__comp__.props.record.fields[\`display_name\`].string,fieldInfo:__comp__.props.archInfo.fieldNodes[\`display_name\`]}" Component="__comp__.constructor.components.FormLabel" subType="'item_component'" isVisible="true" itemSpan="2">
+                                <Field id="\`display_name\`" name="\`display_name\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`display_name\`]" readonly="__comp__.props.readonly" class="scope &amp;&amp; scope.className"/>
                             </t>
                         </InnerGroup>
                     </t>
                     <t t-set-slot="item_1" type="'item'" sequence="1" t-slot-scope="scope" isVisible="true" itemSpan="1">
                         <InnerGroup class="scope &amp;&amp; scope.className">
-                            <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" props="{id:'charfield',fieldName:'charfield',record:__comp__.props.record,string:__comp__.props.record.fields.charfield.string,fieldInfo:__comp__.props.archInfo.fieldNodes['charfield']}" Component="__comp__.constructor.components.FormLabel" subType="'item_component'" isVisible="true" itemSpan="2">
-                                <Field id="'charfield'" name="'charfield'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['charfield']" readonly="__comp__.props.readonly" class="scope &amp;&amp; scope.className"/>
+                            <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" props="{id:\`charfield\`,fieldName:\`charfield\`,record:__comp__.props.record,string:__comp__.props.record.fields[\`charfield\`].string,fieldInfo:__comp__.props.archInfo.fieldNodes[\`charfield\`]}" Component="__comp__.constructor.components.FormLabel" subType="'item_component'" isVisible="true" itemSpan="2">
+                                <Field id="\`charfield\`" name="\`charfield\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`charfield\`]" readonly="__comp__.props.readonly" class="scope &amp;&amp; scope.className"/>
                             </t>
                         </InnerGroup>
                     </t>
@@ -122,7 +122,7 @@ test("properly compile attributes with nested forms", () => {
                         <InnerGroup class="scope &amp;&amp; scope.className">
                             <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" isVisible="true" itemSpan="1">
                                 <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }} {{scope &amp;&amp; scope.className || &quot;&quot; }}">
-                                    <div><Field id="'test'" name="'test'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['test']" readonly="__comp__.props.readonly"/></div>
+                                    <div><Field id="\`test\`" name="\`test\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`test\`]" readonly="__comp__.props.readonly"/></div>
                                 </div>
                             </t>
                         </InnerGroup>
@@ -148,10 +148,10 @@ test("properly compile notebook", () => {
             <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <Notebook defaultPage="__comp__.props.record.isNew ? undefined : __comp__.props.activeNotebookPages[0]" onPageUpdate="(page) =&gt; __comp__.props.onNotebookPageChange(0, page)" onWillActivatePage="(page) =&gt; __comp__.onWillChangeNotebookPage?.(0, page)">
                     <t t-set-slot="page_1" title="\`Page1\`" name="\`p1\`" isVisible="true" fieldnames="[&quot;charfield&quot;]">
-                        <Field id="'charfield'" name="'charfield'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['charfield']" readonly="__comp__.props.readonly"/>
+                        <Field id="\`charfield\`" name="\`charfield\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`charfield\`]" readonly="__comp__.props.readonly"/>
                     </t>
                     <t t-set-slot="page_2" title="\`Page2\`" name="\`p2\`" isVisible="true" fieldnames="[&quot;display_name&quot;]">
-                        <Field id="'display_name'" name="'display_name'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['display_name']" readonly="__comp__.props.readonly"/>
+                        <Field id="\`display_name\`" name="\`display_name\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`display_name\`]" readonly="__comp__.props.readonly"/>
                     </t>
                 </Notebook>
             </div>
@@ -169,7 +169,7 @@ test("properly compile field without placeholder", () => {
     const expected = `
         <t t-translation="off">
             <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
-                <Field id="'display_name'" name="'display_name'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['display_name']" readonly="__comp__.props.readonly"/>
+                <Field id="\`display_name\`" name="\`display_name\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`display_name\`]" readonly="__comp__.props.readonly"/>
             </div>
         </t>
     `;
@@ -348,16 +348,16 @@ test("properly compile settings", () => {
                         companyDependent="true"
                         documentation="\`/applications/technical/web/settings/this_is_a_test.html\`"
                         record="__comp__.props.record"
-                        fieldInfo="__comp__.props.archInfo.fieldNodes['bar']"
+                        fieldInfo="__comp__.props.archInfo.fieldNodes[\`bar\`]"
                         fieldName="\`bar\`"
                         fieldId="\`bar\`"
                         string="\`\`"
                         addLabel="true">
                     <t t-set-slot="fieldSlot">
-                        <Field id="'bar'"
-                            name="'bar'"
+                        <Field id="\`bar\`"
+                            name="\`bar\`"
                             record="__comp__.props.record"
-                            fieldInfo="__comp__.props.archInfo.fieldNodes['bar']"
+                            fieldInfo="__comp__.props.archInfo.fieldNodes[\`bar\`]"
                             readonly="__comp__.props.readonly"/>
                     </t>
                     <label>label with content</label>
@@ -431,10 +431,10 @@ test("keep nosheet style if a sheet is part of a nested form", () => {
             t-ref="compiled_view_root"
         >
             <Field
-                id="'move_line_ids'"
-                name="'move_line_ids'"
+                id="\`move_line_ids\`"
+                name="\`move_line_ids\`"
                 record="__comp__.props.record"
-                fieldInfo="__comp__.props.archInfo.fieldNodes['move_line_ids']"
+                fieldInfo="__comp__.props.archInfo.fieldNodes[\`move_line_ids\`]"
                 readonly="__comp__.props.readonly"
             />
         </div>

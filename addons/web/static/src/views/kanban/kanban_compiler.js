@@ -108,12 +108,15 @@ export class KanbanCompiler extends ViewCompiler {
             compiled = createElement("span", {
                 "t-out":
                     params.formattedValueExpr ||
-                    `__comp__.getFormattedValue("${fieldId}")`,
+                    `__comp__.getFormattedValue(${toStringExpression(fieldId)})`,
             });
         } else {
             compiled = super.compileField(el, params);
             const fieldId = el.getAttribute("field_id");
-            compiled.setAttribute("id", `'${fieldId}_' + ${dataPointIdExpr}`);
+            compiled.setAttribute(
+                "id",
+                `${toStringExpression(`${fieldId}_`)} + ${dataPointIdExpr}`,
+            );
             const readonlyAttr = compiled.getAttribute("readonly");
             if (readonlyAttr) {
                 compiled.setAttribute(
