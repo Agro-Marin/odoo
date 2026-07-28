@@ -222,3 +222,103 @@ class TestBaseTaxComputation(TransactionCase):
         )
         # 106 / 1.06 = 100 -> 100 * 1.21 = 121
         self.assertEqual(round(adapted, 4), 121.0)
+
+
+@tagged("post_install", "-at_install")
+class TestBaseTaxRepartitionViews(TransactionCase):
+    """`invoice_/refund_repartition_line_ids` are two views over one table.
+
+    `_sanitize_vals` folds writes on either view into the shared
+    `repartition_line_ids`, so a command that changes the *scope* of the
+    collection has to be narrowed to the view it was written through.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.company = cls.env.company
+        if not cls.company.country_id:
+            cls.company.country_id = cls.env.ref("base.us")
+        cls.tax_group = cls.env["account.tax.group"].create(
+            {"name": "repartition views group", "company_id": cls.company.id}
+        )
+
+    def _tax(self):
+        return self.env["account.tax"].create(
+            {
+                "name": "repartition views",
+                "amount": 10.0,
+                "amount_type": "percent",
+                "type_tax_use": "sale",
+                "tax_group_id": self.tax_group.id,
+                "company_id": self.company.id,
+                "country_id": self.company.country_id.id,
+            }
+        )
+
+    def _replacement(self, tax_lines=1):
+        from odoo import Command
+
+        return [Command.clear(), Command.create({"repartition_type": "base"})] + [
+            Command.create(
+                {"repartition_type": "tax", "factor_percent": 100.0 / tax_lines}
+            )
+            for _ in range(tax_lines)
+        ]
+
+    def _kinds(self, tax):
+        tax.invalidate_recordset()
+        return sorted(
+            (line.document_type, line.repartition_type)
+            for line in tax.repartition_line_ids
+        )
+
+    def test_replacing_one_view_leaves_the_other_alone(self):
+        tax = self._tax()
+        untouched = tax.refund_repartition_line_ids
+        self.assertTrue(untouched)
+
+        tax.write({"invoice_repartition_line_ids": self._replacement()})
+
+        self.assertEqual(
+            tax.refund_repartition_line_ids,
+            untouched,
+            "clearing the invoice distribution removed the refund one",
+        )
+        self.assertEqual(len(tax.invoice_repartition_line_ids), 2)
+
+    def test_replacing_both_views_in_one_write(self):
+        tax = self._tax()
+
+        tax.write(
+            {
+                "invoice_repartition_line_ids": self._replacement(tax_lines=2),
+                "refund_repartition_line_ids": self._replacement(tax_lines=2),
+            }
+        )
+
+        self.assertEqual(len(tax.invoice_repartition_line_ids), 3)
+        self.assertEqual(len(tax.refund_repartition_line_ids), 3)
+        self.assertEqual(
+            self._kinds(tax),
+            [
+                ("invoice", "base"),
+                ("invoice", "tax"),
+                ("invoice", "tax"),
+                ("refund", "base"),
+                ("refund", "tax"),
+                ("refund", "tax"),
+            ],
+        )
+
+    def test_set_command_keeps_the_other_view(self):
+        from odoo import Command
+
+        tax = self._tax()
+        keep = tax.invoice_repartition_line_ids
+        refund_before = tax.refund_repartition_line_ids
+
+        tax.write({"invoice_repartition_line_ids": [Command.set(keep.ids)]})
+
+        self.assertEqual(tax.invoice_repartition_line_ids, keep)
+        self.assertEqual(tax.refund_repartition_line_ids, refund_before)

@@ -664,25 +664,45 @@ class AccountTax(models.Model):
             del sanitized["repartition_line_ids"]
         for doc_type in ("invoice", "refund"):
             fname = f"{doc_type}_repartition_line_ids"
-            if fname in sanitized:
-                repartition = sanitized.setdefault("repartition_line_ids", [])
-                for command_vals in sanitized.pop(fname):
-                    if command_vals[0] == Command.CREATE:
+            if fname not in sanitized:
+                continue
+            repartition = sanitized.setdefault("repartition_line_ids", [])
+            for command_vals in sanitized.pop(fname):
+                match command_vals[0]:
+                    case Command.CREATE:
                         repartition.append(
                             Command.create(
                                 {"document_type": doc_type, **command_vals[2]}
                             )
                         )
-                    elif command_vals[0] == Command.UPDATE:
+                    case Command.UPDATE:
                         repartition.append(
                             Command.update(
                                 command_vals[1],
                                 {"document_type": doc_type, **command_vals[2]},
                             )
                         )
-                    else:
+                    case Command.CLEAR | Command.SET:
+                        # `repartition_line_ids` carries both document types, so
+                        # a CLEAR/SET meant for one of the two views has to be
+                        # narrowed to that view's own lines. Forwarded as-is it
+                        # empties the other document type as well: replacing the
+                        # invoice distribution wiped the refund one, and writing
+                        # both in a single call left only the second.
+                        keep = (
+                            set(command_vals[2])
+                            if command_vals[0] == Command.SET
+                            else set()
+                        )
+                        repartition.extend(
+                            Command.delete(line.id)
+                            for line in self.repartition_line_ids
+                            if line.document_type == doc_type and line.id not in keep
+                        )
+                        repartition.extend(Command.link(line_id) for line_id in keep)
+                    case _:
                         repartition.append(command_vals)
-                sanitized[fname] = []
+            sanitized[fname] = []
         return sanitized
 
     @api.model_create_multi
