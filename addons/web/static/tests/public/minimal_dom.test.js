@@ -1,6 +1,7 @@
 // @ts-check
 
 import { describe, expect, getFixture, test } from "@odoo/hoot";
+import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { makeAsyncHandler, makeButtonHandler } from "@web/public/minimal_dom";
 
@@ -31,7 +32,7 @@ test("makeAsyncHandler unlocks again after a failure", async () => {
 test("makeButtonHandler leaves a pre-existing pe-none in place", async () => {
     const buttonEl = document.createElement("button");
     buttonEl.className = "btn pe-none";
-    getFixture().appendChild(buttonEl);
+    /** @type {HTMLElement} */ (getFixture()).appendChild(buttonEl);
     const handler = makeButtonHandler(() => {});
     buttonEl.addEventListener("click", handler);
     buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -43,7 +44,7 @@ test("makeButtonHandler leaves a pre-existing pe-none in place", async () => {
 test("makeButtonHandler re-enables a button that was clickable", async () => {
     const buttonEl = document.createElement("button");
     buttonEl.className = "btn";
-    getFixture().appendChild(buttonEl);
+    /** @type {HTMLElement} */ (getFixture()).appendChild(buttonEl);
     const handler = makeButtonHandler(() => {});
     buttonEl.addEventListener("click", handler);
     buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
@@ -53,10 +54,10 @@ test("makeButtonHandler re-enables a button that was clickable", async () => {
 });
 
 test("makeButtonHandler puts the effect on the control it is bound to", async () => {
-    const fixture = getFixture();
-    fixture.innerHTML = `<div class="btn outer"><a class="inner">go</a></div>`;
-    const outer = fixture.querySelector(".outer");
-    const inner = fixture.querySelector(".inner");
+    /** @type {HTMLElement} */ (getFixture()).innerHTML =
+        `<div class="btn outer"><a class="inner">go</a></div>`;
+    const outer = queryOne(".outer");
+    const inner = queryOne(".inner");
     outer.addEventListener(
         "click",
         makeButtonHandler(() => {}),
@@ -69,19 +70,17 @@ test("makeButtonHandler puts the effect on the control it is bound to", async ()
 });
 
 test("makeButtonHandler still finds the control when delegated", async () => {
-    const fixture = getFixture();
-    fixture.innerHTML = `<div class="host"><button class="btn target"><span>go</span></button></div>`;
-    const host = fixture.querySelector(".host");
-    const button = fixture.querySelector(".target");
+    /** @type {HTMLElement} */ (getFixture()).innerHTML =
+        `<div class="host"><button class="btn target"><span>go</span></button></div>`;
+    const host = queryOne(".host");
+    const button = queryOne(".target");
     // the bound element is a plain container, so the control has to be found
     // by walking up from the event's target
     host.addEventListener(
         "click",
         makeButtonHandler(() => {}),
     );
-    fixture
-        .querySelector("span")
-        .dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    queryOne("span").dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(button).toHaveClass("pe-none");
     expect(host).not.toHaveClass("pe-none");
 });
