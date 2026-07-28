@@ -157,11 +157,20 @@ class TestBasePerfRegression(TransactionCase):
 
     @warmup
     def test_ir_model_compute_count(self):
-        """Record count uses 1 UNION ALL query, not N COUNT(*) per table."""
+        """Record count uses 1 UNION ALL query, not N COUNT(*) per table.
+
+        Read through the field rather than calling ``_compute_count`` directly:
+        a compute assigns with ``record.<field> = value``, and outside the
+        ``env.protecting`` scope the field machinery sets up that assignment is
+        a real :meth:`~odoo.models.Model.write` — which stamps ``write_date``,
+        so ``assertQueryCount``'s trailing flush issues an ``UPDATE ir_model``
+        the production path never performs.  Measuring the direct call measured
+        that UPDATE too (4 rather than 3).
+        """
         ir_models = self.env["ir.model"].search([], limit=20)
         self.env.invalidate_all()
         with self.assertQueryCount(3):
-            ir_models._compute_count()
+            ir_models.mapped("count")
 
     def test_create_partners_does_not_fetch_per_record(self):
         """Creating N partners must not cost a SELECT per partner for the
