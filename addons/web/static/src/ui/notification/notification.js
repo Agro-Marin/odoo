@@ -57,9 +57,16 @@ export class Notification extends Component {
         type: "warning",
         autocloseDelay: AUTOCLOSE_DELAY,
     };
+    /** @type {number | null} */
+    closeTimeout = null;
+    /** @type {number} */
+    timerStart = 0;
+    /** Auto-close time left, shrinking across `freeze()`/`refresh()` cycles. */
+    remainingDelay = 0;
+
     setup() {
         this.autocloseProgress = useRef("autoclose_progress_bar");
-        this._remainingDelay = this.props.autocloseDelay;
+        this.remainingDelay = this.props.autocloseDelay;
         onMounted(() => this.startNotificationTimer());
         onWillUnmount(() => this.stopNotificationTimer());
     }
@@ -76,21 +83,27 @@ export class Notification extends Component {
 
     /** Pause the auto-close timer + progress bar in place (e.g. on mouse hover). */
     freeze() {
-        if (this.props.sticky || !this._closeTimeout) {
+        if (this.props.sticky || !this.closeTimeout) {
             return;
         }
-        const elapsed = browser.performance.now() - this._timerStart;
-        this._remainingDelay = Math.max(0, this._remainingDelay - elapsed);
-        browser.clearTimeout(this._closeTimeout);
-        this._closeTimeout = null;
+        const elapsed = browser.performance.now() - this.timerStart;
+        this.remainingDelay = Math.max(0, this.remainingDelay - elapsed);
+        browser.clearTimeout(this.closeTimeout);
+        this.closeTimeout = null;
         if (this.autocloseProgress.el) {
             this.autocloseProgress.el.style.animationPlayState = "paused";
         }
     }
 
-    /** Resume the auto-close timer + progress bar from where freeze() paused. */
+    /**
+     * Resume the auto-close timer + progress bar from where `freeze()` paused.
+     * A pointer leaving a notification whose timer already fired must not arm
+     * a new one: the toast is on its way out.
+     */
     refresh() {
-        this.startNotificationTimer();
+        if (this.remainingDelay > 0) {
+            this.startNotificationTimer();
+        }
     }
 
     close() {
@@ -101,14 +114,14 @@ export class Notification extends Component {
         if (this.props.sticky) {
             return;
         }
-        if (this._closeTimeout) {
-            browser.clearTimeout(this._closeTimeout);
+        if (this.closeTimeout) {
+            browser.clearTimeout(this.closeTimeout);
         }
-        this._timerStart = browser.performance.now();
-        this._closeTimeout = browser.setTimeout(
-            () => this.close(),
-            this._remainingDelay,
-        );
+        this.timerStart = browser.performance.now();
+        this.closeTimeout = browser.setTimeout(() => {
+            this.remainingDelay = 0;
+            this.close();
+        }, this.remainingDelay);
         const progressEl = this.autocloseProgress.el;
         if (progressEl) {
             if (progressEl.style.animationPlayState === "paused") {
@@ -116,19 +129,16 @@ export class Notification extends Component {
             } else {
                 progressEl.style.animation = "none";
                 void progressEl.offsetWidth;
-                progressEl.style.animation = `o-notification-progress ${this._remainingDelay}ms linear forwards`;
+                progressEl.style.animation = `o-notification-progress ${this.remainingDelay}ms linear forwards`;
                 progressEl.style.animationPlayState = "running";
             }
         }
     }
 
     stopNotificationTimer() {
-        if (this._closeTimeout) {
-            browser.clearTimeout(this._closeTimeout);
-            this._closeTimeout = null;
-        }
-        if (this.autocloseProgress.el) {
-            this.autocloseProgress.el.style.animation = "none";
+        if (this.closeTimeout) {
+            browser.clearTimeout(this.closeTimeout);
+            this.closeTimeout = null;
         }
     }
 }

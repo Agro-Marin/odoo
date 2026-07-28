@@ -55,20 +55,34 @@ export function makePopover(addFn, component, options) {
  * @returns {PopoverHookReturnType}
  */
 export function usePopover(component, options = {}) {
-    let service;
-    if (/** @type {any} */ (options).useBottomSheet) {
-        service = useService("bottom_sheet");
-    } else {
-        service = useService("popover");
-    }
+    const popoverService = useService("popover");
     const owner = useComponent();
+
+    /**
+     * Resolved per `open()`, not once in `setup()`: `useBottomSheet` is
+     * normally derived from a live media query (`Dropdown.isBottomSheet`), and
+     * a breakpoint change does not remount its component — freezing the choice
+     * left a rotated tablet opening desktop popovers for the rest of the
+     * session.
+     */
+    const { useBottomSheet } = /** @type {any} */ (options);
+    const wantsBottomSheet =
+        typeof useBottomSheet === "function"
+            ? useBottomSheet
+            : () => Boolean(useBottomSheet);
+    const add = (/** @type {any[]} */ ...args) => {
+        const service =
+            (wantsBottomSheet() && owner.env.services.bottom_sheet) || popoverService;
+        return service.add(...args);
+    };
+
     const newOptions = Object.create(options);
     newOptions.onClose = () => {
         if (status(owner) !== "destroyed") {
             options.onClose?.();
         }
     };
-    const popover = makePopover(service.add, component, newOptions);
+    const popover = makePopover(add, component, newOptions);
     onWillUnmount(popover.close);
     return popover;
 }

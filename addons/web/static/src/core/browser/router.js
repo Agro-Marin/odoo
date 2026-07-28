@@ -294,6 +294,21 @@ function makePushArgs() {
 let _lockedKeys;
 let _hiddenKeysFromUrl = new Set();
 
+/**
+ * Markers for the ephemeral history entries currently stacked above the real
+ * route, deepest first. A released-but-still-buried entry keeps its slot as
+ * `null`: browsers cannot drop an entry from the middle of the stack, so the
+ * run is unwound in one `go()` once the topmost entry is released too.
+ * @type {(object | null)[]}
+ */
+let ephemeralStack = [];
+/**
+ * Set while a `history.go()` we issued ourselves is in flight, so the
+ * resulting `popstate` is recognised as our own unwind rather than a user
+ * navigation. `go()` produces exactly one `popstate` however far it rewinds.
+ */
+let unwindingEphemerals = false;
+
 export function startRouter() {
     const url = new URL(/** @type {any} */ (browser.location));
     state = router.urlToState(url);
@@ -302,8 +317,26 @@ export function startRouter() {
     }
     pushTimeout = null;
     pushArgs = makePushArgs();
+    ephemeralStack = [];
+    unwindingEphemerals = false;
     _lockedKeys = new Set(["debug", "lang"]);
     _hiddenKeysFromUrl = new Set([...PATH_KEYS, "actionStack"]);
+}
+
+/** Drop every trailing released slot and rewind the browser past them. */
+function unwindReleasedEphemerals() {
+    let count = 0;
+    while (ephemeralStack.length && ephemeralStack.at(-1) === null) {
+        ephemeralStack.pop();
+        count++;
+    }
+    if (count) {
+        // The stack is already trimmed; the flag tells the handler the coming
+        // `popstate` is ours, so it neither reports a dismissal (the owners
+        // closed themselves) nor a route change (the route never moved).
+        unwindingEphemerals = true;
+        browser.history.go(-count);
+    }
 }
 
 /**
@@ -315,6 +348,22 @@ export function startRouter() {
 browser.addEventListener("popstate", (ev) => {
     browser.clearTimeout(pushTimeout);
     pushArgs = makePushArgs();
+    if (unwindingEphemerals) {
+        unwindingEphemerals = false;
+        state = ev.state?.nextState || state;
+        return;
+    }
+    const ephemeralDepth = ev.state?.ephemeralDepth ?? 0;
+    if (ephemeralDepth < ephemeralStack.length) {
+        // Back/forward dismissed one or more transient UI layers. Their entries
+        // carry the route state untouched, so the route itself did not change:
+        // adopt the state and tell the layers, but never reload the action.
+        const markers = ephemeralStack.splice(ephemeralDepth);
+        state = ev.state?.nextState || state;
+        routerBus.trigger(RouterEvent.EPHEMERAL_POPPED, { markers });
+        return;
+    }
+    ephemeralStack.length = ephemeralDepth;
     if (!ev.state) {
         browser.history.replaceState({ nextState: state }, "", browser.location.href);
         return;
@@ -468,6 +517,54 @@ export const router = {
     addLockedKey: (/** @type {string} */ key) => _lockedKeys.add(key),
     hideKeyFromUrl: (/** @type {string} */ key) => _hiddenKeysFromUrl.add(key),
     skipLoad: false,
+
+    /**
+     * Stack a history entry that exists only so hardware Back dismisses a
+     * transient UI layer (bottom sheet, mobile menu) instead of leaving the
+     * page. The entry keeps the current URL *and* the current router state, so
+     * nothing downstream sees the route as having changed while it is on top.
+     *
+     * The layer learns it was dismissed through `RouterEvent.EPHEMERAL_POPPED`
+     * on `routerBus`, and must call `releaseEphemeral` when it closes for any
+     * other reason. Components must not call `history.pushState` themselves:
+     * an entry without `nextState` hides the route state from every later
+     * `popstate`, and one without a depth marker makes its own dismissal
+     * indistinguishable from a real navigation.
+     *
+     * @param {object} marker identity token, given back on pop
+     */
+    pushEphemeral: (marker) => {
+        ephemeralStack.push(marker);
+        browser.history.pushState(
+            {
+                ...browser.history.state,
+                ephemeralDepth: ephemeralStack.length,
+                skipRouteChange: true,
+            },
+            "",
+            browser.location.href,
+        );
+    },
+
+    /**
+     * Give up an ephemeral entry closed by its owner rather than by Back. The
+     * browser entry survives until it reaches the top of the stack.
+     *
+     * @param {object} marker the token passed to `pushEphemeral`
+     */
+    releaseEphemeral: (marker) => {
+        const index = ephemeralStack.indexOf(marker);
+        if (index === -1) {
+            return;
+        }
+        ephemeralStack[index] = null;
+        unwindReleasedEphemerals();
+    },
+
+    /** @returns {number} ephemeral entries currently stacked (test/debug aid) */
+    get ephemeralDepth() {
+        return ephemeralStack.length;
+    },
 };
 
 startRouter();

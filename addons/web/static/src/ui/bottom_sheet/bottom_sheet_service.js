@@ -3,19 +3,20 @@
 
 /** @module @web/ui/bottom_sheet/bottom_sheet_service - Service for programmatically showing mobile bottom sheet overlays */
 
-import { markRaw } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { BottomSheet } from "@web/ui/bottom_sheet/bottom_sheet";
+import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 
 /**
- * @typedef {{
- *   env?: object;
- *   onClose?: () => void;
- *   class?: string;
- *   role?: string;
- *   ref?: Function;
- *   setActiveElement?: boolean;
- *   useBottomSheet?: Boolean;
+ * Accepts the same options as the popover service — `usePopover` routes to
+ * either backend from a live media query and cannot know in advance which one
+ * will read the bag. Options with no meaning for a slide-up panel
+ * (`position`, `arrow`, `onPositioned`, …) are accepted and ignored on
+ * purpose; anything outside the shared set warns in debug mode.
+ *
+ * @typedef {import("@web/ui/popover/popover_service").PopoverServiceAddOptions & {
+ *   onBack?: () => void;
+ *   preventDismissOnContentScroll?: boolean;
  * }} BottomSheetServiceAddOptions
  *
  * @typedef {ReturnType<bottomSheetService["start"]>["add"]} BottomSheetServiceAddFunction
@@ -29,55 +30,38 @@ export const bottomSheetService = {
      * @param {{ overlay: any }} services
      */
     start(_, { overlay }) {
-        let bottomSheetCount = 0;
-        /**
-         * Signals the manager to add a popover.
-         *
-         * @param {HTMLElement} target
-         * @param {import("@odoo/owl").ComponentConstructor} component
-         * @param {object} [props]
-         * @param {BottomSheetServiceAddOptions} [options]
-         * @returns {() => void}
-         */
-        const add = (target, component, props = {}, options = {}) => {
-            const onRemove = async (/** @type {any} */ removeParams) => {
-                try {
-                    await options.onClose?.(removeParams);
-                } finally {
-                    bottomSheetCount--;
-                    if (bottomSheetCount === 0) {
-                        document.body.classList.remove("bottom-sheet-open");
-                    } else if (bottomSheetCount === 1) {
-                        document.body.classList.remove("bottom-sheet-open-multiple");
-                    }
-                }
-            };
-            const _remove = overlay.add(
-                BottomSheet,
-                {
-                    close: () => _remove(),
-                    component,
-                    componentProps: markRaw(props),
-                    ref: options.ref,
-                    class: options.class,
-                    role: options.role,
-                    setActiveElement: options.setActiveElement,
-                },
-                {
-                    env: options.env,
-                    onRemove,
-                    rootId: /** @type {ShadowRoot} */ (target.getRootNode())?.host?.id,
-                },
-            );
-            bottomSheetCount++;
-            if (bottomSheetCount === 1) {
-                document.body.classList.add("bottom-sheet-open");
-            } else if (bottomSheetCount > 1) {
-                document.body.classList.add("bottom-sheet-open-multiple");
-            }
+        let openCount = 0;
 
-            return _remove;
+        /** Body classes let the page below react to one vs. several sheets. */
+        const syncBodyClasses = () => {
+            document.body.classList.toggle("bottom-sheet-open", openCount > 0);
+            document.body.classList.toggle("bottom-sheet-open-multiple", openCount > 1);
         };
+
+        /**
+         * @type {(target: HTMLElement, component: import("@odoo/owl").ComponentConstructor, props?: object, options?: BottomSheetServiceAddOptions) => () => void}
+         */
+        const add = makeOverlayPresenter({
+            overlay,
+            component: BottomSheet,
+            toProps: (options) => ({
+                class: options.class ?? options.popoverClass,
+                closeOnClickAway: options.closeOnClickAway,
+                onBack: options.onBack,
+                preventDismissOnContentScroll: options.preventDismissOnContentScroll,
+                ref: options.ref,
+                role: options.role,
+                setActiveElement: options.setActiveElement,
+            }),
+            onOpen: () => {
+                openCount++;
+                syncBodyClasses();
+            },
+            onClosed: () => {
+                openCount = Math.max(0, openCount - 1);
+                syncBodyClasses();
+            },
+        });
 
         return { add };
     },

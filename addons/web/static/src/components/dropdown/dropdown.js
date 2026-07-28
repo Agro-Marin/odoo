@@ -165,6 +165,7 @@ export class Dropdown extends Component {
         this.uiService = useService("ui");
 
         const getPosition = () => this.position;
+        const self = this;
         /** @type {any} */
         const options = {
             animation: false,
@@ -176,27 +177,28 @@ export class Dropdown extends Component {
             onClose: () => this.state.close(),
             onPositioned: (el, { direction }) =>
                 this.setTargetDirectionClass(direction),
-            popoverClass: mergeClasses(
-                "o-dropdown--menu dropdown-menu mx-0",
-                { "o-dropdown--menu-submenu": this.hasParent },
-                this.props.menuClass,
-            ),
             role: "menu",
             get position() {
                 return getPosition();
             },
             ref: this.menuRef,
             setActiveElement: false,
+            // Re-read on every open: `isBottomSheet` follows a media query, and
+            // a breakpoint change does not remount this component.
+            useBottomSheet: () => this.isBottomSheet,
+            get class() {
+                return self.isBottomSheet
+                    ? mergeClasses(
+                          "o-dropdown--menu dropdown-menu show",
+                          self.props.menuClass,
+                      )
+                    : mergeClasses(
+                          "o-dropdown--menu dropdown-menu mx-0",
+                          { "o-dropdown--menu-submenu": self.hasParent },
+                          self.props.menuClass,
+                      );
+            },
         };
-        if (this.isBottomSheet) {
-            Object.assign(options, {
-                useBottomSheet: true,
-                class: mergeClasses(
-                    "o-dropdown--menu dropdown-menu show",
-                    this.props.menuClass,
-                ),
-            });
-        }
         this.popover = usePopover(DropdownPopover, options);
 
         onRendered(() =>

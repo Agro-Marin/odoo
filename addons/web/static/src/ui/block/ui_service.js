@@ -129,12 +129,11 @@ export const MEDIAS_BREAKPOINTS = [
 ];
 
 /**
- * Create the MediaQueryList used both by the uiService and config from
- * `MEDIA_BREAKPOINTS`.
+ * Build the `MediaQueryList`s matching `MEDIAS_BREAKPOINTS`.
  *
  * @returns {MediaQueryList[]}
  */
-export function getMediaQueryLists() {
+function getMediaQueryLists() {
     return MEDIAS_BREAKPOINTS.map(({ minWidth, maxWidth }) => {
         if (!maxWidth) {
             return window.matchMedia(`(min-width: ${minWidth}px)`);
@@ -148,32 +147,24 @@ export function getMediaQueryLists() {
     });
 }
 
-let MEDIAS = getMediaQueryLists();
-/** @type {((ev: MediaQueryListEvent) => void) | null} */
-let updateSizeHandler = null;
-/** Whether `MEDIAS` was already handed to a `uiService.start` (live or dead). */
-let mediasBound = false;
-
-/** Detach the current start's breakpoint listener from `MEDIAS`, if any. */
-function releaseMedias() {
-    if (updateSizeHandler) {
-        for (const media of MEDIAS) {
-            media.removeEventListener?.("change", updateSizeHandler);
-        }
-        updateSizeHandler = null;
-    }
-}
+/**
+ * Breakpoint list backing the service-free `utils.getSize()` used by the ~20
+ * call sites (`Dropdown.isBottomSheet`, view components, …) that need the
+ * current size without holding an env. Built on first use and never listened
+ * to: each `uiService.start` owns its own list and its own listeners.
+ * @type {MediaQueryList[] | null}
+ */
+let sharedMedias = null;
 
 export const utils = {
     getSize() {
-        return MEDIAS.findIndex((media) => media.matches);
+        sharedMedias ??= getMediaQueryLists();
+        return sharedMedias.findIndex((media) => media.matches);
     },
     isSmall(/** @type {{ size?: number }} */ ui = {}) {
         return (ui.size ?? utils.getSize()) <= SIZES.SM;
     },
 };
-
-const bus = new EventBus();
 
 /**
  * Core UI service providing block/unblock, active element management,
@@ -182,6 +173,14 @@ const bus = new EventBus();
 export const uiService = {
     /** @param {import("@web/env").OdooEnv} env */
     start(env) {
+        /**
+         * Per-start, not module-global: two envs (webclient plus an embedded
+         * or test one) each get their own channel, so blocking in one no
+         * longer shows the spinner in the other.
+         */
+        const bus = new EventBus();
+        const medias = getMediaQueryLists();
+
         registry
             .category("main_components")
             .add(
@@ -208,6 +207,9 @@ export const uiService = {
                     "Unblock ui was called more times than block, you should only unblock the UI if you have previously blocked it.",
                 );
                 blockCount = 0;
+                // Nothing was blocked, so nothing was unblocked: announcing it
+                // would make listeners undo state they never set.
+                return;
             }
             if (blockCount === 0) {
                 ui.isBlocked = false;
@@ -236,18 +238,23 @@ export const uiService = {
             }
         }
 
-        if (mediasBound) {
-            releaseMedias();
-            MEDIAS = getMediaQueryLists();
-        }
-        mediasBound = true;
+        const getSize = () => medias.findIndex((media) => media.matches);
+
+        /** @param {MediaQueryListEvent} ev */
+        const updateSize = (ev) => {
+            if (ev.matches) {
+                ui.size = medias.indexOf(/** @type {any} */ (ev.target));
+                ui.isSmall = ui.size <= SIZES.SM;
+                bus.trigger(AppEvent.RESIZE);
+            }
+        };
 
         const ui = reactive({
             bus,
-            size: utils.getSize(),
+            size: getSize(),
             activeElement: /** @type {Document | HTMLElement} */ (document),
             isBlocked: false,
-            isSmall: utils.isSmall(),
+            isSmall: getSize() <= SIZES.SM,
             block,
             unblock,
             activateElement,
@@ -258,19 +265,19 @@ export const uiService = {
              * breakpoint listeners outlive their env and keep writing `size` /
              * `isSmall` into a `ui` nobody reads any more on every resize.
              */
-            destroy: releaseMedias,
+            destroy() {
+                for (const media of medias) {
+                    media.removeEventListener?.("change", updateSize);
+                }
+            },
         });
 
-        updateSizeHandler = (ev) => {
-            if (ev.matches) {
-                ui.size = MEDIAS.indexOf(ev.target);
-                ui.isSmall = utils.isSmall(ui);
-                bus.trigger(AppEvent.RESIZE);
-            }
-        };
-        MEDIAS.forEach((m) => m.addEventListener?.("change", updateSizeHandler));
+        for (const media of medias) {
+            media.addEventListener?.("change", updateSize);
+        }
 
         Object.defineProperty(env, "isSmall", {
+            configurable: true,
             get() {
                 return ui.isSmall;
             },

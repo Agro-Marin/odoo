@@ -12,6 +12,7 @@ import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { useActiveElement } from "@web/ui/block/ui_service";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
+import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
 
 /**
  * @param {EventTarget} target
@@ -216,12 +217,10 @@ export class Popover extends Component {
             if (this.props.closeOnEscape) {
                 useHotkey("escape", () => this.props.close());
             }
-            const targetObserver = new MutationObserver(this.onTargetMutate.bind(this));
-            targetObserver.observe(this.props.target.getRootNode(), {
-                childList: true,
-                subtree: true,
-            });
-            onWillDestroy(() => targetObserver.disconnect());
+            const unwatch = watchForDetachedTarget(this.props.target, () =>
+                this.props.close(),
+            );
+            onWillDestroy(unwatch);
         } else {
             this.props.close();
         }
@@ -316,13 +315,6 @@ export class Popover extends Component {
 
         if (this.props.fixedPosition) {
             this.position.lock();
-        }
-    }
-
-    /** Close popover if target element was removed from the DOM. */
-    onTargetMutate() {
-        if (!this.props.target.isConnected) {
-            this.props.close();
         }
     }
 

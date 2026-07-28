@@ -3,19 +3,14 @@
 
 /** @module @web/ui/bottom_sheet/bottom_sheet - Mobile-friendly slide-up panel with drag-to-dismiss and snap points */
 
-import {
-    Component,
-    onMounted,
-    onWillUnmount,
-    useExternalListener,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { router, routerBus } from "@web/core/browser/router";
+import { RouterEvent } from "@web/core/events";
 import { getViewportDimensions, useViewportChange } from "@web/core/utils/dom/dvu";
 import { compensateScrollbar } from "@web/core/utils/dom/scrolling";
 import { clamp } from "@web/core/utils/format/numbers";
-import { useForwardRefToParent } from "@web/core/utils/hooks";
+import { useBus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { useActiveElement } from "@web/ui/block/ui_service";
@@ -28,23 +23,6 @@ import { useActiveElement } from "@web/ui/block/ui_service";
  * sheet behind `isDismissing`.
  */
 const DISMISS_ANIMATION_FALLBACK_DELAY = 1000;
-
-/**
- * Monotonic id source for the synthetic history entries pushed by open
- * sheets, so each sheet can recognize whether a ``popstate`` popped ITS OWN
- * entry (see the history-interception comment in ``setup``).
- */
-let nextHistoryEntryId = 1;
-
-/**
- * Synthetic history entries currently on the stack, and sheets currently
- * holding one. A sheet closed programmatically while another is stacked above
- * it cannot pop its own entry (it is buried, and browsers cannot remove an
- * entry from the middle), so it leaves the entry behind and the last sheet to
- * close pops the whole run at once.
- */
-let pendingHistoryEntries = 0;
-let openSheetsWithHistory = 0;
 
 /**
  * Run `callback` once the sheet element finishes (or aborts) an animation of
@@ -93,10 +71,13 @@ export class BottomSheet extends Component {
         component: { optional: true, type: Function },
         componentProps: { optional: true, type: Object },
         close: { type: Function },
+        /** The element the sheet was opened from; only used to scope the overlay. */
+        target: { optional: true },
 
         class: { optional: true },
         role: { optional: true, type: String },
 
+        closeOnClickAway: { optional: true, type: [Boolean, Function] },
         onBack: { optional: true, type: Function },
         preventDismissOnContentScroll: { optional: true, type: Boolean },
         setActiveElement: { optional: true, type: Boolean },
@@ -104,6 +85,13 @@ export class BottomSheet extends Component {
         ref: { optional: true, type: Function },
         slots: { optional: true, type: Object },
     };
+
+    /** Identity token for this sheet's ephemeral history entry. */
+    historyMarker = {};
+    /** @type {(() => void)[]} */
+    animationCleanups = [];
+    /** @type {boolean} */
+    prefersReducedMotion = false;
 
     setup() {
         this.maxHeightPercent = 90;
@@ -143,9 +131,6 @@ export class BottomSheet extends Component {
 
         this.throttledOnScroll = useThrottleForAnimation(this.onScroll.bind(this));
 
-        /** @type {(() => void)[]} */
-        this.animationCleanups = [];
-
         useViewportChange(() => {
             if (this.state.isPositionedReady && !this.state.isDismissing) {
                 this.updateDimensions();
@@ -154,46 +139,24 @@ export class BottomSheet extends Component {
 
         useHotkey("escape", () => this.slideOut());
 
-        this._historyStatePushed = false;
-        this._historyEntryId = nextHistoryEntryId++;
-        this.handlePopState = (/** @type {PopStateEvent} */ ev) => {
-            if (ev.state?.bottomSheetId === this._historyEntryId) {
-                return;
-            }
-            this._historyStatePushed = false;
-            pendingHistoryEntries = Math.max(0, pendingHistoryEntries - 1);
-            if (this.state.isPositionedReady && !this.state.isDismissing) {
+        useBus(routerBus, RouterEvent.EPHEMERAL_POPPED, ({ detail }) => {
+            if (
+                detail.markers.includes(this.historyMarker) &&
+                this.state.isPositionedReady &&
+                !this.state.isDismissing
+            ) {
                 this.slideOut();
             }
-        };
-        useExternalListener(window, "popstate", this.handlePopState);
+        });
         onWillUnmount(() => {
             for (const cleanup of this.animationCleanups.splice(0)) {
                 cleanup();
             }
-            if (this._historyStatePushed) {
-                this._historyStatePushed = false;
-                if (openSheetsWithHistory === 1 && pendingHistoryEntries) {
-                    const toPop = pendingHistoryEntries;
-                    pendingHistoryEntries = 0;
-                    browser.history.go(-toPop);
-                }
-            }
-            if (this._countedAsOpen) {
-                this._countedAsOpen = false;
-                openSheetsWithHistory--;
-            }
+            router.releaseEphemeral(this.historyMarker);
         });
 
         onMounted(() => {
-            browser.history.pushState(
-                { bottomSheet: true, bottomSheetId: this._historyEntryId },
-                "",
-            );
-            this._historyStatePushed = true;
-            this._countedAsOpen = true;
-            pendingHistoryEntries++;
-            openSheetsWithHistory++;
+            router.pushEphemeral(this.historyMarker);
 
             const isReduced =
                 browser.matchMedia(`(prefers-reduced-motion: reduce)`).matches === true;
@@ -375,6 +338,24 @@ export class BottomSheet extends Component {
      */
     close() {
         this.slideOut();
+    }
+
+    /**
+     * Backdrop tap. Honours `closeOnClickAway` so a caller that vetoes
+     * click-away closing (a dropdown whose menu owns a nested overlay) behaves
+     * the same whether it was routed to a popover or to a sheet.
+     *
+     * @param {PointerEvent} ev
+     */
+    onBackdropClick(ev) {
+        const { closeOnClickAway } = this.props;
+        const allowed =
+            typeof closeOnClickAway === "function"
+                ? closeOnClickAway(/** @type {any} */ (ev.target))
+                : (closeOnClickAway ?? true);
+        if (allowed) {
+            this.slideOut();
+        }
     }
 
     /**

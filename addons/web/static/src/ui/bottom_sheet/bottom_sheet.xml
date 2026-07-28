@@ -18,7 +18,7 @@
                     }"
                 t-ref="scrollRail"
                 >
-                <div class="o_bottom_sheet_backdrop" t-on-click="slideOut"/>
+                <div class="o_bottom_sheet_backdrop" t-on-click="onBackdropClick"/>
 
                 <div class="o_bottom_sheet_dismiss"/>
 

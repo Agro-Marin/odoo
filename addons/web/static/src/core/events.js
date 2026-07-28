@@ -84,6 +84,13 @@ export const RpcEvent = Object.freeze({
 export const RouterEvent = Object.freeze({
     /** URL hash/search changed. */
     ROUTE_CHANGE: "ROUTE_CHANGE",
+    /**
+     * Back/forward unwound one or more ephemeral entries (see
+     * `router.pushEphemeral`). `detail.markers` holds the popped markers,
+     * topmost last. Never accompanied by a `ROUTE_CHANGE`: the route did not
+     * change, only a transient UI layer was dismissed.
+     */
+    EPHEMERAL_POPPED: "EPHEMERAL_POPPED",
 });
 
 /**
