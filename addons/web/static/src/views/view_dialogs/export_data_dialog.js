@@ -125,7 +125,6 @@ export class ExportDataDialog extends Component {
         this.expandedFields = {};
         this.availableFormats = [];
         this.templates = [];
-        this.isCompatible = false;
         this.exportListKeepLast = new KeepLast();
         this.fetchFieldsKeepLast = new KeepLast();
 
@@ -137,6 +136,12 @@ export class ExportDataDialog extends Component {
             templateId: null,
             isSmall: this.env.isSmall,
             disabled: false,
+            // Reactive because it drives a CONTROLLED CheckBox and the field
+            // tree's t-key. As a plain instance field it moved without owl
+            // seeing it, so the box's `value` prop never changed: the checkbox
+            // reconciled itself back to the stale prop and the toggle undid
+            // itself while the (slow) field fetch was still in flight.
+            isCompatible: false,
         });
 
         this.newTemplateText = _t("New template");
@@ -262,9 +267,20 @@ export class ExportDataDialog extends Component {
      * Load fields to display and (re)set the list of available fields
      */
     async fetchFields() {
-        this.knownFields = {};
+        // Build the replacement set aside, then publish it in one assignment.
+        // `knownFields` feeds `rootFields`, and a render CAN flush during the
+        // await below — `state.isCompatible` is reactive, so toggling the
+        // import-compatible box schedules one immediately. Clearing up front
+        // therefore rendered the tree against an empty map, blanking the panel
+        // for a frame, and left it blank for good whenever nothing else
+        // happened to re-render afterwards. Keeping the previous fields
+        // visible until the new ones arrive is also the better behaviour.
+        const nextKnownFields = {};
+        await this.fetchFieldsKeepLast.add(
+            this.loadFields(undefined, false, nextKnownFields),
+        );
+        this.knownFields = nextKnownFields;
         this.expandedFields = {};
-        await this.fetchFieldsKeepLast.add(this.loadFields());
         await this.setDefaultExportList();
         this.state.search = [];
         if (this.searchRef.el) {
@@ -312,15 +328,19 @@ export class ExportDataDialog extends Component {
      * Fetch exportable (sub-)fields from the server and cache them.
      * @param {string} [id] - parent field path to expand; omit for root fields
      * @param {boolean} [preventLoad=false] - if true, return cached data only (no RPC)
+     * @param {Object} [target] - map the fetched fields are merged into;
+     *  defaults to the live ``knownFields``. ``fetchFields`` passes a fresh one
+     *  so a full reload can swap the whole set in atomically.
      * @returns {Promise<Array<Object> | undefined>}
      */
-    async loadFields(id, preventLoad = false) {
+    async loadFields(id, preventLoad = false, target = null) {
+        const knownFields = target ?? this.knownFields;
         let parentField, parentParams;
         if (id) {
             if (this.expandedFields[id]) {
                 return this.expandedFields[id].fields;
             }
-            parentField = this.knownFields[id];
+            parentField = knownFields[id];
             parentParams = {
                 ...parentField.params,
                 parent_field_type: parentField.field_type,
@@ -332,15 +352,15 @@ export class ExportDataDialog extends Component {
         if (preventLoad) {
             return;
         }
-        const isCompatible = this.isCompatible;
+        const isCompatible = this.state.isCompatible;
         const fields = await this.props.getExportedFields(isCompatible, parentParams);
-        if (isCompatible !== this.isCompatible) {
+        if (isCompatible !== this.state.isCompatible) {
             return fields;
         }
         for (const field of fields) {
             field.parent = parentField;
-            if (!this.knownFields[field.id]) {
-                this.knownFields[field.id] = field;
+            if (!knownFields[field.id]) {
+                knownFields[field.id] = field;
             }
         }
         if (id) {
@@ -434,7 +454,7 @@ export class ExportDataDialog extends Component {
         try {
             await this.props.download(
                 this.state.exportList,
-                this.isCompatible,
+                this.state.isCompatible,
                 this.availableFormats[this.state.selectedFormat].tag,
             );
         } finally {
@@ -489,7 +509,7 @@ export class ExportDataDialog extends Component {
     }
 
     async onToggleCompatibleExport(value) {
-        this.isCompatible = value;
+        this.state.isCompatible = value;
         await this.fetchFields();
     }
 
