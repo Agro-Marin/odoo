@@ -78,11 +78,24 @@ export function usePosition(refName, getTarget, options = {}) {
     const bus = /** @type {any} */ (component.env)[POSITION_BUS] || new EventBus();
 
     let executingUpdate = false;
+    /**
+     * The flag coalesces every trigger raised within one microtask into a
+     * single `update()`. It is cleared in a `finally` because anything that
+     * throws inside `update()` — `reposition`, or the caller's own
+     * `onPositioned`, which reaches into the DOM (see `Popover.updateArrow`) —
+     * would otherwise leave it stuck on, and this popper would silently stop
+     * repositioning on scroll, resize, content change and unlock for the rest
+     * of its life. The error still surfaces; only the freeze is prevented.
+     */
     const batchedUpdate = async () => {
-        if (!executingUpdate) {
-            executingUpdate = true;
+        if (executingUpdate) {
+            return;
+        }
+        executingUpdate = true;
+        try {
             update();
             await Promise.resolve();
+        } finally {
             executingUpdate = false;
         }
     };
