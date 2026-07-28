@@ -182,6 +182,92 @@ class TestWebCwvBeacon(HttpCase):
             f"js_error beacons over the cap must be rejected with 429, got {statuses}",
         )
 
+    def test_js_error_service_start_kind_logged_verbatim(self):
+        with self.assertLogs(
+            "odoo.addons.web.controllers.observability", level="WARNING"
+        ) as capture:
+            status = self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps({"message": "boot ok", "kind": "service_start"}),
+                headers={"Content-Type": "application/json"},
+            ).status_code
+
+        self.assertEqual(status, 204)
+        self.assertTrue(
+            any("kind=service_start" in line for line in capture.output),
+            "service_start must be logged verbatim, not coerced to error",
+        )
+
+    def test_js_error_unknown_kind_falls_back_to_error(self):
+        with self.assertLogs(
+            "odoo.addons.web.controllers.observability", level="WARNING"
+        ) as capture:
+            status = self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps({"message": "boom", "kind": "nonsense"}),
+                headers={"Content-Type": "application/json"},
+            ).status_code
+
+        self.assertEqual(status, 204)
+        self.assertTrue(
+            any("kind=error" in line for line in capture.output),
+            "an unknown kind must still fall back to error",
+        )
+        self.assertFalse(
+            any("kind=nonsense" in line for line in capture.output),
+            "widening the kind tuple must not open it to arbitrary strings",
+        )
+
+    def test_js_error_message_truncated_to_4096(self):
+        long_message = "x" * 5000
+        with self.assertLogs(
+            "odoo.addons.web.controllers.observability", level="WARNING"
+        ) as capture:
+            status = self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps({"message": long_message, "kind": "error"}),
+                headers={"Content-Type": "application/json"},
+            ).status_code
+
+        self.assertEqual(status, 204)
+        logged = "\n".join(capture.output)
+        self.assertNotIn("x" * 5000, logged)
+        self.assertIn("x" * 4096, logged)
+
+    def test_js_error_cause_is_clamped_and_logged(self):
+        cause = "Caused by: TypeError: boom " * 200  # well over 4096 chars
+        with self.assertLogs(
+            "odoo.addons.web.controllers.observability", level="WARNING"
+        ) as capture:
+            status = self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps(
+                    {"message": "top-level failure", "kind": "error", "cause": cause}
+                ),
+                headers={"Content-Type": "application/json"},
+            ).status_code
+
+        self.assertEqual(status, 204)
+        logged = "\n".join(capture.output)
+        self.assertIn("cause=", logged)
+        self.assertIn(cause[:4096], logged)
+        self.assertNotIn(cause, logged, "the cause must be clamped, not sent in full")
+
+    def test_js_error_non_string_cause_does_not_500(self):
+        for bad_cause in (12345, {"nested": {"deeply": {"cause": "boom"}}}):
+            status = self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps(
+                    {"message": "boom", "kind": "error", "cause": bad_cause}
+                ),
+                headers={"Content-Type": "application/json"},
+            ).status_code
+            self.assertIn(
+                status,
+                (204, 400),
+                f"non-string cause {bad_cause!r} must not 500, got {status}",
+            )
+
     def test_cwv_and_js_error_have_separate_budgets(self):
         from odoo.addons.web.controllers import observability as obs
 

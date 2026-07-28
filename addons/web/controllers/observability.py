@@ -75,8 +75,12 @@ _MAX_LATENCY_MS = 60_000
 _MAX_CLS = 5.0
 _MAX_URL_LEN = 500
 _MAX_UA_LEN = 500
-_MAX_ERROR_MSG_LEN = 1_000
+# Matches _MAX_ERROR_STACK_LEN: a serialized `cause` chain with several
+# "Caused by:" segments exceeds 1000 easily, and truncating it defeats the
+# purpose of sending it.
+_MAX_ERROR_MSG_LEN = 4_096
 _MAX_ERROR_STACK_LEN = 4_096
+_MAX_ERROR_CAUSE_LEN = 4_096
 _MAX_ERROR_FILENAME_LEN = 500
 
 
@@ -213,9 +217,9 @@ class Observability(Controller):
 
         Payload fields (all optional, all clamped to per-field length caps):
         ``phase`` (``"pre_boot"`` | ``"post_boot"``), ``kind`` (``"error"`` |
-        ``"unhandledrejection"`` | ``"module_rebind"``), ``message``, ``filename``,
-        ``line``,
-        ``col``, ``stack``, ``url``, ``user_agent``.
+        ``"unhandledrejection"`` | ``"module_rebind"`` | ``"service_start"``),
+        ``message``, ``cause``, ``filename``, ``line``, ``col``, ``stack``,
+        ``url``, ``user_agent``.
 
         Logs each beacon as ``[js_error]`` at WARNING.  Persistence
         (``web.js.error`` model + queryable dashboard) is intentionally
@@ -256,7 +260,8 @@ class Observability(Controller):
 
         kind = (
             payload.get("kind")
-            if payload.get("kind") in ("error", "unhandledrejection", "module_rebind")
+            if payload.get("kind")
+            in ("error", "unhandledrejection", "module_rebind", "service_start")
             else "error"
         )
         phase = (
@@ -268,6 +273,7 @@ class Observability(Controller):
         url = _str_field(payload.get("url"), _MAX_URL_LEN)
         user_agent = _str_field(payload.get("user_agent"), _MAX_UA_LEN)
         stack = _str_field(payload.get("stack"), _MAX_ERROR_STACK_LEN)
+        cause = _str_field(payload.get("cause"), _MAX_ERROR_CAUSE_LEN)
         line = _int_field(payload.get("line"))
         col = _int_field(payload.get("col"))
 
@@ -278,11 +284,13 @@ class Observability(Controller):
         )
         _logger.log(
             level,
-            "[js_error] uid=%s phase=%s kind=%s msg=%r at %r:%d:%d url=%r ua=%r stack=%r",
+            "[js_error] uid=%s phase=%s kind=%s msg=%r cause=%r"
+            " at %r:%d:%d url=%r ua=%r stack=%r",
             uid or "anon",
             phase,
             kind,
             message,
+            cause,
             filename,
             line,
             col,
