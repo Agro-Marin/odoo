@@ -91,7 +91,7 @@ export function watchServiceWorkerUpdates(registration) {
  * that mutex for the whole session — every later (un)subscription queues
  * behind a slot that never frees.
  *
- * Three exits used to leave it pending forever, all silent:
+ * Three exits would otherwise leave it pending forever, all silent:
  *   - no ``navigator.serviceWorker`` at all (a non-secure context: plain
  *     HTTP on a non-loopback origin, where ``Notification`` and
  *     ``navigator.permissions`` still exist, so mail's permission-change

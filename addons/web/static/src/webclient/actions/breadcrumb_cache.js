@@ -17,11 +17,6 @@ const BREADCRUMB_CACHE_LIMIT = 200;
  * second visit to the same record joins the first fetch instead of issuing its
  * own).
  *
- * This was a bare ``{}`` on the ActionManager, relying on the fact that plain
- * objects preserve string-key insertion order, with the LRU touch open-coded at
- * the call site as ``delete`` + re-insert. A ``Map`` makes the ordering
- * contract explicit rather than incidental and gives the eviction rule one home.
- *
  * NOTE — flushing is done by REPLACING the instance
  * (``am.breadcrumbCache = new BreadcrumbCache()``), not by {@link clear}. That
  * is load-bearing: ``fetchBreadcrumbs`` captures the cache by reference and

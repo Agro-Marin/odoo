@@ -33,11 +33,10 @@ export const lazySession = {
              *
              * Returns a Promise resolving to the value (rejecting if the
              * underlying fetch failed) so callers can ``await`` it and retry a
-             * transient failure — the previous callback-only form silently
-             * swallowed failures, leaving the sole consumer (profiling) stuck
-             * on defaults for the whole page after one hiccup. The optional
-             * ``callback`` is retained for back-compat (enterprise iot); it is
-             * invoked with the value on success and skipped on failure.
+             * transient failure rather than being stranded on defaults for the
+             * whole page. The optional ``callback`` is retained for back-compat
+             * (enterprise iot); it is invoked with the value on success and
+             * skipped on failure.
              *
              * @param {string} key - Session info key to retrieve
              * @param {(value: any) => void} [callback] - Called with the value on success

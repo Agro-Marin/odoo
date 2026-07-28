@@ -34,14 +34,12 @@ const ControllerComponentTemplate = xml`<t t-component="Component" t-props="comp
  * patches the existing instance instead of remounting — calling this per-render
  * would break SPA navigation continuity.
  *
- * WHAT THIS COMPONENT IS NOT
- * --------------------------
- * It does not own action-manager state. Each dispatch arrives as an
+ * It does NOT own action-manager state. Each dispatch arrives as an
  * {@link import("./action_dispatch.js").ActionDispatch} on ``props._context``,
- * and the lifecycle hooks below simply report which outcome happened —
- * ``commit`` / ``fail`` / ``discard``. The component contributes only what is
- * genuinely component-local and cannot be read from outside: OWL's ``status``,
- * and the ``CallbackRecorder``-backed state exporters.
+ * and the lifecycle hooks below report which outcome happened — ``commit`` /
+ * ``fail`` / ``discard``. The component contributes only what is genuinely
+ * component-local and cannot be read from outside: OWL's ``status``, and the
+ * ``CallbackRecorder``-backed state exporters.
  *
  * @param {ActionManager} am
  * @returns the bound ControllerComponent class

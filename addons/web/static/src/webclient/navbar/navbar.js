@@ -156,22 +156,12 @@ export class NavBar extends Component {
     }
 
     /**
-     * Deliberate no-op paired with the getter above, kept because it changes
-     * what `patch()` produces for overriders, not because anything reads it.
-     *
-     * `website` overrides both this and {@link currentAppSections} via
-     * `patch(NavBar.prototype, { get systrayItems() { ... super.systrayItems } })`
-     * — a getter with no setter. `patch()` fills the missing half from the
-     * ancestor descriptor (`core/utils/patch.js`, the
-     * `Boolean(get) !== Boolean(set)` branch), so this no-op is what the
-     * patched property ends up with as its setter. Delete it and the property
-     * becomes getter-only, turning any assignment from a TypeError-in-strict-
-     * mode into the failure this was added to absorb.
-     *
-     * Nothing in odoo/enterprise/agromarin assigns to either today (verified by
-     * grep), so this is belt-and-braces inherited from upstream — but the cost
-     * of keeping it is two lines and the cost of being wrong is a runtime throw
-     * inside another addon's patch.
+     * Deliberate no-op paired with the getter above: `website` patches
+     * `systrayItems` (and {@link currentAppSections}) as a getter with no
+     * setter, and `patch()` fills the missing half from the ancestor descriptor
+     * (`core/utils/patch.js`, the `Boolean(get) !== Boolean(set)` branch). Drop
+     * this and the patched property becomes getter-only, so any assignment
+     * throws inside another addon's patch.
      */
     set systrayItems(_) {}
 

@@ -21,13 +21,9 @@ import { findView } from "../action_views.js";
  * multi-record view to promote it into) or is dropped (it does not).
  *
  * Returns fresh ``options``/``newStack``/controller objects rather than
- * editing them in place. ``doAction`` takes a shallow copy of ``options``
- * (``action_service.js``), which reads as isolation but gives none one level
- * down — so both branches used to reach back through it and mutate the
- * caller's array and the caller's controller objects. No current caller
- * observes that (``load_state`` and ``restore`` both hand over arrays they
- * never read again), but the boundary should mean what it appears to mean:
- * an executor gets to propose a stack, not to rewrite its caller's.
+ * editing them in place. ``doAction``'s shallow copy of ``options`` reads as
+ * isolation but gives none one level down, and an executor gets to PROPOSE a
+ * stack, not to rewrite its caller's.
  *
  * @param {ActWindowAction} action
  * @param {ActionOptions} options

@@ -12,12 +12,9 @@ import { user } from "@web/services/user";
  * is O(1) instead of an ``Array.find`` per child, per node, per keystroke while
  * filtering.
  *
- * Keyed by the companies ARRAY, not stored in a module-level slot: `user.js`
- * builds a fresh array whenever the user is (re)built, so a new array is
- * exactly the moment the index must be rebuilt. A WeakMap expresses that
- * directly and lets the old index be collected, instead of a pair of mutable
- * module globals compared by hand — which outlived every component and had to
- * be reasoned about per call site.
+ * Keyed by the companies ARRAY: `user.js` builds a fresh array whenever the
+ * user is (re)built, so a new array is exactly the moment the index must be
+ * rebuilt, and the WeakMap lets the old index be collected.
  *
  * @type {WeakMap<object[], Map<number, any>>}
  */
@@ -49,12 +46,10 @@ const allowedIdsByCompanies = new WeakMap();
 /**
  * Whether the user may act on this company.
  *
- * The single home for a predicate that existed twice with different costs:
- * ``CompanySelector`` used ``allowedCompanies.some(...)``, while
- * ``SwitchCompanyItem`` used ``allowedCompanies.map((c) => c.id).includes(...)``
- * — an array allocation per call, and its template reads the getter five times
- * per company row, on every render of a dropdown that only appears once the
- * user HAS a lot of companies.
+ * Set-backed rather than an ``Array.some``/``map().includes()`` scan: the
+ * ``SwitchCompanyItem`` template reads this five times per company row, on
+ * every render of a dropdown that only appears once the user HAS a lot of
+ * companies.
  *
  * @param {number} companyId
  * @returns {boolean}

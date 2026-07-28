@@ -10,12 +10,7 @@ import { useService } from "@web/core/utils/hooks";
 
 import { nextDensity } from "./density_service.js";
 
-/**
- * Presentation only. The cycle order is NOT repeated here — it belongs to the
- * service ({@link nextDensity}); this table previously carried a ``next:``
- * chain that duplicated it and could drift out of step with the service's own
- * ordering.
- */
+/** Presentation only — the cycle order belongs to the service ({@link nextDensity}). */
 const DENSITY_META = {
     default: {
         icon: "fa-solid fa-up-right-and-down-left-from-center",

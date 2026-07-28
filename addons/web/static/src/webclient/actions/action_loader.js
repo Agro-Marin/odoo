@@ -22,9 +22,8 @@ const actionRegistry = registry.category("actions");
  *
  * The URL can name a client action either way, so both `action_state`
  * (rebuilding an action request from the URL) and `breadcrumb_manager`
- * (rebuilding virtual controllers from the URL) need the same two-step lookup.
- * It used to be spelled out identically in both, differing only in the name of
- * the variable holding the key.
+ * (rebuilding virtual controllers from the URL) need this same two-step
+ * lookup.
  *
  * @param {string | number} key registry key or ``path`` of a client action
  * @returns {[string, Object] | []} ``[registryKey, clientAction]``, or ``[]``

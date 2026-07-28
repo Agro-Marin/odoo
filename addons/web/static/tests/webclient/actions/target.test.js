@@ -162,6 +162,32 @@ describe("new", () => {
         expect(".o_technical_modal").toHaveCount(0);
     });
 
+    test("a throwing on_close cannot cancel the one it was chained with", async () => {
+        // The two callbacks belong to different actions. `await own(); await
+        // stolen();` let a rejecting `own` skip `stolen` entirely — and the
+        // dominant producer of these callbacks is a view reload, which rejects
+        // whenever the server does. Both must run; the failure still surfaces.
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction(5, {
+            onClose: () => expect.step("stolen"),
+        });
+        await getService("action").doAction(5, {
+            onClose: () => {
+                expect.step("own throws");
+                throw new Error("on_close failed");
+            },
+        });
+        await animationFrame();
+
+        await expect(
+            getService("action").doAction({ type: "ir.actions.act_window_close" }),
+        ).rejects.toThrow();
+        expect.verifySteps(["own throws", "stolen"]);
+        await animationFrame();
+        // The dialog still leaves the screen: teardown is in a `finally`.
+        expect(".o_technical_modal").toHaveCount(0);
+    });
+
     test("a resolver on_close on a replacing dialog still settles", async () => {
         // The motivating case. `doAction(..., { onClose: resolve })` is how the
         // calendar controller and the view-button confirmation flow await a

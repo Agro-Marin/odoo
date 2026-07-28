@@ -118,24 +118,20 @@ export { ControllerNotFoundError, standardActionServiceProps };
  * Combine the ``onClose`` a replaced dialog handed over with the one the
  * replacing action brought of its own.
  *
- * A ``target="new"`` action opened while a dialog is already up REPLACES it,
- * so the outgoing dialog never "closed" as far as its opener is concerned:
- * its callback is stolen and re-armed on the replacement, and fires when the
- * chain finally closes. That much was already right.
+ * A ``target="new"`` action opened while a dialog is already up REPLACES it, so
+ * the outgoing dialog never "closed" as far as its opener is concerned: its
+ * callback is stolen, re-armed on the replacement, and fires when the chain
+ * finally closes. Both callbacks run, innermost first — the order the dialogs
+ * would have unwound in had they closed one at a time.
  *
- * What was lost is the replacing action's own callback: the slot was filled
- * with ``stolen || own``, so whenever BOTH existed the inner one was dropped
- * and never fired. Usually harmless — the dominant producer is
- * ``view_button_hook``'s reload, and reloading a wizard that was just replaced
- * is a no-op it already guards against. Not harmless for the resolver form
- * (``doAction(..., { onClose: () => resolve() })``, used by the calendar
- * controller and the view-button confirmation flow): a dropped resolver is a
- * promise that never settles, and an ``await`` that never returns.
+ * The two belong to DIFFERENT actions, so neither may cancel the other: each
+ * leg runs in its own try and failures are re-raised afterwards. Dropping one
+ * silently is not a lesser failure — ``doAction(..., { onClose: resolve })`` is
+ * how the calendar controller and the view-button confirmation flow AWAIT a
+ * dialog, so a skipped callback is an ``await`` that never returns.
  *
- * Both now run, innermost first — the same order the dialogs would have
- * unwound in had they closed one at a time. Neither callback is wrapped when
- * the other is absent, so the common single-callback path keeps its exact
- * identity and the "no onClose at all" fast path is untouched.
+ * Neither callback is wrapped when the other is absent, keeping the identity of
+ * the common single-callback path and the "no onClose at all" fast path.
  *
  * @param {Function} [own] the replacing action's own ``options.onClose``
  * @param {Function} [stolen] the callback carried over from the dialog being replaced
@@ -149,8 +145,20 @@ function chainOnClose(own, stolen) {
         return own;
     }
     return async (closeParams) => {
-        await own(closeParams);
-        await stolen(closeParams);
+        const errors = [];
+        for (const onClose of [own, stolen]) {
+            try {
+                await onClose(closeParams);
+            } catch (error) {
+                errors.push(error);
+            }
+        }
+        if (errors.length === 1) {
+            throw errors[0];
+        }
+        if (errors.length) {
+            throw new AggregateError(errors, "Several onClose callbacks failed");
+        }
     };
 }
 
@@ -172,44 +180,32 @@ function chainOnClose(own, stolen) {
  *  - ``_loadAction`` / ``_executeCloseAction`` / ``_getBreadcrumbs`` are used as
  *    test seams via fake ``am`` object literals.
  *
- * What was missing is a statement of WHICH members are the sanctioned surface,
- * so "what may a sibling touch?" stopped being answerable only by grep. As of
- * 2026-07-25 the siblings reach exactly these 26 members:
- *
- *   read-only, collaborators : env · router · keepLast
- *   read-only, state         : controllerStack · dialog · nextDialog ·
- *                              breadcrumbCache
- *   public API               : doAction · doActionButton · switchView ·
- *                              restore · pushState
- *   internal helpers         : _updateUI · _makeController · _loadAction ·
- *                              _confirmLeave · _nextId · _getView ·
- *                              _getViewInfo · _getActionInfo · _getActionParams ·
- *                              _getBreadcrumbs · _controllersFromState ·
- *                              _removeDialog · _executeCloseAction
- *   mutable counters         : _loadStateGeneration
+ * The sanctioned surface is enumerated in ``sibling_contract.test.js``, which
+ * asserts it in both directions: every listed member must still exist, and the
+ * manager must expose nothing beyond it. Adding a member is therefore a change
+ * to that list, not to a comment here — a prose copy would only drift out of
+ * step with the assertion that enforces it.
  *
  * Only three sites WRITE manager state, and each is documented where it happens:
  *   ``action_dispatch.js``       controllerStack (commit on mount / roll back on
  *                                error), dialog + nextDialog (the two-slot
  *                                commit — see ``_removeDialog``). This is the
  *                                per-dispatch transaction object;
- *                                ``ControllerComponent`` no longer touches
- *                                manager state, it only reports which outcome
- *                                its lifecycle observed.
+ *                                ``ControllerComponent`` only reports which
+ *                                outcome its lifecycle observed.
  *   ``action_cache_invalidation.js``  breadcrumbCache (flush by replacement —
-                                see the NOTE in breadcrumb_cache.js)
+ *                                see the NOTE in breadcrumb_cache.js)
  *   ``load_state.js``            _loadStateGeneration (navigation intent)
  *
- * Adding a member to this surface means adding it to this list. Anything not
- * listed is private to this file.
+ * Anything not on the sanctioned list is private to this file.
  *
  * Action manager — routes ``doAction`` / button clicks / URL state changes
  * to the appropriate action executor, maintains the breadcrumb controller
  * stack, manages the dialog overlay, and synchronizes URL state.
  *
- * Lifted from a closure-based factory to a class in 2026-05; kept API-
- * compatible because external consumers (``enterprise/web_studio/.../editor.js``)
- * still call ``makeActionManager(env, router)`` expecting the same method shape.
+ * ``makeActionManager(env, router)`` remains the public entry point:
+ * ``enterprise/web_studio/.../editor.js`` calls it and uses the result as an
+ * action-manager surface.
  */
 export class ActionManager {
     /**
@@ -411,29 +407,39 @@ export class ActionManager {
      * ``action_info_builders.js`` with the ActionManager instance as
      * ``this``. No ``@private`` tag: TS reads it as strict class-private
      * and would block sibling-module access.
+     * "The current action has no such view" and "the current action is not a
+     * window action at all" are the SAME answer to this question — ``null`` —
+     * and the callers already handle it: ``switchView`` raises a typed
+     * ``ViewNotFoundError``, and ``openFormView`` falls through to opening a
+     * standalone form via ``doAction``.
+     *
+     * Answering the second case with a throw instead would make the outcome
+     * depend on WHY the view is unavailable, and that case is reachable:
+     * ``openFormView`` is captured as the ``selectRecord`` / ``createRecord``
+     * prop of a view controller, and ``list_controller.openRecord`` awaits
+     * ``record.isDirty()`` and ``record.save()`` before calling it — so a
+     * navigation landing inside that window leaves a client action on the stack
+     * tip, and a row click must degrade to the form rather than to an error
+     * dialog.
+     *
      * @param {string} viewType
      * @throws {ControllerNotFoundError} if there is no current controller
-     * @throws {Error} if the current controller is not a view
-     * @returns {any}
+     * @returns {any} the view descriptor, or ``null`` when the current action
+     *   cannot provide it
      */
     _getView(viewType) {
         const currentController = this.controllerStack.at(-1);
         if (!currentController) {
             // Not reachable from any in-tree caller today — every one of them
             // runs from a mounted controller — but this is public service API,
-            // and an empty stack used to surface as a bare TypeError on the
-            // next line rather than as the diagnosis.
+            // and the typed error names the problem where the next line would
+            // only raise a bare TypeError.
             throw new ControllerNotFoundError(
                 `Cannot resolve view '${viewType}': the controller stack is empty`,
             );
         }
         if (currentController.action.type !== "ir.actions.act_window") {
-            // Reached from switchView AND from the openFormView helper built in
-            // action_info_builders, so it cannot name a single caller.
-            throw new Error(
-                `Cannot resolve view '${viewType}': the current controller is a ` +
-                    `${currentController.action.type}, not a window action`,
-            );
+            return null;
         }
         const view = currentController.views.find((view) => view.type === viewType);
         return view || null;
@@ -536,10 +542,6 @@ export class ActionManager {
      *    (renders the controller inside an ActionDialog).
      *  - {@link _dispatchInline} otherwise (drives ACTION_MANAGER:UPDATE
      *    so the action_container swaps in the new controller).
-     *
-     * The historical "DAM Remarks" TODO on globalState handling lived in
-     * ``_dispatchInline``; it is now answered in place (globalState IS used
-     * by client actions).
      *
      * Internal — called by sibling ``action_executors/*`` and
      * ``reports/report_executor.js`` with the ActionManager instance as
@@ -704,10 +706,6 @@ export class ActionManager {
      * state, optionally injects a SkeletonView during full breadcrumb
      * clear, then triggers ACTION_MANAGER:UPDATE so the
      * action_container swaps in the new controller.
-     *
-     * The ``"TODO DAM Remarks"`` block that used to sit here asked whether
-     * globalState matters for client actions. Audited and answered in place:
-     * it does.
      *
      * @param {ActionDispatch} dispatch the transaction for this dispatch
      * @param {Object} options the original ``_updateUI`` options

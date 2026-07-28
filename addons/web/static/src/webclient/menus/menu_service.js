@@ -60,8 +60,7 @@ async function fetchMenus(reload, cachedHash) {
  *
  * The action index is lazy and rebuilt whenever the tree is replaced: an app
  * lookup by action is what the URL→menu resolution needs on every route
- * change, and ``WebClient`` used to open-code it with repeated full scans over
- * ``getAll()`` because the service exposed no such accessor.
+ * change, and a full scan of ``getAll()`` per change does not scale.
  */
 class MenuTree {
     /** @param {Object} menusData */

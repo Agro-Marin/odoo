@@ -18,11 +18,8 @@ import { session } from "@web/session";
  * report a change in the state that belongs in the URL (``resId``,
  * ``active_id``).
  *
- * Shared by both builders below, which carried byte-identical copies of this
- * closure — same ``shallowEqual`` diff, same three-way gate. The two are not
- * interchangeable at the call site (each closes over ITS controller's
- * ``currentState``), so the duplication could only be removed by making the
- * closure a factory rather than by hoisting one of them.
+ * A factory rather than a shared closure: each builder's updater closes over
+ * ITS controller's ``currentState``.
  *
  * The gate is deliberately conservative: nothing is pushed when the state did
  * not actually change (a re-render reporting the same resId must not add a

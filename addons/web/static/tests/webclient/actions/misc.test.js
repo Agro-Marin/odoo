@@ -820,3 +820,40 @@ test("action is removed while waiting for another action with selectMenu", async
     await animationFrame();
     expect(".o_action_manager").toHaveText("My client action");
 });
+
+test("_getView answers null — not a throw — when the tip is not a window action", async () => {
+    // "no such view on this action" and "this action is not a window action at
+    // all" are the same answer to the caller, and the two callers already know
+    // what to do with it: switchView raises a typed ViewNotFoundError, and the
+    // openFormView helper (a live view's selectRecord/createRecord prop) falls
+    // through to opening a standalone form. The second case used to throw a
+    // bare Error, so which one you got depended on WHY the view was missing —
+    // and list_controller.openRecord awaits a save before calling selectRecord,
+    // so a navigation landing in that window turned a row click into an
+    // uncaught error.
+    class PlainClientAction extends Component {
+        static template = xml`<div class="plain_client_action"/>`;
+        static props = ["*"];
+    }
+    registry.category("actions").add("plain_client_action", PlainClientAction);
+
+    await mountWithCleanup(WebClient);
+    const actionService = getService("action");
+    await actionService.doAction(3);
+    expect(".o_list_view").toHaveCount(1);
+    // Captured while the list is on top, exactly as openRecord() holds it
+    // across its `await record.save()`.
+    const selectRecord = actionService.currentController.props.selectRecord;
+
+    await actionService.doAction({
+        type: "ir.actions.client",
+        tag: "plain_client_action",
+    });
+    expect(".plain_client_action").toHaveCount(1);
+    expect(actionService.currentController.action.type).toBe("ir.actions.client");
+
+    expect(actionService._getView("form")).toBe(null);
+    // No throw: the stale closure degrades to a no-op instead of an error dialog.
+    await selectRecord(1, {});
+    expect(".plain_client_action").toHaveCount(1);
+});

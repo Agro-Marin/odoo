@@ -53,14 +53,38 @@ export function openActionInNewWindow(action, state, am) {
 }
 
 /**
+ * Absolutize a bare relative url so ``isSafeUrlScheme`` sees a path rather
+ * than something it could read as a scheme.
+ *
+ * @param {string} [url]
+ * @returns {string} the empty string when there is no url to open
+ */
+function normalizeUrl(url) {
+    if (!url) {
+        return "";
+    }
+    return url.startsWith("http") || url.startsWith("/") ? url : `/${url}`;
+}
+
+/**
  * Execute an `ir.actions.act_url` action: redirect to the given URL.
  *
  * Targets:
  *   - "self"     — replace the current page (`location.assign`)
- *   - "download" — open in a new tab (file download)
+ *   - "download" — open in a new tab (file download); never chains a close,
+ *                  since the download leaves the opener in place
  *   - default    — open in a new tab; if `action.close` is set, dispatch a
  *                  follow-up `ir.actions.act_window_close` so any wrapping
- *                  dialog closes.  Otherwise just invoke `options.onClose`.
+ *                  dialog closes
+ *
+ * SINGLE EXIT — ``options.onClose`` runs on every path.
+ * Callers use it two ways: ``doActionButton`` forwards a view reload through
+ * it, and ``doAction(..., { onClose: resolve })`` is how a caller awaits the
+ * action (the same idiom ``chainOnClose`` in ``action_service`` protects). A
+ * path that returns without settling it is therefore not "doing less" — it
+ * strands the caller. Three did: a missing url, a blocked scheme, and
+ * ``target="download"``. The close-chaining branch is the one early return,
+ * and it hands ``onClose`` to the close action rather than dropping it.
  *
  * @param {ActURLAction} action
  * @param {ActionOptions} options the full caller options bag — the dispatcher
@@ -70,33 +94,22 @@ export function openActionInNewWindow(action, state, am) {
  * @param {ActionManager} am
  */
 export function executeActURLAction(action, options, am) {
-    let url = action.url;
-    if (!url) {
-        return;
-    }
-    if (!(url.startsWith("http") || url.startsWith("/"))) {
-        url = "/" + url;
-    }
-    if (!isSafeUrlScheme(url)) {
+    const url = normalizeUrl(action.url);
+    if (url && !isSafeUrlScheme(url)) {
         am.env.services.notification.add(
             _t("This action tried to open an unsafe URL and was blocked."),
             { sticky: true, type: "danger" },
         );
-        return;
-    }
-    if (action.target === "self") {
+    } else if (url && action.target === "self") {
         browser.location.assign(url);
-    } else if (action.target === "download") {
+    } else if (url) {
         openURL(url, am);
-    } else {
-        openURL(url, am);
-        if (action.close) {
+        if (action.target !== "download" && action.close) {
             return am.doAction(
                 { type: "ir.actions.act_window_close" },
                 { onClose: options.onClose },
             );
-        } else if (options.onClose) {
-            options.onClose();
         }
     }
+    options.onClose?.();
 }

@@ -10,11 +10,8 @@ import { user } from "@web/services/user";
 
 /**
  * The densities, in cycle order — ``cycle()`` steps to the next entry and
- * wraps. This array is the ONLY place the order lives: it used to be spelled
- * out three times (this list, a re-declared ``order`` inside ``cycle()``, and
- * the ``next:`` chain of ``DENSITY_META`` in ``density_toggle.js``), so adding
- * a density meant editing three lists in two files and any one of them could
- * silently disagree.
+ * wraps. The ONLY place the order lives; ``density_toggle.js`` derives its
+ * "next" label from {@link nextDensity} rather than restating it.
  *
  * @type {string[]}
  */
@@ -49,10 +46,9 @@ export const densityService = {
         const userDensity = user.settings?.density;
         /**
          * Reactive so every consumer re-renders on a change, wherever it came
-         * from. ``DensityToggle`` used to mirror ``current`` into its own
-         * ``useState`` and re-read it only inside its own ``toggle()``, so a
-         * density set by anything else left the systray icon and tooltip
-         * showing the previous mode until the next unrelated render.
+         * from. A consumer mirroring ``current`` into its own ``useState``
+         * instead would keep showing the previous mode whenever the density was
+         * set by anything but itself.
          */
         const state = reactive({
             density: DENSITIES.includes(userDensity) ? userDensity : "default",

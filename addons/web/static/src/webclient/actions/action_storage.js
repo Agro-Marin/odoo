@@ -16,18 +16,11 @@ import { browser } from "@web/core/browser/browser";
  * | ``current_state`` | JSON of the router state (``makeActionState``)   |
  * | ``current_lang``  | plain string — the lang the two above were written under |
  *
- * These used to be read and written as raw string literals from six modules,
- * with two different parse policies: ``current_action`` was parsed inside a
- * ``try``/``catch`` while ``current_state`` was parsed bare. A corrupt
- * ``current_state`` therefore threw inside ``controllersFromState``, and the
- * caller's blanket rescue in ``load_state.js`` degraded the restore to "leaf
- * action, no breadcrumbs" — silently costing the user their back-navigation
- * for what is a purely optional cache.
- *
- * This module is the single owner of that schema. Every read is total: a
- * missing, empty or corrupt value resolves to the same neutral default a
- * missing one would, because all three keys are an optimisation — the URL
- * remains the source of truth.
+ * This module is the single owner of that schema, and every read is TOTAL: a
+ * missing, empty or corrupt value resolves to the same neutral default. All
+ * three keys are an optimisation — the URL remains the source of truth — so a
+ * corrupt one must never propagate an exception into a restore and cost the
+ * user their back-navigation.
  */
 
 const CURRENT_ACTION = "current_action";

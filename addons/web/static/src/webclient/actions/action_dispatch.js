@@ -32,20 +32,15 @@ const actionRegistry = registry.category("actions");
  *   {@link discard}  a newer dispatch destroyed it -> settle the awaiter so it
  *                    before it could mount            cannot hang
  *
- * WHY THIS EXISTS
- * ---------------
- * These three outcomes used to live in ``ControllerComponent``'s lifecycle
- * hooks, while the matching *proposals* (``nextStack``, ``nextDialog``) were
- * made in ``action_service``. One transaction, opened in one file and closed in
- * another, with no object in between — so its invariants could only be stated
- * as prose. Notably this one, which is now {@link _releasePendingDialog}:
+ * The proposal (``nextStack``, ``nextDialog``) and its three outcomes live in
+ * this one object so the transaction's invariants are enforceable rather than
+ * merely stated — notably {@link _releasePendingDialog}'s: "any path that tears
+ * a pending dialog down WITHOUT going through its remove() must clear the slot
+ * itself."
  *
- *   "Any future path that tears a pending dialog down WITHOUT going through its
- *    remove() must clear the slot itself."
- *
- * The component keeps what is genuinely component-local (OWL's ``status``, the
- * ``CallbackRecorder``s) and passes it in; everything that mutates the manager
- * lives here.
+ * ``ControllerComponent`` keeps only what is genuinely component-local (OWL's
+ * ``status``, the ``CallbackRecorder``s) and passes it in; everything that
+ * mutates the manager lives here.
  *
  * NOT a general-purpose abstraction: one instance per dispatch, used once.
  */
@@ -138,13 +133,10 @@ export class ActionDispatch {
      * The dispatch outcome as a dispatch path must expose it to its caller:
      * supersession is a quiet resolve, every other failure propagates.
      *
-     * Both paths go through here, because the "quiet resolve" half of
-     * {@link discard}'s contract lives in the awaiter, not in the rejection.
-     * ``_dispatchTargetNew`` used to return {@link promise} raw while
-     * ``_dispatchInline`` swallowed the SupersededError itself, so a dialog
-     * dispatch superseded before it mounted rejected into its ``doAction``
-     * caller — an unhandled rejection whenever that caller did not await, which
-     * this contract says cannot happen.
+     * BOTH dispatch paths must go through here — the "quiet resolve" half of
+     * {@link discard}'s contract lives in the awaiter, not in the rejection, so
+     * a path returning {@link promise} raw turns a superseded dispatch into an
+     * unhandled rejection in any caller that did not await.
      *
      * @returns {Promise<any>}
      */
@@ -216,12 +208,9 @@ export class ActionDispatch {
      * am._removeDialog(closeParams, removeFn)`` SYNCHRONOUSLY, and
      * ``_removeDialog``'s identity guard is the one place that recognises "the
      * dialog going away is the PENDING one": it hands ``stolenOnClose`` back to
-     * the committed dialog and clears the slot.
-     *
-     * A duplicate of that recovery used to sit here and was proven unreachable
-     * (``_removeDialog`` had always nulled ``nextDialog`` by the time it ran).
-     * Keep the recovery there. Any future path that tears a pending dialog down
-     * WITHOUT going through its ``remove()`` must clear the slot itself.
+     * the committed dialog and clears the slot. Keep the recovery there — any
+     * path that tears a pending dialog down WITHOUT going through its
+     * ``remove()`` must clear the slot itself.
      */
     _releasePendingDialog() {
         this.removeDialogRef.current?.();
