@@ -159,6 +159,27 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
+         * Announce that a section's values were rewritten by a late disk-cache
+         * hit, outside any query mutation.
+         *
+         * The two `orm.cache` callbacks used to `_reset()` + `trigger(UPDATE)`
+         * inline, which is the ONE write path that ignored the batching the rest
+         * of the model funnels through `_notify`: N refreshed sections fired N
+         * renders, and a hit landing inside a blocked window (`load`,
+         * `_reloadSections`, `_withNotificationsBlocked`) fired anyway. Deferring
+         * to the pending-notification flag lets the opener drain it, exactly as
+         * a query mutation raised during that window is drained.
+         */
+        _notifySectionRefreshed() {
+            this._reset();
+            if (this.blockNotification) {
+                this._pendingNotification = true;
+                return;
+            }
+            this.trigger(SearchModelEvent.UPDATE);
+        }
+
+        /**
          * Fetch values for each category at startup or reload.
          * @param {Category[]} categories
          * @returns {Promise}
@@ -184,8 +205,7 @@ export const SearchPanelMixin = (Base) =>
                                         return;
                                     }
                                     this._createCategoryTree(category.id, result);
-                                    this._reset();
-                                    this.trigger(SearchModelEvent.UPDATE);
+                                    this._notifySectionRefreshed();
                                 },
                             })
                             .call(
@@ -252,8 +272,7 @@ export const SearchPanelMixin = (Base) =>
                                         return;
                                     }
                                     this._createFilterTree(filter.id, result);
-                                    this._reset();
-                                    this.trigger(SearchModelEvent.UPDATE);
+                                    this._notifySectionRefreshed();
                                 },
                             })
                             .call(

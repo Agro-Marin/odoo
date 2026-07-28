@@ -60,7 +60,10 @@ export const SearchFavoritesMixin = (Base) =>
                 this.nextGroupId++;
                 this.nextId++;
             });
-            this._notify();
+            // Awaited, not floated: callers await this id to close a dialog or
+            // chain a save, so the reload must have settled by then, and a
+            // rejection needs to reach them rather than go unhandled.
+            await this._notify();
             return serverSideId;
         }
 

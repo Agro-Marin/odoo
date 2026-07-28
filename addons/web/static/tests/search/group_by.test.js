@@ -68,3 +68,10 @@ describe("With field validation", () => {
         expect(() => getGroupBy("date_field:yar", fields)).toThrow();
     });
 });
+
+test("an empty field name throws with the same message as the other rejections", () => {
+    // Used to be a bare `throw Error()`: the caller logged an empty message and
+    // the offending descriptor never reached the developer.
+    expect(() => getGroupBy(":day")).toThrow("Invalid groupBy description: :day");
+    expect(() => getGroupBy("", fields)).toThrow("Invalid groupBy description: ");
+});

@@ -46,14 +46,17 @@ export function indexQueryBySearchItem(query) {
 
 /**
  * Return an enriched copy of `searchItem` with activation status and
- * type-specific metadata (options, autocomplete values), or `null` if hidden.
+ * type-specific metadata (options, autocomplete values).
+ *
+ * Always returns an item — visibility is decided by the caller
+ * (`getSearchItems` evaluates the item's `invisible` expression).
  *
  * @param {Object} searchItem
  * @param {Object[] | Map<number, Object[]>} query - current query elements, or
  *  the {@link indexQueryBySearchItem} index of them
  * @param {any} referenceMoment
  * @param {Object[]} intervalOptions
- * @returns {Object | null}
+ * @returns {Object}
  */
 export function enrichSearchItem(searchItem, query, referenceMoment, intervalOptions) {
     if (searchItem.type === "field" && searchItem.fieldType === "properties") {

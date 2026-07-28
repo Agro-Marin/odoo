@@ -365,10 +365,6 @@ export class SearchArchParser {
         }
         if (node.hasAttribute("invisible")) {
             preSearchItem.invisible = node.getAttribute("invisible");
-            const fieldName = preSearchItem.fieldName;
-            if (fieldName && !this.fields[fieldName]) {
-                return;
-            }
         }
         preSearchItem.groupNumber = this.groupNumber;
         if (node.hasAttribute("name")) {
