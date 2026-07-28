@@ -278,7 +278,7 @@ $-forum-sidebar-width: calc(map-get($container-max-widths, sm) / 2);
             animation-play-state: paused;
 
             &.o_forum_vote_animate {
-                animation: bounceIn 0.3s ease running;
+                animation: o-bounceIn 0.3s ease running;
             }
         }
 

@@ -211,13 +211,9 @@ export class WebsiteForum extends Interaction {
                 }));
             }
         } else {
+            // No spinner to undo: the page-global submit indicator is not
+            // applied to a submit that has been cancelled.
             ev.preventDefault();
-            this.waitForTimeout(() => {
-                currentTargetEl.querySelectorAll("button[type='submit'], a.a-submit").forEach((btnEl) => {
-                    btnEl.querySelector("i").remove();
-                    btnEl.disabled = false;
-                });
-            }, 0);
         }
     }
 
