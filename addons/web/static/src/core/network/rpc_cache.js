@@ -477,12 +477,21 @@ export class RPCCache {
         const shape = immutable ? deepFreeze : deepCopy;
 
         const requestKey = `${table}/${key}`;
+        // Joining an in-flight request requires its RAM entry to still be there,
+        // and that is deliberate rather than incidental. The RAM cache evicts by
+        // LRU, so the entry that disappears may be the not-yet-resolved
+        // placeholder of a request that never settles (a hung fetch). Falling
+        // back to a fresh request there is the escape hatch that keeps one dead
+        // request from wedging every later read of that key — see
+        // "LRU eviction of a still-pending entry does not wedge later reads" in
+        // rpc_cache.test.js. The cost is one redundant fetch in a cache that has
+        // already overflowed; the alternative is an unbounded hang.
         const hasPendingRequest =
             requestKey in this.pendingRequests && ramValue !== undefined;
         if (hasPendingRequest) {
             const pending = this.pendingRequests[requestKey];
             pending.callbacks.push({ callback, shape });
-            return (ramValue || pending.promise).then(shape);
+            return ramValue.then(shape);
         }
 
         if (!ramValue || update === "always") {
@@ -632,7 +641,6 @@ export class RPCCache {
             });
             this.ramCache.write(table, key, prom, model);
             ramValue = prom;
-            request.promise = prom;
         }
 
         return ramValue.then(shape);

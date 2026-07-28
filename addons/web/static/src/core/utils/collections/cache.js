@@ -51,10 +51,19 @@ export class Cache {
     }
 
     /**
+     * Resolve ``path`` to the node holding its entry, plus the key within it.
+     *
+     * ``create`` distinguishes a WRITE — which must materialise the intermediate
+     * nodes it will hang the value off — from a READ-ONLY probe. Without it,
+     * ``clear("never", "registered")`` grew a ``{ never: {} }`` branch on its way
+     * to deleting nothing: a cache-eviction call that made the cache bigger.
+     *
      * @param {any[]} path
-     * @returns {{ cache: Record<string, any>, key: string }}
+     * @param {boolean} create materialise missing intermediate nodes
+     * @returns {{ cache: Record<string, any> | null, key: string }} ``cache`` is
+     *   null when a read-only probe found no such branch.
      */
-    _getCacheAndKey(...path) {
+    _getCacheAndKey(path, create) {
         let cache = this.cache;
         let key;
         if (this.getKey) {
@@ -74,7 +83,13 @@ export class Cache {
                 assertPrimitiveSegment(segment);
             }
             for (let i = 0; i < path.length - 1; i++) {
-                cache = cache[path[i]] = cache[path[i]] || Object.create(null);
+                if (!cache[path[i]]) {
+                    if (!create) {
+                        return { cache: null, key: String(path.at(-1)) };
+                    }
+                    cache[path[i]] = Object.create(null);
+                }
+                cache = cache[path[i]];
             }
             key = path.at(-1);
         }
@@ -87,8 +102,10 @@ export class Cache {
      * @param {any[]} path
      */
     clear(...path) {
-        const { cache, key } = this._getCacheAndKey(...path);
-        delete cache[key];
+        const { cache, key } = this._getCacheAndKey(path, false);
+        if (cache) {
+            delete cache[key];
+        }
     }
 
     /** Flush the entire cache. */
@@ -111,8 +128,8 @@ export class Cache {
      * @param {any[]} path
      */
     set(value, ...path) {
-        const { cache, key } = this._getCacheAndKey(...path);
-        cache[key] = value;
+        const { cache, key } = this._getCacheAndKey(path, true);
+        /** @type {Record<string, any>} */ (cache)[key] = value;
     }
 
     /**
@@ -122,7 +139,8 @@ export class Cache {
      * @returns {T}
      */
     read(...path) {
-        const { cache, key } = this._getCacheAndKey(...path);
+        const { cache: node, key } = this._getCacheAndKey(path, true);
+        const cache = /** @type {Record<string, any>} */ (node);
         if (!(key in cache)) {
             const value = this.getValue(...path);
             cache[key] = value;
