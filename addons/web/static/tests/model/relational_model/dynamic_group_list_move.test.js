@@ -5,7 +5,8 @@
  *
  * A cross-group move optimistically splices the datapoint into the target
  * group, then persists via ``record.update({ save: true })`` (whose own
- * ``mutex.exec`` serializes concurrent saves). On a failed save the move must
+ * ``mutex.exec`` serializes concurrent saves). The splice is deliberately NOT
+ * serialized — see the comment on ``moveRecord``. On a failed save the move must
  * be reverted — and crucially the record's (unsaved) groupby-field change must
  * be DISCARDED, not just the datapoint moved back. Otherwise the reverted card
  * renders in its original column while still carrying the target column's value

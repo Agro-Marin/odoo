@@ -3,7 +3,7 @@
 
 /** @module @web/model/relational_model/relational_model - Top-level data model orchestrating records, groups, and lists with ORM loading and onchange */
 
-import { EventBus, markRaw, toRaw } from "@odoo/owl";
+import { markRaw, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { ModelEvent } from "@web/core/events";
 import { modelLog } from "@web/core/utils/asset_log";
@@ -151,6 +151,13 @@ export const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
     onDisplayLimitNotification: () => {},
 });
 
+/**
+ * Settle rounds {@link RelationalModel._askChanges} runs before giving up. A
+ * compound-update cascade of depth N drains in N rounds; real ones are 1–2
+ * deep, so this only ever trips on a widget that re-registers indefinitely.
+ */
+const ASK_CHANGES_MAX_ROUNDS = 100;
+
 export class RelationalModel extends Model {
     static services = ["orm"];
     static Record = RelationalRecord;
@@ -174,8 +181,6 @@ export class RelationalModel extends Model {
      * @param {Object} _services
      */
     setup(params, _services) {
-        this.bus = new EventBus();
-
         this.keepLast = markRaw(new KeepLast());
         this.countKeepLast = markRaw(new KeepLast());
         this.mutex = markRaw(new Mutex());
@@ -232,6 +237,13 @@ export class RelationalModel extends Model {
         this.urgentSave = new UrgentSaveCoordinator(this.bus);
         /** @type {(() => void) | null} */
         this._closeUrgentSaveNotification = null;
+        /**
+         * Deferred of the in-flight {@link load}, handed to the SWR cache
+         * callback. Retired by {@link _retireRootLoadDef} when that load can no
+         * longer produce a root.
+         * @type {Deferred | null}
+         */
+        this._rootLoadDef = null;
 
         /**
          * In-flight *compound* updates: multi-step record mutations a field
@@ -303,6 +315,13 @@ export class RelationalModel extends Model {
         }
         this.hooks.lifecycle.onWillLoadRoot(config);
         const rootLoadDef = new Deferred();
+        // ``keepLast`` never settles a superseded load's promise, so the await
+        // below would hang and this deferred with it. Retiring the previous
+        // one here is what tells its SWR callback it has been superseded —
+        // otherwise every abandoned load (one per keystroke in a search bar)
+        // leaves a parked callback holding a full server payload.
+        this._retireRootLoadDef();
+        this._rootLoadDef = rootLoadDef;
         const cache = this._getCacheParams(config, rootLoadDef);
         // Debug-gated, like the identical instrumentation in
         // ``list_renderer.js``: nothing clears marks/measures anywhere in web,
@@ -312,12 +331,21 @@ export class RelationalModel extends Model {
         if (profiling) {
             performance.mark("model:loadData:start");
         }
-        const data = await this.keepLast.add(this._loadData(config, cache));
+        let data;
+        try {
+            data = await this.keepLast.add(this._loadData(config, cache));
+        } catch (error) {
+            this._retireRootLoadDef();
+            throw error;
+        }
         if (profiling) {
             performance.measure("model:loadData", "model:loadData:start");
         }
         this.root = this._createRoot(config, data);
         rootLoadDef.resolve({ root: this.root, loadId: config.loadId });
+        if (this._rootLoadDef === rootLoadDef) {
+            this._rootLoadDef = null;
+        }
         this.config = config;
         if (!this.isReady) {
             this.isReady = true;
@@ -392,8 +420,15 @@ export class RelationalModel extends Model {
         // compound update's next step re-takes the mutex. The model is settled
         // only once a whole round finds nothing left in flight. Each round
         // awaits the units it snapshotted, so a cascade of depth N drains in N
-        // rounds; rounds cannot repeat forever unless a widget is looping.
-        while (true) {
+        // rounds.
+        //
+        // Bounded on purpose. A widget whose compound update re-registers on
+        // every round is a bug, but an unbounded loop turns it into a silent
+        // hang: ``save`` / ``leaveEditMode`` / ``load`` all wait on this
+        // barrier, so the view stops responding with nothing in the console to
+        // point at. Same degradation as ``record_save.waitForPendingCommands``
+        // — warn, then proceed and let the mutex do the rest.
+        for (let round = 0; round < ASK_CHANGES_MAX_ROUNDS; round++) {
             const proms = [];
             this.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
             // Only *completion* is the barrier's business: a failed cascade has
@@ -405,6 +440,13 @@ export class RelationalModel extends Model {
                 return;
             }
         }
+        console.warn(
+            `RelationalModel._askChanges: local changes did not settle after ` +
+                `${ASK_CHANGES_MAX_ROUNDS} rounds (resModel: ${this.config.resModel}); ` +
+                `${this._compoundUpdates.size} compound update(s) still in flight. ` +
+                `A field widget is very likely re-opening one from a render side ` +
+                `effect — see trackCompoundUpdate(). Proceeding unsettled.`,
+        );
     }
 
     /**
@@ -438,6 +480,19 @@ export class RelationalModel extends Model {
         return new this.Class.DynamicRecordList(this, config, data);
     }
 
+    /**
+     * Settle the deferred of a load that will never produce a root — rejected,
+     * or superseded by a newer {@link load}. The SWR callback registered
+     * against it awaits it as its very first step, so resolving with ``null``
+     * is what lets that callback return instead of parking forever.
+     */
+    _retireRootLoadDef() {
+        if (this._rootLoadDef) {
+            this._rootLoadDef.resolve(null);
+            this._rootLoadDef = null;
+        }
+    }
+
     _getCacheParams(config, rootLoadDef) {
         if (!this.withCache) {
             return;
@@ -455,7 +510,13 @@ export class RelationalModel extends Model {
                     if (!hasChanged) {
                         return;
                     }
-                    const { root, loadId } = await rootLoadDef;
+                    const loaded = await rootLoadDef;
+                    if (!loaded) {
+                        // The load this cached read belongs to never produced a
+                        // root (it failed, or a newer load superseded it).
+                        return;
+                    }
+                    const { root, loadId } = loaded;
                     if (
                         root.config.isMonoRecord &&
                         currentResId !== root.config.resId

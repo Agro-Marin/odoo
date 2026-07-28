@@ -130,17 +130,35 @@ export class Group extends DataPoint {
     }
 
     /**
-     * The count returned by web_search_read is limited (see DEFAULT_COUNT_LIMIT). However, the one
-     * returned by formatted_read_group, for each group, isn't. So in the grouped case, it might happen
-     * that the group count is more accurate than the list one. It that case, we use it on the list.
+     * ``web_search_read`` caps its count at ``countLimit`` (see
+     * DEFAULT_COUNT_LIMIT); the per-group count from ``formatted_read_group``
+     * is not capped. Where the list's number is the capped one, adopt the
+     * group's.
+     *
+     * Asks the list whether it capped, rather than inferring it by comparing
+     * ``count`` to ``countLimit``. That comparison answered correctly only by
+     * accident: a group's list config carries no ``countLimit`` until its first
+     * ``_loadData``, so on the initial (read_group-embedded) load it compared a
+     * number against ``undefined`` — false, which happens to be the right
+     * answer there because that count came from read_group and was never
+     * capped. ``hasLimitedCount`` is set by ``_updateCount`` precisely when it
+     * truncated, so it states the condition instead of re-deriving it.
      */
     _useGroupCountForList() {
-        if (!this.list.isGrouped && this.list.count === this.list.config.countLimit) {
+        if (!this.list.isGrouped && this.list.hasLimitedCount) {
             this.list.count = this.count;
         }
     }
 
-    async _removeRecords(recordIds) {
+    /**
+     * Synchronous on purpose: ``DynamicList._leaveEditMode`` drops an abandoned
+     * new row through this without awaiting, and reads ``this.editedRecord``
+     * on the very next line. An ``async`` signature over a fully synchronous
+     * body only made that call site read as a race it never was.
+     *
+     * @param {(string | number)[]} recordIds
+     */
+    _removeRecords(recordIds) {
         const idsToRemove = recordIds.filter((id) =>
             this.list.records.some((r) => r.id === id),
         );

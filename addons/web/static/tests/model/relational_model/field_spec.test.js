@@ -173,3 +173,45 @@ describe("getFieldsSpec — properties", () => {
         expect("display_name" in result.task_id.fields).toBe(true);
     });
 });
+
+describe("spec context key hygiene", () => {
+    test("a field with no resolvable context carries no 'context' key at all", () => {
+        const spec = getFieldsSpec(
+            {
+                partner_id: makeActiveField(),
+                line_ids: {
+                    ...makeActiveField(),
+                    related: { activeFields: {}, fields: {} },
+                },
+            },
+            {
+                partner_id: {
+                    name: "partner_id",
+                    type: "many2one",
+                    relation: "res.partner",
+                },
+                line_ids: { name: "line_ids", type: "one2many", relation: "line" },
+            },
+            {},
+        );
+        // Assigning an undefined result still creates the key; these assert the
+        // key is absent, which `toEqual`-style checks would not catch.
+        expect("context" in spec.partner_id).toBe(false);
+        expect("context" in spec.line_ids).toBe(false);
+    });
+
+    test("a resolvable context is still emitted", () => {
+        const spec = getFieldsSpec(
+            { partner_id: { ...makeActiveField(), context: "{'default_x': 1}" } },
+            {
+                partner_id: {
+                    name: "partner_id",
+                    type: "many2one",
+                    relation: "res.partner",
+                },
+            },
+            {},
+        );
+        expect(spec.partner_id.context).toEqual({ default_x: 1 });
+    });
+});

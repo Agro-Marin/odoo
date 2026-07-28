@@ -1023,6 +1023,18 @@ export class RelationalRecord extends DataPoint {
                 throw e;
             }
         }
+        // Drop many2ones the preprocessor resolved to the value already held,
+        // so re-picking the same record leaves the record clean.
+        //
+        // AFTER the onchange, not before, and that ordering is load-bearing:
+        // editing a linked record through the m2o's external-open dialog writes
+        // the SAME {id, display_name} back on save precisely to re-run the
+        // parent's onchange against the linked record's new contents. Moving
+        // this ahead of the RPC empties ``changes``, ``_getOnchangeValues``
+        // finds no onChange field and skips the call, and the parent silently
+        // keeps values computed from the pre-edit record. Pinned by
+        // many2one_field.test.js "onchanges on many2ones trigger when editing
+        // record in form view".
         for (const fieldName of Object.keys(changes)) {
             if (this.fields[fieldName].type === "many2one") {
                 const curVal = toRaw(this.data[fieldName]);

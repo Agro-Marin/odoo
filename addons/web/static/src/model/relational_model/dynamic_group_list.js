@@ -28,7 +28,10 @@ export class DynamicGroupList extends DynamicList {
         super.setup(_config);
 
         this.isGrouped = true;
+        /** @type {number | null} */
         this._nbRecordsMatchingDomain = null;
+        /** Serialized domain ``_nbRecordsMatchingDomain`` was counted under. */
+        this._countedDomainKey = undefined;
         this._setData(/** @type {any} */ (data));
     }
 
@@ -36,6 +39,26 @@ export class DynamicGroupList extends DynamicList {
      * @param {{ groups: any[], length: number, [key: string]: any }} data
      */
     _setData(data) {
+        // ``_nbRecordsMatchingDomain`` caches a ``search_count`` of ONE domain,
+        // but nothing tied it to that domain: ``recordCount`` returns it
+        // verbatim whenever non-null and ``isRecordCountTrustable`` reports
+        // ``true`` for the same reason, so ``_ensureCorrectRecordCount``
+        // short-circuits forever after the first call. A reload that changes
+        // the domain on THIS instance then keeps answering for the previous
+        // one, to the delete/archive truncation warnings and
+        // ``Group.applyFilter``.
+        //
+        // Scoped to an actual domain change rather than dropped on every
+        // ``_setData``: a same-domain reload (``sortBy``, the pager) would
+        // otherwise re-issue the ``search_count`` for a number it already knows.
+        // ``_reloadWithConfig`` commits the new config before calling this, so
+        // ``this.domain`` is already the reloaded one here.
+        if (
+            this._nbRecordsMatchingDomain !== null &&
+            JSON.stringify(this.domain) !== this._countedDomainKey
+        ) {
+            this._nbRecordsMatchingDomain = null;
+        }
         /** @type {import("./group").Group[]} */
         this.groups = data.groups.map((g) => this._createGroupDatapoint(g));
         this.count = data.length;
@@ -96,6 +119,18 @@ export class DynamicGroupList extends DynamicList {
     }
 
     /**
+     * Drag-and-drop a card to another column (or reorder within one).
+     *
+     * DELIBERATELY NOT wrapped in ``model.mutex``, unlike every other public
+     * list mutator. The optimistic splice below must land the instant the card
+     * is dropped: serializing the whole method makes a second drag queue behind
+     * the first drag's still-pending ``web_save``, so the card visibly stays
+     * put until the network answers. Only the persistence step takes the mutex,
+     * via ``record.update({ save: true })``, which is what serializes the
+     * writes. Pinned by kanban_view.test.js "drag and drop records and quickly
+     * open a record" (two drags against unresolved saves) — that test fails
+     * with counts 1/3 instead of 0/4 the moment this is serialized.
+     *
      * @param {string} dataRecordId
      * @param {string} dataGroupId
      * @param {string} refId
@@ -134,6 +169,9 @@ export class DynamicGroupList extends DynamicList {
 
         const sourceGroupValue = sourceGroup.value;
         const targetGroupValue = targetGroup.value;
+        // Groups are re-resolved rather than captured: the save may have
+        // reloaded the tree, replacing the Group datapoints this closure was
+        // built with.
         const revert = () =>
             this.model.mutex.exec(() => {
                 const currentTargetGroup = this.groups.find(
@@ -336,6 +374,7 @@ export class DynamicGroupList extends DynamicList {
 
     async _ensureCorrectRecordCount() {
         if (!this.isRecordCountTrustable) {
+            this._countedDomainKey = JSON.stringify(this.domain);
             this._nbRecordsMatchingDomain = await this.model.orm.searchCount(
                 this.resModel,
                 this.domain,
@@ -379,12 +418,11 @@ export class DynamicGroupList extends DynamicList {
         this.count--;
     }
 
+    /** @param {(string | number)[]} recordIds */
     _removeRecords(recordIds) {
-        const proms = [];
         for (const group of this.groups) {
-            proms.push(group._removeRecords(recordIds));
+            group._removeRecords(recordIds);
         }
-        return Promise.all(proms);
     }
 
     _selectDomain(value) {

@@ -5,6 +5,17 @@
 
 import { evalPartialContext } from "@web/core/context";
 import { orderByToString } from "@web/core/utils/order_by";
+
+/**
+ * Resolve a field's spec context, or ``undefined`` when it resolves to nothing.
+ *
+ * Callers must use {@link setSpecContext} rather than assigning the result:
+ * writing ``undefined`` still creates the key, so an empty context left every
+ * relational entry carrying a ``context: undefined`` own property. Harmless on
+ * the wire (``JSON.stringify`` drops it) but it makes the spec lie to anything
+ * that inspects it — ``"context" in spec``, ``Object.keys(spec).length`` — and
+ * those specs are used as RPC cache keys.
+ */
 function getFieldContextForSpec(activeFields, fields, fieldName, evalContext) {
     let context = activeFields[fieldName].context;
     if (!context || context === "{}") {
@@ -14,6 +25,18 @@ function getFieldContextForSpec(activeFields, fields, fieldName, evalContext) {
     }
     if (Object.keys(context).length > 0) {
         return context;
+    }
+}
+
+/**
+ * Assign a resolved spec context only when there is one.
+ *
+ * @param {Record<string, any>} fieldSpec
+ * @param {Record<string, any> | undefined} context
+ */
+function setSpecContext(fieldSpec, context) {
+    if (context) {
+        fieldSpec.context = context;
     }
 }
 
@@ -49,11 +72,14 @@ export function getFieldsSpec(
                         evalContext,
                         { withInvisible },
                     );
-                    fieldsSpec[fieldName].context = getFieldContextForSpec(
-                        activeFields,
-                        fields,
-                        fieldName,
-                        evalContext,
+                    setSpecContext(
+                        fieldsSpec[fieldName],
+                        getFieldContextForSpec(
+                            activeFields,
+                            fields,
+                            fieldName,
+                            evalContext,
+                        ),
                     );
                     fieldsSpec[fieldName].limit = limit;
                     const orderBy = orderBys?.[fieldName] || defaultOrderBy || [];
@@ -75,11 +101,14 @@ export function getFieldsSpec(
                         );
                     }
                     fieldsSpec[fieldName].fields.display_name = {};
-                    fieldsSpec[fieldName].context = getFieldContextForSpec(
-                        activeFields,
-                        fields,
-                        fieldName,
-                        evalContext,
+                    setSpecContext(
+                        fieldsSpec[fieldName],
+                        getFieldContextForSpec(
+                            activeFields,
+                            fields,
+                            fieldName,
+                            evalContext,
+                        ),
                     );
                 }
                 break;
@@ -91,11 +120,14 @@ export function getFieldsSpec(
                         related.fields,
                         evalContext,
                     );
-                    fieldsSpec[fieldName].context = getFieldContextForSpec(
-                        activeFields,
-                        fields,
-                        fieldName,
-                        evalContext,
+                    setSpecContext(
+                        fieldsSpec[fieldName],
+                        getFieldContextForSpec(
+                            activeFields,
+                            fields,
+                            fieldName,
+                            evalContext,
+                        ),
                     );
                 }
                 break;
