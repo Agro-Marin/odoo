@@ -5,9 +5,11 @@ Two backends, picked at import time:
 * ``inotify`` (POSIX preferred — kernel events, no polling)
 * ``watchdog`` (cross-platform fallback — uses fsevents/kqueue/polling)
 
-Constructed by ``lifecycle.start()`` when ``--dev=reload`` is active.  Both call
-``lifecycle.restart()`` when a Python source file under the addons path changes
-(lazy import, so this module has no top-level dependency on ``lifecycle``).
+Constructed by ``lifecycle.start()`` when ``--dev=reload`` or ``--dev=assets``
+is active.  Under ``reload`` both backends call ``lifecycle.restart()`` when a
+Python source file under the addons path changes (lazy import, so this module
+has no top-level dependency on ``lifecycle``); under ``assets`` a changed
+``static/`` asset source drops the assets cache instead of restarting.
 """
 
 from __future__ import annotations
@@ -53,6 +55,41 @@ _logger = logging.getLogger("odoo.service.server")
 _OBSERVER_JOIN_TIMEOUT_S = 5.0
 
 
+ASSET_SUFFIXES = (".js", ".xml", ".scss", ".css")
+
+
+def inotify_watch_paths() -> list[str]:
+    """Directories for the ``InotifyTrees`` backend, narrowed to the mode.
+
+    ``reload`` must see every ``.py`` under the addons path, so it watches the
+    trees whole. ``assets`` alone only cares about bundled sources, and
+    narrowing to ``static/{src,tests}`` cuts the cost from ~20.8k inotify
+    watches per server to ~5.8k. That matters because the limit
+    (``fs.inotify.max_user_watches``, 65536 by default) is per *user*, shared
+    with the developer's editor — at the wide count a third warm server
+    already fails to start, which ``hoot-shard -j 6`` would hit every run.
+
+    Deliberately NOT used by the watchdog backend, which pays per *scheduled
+    path* rather than per watched directory — see :class:`FSWatcherWatchdog`.
+    """
+    from odoo.tools import config
+
+    roots = list(odoo.addons.__path__)
+    if "reload" in config["dev_mode"]:
+        return roots
+    paths = []
+    for root in roots:
+        root_path = Path(root)
+        if not root_path.is_dir():
+            continue
+        for addon in sorted(root_path.iterdir()):
+            for kind in ("src", "tests"):
+                tree = addon / "static" / kind
+                if tree.is_dir():
+                    paths.append(str(tree))
+    return paths
+
+
 class FSWatcherBase:
     """Common file-change handler for both backends.
 
@@ -63,9 +100,56 @@ class FSWatcherBase:
 
     _reload_triggered = False
 
+    def handle_asset_file(self, path: str) -> None:
+        """Invalidate the assets cache of every database this server serves.
+
+        This is the causal signal the asset caches were missing. Without it the
+        only way to keep them correct across a file edit was to not use them —
+        which is what ``--dev=xml`` does, at a measured 4.5x on every render —
+        or to infer "the sources changed" from "a rebuild produced a different
+        artifact", which throws away the entry the same request just computed.
+        Watching the sources says it directly, so the caches can stay on.
+
+        Propagation goes through the signalling table rather than through an
+        in-memory ``clear_cache``. Under ``--workers`` this thread runs in the
+        prefork master, which serves no request and — threads not surviving
+        ``fork`` — shares no registry with its children: clearing in place
+        reached nobody, and the workers went on answering the same URL with
+        different bundles depending on which one replied. Writing the row
+        instead reaches every process through ``Registry.check_signaling``,
+        which ``http/_serve.py`` runs at the start of each request, i.e.
+        exactly when a stale bundle would otherwise be served. The previous
+        bundle URL stays live for pages already loaded until
+        ``IrAttachment._gc_esm_assets`` sweeps it a grace window later.
+        """
+        from odoo import db as odoo_db
+        from odoo.orm.runtime.registry import Registry
+        from odoo.tools import config
+
+        databases = set(Registry.registries.snapshot) | set(config["db_name"] or ())
+        for db_name in databases:
+            try:
+                with odoo_db.db_connect(db_name).cursor() as cr:
+                    cr.execute("INSERT INTO orm_signaling_assets DEFAULT VALUES")
+            except Exception:
+                _logger.warning(
+                    "assets watch: could not invalidate %s for %s",
+                    db_name,
+                    path,
+                    exc_info=True,
+                )
+
     def handle_file(self, path: str) -> bool | None:
-        """Check if a changed file is a Python source and trigger autoreload."""
+        """Route a changed file: asset sources invalidate, Python reloads."""
+        from odoo.tools import config
+
+        if path.endswith(ASSET_SUFFIXES) and "/static/" in path:
+            if "assets" in config["dev_mode"]:
+                self.handle_asset_file(path)
+            return None
         if self._reload_triggered:
+            return None
+        if "reload" not in config["dev_mode"]:
             return None
         if path.endswith(".py") and not Path(path).name.startswith(".~"):
             try:
@@ -95,12 +179,22 @@ class FSWatcherBase:
 
 
 class FSWatcherWatchdog(FSWatcherBase):
-    """Cross-platform fallback using the ``watchdog`` library."""
+    """Cross-platform fallback using the ``watchdog`` library.
+
+    Watches the addons roots whole in every mode, and lets ``handle_file``
+    discard what it does not care about — the opposite of the inotify backend,
+    on purpose. ``watchdog`` spends one *emitter thread pair and one inotify
+    instance per scheduled path*, not per directory, so handing it the narrowed
+    ``static/{src,tests}`` list (910 paths here) would ask for 910 instances
+    against an ``fs.inotify.max_user_instances`` of 128 — measured to fail at
+    50 — and ~1820 threads. Roots cost 6 instances, whatever the mode.
+    """
 
     def __init__(self) -> None:
         self.observer = Observer()
-        for path in odoo.addons.__path__:
-            _logger.info("Watching addons folder %s", path)
+        paths = list(odoo.addons.__path__)
+        _logger.info("Watching %d folder(s) for changes", len(paths))
+        for path in paths:
             self.observer.schedule(self, path, recursive=True)
 
     def dispatch(self, event) -> None:
@@ -131,9 +225,8 @@ class FSWatcherInotify(FSWatcherBase):
         self.started = False
         self.thread: threading.Thread | None = None
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
-        paths_to_watch = list(odoo.addons.__path__)
-        for path in paths_to_watch:
-            _logger.info("Watching addons folder %s", path)
+        paths_to_watch = inotify_watch_paths()
+        _logger.info("Watching %d folder(s) for changes", len(paths_to_watch))
         self.watcher = InotifyTrees(
             paths_to_watch, mask=INOTIFY_LISTEN_EVENTS, block_duration_s=0.5
         )

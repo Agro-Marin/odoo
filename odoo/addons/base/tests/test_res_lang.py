@@ -2,6 +2,7 @@ import locale
 
 from odoo import tools
 from odoo.exceptions import UserError
+from odoo.orm.fields.binary import Binary
 from odoo.tests.common import BaseCase, TransactionCase
 from odoo.tools import mute_logger
 
@@ -298,3 +299,56 @@ class TestResLangUnsavedRecord(TransactionCase):
     def test_flag_image_url_still_derived_from_code(self):
         lang = self.env["res.lang"].new({"code": "fr_BE"})
         self.assertEqual(lang.flag_image_url, "/base/static/img/country_flags/be.png")
+
+
+class TestFlagImageUrlDoesNotLoadImages(TransactionCase):
+    """The URL compute asks whether a flag exists, so it must not read one.
+
+    ``flag_image`` is an attachment-backed Image and ``flag_image_url`` is in
+    ``CACHED_FIELDS``, so reading the payload to answer a yes/no fetched and
+    base64-encoded every active language's image on each cold warm-up of the
+    language cache.
+    """
+
+    PNG_1X1 = (
+        b"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8"
+        b"z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+    )
+
+    def test_url_reflects_the_uploaded_flag_without_reading_it(self):
+        lang = self.env.ref("base.lang_en")
+        lang.flag_image = self.PNG_1X1
+        lang.invalidate_recordset()
+        self.assertEqual(
+            lang.flag_image_url, f"/web/image/res.lang/{lang.id}/flag_image"
+        )
+
+        lang.flag_image = False
+        lang.invalidate_recordset()
+        self.assertEqual(lang.flag_image_url, "/base/static/img/country_flags/us.png")
+
+    def test_computing_the_url_never_materializes_the_payload(self):
+        lang = self.env.ref("base.lang_en")
+        lang.flag_image = self.PNG_1X1
+        lang.flush_recordset()
+
+        read_sizes = []
+        original = Binary.read
+
+        def spy(field, records):
+            if field.name == "flag_image":
+                read_sizes.append(
+                    bool(records.env.context.get("bin_size"))
+                    or bool(records.env.context.get("bin_size_flag_image"))
+                )
+            return original(field, records)
+
+        self.patch(Binary, "read", spy)
+        self.env.invalidate_all()
+        self.env["res.lang"].search([])._compute_field_flag_image_url()
+
+        self.assertTrue(read_sizes, "the compute must still consult flag_image")
+        self.assertTrue(
+            all(read_sizes),
+            "flag_image was read for its payload, not merely for its size",
+        )

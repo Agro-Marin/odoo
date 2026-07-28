@@ -518,6 +518,64 @@ class TestEsmConfigValidation(TransactionCase):
             reg.secondary_import_map_includes,
         )
 
+    def test_dynamic_children_follow_bundle_includes(self):
+        """A child declared on an INCLUDED bundle must apply to the includer.
+
+        ``esm.dynamic_children`` is keyed by bundle name, but bundles compose:
+        ``web.assets_frontend_lazy`` is ``("include", "web.assets_frontend")``
+        plus removals, and it is the bundle frontend pages render with JS —
+        ``web.assets_frontend`` itself is called ``t-js="false"``. Resolving
+        children by name alone dropped every child declared against the included
+        bundle, and since only the first ESM bundle's import map is honoured per
+        document, the child's specifiers never reached the page: the
+        ``import()`` after ``loadBundle`` died with "Failed to resolve module
+        specifier". That silently disabled every tour on a frontend page and
+        the whole portal chatter.
+        """
+        reg = esm_registry()
+        frontend_children = reg.dynamic_children["web.assets_frontend"]
+        self.assertTrue(
+            frontend_children,
+            "web.assets_frontend must declare dynamic children for this to test anything",
+        )
+
+        IrQweb = self.env["ir.qweb"]
+        assets_params = self.env["ir.asset"]._get_asset_params()
+
+        parents = IrQweb._get_dynamic_parent_bundles(
+            "web.assets_frontend_lazy", assets_params
+        )
+        self.assertEqual(parents[0], "web.assets_frontend_lazy")
+        self.assertIn(
+            "web.assets_frontend",
+            parents,
+            "the include graph of web.assets_frontend_lazy must reach web.assets_frontend",
+        )
+
+        resolved = {
+            child.name
+            for child in IrQweb._get_dynamic_child_bundles(
+                "web.assets_frontend_lazy", assets_params, debug_assets=False
+            )
+        }
+        self.assertLessEqual(
+            set(frontend_children),
+            resolved,
+            "children of the included bundle must be built for the includer",
+        )
+
+    def test_dynamic_children_are_deduplicated(self):
+        """A child declared on several contributing bundles is built once."""
+        IrQweb = self.env["ir.qweb"]
+        assets_params = self.env["ir.asset"]._get_asset_params()
+        names = [
+            child.name
+            for child in IrQweb._get_dynamic_child_bundles(
+                "web.assets_frontend_lazy", assets_params, debug_assets=False
+            )
+        ]
+        self.assertEqual(len(names), len(set(names)), f"duplicate children: {names}")
+
     def test_unregistered_secondary_parent_rejected(self):
         with self.assertRaisesRegex(ValueError, "secondary_import_map_includes"):
             validate_esm_config(

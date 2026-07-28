@@ -4,6 +4,8 @@ Each test pins the expected SQL query count for an optimized path; an N+1
 regression fails the test with a higher count.
 """
 
+import traceback
+
 from odoo.tests.common import TransactionCase, tagged, warmup
 
 
@@ -229,8 +231,17 @@ class TestBasePerfRegression(TransactionCase):
 
         def spy(cr_self, query, params=None, **kwargs):
             code = getattr(query, "code", None) or str(query)
-            if 'FROM "ir_attachment"' in code and '"res_field"' in code:
-                seen.append(code)
+            if (
+                'FROM "ir_attachment"' in code
+                and '"res_field"' in code
+                and "res.partner" in str(params)
+            ):
+                caller = [
+                    f"{frame.filename.rsplit('/odoo/', 1)[-1]}:{frame.lineno}"
+                    for frame in traceback.extract_stack()[:-1]
+                    if "/addons/" in frame.filename or "/orm/fields/" in frame.filename
+                ]
+                seen.append(" <- ".join(reversed(caller[-4:])))
             return original_execute(cr_self, query, params, **kwargs)
 
         self.env.invalidate_all()
@@ -245,5 +256,5 @@ class TestBasePerfRegression(TransactionCase):
             len(seen),
             4,
             f"expected at most 4 ir_attachment lookups for a 20-record create, "
-            f"got {len(seen)}",
+            f"got {len(seen)}:\n  " + "\n  ".join(seen),
         )

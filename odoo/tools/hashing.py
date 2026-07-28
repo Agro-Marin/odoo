@@ -49,6 +49,7 @@ except ImportError:
 __all__ = [
     "ALGO_TAG",
     "CONTENT_DIGEST_LEN",
+    "CONTENT_DIGEST_LEN_BY_TAG",
     "CONTENT_DIGEST_MAX_LEN",
     "HAS_BLAKE3",
     "cache_hash",
@@ -63,7 +64,9 @@ HAS_BLAKE3 = _blake3 is not None
 
 ALGO_TAG = "b3" if HAS_BLAKE3 else "s1"
 
-CONTENT_DIGEST_LEN = 64 if HAS_BLAKE3 else 40
+CONTENT_DIGEST_LEN_BY_TAG = {"s1": 40, "b3": 64}
+
+CONTENT_DIGEST_LEN = CONTENT_DIGEST_LEN_BY_TAG[ALGO_TAG]
 
 CONTENT_DIGEST_MAX_LEN = 64
 

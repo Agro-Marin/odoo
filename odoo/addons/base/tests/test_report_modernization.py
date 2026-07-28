@@ -164,6 +164,40 @@ class TestWeasyWarningCapture(odoo.tests.TransactionCase):
         self.assertEqual(sink, ["Ignored `bogus-property: 1`"])
         self.assertEqual(logger.level, level_before)
 
+    def test_capture_does_not_propagate_to_ancestor_handlers(self):
+        """Captured warnings reach ``sink`` only, never the ancestor handlers.
+
+        Lowering the level to WARNING without stopping propagation would undo
+        the process-wide ERROR silencing and flood the log with hundreds of
+        per-declaration warnings per rendered report.
+        """
+        logger = logging.getLogger("weasyprint")
+        propagate_before = logger.propagate
+        sink = []
+        with self.assertNoLogs(level=logging.WARNING):
+            with _weasy_warning_capture.capture(sink):
+                self.assertFalse(logger.propagate)
+                logger.warning("Ignored `bogus-property: 1`")
+        self.assertEqual(sink, ["Ignored `bogus-property: 1`"])
+        self.assertIs(logger.propagate, propagate_before)
+
+    def test_nested_capture_restores_state_once(self):
+        """Only the outermost capture restores level and propagation."""
+        logger = logging.getLogger("weasyprint")
+        level_before = logger.level
+        propagate_before = logger.propagate
+        outer, inner = [], []
+        with _weasy_warning_capture.capture(outer):
+            with _weasy_warning_capture.capture(inner):
+                logger.warning("inner")
+            self.assertFalse(logger.propagate)
+            self.assertEqual(logger.level, logging.WARNING)
+            logger.warning("outer")
+        self.assertEqual(logger.level, level_before)
+        self.assertIs(logger.propagate, propagate_before)
+        self.assertEqual(inner, ["inner"])
+        self.assertEqual(outer, ["inner", "outer"])
+
     def test_render_error_includes_captured_warnings(self):
         engine = self.env["ir.actions.report"]._build_weasyprint_engine()
         engine._captured_warnings = ["Ignored `flex: 1` at 3:7"]

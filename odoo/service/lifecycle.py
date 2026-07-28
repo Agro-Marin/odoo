@@ -342,21 +342,34 @@ def start(preload: list[str] | None = None, stop: bool = False) -> int:
     _warn_on_connection_budget()
 
     watcher = None
-    if "reload" in config["dev_mode"] and not odoo.evented:
-        if inotify:
-            watcher = FSWatcherInotify()
-            watcher.start()
-        elif watchdog:
-            watcher = FSWatcherWatchdog()
-            watcher.start()
+    if {"reload", "assets"} & set(config["dev_mode"]) and not odoo.evented:
+        if inotify or watchdog:
+            try:
+                watcher = FSWatcherInotify() if inotify else FSWatcherWatchdog()
+                watcher.start()
+            except Exception:
+                watcher = None
+                _logger.warning(
+                    "Could not start the file watcher — the server runs without "
+                    "it, so source edits are NOT picked up. On Linux this is "
+                    "usually fs.inotify.max_user_watches being exhausted "
+                    "(shared with your editor); raise it, or run fewer servers.",
+                    exc_info=True,
+                )
         else:
             if os.name == "posix" and platform.system() != "Darwin":
                 module = "inotify"
             else:
                 module = "watchdog"
             _logger.warning(
-                "'%s' module not installed. Code autoreload feature is disabled",
+                "'%s' module not installed. Code autoreload is disabled%s",
                 module,
+                (
+                    " — with --dev=assets and no watcher, edited asset sources "
+                    "are NOT picked up; use --dev=xml instead"
+                    if "assets" in config["dev_mode"]
+                    else ""
+                ),
             )
 
     try:

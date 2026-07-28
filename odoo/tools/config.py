@@ -30,7 +30,7 @@ _dangerous_logger = logging.getLogger(__name__)
 
 optparse._ = str
 
-ALL_DEV_MODE = ["access", "qweb", "reload", "xml"]
+ALL_DEV_MODE = ["access", "assets", "qweb", "reload", "xml"]
 DEFAULT_SERVER_WIDE_MODULES = ["base", "rpc", "web"]
 REQUIRED_SERVER_WIDE_MODULES = ["base", "web"]
 
@@ -1077,8 +1077,10 @@ class configmanager:
             file_exportable=False,
             env_name="ODOO_DEV",
             help="Enable developer features (comma-separated list, use   "
-            '"all" for access,reload,qweb,xml). Available features: '
+            '"all" for access,assets,reload,qweb,xml). Features:     '
             "- access: log the traceback of access errors           "
+            "- assets: watch asset sources, drop the assets cache on "
+            "  change (same live-reload as xml, but cached)         "
             "- qweb: log the compiled xml with qweb errors          "
             "- reload: restart server on change in the source code  "
             "- replica: simulate a deployment with readonly replica "
