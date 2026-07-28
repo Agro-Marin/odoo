@@ -286,6 +286,10 @@ class DelayedProxy:
 
     Any method call on it enqueues an ``ir.job`` instead of executing;
     call-site keyword overrides win over the ``@api.job`` defaults.
+
+    Dunders are refused: a proxy that answers every name answers
+    ``__deepcopy__``, ``__reduce__`` and ``__iter__`` too, so copying, pickling
+    or merely introspecting one enqueued a job named after the dunder.
     """
 
     __slots__ = ("_props", "_records")
@@ -295,6 +299,8 @@ class DelayedProxy:
         self._props = props
 
     def __getattr__(self, name: str):
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
         records, props = self._records, self._props
 
         def enqueue(*args: Any, **kwargs: Any) -> models.BaseModel:
@@ -308,6 +314,7 @@ class DelayedProxy:
 class Base(models.AbstractModel):
     _inherit = "base"
 
+    @api.private
     def delayed(
         self,
         *,
@@ -339,6 +346,12 @@ class Base(models.AbstractModel):
             previous ``delayed()`` result; fan-in by passing a union.
         :param description: human-readable label shown in the job list
             instead of the technical ``model.method`` name
+
+        Private: this is a server-side enqueue entry point on *every* model, so
+        it has no business on the RPC surface.  It was reachable there (a public
+        method on ``base``), harmless only by accident -- the proxy it returns is
+        not serialisable, so the call died on the way back rather than on the
+        way in.
         """
         return DelayedProxy(
             self,
