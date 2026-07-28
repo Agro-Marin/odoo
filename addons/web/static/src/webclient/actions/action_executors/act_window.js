@@ -31,7 +31,10 @@ import { findView } from "../action_views.js";
  */
 function resolveLazyCrumb(action, options) {
     const newStack = options.newStack;
-    const lastController = newStack?.at(-1);
+    if (!newStack?.length) {
+        return options;
+    }
+    const lastController = newStack.at(-1);
     if (!lastController?.lazy) {
         return options;
     }

@@ -82,8 +82,10 @@ const VARIANT_FLIP_ORDER = { start: "se", middle: "m", end: "es", fit: "f" };
  * @returns {HTMLIFrameElement?}
  */
 function getIFrame(popperEl, targetEl) {
-    return [...popperEl.ownerDocument.getElementsByTagName("iframe")].find((iframe) =>
-        iframe.contentDocument?.contains(targetEl),
+    return (
+        [...popperEl.ownerDocument.getElementsByTagName("iframe")].find((iframe) =>
+            iframe.contentDocument?.contains(targetEl),
+        ) ?? null
     );
 }
 
@@ -125,14 +127,25 @@ export function reverseForRTL(direction, variant = "middle") {
 function computePosition(
     popper,
     target,
-    { container, extendedFlipping, flip, margin, position, shrink },
+    {
+        container,
+        extendedFlipping,
+        flip,
+        // `reposition` always spreads DEFAULTS underneath the caller's options,
+        // so these three are present on every call; defaulting them here says
+        // so rather than leaving `margin` to be read as possibly-undefined at
+        // the four places it enters the arithmetic below.
+        margin = DEFAULTS.margin ?? 0,
+        position = DEFAULTS.position ?? "bottom",
+        shrink,
+    },
 ) {
     const [d, v] = position.split("-");
     const [direction, variant = "middle"] = reverseForRTL(
         /** @type {Direction} */ (d),
         /** @type {Variant} */ (v),
     );
-    let directions = [direction.at(0)];
+    let directions = [direction[0]];
     if (flip) {
         directions = /** @type {any} */ (
             extendedFlipping
@@ -220,6 +233,11 @@ function computePosition(
             : [contBox.top + topCompensation, contBox.bottom + topCompensation];
 
         if (containerIsHTMLNode) {
+            // NB: only the Y axis is compensated — `scrollLeft` is never added.
+            // That asymmetry looks like an oversight but is NOT known to be a
+            // bug: the webclient's root element does not scroll horizontally,
+            // and no scenario has been produced where the missing term changes
+            // a placement. Do not "fix" it without a test that fails first.
             if (vertical) {
                 directionMin += cont.scrollTop;
                 directionMax += cont.scrollTop;

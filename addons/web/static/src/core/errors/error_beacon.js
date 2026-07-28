@@ -48,8 +48,8 @@ export function reportJsError(info) {
     if (!message) {
         return false;
     }
-    const line = info.line | 0;
-    const col = info.col | 0;
+    const line = (info.line ?? 0) | 0;
+    const col = (info.col ?? 0) | 0;
     const key = `${message}|${line}|${col}`;
     if (seen.has(key)) {
         return false;

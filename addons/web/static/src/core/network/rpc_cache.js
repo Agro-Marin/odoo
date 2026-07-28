@@ -141,36 +141,37 @@ class Crypto {
      * @param {string} secret
      */
     constructor(secret) {
-        this._cryptoKey = null;
-        this._ready = window.crypto.subtle
-            .importKey(
-                "raw",
-                new Uint8Array(
-                    secret
-                        .match(/../g)
-                        .map((/** @type {string} */ h) => Number.parseInt(h, 16)),
-                ).buffer,
-                CRYPTO_ALGO,
-                false,
-                ["encrypt", "decrypt"],
-            )
-            .then((cryptoKey) => {
-                this._cryptoKey = cryptoKey;
-            });
+        const bytes = secret.match(/../g) ?? [];
+        /**
+         * The imported key itself, as a promise — not a nullable field filled
+         * in by a side effect once a separate `_ready` promise settled. Every
+         * use had to await `_ready` and then read a field the checker still saw
+         * as `CryptoKey | null`; awaiting the key directly makes the ordering
+         * the type, so it cannot be got wrong.
+         *
+         * @type {Promise<CryptoKey>}
+         */
+        this._key = window.crypto.subtle.importKey(
+            "raw",
+            new Uint8Array(bytes.map((h) => Number.parseInt(h, 16))).buffer,
+            CRYPTO_ALGO,
+            false,
+            ["encrypt", "decrypt"],
+        );
     }
 
     /**
      * @param {any} value
      */
     async encrypt(value) {
-        await this._ready;
+        const key = await this._key;
         const iv = window.crypto.getRandomValues(new Uint8Array(12));
         const ciphertext = await window.crypto.subtle.encrypt(
             {
                 name: CRYPTO_ALGO,
                 iv,
             },
-            this._cryptoKey,
+            key,
             new TextEncoder().encode(JSON.stringify(value)),
         );
         return { ciphertext, iv };
@@ -182,13 +183,13 @@ class Crypto {
             iv,
         },
     ) {
-        await this._ready;
+        const key = await this._key;
         const decrypted = await window.crypto.subtle.decrypt(
             {
                 name: CRYPTO_ALGO,
                 iv,
             },
-            this._cryptoKey,
+            key,
             ciphertext,
         );
         return JSON.parse(new TextDecoder().decode(decrypted));
@@ -441,7 +442,7 @@ export class RPCCache {
             }
             return;
         }
-        if (estimate.usage > MAX_STORAGE_SIZE) {
+        if ((estimate.usage ?? 0) > MAX_STORAGE_SIZE) {
             console.warn(
                 "Origin storage usage exceeds the configured maximum " +
                     "(no per-storage breakdown available); keeping the RPC " +
@@ -470,7 +471,16 @@ export class RPCCache {
         } = {},
     ) {
         validateSettings({ type, update });
-        const useDisk = type === "disk" && this.diskEnabled;
+        // The disk BACKEND, not a boolean. `diskEnabled`, `this.crypto` and
+        // `this.indexedDB` are three spellings of one invariant — enabled
+        // implies both are set — and binding them together means one test
+        // establishes all three, for the reader and for the checker, instead
+        // of each `if (useDisk)` block re-asserting it by convention.
+        /** @type {{ crypto: Crypto, indexedDB: IndexedDB } | null} */
+        const useDisk =
+            type === "disk" && this.crypto && this.indexedDB
+                ? { crypto: this.crypto, indexedDB: this.indexedDB }
+                : null;
 
         let ramValue = this.ramCache.read(table, key);
 
@@ -518,7 +528,7 @@ export class RPCCache {
                         delete this.pendingRequests[requestKey];
                         this.ramCache.write(table, key, Promise.resolve(result), model);
                         if (useDisk) {
-                            const { crypto, indexedDB } = this;
+                            const { crypto, indexedDB } = useDisk;
                             const generation = this.diskGenerationOf(table);
                             const version = result?.[VERSION_FIELD];
                             crypto
@@ -599,7 +609,7 @@ export class RPCCache {
                         fromCache.resolve();
                     });
                 } else if (useDisk) {
-                    const { crypto, indexedDB } = this;
+                    const { crypto, indexedDB } = useDisk;
                     indexedDB
                         .read(table, key)
                         .then(

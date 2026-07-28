@@ -71,7 +71,10 @@ const SCROLL_DEADBAND_PX = 4;
 
 /**
  * @typedef GetIndexesParams
- * @property {number[]} sizes cumulative sizes of the items (each entry sums the previous sizes and the current item's size).
+ * @property {number[]} [sizes] cumulative sizes of the items (each entry sums
+ *   the previous sizes and the current item's size). Absent until the caller
+ *   has supplied them via `setRowsHeights` / `setColumnsWidths`; `getIndexes`
+ *   answers `[]` for that.
  * @property {number} start start of the visible area (scroll position).
  * @property {number} span size of the visible area (window size).
  * @property {number} [prevStartIndex] previous start index, used to optimize the search.
@@ -94,7 +97,7 @@ function getIndexes({
     if (!sizes || !sizes.length) {
         return [];
     }
-    if (sizes.at(-1) < span) {
+    if ((sizes.at(-1) ?? 0) < span) {
         return [0, sizes.length - 1];
     }
     const bufferSize = Math.round(span * bufferCoef);

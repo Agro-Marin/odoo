@@ -171,20 +171,24 @@ export class Macro {
             );
         }
         Object.assign(this, descr);
+        // `this.x = this.x ?? default` — NOT a class field, and NOT `??=`.
+        //  - A class field creates an OWN property on every instance, shadowing
+        //    an `onError`/`onStep` a SUBCLASS defines on its prototype (pinned
+        //    by "subclass prototype onError receives { error, step, index }").
+        //  - `??=` performs no assignment when the value already resolves, so
+        //    the checker never sees these properties declared at all.
+        // Reading through the prototype chain first preserves the override, and
+        // the write then stores that same function, so behaviour is unchanged.
         /** @type {Function} */
-        this.onComplete ??= () => {};
+        this.onComplete = this.onComplete ?? (() => {});
         /** @type {Function} */
-        this.onStep ??= () => {};
-        /** @type {Function} */
-        this.onError ??= (
-            /** @type {{ error: Error, step: MacroStep, index: number }} */ {
-                error,
-                step,
-                index,
-            },
-        ) => {
-            console.error(error.message ?? error, step, index);
-        };
+        this.onStep = this.onStep ?? (() => {});
+        /** @type {(info: { error: Error, step: MacroStep, index: number }) => void} */
+        this.onError =
+            this.onError ??
+            (({ error, step, index }) => {
+                console.error(error.message ?? error, step, index);
+            });
     }
 
     async start() {

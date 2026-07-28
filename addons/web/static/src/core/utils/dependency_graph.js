@@ -5,13 +5,16 @@
 
 /**
  * Two pure helpers (no OWL/DOM deps): iterative-DFS cycle detection and an
- * O(N+E) wave-based dependency resolver. Used by the service launcher
- * (env.js); module_loader.js keeps an inlined copy since it runs before ESM
- * can import this module.
+ * O(N+E) wave-based dependency resolver.
+ *
+ * ``env.js`` (the service launcher) is the only consumer. This file used to
+ * claim that ``module_loader.js`` "keeps an inlined copy" that "must be kept
+ * in sync"; it does not, and nothing else in the tree does either —
+ * ``createWaveResolver`` and ``findDependencyCycle`` appear only here, in
+ * ``env.js``, and in their tests. The note imposed a maintenance obligation
+ * against code that does not exist, so it is removed rather than corrected.
  *
  * @see env.js for the service-launcher integration
- * @see module_loader.js for the parallel inlined implementation (must be
- *      kept in sync — both share the same dedup/ready-queue semantics).
  */
 
 /**

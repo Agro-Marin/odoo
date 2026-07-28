@@ -54,22 +54,30 @@ export { DRAGGED_CLASS };
  * @property {(params: DraggableBuildHandlerParams) => any} onDrop
  * @property {(params: DraggableBuildHandlerParams) => any} onWillStartDrag
  *
+ * The hook's own context. Everything the `ctx` object literal below sets
+ * unconditionally is declared REQUIRED — it was all optional, which made the
+ * ~20 reads of `ctx.enable()`, `ctx.preventDrag()`, `ctx.pointer` and
+ * `ctx.edgeScrolling` report as possibly-undefined even though no code path
+ * can observe them unset. Genuinely optional are the ones that only arrive
+ * from user params (`elementSelector`, the delays) and everything under
+ * `current`, which IS empty between drags.
+ *
  * @typedef {{
  *  ref: { el: HTMLElement | null };
  *  elementSelector?: string | null;
- *  ignoreSelector?: string | null;
- *  fullSelector?: string | null;
- *  followCursor?: boolean;
- *  cursor?: string | null;
- *  enable?: () => boolean;
- *  preventDrag?: (el: HTMLElement) => boolean;
- *  pointer?: Position;
- *  edgeScrolling?: EdgeScrollingOptions;
+ *  ignoreSelector: string | null;
+ *  fullSelector: string | null;
+ *  followCursor: boolean;
+ *  cursor: string | null;
+ *  enable: () => boolean;
+ *  preventDrag: (el: HTMLElement) => boolean;
+ *  pointer: Position;
+ *  edgeScrolling: EdgeScrollingOptions;
  *  delay?: number;
  *  tolerance?: number;
  *  touchDelay?: number;
- *  dragging?: boolean;
- *  willDrag?: boolean;
+ *  dragging: boolean;
+ *  willDrag: boolean;
  *  current: DraggableHookCurrentContext;
  *  [key: string]: any;
  * }} DraggableHookContext

@@ -29,7 +29,7 @@
 export function bindArgs(args, spec) {
     const last = args.at(-1);
     const hasKwargs = typeof last === "object" && last !== null;
-    if (hasKwargs && Array.isArray(last) && globalThis.odoo?.debug) {
+    if (hasKwargs && Array.isArray(last) && odoo.debug) {
         console.warn(
             "bindArgs: trailing argument is an Array, treated as kwargs — a " +
                 "direct caller likely omitted the trailing kwargs object.",

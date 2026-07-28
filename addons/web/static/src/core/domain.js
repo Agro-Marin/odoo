@@ -921,6 +921,13 @@ function matchDomain(record, domain) {
 /**
  * AST node types that can only ever denote a literal, so an AST built solely
  * from them evaluates to the same value whatever context it is given.
+ *
+ * Annotated with the FULL tag union rather than left to inference: inferred
+ * from its six members the set is ``Set<0 | 2 | 1 | 3 | 10 | 4>``, so probing
+ * it with an arbitrary ``ast.type`` is a type error even though that is
+ * precisely what {@link isLiteralAST} exists to do.
+ *
+ * @type {Set<AST["type"]>}
  */
 const LITERAL_AST_TYPES = new Set([
     ASTType.List,

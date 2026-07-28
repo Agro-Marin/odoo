@@ -32,6 +32,17 @@ export class MonetaryField extends NumericInputFieldBase {
         trailingZeros: true,
     };
 
+    /**
+     * Declared here rather than left to inference from the ``setup()``
+     * assignment: TypeScript widens a JS property that is only ever assigned
+     * outside the constructor to ``T | undefined``, which made every read of
+     * the ref report as possibly-undefined even though ``setup()`` assigns it
+     * unconditionally.
+     *
+     * @type {ReturnType<typeof useRef>}
+     */
+    ghostRef;
+
     setup() {
         useRenderCounter("fields.MonetaryField");
         super.setup();
@@ -55,8 +66,10 @@ export class MonetaryField extends NumericInputFieldBase {
      * input is likewise uncontrolled).
      */
     syncGhostValue() {
-        if (this.ghostRef.el && this.inputRef?.el) {
-            this.ghostRef.el.textContent = this.inputRef.el.value;
+        const ghostEl = this.ghostRef.el;
+        const inputEl = this.inputRef?.el;
+        if (ghostEl && inputEl) {
+            ghostEl.textContent = inputEl.value;
         }
     }
 

@@ -78,7 +78,7 @@ export function useActionLinks({ resModel, reload }) {
                       ];
             }
             const action = {
-                name: target.getAttribute("title") || target.textContent.trim(),
+                name: target.getAttribute("title") || target.textContent?.trim() || "",
                 type: "ir.actions.act_window",
                 res_model: data.model || resModel,
                 target: "current",

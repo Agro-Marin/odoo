@@ -123,7 +123,14 @@ function findAncestorPropertyDescriptor(objToPatch, key) {
  * to a second target, and not twice to the same target. Reuse throws a clear
  * error. Pass a fresh object literal / class for each `patch()` call.
  *
- * @template {object} T
+ * ``Record<string, any>``, not ``object``: TypeScript silently DROPS a
+ * lowercase ``object`` constraint written in a JSDoc ``@template`` tag, so
+ * ``T`` was in fact unconstrained — which is why ``new WeakRef(objToPatch)``
+ * below did not type-check. ``Record<string, any>`` is honoured, and accepts
+ * every shape ``patch()`` is called with (class prototypes, class
+ * constructors for static patches, plain objects, host objects).
+ *
+ * @template {Record<string, any>} T
  * @template {Partial<T>} U
  * @param {T} objToPatch The object to patch
  * @param {U} extension The object containing the patched properties
