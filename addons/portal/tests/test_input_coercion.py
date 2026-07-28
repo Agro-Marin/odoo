@@ -315,8 +315,14 @@ class TestPagerBounds(TransactionCase):
                         self.assertNotIn("/page/-", page["url"])
 
     def test_negative_total(self):
+        """A nonsensical total collapses to the empty-result-set shape.
+
+        ``page_count`` is 1, not 0: an empty list is still one (empty) page.
+        See :class:`~odoo.addons.portal.tests.test_hardening.TestPagerEmptyResultSet`
+        for why page 0 must never appear in the returned dict.
+        """
         values = pager("/my/orders", total=-10)
-        self.assertEqual(values["page_count"], 0)
+        self.assertEqual(values["page_count"], 1)
         self.assertEqual(values["offset"], 0)
 
     def test_normal_paging_unchanged(self):

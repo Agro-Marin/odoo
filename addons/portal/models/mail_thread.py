@@ -6,6 +6,7 @@ from odoo.fields import Domain
 
 from odoo.addons.mail.tools.discuss import EMPTY_EDIT_MARKER
 from odoo.addons.portal.utils import (
+    resolve_thread_for_credentials,
     validate_thread_with_hash_pid,
     validate_thread_with_token,
 )
@@ -164,14 +165,25 @@ class MailThread(models.AbstractModel):
         First tries the parent's ACL-based resolution. If the user has no rights
         but provides a valid ``hash+pid`` HMAC pair or a valid ``token``, returns
         the sudo recordset so portal controllers can render the page.
+
+        ``thread_id`` is client-supplied, so it is resolved through
+        :func:`resolve_thread_for_credentials` before any credential is checked:
+        both validators read the token field off the record, and reading a field
+        of a row that is not in the database raises ``MissingError``. The parent
+        only ever returns a thread that exists, so an id pointing at a deleted
+        (or never-existing) record lands here — and used to surface as an error
+        response on the ``auth="public"`` chatter routes, confirming to an
+        anonymous caller which ids exist. It also guarantees this method never
+        hands back a phantom recordset to its callers.
         """
         if thread := super()._get_thread_with_access(
             thread_id, hash=hash, pid=pid, token=token, **kwargs
         ):
             return thread
-        thread = self.browse(thread_id).sudo()
-        if validate_thread_with_hash_pid(
-            thread, hash, pid
-        ) or validate_thread_with_token(thread, token):
+        thread = resolve_thread_for_credentials(self.browse(thread_id).sudo())
+        if thread and (
+            validate_thread_with_hash_pid(thread, hash, pid)
+            or validate_thread_with_token(thread, token)
+        ):
             return thread
         return self.browse()

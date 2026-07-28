@@ -2,6 +2,32 @@ from odoo.models import BaseModel
 from odoo.tools import consteq
 
 
+def resolve_thread_for_credentials(thread: BaseModel) -> BaseModel:
+    """Narrow a client-addressed thread to the rows that actually exist.
+
+    Both validators below have to read the thread's token field to compare
+    against, and the ORM raises ``MissingError`` when a field is read on an id
+    with no row. Callers get that id straight from the client — a chatter
+    route's ``thread_id``, or a ``mail.message.res_id`` whose record was deleted
+    after the message was posted — so "the record is gone" is ordinary input,
+    not an anomaly, and it must not become an error response that confirms to an
+    anonymous caller which ids exist.
+
+    The check belongs here, at the step that turns an untrusted id into a
+    recordset, rather than inside the validators: they are pure predicates over
+    an *already resolved* thread, and a credential presented against a record
+    that does not exist proves nothing either way.
+
+    ``exists()`` is skipped for an empty recordset — there is no id to look up,
+    and reading a field on an empty set is well-defined (it yields the field's
+    falsy default, which the validators already reject).
+
+    :param thread: thread recordset addressed by a client-supplied id
+    :return: ``thread`` when it exists, an empty recordset otherwise
+    """
+    return thread.exists() if thread.ids else thread
+
+
 def validate_thread_with_hash_pid(
     thread: BaseModel,
     _hash: str | None,
@@ -35,6 +61,11 @@ def validate_thread_with_hash_pid(
     explicitly because it is an ``int`` subclass, and ``float`` because
     truncating ``1.9`` to partner 1 would be a silent reinterpretation of the
     caller's input rather than a rejection of it.
+
+    ``thread`` itself is *not* validated here: it must already be a resolved,
+    existing record, because ``_sign_token`` reads its token field and that
+    raises ``MissingError`` on a phantom id. Callers holding a client-supplied
+    id must pass it through :func:`resolve_thread_for_credentials` first.
     """
     if not isinstance(_hash, str) or not _hash or not pid:
         return False
@@ -80,7 +111,9 @@ def validate_thread_with_token(thread: BaseModel, token: str | None) -> bool:
     The ``isinstance`` check guards the same ``consteq`` call from the other
     side: over ``jsonrpc`` the caller chooses the token's JSON type, and a
     number or list would raise ``TypeError`` there. See
-    :func:`validate_thread_with_hash_pid` for the full rationale.
+    :func:`validate_thread_with_hash_pid` for the full rationale, including why
+    ``thread`` must already be resolved via
+    :func:`resolve_thread_for_credentials` when its id came from a client.
     """
     token_field = thread._mail_post_token_field
     if not isinstance(token, str) or not token or token_field not in thread._fields:
@@ -104,7 +137,16 @@ def get_portal_partner(
     :return: the proven partner, or an empty ``res.partner`` recordset if
              neither credential validates
     :rtype: res.partner
+
+    This is the entry point the chatter controllers reach with a thread browsed
+    from a client-supplied id (``mail.message.res_id`` of a record that may
+    since have been deleted), so it resolves the thread once here rather than
+    letting each validator read a field off a phantom row and raise
+    ``MissingError``.
     """
+    thread = resolve_thread_for_credentials(thread)
+    if not thread:
+        return thread.env["res.partner"]
     if validate_thread_with_hash_pid(thread, _hash, pid):
         return thread.env["res.partner"].sudo().browse(int(pid))
     if validate_thread_with_token(thread, token):

@@ -64,8 +64,12 @@ export class CustomerAddress extends Interaction {
         }
 
         // populate states and display
+        // Optional like every other control here: a form variant without a
+        // state select has no options to repopulate, and reading
+        // `.options.length` off the missing element threw before the
+        // field-order pass below could run.
         const selectStates = this.addressForm.state_id;
-        if (!init || selectStates.options.length === 1) {
+        if (selectStates && (!init || selectStates.options.length === 1)) {
             // dont reload state at first loading (done in qweb)
             if (data.states.length || data.state_required) {
                 // empty existing options, only keep the placeholder.
@@ -86,10 +90,16 @@ export class CustomerAddress extends Interaction {
 
         // manage fields order / visibility
         if (data.fields) {
-            if (data.zip_before_city) {
-                this._getInputDiv('zip').after(this._getInputDiv('city'));
-            } else {
-                this._getInputDiv('zip').before(this._getInputDiv('city'));
+            const zipDivEl = this._getInputDiv('zip');
+            const cityDivEl = this._getInputDiv('city');
+            if (zipDivEl && cityDivEl) {
+                // Reordering needs both; with only one present there is no
+                // relative order to fix, and the visibility pass below still runs.
+                if (data.zip_before_city) {
+                    zipDivEl.after(cityDivEl);
+                } else {
+                    zipDivEl.before(cityDivEl);
+                }
             }
 
             const all_fields = ['street', 'zip', 'city'];
@@ -117,8 +127,23 @@ export class CustomerAddress extends Interaction {
         })
     }
 
+    /**
+     * The div wrapping a field's label + input, or null when this form variant
+     * has no such field.
+     *
+     * Overrides drop inputs the flow does not collect (`_needs_address()` is
+     * false for quick event checkout, and localizations reshape the address
+     * block), so every field lookup here is optional -- as `_markRequired` and
+     * `_getInputLabel` already treated it. Dereferencing `.parentElement` on the
+     * missing control threw a TypeError that aborted the rest of the country
+     * refinement, leaving the form in a half-updated state (stale state list,
+     * stale required flags) with no visible error.
+     *
+     * @param {string} name
+     * @returns {HTMLElement|null}
+     */
     _getInputDiv(name) {
-        return this.addressForm[name].parentElement;
+        return this.addressForm[name]?.parentElement ?? null;
     }
 
     _getInputLabel(name) {
@@ -128,12 +153,18 @@ export class CustomerAddress extends Interaction {
 
     _showInput(name) {
         // show parent div, containing label and input
-        this.addressForm[name].parentElement.style.display = '';
+        const divEl = this._getInputDiv(name);
+        if (divEl) {
+            divEl.style.display = '';
+        }
     }
 
     _hideInput(name) {
-        // show parent div, containing label and input
-        this.addressForm[name].parentElement.style.display = 'none';
+        // hide parent div, containing label and input
+        const divEl = this._getInputDiv(name);
+        if (divEl) {
+            divEl.style.display = 'none';
+        }
     }
 
     _markRequired(name, required) {

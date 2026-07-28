@@ -29,16 +29,25 @@ export class PortalSearchPanel extends Interaction {
     }
 
     search() {
-        const search = new URL(window.location).searchParams;
-        search.set(
+        const url = new URL(window.location);
+        url.searchParams.set(
             "search_in",
             this.el
                 .querySelector(".dropdown-item.active")
                 ?.getAttribute("href")
-                ?.replace("#", "") || ""
+                ?.replace("#", "") || "",
         );
-        search.set("search", this.el.querySelector("input[name=search]")?.value || "");
-        window.location.search = search.toString();
+        url.searchParams.set(
+            "search",
+            this.el.querySelector("input[name=search]")?.value || "",
+        );
+        // Drop the `/page/<n>` suffix: portal list routes carry the page in the
+        // path, and assigning only `location.search` kept it. A new search from
+        // page 3 landed on page 3 of a result set that usually has fewer pages
+        // -- an empty table, with the pager offering no way back to page 1
+        // (`portal.pager` renders nothing when there is a single page).
+        url.pathname = url.pathname.replace(/\/page\/\d+\/?$/, "");
+        window.location.href = url.toString();
     }
 
     onDropdownItemClick(ev, currentTargetEl) {
