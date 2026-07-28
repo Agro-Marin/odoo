@@ -14,7 +14,7 @@ import { DocumentsDropZone } from "@documents/views/helper/documents_drop_zone";
 import { DocumentsFileViewer } from "@documents/views/helper/documents_file_viewer";
 import { DocumentsRendererMixin } from "@documents/views/documents_renderer_mixin";
 
-import { useExternalListener, useRef } from "@odoo/owl";
+import { useRef, useState } from "@odoo/owl";
 
 export class DocumentsSecondaryListRenderer extends ListRenderer {
     static props = [...ListRenderer.props, "previewStore"];
@@ -36,8 +36,8 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         super.setup();
         this.root = useRef("root");
         const { uploads } = useService("file_upload");
-
-        this.documentUploads = uploads;
+        // See the kanban renderer: the raw service reactive subscribes nobody.
+        this.documentUploads = useState(uploads);
         useCommand(
             _t("Select all"),
             () => {
@@ -49,9 +49,10 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
                 const focusedRecord = this.setDefaultFocus();
                 // The focused record may be the container folder (or nothing at
                 // all), which is never rendered as one of our own rows: only
-                // records *inside* the folder carry a data-value-id.
-                document
-                    .querySelector(
+                // records *inside* the folder carry a data-value-id. Queried on
+                // this renderer's own subtree, as the kanban counterpart does.
+                this.root.el
+                    ?.querySelector(
                         `.o_data_row[data-value-id="${focusedRecord?.resId}"] .o_data_cell`
                     )
                     ?.focus();
@@ -78,9 +79,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
                 removeClass(target, "table-danger", "table-success");
             },
         });
-
-        useExternalListener(window, "keydown", (ev) => this.onKeyDown(ev));
-        useExternalListener(window, "keyup", (ev) => this.onKeyUp(ev));
     }
 
     getRowClass(record) {
@@ -113,18 +111,6 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         ev.stopPropagation();
         ev.preventDefault();
         this.toggleRecordSelection(record);
-    }
-
-    onKeyDown(ev) {
-        if (ev.key === "Control") {
-            this.root.el.classList.add("o_documents_dnd_shortcut");
-        }
-    }
-
-    onKeyUp(ev) {
-        if (ev.key === "Control") {
-            this.root.el.classList.remove("o_documents_dnd_shortcut");
-        }
     }
 
     /**
@@ -201,9 +187,9 @@ export class DocumentsListRenderer extends DocumentsRendererMixin(DocumentsSecon
         return futureCell;
     }
 
-    onCellKeydown(ev, group = null, record = null) {
-        const hotkey = getActiveHotkey(ev);
-        if (hotkey === "enter") {
+    onCellKeydown(ev) {
+        // Enter is handled by `onGlobalKeydown`, which previews or selects.
+        if (getActiveHotkey(ev) === "enter") {
             return;
         }
         return super.onCellKeydown(...arguments);

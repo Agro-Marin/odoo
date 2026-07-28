@@ -33,6 +33,7 @@ VIEW_SUITES = (
     "@documents/list_view",
     "@documents/multi_view",
     "@documents/search_model",
+    "@documents/search_panel",
     "@documents/select_all",
     "@documents/draggable_drop_rules",
 )

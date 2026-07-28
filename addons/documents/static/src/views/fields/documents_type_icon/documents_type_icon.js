@@ -19,7 +19,7 @@ export class DocumentsTypeIcon extends Component {
         if (!this.fileInput.el.files.length) {
             return;
         }
-        await this.env.model.env.documentsView.bus.trigger("documents-upload-files", {
+        this.env.documentsView.bus.trigger("documents-upload-files", {
             files: this.fileInput.el.files,
             accessToken: this.props.record.data.access_token,
         });

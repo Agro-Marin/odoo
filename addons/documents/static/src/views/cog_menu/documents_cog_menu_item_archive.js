@@ -13,7 +13,8 @@ export class DocumentsCogMenuItemArchive extends DocumentsCogMenuItem {
     }
 
     async doActionOnFolder(folder) {
-        await this.documentService.moveToTrash(folder.id);
+        // An array: `moveToTrash` forwards its argument as `action_archive`'s ids.
+        await this.documentService.moveToTrash([folder.id]);
         await this.reload();
     }
 }

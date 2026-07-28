@@ -7,11 +7,63 @@ from odoo.tests import freeze_time, users
 from odoo.tests.common import RecordCapturer
 from odoo.tools import html2plaintext, mute_logger
 
-from odoo.addons.documents.tests.test_documents_common import TransactionCaseDocuments
+from odoo.addons.documents.tests.test_documents_common import (
+    TEXT,
+    TransactionCaseDocuments,
+)
 from odoo.addons.mail.tests.common import MockEmail
 
 
 class TestDocumentsAccess(TransactionCaseDocuments, MockEmail):
+
+    def test_change_owner_matches_the_write_rule(self):
+        """`action_change_owner` and `write({"owner_id": ...})` are one rule."""
+        document = self.env["documents.document"].create({
+            "type": "binary",
+            "name": "owned.txt",
+            "datas": TEXT,
+            "mimetype": "text/plain",
+            "folder_id": self.folder_b.id,
+            "owner_id": self.doc_user.id,
+            "access_internal": "edit",
+        })
+
+        # a Documents manager may re-own a document they do not own
+        document.with_user(self.document_manager).action_change_owner(
+            self.internal_user.id
+        )
+        self.assertEqual(document.owner_id, self.internal_user)
+
+        # sudo() on behalf of a plain user opens it, as it does the equivalent write
+        document.with_user(self.doc_user).sudo().action_change_owner(self.doc_user.id)
+        self.assertEqual(document.owner_id, self.doc_user)
+
+        # ...but that same user, acting as themselves, still may not re-own
+        # a document belonging to someone else
+        document.sudo().owner_id = self.document_manager.id
+        with self.assertRaises(AccessError):
+            document.with_user(self.doc_user).action_change_owner(self.doc_user.id)
+        self.assertEqual(document.owner_id, self.document_manager)
+
+    def test_move_into_unreadable_non_folder_reports_invalid_folder(self):
+        """Filing into a non-folder is "Invalid folder id", readable or not."""
+        hidden = self.env["documents.document"].create({
+            "type": "binary",
+            "name": "hidden-secret-name.txt",
+            "datas": TEXT,
+            "mimetype": "text/plain",
+            "owner_id": self.document_manager.id,
+            "access_internal": "none",
+            "access_via_link": "none",
+        })
+        self._assert_raises_check_access_rule(hidden.with_user(self.doc_user), "read")
+
+        with self.assertRaises(UserError) as capture:
+            self.document_txt.with_user(self.doc_user).write({"folder_id": hidden.id})
+        self.assertNotIsInstance(
+            capture.exception, AccessError, "leaked that the target is unreadable"
+        )
+        self.assertNotIn("hidden-secret-name", str(capture.exception))
 
     @mute_logger("odoo.addons.base.models.ir_model", "odoo.addons.base.models.ir_rule")
     def test_access_type_internal(self):

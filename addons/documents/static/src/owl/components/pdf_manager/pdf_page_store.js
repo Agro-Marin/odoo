@@ -37,12 +37,11 @@ export function makePdfPageStoreData() {
  * Sole owner of the PDF split tool's page/group bookkeeping.
  *
  * `pages`, `groupData`, `groupIds` and `numberOfPages` are four mutually
- * dependent structures. When they were mutated in place from a dozen call
- * sites they drifted apart, and every way they could drift produced a user
- * visible defect (pages duplicated across groups after a failed split, a crash
- * on an already-detached page, forward drags landing one slot late, a
- * quadratic page counter). This class is the single writer, so those states
- * are no longer representable.
+ * dependent structures, and every way they can drift apart produces a user
+ * visible defect (pages duplicated across groups after a failed split, a crash on
+ * an already-detached page, forward drags landing one slot late, a quadratic page
+ * counter). This class is their single writer, so those states are not
+ * representable.
  *
  * Invariants, all enforced here and checked by {@link checkInvariants}:
  *  1. a page belongs to at most one group — attaching detaches first;
@@ -161,13 +160,10 @@ export class PdfPageStore {
      * Whether a page closes its group, i.e. whether a separator is drawn right
      * after it.
      *
-     * This is the model-side truth behind the `o_pdf_separator_selected` class
-     * the template puts on the splitter following the last page of a group. The
-     * split handler used to read that class back out of the DOM
-     * (`querySelector(CSS.escape(pageId)).closest(...).nextElementSibling`) to
-     * decide whether it was splitting or merging -- routing a question about
-     * grouping through the renderer, which is precisely what this store exists
-     * to own. It also made the handler untestable without a mounted component.
+     * The model-side truth behind the `o_pdf_separator_selected` class the template
+     * puts on the splitter after a group's last page. Asked here rather than read
+     * back off the DOM: grouping is this store's to answer, and a DOM round trip
+     * needs a mounted component to be testable.
      *
      * @param {String} pageId
      * @returns {boolean}
@@ -735,9 +731,8 @@ export class PdfPageStore {
             return;
         }
         const groupId = page.groupId;
-        // A page is legitimately group-less: already committed by a partial
-        // split, or freshly created. Dereferencing `groupData[false]` here is
-        // what used to throw out of the delete-confirmation callback.
+        // A page is legitimately group-less: already committed by a partial split,
+        // or freshly created.
         const group = groupId && this.data.groupData[groupId];
         page.groupId = false;
         if (!group) {

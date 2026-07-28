@@ -2,7 +2,6 @@
 import { _t } from "@web/core/l10n/translation";
 import { ModelSelector } from "@web/components/model_selector/model_selector";
 import { user } from "@web/services/user";
-import { memoize } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { CharField } from "@web/fields/basic/char/char_field";
@@ -15,11 +14,6 @@ import { DocumentsDetailsMany2OneField } from "@documents/views/fields/documents
 import { DocumentsTypeIcon } from "@documents/views/fields/documents_type_icon/documents_type_icon";
 
 import { Component, onWillRender, onWillUpdateProps, reactive, useState } from "@odoo/owl";
-
-// Small hack, memoize uses the first argument as cache key, but we need the orm which will not be the same.
-const getDetailsPanelResModels = memoize((_null, orm) =>
-    orm.call("documents.document", "get_details_panel_res_models")
-);
 
 export class DocumentsDetailsPanel extends Component {
     static components = {
@@ -49,8 +43,14 @@ export class DocumentsDetailsPanel extends Component {
         this.documentService = useService("document.document");
         this.orm = useService("orm");
         this.dialog = useService("dialog");
+        // Rebuilt on every render, deliberately: the wrapper below is a plain
+        // `Proxy` over a callback-less `reactive()`, so nothing subscribes the
+        // field components to the record. What re-renders them is precisely this
+        // fresh `Proxy` identity arriving as a changed `record` prop. Building it
+        // once per record (or binding the reactive to `this.render`) stops tag
+        // edits from ever showing -- see the "rendering for editors" test.
         onWillRender(() => {
-            this.record = new Proxy(reactive(this.props.record), isDetailsPanelRecordHandler);
+            this.record = wrapAsDetailsPanelRecord(this.props.record);
         });
 
         // Use a state for the model to not write on the record the model without record id
@@ -59,7 +59,9 @@ export class DocumentsDetailsPanel extends Component {
             resModelName: this.props.record.data.res_model_name || "",
             models: [],
         });
-        getDetailsPanelResModels(null, this.orm).then((models) => (this.state.models = models));
+        this.documentService
+            .getDetailsPanelResModels()
+            .then((models) => (this.state.models = models));
         onWillUpdateProps((nextProps) => {
             this.state.resModel = nextProps.record.data.res_model;
             this.state.resModelName = nextProps.record.data.res_model_name || "";
@@ -115,15 +117,16 @@ export class DocumentsDetailsPanel extends Component {
     }
 
     get fileSize() {
-        if (this.record.data?.type !== "folder" || this.props.record.isContainer) {
-            const nBytes = this.record.data.file_size || 0;
-            if (nBytes) {
-                return `${this.record.isContainer ? "~" : ""}${formatFloat(nBytes, {
-                    humanReadable: true,
-                })}B`;
-            }
+        const data = this.record.data;
+        const isFolderTotal = this.props.record.isContainer;
+        if (data.type === "folder" && !isFolderTotal) {
+            return "";
         }
-        return "";
+        const nBytes = data.file_size || 0;
+        if (!nBytes) {
+            return "";
+        }
+        return `${isFolderTotal ? "~" : ""}${formatFloat(nBytes, { humanReadable: true })}B`;
     }
 
     get rootFolderPlaceholder() {
@@ -182,12 +185,21 @@ export class DocumentsDetailsPanel extends Component {
 }
 
 /**
- * Return isDetailsPanelRecord = true to prevent multi edit when editing a focused record from the
- * details panel but not from the list rows.
- * @type ProxyHandler
+ * Answer `isDetailsPanelRecord = true` so `DocumentsRecordMixin.update` saves the
+ * edit and leaves the rest of the selection alone -- a focused record is not
+ * necessarily selected, and editing it here must not multi-edit.
+ *
+ * It has to be a wrapper rather than an `update(changes, options)` flag: the panel
+ * does not call `update` itself, the field components it renders do, and they
+ * pass options of their own.
+ *
+ * @param {Object} record
+ * @returns {Object}
  */
-const isDetailsPanelRecordHandler = {
-    get(target, prop, receiver) {
-        return prop === "isDetailsPanelRecord" || Reflect.get(...arguments);
-    },
-};
+function wrapAsDetailsPanelRecord(record) {
+    return new Proxy(reactive(record), {
+        get(target, prop, receiver) {
+            return prop === "isDetailsPanelRecord" || Reflect.get(target, prop, receiver);
+        },
+    });
+}

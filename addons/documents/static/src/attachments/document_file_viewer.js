@@ -57,12 +57,6 @@ export class FileViewer extends WebFileViewer {
         super.close();
     }
 
-    // NB: `next`/`previous` used to carry a second, larger block each, guarded by
-    // `this.onSelectDocument` (read off `documentService.documentList`). Nothing
-    // anywhere ever put an `onSelectDocument` key on that object, so the guard
-    // was permanently false and both blocks -- including the only code that
-    // advanced `documentList.selectedDocument` -- were unreachable.
-
     next() {
         super.next();
         this.previewed.document = this.documentService.documentList.documents[this.state.index];

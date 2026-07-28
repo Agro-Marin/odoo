@@ -8,6 +8,7 @@ rather than silently changing behaviour in one of the two.
 from odoo import Command
 from odoo.exceptions import UserError
 from odoo.tests.common import tagged
+from odoo.tools import mute_logger
 
 from .test_documents_common import TransactionCaseDocuments
 
@@ -57,6 +58,7 @@ class TestDocumentsAttachmentVals(TransactionCaseDocuments):
                 }
             )
 
+    @mute_logger("odoo.addons.base.models.ir_attachment")
     def test_derived_attachment_metadata_cannot_be_forged(self):
         """`checksum`/`index_content` always describe the stored bytes.
 
@@ -64,7 +66,8 @@ class TestDocumentsAttachmentVals(TransactionCaseDocuments):
         from its own vals, so a caller's value is discarded whichever route it
         takes. Pinned here because it is the reason `_pop_attachment_vals`
         deliberately does NOT carve them out: doing so would only move where
-        they get dropped.
+        they get dropped. Muted because the strip is reported now, and this is
+        the caller it is meant to report.
         """
         document = self.env["documents.document"].create(
             {

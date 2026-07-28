@@ -1,13 +1,55 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { openDocumentUrl } from "@documents/views/utils";
+import { openDocumentUrl, toFolderValueId } from "@documents/views/utils";
+
+/** Mimetypes the file viewer can render. */
+const VIEWABLE_MIMETYPES = new Set([
+    "image/bmp",
+    "image/gif",
+    "image/jpeg",
+    "image/png",
+    "image/svg+xml",
+    "image/tiff",
+    "image/x-icon",
+    "image/webp",
+    "application/documents-email",
+    "application/javascript",
+    "application/json",
+    "application/xml",
+    "text/xml",
+    "text/x-python",
+    "text/markdown",
+    "text/css",
+    "text/calendar",
+    "text/javascript",
+    "text/html",
+    "text/plain",
+    "application/pdf",
+    "application/pdf;base64",
+    "audio/mpeg",
+    "video/x-matroska",
+    "video/mp4",
+    "video/webm",
+]);
+
+/**
+ * Deliberately as loose as `FileModel.isYoutubeVideo`
+ * (`web/static/src/components/file_viewer/file_model.js`), which is what decides
+ * whether the viewer renders an embed: a stricter test here would call URLs the
+ * viewer can show non-viewable.
+ *
+ * @param {String|false} url
+ * @returns {boolean}
+ */
+function isYoutubeUrl(url) {
+    return typeof url === "string" && url.includes("youtu");
+}
 
 export const DocumentsRecordMixin = (component) =>
     class extends component {
-        setup(config, data, options = {}) {
+        setup(config, data) {
             super.setup(...arguments);
-            // Set by `_loadDocumentToRestore` on the model driving this load
-            // (previously an undeclared property on the shared service).
+            // Set by `_loadDocumentToRestore` on the model driving this load.
             if (data.id === this.model.documentIdToRestore) {
                 this.selected = true;
             }
@@ -41,10 +83,9 @@ export const DocumentsRecordMixin = (component) =>
                 this.model.multiEdit = false;
                 movedRecordsIds = [this.id];
             }
-            // A document sitting at the root has `folder_id === false` (a
-            // boolean, not a m2o object), so normalize both sides to a plain id
-            // before comparing: `false.id` is `undefined`, which would make a
-            // move to/from the root look like "no change".
+            // A document at the root has `folder_id === false`, not a m2o object,
+            // so normalize both sides: `false.id` is `undefined`, which would make
+            // a move to or from the root look like "no change".
             const originalFolderId = this.data.folder_id?.id ?? false;
             let ret;
             try {
@@ -107,38 +148,10 @@ export const DocumentsRecordMixin = (component) =>
         }
 
         isViewable() {
-            const thisRecord = this.shortcutTarget;
+            const { type, mimetype, url } = this.shortcutTarget.data;
             return (
-                thisRecord.data.type !== "folder" &&
-                ([
-                    "image/bmp",
-                    "image/gif",
-                    "image/jpeg",
-                    "image/png",
-                    "image/svg+xml",
-                    "image/tiff",
-                    "image/x-icon",
-                    "image/webp",
-                    "application/documents-email",
-                    "application/javascript",
-                    "application/json",
-                    "application/xml",
-                    "text/xml",
-                    "text/x-python",
-                    "text/markdown",
-                    "text/css",
-                    "text/calendar",
-                    "text/javascript",
-                    "text/html",
-                    "text/plain",
-                    "application/pdf",
-                    "application/pdf;base64",
-                    "audio/mpeg",
-                    "video/x-matroska",
-                    "video/mp4",
-                    "video/webm",
-                ].includes(thisRecord.data.mimetype) ||
-                    (thisRecord.data.url && thisRecord.data.url.includes("youtu")))
+                type !== "folder" &&
+                (VIEWABLE_MIMETYPES.has(mimetype) || isYoutubeUrl(url))
             );
         }
 
@@ -173,46 +186,52 @@ export const DocumentsRecordMixin = (component) =>
             }
         }
 
-        openFolder() {
-            const section = this.model.env.searchModel.getSections()[0];
+        async openFolder() {
             const target = this.isShortcut() ? this.shortcutTarget : this;
             const folderId = target.data.active ? target.data.id : "TRASH";
-            this._ensureSearchPanelHasFolder(folderId).then(() => {
-                this.model.env.searchModel.toggleCategoryValue(section.id, folderId);
-                this.model.originalSelection = [this.shortcutTarget.resId];
-                this.model.env.documentsView.bus.trigger("documents-expand-folder", {
-                    folderId: folderId,
-                });
-            });
+            await this._goToFolder(folderId);
         }
 
-        async _ensureSearchPanelHasFolder(folderId) {
-            const folderInPanel = this.model.env.searchModel.getFolderById(folderId);
-            if (!folderInPanel) {
-                return this.model.env.searchModel._reloadSearchModel(true);
-            }
-        }
         /**
          * Jump to shortcut targeted file / open targeted folder.
          */
-        jumpToTarget() {
-            const section = this.model.env.searchModel.getSections()[0];
+        async jumpToTarget() {
+            const target = this.shortcutTarget;
             let folderId;
-            if (!this.shortcutTarget.data.active) {
+            if (!target.data.active) {
                 folderId = "TRASH";
-            } else if (this.shortcutTarget.data.type === "folder") {
+            } else if (target.data.type === "folder") {
                 // Using doc data shortcut_document_id because isContainer record does not (need to) load shortcutTarget.
-                folderId = this.data.shortcut_document_id?.id || this.shortcutTarget.data.id;
+                folderId = this.data.shortcut_document_id?.id || target.data.id;
             } else {
-                folderId = this.shortcutTarget.data.user_folder_id;
-                if (!isNaN(folderId)) {
-                    folderId = parseInt(folderId);
-                }
+                folderId = toFolderValueId(target.data.user_folder_id);
             }
-            this.model.env.searchModel.toggleCategoryValue(section.id, folderId);
+            if (!folderId) {
+                // `_compute_user_folder_id` answers `false` for a document the
+                // user cannot access, so a shortcut can point at a target whose
+                // location is not disclosed. Say so instead of navigating to a
+                // folder id that matches nothing.
+                this.model.notification.add(_t("Document not found or inaccessible."), {
+                    type: "danger",
+                });
+                return;
+            }
+            await this._goToFolder(folderId);
+        }
+
+        /**
+         * Select `folderId` in the search panel and unfold its chain, reloading
+         * the panel first when it does not hold that folder yet.
+         *
+         * @param {number|String} folderId
+         */
+        async _goToFolder(folderId) {
+            const searchModel = this.model.env.searchModel;
+            if (!searchModel.getFolderById(folderId)) {
+                await searchModel._reloadSearchModel(true);
+            }
+            searchModel.toggleCategoryValue(searchModel.folderCategory.id, folderId);
             this.model.originalSelection = [this.shortcutTarget.resId];
-            this.model.env.documentsView.bus.trigger("documents-expand-folder", {
-                folderId: folderId,
-            });
+            this.model.env.documentsView.bus.trigger("documents-expand-folder", { folderId });
         }
     };

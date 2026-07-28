@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyTest } from "@web/core/utils/search";
+import { toFolderValueId } from "@documents/views/utils";
 
 import { DocumentsSearchPanel } from "@documents/views/search/documents_search_panel";
 
@@ -24,9 +25,7 @@ export class DocumentsSearchPanelUserFolderId extends Component {
     };
     setup() {
         this.orm = useService("orm");
-        const activeValueId = isNaN(this.props.value)
-            ? this.props.value
-            : parseInt(this.props.value);
+        const activeValueId = toFolderValueId(this.props.value);
         this.state = useState({
             // 1 is section/category Id as there is only one, but we use a template that needs this.
             active: { 1: activeValueId },
@@ -68,13 +67,6 @@ export class DocumentsSearchPanelUserFolderId extends Component {
             this._createCategoryTree({ values, initialValue: activeValueId });
         });
     }
-
-    // NB: a `get sections()` used to sit here returning
-    // `new Map([[1, this.categories[0]]])`. This class has no `categories` -- it
-    // builds a single `this.category` -- so the getter threw on the first read.
-    // It never did: the template passes `category` straight into
-    // `documents.SearchPanel.Category` as `section`, and nothing else on this
-    // component is a search panel. Removed rather than repaired.
 
     get ulClass() {
         return this.props.ulClass || "";

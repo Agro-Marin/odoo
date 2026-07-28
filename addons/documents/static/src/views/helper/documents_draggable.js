@@ -5,15 +5,15 @@ import { DRAGGED_CLASS } from "@web/core/utils/dnd/draggable_hook_builder";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 import { createDocumentFragmentFromContent } from "@web/core/utils/dom/html";
 import { closestScrollableX, closestScrollableY } from "@web/core/utils/dom/scrolling";
+import { toFolderValueId } from "@documents/views/utils";
 
 /**
  * Why `targetFolder` cannot receive a drag of `draggedRecords`, or "" when it
  * can.
  *
- * Pure and exported so both consumers below share one answer and so the rules
- * are testable without a drag, a DOM or a component. They used to be inlined in
- * the hover handler while `onDrop` re-derived a shorter list of its own, which
- * let the two disagree about the same target.
+ * Pure and exported so the hover feedback and `onDrop` share one answer -- two
+ * lists would drift -- and so the rules are testable without a drag, a DOM or a
+ * component.
  *
  * @param {Object} params
  * @param {{movableRecordIds: number[], nonMovableRecordIds: number[]}} params.draggedRecords
@@ -34,12 +34,9 @@ export function dropRejectionReason({
     if (draggedRecords.nonMovableRecordIds.length && targetFolder.id === "TRASH") {
         return _t("There is at least one document you cannot move to trash in your selection.");
     }
-    // Write permission is checked for real folders too, not only for COMPANY.
-    // `user_permission` is served for every search-panel folder, and
-    // `documents.document.write` raises AccessError ("You can't access that
-    // folder_id.") when the destination is not `edit` -- so dragging into a
-    // read-only folder used to show a perfectly normal drop badge and only fail
-    // afterwards, with a server error dialog.
+    // Real folders are checked too, not only COMPANY: `documents.document.write`
+    // raises AccessError when the destination is not `edit`, so without this a
+    // read-only folder shows a normal drop badge and fails on release.
     const canWrite =
         targetFolder.id === "COMPANY"
             ? targetFolder.user_permission === "edit" || userIsDocumentManager
@@ -48,8 +45,7 @@ export function dropRejectionReason({
         return _t("You don't have the rights to write in this folder.");
     }
     // Hoisted out of the `some()`: the ancestor chain is a property of the
-    // target, not of the dragged record, and was rebuilt once per dragged
-    // document.
+    // target, not of each dragged record.
     const ancestorIds = getFolderAndParents(targetFolder).map((folder) => folder.id);
     if (draggedRecords.movableRecordIds.some((id) => ancestorIds.includes(id))) {
         return _t("You cannot move a folder into itself or a children.");
@@ -163,7 +159,7 @@ export const useDraggableDocuments = makeDraggableHook({
             ) {
                 const valueEl = ev.target.closest(".o_search_panel_category_value");
                 const targetFolder = model.env.searchModel.getFolderById(
-                    parseInt(valueEl.dataset.valueId) || valueEl.dataset.valueId
+                    toFolderValueId(valueEl.dataset.valueId)
                 );
                 this._checkTargetValidity(
                     ctx,
@@ -190,11 +186,11 @@ export const useDraggableDocuments = makeDraggableHook({
             }
         };
 
-        const onSearchPanelFolderPointerEnter = (ev) => {
+        const onSearchPanelFolderPointerEnter = () => {
             switchContainer(searchPanelEl);
         };
 
-        const onSearchPanelFolderPointerLeave = (ev) => {
+        const onSearchPanelFolderPointerLeave = () => {
             switchContainer(ref.el);
             if (ctx.isInvalidTarget) {
                 ctx.isInvalidTarget = false;
@@ -209,7 +205,7 @@ export const useDraggableDocuments = makeDraggableHook({
         // Target Folders Event Handlers
         const onTargetFolderPointerEnter = (ev) => {
             const targetFolder = model.env.searchModel.getFolderById(
-                parseInt(ev.currentTarget.dataset.valueId) || ev.currentTarget.dataset.valueId
+                toFolderValueId(ev.currentTarget.dataset.valueId)
             );
             this._checkTargetValidity(
                 ctx,
@@ -295,8 +291,7 @@ export const useDraggableDocuments = makeDraggableHook({
             await model.env.searchModel._reloadSearchModel(true);
             return;
         }
-        const targetFolderId =
-            parseInt(targetElement.dataset.valueId) || targetElement.dataset.valueId;
+        const targetFolderId = toFolderValueId(targetElement.dataset.valueId);
         const sourceFolder = model.env.searchModel.getSelectedFolder();
         const targetFolder = model.env.searchModel.getFolderById(targetFolderId);
 
@@ -304,12 +299,10 @@ export const useDraggableDocuments = makeDraggableHook({
             return;
         }
 
-        // Target validity is only computed in the hover handlers, which fire on
-        // folder elements. A drop can still land on a non-folder card/row
-        // (getFolderById -> false), on a virtual folder that cannot receive
-        // documents (RECENT/SHARED), on a folder the user cannot write to, or on
-        // one of the dragged folders itself. Re-run the same predicate the hover
-        // feedback uses rather than a second, shorter list that can drift from it.
+        // Hover feedback only fires on folder elements, but a drop can land on a
+        // non-folder card/row, on a virtual folder that cannot receive documents,
+        // on a folder the user cannot write to, or on a dragged folder itself.
+        // Re-run the predicate the feedback used rather than a second list.
         if (
             ["RECENT", "SHARED", "TRASH"].includes(targetFolder?.id) ||
             ctx.draggedRecords.all.includes(targetFolder?.id) ||
@@ -346,12 +339,9 @@ export const useDraggableDocuments = makeDraggableHook({
             expectedAccessRightsChanges
         );
 
-        // Awaited, in this order. `notify()` fired immediately after an
-        // un-awaited `load()` renders the pre-move root, and nothing re-renders
-        // when the load lands (`RelationalModel.load` does not notify) -- the
-        // moved rows only disappeared because the search-panel reload below
-        // happened to trigger a render of its own. This is the same sequence
-        // `DocumentsModelMixin._notifyChange` uses.
+        // Awaited, in this order: `RelationalModel.load` does not notify, so a
+        // `notify()` racing an un-awaited `load()` renders the pre-move root. Same
+        // sequence as `DocumentsModelMixin._notifyChange`.
         await model.load();
         await model.notify();
         await model.env.searchModel._reloadSearchModel(true);
@@ -447,11 +437,9 @@ export const useDraggableDocuments = makeDraggableHook({
         if (!dragMessage) {
             return;
         }
-        // Measure once, outside the loop. `dragMessage` is the same element on
-        // every iteration, but reading its rect *after* having written
-        // `clone.style` in the previous one forced a synchronous layout per
-        // dragged document -- i.e. N reflows every animation tick, on the
-        // drag path, which is exactly where a multi-selection drag got slow.
+        // Measured once, outside the loop: reading the rect after writing
+        // `clone.style` forces a synchronous layout, so leaving it inside costs N
+        // reflows per animation tick of a multi-selection drag.
         const { width, height } = dragMessage.getBoundingClientRect();
         ctx.tempDraggedElements.forEach((clone, index) => {
             const initialPos = ctx.initialPositions[index];

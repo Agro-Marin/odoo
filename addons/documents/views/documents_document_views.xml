@@ -270,7 +270,8 @@
                                 t-if="record.type.raw_value != 'folder' and record.tag_ids.raw_value.length"
                                 class="d-flex px-2">
                                 <field name="tag_ids" class="d-block text-wrap"
-                                    widget="many2many_tags" options="{'color_field': 'color'}" />
+                                    widget="documents_many2many_tags"
+                                    options="{'color_field': 'color'}" />
                             </footer>
                         </div>
                     </t>

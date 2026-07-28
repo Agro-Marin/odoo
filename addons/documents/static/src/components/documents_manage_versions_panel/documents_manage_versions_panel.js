@@ -26,7 +26,12 @@ export class DocumentsManageVersions extends Component {
         this.fileInputRef = useRef("uploadFileInput");
         this.formatDate = (d) => formatDate(deserializeDate(d), { format: "HH:mm DDD" });
 
-        this.state = useState({ documentName: "", accessToken: "", versions: [] });
+        this.state = useState({
+            documentName: "",
+            accessToken: "",
+            userPermission: "",
+            versions: [],
+        });
 
         onWillStart(async () => await this.load());
         // `file_upload`'s bus is application-wide, so this fires for every

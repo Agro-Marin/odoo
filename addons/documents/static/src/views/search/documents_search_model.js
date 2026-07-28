@@ -5,6 +5,7 @@ import { browser } from "@web/core/browser/browser";
 import { router } from "@web/core/browser/router";
 import { Domain } from "@web/core/domain";
 import { useService } from "@web/core/utils/hooks";
+import { toFolderValueId } from "@documents/views/utils";
 
 export class DocumentsSearchModel extends SearchModel {
     setup(services) {
@@ -14,28 +15,20 @@ export class DocumentsSearchModel extends SearchModel {
         this.skipLoadClosePreview = false;
         useSetupAction({
             beforeLeave: () => {
-                // Cleared key made to match the one `load()` reads back
-                // (`router.current.user_folder_id`). This was `folder_id`, a key
-                // nothing anywhere writes or reads -- so it cleared nothing.
-                //
-                // Honest scope: nothing in this module writes `user_folder_id`
-                // to the URL either, so this only bites for an externally
-                // supplied link (`/odoo/documents?user_folder_id=...`), which
-                // `load()` does honour. It is a coherence fix between reader and
-                // writer, not a fix for an observed leak.
+                // The key `load()` reads back. Nothing in this module writes it,
+                // so this only matters for an externally supplied link
+                // (`/odoo/documents?user_folder_id=...`), which `load()` honours.
                 this._updateRouteState({ user_folder_id: undefined });
             },
         });
     }
 
     /**
-     * The folder category section.
+     * The folder category section, resolved by field name.
      *
-     * Single accessor on purpose: this file used to reach the very same section
-     * three different ways -- `this.sections.get(1)` (a hardcoded arch-order id),
-     * `this.getSections()[0]` (positional) and `this.categories.find(...)` (by
-     * field name). Only the last one survives a searchpanel arch that gains a
-     * section or hides one, so it is the one kept.
+     * The one way this file reaches that section: a positional `getSections()[0]`
+     * or a hardcoded `sections.get(1)` stops being the folder section as soon as
+     * the searchpanel arch gains a section or hides one.
      *
      * @returns {Object|undefined}
      */
@@ -68,11 +61,10 @@ export class DocumentsSearchModel extends SearchModel {
         let folderId = router.current.user_folder_id || this.getSelectedFolderId();
 
         if (folderId) {
-            const folderSection = this.getSections()[0];
-            if (!folderSection.values.has(folderId)) {
+            if (!this.getFolderById(folderId)) {
                 folderId = false;
             }
-            this.toggleCategoryValue(folderSection.id, folderId);
+            this.toggleCategoryValue(this.folderCategory.id, folderId);
         }
     }
 
@@ -81,13 +73,11 @@ export class DocumentsSearchModel extends SearchModel {
      *
      * @override
      */
-    _createCategoryTree(sectionId, result) {
+    _createCategoryTree(sectionId) {
         const category = this.sections.get(sectionId);
-        // NB: no need to evict the numeric (real folder) keys first to 'forget'
-        // archived folders -- the base builder replaces `category.values` with a
-        // brand new Map on every call, preserving only the synthetic `false`
-        // ("All") root. The pre-deletion loop that used to live here has been
-        // dead since that rewrite.
+        // No need to evict the numeric (real folder) keys first to 'forget'
+        // archived folders: the base builder replaces `category.values` with a new
+        // Map on every call, preserving only the synthetic `false` ("All") root.
         super._createCategoryTree(...arguments);
         const findRootId = (folder) => {
             if (!folder.parentId) {
@@ -119,10 +109,10 @@ export class DocumentsSearchModel extends SearchModel {
         const { searchDefaults, searchPanelDefaults } =
             super._extractSearchDefaultsFromGlobalContext(...arguments);
         if (searchPanelDefaults.user_folder_id) {
-            if (!isNaN(searchPanelDefaults.user_folder_id)) {
-                // Search panel keys (values) only support integers
-                searchPanelDefaults.user_folder_id = Number(searchPanelDefaults.user_folder_id);
-            }
+            // The panel keys real folders by number, the virtual roots by string.
+            searchPanelDefaults.user_folder_id = toFolderValueId(
+                searchPanelDefaults.user_folder_id
+            );
             if (!this.globalContext.no_documents_unique_folder_id) {
                 this.globalContext["documents_unique_folder_id"] =
                     searchPanelDefaults.user_folder_id;
@@ -140,8 +130,7 @@ export class DocumentsSearchModel extends SearchModel {
      * @returns {Object[]}
      */
     getFolders() {
-        const { values } = this.getSections()[0];
-        return [...values.values()];
+        return [...(this.folderCategory?.values.values() ?? [])];
     }
 
     /**
@@ -149,19 +138,16 @@ export class DocumentsSearchModel extends SearchModel {
      * @returns {Object | false}
      */
     getFolderById(folderId) {
-        const folderSection = this.getSections()[0];
-        const folder = folderSection && folderSection.values.get(folderId);
-        return folder || false;
+        return this.folderCategory?.values.get(folderId) || false;
     }
 
     /**
      * Returns the id of the current selected folder, if any, false
      * otherwise.
-     * @returns {number | false}
+     * @returns {number | string | false}
      */
     getSelectedFolderId() {
-        const { activeValueId } = this.getSections()[0];
-        return activeValueId;
+        return this.folderCategory?.activeValueId ?? false;
     }
 
     /**
@@ -169,34 +155,28 @@ export class DocumentsSearchModel extends SearchModel {
      * @returns {Object | false}
      */
     getSelectedFolder() {
-        const folderSection = this.getSections()[0];
-        return this.getFolderById(folderSection.activeValueId);
+        return this.getFolderById(this.getSelectedFolderId());
     }
 
     /**
      * Returns the folder and all its parents, if any.
-     * @returns {Object | []}
+     * @returns {Object[]}
      */
     getFolderAndParents(folder) {
         const folders = [];
-        const folderSection = this.getSections()[0];
         while (folder) {
             folders.push(folder);
-            folder = folder.folder_id
-                ? folderSection.values.get(folder.folder_id)
-                : folderSection.values.get(folder.user_folder_id);
+            folder = this.getFolderById(folder.folder_id || folder.user_folder_id);
         }
         return folders;
     }
 
     /**
      * Returns the current selected folder and all its parents, if any.
-     * @returns {Object | []}
+     * @returns {Object[]}
      */
     getSelectedFolderAndParents() {
-        const folderSection = this.getSections()[0];
-        const folder = folderSection.values.get(folderSection.activeValueId || false);
-        return this.getFolderAndParents(folder);
+        return this.getFolderAndParents(this.getFolderById(this.getSelectedFolderId() || false));
     }
 
     /**
@@ -304,6 +284,11 @@ export class DocumentsSearchModel extends SearchModel {
                 { name: "write_date", asc: false },
             ];
         }
+        // Never mutate what `super.orderBy` hands back: it memoizes the array in
+        // `this._orderBy` (which, with no favorite ordering, IS `globalOrderBy`)
+        // and freezes it in debug mode. Pushing the default onto it threw
+        // "Cannot add property 0, object is not extensible" and the documents
+        // kanban failed to mount under `?debug=1`.
         const orderBy = super.orderBy;
         if (!orderBy.length) {
             // super.orderBy is the base search model's memoized getter —
@@ -327,23 +312,11 @@ export class DocumentsSearchModel extends SearchModel {
     /**
      * Whether `valueId` is reachable by walking down from the category roots.
      *
-     * Rewritten from `while ((folder = values.get(queue.pop())))`, which
-     * conflated "queue exhausted" with "id did not resolve" and had no cycle
-     * guard. Both of those failure modes were checked against the live app and
-     * neither is currently reachable, so this is hardening, not a bug fix:
-     *
-     *  - unresolvable id: the search arch parser always seeds `values[false]`
-     *    and `search_panel_fetch` builds `rootIds`/`childrenIds` strictly out of
-     *    `values`, so every queued id resolves today;
-     *  - cycle: each node carries exactly one `parentId`, so a cycle forms an
-     *    isolated component with no parentless node -- it never appears in
-     *    `rootIds` and is never walked. (Verified against a real database: the
-     *    ORM also rejects a folder cycle outright with "Recursion Detected".)
-     *
-     * Kept because the invariants live in another module (`web`), nothing
-     * enforces them from here, and the cost of getting them wrong is a hung
-     * browser tab rather than a wrong result -- a `Set` on a tree we already
-     * walk is a cheap price for that.
+     * Neither an unresolvable id nor a cycle is reachable today -- the arch parser
+     * seeds `values[false]`, `search_panel_fetch` builds `rootIds`/`childrenIds`
+     * out of `values`, and the ORM rejects a folder cycle outright. The `seen` set
+     * is kept anyway: those invariants live in `web`, nothing enforces them from
+     * here, and the cost of getting them wrong is a hung browser tab.
      *
      * @param {Object} category
      * @param {number|string|false} valueId
@@ -380,10 +353,6 @@ export class DocumentsSearchModel extends SearchModel {
         ) {
             return;
         }
-        // NB: this used to also test `!this.documentService.initData.folder_id`.
-        // `initData` only ever carries `{documentId, userFolderId, openPreview}`
-        // (see DocumentService), so that term was permanently true and the
-        // condition always reduced to the context test below.
         if (this.context.documents_init_folder_id !== undefined) {
             category.activeValueId = this.context.documents_init_folder_id || false;
             return;
@@ -393,10 +362,9 @@ export class DocumentsSearchModel extends SearchModel {
         const storageItem = browser.localStorage.getItem("searchpanel_documents_document");
         if (storageItem && !["COMPANY", "MY", "RECENT", "SHARED", "TRASH"].includes(storageItem)) {
             try {
-                // The value can be a folder id serialized as JSON, but it may also
-                // be a corrupt/hand-written string (e.g. from a bad URL param that
-                // was persisted verbatim). A raw JSON.parse would then throw on
-                // every load and brick the app until localStorage is cleared.
+                // Usually a folder id serialized as JSON, but a bad URL param can
+                // have been persisted verbatim, and an unguarded parse would throw
+                // on every load until localStorage is cleared.
                 category.activeValueId = JSON.parse(storageItem);
             } catch {
                 category.activeValueId = false;

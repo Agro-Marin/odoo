@@ -1,9 +1,6 @@
 /** @odoo-module native */
 import { _t } from "@web/core/l10n/translation";
-import { rpc } from "@web/core/network/rpc";
-import { user } from "@web/services/user";
 import { KanbanRecord } from "@web/views/kanban/kanban_record";
-import { browser } from "@web/core/browser/browser";
 import { FileUploadProgressBar } from "@web/components/file_upload/file_upload_progress_bar";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useEffect, useState } from "@odoo/owl";
@@ -27,18 +24,14 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         const { bus, uploads } = useService("file_upload");
         this.documentUploads = uploads;
         useBus(bus, "FILE_UPLOAD_ADDED", (ev) => {
-            // Loose `==` is REQUIRED here: `upload.data` is a FormData
-            // (web/services/file_upload_service.js), and FormData.get() always
-            // returns a string, whereas `resId` is a number. document_service.js
-            // appends it as `formData.append("document_id", context.document_id)`,
-            // so this compares "42" against 42 — `===` would always be false and
-            // silently break upload-progress display on the target record.
-            // eslint-disable-next-line eqeqeq
-            if (ev.detail.upload.data.get("document_id") == this.props.record.resId) {
+            // `Number()`, because `FormData.get()` always answers a string while
+            // `resId` is a number.
+            if (Number(ev.detail.upload.data.get("document_id")) === this.props.record.resId) {
                 this.render(true);
             }
         });
 
+        this.documentService = useService("document.document");
         this.thumbnailService = useService("documents_client_thumbnail");
         this.thumbnailService.enqueueRecords([this.props.record]);
         this.contentState = useState({ documentEmailContent: null });
@@ -50,7 +43,6 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         );
 
         // Activity updates from Chatter
-        this.documentService = useService("document.document");
         useBus(this.documentService.bus, "DOCUMENT_CHATTER_ACTIVITY_CHANGED", ({ detail }) => {
             if (this.props.record.data.id === detail.recordId) {
                 this.props.record.load();
@@ -103,10 +95,8 @@ export class DocumentsKanbanRecord extends KanbanRecord {
      */
     getFileUpload() {
         return Object.values(this.documentUploads).find(
-            // Loose `==` is REQUIRED — see the FILE_UPLOAD_ADDED handler in
-            // setup(): FormData.get() yields a string, resId is a number.
-            // eslint-disable-next-line eqeqeq
-            (upload) => upload.data.get("document_id") == this.props.record.resId
+            (upload) =>
+                Number(upload.data.get("document_id")) === this.props.record.resId
         );
     }
 
@@ -143,32 +133,18 @@ export class DocumentsKanbanRecord extends KanbanRecord {
         }
     }
 
-    onTouchStart() {
-        // We handle touch multi-selection for Documents with a long
-        // press as well, as a simple touch already selects one record
-        this.touchStartMs = Date.now();
-        if (this.longTouchTimer === null) {
-            this.longTouchTimer = browser.setTimeout(() => {
-                this.props.record.toggleSelection(true);
-                this.resetLongTouchTimer();
-            }, this.LONG_TOUCH_THRESHOLD);
-        }
-    }
-
     async fetchDocumentsEmailContent() {
-        if (this.props.record.shortcutTarget.data.mimetype !== "application/documents-email") {
+        const target = this.props.record.shortcutTarget;
+        if (target.data.mimetype !== "application/documents-email") {
             return;
         }
+        // The thumbnail is decoration: a body that fails to load leaves the card
+        // showing the watermark rather than raising at the user.
         try {
-            const result = await rpc("/web/dataset/call_kw/documents.document/read", {
-                model: "documents.document",
-                method: "read",
-                args: [this.props.record.resId, ["raw"]],
-                kwargs: { context: user.context },
-            });
-            this.contentState.documentEmailContent = result[0]["raw"];
-        } catch (error) {
-            console.error("Error fetching document:", error);
+            this.contentState.documentEmailContent =
+                await this.documentService.loadEmailContent(target.resId);
+        } catch {
+            this.contentState.documentEmailContent = null;
         }
     }
 }

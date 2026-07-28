@@ -7,6 +7,7 @@ import { useNestedSortable } from "@web/core/utils/dnd/nested_sortable";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { utils as uiUtils } from "@web/ui/block/ui_service";
+import { toFolderValueId } from "@documents/views/utils";
 import { Component, onWillStart, useState } from "@odoo/owl";
 
 const DND_ALLOWED_SPECIAL_DESTINATIONS = ["COMPANY", "MY"];
@@ -56,8 +57,10 @@ export class DocumentsSearchPanel extends SearchPanel {
         super.setup(...arguments);
         const { uploads } = useService("file_upload");
         this.documentService = useService("document.document");
-        this.documentUploads = uploads;
-        useState(uploads);
+        // `useState`, not the service's own reactive: reading the latter during
+        // render subscribes nobody, so the spinner would never appear or clear on
+        // its own.
+        this.documentUploads = useState(uploads);
         this.notification = useService("notification");
         this.orm = useService("orm");
         this.action = useService("action");
@@ -68,9 +71,8 @@ export class DocumentsSearchPanel extends SearchPanel {
         this.dialog = useService("dialog");
 
         onWillStart(async () => {
-            // onWillStart callbacks run concurrently, so wait for the sections to
-            // be fetched before reading `this.sections`/`this.state.expanded`
-            // (the base panel initialises `state.expanded` only after this).
+            // onWillStart callbacks run concurrently, and the base panel fills
+            // `state.expanded` in its own, so wait for the sections first.
             await this.env.searchModel.sectionsPromise;
             if (this.env.model.config.context.active_model) {
                 // Ensure folders in search panel are folded when users come from another app
@@ -141,11 +143,10 @@ export class DocumentsSearchPanel extends SearchPanel {
                 ) {
                     return;
                 }
-                // Real folders are keyed by numeric id in the search model, so the
-                // raw string dataset value must be parsed; special destinations
-                // ("MY", "COMPANY", ...) stay strings (parseInt -> NaN -> falsy).
+                // Real folders are keyed by numeric id, the special destinations
+                // ("MY", "COMPANY", ...) by string.
                 const parentFolderRootId = this.env.searchModel.getFolderById(
-                    parseInt(parentFolderId) || parentFolderId
+                    toFolderValueId(parentFolderId)
                 ).rootId;
                 if (
                     !this.documentService.userIsDocumentManager &&
@@ -198,9 +199,20 @@ export class DocumentsSearchPanel extends SearchPanel {
         });
     }
 
+    /**
+     * Whether an upload is currently landing in `folderId`.
+     *
+     * Read off `upload.targetFolderId`, which `DocumentService.uploadDocument`
+     * stamps on the upload: the form data cannot carry it, since
+     * `/documents/upload` declares its parameters explicitly and takes
+     * `user_folder_id` only for the two drive roots.
+     *
+     * @param {number|String} folderId
+     * @returns {boolean}
+     */
     isUploadingInFolder(folderId) {
-        return Object.values(this.documentUploads).find(
-            (upload) => upload.data.get("folder_id") === folderId
+        return Object.values(this.documentUploads).some(
+            (upload) => upload.targetFolderId === folderId
         );
     }
 
@@ -256,9 +268,8 @@ export class DocumentsSearchPanel extends SearchPanel {
         this.touchStartMs = Date.now();
         if (!this.longTouchTimer) {
             this.longTouchTimer = browser.setTimeout(() => {
-                // openEditPopover is not implemented (the item-settings popover it
-                // would open is currently unreachable); guard the call so a mobile
-                // long-touch no-ops instead of throwing a TypeError.
+                // `openEditPopover` is not implemented -- the item-settings
+                // popover it would open is currently unreachable.
                 this.openEditPopover?.(ev, section, value);
                 this.resetLongTouchTimer();
             }, LONG_TOUCH_THRESHOLD);
@@ -276,12 +287,27 @@ export class DocumentsSearchPanel extends SearchPanel {
         this.resetLongTouchTimer();
     }
 
+    /**
+     * Unfold `folderId` and its ancestors.
+     *
+     * @param {Object} param0
+     * @param {number|String} param0.folderId
+     */
     _expandFolder({ folderId }) {
         let needRefresh = false;
         const sectionId = this.sections[0].id;
         const folders = this.env.searchModel.getFolderAndParents(
             this.env.searchModel.getFolderById(folderId)
         );
+        if (!folders.length) {
+            // The panel does not hold this folder, so there is no chain to
+            // unfold. `getFolderById` answers `false` for an id it does not know
+            // and `getFolderAndParents(false)` is `[]`, which the ancestor test
+            // below dereferences. `jumpToTarget` reaches here with the target's
+            // `user_folder_id` without first reloading the panel, so a shortcut
+            // to a folder the user cannot see gets here.
+            return;
+        }
         if (folders[0].id === "COMPANY" || this.state.expanded[sectionId][folders[0].rootId]) {
             for (const folder of folders) {
                 if (!this.state.expanded[sectionId][folder.id]) {

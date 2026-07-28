@@ -25,7 +25,7 @@
                         </button>
                     </span>
                 </div>
-                <div class="o_documents_pdf_page_preview" t-att-class="{'z-0 pt-0 pb-0 h-0' : !state.viewedPage}" t-on-click="onClickExitPreview">
+                <div class="o_documents_pdf_page_preview" t-ref="pagePreview" t-att-class="{'z-0 pt-0 pb-0 h-0' : !state.viewedPage}" t-on-click="onClickExitPreview">
                     <t t-if="state.viewedPage">
                         <div class="o_top_bar_previewer">
                             <div class="o_page_name d-flex justify-content-center align-items-center px-2 text-white opacity-75">

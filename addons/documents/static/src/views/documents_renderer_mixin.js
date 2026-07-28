@@ -13,7 +13,7 @@ import {
     onWillUnmount,
     onWillUpdateProps,
     useComponent,
-    useEffect,
+    useExternalListener,
     useState,
 } from "@odoo/owl";
 
@@ -29,10 +29,9 @@ export const DocumentsRendererMixin = (component) =>
             this.component = useComponent();
             this.refreshFocus = false;
 
-            // The service is a singleton and its right-panel scroll observer
-            // watches OUR `.o_documents_content`. Nothing else ever tears it
-            // down when the conditions it waits for do not occur, so it would
-            // keep a detached subtree reachable after we go.
+            // The singleton service's scroll observer watches OUR
+            // `.o_documents_content` and only disconnects itself once its
+            // conditions are met, so it would outlive this subtree.
             onWillUnmount(() => this.documentService.stopRightPanelScrollObserver());
 
             useCommand(
@@ -43,7 +42,7 @@ export const DocumentsRendererMixin = (component) =>
                     hotkey: "control+m",
                     isAvailable: () =>
                         this.documentService.userIsInternal &&
-                        this.recordsToArchive &&
+                        this.hasRecordsToArchive &&
                         this.selection.every((r) => r.data.user_permission === "edit")
                 }
             );
@@ -54,19 +53,31 @@ export const DocumentsRendererMixin = (component) =>
                     category: "smart_action",
                     hotkey: "control+d",
                     isAvailable: () =>
-                        this.recordsToDelete &&
+                        this.hasRecordsToDelete &&
                         this.env.model.canDeleteRecords
                 }
             );
-            useEffect(
-                () => {
-                    this.recordsToDelete = !this.documentService.userIsInternal
-                        ? this.selection
-                        : this.selection.some((r) => !r.data.active);
-                    this.recordsToArchive = this.selection.some((r) => r.data.active);
-                },
-                () => [this.selection]
-            );
+
+            // Holding Control turns a drag into "create a shortcut" instead of
+            // "move": `useDraggableDocuments` reads the class off our root and the
+            // stylesheet paints the cursor from it.
+            const setShortcutModifier = (active) => {
+                this.root?.el?.classList.toggle("o_documents_dnd_shortcut", active);
+            };
+            useExternalListener(window, "keydown", (ev) => {
+                if (ev.key === "Control") {
+                    setShortcutModifier(true);
+                }
+            });
+            useExternalListener(window, "keyup", (ev) => {
+                if (ev.key === "Control") {
+                    setShortcutModifier(false);
+                }
+            });
+            // No keyup arrives when the window loses focus with Control still
+            // down (alt-tab, devtools, a native file dialog), so the class stuck
+            // and the next drag silently created shortcuts instead of moving.
+            useExternalListener(window, "blur", () => setShortcutModifier(false));
 
             onWillUpdateProps((nextProps) => {
                 if (nextProps.list !== this.props.list) {
@@ -79,7 +90,7 @@ export const DocumentsRendererMixin = (component) =>
                     this.documentService.focusRecord(this.selection?.[0] || this.getContainerRecord());
                 }
             });
-            useBus(this.documentService.bus, "UPDATE-DOCUMENT-FOLDER", (ev) => {
+            useBus(this.documentService.bus, "UPDATE-DOCUMENT-FOLDER", () => {
                 this.documentService.focusRecord(this.getContainerRecord());
             });
         }
@@ -136,7 +147,9 @@ export const DocumentsRendererMixin = (component) =>
                 ]);
                 record._applyChanges(changes);
                 const changesToSave = Object.fromEntries(
-                    Object.entries(record._getChanges()).filter(([k, _v]) => fieldsToSave.has(k))
+                    Object.entries(record._getChanges()).filter(([name]) =>
+                        fieldsToSave.has(name)
+                    )
                 );
                 await this.env.model.orm.write(
                     "documents.document",
@@ -184,5 +197,20 @@ export const DocumentsRendererMixin = (component) =>
                 return this.props.records.filter((r) => r.selected);
             }
             return this.props.list.selection;
+        }
+
+        /**
+         * Booleans on purpose: an array here reads as truthy when empty, and
+         * `canDeleteRecords` is an `every()` that is vacuously true on an empty
+         * selection -- together they offer Delete with nothing selected.
+         */
+        get hasRecordsToDelete() {
+            return this.documentService.userIsInternal
+                ? this.selection.some((r) => !r.data.active)
+                : this.selection.length > 0;
+        }
+
+        get hasRecordsToArchive() {
+            return this.selection.some((r) => r.data.active);
         }
     };

@@ -20,6 +20,12 @@ the onboarding tour, the digest KPIs and the Studio automation upsell.
         "mail",
         "portal",
         "attachment_indexation",
+        # `add_documents_attachment` sets `ir.attachment.original_id` and calls
+        # `_get_media_info`, both defined here. It reached them through mail's
+        # own dependency, so the graph did not record that documents needs this
+        # module -- and the day mail stops depending on it, an editor upload
+        # fails on a field that no longer exists.
+        "html_editor",
     ],
     "data": [
         "security/security.xml",
