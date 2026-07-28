@@ -81,6 +81,46 @@ describe("sanitizer allow list", () => {
         expect(pattern.test("datax-foo")).toBe(false);
     });
 
+    test("data-tooltip is rejected, since Odoo's own data-api acts on it", async () => {
+        const pattern = Tooltip.Default.allowList["*"].at(-1);
+        for (const attr of [
+            "data-tooltip",
+            "data-tooltip-template",
+            "data-tooltip-info",
+            "data-tooltip-position",
+            "data-tooltip-delay",
+        ]) {
+            expect(pattern.test(attr)).toBe(false);
+        }
+        // only the API's own prefix, not anything merely starting with it
+        expect(pattern.test("data-tooltipfoo")).toBe(true);
+    });
+
+    // The tooltip service delegates from body in the capture phase and opens on
+    // any [data-tooltip], [data-tooltip-template] it sees, and a tip is appended
+    // to body. `web.Tooltip` then renders t-call="{{props.template}}" with
+    // t-call-context="{ env, ...props.info }", so a surviving pair would let a
+    // stored record choose which internal template renders, and with what
+    // context. Server-side html_sanitize keeps every data-*, so this list is
+    // the only thing in the way.
+    test("stored content cannot drive Odoo's tooltip service", async () => {
+        const root = mount(`<div><span id="a">hover</span></div>`);
+        const tt = new Tooltip(root.querySelector("#a"), {
+            title:
+                `<b data-tooltip="INJECTED" data-tooltip-template="web.Dialog.header"` +
+                ` data-tooltip-info='{"x":1}'>x</b>`,
+            animation: false,
+        });
+        tt.show();
+        await animationFrame();
+        const injected = document.querySelector(".tooltip-inner b");
+        expect(injected).not.toBe(null);
+        expect(injected.getAttribute("data-tooltip")).toBe(null);
+        expect(injected.getAttribute("data-tooltip-template")).toBe(null);
+        expect(injected.getAttribute("data-tooltip-info")).toBe(null);
+        tt.dispose();
+    });
+
     test("stored content cannot paint a viewport overlay", async () => {
         // verbatim output of Odoo's server-side html_sanitize() for a crafted
         // record, fed through website_forum's [data-bs-toggle=tooltip] sweep
