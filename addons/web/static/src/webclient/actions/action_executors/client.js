@@ -55,8 +55,19 @@ export async function executeClientAction(action, options, am) {
     } else {
         const next = await /** @type {any} */ (clientAction)(am.env, action, options);
         if (next) {
+            // The obligation moves along with the chain rather than being
+            // settled here and again by whatever the follow-up resolves to.
             const depth = nextActionDepth(options);
             return am.doAction(next, { ...options, _actionDepth: depth });
         }
+        // A function client action is a one-shot side effect: it is finished
+        // the moment it returns, so it owes the caller the ``onClose`` an
+        // ``act_window_close`` in its place would have settled. Without it a
+        // view button whose method wrote something and returned
+        // ``display_notification`` never reloaded its view, while the SAME
+        // method returning nothing did — that answer becomes an
+        // ``act_window_close``, and ``view_button_hook`` reloads off its
+        // ``onClose``.
+        options.onClose?.();
     }
 }
