@@ -1,6 +1,7 @@
 import ast
 import json
 from collections import defaultdict, deque
+from datetime import timedelta
 from typing import Any, Self
 
 from odoo import api, fields, models
@@ -760,27 +761,41 @@ class ProjectProject(models.Model):
 
         task_set = set(tasks.ids)
         Dep = self.env["project.task.dependency"]
-        typed_deps = Dep.search([("project_id", "=", self.id)])
 
-        # Dependency data per task: predecessors with type and lag
+        # Dependency data per task: predecessors with type and lag.
+        # project.task.dependency now mirrors predecessor_ids in both
+        # directions, so the typed rows are the complete graph. The M2M is
+        # still read as a belt-and-braces second source: an all-or-nothing
+        # "typed if any typed row exists" branch used to drop every plain edge
+        # as soon as one typed row existed anywhere in the project, and a
+        # schedule that silently omits edges is worse than a redundant read.
         deps_on: dict[int, list[tuple[int, str, float]]] = defaultdict(list)
         successors_of: dict[int, list[int]] = defaultdict(list)
+        seen_edges: set[tuple[int, int]] = set()
 
-        if typed_deps:
-            for dep in typed_deps:
-                tid = dep.task_id.id
-                pred_id = dep.depends_on_id.id
-                if tid in task_set and pred_id in task_set:
-                    deps_on[tid].append((pred_id, dep.dependency_type, dep.lag_hours))
-                    successors_of[pred_id].append(tid)
-        else:
-            for task in tasks:
-                for pred in task.predecessor_ids:
-                    if pred.id in task_set:
-                        deps_on[task.id].append((pred.id, "fs", 0.0))
-                        successors_of[pred.id].append(task.id)
+        def add_edge(tid, pred_id, dtype, lag) -> None:
+            if tid not in task_set or pred_id not in task_set:
+                return
+            if (tid, pred_id) in seen_edges:
+                return
+            seen_edges.add((tid, pred_id))
+            deps_on[tid].append((pred_id, dtype, lag))
+            successors_of[pred_id].append(tid)
 
-        duration = {t.id: t.allocated_hours or 0.0 for t in tasks}
+        # Typed rows first: they carry the richer (type, lag) information, and
+        # add_edge keeps the first definition of any given edge.
+        for dep in Dep.search([("project_id", "=", self.id)]):
+            add_edge(
+                dep.task_id.id,
+                dep.depends_on_id.id,
+                dep.dependency_type,
+                dep.lag_hours,
+            )
+        for task in tasks:
+            for pred in task.predecessor_ids:
+                add_edge(task.id, pred.id, "fs", 0.0)
+
+        duration = {t.id: t._get_cpm_duration_hours() for t in tasks}
 
         # Guard against dependency cycles before running the passes: forward()
         # and backward() are plain recursive DFS and would recurse forever
@@ -880,39 +895,53 @@ class ProjectProject(models.Model):
                         lf[tid] = min(lf[tid], lf[succ_id] - lag + duration[tid])
             ls_map[tid] = lf[tid] - duration[tid]
 
-        # Convert abstract hours to calendar dates and write results
+        # Convert abstract hours to calendar dates and write results.
+        # A project whose company has no working-time calendar still has to
+        # produce a schedule: fall back to plain elapsed hours instead of
+        # calling plan_hours on an empty recordset (ValueError -> HTTP 500).
         calendar = self.resource_calendar_id
         now = fields.Datetime.now()
+
+        def to_datetime(hours):
+            if not hours:
+                return now
+            if calendar:
+                return calendar.plan_hours(hours, now)
+            return now + timedelta(hours=hours)
+
+        # Group identical result sets so a project of N tasks issues one UPDATE
+        # per distinct schedule rather than N.
+        tasks_by_vals = defaultdict(lambda: self.env["project.task"])
+        vals_by_key = {}
         for task in tasks:
             tid = task.id
             es_h = es.get(tid, 0.0)
             ls_h = ls_map.get(tid, 0.0)
             total_fl = ls_h - es_h
-            planned_start = calendar.plan_hours(es_h, now) if es_h else now
-            planned_end = (
-                calendar.plan_hours(ef.get(tid, 0.0), now) if ef.get(tid) else now
-            )
-            ls_dt = calendar.plan_hours(ls_h, now) if ls_h else now
-            task.write(
-                {
-                    "earliest_start": planned_start,
-                    "latest_start": ls_dt,
-                    "total_float": total_fl,
-                    "is_critical_path": abs(total_fl) < 0.01,
-                    "planned_date_start": planned_start,
-                    "planned_date_end": planned_end,
-                }
-            )
+            cpm_start = to_datetime(es_h)
+            vals = {
+                "earliest_start": cpm_start,
+                "latest_start": to_datetime(ls_h),
+                "total_float": total_fl,
+                "is_critical_path": abs(total_fl) < 0.01,
+                "cpm_date_start": cpm_start,
+                "cpm_date_end": to_datetime(ef.get(tid, 0.0)),
+            }
+            key = repr(sorted(vals.items()))
+            tasks_by_vals[key] |= task
+            vals_by_key[key] = vals
+        for key, group in tasks_by_vals.items():
+            group.write(vals_by_key[key])
 
     def action_level_resources(self) -> None:
         """Basic resource leveling: shift non-critical tasks to avoid overallocation.
 
         Algorithm:
         1. Run CPM first to establish planned dates.
-        2. Build per-user timeline from planned_date_start/end.
+        2. Build per-user timeline from cpm_date_start/end.
         3. For each non-critical task (sorted by float descending):
            if assigned user is overloaded in the planned window,
-           shift planned_date_start forward to next available slot, but only
+           shift cpm_date_start forward to next available slot, but only
            within the task's float so the project end date is preserved.
 
         This is a heuristic, not an optimization solver. Because shifts stay
@@ -929,8 +958,8 @@ class ProjectProject(models.Model):
                 ("project_id", "=", self.id),
                 ("is_template", "=", False),
                 ("state", "not in", list(CLOSED_STATES)),
-                ("planned_date_start", "!=", False),
-                ("planned_date_end", "!=", False),
+                ("cpm_date_start", "!=", False),
+                ("cpm_date_end", "!=", False),
             ]
         )
         if not tasks:
@@ -948,8 +977,8 @@ class ProjectProject(models.Model):
             for user in task.user_ids:
                 user_slots[user.id].append(
                     (
-                        task.planned_date_start,
-                        task.planned_date_end,
+                        task.cpm_date_start,
+                        task.cpm_date_end,
                         task.allocated_hours or 0.0,
                         task.id,
                     )
@@ -966,8 +995,8 @@ class ProjectProject(models.Model):
                     s[2]
                     for s in slots
                     if s[3] != task.id
-                    and s[0] < task.planned_date_end
-                    and s[1] > task.planned_date_start
+                    and s[0] < task.cpm_date_end
+                    and s[1] > task.cpm_date_start
                 )
                 if concurrent <= 0:
                     continue
@@ -977,10 +1006,10 @@ class ProjectProject(models.Model):
                         s[1]
                         for s in slots
                         if s[3] != task.id
-                        and s[0] < task.planned_date_end
-                        and s[1] > task.planned_date_start
+                        and s[0] < task.cpm_date_end
+                        and s[1] > task.cpm_date_start
                     ),
-                    default=task.planned_date_start,
+                    default=task.cpm_date_start,
                 )
                 # Shift task to *start* at the end of the overlap (snapped to the
                 # next working moment), respecting float. NB: plan_hours(h, t)
@@ -995,15 +1024,16 @@ class ProjectProject(models.Model):
                     calendar.plan_hours(0.0, latest_end) if calendar else latest_end
                 )
                 # Only shift if within float allowance
-                shift_hours = (
-                    new_start - task.planned_date_start
-                ).total_seconds() / 3600
+                shift_hours = (new_start - task.cpm_date_start).total_seconds() / 3600
                 if 0 < shift_hours <= max_shift_hours:
+                    # Shifting preserves the activity's DURATION, not its
+                    # effort: plan_hours must advance by the same working span
+                    # CPM used, otherwise a two-person task lands twice as long
+                    # as it is (see _get_cpm_duration_hours).
                     new_end = (
-                        calendar.plan_hours(task.allocated_hours, new_start)
+                        calendar.plan_hours(task._get_cpm_duration_hours(), new_start)
                         if calendar
-                        else new_start
-                        + (task.planned_date_end - task.planned_date_start)
+                        else new_start + (task.cpm_date_end - task.cpm_date_start)
                     )
                     # Update slot tracking
                     user_slots[user.id] = [s for s in slots if s[3] != task.id] + [
@@ -1011,8 +1041,8 @@ class ProjectProject(models.Model):
                     ]
                     task.write(
                         {
-                            "planned_date_start": new_start,
-                            "planned_date_end": new_end,
+                            "cpm_date_start": new_start,
+                            "cpm_date_end": new_end,
                         }
                     )
 
@@ -1426,7 +1456,7 @@ class ProjectProject(models.Model):
         )
         mapped_count = {project.id: count for project, count in read_group}
         for project in self:
-            project.is_milestone_exceeded = bool(mapped_count.get(project.id, 0))
+            project.is_milestone_exceeded = bool(mapped_count.get(project.id))
 
     @api.depends_context("company")
     @api.depends("company_id")
@@ -1793,9 +1823,14 @@ class ProjectProject(models.Model):
     def name_create(self, name: str) -> tuple[int, str]:
         res = super().name_create(name)
         if res:
-            # We create a default stage `new` for projects created on the fly.
-            self.browse(res[0]).workflow_step_ids += (
-                self.env["project.workflow.step"].sudo().create({"name": _("New")})
+            # Create the default `New` step already bound to the project.
+            # Linking it afterwards through the project side skipped
+            # project.workflow.step.create(), which is what enforces that a
+            # step is either a project step or a personal one — so the step
+            # came out owned by whoever created the project AND attached to it,
+            # violating the invariant the model exists to guarantee.
+            self.env["project.workflow.step"].sudo().create(
+                {"name": _("New"), "project_ids": [Command.link(res[0])]}
             )
         return res
 

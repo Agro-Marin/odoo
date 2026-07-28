@@ -631,4 +631,62 @@
         <field name="groups" eval="[(4,ref('project.group_project_manager'))]"/>
     </record>
 
+    <!-- project.task.dependency — the one PM child model that never got rules.
+         Without them any project user could read and delete the dependency
+         graph of projects they cannot open. -->
+    <record model="ir.rule" id="task_dependency_comp_rule">
+        <field name="name">Project/project.task.dependency: multi-company</field>
+        <field name="model_id" ref="model_project_task_dependency"/>
+        <field name="domain_force">['|', ('project_id.company_id', 'in', company_ids), ('project_id.company_id', '=', False)]</field>
+    </record>
+
+    <record model="ir.rule" id="task_dependency_visibility_rule">
+        <field name="name">Project/project.task.dependency: employees: follow required for follower-only projects</field>
+        <field name="model_id" ref="model_project_task_dependency"/>
+        <field name="domain_force">['|',
+            ('project_id.privacy_visibility', 'in', ['employees', 'portal']),
+            '|',
+                ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
+                ('project_id.user_id', '=', user.id)
+        ]</field>
+        <field name="groups" eval="[(4,ref('project.group_project_user'))]"/>
+    </record>
+
+    <record model="ir.rule" id="task_dependency_manager_rule">
+        <field name="name">Project/project.task.dependency: manager full access</field>
+        <field name="model_id" ref="model_project_task_dependency"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4,ref('project.group_project_manager'))]"/>
+    </record>
+
+    <!-- project.resource.report — an aggregate over every company's
+         reservations. It carried neither a company_id nor any rule, so a user
+         of one company read the per-user allocated hours of another company's
+         private projects (only the project *name* was masked, by
+         project.project's own rules). -->
+    <record model="ir.rule" id="resource_report_comp_rule">
+        <field name="name">Project/project.resource.report: multi-company</field>
+        <field name="model_id" ref="model_project_resource_report"/>
+        <field name="domain_force">['|', ('company_id', 'in', company_ids), ('company_id', '=', False)]</field>
+    </record>
+
+    <record model="ir.rule" id="resource_report_visibility_rule">
+        <field name="name">Project/project.resource.report: employees: follow required for follower-only projects</field>
+        <field name="model_id" ref="model_project_resource_report"/>
+        <field name="domain_force">['|',
+            ('project_id.privacy_visibility', 'in', ['employees', 'portal']),
+            '|',
+                ('project_id.message_partner_ids', 'in', [user.partner_id.id]),
+                ('project_id.user_id', '=', user.id)
+        ]</field>
+        <field name="groups" eval="[(4,ref('project.group_project_user'))]"/>
+    </record>
+
+    <record model="ir.rule" id="resource_report_manager_rule">
+        <field name="name">Project/project.resource.report: manager sees all</field>
+        <field name="model_id" ref="model_project_resource_report"/>
+        <field name="domain_force">[(1, '=', 1)]</field>
+        <field name="groups" eval="[(4,ref('project.group_project_manager'))]"/>
+    </record>
+
 </odoo>

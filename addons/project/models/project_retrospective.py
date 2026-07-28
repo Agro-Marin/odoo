@@ -114,7 +114,7 @@ class ProjectRetrospectiveAction(models.Model):
 
     _name = "project.retrospective.action"
     _description = "Retrospective Action Item"
-    _order = "state, due_date, id"
+    _order = "state_order, due_date, id"
 
     name = fields.Char("Action", required=True)
     retrospective_id = fields.Many2one(
@@ -144,6 +144,14 @@ class ProjectRetrospectiveAction(models.Model):
         default="open",
         required=True,
     )
+    state_order = fields.Integer(
+        compute="_compute_state_order",
+        store=True,
+        export_string_translation=False,
+        help="Sort key: outstanding actions first. Ordering by ``state`` "
+        "directly sorts on the stored keys, which puts Done and Dropped "
+        "above the open items this list exists to surface.",
+    )
     resolution_note = fields.Text(
         "Resolution Note",
         help="How was this action resolved?",
@@ -165,3 +173,10 @@ class ProjectRetrospectiveAction(models.Model):
         ],
         string="Category",
     )
+
+    _STATE_ORDER = {"open": 0, "in_progress": 1, "done": 2, "dropped": 3}
+
+    @api.depends("state")
+    def _compute_state_order(self) -> None:
+        for action in self:
+            action.state_order = self._STATE_ORDER.get(action.state, 99)

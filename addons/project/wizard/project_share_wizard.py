@@ -101,7 +101,21 @@ class ProjectShareWizard(models.TransientModel):
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
         wizards = super().create(vals_list)
-        for wizard in wizards:
+        wizards._apply_collaborators()
+        return wizards
+
+    def _apply_collaborators(self) -> None:
+        """Push each wizard's collaborator list onto its project.
+
+        KNOWN ISSUE (not fixed here): this runs from ``create()``, i.e. when
+        the dialog is saved, so the access change is already committed by the
+        time ``action_share_record`` offers its "create portal users?"
+        confirmation — cancelling that dialog leaves the collaborators added
+        and removed anyway. Moving the call to the buttons is the fix, but the
+        project-sharing access tests drive the wizard through ``Form(...)``
+        save alone, so it needs those flows reworked with it.
+        """
+        for wizard in self:
             collaborator_ids_to_add = []
             collaborator_ids_to_add_with_limited_access = []
             collaborator_ids_vals_list = []
@@ -182,7 +196,6 @@ class ProjectShareWizard(models.TransientModel):
                 )
             if project_followers_to_remove:
                 project.message_unsubscribe(project_followers_to_remove)
-        return wizards
 
     def action_share_record(self) -> dict[str, Any] | None:
         # Confirmation dialog is only opened if new portal user(s) need to be created in a 'on invitation' website

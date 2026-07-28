@@ -1,4 +1,5 @@
 from odoo.exceptions import UserError
+from odoo.fields import Command
 
 from odoo.addons.project.tests.test_project_base import TestProjectCommon
 
@@ -40,6 +41,52 @@ class TestProjectTaskType(TestProjectCommon):
             self.env.uid,
             "user_id should be set to the current user if no project is set at stage creation",
         )
+
+    def test_create_stage_honours_every_project_ids_form(self) -> None:
+        """A step is never both a project stage and a personal stage.
+
+        ``project_ids`` accepts a command list, a bare id list and a recordset;
+        each form that resolves to a project must clear ``user_id``, and each
+        form that resolves to nothing must leave a personal stage behind.
+        """
+        assigning = {
+            "recordset": self.project_goats,
+            "id list": self.project_goats.ids,
+            "set": [Command.set(self.project_goats.ids)],
+            "link": [Command.link(self.project_goats.id)],
+        }
+        for label, project_ids in assigning.items():
+            with self.subTest(project_ids=label):
+                step = self.env["project.workflow.step"].create(
+                    {
+                        "name": f"Project stage via {label}",
+                        "user_id": self.uid,
+                        "project_ids": project_ids,
+                    }
+                )
+                self.assertEqual(step.project_ids, self.project_goats)
+                self.assertFalse(
+                    step.user_id,
+                    "a step assigned to a project must not also be a personal stage",
+                )
+
+        for label, project_ids in {
+            "empty set": [Command.set([])],
+            "clear": [Command.clear()],
+        }.items():
+            with self.subTest(project_ids=label):
+                step = self.env["project.workflow.step"].create(
+                    {
+                        "name": f"Personal stage via {label}",
+                        "project_ids": project_ids,
+                    }
+                )
+                self.assertFalse(step.project_ids)
+                self.assertEqual(
+                    step.user_id.id,
+                    self.env.uid,
+                    "a step assigned to no project must fall back to a personal stage",
+                )
 
     def test_modify_existing_stage(self) -> None:
         """- case 1: [`user_id`: not set, `project_ids`: set]  | Remove `project_ids` => user_id should not be set (no transformation of project stage to personal stage)

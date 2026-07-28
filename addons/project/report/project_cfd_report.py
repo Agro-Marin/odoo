@@ -28,12 +28,13 @@ class ProjectCFDReport(models.AbstractModel):
     date_last_status_change = fields.Date(string="Last Status Change", readonly=True)
     state = fields.Selection(
         [
+            ("todo", "To Do"),
             ("in_progress", "In Progress"),
-            ("done", "Done"),
-            ("waiting", "Waiting"),
-            ("approved", "Approved"),
-            ("canceled", "Canceled"),
             ("changes_requested", "Changes Requested"),
+            ("approved", "Approved"),
+            ("done", "Done"),
+            ("canceled", "Cancelled"),
+            ("blocked", "Waiting"),
         ],
         string="State",
         readonly=True,

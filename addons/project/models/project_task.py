@@ -102,6 +102,12 @@ CLOSED_STATES = {
     "canceled": "Cancelled",
 }
 
+# Review verdicts: they describe the outcome of examining the task where it
+# stood, so moving it to another workflow step makes them stale and they fall
+# back to in_progress. Every other open state — notably the ``todo`` default —
+# is the user's and survives the move.
+STATES_RESET_ON_STEP_CHANGE = ("approved", "changes_requested")
+
 
 class ProjectTask(models.Model):
     _name = "project.task"
@@ -265,7 +271,16 @@ class ProjectTask(models.Model):
     )
     create_date = fields.Datetime("Created On", readonly=True, index=True)
     write_date = fields.Datetime("Last Updated On", readonly=True)
-    date_closed = fields.Datetime(string="Closed Date", index=True, copy=False)
+    date_closed = fields.Datetime(
+        string="Closed Date",
+        index=True,
+        copy=False,
+        compute="_compute_date_closed",
+        store=True,
+        readonly=False,
+        help="When the task actually reached a closed state. Derived from "
+        "``state``, the single closure signal every metric reads.",
+    )
     date_assign = fields.Datetime(
         string="Assigning Date",
         copy=False,
@@ -273,8 +288,8 @@ class ProjectTask(models.Model):
         help="Date on which this task was last assigned (or unassigned). Based on this, you can get statistics on the time it usually takes to assign tasks.",
     )
     # Scheduled time range — PMI Constraint Start Date / Constraint End Date.
-    # User-entered values (independent of CPM-calculated planned_date_start /
-    # planned_date_end above).  ``date_end`` doubles as the deadline label
+    # User-entered values (independent of the CPM-calculated cpm_date_start /
+    # cpm_date_end below).  ``date_end`` doubles as the deadline label
     # for backward compatibility with vanilla Odoo's project module.
     planned_date_begin = fields.Datetime(
         "Start date",
@@ -619,16 +634,24 @@ class ProjectTask(models.Model):
         help="True when total_float is zero (no scheduling slack).",
         export_string_translation=False,
     )
-    planned_date_start = fields.Datetime(
-        "Planned Start",
+    # NB: these are deliberately NOT named planned_date_start/planned_date_end.
+    # project_enterprise (auto_install) owns ``planned_date_start`` as a
+    # non-stored alias of planned_date_begin whose inverse writes back to
+    # planned_date_begin (or, when that is unset, to date_end).  Reusing the
+    # name made every CPM run overwrite the user's start date or deadline.
+    cpm_date_start = fields.Datetime(
+        "CPM Start",
         copy=False,
-        help="Calendar-aware start date computed by CPM. Distinct from date_end (user-entered).",
+        help="Calendar-aware start date computed by critical path analysis. "
+        "Distinct from planned_date_begin (the user-entered scheduled start).",
         export_string_translation=False,
     )
-    planned_date_end = fields.Datetime(
-        "Planned End",
+    cpm_date_end = fields.Datetime(
+        "CPM End",
         copy=False,
-        help="Calendar-aware end date computed by CPM. Distinct from date_closed (actual completion).",
+        help="Calendar-aware end date computed by critical path analysis. "
+        "Distinct from date_end (the user-entered deadline) and from "
+        "date_closed (actual completion).",
         export_string_translation=False,
     )
 
@@ -951,29 +974,57 @@ class ProjectTask(models.Model):
             ):
                 task.display_in_project = False
 
-    @api.depends("step_id", "predecessor_ids.state")
+    @api.depends("predecessor_ids.state")
     def _compute_state(self) -> None:
+        """Drive only the blocked/unblocked transition.
+
+        ``step_id`` is deliberately NOT a dependency. Discarding a stale review
+        verdict when a task moves column is a policy about that move, so it
+        lives in ``write`` (see ``STATES_RESET_ON_STEP_CHANGE``) where it can
+        apply to exactly the verdict states. Expressed here as a compute over
+        ``step_id`` it also swept up ``todo`` — the fork's own default, which
+        could therefore not survive a single column move.
+
+        A task with an unfinished predecessor is blocked; one whose
+        predecessors have all closed leaves ``blocked`` for ``in_progress``
+        (there is no memory of the state it held before it was blocked). Every
+        other open state is the user's to set.
+        """
         for task in self:
-            dependent_open_tasks = []
-            if task.allow_dependencies:
-                dependent_open_tasks = [
-                    dependent_task
-                    for dependent_task in task.predecessor_ids
-                    if dependent_task.state not in CLOSED_STATES
-                ]
-            # if one of the blocking task is in a blocking state
-            if dependent_open_tasks:
-                # here we check that the blocked task is not already in a closed state (if the task is already done we don't put it in waiting state)
-                if task.state not in CLOSED_STATES:
-                    task.state = "blocked"
-            # if the task as no blocking dependencies and is in waiting_normal, the task goes back to in progress
-            elif task.state not in CLOSED_STATES:
+            if task.state in CLOSED_STATES:
+                continue
+            if task.allow_dependencies and task.is_blocked_by_predecessors():
+                task.state = "blocked"
+            elif task.state == "blocked":
                 task.state = "in_progress"
 
     @api.depends("state")
     def _compute_is_closed(self) -> None:
         for task in self:
             task.is_closed = task.state in CLOSED_STATES
+
+    @api.depends("state")
+    def _compute_date_closed(self) -> None:
+        """Stamp the closure timestamp from the one closure signal: ``state``.
+
+        ``date_closed`` used to be written only when a task entered a *folded*
+        workflow step, which made it disagree with ``state`` in both
+        directions: closing a task from the state widget left it empty (so
+        lead/cycle time, deadline_met, throughput and the forecast all read
+        the task as never closed), while dragging an open task into a folded
+        column stamped a closure date on a task that was still in progress.
+
+        Sticky on purpose: an already-closed task keeps its original timestamp
+        across re-saves, step moves and project moves — losing it would
+        rewrite delivery history. Reopening clears it, because the task is no
+        longer closed.
+        """
+        now = fields.Datetime.now()
+        for task in self:
+            if task.state in CLOSED_STATES:
+                task.date_closed = task.date_closed or now
+            else:
+                task.date_closed = False
 
     def _search_is_closed(self, operator: str, value: Any) -> list:
         if operator == "in":
@@ -1198,6 +1249,44 @@ class ProjectTask(models.Model):
         if self._has_cycle("predecessor_ids"):
             raise ValidationError(_("Two tasks cannot depend on each other."))
 
+    def _sync_dependency_rows(self) -> None:
+        """Reconcile ``project.task.dependency`` with ``predecessor_ids``.
+
+        The two are one fact in two tables. The typed model synced itself into
+        the M2M but nothing came back, so an edge drawn on the task form — the
+        only place most users create one — existed solely as an M2M row: it had
+        no type, no lag, and was invisible to anything reading the typed model.
+        That is what let the critical path silently drop whole edges.
+
+        Reconciling from the M2M keeps it the field users edit while making the
+        typed model complete. New rows take the ``fs``/no-lag default, which is
+        exactly what an untyped link means.
+        """
+        Dependency = self.env["project.task.dependency"].sudo()
+        existing_per_task = defaultdict(dict)
+        for dependency in Dependency.search([("task_id", "in", self.ids)]):
+            existing_per_task[dependency.task_id.id][dependency.depends_on_id.id] = (
+                dependency
+            )
+
+        vals_list = []
+        stale = Dependency
+        for task in self:
+            wanted = set(task.predecessor_ids.ids)
+            current = existing_per_task.get(task.id, {})
+            vals_list += [
+                {"task_id": task.id, "depends_on_id": predecessor_id}
+                for predecessor_id in wanted - current.keys()
+            ]
+            stale = stale.union(
+                *(current[predecessor_id] for predecessor_id in current.keys() - wanted)
+            )
+
+        if stale:
+            stale.with_context(skip_dependency_sync=True).unlink()
+        if vals_list:
+            Dependency.create(vals_list)
+
     @api.model
     def _get_recurrence_fields(self) -> list[str]:
         return [
@@ -1338,77 +1427,50 @@ class ProjectTask(models.Model):
         "project_id.resource_calendar_id",
     )
     def _compute_elapsed(self) -> None:
-        """Compute queue time, lead time, and cycle time (calendar-adjusted)."""
-        task_linked_to_calendar = self.filtered(
-            lambda task: task.project_id.resource_calendar_id and task.create_date
-        )
-        for task in task_linked_to_calendar:
-            dt_create = fields.Datetime.from_string(task.create_date)
+        """Queue, lead and cycle time, in working hours where a calendar says so.
+
+        Falls back to elapsed wall-clock time when no calendar resolves — for a
+        private task, or a company with no working time configured. Reporting
+        0.0 there, as this used to, does not read as "unknown": it reads as
+        delivered instantly, and it silently flattened the flow metrics of
+        every such task.
+        """
+        for task in self:
+            if not task.create_date:
+                task._set_elapsed()
+                continue
             calendar = task.project_id.resource_calendar_id
             leave_domain = [
                 ("company_id", "in", task.project_id.company_id.ids),
                 ("time_type", "=", "leave"),
             ]
 
-            # Queue time: create → assign
-            if task.date_assign:
-                dt_assign = fields.Datetime.from_string(task.date_assign)
-                data = calendar.get_work_duration_data(
-                    dt_create,
-                    dt_assign,
-                    compute_leaves=True,
-                    domain=leave_domain,
-                )
-                task.queue_time_hours = data["hours"]
-                task.queue_time_days = data["days"]
-            else:
-                task.queue_time_hours = 0.0
-                task.queue_time_days = 0.0
+            def span(start, stop, calendar=calendar, leave_domain=leave_domain):
+                if not (start and stop):
+                    return 0.0, 0.0
+                if calendar:
+                    data = calendar.get_work_duration_data(
+                        fields.Datetime.from_string(start),
+                        fields.Datetime.from_string(stop),
+                        compute_leaves=True,
+                        domain=leave_domain,
+                    )
+                    return data["hours"], data["days"]
+                elapsed = fields.Datetime.from_string(
+                    stop
+                ) - fields.Datetime.from_string(start)
+                hours = elapsed.total_seconds() / 3600
+                return hours, elapsed.days
 
-            # Lead time: create → closed
-            if task.date_closed:
-                dt_end = fields.Datetime.from_string(task.date_closed)
-                data = calendar.get_work_duration_data(
-                    dt_create,
-                    dt_end,
-                    compute_leaves=True,
-                    domain=leave_domain,
-                )
-                task.lead_time_hours = data["hours"]
-                task.lead_time_days = data["days"]
-            else:
-                task.lead_time_hours = 0.0
-                task.lead_time_days = 0.0
+            queue = span(task.create_date, task.date_assign)
+            lead = span(task.create_date, task.date_closed)
+            cycle = span(task.date_assign, task.date_closed)
+            task._set_elapsed(queue=queue, lead=lead, cycle=cycle)
 
-            # Cycle time: assign → closed (requires both dates)
-            if task.date_assign and task.date_closed:
-                dt_assign = fields.Datetime.from_string(task.date_assign)
-                dt_end = fields.Datetime.from_string(task.date_closed)
-                data = calendar.get_work_duration_data(
-                    dt_assign,
-                    dt_end,
-                    compute_leaves=True,
-                    domain=leave_domain,
-                )
-                task.cycle_time_hours = data["hours"]
-                task.cycle_time_days = data["days"]
-            else:
-                task.cycle_time_hours = 0.0
-                task.cycle_time_days = 0.0
-
-        (self - task_linked_to_calendar).update(
-            dict.fromkeys(
-                [
-                    "queue_time_hours",
-                    "queue_time_days",
-                    "lead_time_hours",
-                    "lead_time_days",
-                    "cycle_time_hours",
-                    "cycle_time_days",
-                ],
-                0.0,
-            )
-        )
+    def _set_elapsed(self, queue=(0.0, 0.0), lead=(0.0, 0.0), cycle=(0.0, 0.0)) -> None:
+        self.queue_time_hours, self.queue_time_days = queue
+        self.lead_time_hours, self.lead_time_days = lead
+        self.cycle_time_hours, self.cycle_time_days = cycle
 
     @api.depends("date_closed", "date_end", "state")
     def _compute_deadline_met(self) -> None:
@@ -1482,8 +1544,18 @@ class ProjectTask(models.Model):
 
     @api.depends("scheduled_hours", "planned_resources", "allocated_percentage")
     def _compute_planned_hours(self) -> None:
-        """PMBOK Effort = Duration x Resources x Units (uniform rate)."""
+        """PMBOK Effort = Duration x Resources x Units (uniform rate).
+
+        An unscheduled task keeps whatever estimate it was given. Without a
+        date range the formula has no opinion — it yields 0 — and zeroing the
+        field there silently discarded every estimate that did not come from a
+        schedule: the "3h" quick-create syntax, imports, and anything a PM
+        typed before planning the dates.
+        """
         for task in self:
+            if not task.scheduled_hours:
+                task.planned_hours = task.planned_hours or 0.0
+                continue
             task.planned_hours = round(
                 task.scheduled_hours
                 * task.planned_resources
@@ -1492,22 +1564,70 @@ class ProjectTask(models.Model):
             )
 
     def _inverse_planned_hours(self) -> None:
-        """Track manual overrides of the PMBOK-derived planned_hours.
+        """Log genuine manual overrides of the PMBOK-derived planned_hours.
 
-        ``planned_hours`` is a stored compute with ``readonly=False``: Odoo
-        calls this inverse only on direct user writes, not on
-        dependency-driven recomputes.  Posting from here keeps the chatter
-        signal precise (override events) without the noise that
-        ``tracking=True`` would generate on every formula recompute.
+        ``planned_hours`` is a stored compute with ``readonly=False``, so this
+        inverse runs on every direct write. An unscheduled task is not an
+        override: with no date range the formula has no opinion (it yields 0),
+        so ``planned_hours`` is the only estimate there is. Report only a value
+        that contradicts a formula that actually produced one.
+
+        Batched: this used to be one ``message_post`` per record, which turned
+        a 200-task write into 810 queries and 200 chatter entries against 5
+        queries for the write itself.
         """
-        for task in self:
-            task.message_post(
-                body=_(
+        overridden = self.filtered(
+            lambda task: (
+                task.scheduled_hours
+                and float_compare(
+                    task.planned_hours,
+                    task.scheduled_hours
+                    * task.planned_resources
+                    * (task.allocated_percentage / 100.0),
+                    precision_digits=2,
+                )
+            )
+        )
+        if not overridden:
+            return
+        overridden._message_log_batch(
+            bodies={
+                task.id: _(
                     "Planned Hours manually overridden to %(value).2f h "
                     "(formula override).",
                     value=task.planned_hours,
-                ),
-            )
+                )
+                for task in overridden
+            }
+        )
+
+    def _get_cpm_duration_hours(self) -> float:
+        """Activity duration in working hours, for schedule computation.
+
+        PMBOK separates Duration (elapsed working time) from Work/Effort
+        (person-hours).  ``allocated_hours`` and ``planned_hours`` are both
+        effort: staffing an activity with a second person doubles them while
+        the activity still takes just as long.  Feeding effort to CPM made
+        every extra assignee push the successors further out.
+
+        Scheduled activities carry their duration directly in
+        ``scheduled_hours``.  For an activity that is not scheduled yet — the
+        normal CPM input — invert the PMBOK relation
+        ``Effort = Duration x Resources x Units`` to recover it, preferring the
+        planning estimate and falling back to the committed one.  A single
+        resource makes effort and duration numerically equal, which is why
+        dividing by the assignee count (never zero) is the right conversion
+        rather than a special case.
+        """
+        self.ensure_one()
+        if self.scheduled_hours:
+            return self.scheduled_hours
+        units = (self.allocated_percentage or 100.0) / 100.0
+        if self.planned_hours and self.planned_resources:
+            return self.planned_hours / (self.planned_resources * units)
+        if self.allocated_hours:
+            return self.allocated_hours / (max(len(self.user_ids), 1) * units)
+        return 0.0
 
     @api.depends("planned_hours", "allocated_hours")
     def _compute_allocation_state(self) -> None:
@@ -1679,11 +1799,12 @@ class ProjectTask(models.Model):
     def _get_cannot_start_with_patterns(self) -> str:
         return [r"(?![#!@\s])"]
 
-    def _extract_tags_and_users(self) -> tuple:
+    def _extract_tags_and_users(self, title: str) -> str:
+        """Pull #tags and @users out of ``title``, returning what is left."""
         tags = []
         users = []
         tags_and_users_group = self._get_group_pattern()["tags_and_users"]
-        for word in re.findall(tags_and_users_group % "", self.display_name):
+        for word in re.findall(tags_and_users_group % "", title):
             (tags if word.startswith("#") else users).append(word[1:])
         users_to_keep = []
         user_ids = []
@@ -1707,22 +1828,33 @@ class ProjectTask(models.Model):
         pattern = tags_and_users_group % (
             "(?!%s)" % ("|").join(users_to_keep) if users_to_keep else ""
         )
-        self.display_name, _ = re.subn(pattern, "", self.display_name)
+        return re.subn(pattern, "", title)[0]
 
-    def _extract_priority(self) -> str | None:
+    def _extract_priority(self, title: str) -> str:
+        """Pull a trailing !/!!/!!! out of ``title``, returning what is left."""
         priority_group = self._get_group_pattern()["priority"]
-        match = re.search(priority_group, self.display_name)
-        if match:
-            self.priority = str(min(len(match.group(1)), 3))
-            self.display_name, _dummy = re.subn(priority_group, "", self.display_name)
+        match = re.search(priority_group, title)
+        if not match:
+            return title
+        self.priority = str(min(len(match.group(1)), 3))
+        return re.subn(priority_group, "", title)[0]
 
-    def _get_groups(self) -> dict:
+    def _get_groups(self) -> list:
         return [
-            lambda task: task._extract_tags_and_users(),
-            lambda task: task._extract_priority(),
+            lambda task, title: task._extract_tags_and_users(title),
+            lambda task, title: task._extract_priority(title),
         ]
 
     def _inverse_display_name(self) -> None:
+        """Parse "Fix login #bug @alice !!" into name, tags, assignees, priority.
+
+        The title is carried through the extractors as a plain string. They
+        used to read and rewrite ``self.display_name`` between steps, but
+        assigning ``user_ids``/``tag_ids`` invalidates that computed field —
+        so the next extractor read ``False`` and quick-create died with
+        "expected string or bytes-like object, got 'bool'" on any title that
+        combined a mention or tag with another marker.
+        """
         for task in self:
             if not task.display_name:
                 continue
@@ -1734,11 +1866,13 @@ class ProjectTask(models.Model):
                 )
             )
             match = pattern.match(task.display_name)
-            if match:
-                for group, extract_data in enumerate(task._get_groups(), start=1):
-                    if match.group(group):
-                        extract_data(task)
-                task.name = task.display_name.strip()
+            if not match:
+                continue
+            title = task.display_name
+            for group, extract_data in enumerate(task._get_groups(), start=1):
+                if match.group(group):
+                    title = extract_data(task, title)
+            task.name = title.strip()
 
     def _compute_link_preview_name(self) -> None:
         for task in self:
@@ -2016,7 +2150,9 @@ class ProjectTask(models.Model):
         if "state" in fields and vals.get("state") == "blocked":
             vals["state"] = "in_progress"
 
-        if "repeat_until" in fields:
+        # A context default wins: super() already honoured default_repeat_until,
+        # and clobbering it here made that context key impossible to use.
+        if "repeat_until" in fields and not vals.get("repeat_until"):
             vals["repeat_until"] = Date.today() + timedelta(days=7)
 
         if "partner_id" in vals and not vals["partner_id"]:
@@ -2149,11 +2285,16 @@ class ProjectTask(models.Model):
             project_id = vals.get("project_id") or default_project_id
 
             if vals.get("user_ids"):
-                additional_vals["date_assign"] = fields.Datetime.now()
-                if not (vals.get("parent_id") or project_id):
-                    user_ids = self_ctx._fields["user_ids"].convert_to_cache(
-                        vals.get("user_ids", []), self_ctx.env["project.task"]
-                    )
+                # Resolve the commands before stamping: the web client sends
+                # [(6, 0, [])] for "no assignee", which is truthy but assigns
+                # nobody — that used to date-stamp an assignment that never
+                # happened, and queue/cycle time were measured from it.
+                user_ids = self_ctx._fields["user_ids"].convert_to_cache(
+                    vals["user_ids"], self_ctx.env["project.task"]
+                )
+                if user_ids:
+                    additional_vals["date_assign"] = fields.Datetime.now()
+                if user_ids and not (vals.get("parent_id") or project_id):
                     if self_ctx.env.user.id not in list(user_ids) + [SUPERUSER_ID]:
                         additional_vals["user_ids"] = [
                             Command.set(list(user_ids) + [self_ctx.env.user.id])
@@ -2187,9 +2328,9 @@ class ProjectTask(models.Model):
                     )
                 vals["step_id"] = default_stage[project_id]
 
-            # Step change: Update date_closed if folded stage and date_last_status_change
+            # Step change: stamp date_last_status_change. date_closed is NOT
+            # touched here — it is derived from state (_compute_date_closed).
             if vals.get("step_id"):
-                additional_vals.update(self_ctx.update_date_closed(vals["step_id"]))
                 additional_vals["date_last_status_change"] = fields.Datetime.now()
             # recurrence
             rec_fields = vals.keys() & self_ctx._get_recurrence_fields()
@@ -2226,6 +2367,8 @@ class ProjectTask(models.Model):
         for key, group_tasks in grouped_tasks.items():
             group_tasks.write(vals_by_key[key])
         tasks.sudo()._populate_missing_triages()
+        if not self_ctx.env.context.get("skip_dependency_sync"):
+            tasks.filtered("predecessor_ids")._sync_dependency_rows()
         self_ctx._task_message_auto_subscribe_notify(
             {task: task.user_ids - self_ctx.env.user for task in tasks}
         )
@@ -2358,8 +2501,11 @@ class ProjectTask(models.Model):
                     _("You can only set a personal stage on a private task.")
                 )
 
-            additional_vals.update(self.update_date_closed(vals["step_id"]))
             additional_vals["date_last_status_change"] = now
+            if "state" not in vals:
+                self.filtered(
+                    lambda t: t.state in STATES_RESET_ON_STEP_CHANGE
+                ).state = "in_progress"
         task_ids_without_user_set = set()
         if "user_ids" in vals and "date_assign" not in vals:
             # prepare update of date_assign after super call
@@ -2424,11 +2570,14 @@ class ProjectTask(models.Model):
             super(ProjectTask, self.sudo()).write(additional_vals)
         result = super().write(vals)
 
+        if "predecessor_ids" in vals and not self.env.context.get(
+            "skip_dependency_sync"
+        ):
+            self._sync_dependency_rows()
+
         if "user_ids" in vals:
             self._populate_missing_triages()
-
-        # user_ids change: update date_assign
-        if "user_ids" in vals:
+            # user_ids change: update date_assign
             for task in self.sudo():
                 if not task.user_ids and task.date_assign:
                     task.date_assign = False
@@ -2456,14 +2605,12 @@ class ProjectTask(models.Model):
             # Reopen active tasks so their state matches the open step, but keep
             # closed states sticky (same contract as _compute_state): a done or
             # canceled task moved during a project reorganization must keep its
-            # state and date_closed, or lead/cycle/throughput metrics lose the
-            # closure history irreversibly.
+            # state, or lead/cycle/throughput metrics lose the closure history
+            # irreversibly. date_closed follows state on its own.
             # _compute_state keeps genuinely predecessor-blocked tasks blocked.
-            reopened = self.filtered(
+            self.filtered(
                 lambda t: t.state != "blocked" and t.state not in CLOSED_STATES
-            )
-            reopened.state = "in_progress"
-            reopened.filtered("date_closed").date_closed = False
+            ).state = "in_progress"
 
         # Do not recompute the state when changing the parent (to avoid resetting the state)
         if "parent_id" in vals:
@@ -2504,13 +2651,6 @@ class ProjectTask(models.Model):
             if task.id == last_task_id_per_recurrence_id.get(task.recurrence_id.id):
                 task.recurrence_id.unlink()
         return super().unlink()
-
-    def update_date_closed(self, step_id: int) -> None:
-        """Return dict setting date_closed when step is folded (task closed)."""
-        step = self.env["project.workflow.step"].browse(step_id)
-        if step.fold:
-            return {"date_closed": fields.Datetime.now()}
-        return {"date_closed": False}
 
     # ------------------------------------------------------------------
     # Resource reservation integration (contracts from resource.scheduling.mixin)
@@ -3712,14 +3852,23 @@ class ProjectTask(models.Model):
 
     @api.model
     def get_unusual_days(self, date_from: str, date_to: str | None = None) -> dict:
+        """Non-working days in the range, for the date pickers.
+
+        ``date_to`` defaults to ``date_from`` (a single day) rather than being
+        an unusable default: the signature advertised it as optional while
+        ``datetime.combine(None, ...)`` raised a TypeError on every one-argument
+        call.
+        """
         calendar = self.env.company.resource_calendar_id
+        if not calendar:
+            return {}
         return calendar._get_unusual_days(
             datetime.combine(fields.Date.from_string(date_from), time.min).replace(
                 tzinfo=UTC
             ),
-            datetime.combine(fields.Date.from_string(date_to), time.max).replace(
-                tzinfo=UTC
-            ),
+            datetime.combine(
+                fields.Date.from_string(date_to or date_from), time.max
+            ).replace(tzinfo=UTC),
         )
 
     def action_redirect_to_project_task_form(self) -> dict:

@@ -579,8 +579,8 @@
                                     <field name="deadline_met" optional="hide"/>
                                     <field name="cd3_score" optional="hide"/>
                                     <field name="is_critical_path" optional="hide"/>
-                                    <field name="planned_date_start" optional="hide"/>
-                                    <field name="planned_date_end" optional="hide"/>
+                                    <field name="cpm_date_start" optional="hide"/>
+                                    <field name="cpm_date_end" optional="hide"/>
                                     <field name="is_overallocated" optional="hide"/>
                                 </list>
                             </field>
@@ -632,8 +632,8 @@
                                     <field name="deadline_met" optional="hide"/>
                                     <field name="cd3_score" optional="hide" string="CD3"/>
                                     <field name="is_critical_path" optional="hide"/>
-                                    <field name="planned_date_start" optional="hide"/>
-                                    <field name="planned_date_end" optional="hide"/>
+                                    <field name="cpm_date_start" optional="hide"/>
+                                    <field name="cpm_date_end" optional="hide"/>
                                     <field name="is_overallocated" optional="hide"/>
                                 </list>
                             </field>
@@ -772,7 +772,7 @@
                     <field name="subtask_count"/>
                     <field name="is_template"/>
                     <field name="has_project_template"/>
-                    <progressbar field="state" colors='{"done": "success-done", "canceled": "danger", "approved": "success", "changes_requested": "warning", "waiting": "info", "in_progress": "200" }'/>
+                    <progressbar field="state" colors='{"done": "success-done", "canceled": "danger", "approved": "success", "changes_requested": "warning", "blocked": "info", "todo": "muted", "in_progress": "200" }'/>
                     <templates>
                         <t t-name="menu" t-if="!selection_mode" groups="base.group_user">
                             <a t-if="widget.editable" role="menuitem" type="set_cover" class="dropdown-item" data-field="displayed_image_id">Set Cover Image</a>
