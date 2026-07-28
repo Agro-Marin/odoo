@@ -401,11 +401,24 @@ class IrActionsServer(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
-        for vals in vals_list:
-            if parent_id := vals.get("parent_id"):
-                parent = self.browse(parent_id)
-                vals["model_id"] = parent.model_id.id
-                vals["group_ids"] = parent.group_ids.ids
+        """Create server actions, a child inheriting its parent's model and groups.
+
+        Inherited onto a copy: writing the two keys into the caller's dicts
+        leaked them back out, so a caller reusing one dict for several children
+        carried the first parent's model into the rest.
+        """
+
+        def with_inherited(vals: ValuesType) -> ValuesType:
+            if not (parent_id := vals.get("parent_id")):
+                return vals
+            parent = self.browse(parent_id)
+            return {
+                **vals,
+                "model_id": parent.model_id.id,
+                "group_ids": parent.group_ids.ids,
+            }
+
+        vals_list = [with_inherited(vals) for vals in vals_list]
         actions = super().create(vals_list)
 
         history_vals = []
