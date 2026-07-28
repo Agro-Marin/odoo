@@ -2,6 +2,7 @@
 /** @odoo-module native */
 
 /** @module @web/core/utils/functions - memoize and uniqueId general-purpose function helpers */
+import { globalSingleton } from "@web/core/utils/global_singleton";
 
 /**
  * Creates a version of the function that's memoized on the value of its first
@@ -42,9 +43,7 @@ export function memoize(func) {
 export function uniqueId(prefix = "") {
     return `${prefix}${++uniqueId.nextId}`;
 }
-const _uidState = /** @type {{ nextId: number }} */ (
-    /** @type {any} */ (globalThis).__odoo_uid_state__ ??= { nextId: 0 }
-);
+const _uidState = globalSingleton("uniqueId", () => ({ nextId: 0 }));
 Object.defineProperty(uniqueId, "nextId", {
     configurable: true,
     get: () => _uidState.nextId,

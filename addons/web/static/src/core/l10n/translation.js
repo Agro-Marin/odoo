@@ -9,6 +9,7 @@ import { isIterable } from "@web/core/utils/collections/arrays";
 import { Deferred } from "@web/core/utils/concurrency";
 import { htmlSprintf, isMarkup } from "@web/core/utils/dom/html";
 import { mapSubstitutions, sprintf } from "@web/core/utils/format/strings";
+import { globalSingleton } from "@web/core/utils/global_singleton";
 
 /** @typedef {any} Markup */
 
@@ -241,15 +242,12 @@ export class TranslatedString extends String {
 /** @type {symbol} */
 export const translationLoaded = Symbol.for("@web/core/l10n/translationLoaded");
 
-const _STATE_KEY = "__odoo_l10n_state__";
 /** @type {{ translatedTerms: Record<string | symbol, any>, translatedTermsGlobal: Record<string, string>, translationIsReady: Deferred }} */
-const _state = /** @type {any} */ (
-    globalThis[_STATE_KEY] ??= {
-        translatedTerms: { [translationLoaded]: false },
-        translatedTermsGlobal: Object.create(null),
-        translationIsReady: new Deferred(),
-    }
-);
+const _state = globalSingleton("l10n", () => ({
+    translatedTerms: { [translationLoaded]: false },
+    translatedTermsGlobal: Object.create(null),
+    translationIsReady: new Deferred(),
+}));
 
 /** @type {Record<string | symbol, any>} */
 export const translatedTerms = _state.translatedTerms;
