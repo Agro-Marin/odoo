@@ -68,19 +68,11 @@ export class CodeEditor extends Component {
             activeMode: undefined,
         });
 
-        // Block body (not expression body) so the arrow returns ``Promise<void>``
-        // instead of the bundle loader's ``Promise<void[]>``, matching the
-        // ``onWillStart`` callback contract.
         onWillStart(async () => {
             await loadBundle("web.ace_lib");
         });
 
         const sessions = {};
-        // The ace library triggers the "change" event even if the change is
-        // programmatic. Even worse, it triggers 2 "change" events in that case,
-        // one with the empty string, and one with the new value. We only want
-        // to notify the parent of changes done by the user, in the UI, so we
-        // use this flag to filter out noisy "change" events.
         let ignoredAceChange = false;
         useEffect(
             (el) => {
@@ -88,7 +80,6 @@ export class CodeEditor extends Component {
                     return;
                 }
 
-                // keep in closure
                 const aceEditor = window.ace.edit(el);
                 this.aceEditor = aceEditor;
 
@@ -127,11 +118,6 @@ export class CodeEditor extends Component {
 
                 return () => {
                     aceEditor.destroy();
-                    // Destroy every accumulated EditSession too: each distinct
-                    // sessionId (e.g. a record id in ir.ui.view arch editing)
-                    // allocates a session (buffer + undo stack) that
-                    // aceEditor.destroy() does NOT reclaim, so an editor
-                    // visiting many records leaked memory for its whole life.
                     for (const sessionId of Object.keys(sessions)) {
                         sessions[sessionId].destroy?.();
                         delete sessions[sessionId];
@@ -202,7 +188,6 @@ export class CodeEditor extends Component {
         const initialCursorPosition = this.props.initialCursorPosition;
         if (initialCursorPosition) {
             onMounted(() => {
-                // Wait for ace to be fully operational
                 browser.requestAnimationFrame(() => {
                     if (status(this) !== "destroyed" && this.aceEditor) {
                         this.aceEditor.focus();

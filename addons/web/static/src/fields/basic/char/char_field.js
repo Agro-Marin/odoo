@@ -48,9 +48,9 @@ export class CharField extends TextInputFieldBase {
         });
     }
 
-    /** @returns {boolean} Whether to trim whitespace (based on field `trim` attribute) */
+    /** @returns {boolean} A password is stored exactly as typed, spaces included */
     get shouldTrim() {
-        return this.props.record.fields[this.props.name].trim && !this.props.isPassword;
+        return super.shouldTrim && !this.props.isPassword;
     }
     /** @returns {number | undefined} Field size limit */
     get maxLength() {
@@ -66,27 +66,11 @@ export class CharField extends TextInputFieldBase {
     get hasDynamicPlaceholder() {
         return this.props.dynamicPlaceholder && !this.props.readonly;
     }
-
-    /**
-     * @param {string} value
-     * @returns {string}
-     */
-    parse(value) {
-        if (this.shouldTrim) {
-            return value.trim();
-        }
-        return value;
-    }
 }
 
 export const charField = {
     component: CharField,
     displayName: _t("Text"),
-    // ``char`` and ``text`` both render sensibly in a single-line input (line
-    // breaks in ``text`` values collapse, which is fine for compact display).
-    // The overlap with ``textField.supportedTypes`` is intentional polymorphism —
-    // the arch-author picks by aesthetic; ``field.js``'s missing-widget warning only fires
-    // for genuinely incompatible combinations like ``widget="char"`` on an integer.
     supportedTypes: ["char", "text"],
     supportedOptions: [
         {

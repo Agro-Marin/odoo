@@ -18,10 +18,12 @@ import { DynamicRecordList } from "./dynamic_record_list.js";
 import { FetchRecordError } from "./errors.js";
 import { getBasicEvalContext, getId } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
+import { invalidateAggregateSpecs } from "./field_values.js";
 import { Group } from "./group.js";
 import { postprocessReadGroup } from "./group_postprocessor.js";
 import { buildWebReadGroupParams } from "./read_group_builder.js";
 import { RelationalRecord } from "./record.js";
+import { SpecialDataCache } from "./special_data_cache.js";
 import { StaticList } from "./static_list.js";
 import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
 
@@ -81,7 +83,7 @@ import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
  *
  * @typedef {{
  *  config: RelationalModelConfig;
- *  specialDataCaches: Record<string, unknown>;
+ *  specialDataCaches: import("./special_data_cache.js").SpecialDataCache;
  * }} RelationalModelState
  */
 
@@ -149,17 +151,7 @@ export const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
     onDisplayLimitNotification: () => {},
 });
 
-// RESULT_SET_REMOVING_METHODS and the RPC:RESPONSE → CLEAR-CACHES bridge
-// moved to ``@web/services/result_set_cache_invalidator_service``, owned by
-// env lifecycle instead of a module-load side effect; see that file for
-// the full rationale.
-
 export class RelationalModel extends Model {
-    // Only ``orm`` is needed here; UI side effects (action/dialog/notification)
-    // now flow through controller-supplied hooks (``makeModelUIHooks`` in
-    // ``views/view_utils``) instead of direct service access. Verified
-    // 2026-05-21: zero ``model.{action,dialog,notification}`` accesses across
-    // core, enterprise, and agromarin.
     static services = ["orm"];
     static Record = RelationalRecord;
     static Group = Group;
@@ -185,12 +177,6 @@ export class RelationalModel extends Model {
         this.bus = new EventBus();
 
         this.keepLast = markRaw(new KeepLast());
-        // A SEPARATE keepLast for the pager count: sharing `this.keepLast`
-        // with `load()` meant a count refresh (pager total, clickable while
-        // the old UI is still interactive) superseded an in-flight root
-        // load, whose `await` then never settled — `this.root`/`isReady`
-        // never advanced and the view froze until the next search. A stale
-        // count is harmless (last-write-wins), so isolating it is safe.
         this.countKeepLast = markRaw(new KeepLast());
         this.mutex = markRaw(new Mutex());
 
@@ -198,7 +184,7 @@ export class RelationalModel extends Model {
         this.config = {
             isMonoRecord: false,
             context: {},
-            fieldsToAggregate: Object.keys(params.config.activeFields), // active fields by default
+            fieldsToAggregate: Object.keys(params.config.activeFields),
             ...params.config,
             isRoot: true,
         };
@@ -207,13 +193,6 @@ export class RelationalModel extends Model {
             lifecycle: { ...DEFAULT_LIFECYCLE_HOOKS, ...params.hooks?.lifecycle },
             ui: { ...DEFAULT_UI_HOOKS, ...params.hooks?.ui },
         };
-        // ``onRecordChanged`` fires on every committed change to hand integrations
-        // the server-shaped changeset. Its default is a no-op, so building that
-        // changeset — which for a new record or a dirty x2many is a full recursive
-        // command serialization — would be pure waste discarded immediately.
-        // Capture once whether a real consumer wired a hook so ``Record._update``
-        // can skip ``_getChanges()`` entirely in the overwhelmingly common
-        // default case. (Only ``res_user_group_ids_field`` overrides it in core.)
         this.hasOnRecordChangedHook =
             this.hooks.lifecycle.onRecordChanged !==
             DEFAULT_LIFECYCLE_HOOKS.onRecordChanged;
@@ -226,13 +205,12 @@ export class RelationalModel extends Model {
         this.groupByInfo = params.groupByInfo || {};
         this.multiEdit = params.multiEdit;
         this.activeIdsLimit = params.activeIdsLimit || Number.MAX_SAFE_INTEGER;
-        this.specialDataCaches = markRaw(params.state?.specialDataCaches || {});
+        this.specialDataCaches = markRaw(
+            params.state?.specialDataCaches || new SpecialDataCache(),
+        );
         this.useSendBeaconToSaveUrgently = params.useSendBeaconToSaveUrgently || false;
         this.withCache = this.Class.withCache && this.env.config?.cache;
-        this.initialSampleGroups = undefined; // real groups to populate with sample records
-        // Whether sample data can ever activate for this model (see
-        // useModelWithSampleData). Gates the initialSampleGroups snapshot in
-        // _webReadGroup so non-sample grouped views skip the deep clone.
+        this.initialSampleGroups = undefined;
         this.canUseSampleModel = Boolean(params.canUseSampleModel);
 
         /**
@@ -255,10 +233,6 @@ export class RelationalModel extends Model {
         /** @type {(() => void) | null} */
         this._closeUrgentSaveNotification = null;
     }
-
-    // -------------------------------------------------------------------------
-    // Public
-    // -------------------------------------------------------------------------
 
     exportState() {
         const config = { ...toRaw(this.config) };
@@ -310,70 +284,71 @@ export class RelationalModel extends Model {
         }
         const config = this._getNextConfig(this.config, params);
         if (!this.isReady) {
-            // We want the control panel to be displayed directly, without waiting for data to be
-            // loaded, for instance to be able to interact with the search view. For that reason, we
-            // create an empty root, without data, s.t. controllers can make the assumption that the
-            // root is set when they are rendered. The root is replaced later on by the real root,
-            // when data are loaded.
             this.root = this._createEmptyRoot(config);
             this.config = config;
         }
         this.hooks.lifecycle.onWillLoadRoot(config);
         const rootLoadDef = new Deferred();
         const cache = this._getCacheParams(config, rootLoadDef);
-        performance.mark("model:loadData:start");
+        // Debug-gated, like the identical instrumentation in
+        // ``list_renderer.js``: nothing clears marks/measures anywhere in web,
+        // so an ungated pair per load accumulated in the performance timeline
+        // for the life of the tab and polluted any user-recorded profile.
+        const profiling = Boolean(odoo.debug);
+        if (profiling) {
+            performance.mark("model:loadData:start");
+        }
         const data = await this.keepLast.add(this._loadData(config, cache));
-        performance.measure("model:loadData", "model:loadData:start");
+        if (profiling) {
+            performance.measure("model:loadData", "model:loadData:start");
+        }
         this.root = this._createRoot(config, data);
         rootLoadDef.resolve({ root: this.root, loadId: config.loadId });
         this.config = config;
-        // Promote ``isReady`` in the same synchronous block as the real-
-        // root + config writes so OWL's reactivity batches all three into
-        // a single render.  Keeping the old ``this.isReady = true`` in
-        // ``whenReady.then`` (in ``model.js``) instead would put the write
-        // in a later microtask separated by the upcoming ``await
-        // onRootLoaded(...)``, producing a third render visible to
-        // ``onRendered`` step assertions on mount.  ``whenReady`` is still
-        // resolved by the useModel/useModelWithSampleData wrapper after
-        // ``load`` returns — consumers awaiting that promise continue to
-        // work unchanged.
         if (!this.isReady) {
             this.isReady = true;
         }
         await this.hooks.lifecycle.onRootLoaded(this.root);
     }
 
-    // -------------------------------------------------------------------------
-    // Protected
-    // -------------------------------------------------------------------------
-
     /**
-     * If we group by default based on a property, the property might not be loaded in `fields`.
+     * A group-by axis can name a property (``properties_field.property_name``)
+     * that ``config.fields`` does not carry; fetch its definition and register
+     * it as a synthetic field.
+     *
+     * A property dropped from its definition record still answers the
+     * read_group — the stored values are still there — but
+     * ``get_property_definition`` then returns an EMPTY definition, and a model
+     * overriding it may return nothing at all. Both register a ``char``
+     * placeholder rather than clearing the axis: the read_group has already run
+     * on it, and every consumer downstream (``postprocessReadGroup``,
+     * ``computeNextConfig``, ``_createEmptyRoot``, ``_loadData``) dereferences
+     * ``groupBy`` as an array, so the previous ``config.groupBy = null`` turned
+     * a missing label into a TypeError on the very next statement. Giving the
+     * placeholder a ``type`` matters too: without one it falls through every
+     * ``switch`` in the group-value helpers, silently skipping date/relational
+     * handling instead of rendering a plain label.
      *
      * @param {RelationalModelConfig} config
      * @param {string} propertyFullName
      */
     async _getPropertyDefinition(config, propertyFullName) {
-        // dynamically load the property and add the definition in the fields attribute
-        const result = await this.orm.call(
+        const definition = await this.orm.call(
             config.resModel,
             "get_property_definition",
             [propertyFullName],
             { context: config.context },
         );
-        if (!result) {
-            // the property might have been removed
-            config.groupBy = null;
-        } else {
-            result.propertyName = result.name;
-            result.name = propertyFullName; // "xxxxx" -> "property.xxxxx"
-            // needed for _applyChanges
-            result.relatedPropertyField = {
+        config.fields[propertyFullName] = {
+            ...(definition?.type ? definition : { type: "char" }),
+            propertyName: definition?.name,
+            name: propertyFullName,
+            relatedPropertyField: {
                 fieldName: propertyFullName.split(".")[0],
-            };
-            result.relation = result.comodel; // match name on field
-            config.fields[propertyFullName] = result;
-        }
+            },
+            relation: definition?.comodel,
+        };
+        invalidateAggregateSpecs(config.fields);
     }
 
     async _askChanges() {
@@ -419,8 +394,7 @@ export class RelationalModel extends Model {
         }
         const currentResId = config.resId;
         if (
-            !this.isReady || // first load of the model
-            // monorecord, loading a different id, or creating a new record (onchange)
+            !this.isReady ||
             (config.isMonoRecord &&
                 (this.root.config.resId !== config.resId || !config.resId))
         ) {
@@ -436,16 +410,10 @@ export class RelationalModel extends Model {
                         root.config.isMonoRecord &&
                         currentResId !== root.config.resId
                     ) {
-                        // The record ID has been changed, likely because a new record was saved.
                         return;
                     }
                     if (root.id !== this.root.id) {
-                        // The root id might have changed: (1) the domain changed and a
-                        // second load already happened — nothing to do; or (2) there was
-                        // no data and we reloaded via the sample orm — handle that below:
                         if (this.useSampleModel) {
-                            // We displayed sample data from the cache, but the rpc returned records
-                            // or groups => leave sample mode, forget previous groups and update
                             this.useSampleModel = false;
                             if (this.root.config.groupBy.length) {
                                 delete this.root.config.currentGroups;
@@ -459,39 +427,26 @@ export class RelationalModel extends Model {
                         return;
                     }
                     if (loadId !== this.root.config.loadId) {
-                        // Avoid updating if another load was already done (e.g. a sort in a list)
                         return;
                     }
                     if (root.config.isMonoRecord) {
                         if (!root.config.resId) {
-                            // result is the response of the onchange rpc
                             return root._setData(result.value, {
                                 keepChanges: true,
                             });
                         }
-                        // result is the response of a web_read rpc
                         if (!result.length) {
-                            // we read a record that no longer exists
                             throw new FetchRecordError([root.config.resId]);
                         }
                         return root._setData(result[0], { keepChanges: true });
                     }
 
-                    // multi record case: either grouped or ungrouped
                     if (
                         root.records.some((r) => r.isInEdition || r.dirty || r.selected)
                     ) {
-                        // A record is being edited, has unsaved changes, or is
-                        // selected: _setData would rebuild all record datapoints
-                        // and destroy that state (e.g. checked rows losing their
-                        // selection under a bulk-action click) => ignore this
-                        // update.
                         return;
                     }
                     if (root.config.groupBy.length) {
-                        // result is the response of a web_read_group rpc
-                        // in case there're less groups, we don't want to keep displaying groups
-                        // that are no longer there => forget previous groups
                         delete this.root.config.currentGroups;
                         result = await this._postprocessReadGroup(root.config, result);
                     }
@@ -530,14 +485,10 @@ export class RelationalModel extends Model {
             return records[0];
         }
         if (config.resIds) {
-            // static list
             const resIds = config.resIds.slice(
                 config.offset,
                 config.offset + config.limit,
             );
-            // Thread the SWR ``cache`` (and the explicit context eval base) like
-            // every other branch: a resIds-configured root would otherwise never
-            // get SWR treatment on load.
             return this._loadRecords({ ...config, resIds }, config.context, cache);
         }
         if (config.groupBy.length) {
@@ -641,16 +592,6 @@ export class RelationalModel extends Model {
         const orderBy = config.orderBy.filter((o) => o.name !== "__count");
         let order = orderByToString(orderBy);
         if (config.isGroupList && order && !orderBy.some((o) => o.name === "id")) {
-            // Group-owned lists only (see ``isGroupList``): ``web_read_group``
-            // orders a group's ``__records`` by ``user order + "id"`` whenever
-            // a non-empty order is sent, so later client-side page loads for
-            // that same group (group pager, kanban "load more", progress-bar
-            // filter) must page over that same total order — with a bare user
-            // order, a tie on the last sort value can duplicate a record
-            // across pages and never show another. An EMPTY order must stay
-            // empty (both sides then fall back to the model ``_order``), and
-            // root/ungrouped lists keep their bare user order (appending "id"
-            // there would be a separate semantic change).
             order += ", id ASC";
         }
         const kwargs = {
@@ -681,6 +622,17 @@ export class RelationalModel extends Model {
         config,
         { changes = {}, fieldNames = [], evalContext = config.context, onError, cache },
     ) {
+        if (!this.isAlive()) {
+            // Committing a pending edit (blur / NEED_LOCAL_CHANGES) races the
+            // teardown that provoked it: escape out of a FormViewDialog flushes
+            // the focused input, and the onchange it triggers lands after the
+            // dialog is gone. The RPC then travels through the destroyed
+            // component's service proxy and rejects with "Component is
+            // destroyed" inside a promise nobody is left to await. No onchange
+            // values can matter to a view that no longer exists, so answer the
+            // no-op the callers already understand.
+            return {};
+        }
         const { fields, activeFields, resModel, resId } = config;
         let context = config.context;
         if (fieldNames.length === 1) {
@@ -702,10 +654,6 @@ export class RelationalModel extends Model {
             throw e;
         }
         if (response.warning) {
-            // Fire-and-forget, but guard the rejection: a throwing
-            // ``onWillDisplayOnchangeWarning`` hook (enterprise controllers wire
-            // it) would otherwise surface as an unhandled rejection → a global
-            // error dialog detached from the onchange that caused it.
             Promise.resolve(
                 this.hooks.lifecycle.onWillDisplayOnchangeWarning(response.warning),
             )
@@ -758,11 +706,6 @@ export class RelationalModel extends Model {
     async _reloadWithConfig(config, patch, { commit } = {}) {
         const tmpConfig = { ...config, ...patch };
         if (tmpConfig.groups) {
-            // Candidate isolation (same contract as ``computeNextConfig``):
-            // ``postprocessReadGroup`` mutates group sub-configs in place, so
-            // without the clone a rejected/superseded reload would leak its
-            // group mutations into the committed ``config`` this method
-            // promises to leave untouched until ``_patchConfig``.
             tmpConfig.groups = cloneGroupTree(tmpConfig.groups);
         }
         markRaw(tmpConfig.activeFields);
@@ -770,9 +713,6 @@ export class RelationalModel extends Model {
         if (tmpConfig.isRoot) {
             this.hooks.lifecycle.onWillLoadRoot(tmpConfig);
         }
-        // Note: ``_loadData`` mutates ``tmpConfig`` (loadId, limit, offset,
-        // countLimit, groups, …), so the whole candidate — not just
-        // ``patch`` — is committed below.
         const data = await this._loadData(tmpConfig);
         this._patchConfig(config, tmpConfig);
         if (data && commit) {
@@ -837,12 +777,6 @@ export class RelationalModel extends Model {
             params,
         );
         if (this.canUseSampleModel && !this.initialSampleGroups) {
-            // Consumed only in sample-data mode (see ``load()`` above): SampleServer
-            // reads just the group headers + presence of ``__records`` and regenerates
-            // record payloads itself (``_mockWebReadGroup`` in sample_server.js). Strip
-            // the heavy ``__records`` payload before deep copying. Gated on
-            // canUseSampleModel so a view that can never show sample data skips this
-            // clone entirely on its first grouped load (the common case).
             this.initialSampleGroups = deepCopy(
                 result.groups.map((group) =>
                     "__records" in group ? { ...group, __records: [] } : group,

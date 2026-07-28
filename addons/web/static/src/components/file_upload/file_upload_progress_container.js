@@ -11,8 +11,6 @@ export class FileUploadProgressContainer extends Component {
         Component: { optional: false },
         shouldDisplay: { type: Function, optional: true },
         fileUploads: { type: Object },
-        // Forwarded verbatim to each rendered upload Component (the template
-        // passes selector="props.selector"); it was used undeclared before.
         selector: { optional: true },
     };
 }

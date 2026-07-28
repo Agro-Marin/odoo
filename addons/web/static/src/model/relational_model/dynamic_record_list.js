@@ -26,8 +26,6 @@ export class DynamicRecordList extends DynamicList {
         this._selectDomain(this.isDomainSelected);
     }
 
-    // Getter
-
     get records() {
         return this._records;
     }
@@ -35,8 +33,6 @@ export class DynamicRecordList extends DynamicList {
     get hasData() {
         return this.count > 0;
     }
-
-    // Public
 
     /**
      * @param {number} resId
@@ -88,8 +84,6 @@ export class DynamicRecordList extends DynamicList {
                 ),
         );
     }
-
-    // Protected
 
     async _addNewRecord(atFirstPosition) {
         const values = await this.model._loadNewRecord(
@@ -158,7 +152,6 @@ export class DynamicRecordList extends DynamicList {
         this.count -= this.records.length - keptRecords.length;
         this._records = keptRecords;
         if (this.offset && !this.records.length) {
-            // we weren't on the first page, and we removed all records of the current page
             const offset = Math.max(this.offset - this.limit, 0);
             this.model._patchConfig(this.config, { offset });
         }

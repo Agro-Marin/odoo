@@ -8,7 +8,6 @@ import { makeContext } from "@web/core/context";
 import { SearchModelEvent } from "@web/core/events";
 import { DateTime } from "@web/core/l10n/luxon";
 import { evaluateExpr } from "@web/core/py_js/py";
-import { deepCopy } from "@web/core/utils/collections/objects";
 import { Mutex } from "@web/core/utils/concurrency";
 import { user } from "@web/services/user";
 
@@ -106,7 +105,9 @@ import { getIntervalOptions } from "./utils/dates.js";
  *   _enrichedSearchItems: Object[] | null,
  *   _filledPropertyFields: any,
  *   trigger: Function,
+ *   _pendingNotification: boolean | undefined,
  *   _notify: () => Promise<void>,
+ *   _drainPendingNotification: () => Promise<void>,
  *   _reset: () => void,
  *   _reloadSections: () => Promise<void>,
  *   clearQuery: Function,
@@ -176,7 +177,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     setup(services, _args) {
-        // services
         const {
             field: fieldService,
             orm,
@@ -196,29 +196,13 @@ export class SearchModel extends SearchQueryMixin(
         /** @type {string|false} */
         this.orderByCount = false;
 
-        // used to manage search items related to date/datetime fields
         this.referenceMoment = DateTime.local();
         this.intervalOptions = getIntervalOptions();
         this.categoriesLoadId = 0;
         this.filtersLoadId = 0;
-        // Per-section stale-response guard (keyed by section id). A model-wide
-        // counter dropped the in-flight fetch of every section whenever a later
-        // reload fetched only a subset (e.g. the counter-bearing ones): the
-        // expand/no-counter sections, fetched exactly once at load(), were then
-        // discarded and never refetched, silently disappearing. Tracking a
-        // per-section load id means a fetch is only superseded by a newer fetch
-        // OF THE SAME SECTION.
         /** @type {Map<number, number>} */
         this._sectionLoadIds = new Map();
 
-        // Serializes every _reloadSections invocation (from reload() and from
-        // _notify()'s coalescing loop) so two overlapping panel reloads can no
-        // longer interleave their searchDomain / shouldReload writes nor issue a
-        // duplicate reload+UPDATE. reload() (called from WithSearch on prop
-        // updates) can fire again before a previous reload's fetch settles;
-        // without this, the first reloadSections' `finally` unmuted the model
-        // while the second was still awaiting, letting a user mutation reach
-        // _notify concurrently.
         this._reloadMutex = new Mutex();
     }
 
@@ -253,7 +237,6 @@ export class SearchModel extends SearchQueryMixin(
         }
         this.resModel = resModel;
 
-        // used to avoid useless recomputations
         this._reset();
 
         const { context, domain, groupBy, hideCustomGroupBy, orderBy } = config;
@@ -269,15 +252,6 @@ export class SearchModel extends SearchQueryMixin(
         );
         this.canOrderByCount = config.canOrderByCount;
         this.defaultGroupBy = config.defaultGroupBy;
-        // Declared here so the class formally satisfies its own SearchModelLike
-        // contract (the seam the delegates type against): both are seam state
-        // owned by the model but written from delegates / mixins —
-        // `defaultGroupByRemoved` is set true by the query mixin when the
-        // user dismisses the default group-by, and `_filledPropertyFields` is
-        // lazily filled (`??= new Map()`) by the properties mixin. Initialising to
-        // undefined here is behaviour-identical to their previous
-        // absent-until-written state, but lets `this` type-check at every
-        // `delegate(this, ...)` call site instead of failing assignability.
         /** @type {boolean | undefined} */
         this.defaultGroupByRemoved = undefined;
         /** @type {any} */
@@ -329,10 +303,6 @@ export class SearchModel extends SearchQueryMixin(
 
         if (config.state) {
             this._importState(config.state);
-            // Honor a persisted default-group-by removal: line above re-applied
-            // config.defaultGroupBy, but if the user had dismissed that SPECIAL
-            // facet before this state was exported, drop it again so it doesn't
-            // silently reappear on breadcrumb restore / back-forward.
             if (this.defaultGroupByRemoved) {
                 this.defaultGroupBy = undefined;
             }
@@ -342,15 +312,16 @@ export class SearchModel extends SearchQueryMixin(
             );
             this.display = this._getDisplay(config.display);
             this._reconciliateFavorites();
-            if (!this.searchPanelInfo.loaded) {
-                return this._reloadSections();
+            try {
+                if (!this.searchPanelInfo.loaded) {
+                    await this._reloadSections();
+                }
+            } finally {
+                this._pendingNotification = false;
             }
             return;
         }
 
-        // try/finally: a throw between here and the end of load() (label
-        // callbacks, section fetches) must not leave the model permanently
-        // muted.
         this.blockNotification = true;
         try {
             this.searchItems = {};
@@ -377,7 +348,6 @@ export class SearchModel extends SearchQueryMixin(
 
             await Promise.all(labels.map((cb) => cb(this.orm)));
 
-            // prepare search items (populate this.searchItems)
             for (const preGroup of preSearchItems || []) {
                 this._createGroupOfSearchItems(preGroup);
             }
@@ -399,16 +369,11 @@ export class SearchModel extends SearchQueryMixin(
             const activateFavorite =
                 "activateFavorite" in config ? config.activateFavorite : true;
 
-            // activate default search items (populate this.query)
             this._activateDefaultSearchItems(
                 activateFavorite ? defaultFavoriteId : null,
             );
 
-            // prepare search panel sections
-
             /** @type Map<number,Section> */
-            // sections from the parser is an entries-compatible array; the
-            // typedef hasn't tracked that, so cast at the boundary.
             this.sections = new Map(
                 /** @type {[number, Section][]} */ (sections || []),
             );
@@ -422,7 +387,12 @@ export class SearchModel extends SearchQueryMixin(
                 this.sectionsPromise = (async () => {
                     await this._fetchSections(this.categories, this.filters);
                     for (const { fieldName, values } of this.filters) {
-                        const filterDefaults = searchPanelDefaults[fieldName] || [];
+                        // A category consumes its default as a scalar, a filter
+                        // as a list of value ids; nothing enforces the two forms
+                        // apart, so accept the scalar a caller naturally writes.
+                        // Falsy stays "no default", as before.
+                        const rawDefault = searchPanelDefaults[fieldName];
+                        const filterDefaults = rawDefault ? [].concat(rawDefault) : [];
                         for (const valueId of filterDefaults) {
                             const value = values.get(valueId);
                             if (value) {
@@ -441,6 +411,7 @@ export class SearchModel extends SearchQueryMixin(
             }
         } finally {
             this.blockNotification = false;
+            this._pendingNotification = false;
         }
     }
 
@@ -456,38 +427,42 @@ export class SearchModel extends SearchQueryMixin(
 
         const { context, domain, groupBy, orderBy } = config;
 
-        // Keys ABSENT from the config keep their current value: WithSearch only
-        // forwards the props that were provided (it strips undefined ones), so a
-        // partial-prop reload must not wipe the unspecified search keys. Gate on
-        // ``key in config`` — NOT ``??`` — so a key that IS provided but empty
-        // (e.g. ``{ groupBy: [] }`` to CLEAR the group-by, or an explicit
-        // ``undefined``) still resets, matching the historical ``|| []``
-        // semantics. Using ``??`` conflated "clear me" with "not provided" and
-        // left a cleared group-by/domain facet stuck.
         this.globalContext =
             "context" in config ? toRaw({ ...(context || {}) }) : this.globalContext;
         this.globalDomain = "domain" in config ? domain || [] : this.globalDomain;
         this.globalGroupBy = "groupBy" in config ? groupBy || [] : this.globalGroupBy;
         this.globalOrderBy = "orderBy" in config ? orderBy || [] : this.globalOrderBy;
 
-        // Called for its side effect: strips the search_default_* keys out of
-        // this.globalContext (their values feed the initial section state).
         this._extractSearchDefaultsFromGlobalContext();
 
         await this._reloadSections();
+        await this._drainPendingNotification();
     }
-
-    //--------------------------------------------------------------------------
-    // Getters
-    //--------------------------------------------------------------------------
 
     /**
      * @returns {Category[]}
      */
     get categories() {
-        return /** @type {Category[]} */ (
-            [...this.sections.values()].filter((s) => s.type === "category")
+        return /** @type {Category[]} */ (this._sectionsOfType("category"));
+    }
+
+    /**
+     * Sections of a given type, memoized per `sections` Map. Keyed on the Map
+     * itself rather than cleared in `_reset`: the Map is only ever replaced
+     * wholesale (`load`, `_importState`), never added to, so an identity check
+     * cannot go stale — and section *contents* changing (values, counters,
+     * errors) does not change which sections have which type.
+     * @param {string} type
+     * @returns {Section[]}
+     */
+    _sectionsOfType(type) {
+        if (this._sectionsByType?.source !== this.sections) {
+            this._sectionsByType = { source: this.sections };
+        }
+        this._sectionsByType[type] ??= [...this.sections.values()].filter(
+            (s) => s.type === type,
         );
+        return this._sectionsByType[type];
     }
 
     /**
@@ -541,10 +516,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     get facets() {
-        // Memoised like context/domain/groupBy/orderBy: _getFacets rebuilds every
-        // facet domain on each call and this is read on every render (and once
-        // per facet in clearFilters). Cleared in _reset(); no consumer mutates
-        // the returned array.
         if (!this._facets) {
             const facets = [];
             for (const facet of this._getFacets()) {
@@ -562,12 +533,20 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {Filter[]}
      */
     get filters() {
-        return /** @type {Filter[]} */ (
-            [...this.sections.values()].filter((s) => s.type === "filter")
-        );
+        return /** @type {Filter[]} */ (this._sectionsOfType("filter"));
     }
 
     /**
+     * Unlike `context`/`domain`/`orderBy`, this returns a FRESH array on every
+     * access, and must keep doing so. `web.WithSearch` passes context, domain,
+     * groupBy, orderBy and display down as slot props, and Owl skips
+     * re-rendering a child whose props are all strictly identical
+     * (`arePropsDifferent` in owl.es.js). The other four are stable references
+     * within a query cycle, so this copy is the only thing that makes the view
+     * subtree re-render on a `WithSearch` render that did not reset the memos —
+     * see `search()`. `slice` rather than `deepCopy`: the entries are groupBy
+     * specs (strings), so the recursion bought nothing; it is the identity that
+     * is load-bearing, not the depth.
      * @returns {string[]}
      */
     get groupBy() {
@@ -577,11 +556,7 @@ export class SearchModel extends SearchQueryMixin(
         if (!this._groupBy) {
             this._groupBy = this._getGroupBy();
         }
-        // Deep copy retained here (unlike domain/context/orderBy): the pivot
-        // model aliases this array into metaData.rowGroupBys and splices it in
-        // place when a row group is collapsed (pivot_model.closeGroup), so a
-        // shared (frozen) reference would corrupt the model / throw in dev.
-        return deepCopy(this._groupBy);
+        return this._groupBy.slice();
     }
 
     /**
@@ -600,9 +575,6 @@ export class SearchModel extends SearchQueryMixin(
     get isDebugMode() {
         return !!this.env.debug;
     }
-    //--------------------------------------------------------------------------
-    // Public
-    //--------------------------------------------------------------------------
 
     /**
      * @returns {Object}
@@ -620,9 +592,6 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {Object[]}
      */
     getSearchItems(predicate) {
-        // Memoised like _groups/_facets: enriching every item is costly and
-        // SearchBarMenu reads this several times per render. Cleared in
-        // _reset() and whenever items are created outside a query cycle.
         if (!this._enrichedSearchItems) {
             const domainEvalContext = this.domainEvalContext;
             const enrichedSearchItems = [];
@@ -648,23 +617,26 @@ export class SearchModel extends SearchQueryMixin(
         return searchItems;
     }
 
+    /**
+     * Re-run the current search (the search bar's Enter key and its magnifier).
+     * The reset is what makes the update reach the view: consumers detect a
+     * change by the identity of the context/domain/groupBy/orderBy slot props
+     * `WithSearch` hands them, and without it every one of them is still the
+     * memo from before — leaving `groupBy`'s copy-on-read as the only, accidental
+     * reason the view re-renders at all (see the `groupBy` getter).
+     */
     search() {
+        this._reset();
         this.trigger(SearchModelEvent.UPDATE);
     }
-
-    //--------------------------------------------------------------------------
-    // Private methods
-    //--------------------------------------------------------------------------
 
     /**
      * Activate the default favorite (if any) or all default filters.
      */
     _activateDefaultSearchItems(defaultFavoriteId) {
         if (defaultFavoriteId) {
-            // Activate default favorite
             this.toggleSearchItem(defaultFavoriteId);
         } else {
-            // Activate default filters
             Object.values(this.searchItems)
                 .filter((f) => f.isDefault && f.type !== "favorite")
                 .sort((f1, f2) => (f1.defaultRank || 100) - (f2.defaultRank || 100))
@@ -714,8 +686,6 @@ export class SearchModel extends SearchQueryMixin(
             this.nextId++;
         });
         this.nextGroupId++;
-        // New items can be created outside a query cycle (e.g. lazily loaded
-        // properties): invalidate the enriched search items memo.
         this._enrichedSearchItems = null;
     }
 
@@ -892,9 +862,6 @@ export class SearchModel extends SearchQueryMixin(
      * @returns {Object[]}
      */
     _getGroups() {
-        // Memoised within a query cycle: rebuilt up to 5x per _notify from the
-        // same state, and getQueryGroups is O(query x groups). Cleared in
-        // _reset(); consumers treat the result as read-only.
         if (!this._groups) {
             this._groups = getQueryGroups(this.query, this.searchItems);
         }
@@ -962,40 +929,42 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     async _notify() {
-        // Reset memoized state even when notifications are blocked: the
-        // query did change, so the memos are stale either way.
         this._reset();
 
         if (this.blockNotification) {
-            // A reload (or load()) currently holds the lock across an await.
-            // Dropping this notification would leave the search-panel counters
-            // stale until the next unrelated interaction (the record-list
-            // domain still updates, but the panel counts fetched by the
-            // in-flight reload predate this query change). Record that state
-            // changed again so the lock holder fires one coalesced reload.
             this._pendingNotification = true;
             return;
         }
 
-        // reloadSections sets blockNotification synchronously before its first
-        // await, so a _notify arriving while a reload runs takes the branch
-        // above and coalesces into _pendingNotification; the _reloadMutex
-        // additionally guarantees the reloads themselves never interleave (see
-        // _reloadSections). Loop until no further change arrived mid-reload, so
-        // the FINAL query state always gets a reload + UPDATE.
-        //
-        // Residual (A1/A14): a _notify landing in the microtask gap between
-        // this `await` and the mutex scheduling reloadSections would not yet see
-        // blockNotification set; the mutex still serializes the resulting reload
-        // (no interleave / data corruption) but a redundant UPDATE could fire.
-        // Not reachable from the current callers (each fires _notify once per
-        // synchronous, macrotask-driven interaction).
         do {
             this._pendingNotification = false;
             await this._reloadSections();
         } while (this._pendingNotification);
 
         this.trigger(SearchModelEvent.UPDATE);
+    }
+
+    /**
+     * Emit the notification a query mutation raised while a blocking window was
+     * open, when that window was NOT opened by `_notify` itself (`reload`, and
+     * any future async entry point that batches). `_notify`'s own do/while
+     * drains its window; every other opener must drain here or the update is
+     * lost for good — the flag has no other consumer, so the view would keep
+     * showing results for the pre-mutation domain until the next interaction.
+     *
+     * Must be called after the blocking window is closed (and, for
+     * `_reloadSections`, outside `_reloadMutex`): `_notify` re-enters
+     * `_reloadSections`, which would deadlock on a mutex still held by the
+     * caller.
+     *
+     * @returns {Promise<void>}
+     */
+    async _drainPendingNotification() {
+        if (this.blockNotification || !this._pendingNotification) {
+            return;
+        }
+        this._pendingNotification = false;
+        await this._notify();
     }
 
     /**

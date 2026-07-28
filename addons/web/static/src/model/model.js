@@ -39,19 +39,22 @@ export class Model extends SignalStore {
      * @param {Object} services
      */
     constructor(env, params, services) {
-        // ``super()`` returns ``reactive(this)`` (SignalStore semantics), so
-        // every assignment below goes through OWL's reactive Proxy and
-        // notifies consumers that wrap the model in ``useState()``
-        // automatically — no explicit ``notify()`` needed for local
-        // mutations. The bus + ``notify()`` API remains for legacy/cross-addon
-        // consumers (FIELD_IS_DIRTY, WILL_SAVE_URGENTLY, NEED_LOCAL_CHANGES,
-        // PROPERTY_FIELD:EDIT, SCROLL_TO_CURRENT_HOUR, and the
-        // ModelEvent.UPDATE listeners in x2many_dialog / calendar_controller).
         super();
         this.env = env;
         this.orm = services.orm;
         this.bus = new EventBus();
         this.isReady = false;
+        /**
+         * Whether the component that owns this model is still mounted. The
+         * model's services are that component's ``useService`` proxies, so an
+         * RPC issued after it is destroyed throws "Component is destroyed"
+         * out of a promise nobody awaits. Supplied by ``useModel`` /
+         * ``useModelWithSampleData``; defaults to "always alive" for models
+         * constructed directly (tests, standalone callers).
+         *
+         * @type {() => boolean}
+         */
+        this.isAlive = params?.isAlive || (() => true);
         /**
          * Bumped by every ``notify()`` — the reactive key
          * ``useReactiveModel`` subscribes renderers to.
@@ -95,11 +98,6 @@ export class Model extends SignalStore {
         /** @type {Deferred} */
         this.whenReady = new Deferred();
         this.whenReady.then(() => {
-            // No-op for RelationalModel (``load()`` already sets isReady in the
-            // same sync block as root/config, avoiding an extra render); still
-            // the only place that flips it for Pivot/Graph/Calendar models,
-            // which don't set isReady in ``load()``. ``notify()`` isn't needed:
-            // the reactive write to isReady already invalidates useState consumers.
             this.isReady = true;
         });
         this.setup(params, services);
@@ -163,9 +161,6 @@ export class Model extends SignalStore {
     }
 
     notify() {
-        // Reactive update signal: renderers subscribed via
-        // ``useReactiveModel`` re-render on this bump without the
-        // legacy deep-render bus listener (see ``reactiveRenderers``).
         this._updateEpoch++;
         this.bus.trigger(ModelEvent.UPDATE);
     }
@@ -199,15 +194,20 @@ export function useReactiveModel(model) {
 function getSearchParams(props) {
     const params = {};
     for (const key of SEARCH_KEYS) {
-        params[key] = props[key];
+        // Only materialize keys the caller actually supplied: every consumer
+        // downstream (``computeNextConfig``) branches on ``"domain" in params``
+        // to mean "the caller wants to change the domain". Copying an absent
+        // prop as an explicit ``undefined`` made that test vacuously true, so
+        // a missing prop would have overwritten a good config value with
+        // ``undefined`` — and ``config.context = {...undefined}`` silently
+        // empties the context rather than failing loudly.
+        if (props[key] !== undefined) {
+            params[key] = props[key];
+        }
     }
     if (_isSearchParamsValidationEnabled()) {
         const issues = validateSearchParams(params);
         if (issues.length) {
-            // Warn-only: a contract drift never blocks the load. The
-            // warning surfaces in dev / when the feature flag is on so
-            // we get a signal long before the silent ride-along becomes
-            // load-bearing in production.
             console.warn(
                 `[search-params] ${issues.length} issue(s) at useModel boundary:\n  - ` +
                     issues.join("\n  - "),
@@ -257,20 +257,19 @@ export function useModel(ModelClass, params, options = {}) {
     }
     services.orm = services.orm || useService("orm");
     const model = new ModelClass(/** @type {any} */ (component.env), params, services);
+    // Bound to THIS component, on the instance — deliberately not written into
+    // ``params``: callers hand the same params object to more than one model,
+    // and a leftover ``isAlive`` closing over an already-destroyed component
+    // would make the next model consider itself dead and silently no-op every
+    // onchange. ``useModelWithSampleData`` still seeds it through params
+    // because google/microsoft_calendar read ``params.isAlive`` in setup().
+    model.isAlive = () => status(component) !== "destroyed";
     onWillStart(async () => {
         await options.beforeFirstLoad?.();
         await model.load(getSearchParams(component.props));
         model.whenReady.resolve();
     });
     onWillUpdateProps(async (nextProps) => {
-        // Drain an in-flight mutex'd save before reloading the root: a
-        // search-driven load racing a save would otherwise render pre-save
-        // values and detach the old root while the save's response updates
-        // it. Gated on ``mutex.locked`` so the idle path keeps its exact
-        // microtask timing (dozens of tests pin RPC step order). Internal,
-        // mutex-held load() callers (record_lifecycle) must NOT drain —
-        // they would deadlock — which is why this sits at the props
-        // boundary instead of load().
         if (/** @type {any} */ (model).mutex?.locked) {
             await model._askChanges?.();
         }
@@ -298,35 +297,30 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     }
     services.orm = services.orm || useService("orm");
 
-    if (!("isAlive" in params)) {
-        params.isAlive = () => status(component) !== "destroyed";
+    // Own copy, never the caller's object. ``useModel`` documents why (callers
+    // hand the same params to more than one model, and a stale ``isAlive``
+    // closing over a destroyed component makes the NEXT model consider itself
+    // dead and silently no-op every onchange) — but this hook was still writing
+    // ``isAlive`` and ``canUseSampleModel`` straight into it. The copy keeps
+    // both readable from ``setup(params)`` (google/microsoft_calendar do read
+    // ``params.isAlive``) without the cross-model leak.
+    const modelParams = {
+        ...params,
+        canUseSampleModel: Boolean(component.props.useSampleModel),
+    };
+    if (!("isAlive" in modelParams)) {
+        modelParams.isAlive = () => status(component) !== "destroyed";
     }
 
-    // Sample-data *capability* (not the runtime ``model.useSampleModel`` state):
-    // whether sample data can ever activate for this model. It is the necessary
-    // condition for the sample branch below (``component.props.useSampleModel &&
-    // ...``), so RelationalModel uses it to skip snapshotting initialSampleGroups
-    // on the first (real) load of the overwhelmingly common non-sample view —
-    // that snapshot is a deep clone consumed only when the sample branch runs.
-    params.canUseSampleModel = Boolean(component.props.useSampleModel);
+    const model = new ModelClass(
+        /** @type {any} */ (component.env),
+        modelParams,
+        services,
+    );
 
-    const model = new ModelClass(/** @type {any} */ (component.env), params, services);
-
-    // Legacy deep-render listener. CAUTION: still load-bearing for any
-    // renderer that (a) receives the model as a stable prop (OWL's
-    // props-equality skips reactive controller renders) and (b) snapshots
-    // derived state in onWillUpdateProps/useEffect deps — pivot/graph did
-    // until migrating to useReactiveModel + ``reactiveRenderers = true``.
-    // Still depends on it: calendar, enterprise web_map/web_cohort/
-    // web_grid/web_gantt/social. Audit (a)+(b) before opting a model out.
     if (!(/** @type {any} */ (ModelClass).reactiveRenderers)) {
         const onUpdate = () => component.render(true);
         model.bus.addEventListener(ModelEvent.UPDATE, onUpdate);
-        // onWillDestroy (not onWillUnmount): unmount hooks don't fire for a
-        // component destroyed BEFORE it mounts, which would leak the listener
-        // (and a load resolving after early destruction would call
-        // component.render on a destroyed component). Same rule navbar /
-        // action_container / command_palette already follow.
         onWillDestroy(() => model.bus.removeEventListener(ModelEvent.UPDATE, onUpdate));
     }
 
@@ -337,11 +331,6 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
         (!("useSampleModel" in globalState) || globalState.useSampleModel);
     model.useSampleModel = false;
     const orm = model.orm;
-    // The sampleORM (if persisted from a prior controller) was created with
-    // Object.create(oldOrm) where oldOrm was the *previous* component's
-    // protected ORM wrapper.  That wrapper rejects when the old component is
-    // destroyed, so we must re-parent the sampleORM onto the *current*
-    // component's ORM wrapper.
     let sampleORM = localState.sampleORM;
     if (sampleORM) {
         Object.setPrototypeOf(sampleORM, orm);
@@ -351,8 +340,6 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
      * @param {Record<string, unknown>} props
      */
     async function _load(props) {
-        // Same save/load race guard as useModel's onWillUpdateProps; no-op
-        // for model classes without a mutex (graph, pivot) and when idle.
         if (/** @type {any} */ (model).mutex?.locked) {
             await /** @type {any} */ (model)._askChanges?.();
         }
@@ -362,9 +349,6 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
             sampleORM =
                 sampleORM ||
                 buildSampleORM(component.props.resModel, component.props.fields, orm);
-            // Load data with sampleORM then restore real ORM — even on throw
-            // (e.g. UnimplementedRouteError), or every later action would
-            // keep routing to the in-memory fake.
             model.orm = sampleORM;
             try {
                 await model.load(searchParams);
@@ -376,7 +360,7 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
             useSampleModel = false;
             model.useSampleModel = useSampleModel;
         }
-        model.whenReady.resolve(); // resolve after the first successful load
+        model.whenReady.resolve();
         if (status(component) === "mounted") {
             model.notify();
         }
@@ -386,7 +370,6 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     onWillStart(() => {
         const prom = load(component.props);
         if (options.lazy) {
-            // in-house error handling as we're out of willStart
             prom.catch((e) => {
                 if (e instanceof RPCError) {
                     component.env.config.historyBack();
@@ -399,11 +382,6 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     });
     onWillUpdateProps((nextProps) => {
         useSampleModel = false;
-        // Fire-and-forget on purpose: onWillUpdateProps must NOT await the
-        // reload, or OWL blocks this component's patch (and its sibling
-        // control panel) on the data RPC — breaking the "search facet appears
-        // directly, before the slow data load resolves" contract. Rejections
-        // are surfaced by the load()'s own Race/error handling, not here.
         load(nextProps);
     });
 

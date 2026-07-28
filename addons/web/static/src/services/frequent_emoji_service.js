@@ -11,6 +11,8 @@ import { registry } from "@web/core/registry";
  * @property {Record<string, number>} all - map of codepoints to usage counts
  * @property {(codepoints: string) => void} incrementEmojiUsage
  * @property {(limit?: number) => string[]} getMostFrequent
+ * @property {() => void} destroy - detaches the cross-tab `storage` listener;
+ *   part of the service contract, called by `env.destroy()` on teardown
  */
 
 /**
@@ -34,6 +36,17 @@ function parseFrequent(raw) {
 export const frequentEmojiService = {
     /** @returns {FrequentEmojiState} */
     start() {
+        /** @type {(ev: StorageEvent) => void} */
+        const onStorage = (ev) => {
+            if (ev.key === "web.emoji.frequent") {
+                state.all = parseFrequent(ev.newValue);
+            } else if (ev.key === null) {
+                // `localStorage.clear()` in another tab.
+                state.all = {};
+            }
+        };
+        browser.addEventListener("storage", onStorage);
+
         const state = reactive({
             /** @type {Record<string, number>} */
             all: parseFrequent(browser.localStorage.getItem("web.emoji.frequent")),
@@ -65,22 +78,11 @@ export const frequentEmojiService = {
                     .slice(0, limit ?? Infinity)
                     .map(([codepoints]) => codepoints);
             },
+            /** Detach the cross-tab listener on env teardown. */
+            destroy() {
+                browser.removeEventListener("storage", onStorage);
+            },
         });
-        const onStorage = (ev) => {
-            if (ev.key === "web.emoji.frequent") {
-                state.all = parseFrequent(ev.newValue);
-            } else if (ev.key === null) {
-                // Whole storage cleared (e.g. logout).
-                state.all = {};
-            }
-        };
-        browser.addEventListener("storage", onStorage);
-        // Remove the window listener on env teardown — without this each env
-        // (every JS test mount, every embedded/public context) leaks a
-        // ``storage`` handler pinning this reactive state forever, and every
-        // storage event fans out to all of them. Mirrors the destroy() the
-        // sibling window-listener services (name, slow_rpc, tooltip) added.
-        state.destroy = () => browser.removeEventListener("storage", onStorage);
         return state;
     },
 };

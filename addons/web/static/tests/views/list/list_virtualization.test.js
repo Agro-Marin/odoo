@@ -71,7 +71,6 @@ test("virtualization renders a slice of rows plus a spacer (V2)", async () => {
     const rows = queryAll(".o_data_row");
     expect(rows.length).toBeGreaterThan(0);
     expect(rows.length).toBeLessThan(150);
-    // Scrolled to the top: no top spacer, one bottom spacer.
     expect(".o_virtual_spacer").toHaveCount(1);
 });
 
@@ -83,20 +82,14 @@ test("virtualized row DOM nodes survive an insertion above (V1)", async () => {
         arch: `<list editable="top" limit="200"><field name="name"/></list>`,
     });
 
-    // Anchor an arbitrary rendered row by its stable data-id.
     const anchor = queryAll(".o_data_row")[2];
     const anchorId = anchor.dataset.id;
     expect(anchorId).not.toBe(undefined);
 
-    // Insert a new record at the top: every following flat row's globalIndex
-    // shifts by one.
     await contains(".o_list_button_add").click();
     await animationFrame();
 
-    // The new edited row is present at the top…
     expect(".o_data_row.o_selected_row").toHaveCount(1);
-    // …and the anchored row was patched in place: same DOM node, still
-    // connected, same data-id.
     const after = queryFirst(`.o_data_row[data-id='${anchorId}']`);
     expect(after).toBe(anchor);
     expect(anchor.isConnected).toBe(true);
@@ -110,8 +103,6 @@ test("ArrowUp at the top rendered edge does not focus the search bar (V3)", asyn
         arch: `<list limit="200"><field name="name"/></list>`,
     });
 
-    // Shift the virtualization window down so the first rendered row is
-    // not the first record of the list.
     await contains(".o_list_renderer").scroll({ top: 2000 });
     await animationFrame();
 
@@ -124,12 +115,8 @@ test("ArrowUp at the top rendered edge does not focus the search bar (V3)", asyn
     expect(cell).toBeFocused();
 
     await press("ArrowUp");
-    // The target row exists (it is only virtualized out): the search bar
-    // must not transiently steal focus while the window shifts.
     expect(".o_searchview_input").not.toBeFocused();
 
-    // The window scrolls, re-renders, and the pending focus resolves on
-    // the previous row.
     await waitFor(`.o_data_row[data-row-index='${rowIndex - 1}']`);
     await animationFrame();
     expect(".o_searchview_input").not.toBeFocused();
@@ -146,7 +133,6 @@ test("ArrowDown at the bottom rendered edge focuses the next row (V4)", async ()
         arch: `<list limit="200"><field name="name"/></list>`,
     });
 
-    // Scrolled to the top: the last rendered row is not the last record.
     const lastRendered = queryAll(".o_data_row").at(-1);
     const rowIndex = Number(lastRendered.dataset.rowIndex);
     expect(rowIndex).toBeLessThan(149);
@@ -155,10 +141,6 @@ test("ArrowDown at the bottom rendered edge focuses the next row (V4)", async ()
     cell.focus({ preventScroll: true });
     expect(cell).toBeFocused();
 
-    // When the nav hook handles a key, the renderer calls preventDefault()
-    // and stopPropagation(): a bubble listener at document level only sees
-    // the keydown when the event was NOT consumed (which would trigger the
-    // default browser scroll while the pending focus is in flight).
     const leakedKeydowns = [];
     const onKeydown = (ev) => leakedKeydowns.push(ev.key);
     document.addEventListener("keydown", onKeydown);
@@ -167,8 +149,6 @@ test("ArrowDown at the bottom rendered edge focuses the next row (V4)", async ()
     expect(leakedKeydowns).toEqual([]);
     expect(".o_searchview_input").not.toBeFocused();
 
-    // The window scrolls, re-renders, and the pending focus resolves on
-    // the next row.
     await waitFor(`.o_data_row[data-row-index='${rowIndex + 1}']`);
     await animationFrame();
     expect(
@@ -184,7 +164,6 @@ test("edited row scrolled far away stays a bounded island (V6)", async () => {
         arch: `<list editable="bottom" limit="200"><field name="name"/></list>`,
     });
 
-    // Enter edit on the first row and type a pending (unsaved) value.
     await contains(".o_data_row:first-child .o_data_cell").click();
     expect(".o_data_row.o_selected_row").toHaveCount(1);
     const editedId = queryFirst(".o_data_row.o_selected_row").dataset.id;
@@ -192,29 +171,21 @@ test("edited row scrolled far away stays a bounded island (V6)", async () => {
         confirm: false,
     });
 
-    // Scroll far away from the edited row.
     await contains(".o_list_renderer").scroll({ top: 5000 });
     await animationFrame();
     await animationFrame();
 
-    // The rendered slice must NOT span from the edited row to the viewport:
-    // only the visible window plus the single edited-row island is rendered.
     const rows = queryAll(".o_data_row");
     expect(rows.length).toBeLessThan(100);
 
-    // The edited row is still rendered (island adjacent to the top spacer),
-    // still in edition, with its pending input intact.
     expect(".o_data_row.o_selected_row").toHaveCount(1);
     const island = queryFirst(".o_data_row.o_selected_row");
     expect(island.dataset.id).toBe(editedId);
     expect(island).toBe(rows[0]);
     expect(".o_selected_row [name='name'] input").toHaveValue("pending edit");
 
-    // The rest of the window really is far away (no contiguous fill-in).
     expect(Number(rows[1].dataset.rowIndex)).toBeGreaterThan(50);
 
-    // Scrolling back re-integrates the edited row into the window without
-    // losing the edition.
     await contains(".o_list_renderer").scroll({ top: 0 });
     await animationFrame();
     await animationFrame();
@@ -224,12 +195,6 @@ test("edited row scrolled far away stays a bounded island (V6)", async () => {
 
 test.tags("desktop");
 test("grouped: arrow traversal crosses an 'Add a line' row without trapping focus (V7)", async () => {
-    // Regression: an add-line row has at most two cells (selector placeholder
-    // + one colspan cell, no data-col-index). Arriving on it from a record
-    // column >= 2 made focusAtPosition return null for a RENDERED row, which
-    // the virtualization path misread as "row scrolled out": viewport jump +
-    // a pending focus that never resolved — ArrowDown wedged at every group
-    // boundary of a virtualized grouped list.
     await mountView({
         resModel: "foo",
         type: "list",
@@ -237,27 +202,19 @@ test("grouped: arrow traversal crosses an 'Add a line' row without trapping focu
         groupBy: ["category"],
     });
 
-    // Virtualization is active (154 flat rows) and the first group (cat_a,
-    // 3 records) is fully rendered, including its add-line row.
     const groupRows = queryAll(".o_data_row");
     const lastCatARow = groupRows[2];
     const addLineCell = queryFirst("td.o_group_field_row_add");
     expect(addLineCell).not.toBe(null);
 
-    // Focus the LAST column (colIndex 2: selector + name + bar) of the last
-    // cat_a record, directly above the add-line row.
     const cell = lastCatARow.querySelector("[data-col-index='2']");
     cell.focus({ preventScroll: true });
     expect(cell).toBeFocused();
 
-    // ArrowDown lands on the add-line row (clamped to its last cell)
-    // instead of jumping the viewport and losing focus.
     await press("ArrowDown");
     await animationFrame();
     expect(document.activeElement.closest("td.o_group_field_row_add")).not.toBe(null);
 
-    // Continuing down crosses the next group header and re-enters records
-    // at the remembered column.
     await press("ArrowDown");
     await animationFrame();
     expect(document.activeElement.closest("tr.o_group_header")).not.toBe(null);
@@ -284,14 +241,11 @@ test("ArrowUp from the true first row still reaches the search bar (V5)", async 
     const cell = firstRow.querySelector(".o_data_cell");
     cell.focus({ preventScroll: true });
 
-    // First ArrowUp: grid boundary for data rows — focus moves into the
-    // header row, not the search bar.
     await press("ArrowUp");
     await animationFrame();
     expect(".o_searchview_input").not.toBeFocused();
     expect(document.activeElement.closest("thead")).not.toBe(null);
 
-    // Second ArrowUp: real top-of-grid boundary — the search bar takes focus.
     await press("ArrowUp");
     await animationFrame();
     expect(".o_searchview_input").toBeFocused();

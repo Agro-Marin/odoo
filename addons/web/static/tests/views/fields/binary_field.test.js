@@ -82,7 +82,6 @@ test("BinaryField is correctly rendered (readonly)", async () => {
         message: "the filename field should have the file name as value",
     });
 
-    // Prevent the browser from actually downloading the file.
     const deferred = new Deferred();
     const downloadOnClick = (ev) => {
         const target = ev.target;
@@ -146,7 +145,6 @@ test("BinaryField is correctly rendered", async () => {
         message: "the filename field should have the file name as value",
     });
 
-    // Prevent the browser from actually downloading the file.
     const deferred = new Deferred();
     const downloadOnClick = (ev) => {
         const target = ev.target;
@@ -199,7 +197,6 @@ test("BinaryField is correctly rendered (isDirty)", async () => {
         `,
     });
 
-    // Simulate a file upload
     await click(`.o_select_file_button`);
     await animationFrame();
     const file = new File(["test"], "fake_file.txt", { type: "text/plain" });
@@ -479,10 +476,6 @@ test("should accept file with allowed MIME type and reject others", async () => 
 });
 
 test("uploading a PDF into a plain binary field mints no object URL", async () => {
-    // FileUploader used to create a blob object URL for EVERY PDF upload;
-    // only PdfViewerField (createObjectUrl="true") ever revokes it, so a PDF
-    // uploaded through a plain binary widget pinned the whole file in memory
-    // until page unload. Creation is now opt-in.
     const originalCreate = URL.createObjectURL;
     URL.createObjectURL = (...args) => {
         expect.step("createObjectURL");
@@ -536,9 +529,6 @@ test("download sends the filename field NAME, not its resolved value", async () 
     onRpc("/web/content", async (request) => {
         expect.step("/web/content");
         const body = await request.formData();
-        // `filename_field` must be the NAME of the filename field ("foo"), so
-        // the server can resolve/refresh the filename — not the already-resolved
-        // filename value ("coucou.txt").
         expect(body.get("filename_field")).toBe("foo", {
             message: "filename_field must carry the field name, not its value",
         });

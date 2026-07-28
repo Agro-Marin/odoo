@@ -12,8 +12,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { sort, sortBy } from "@web/model/relational_model/static_list_sort";
 
-// Helpers
-
 /**
  * Minimal StaticList mock for sort/sortBy tests.
  * Captures calls to _load so we can assert the arguments.
@@ -29,7 +27,7 @@ function makeList(overrides = {}) {
         fields: {},
         config: {},
         _cache: {},
-        _getResIdsToLoad: () => [], // no server loading needed
+        _getResIdsToLoad: () => [],
         _load: async (params) => {
             loadCalls.push(params);
         },
@@ -42,8 +40,6 @@ function makeList(overrides = {}) {
     };
     return list;
 }
-
-// sort — empty orderBy (early return)
 
 describe("sort — empty orderBy", () => {
     test("returns currentIds unchanged when orderBy is empty", async () => {
@@ -63,12 +59,9 @@ describe("sort — empty orderBy", () => {
         const list = makeList({ orderBy: [] });
         const ids = [5, 6];
         const result = await sort(list, ids);
-        // Empty orderBy → early return with same array
         expect(result).toBe(ids);
     });
 });
-
-// sort — non-empty orderBy with all records in cache
 
 describe("sort — with cached records", () => {
     test("sorts records by field and calls _load with sorted IDs", async () => {
@@ -83,7 +76,6 @@ describe("sort — with cached records", () => {
 
         await sort(list, [1, 2, 3], [{ name: "name", asc: true }]);
 
-        // _load should be called with IDs in sorted order: Apple(2), Mango(3), Zebra(1)
         expect(list._loadCalls.length).toBe(1);
         expect(list._loadCalls[0].nextCurrentIds).toEqual([2, 3, 1]);
     });
@@ -117,8 +109,6 @@ describe("sort — with cached records", () => {
     });
 });
 
-// sortBy — direction cycling
-
 describe("sortBy — direction cycling", () => {
     test("new field sorts ascending", async () => {
         const list = makeList({
@@ -131,7 +121,6 @@ describe("sortBy — direction cycling", () => {
 
         await sortBy(list, "name");
 
-        // _load should be called with orderBy: [{name: "name", asc: true}]
         expect(list._loadCalls.length).toBe(1);
         expect(list._loadCalls[0].orderBy).toEqual([{ name: "name", asc: true }]);
     });
@@ -163,7 +152,6 @@ describe("sortBy — direction cycling", () => {
 
         await sortBy(list, "name");
 
-        // After desc → resets to id asc; cache is empty so sort() yields [].
         expect(list._loadCalls.length).toBe(1);
         expect(list._loadCalls[0].orderBy).toEqual([{ name: "id", asc: true }]);
     });

@@ -27,10 +27,10 @@ function compileButtonBox(arch, params = {}) {
 const DYNAMIC_IS_VISIBLE = `!__comp__.evaluateBooleanExpr("bar == 'x'",__comp__.props.record.evalContextWithVirtualIds)`;
 
 test("properly compile simple div", () => {
-    const arch = /*xml*/ `<form><div>lol</div></form>`;
-    const expected = /*xml*/ `
+    const arch = `<form><div>lol</div></form>`;
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div>lol</div>
             </div>
         </t>
@@ -39,10 +39,10 @@ test("properly compile simple div", () => {
 });
 
 test("label with empty string compiles to FormLabel with empty string", () => {
-    const arch = /*xml*/ `<form><field field_id="test" name="test"/><label for="test" string=""/></form>`;
-    const expected = /*xml*/ `
+    const arch = `<form><field field_id="test" name="test"/><label for="test" string=""/></form>`;
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <Field id="'test'" name="'test'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['test']" readonly="__comp__.props.readonly"/>
                 <FormLabel id="'test'" fieldName="'test'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['test']" className="&quot;&quot;" string="\`\`" />
             </div>
@@ -52,10 +52,10 @@ test("label with empty string compiles to FormLabel with empty string", () => {
 });
 
 test("properly compile simple div with field", () => {
-    const arch = /*xml*/ `<form><div class="someClass">lol<field field_id="display_name" name="display_name"/></div></form>`;
-    const expected = /*xml*/ `
+    const arch = `<form><div class="someClass">lol<field field_id="display_name" name="display_name"/></div></form>`;
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div class="someClass">
                     lol
                     <Field id="'display_name'" name="'display_name'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['display_name']" readonly="__comp__.props.readonly"/>
@@ -67,7 +67,7 @@ test("properly compile simple div with field", () => {
 });
 
 test("properly compile inner groups", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <group>
                 <group><field field_id="display_name" name="display_name"/></group>
@@ -75,9 +75,9 @@ test("properly compile inner groups", () => {
             </group>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <OuterGroup>
                     <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" isVisible="true" itemSpan="1">
                         <InnerGroup class="scope &amp;&amp; scope.className">
@@ -101,7 +101,7 @@ test("properly compile inner groups", () => {
 });
 
 test("properly compile attributes with nested forms", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <group>
                 <group>
@@ -114,14 +114,14 @@ test("properly compile attributes with nested forms", () => {
             </group>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <OuterGroup>
                     <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" isVisible="true" itemSpan="1">
                         <InnerGroup class="scope &amp;&amp; scope.className">
                             <t t-set-slot="item_0" type="'item'" sequence="0" t-slot-scope="scope" isVisible="true" itemSpan="1">
-                                <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }} {{scope &amp;&amp; scope.className || &quot;&quot; }}">
+                                <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }} {{scope &amp;&amp; scope.className || &quot;&quot; }}">
                                     <div><Field id="'test'" name="'test'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['test']" readonly="__comp__.props.readonly"/></div>
                                 </div>
                             </t>
@@ -135,7 +135,7 @@ test("properly compile attributes with nested forms", () => {
 });
 
 test("properly compile notebook", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <notebook>
                 <page name="p1" string="Page1"><field field_id="charfield" name="charfield"/></page>
@@ -143,9 +143,9 @@ test("properly compile notebook", () => {
             </notebook>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <Notebook defaultPage="__comp__.props.record.isNew ? undefined : __comp__.props.activeNotebookPages[0]" onPageUpdate="(page) =&gt; __comp__.props.onNotebookPageChange(0, page)" onWillActivatePage="(page) =&gt; __comp__.onWillChangeNotebookPage?.(0, page)">
                     <t t-set-slot="page_1" title="\`Page1\`" name="\`p1\`" isVisible="true" fieldnames="[&quot;charfield&quot;]">
                         <Field id="'charfield'" name="'charfield'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['charfield']" readonly="__comp__.props.readonly"/>
@@ -161,14 +161,14 @@ test("properly compile notebook", () => {
 });
 
 test("properly compile field without placeholder", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <field field_id="display_name" name="display_name" placeholder="e.g. Contact's Name or //someinfo..."/>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <Field id="'display_name'" name="'display_name'" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes['display_name']" readonly="__comp__.props.readonly"/>
             </div>
         </t>
@@ -177,15 +177,15 @@ test("properly compile field without placeholder", () => {
 });
 
 test("properly compile no sheet", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <header>someHeader</header>
             <div>someDiv</div>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div t-att-class="{ 'shadow-sm': __comp__.state.isStatusbarStickyPinned }" class="o_form_statusbar d-flex justify-content-between py-2">
                     <StatusBarButtons/>
                 </div>
@@ -197,7 +197,7 @@ test("properly compile no sheet", () => {
 });
 
 test("properly compile sheet", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <header>someHeader</header>
             <div>someDiv</div>
@@ -207,9 +207,9 @@ test("properly compile sheet", () => {
             <div>after sheet</div>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-flex d-print-block {{ __comp__.uiService.size &lt; 5 ? &quot;flex-column&quot; : &quot;flex-nowrap h-100&quot; }} {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-flex d-print-block {{ __comp__.uiService.size &lt; 5 ? &quot;flex-column&quot; : &quot;flex-nowrap h-100&quot; }} {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div t-on-scroll="__comp__.onScrollThrottled" class="o_form_sheet_bg">
                     <div t-att-class="{ 'shadow-sm': __comp__.state.isStatusbarStickyPinned }" class="o_form_statusbar d-flex justify-content-between py-2"><StatusBarButtons/></div>
                     <div>someDiv</div>
@@ -225,7 +225,7 @@ test("properly compile sheet", () => {
 });
 
 test("properly compile buttonBox invisible in sheet", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <sheet>
                 <div class="oe_button_box" name="button_box" invisible="'display_name' == 'plop'">
@@ -234,11 +234,11 @@ test("properly compile buttonBox invisible in sheet", () => {
             </sheet>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
             <div class="o_form_renderer"
                  t-att-class="__comp__.props.class"
-                 t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-flex d-print-block {{ __comp__.uiService.size &lt; 5 ? &quot;flex-column&quot; : &quot;flex-nowrap h-100&quot; }} {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}"
+                 t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-flex d-print-block {{ __comp__.uiService.size &lt; 5 ? &quot;flex-column&quot; : &quot;flex-nowrap h-100&quot; }} {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}"
                  t-ref="compiled_view_root">
                 <div t-on-scroll="__comp__.onScrollThrottled" class="o_form_sheet_bg">
                     <div class="o_form_sheet position-relative">
@@ -251,24 +251,16 @@ test("properly compile buttonBox invisible in sheet", () => {
 });
 
 test("properly compile invisible", () => {
-    // cf python side: def transfer_node_to_modifiers
-    // modifiers' string are evaluated to their boolean or array form
-    // So the following arch may actually be written as:
-    // ```<form>
-    //      <field name="display_name" invisible="1" />
-    //      <div class="visible3" invisible="0"/>
-    //      <div invisible="display_name == 'take'"/>
-    //    </form>````
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <field field_id="display_name" name="display_name" invisible="True" />
             <div class="visible3" invisible="False"/>
             <div invisible="display_name == &quot;take&quot;"/>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div class="visible3"/>
                 <div t-if="!__comp__.evaluateBooleanExpr(&quot;display_name == \\&quot;take\\&quot;&quot;,__comp__.props.record.evalContextWithVirtualIds)"/>
             </div>
@@ -278,16 +270,16 @@ test("properly compile invisible", () => {
 });
 
 test("compile invisible containing string as domain", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <field name="display_name" invisible="True"/>
             <div class="visible3" invisible="False"/>
             <div invisible="display_name == 'take'"/>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div class="visible3" />
                 <div t-if="!__comp__.evaluateBooleanExpr(&quot;display_name == 'take'&quot;,__comp__.props.record.evalContextWithVirtualIds)"/>
             </div>
@@ -297,14 +289,14 @@ test("compile invisible containing string as domain", () => {
 });
 
 test("properly compile status bar with content", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <header><div>someDiv</div></header>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div t-att-class="{ 'shadow-sm': __comp__.state.isStatusbarStickyPinned }" class="o_form_statusbar d-flex justify-content-between py-2">
                     <StatusBarButtons>
                         <t t-set-slot="button_0" isVisible="true">
@@ -319,14 +311,14 @@ test("properly compile status bar with content", () => {
 });
 
 test("properly compile status bar without content", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <header></header>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div t-att-class="{ 'shadow-sm': __comp__.state.isStatusbarStickyPinned }" class="o_form_statusbar d-flex justify-content-between py-2">
                     <StatusBarButtons/>
                 </div>
@@ -337,7 +329,7 @@ test("properly compile status bar without content", () => {
 });
 
 test("properly compile settings", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <setting help="this is bar"
                      documentation="/applications/technical/web/settings/this_is_a_test.html"
@@ -347,9 +339,9 @@ test("properly compile settings", () => {
             </setting>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <Setting info="\`\`"
                         title="\`\`"
                         help="\`this is bar\`"
@@ -377,7 +369,7 @@ test("properly compile settings", () => {
 });
 
 test("properly compile empty ButtonBox", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <sheet>
                 <div class="oe_button_box" name="button_box">
@@ -385,9 +377,9 @@ test("properly compile empty ButtonBox", () => {
             </sheet>
         </form>
     `;
-    const expected = /*xml*/ `
+    const expected = `
         <t t-translation="off">
-            <div class="o_form_renderer" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-flex d-print-block {{ __comp__.uiService.size &lt; 5 ? &quot;flex-column&quot; : &quot;flex-nowrap h-100&quot; }} {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
+            <div class="o_form_renderer" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-flex d-print-block {{ __comp__.uiService.size &lt; 5 ? &quot;flex-column&quot; : &quot;flex-nowrap h-100&quot; }} {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
                 <div t-on-scroll="__comp__.onScrollThrottled" class="o_form_sheet_bg">
                     <div class="o_form_sheet position-relative">
                         <div class="oe_button_box" name="button_box">
@@ -435,7 +427,7 @@ test("keep nosheet style if a sheet is part of a nested form", () => {
         <div
             class="o_form_renderer o_form_nosheet"
             t-att-class="__comp__.props.class"
-            t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}"
+            t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}"
             t-ref="compiled_view_root"
         >
             <Field
@@ -461,22 +453,17 @@ test("form with t-translation directive", () => {
         <div
             class="o_form_renderer o_form_nosheet"
             t-att-class="__comp__.props.class"
-            t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}"
+            t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}"
             t-ref="compiled_view_root">
                 <div> Hello </div>
         </div>
     </t>`;
     expect(compileTemplate(arch)).toHaveOuterHTML(expected);
-    expect.verifySteps([]); // should no log any warning
+    expect.verifySteps([]);
 });
 
-// makeIsVisibleExpr wiring — the three literal forms across the three
-// slot-based compilers (button box, group, notebook) all route through the
-// shared helper. compileInvisibleNodes keeps the always-hidden ("false") nodes
-// in the output so the third literal form is observable.
-
 test("button box routes each stat button through makeIsVisibleExpr", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <div name="button_box">
             <button name="a" type="object" invisible="bar == 'x'"/>
             <button name="b" type="object" invisible="0"/>
@@ -490,7 +477,7 @@ test("button box routes each stat button through makeIsVisibleExpr", () => {
 });
 
 test("group routes each item slot through makeIsVisibleExpr", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <group>
                 <field field_id="a" name="a" invisible="bar == 'x'"/>
@@ -505,7 +492,7 @@ test("group routes each item slot through makeIsVisibleExpr", () => {
 });
 
 test("notebook routes each page slot through makeIsVisibleExpr", () => {
-    const arch = /*xml*/ `
+    const arch = `
         <form>
             <notebook>
                 <page name="p1" string="P1" invisible="bar == 'x'">
@@ -527,8 +514,6 @@ test("notebook routes each page slot through makeIsVisibleExpr", () => {
     expect(visibles).toEqual([DYNAMIC_IS_VISIBLE, "true", "false"]);
 });
 
-// appendToExpr — preserve literal text around an existing interpolation
-
 test("appendToExpr wraps a bare string when there is no existing expression", () => {
     expect(appendToExpr("", "x")).toBe("{{x }}");
     expect(appendToExpr(undefined, "x")).toBe("{{x }}");
@@ -536,8 +521,6 @@ test("appendToExpr wraps a bare string when there is no existing expression", ()
 });
 
 test("appendToExpr preserves literal text surrounding an interpolation", () => {
-    // Regression: the former regex re-extraction returned only the {{...}}
-    // span, silently dropping the static "foo " before it.
     expect(appendToExpr("foo {{bar}}", "baz")).toBe("foo {{bar}} {{baz }}");
     expect(appendToExpr("a {{b}} c", "d")).toBe("a {{b}} c {{d }}");
 });

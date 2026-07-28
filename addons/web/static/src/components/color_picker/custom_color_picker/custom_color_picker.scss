@@ -1,4 +1,3 @@
-// COLOR PICKER
 .o_colorpicker_widget {
     .o_color_pick_area {
         height: 125px;
@@ -63,7 +62,7 @@
         font-size: 10px;
 
         input {
-            font-family: monospace !important; // FIXME: the monospace font used in the editor has not consistent ch units on Firefox
+            font-family: monospace !important;
             height: 18px;
             font-size: 11px;
         }

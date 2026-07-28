@@ -37,9 +37,6 @@ export class BooleanField extends Component {
         try {
             await this.props.record.update({ [this.props.name]: newValue });
         } catch (error) {
-            // A rejected update (e.g. a failing onchange RPC) leaves the
-            // record data unchanged, so the observer never re-fires: resync
-            // the optimistic local mirror manually.
             this.state.value = this.props.record.data[this.props.name];
             throw error;
         }

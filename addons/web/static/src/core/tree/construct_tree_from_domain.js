@@ -72,24 +72,16 @@ function _constructTree(ASTs, distributeNot = false) {
                     distributeNot,
                 );
             } catch {
-                // The ``any``/``not any`` value wasn't a sub-domain. Only wrap a
-                // bare scalar literal in a list; leave an Expression (a free
-                // variable / dynamic value) untouched — wrapping it as
-                // ``[expression]`` produces a nested invalid domain that
-                // corrupts the record on round-trip.
                 if (!(tree.value instanceof Expression) && !Array.isArray(tree.value)) {
                     tree.value = [tree.value];
                 }
             }
         }
 
-        // Attach the completed node upward, popping every connector it fills.
         /** @type {Tree | null} */
         let node = tree;
         while (stack.length) {
             const frame = stack[stack.length - 1];
-            // node is only null right after a `break` out of this loop, so it
-            // is always a Tree here.
             addChild(frame.tree, /** @type {Tree} */ (node));
             frame.remaining--;
             if (frame.remaining > 0) {

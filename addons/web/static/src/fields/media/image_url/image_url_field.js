@@ -23,8 +23,6 @@ export class ImageUrlField extends Component {
 
     setup() {
         this.notification = useService("notification");
-        // URL that already failed to load: used to avoid reverting the fallback
-        // back to the broken URL on an unrelated record change (see below).
         this.failedSrc = undefined;
         this.state = useState({
             src: this.props.record.data[this.props.name],
@@ -32,10 +30,6 @@ export class ImageUrlField extends Component {
 
         useRecordObserver((record) => {
             const incoming = record.data[this.props.name];
-            // Editing an unrelated field re-fires this observer; without this
-            // guard it would overwrite the fallback with the known-bad URL,
-            // re-issuing the failing request (flicker + repeated 404s). Only
-            // skip when the incoming value is exactly the URL that failed.
             if (incoming === this.failedSrc) {
                 return;
             }

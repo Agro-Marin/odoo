@@ -40,19 +40,30 @@ export const sortableService = {
              * @param {SortableServiceHookParams} hookParams
              */
             create: (hookParams) => {
+                if (!hookParams?.ref) {
+                    // Reaching `.el` on an absent ref throws a bare TypeError
+                    // that hides which of the two contract violations happened.
+                    throw new Error(
+                        "sortable service: create() requires a `ref` in hookParams",
+                    );
+                }
                 const element = hookParams.ref.el;
+                if (!element) {
+                    // The ref is not mounted yet. Keying `boundElements` by
+                    // `undefined` collapses every such call onto ONE entry, so
+                    // the second unmounted sortable is handed the first one's
+                    // cleanup and never sets itself up.
+                    throw new Error(
+                        "sortable service: create() requires a mounted ref " +
+                            "(hookParams.ref.el is not set)",
+                    );
+                }
                 const sortableId = hookParams.sortableId ?? DEFAULT_SORTABLE_ID;
                 if (boundElements.has(element)) {
                     const boundElement = boundElements.get(element);
                     if (/** @type {any} */ (sortableId) in boundElement) {
                         return {
                             enable() {
-                                // Re-read the cleanup from the live registry at
-                                // enable() time: the binding captured at create()
-                                // may have been torn down since (cleanup() then
-                                // deleted the entry), so returning the captured
-                                // closure would hand back a dead cleanup. Fall
-                                // back to a no-op when the entry is gone.
                                 return {
                                     cleanup:
                                         boundElements.get(element)?.[sortableId] ??
@@ -73,8 +84,6 @@ export const sortableService = {
 
                 const cleanup = () => {
                     const boundElement = boundElements.get(element);
-                    // Guard against a double cleanup(): a previous call may already
-                    // have removed the element (get() then returns undefined).
                     if (
                         boundElement &&
                         /** @type {any} */ (sortableId) in boundElement
@@ -84,7 +93,10 @@ export const sortableService = {
                             boundElements.delete(element);
                         }
                     }
-                    cleanupFunctions.forEach((fn) => fn());
+                    // Drain rather than iterate: `cleanup` is handed to callers
+                    // and is also reachable through `boundElements`, so calling
+                    // it twice used to run every teardown callback twice.
+                    cleanupFunctions.splice(0).forEach((fn) => fn());
                 };
 
                 const setupHooks = {
@@ -122,11 +134,6 @@ export const sortableService = {
                 let enabled = false;
                 return {
                     enable() {
-                        // Idempotent: enable() is called more than once by some
-                        // consumers (re-render, re-mount). Running the setup
-                        // functions again would register a second set of DnD
-                        // listeners on the same element, so the drag handlers
-                        // fire twice. Arm exactly once.
                         if (!enabled) {
                             enabled = true;
                             setupFunctions.forEach((dependenciesFn, setupFn) =>

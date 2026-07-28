@@ -106,9 +106,19 @@ export class Notebook extends Component {
         useEffect(
             () => {
                 this.props.onPageUpdate(this.state.currentPage);
-                this.activePane.el?.classList.add("show");
             },
             () => [this.state.currentPage],
+        );
+        // The pane is keyed on the active page, so a real page switch mounts a
+        // fresh (opacity-0) element that this fades in. Keying `show` to the
+        // element rather than to `currentPage` is what makes an A -> B -> A
+        // sequence safe: both writes land before OWL patches, so the pane is
+        // reused and stays visible instead of being left permanently faded out.
+        useEffect(
+            (pane) => {
+                pane?.classList.add("show");
+            },
+            () => [this.activePane.el],
         );
         onWillRender(() => {
             this.computeInvalidPages();
@@ -150,12 +160,10 @@ export class Notebook extends Component {
             this.state.currentPage !== pageIndex
         ) {
             const prom = (async () => this.props.onWillActivatePage(pageIndex))();
-            // Always set in setup(), before any page can be activated.
             const canProceed = await /** @type {KeepLast} */ (
                 this.keepLastPageTransition
             ).add(prom);
             if (canProceed !== false) {
-                this.activePane.el?.classList.remove("show");
                 this.state.currentPage = pageIndex;
             }
         }
@@ -175,9 +183,6 @@ export class Notebook extends Component {
         const pages = [];
         /** @type {[string, any][]} */
         const pagesWithIndex = [];
-        // Slot descriptors and programmatic (array) pages are merged as separate
-        // entries, array pages shallow-copied with isVisible forced on, so a slot
-        // literally named "0" is never clobbered by the first array-indexed page.
         const entries = [
             ...Object.entries(props.slots || {}),
             ...(props.pages || []).map(
@@ -196,7 +201,6 @@ export class Notebook extends Component {
                 this.disabledPages.push(id);
             }
         }
-        // Sort by index ascending so earlier insertions don't shift later ones
         pagesWithIndex.sort((a, b) => a[1].index - b[1].index);
         for (const page of pagesWithIndex) {
             pages.splice(page[1].index, 0, page);

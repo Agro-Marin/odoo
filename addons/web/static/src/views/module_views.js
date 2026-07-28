@@ -10,11 +10,6 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 const cogMenuRegistry = registry.category("cogMenu");
 
-// ``check_module_update`` is evaluated by the CogMenu on both ``onWillStart``
-// and every ``onWillUpdateProps``. Memoize its result per action controller
-// (keyed by the stable ``env.config`` object) so the RPC runs at most once per
-// Apps view instead of on every props update. The WeakMap lets stale entries
-// be garbage-collected when the controller is disposed.
 const moduleUpdateCache = new WeakMap();
 
 /** Cog-menu item that resets module installation state (only on ir.module.module list views). */
@@ -49,9 +44,6 @@ cogMenuRegistry.add(
                     config,
                     (async () => {
                         try {
-                            // ``silent`` + swallow: a rejected background RPC
-                            // must not crash the whole Apps view (nor pop an
-                            // error dialog) — just hide the cog item.
                             return Boolean(
                                 await services.orm.silent.call(
                                     "ir.module.module",

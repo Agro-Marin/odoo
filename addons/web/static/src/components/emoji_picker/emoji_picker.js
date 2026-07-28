@@ -93,19 +93,11 @@ export async function loadEmoji() {
             await import("@web/components/emoji_picker/emoji_data");
         res.categories = getCategories();
         res.emojis = getEmojis();
-        // Build the shortcode/regex cache ONLY on the success path. Building it
-        // in a `finally` also ran it after a transient bundle-load failure,
-        // freezing an empty map + dead regex (`/(?!)/`) into `loader.loaded`.
-        // The `if (!loader.loaded)` guard then skipped every later rebuild, so
-        // mail's emoji shortcode rendering stayed broken until a full reload —
-        // even though loadBundle's cache eviction let the picker itself
-        // recover. Only a genuine load carries the emoji data worth caching.
         if (!loader.loaded) {
             /** @type {{[key: string]: string[]}} */
             const emojiValueToShortcodes = {};
             for (const emoji of res.emojis) {
                 emojiValueToShortcodes[emoji.codepoints] = emoji.shortcodes;
-                // Precompute the normalized search strings once at data load.
                 getEmojiSearchStrings(emoji);
             }
             loader.loaded = {
@@ -114,7 +106,7 @@ export async function loadEmoji() {
                     Object.keys(emojiValueToShortcodes).length
                         ? Object.keys(emojiValueToShortcodes)
                               .map(escapeRegExp)
-                              .sort((a, b) => b.length - a.length) // Sort to get composed emojis first
+                              .sort((a, b) => b.length - a.length)
                               .join("|")
                         : /(?!)/,
                     "gu",
@@ -123,9 +115,6 @@ export async function loadEmoji() {
         }
         return res;
     } catch {
-        // Could be intentional (tour ended successfully while emoji still
-        // loading). Leave loader.loaded untouched so a later successful call
-        // still gets a chance to build the cache.
         return res;
     }
 }
@@ -160,8 +149,6 @@ export class EmojiPicker extends Component {
     static template = "web.EmojiPicker";
 
     // Declared with @type (not assigned) so strictNullChecks treats them as
-    // initialized; setup()/onWillStart/onMounted assign them, and lifecycle
-    // ordering guarantees they're non-undefined at every access site.
     /** @type {{el: HTMLElement | null}} */
     gridRef;
     /** @type {{el: HTMLElement | null}} */
@@ -182,14 +169,10 @@ export class EmojiPicker extends Component {
     emojiByCodepoints;
     /** @type {Map<string, {name: string, displayName: string, sortId: number, title?: string}>} */
     categoryByName;
-    // Search results are computed once per render (see onWillRender) and
-    // cached non-reactively; the template reads the cached values through
-    // recentEmojis / getEmojis().
     /** @type {Emoji[] | undefined} */
     _recentEmojis;
     /** @type {Emoji[] | undefined} */
     _emojis;
-    // Fuzzy-search result cache for computeEmojis (see there).
     /** @type {string | undefined} */
     _emojisCacheKey;
     /** @type {Emoji[] | undefined} */
@@ -205,7 +188,6 @@ export class EmojiPicker extends Component {
     keyboardNavigated = false;
     /** @type {any[]} */
     emojiMatrix;
-    // searchTerm is a getter/setter pair (see below) — do not redeclare here.
 
     setup() {
         this.gridRef = useRef("emoji-grid");
@@ -411,11 +393,8 @@ export class EmojiPicker extends Component {
         const recent = Object.entries(this.frequentEmojiService.all)
             .sort(([, usage_1], [, usage_2]) => usage_2 - usage_1)
             .map(([codepoints]) => this.emojiByCodepoints[codepoints])
-            // Persisted codepoints may no longer exist after an emoji data update.
             .filter(Boolean);
         if (this.searchTerm && recent.length) {
-            // getEmojiSearchStrings returns pre-normalized strings — skip the
-            // per-candidate re-normalization on every keystroke.
             return fuzzyLookup(this.searchTerm, recent, getEmojiSearchStrings, {
                 preNormalized: true,
             });
@@ -542,11 +521,14 @@ export class EmojiPicker extends Component {
         this.state.activeEmojiIndex = newIdx ?? this.state.activeEmojiIndex;
     }
 
+    /**
+     * `activeEmojiIndex` indexes the very list the grid renders, so read it
+     * from that list rather than round-tripping through `data-index` in the
+     * DOM: the query returned the same emoji but threw outright whenever the
+     * grid was not mounted yet.
+     */
     get activeEmoji() {
-        const activeCodepoints = this.gridRef.el.querySelector(
-            `.o-EmojiPicker-content .o-Emoji[data-index="${this.state.activeEmojiIndex}"]`,
-        )?.dataset.codepoints;
-        return activeCodepoints ? this.emojiByCodepoints[activeCodepoints] : undefined;
+        return this.getEmojisFromSearch()[this.state.activeEmojiIndex];
     }
 
     onKeydown(ev) {
@@ -567,9 +549,6 @@ export class EmojiPicker extends Component {
                     ?.click();
                 break;
             case "Escape":
-                // close() is responsible for notifying onClose (usePicker wires
-                // it through the popover/dialog close path); calling both here
-                // fired the consumer's onClose twice.
                 this.props.close?.();
                 ev.stopPropagation();
         }
@@ -589,9 +568,6 @@ export class EmojiPicker extends Component {
 
     computeEmojis() {
         const recentEmojis = this.recentEmojis;
-        // Fuzzy search over ~8.7k emojis is costly; without caching it would
-        // re-run on every render, including hover renders. Key the cache on
-        // everything it depends on: search term and excluded recent emojis.
         const cacheKey = this.searchTerm
             ? `${this.searchTerm}\x00${recentEmojis.map((e) => e.codepoints).join(",")}`
             : "";
@@ -605,9 +581,6 @@ export class EmojiPicker extends Component {
             );
         }
         if (this.searchTerm.length) {
-            // getEmojiSearchStrings returns pre-normalized strings — skip the
-            // per-candidate re-normalization (~94% of the search cost, run
-            // synchronously in onWillRender on every keystroke).
             emojisToDisplay = fuzzyLookup(
                 this.searchTerm,
                 emojisToDisplay,
@@ -685,8 +658,6 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
         animation: false,
         popoverClass: (options.popoverClass ?? "") + " bg-100 border border-secondary",
     });
-    // Local session object (not written into the caller's props): keeps the
-    // grid scroll position across open/close cycles of the same picker.
     const storeScroll = {
         scrollValue: 0,
         set: (value) => {
@@ -696,19 +667,14 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
     };
 
     /**
+     * Register a target: the listeners themselves are attached by the effect
+     * below, which is the only point where `ref.el` is resolved (this runs
+     * during `setup`, where every ref is still null).
+     *
      * @param {import("@web/core/utils/hooks").Ref} ref
      */
-    function add(ref, onSelect, { show = false } = {}) {
-        const toggler = () => toggle(isMobileOS() ? undefined : ref, onSelect);
-        targets.push([ref, toggler]);
-        if (!ref.el) {
-            return;
-        }
-        ref.el.addEventListener("click", toggler);
-        ref.el.addEventListener("mouseenter", loadEmoji);
-        if (show) {
-            ref.el.click();
-        }
+    function add(ref, onSelect) {
+        targets.push([ref, () => toggle(isMobileOS() ? undefined : ref, onSelect)]);
     }
 
     function open(ref, openProps) {
@@ -783,8 +749,6 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
     if (ref) {
         add(ref);
     }
-    // Rebind the toggler listeners only when a target element actually
-    // changes identity, instead of removing/re-adding them on every patch.
     useEffect(
         () => {
             const attached = [];
@@ -805,8 +769,6 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
         },
         () => targets.map(([ref]) => ref.el),
     );
-    // The mobile picker is a standalone App / dialog: tear it down with its
-    // owner, else it survives the owner's destruction.
     onWillDestroy(() => remove?.());
     Object.assign(state, { open, close, toggle });
     return state;
@@ -862,7 +824,7 @@ function isElementVisible(el, holder) {
     holder = holder || document.body;
     const { top, bottom, height } = el.getBoundingClientRect();
     let { top: holderTop, bottom: holderBottom } = holder.getBoundingClientRect();
-    holderTop += offset * 2; // section are position sticky top so emoji can be "visible" under section name. Overestimate to assume invisible.
+    holderTop += offset * 2;
     holderBottom -= offset;
     return top - offset <= holderTop
         ? holderTop - top <= height

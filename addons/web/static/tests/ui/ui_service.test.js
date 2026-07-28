@@ -6,9 +6,14 @@ import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { useActiveElement } from "@web/ui/block/ui_service";
+import { MEDIAS_BREAKPOINTS, useActiveElement } from "@web/ui/block/ui_service";
 
-import { getService, mountWithCleanup } from "../web_test_helpers.js";
+import {
+    getService,
+    makeMockEnv,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "../web_test_helpers.js";
 
 describe.current.tags("desktop");
 
@@ -40,11 +45,11 @@ test("use block and unblock several times to block ui with ui service", async ()
     expect(".o_blockUI").toHaveCount(0);
 });
 
-test("blocked and activeElement are reactive properties", async () => {
+test("isBlocked and activeElement are reactive properties", async () => {
     class MyComponent extends Component {
         static template = xml`
             <div>
-                <span class="blocked" t-esc="ui.blocked"/>
+                <span class="blocked" t-esc="ui.isBlocked"/>
                 <span class="active" t-esc="isDocumentActive ? 'document' : 'other'"/>
                 <div t-if="hasRef" id="owner" t-ref="delegatedRef">
                     <input type="text"/>
@@ -66,7 +71,6 @@ test("blocked and activeElement are reactive properties", async () => {
     expect(".blocked").toHaveText("false");
     expect(".active").toHaveText("other");
 
-    // Rendered through useState: block/unblock must trigger a re-render.
     getService("ui").block();
     await animationFrame();
     expect(".blocked").toHaveText("true");
@@ -76,8 +80,6 @@ test("blocked and activeElement are reactive properties", async () => {
     expect(".blocked").toHaveText("false");
     expect(getService("ui").isBlocked).toBe(false);
 
-    // Same for activate/deactivate (the deactivation itself is deferred a
-    // micro-tick by useActiveElement's cleanup, hence the second frame).
     comp.hasRef = false;
     comp.render();
     await animationFrame();
@@ -307,4 +309,41 @@ test("UI active element: trap focus is not bypassed using invisible elements", a
     await animationFrame();
     expect(firstEvent.defaultPrevented).toBe(true);
     expect("input[placeholder=withFocus]").toBeFocused();
+});
+
+// REGRESSION-BLOCK
+test("the service releases its breakpoint listeners on destroy", async () => {
+    // A first env makes sure `MEDIAS` is already bound, so the next start
+    // rebuilds it from the patched `matchMedia` below.
+    await makeMockEnv();
+
+    let attached = 0;
+    patchWithCleanup(window, {
+        matchMedia: () => ({
+            matches: false,
+            addEventListener: () => attached++,
+            removeEventListener: () => attached--,
+        }),
+    });
+
+    const env = await makeMockEnv();
+    expect(attached).toBe(MEDIAS_BREAKPOINTS.length);
+
+    /** @type {any} */ (env.services.ui).destroy();
+    expect(attached).toBe(0);
+});
+
+// BLOCKUI-A11Y-BLOCK
+test("the blocking overlay announces its message politely", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+    getService("ui").block();
+    await animationFrame();
+
+    expect(".o_blockUI .o_message").toHaveAttribute("role", "status");
+    expect(".o_blockUI .o_message").toHaveAttribute("aria-live", "polite");
+    // The spinner is decorative: the live region already carries the text.
+    expect(".o_blockUI .o_spinner img").toHaveAttribute("alt", "");
+
+    getService("ui").unblock();
+    await animationFrame();
 });

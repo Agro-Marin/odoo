@@ -129,7 +129,6 @@ export function makeDraggableHook(hookParams) {
         ...hookParams.defaultParams,
     };
 
-    // Stable key order for the param-merge effect dependencies below.
     const paramKeys = Object.keys(allAcceptedParams);
 
     /**
@@ -236,15 +235,9 @@ export function makeDraggableHook(hookParams) {
                 state.dragging = true;
                 state.willDrag = false;
 
-                // Compute scrollable parent
                 const isDocumentScrollingElement =
                     ctx.current.container ===
                     ctx.current.container.ownerDocument.scrollingElement;
-                // If the container is the "ownerDocument.scrollingElement",
-                // there is no need to get the scroll parent as it is the
-                // scrollable element itself.
-                // TODO: investigate if "getScrollParents" should not consider
-                // the "ownerDocument.scrollingElement" directly.
                 [ctx.current.scrollParentX, ctx.current.scrollParentY] =
                     isDocumentScrollingElement
                         ? [ctx.current.container, ctx.current.container]
@@ -262,13 +255,11 @@ export function makeDraggableHook(hookParams) {
                     dom.addStyle(ctx.current.element, {
                         width: `${width}px`,
                         height: `${height}px`,
-                        // Limit the impact of width and height !important on the dragged element
                         "max-width": `${width}px`,
                         "max-height": `${height}px`,
                         position: "fixed !important",
                     });
 
-                    // First adjustment
                     updateElementPosition();
                 }
 
@@ -280,8 +271,6 @@ export function makeDraggableHook(hookParams) {
                         }
                     }
                 }
-                // FIXME: adding pe-none and cursor on the same element makes
-                // no sense as pe-none prevents the cursor to be displayed.
                 if (ctx.cursor) {
                     dom.addStyle(document.body, { cursor: ctx.cursor });
                 }
@@ -290,12 +279,6 @@ export function makeDraggableHook(hookParams) {
                     (ctx.current.scrollParentX || ctx.current.scrollParentY) &&
                     ctx.edgeScrolling.enabled
                 ) {
-                    // Rects were computed above (`updateRects`) and are then
-                    // only marked for recomputation after an actual scroll or
-                    // resize, instead of being recomputed on every animation
-                    // frame: `updateRects` interleaves layout reads (rects,
-                    // computed styles, scroll sizes) with the same-frame style
-                    // writes of the drag sequence, forcing a layout per frame.
                     ctx.current.rectsDirty = false;
                     const markRectsDirty = () => (ctx.current.rectsDirty = true);
                     dom.addListener(window, "resize", markRectsDirty);
@@ -339,14 +322,6 @@ export function makeDraggableHook(hookParams) {
                         }
                     }
                 } finally {
-                    // Teardown is unconditional by construction. `callBuildHandler`
-                    // — unlike its guarded sibling `callHandler` — does not catch,
-                    // and consumers reach it with their OWN callbacks (e.g.
-                    // nested_sortable invokes `params.isAllowed` directly from
-                    // `_isAllowedNodeMove`). A throw escaping before this point
-                    // left `document.body` carrying `pe-none`/`user-select-none`
-                    // and the window pointer/keydown listeners bound, i.e. a page
-                    // that stays unclickable for the rest of the session.
                     cleanup.cleanup();
                 }
             };
@@ -356,9 +331,6 @@ export function makeDraggableHook(hookParams) {
              * the edge of the container.
              */
             const handleEdgeScrolling = (/** @type {number} */ deltaTime) => {
-                // Rects are only recomputed after an actual scroll or resize
-                // (marked by the listeners added in `dragStart`), never on
-                // idle frames.
                 const wereRectsDirty = ctx.current.rectsDirty;
                 if (wereRectsDirty) {
                     ctx.current.rectsDirty = false;
@@ -381,11 +353,6 @@ export function makeDraggableHook(hookParams) {
                     }
                 }
                 if (yRect) {
-                    // "getBoundingClientRect()"" (used in "getRect()") gives the
-                    // distance from the element's top to the viewport, excluding
-                    // scroll position. Only the "document.scrollingElement" element
-                    // ("<html>") accounts for scrollTop. The adjustment is applied
-                    // on a local value: the cached rect must not be mutated.
                     let yRectY = yRect.y;
                     const scrollParentYEl = /** @type {HTMLElement} */ (
                         ctx.current.scrollParentY
@@ -427,14 +394,9 @@ export function makeDraggableHook(hookParams) {
                         scrolled ||= scrollParentX.scrollLeft !== previousScrollLeft;
                     }
                     if (scrolled) {
-                        // Rects moved along with the scrolled content.
                         ctx.current.rectsDirty = true;
                     }
                 }
-                // Only dispatch "onDrag" on frames where something actually
-                // moved under the pointer (edge scroll, or an observed scroll/
-                // resize): pointer-driven movement already dispatches "onDrag"
-                // from the "pointermove" handler.
                 if (scrolled || wereRectsDirty) {
                     callBuildHandler("onDrag");
                 }
@@ -462,7 +424,6 @@ export function makeDraggableHook(hookParams) {
                 if (!WHITE_LISTED_KEYS.includes(ev.key)) {
                     safePrevent(ev, { stop: true });
 
-                    // Cancels drag sequences on every non-whitelisted key down event.
                     dragEnd(null);
                 }
             };
@@ -486,8 +447,6 @@ export function makeDraggableHook(hookParams) {
                 const initiationDelay =
                     ev.pointerType === "touch" ? ctx.touchDelay : ctx.delay;
 
-                // A drag sequence can still be in progress if the pointerup occurred
-                // outside of the window.
                 dragEnd(null);
 
                 const fullSelectorEl = /** @type {HTMLElement} */ (
@@ -503,11 +462,6 @@ export function makeDraggableHook(hookParams) {
                     return;
                 }
 
-                // Firefox: `overflow: hidden` elements block mouseenter/mouseleave on
-                // elements underneath (e.g. dragging a card by its heading), so prevent
-                // default on pointerdown to let pointer events fire properly.
-                // https://bugzilla.mozilla.org/show_bug.cgi?id=1352061
-                // https://bugzilla.mozilla.org/show_bug.cgi?id=339293
                 safePrevent(ev);
                 target.focus();
                 let activeElement = document.activeElement;
@@ -527,9 +481,6 @@ export function makeDraggableHook(hookParams) {
                     target.releasePointerCapture(pointerId);
                 }
 
-                // From this point a drag sequence may start: attach the global
-                // drag-following listeners (removed at drag end by the cleanup
-                // manager).
                 attachDragListeners();
 
                 if (initiationDelay) {
@@ -541,9 +492,6 @@ export function makeDraggableHook(hookParams) {
                             );
                         }
                         if (isBrowserFirefox()) {
-                            // On Firefox mobile, long-touch events trigger an unpreventable
-                            // context menu to appear. To prevent this, all linkes are removed
-                            // from the dragged elements during the drag sequence.
                             const links = [...currentTarget.querySelectorAll("[href]")];
                             if (currentTarget.hasAttribute("href")) {
                                 links.unshift(currentTarget);
@@ -553,8 +501,6 @@ export function makeDraggableHook(hookParams) {
                             }
                         }
                         if (isIOS()) {
-                            // On Safari mobile, any image can be dragged regardless
-                            // of the 'user-select' property.
                             for (const image of currentTarget.getElementsByTagName(
                                 "img",
                             )) {
@@ -573,7 +519,6 @@ export function makeDraggableHook(hookParams) {
                             ctx.current.element,
                         );
                         if (px < x || x + width < px || py < y || y + height < py) {
-                            // Pointer left the target (the timeout is cleared in dragEnd)
                             dragEnd(null);
                         }
                     }, initiationDelay);
@@ -651,13 +596,9 @@ export function makeDraggableHook(hookParams) {
             const updateRects = () => {
                 const { current } = ctx;
                 const { container, element, scrollParentX, scrollParentY } = current;
-                // Container rect
                 current.containerRect = dom.getRect(container, {
                     adjust: true,
                 });
-                // If the scrolling element is within an iframe and the draggable
-                // element is outside this iframe, the offsets must be computed taking
-                // into account the iframe.
                 let iframeOffsetX = 0;
                 let iframeOffsetY = 0;
                 const iframeEl = /** @type {HTMLIFrameElement} */ (
@@ -670,14 +611,11 @@ export function makeDraggableHook(hookParams) {
                     current.containerRect.x += iframeOffsetX;
                     current.containerRect.y += iframeOffsetY;
                 }
-                // Adjust container rect according to its overflowing size
                 current.containerRect.width = container.scrollWidth;
                 current.containerRect.height = container.scrollHeight;
-                // ScrollParent rect
                 current.scrollParentXRect = null;
                 current.scrollParentYRect = null;
                 if (ctx.edgeScrolling.enabled) {
-                    // Adjust container rect according to scrollParents
                     if (scrollParentX) {
                         current.scrollParentXRect = dom.getRect(scrollParentX, {
                             adjust: true,
@@ -712,7 +650,6 @@ export function makeDraggableHook(hookParams) {
                     }
                 }
 
-                // Element rect
                 ctx.current.elementRect = dom.getRect(element);
             };
 
@@ -729,7 +666,6 @@ export function makeDraggableHook(hookParams) {
                 callBuildHandler("onWillStartDrag");
 
                 if (hasTouch()) {
-                    // Prevents panning/zooming after a long press
                     dom.addListener(window, "touchmove", safePrevent, {
                         passive: false,
                         noAddedStyle: true,
@@ -743,8 +679,17 @@ export function makeDraggableHook(hookParams) {
                 }
             };
 
-            // Initialize helpers
-            const cleanup = makeCleanupManager(() => (state.dragging = false));
+            // Ends the drag sequence's state whichever phase it reached:
+            // `willDrag` is raised by `willStartDrag` but only lowered by
+            // `dragStart`, so a press that never crosses the tolerance (an
+            // ordinary click on a draggable element) left it raised until some
+            // later drag happened to start. web_gantt gates its resize-handle
+            // affordance on `ctx.willDrag`, so that stuck flag hid the handles
+            // for the rest of the session.
+            const cleanup = makeCleanupManager(() => {
+                state.dragging = false;
+                state.willDrag = false;
+            });
             const effectCleanup = makeCleanupManager();
             const dom = makeDOMHelpers(cleanup);
 
@@ -755,13 +700,11 @@ export function makeDraggableHook(hookParams) {
                 callHandler,
             };
 
-            // Component infos
             const state = setupHooks.wrapState({
                 dragging: false,
                 willDrag: false,
             });
 
-            // Basic error handling asserting that the parameters are valid.
             for (const prop of Object.keys(allAcceptedParams)) {
                 const type = typeof params[prop];
                 const acceptedTypes = allAcceptedParams[prop].map((t) =>
@@ -799,18 +742,11 @@ export function makeDraggableHook(hookParams) {
                 get willDrag() {
                     return state.willDrag;
                 },
-                // Current context
                 current: {},
             };
 
-            // Effect depending on the params to update them.
             setupHooks.setup(
                 (...deps) => {
-                    // Rebuild the computed params from the flat dep values
-                    // (see `computeParams`): same `prop in params` presence
-                    // check, same `paramKeys` order, and `enable` is wrapped
-                    // with `toFunction` here so a raw (stable) value can be
-                    // used as the dependency.
                     /** @type {Record<string, any>} */
                     const computedParams = { enable: () => true };
                     paramKeys.forEach((prop, index) => {
@@ -837,15 +773,12 @@ export function makeDraggableHook(hookParams) {
                         return;
                     }
 
-                    // Enable getter
                     ctx.enable = actualParams.enable;
 
-                    // Dragging constraint
                     if (actualParams.preventDrag) {
                         ctx.preventDrag = actualParams.preventDrag;
                     }
 
-                    // Selectors
                     ctx.elementSelector = actualParams.elements;
                     if (!ctx.elementSelector) {
                         throw makeError(
@@ -862,20 +795,9 @@ export function makeDraggableHook(hookParams) {
                     }
                     ctx.fullSelector = allSelectors.join(" ");
 
-                    // Edge scrolling
                     Object.assign(ctx.edgeScrolling, actualParams.edgeScrolling);
 
-                    // Delay & tolerance
                     ctx.delay = actualParams.delay;
-                    // Touch delay resolution (documented contract: `touchDelay`
-                    // is "same as delay, but specific to touch environments"):
-                    //  1. an EXPLICIT `touchDelay` param always wins on touch;
-                    //  2. otherwise an explicit `delay` also applies to touch;
-                    //  3. otherwise the built-in touch default (300ms).
-                    // `computedParams` only holds caller-provided params, so it
-                    // distinguishes explicit values from `defaultParams`
-                    // fallbacks (the old `delay || touchDelay` let a mere
-                    // `delay` override an explicit `touchDelay`).
                     ctx.touchDelay =
                         computedParams.touchDelay ??
                         computedParams.delay ??
@@ -886,17 +808,12 @@ export function makeDraggableHook(hookParams) {
                         params: actualParams,
                     });
 
-                    // Calls effect cleanup functions when preparing to re-render.
                     return effectCleanup.cleanup;
                 },
                 () => computeParams(params),
             );
-            // Firefox currently (119.0.1) does not handle our pointer events
-            // nicely when they happen from within the iframe. To work around
-            // this, we use mouse events instead of pointer events.
             const useMouseEvents =
                 isBrowserFirefox() && !hasTouch() && params.iframeWindow;
-            // Effect depending on the `ref.el` to add triggering pointer events listener.
             setupHooks.setup(
                 (el) => {
                     if (el) {
@@ -912,10 +829,6 @@ export function makeDraggableHook(hookParams) {
                         addListener(el, "click", onClick);
                         if (hasTouch()) {
                             addListener(el, "contextmenu", safePrevent);
-                            // Non-passive touchstart listener: allows subsequent
-                            // "touchmove" events to be cancelable, preventing parasitic
-                            // "touchcancel" events. Don't prevent touchstart itself —
-                            // it drives native swipe scrolling.
                             addListener(el, "touchstart", () => {}, {
                                 passive: false,
                                 noAddedStyle: true,
@@ -927,9 +840,6 @@ export function makeDraggableHook(hookParams) {
                 () => [ctx.ref.el],
             );
             // Global drag-following event handlers. The (throttled) pointermove
-            // handler is created once per hook instance, but the listeners are
-            // only attached for the duration of a drag sequence
-            // (@see attachDragListeners).
             const throttledOnPointerMove = setupHooks.throttle(onPointerMove);
             /**
              * Attaches the global drag-following listeners ("pointermove",

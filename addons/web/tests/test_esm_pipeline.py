@@ -63,7 +63,6 @@ class TestAssetLogHelper(TransactionCase):
             )
         self.assertEqual(len(captured.records), 1)
         msg = captured.records[0].getMessage()
-        # Event name leads, fields follow in insertion order.
         self.assertEqual(msg, "event=started bundle=web.assets_web modules=42")
 
     def test_log_event_suppressed_below_level(self):
@@ -87,8 +86,6 @@ class TestEsbuildCircuitBreaker(TransactionCase):
     def setUp(self):
         super().setUp()
         self.IrQweb = self.env["ir.qweb"]
-        # Isolate per-test state — the dict is a class attribute so a
-        # leaked entry would bleed across tests.
         self.addCleanup(
             self.IrQweb._esbuild_cooldowns.clear,
         )
@@ -99,11 +96,6 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertEqual(reason, "")
 
     def test_first_failure_opens_circuit(self):
-        # ``_esbuild_circuit_record_failure`` is the production trip path and
-        # emits ``WARNING event=circuit_open`` so operators see the breaker
-        # fire. The test deliberately calls it, so we consume the warning
-        # via ``assertLogs`` — both keeping the test log clean and asserting
-        # the structured-logging contract (event name + ``reason`` field).
         with self.assertLogs(
             f"{ASSET_ROOT}.fallback", level=logging.WARNING
         ) as captured:
@@ -119,9 +111,6 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertEqual(reason, "SubprocessError")
 
     def test_second_consecutive_failure_escalates_cooldown(self):
-        # Both record_failure calls emit ``WARNING circuit_open``; wrap both
-        # in a single ``assertLogs`` so the test exits with the breaker
-        # warnings consumed and the escalation visible in the captured log.
         with self.assertLogs(
             f"{ASSET_ROOT}.fallback", level=logging.WARNING
         ) as captured:
@@ -148,8 +137,6 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         )
 
     def test_success_clears_the_circuit(self):
-        # record_failure trips the WARNING; record_success emits an INFO
-        # ``circuit_close`` that ``assertLogs(level=WARNING)`` ignores.
         with self.assertLogs(
             f"{ASSET_ROOT}.fallback", level=logging.WARNING
         ) as captured:
@@ -168,10 +155,6 @@ class TestEsbuildCircuitBreaker(TransactionCase):
         self.assertTrue(allow)
 
     def test_circuit_key_is_database_scoped(self):
-        # The cooldown dict is a single process-global class attribute shared
-        # by every registry in the worker, so its key MUST include the database
-        # name — otherwise an esbuild failure for a bundle in one tenant would
-        # open the breaker for the same bundle name in every other tenant.
         with self.assertLogs(f"{ASSET_ROOT}.fallback", level=logging.WARNING):
             self.IrQweb._esbuild_circuit_record_failure(
                 "web.test_bundle",
@@ -187,8 +170,6 @@ class TestEsbuildCircuitBreaker(TransactionCase):
             self.IrQweb._esbuild_cooldowns,
             msg="bundle-only key would bleed the breaker across databases",
         )
-        # A failure recorded by another database (different db_name, same
-        # bundle) must NOT open this database's breaker.
         self.IrQweb._esbuild_cooldowns[("some_other_db", "web.test_bundle")] = (
             time.monotonic() + 1e6,
             "OtherDbFail",
@@ -235,7 +216,6 @@ class TestEsbuildAdvisoryLock(TransactionCase):
         dbname = self.env.cr.dbname
         key = "esbuild:test.lock.gamma"
 
-        # Conn A: acquire, commit → lock auto-releases.
         with db_connect(dbname).cursor() as cr_a:
             cr_a.execute(
                 "SELECT pg_try_advisory_xact_lock(hashtext(%s))",
@@ -244,7 +224,6 @@ class TestEsbuildAdvisoryLock(TransactionCase):
             self.assertTrue(cr_a.fetchone()[0])
             cr_a.commit()
 
-        # Conn B: should succeed now that A's tx has ended.
         with db_connect(dbname).cursor() as cr_b:
             cr_b.execute(
                 "SELECT pg_try_advisory_xact_lock(hashtext(%s))",
@@ -260,13 +239,9 @@ class TestContentAddressableUrl(TransactionCase):
     """The ESM bundle URL is derived from the bundle's SHA256."""
 
     def test_identical_content_produces_identical_url(self):
-        # We drive _save_esm_attachment directly so we can compare URLs
-        # without spawning esbuild (no metafile/sourcemap siblings).
         ir_qweb = self.env["ir.qweb"]
         content = "export const x = 1;"
         url1 = ir_qweb._save_esm_attachment("test.cas.same", content)
-        # Second call with identical content must hit the "reuse" branch
-        # and return the same URL.
         url2 = ir_qweb._save_esm_attachment("test.cas.same", content)
         self.assertEqual(url1, url2)
         self.assertRegex(
@@ -286,9 +261,6 @@ class TestContentAddressableUrl(TransactionCase):
             "export const x = 2;",
         )
         self.assertNotEqual(url_a, url_b)
-        # Stale-version deletion is DEFERRED (grace window): right after
-        # the rebuild BOTH rows must exist so in-flight pages and
-        # not-yet-signaled workers keep serving the old URL.
         Attachment = self.env["ir.attachment"].sudo()
         attachments = Attachment.search(
             [
@@ -300,8 +272,6 @@ class TestContentAddressableUrl(TransactionCase):
             2,
             msg="superseded version must survive the rebuild (deferred GC)",
         )
-        # Once the superseded row ages past the grace window, the
-        # autovacuum sweeps it and keeps only the newest version.
         old_row = attachments.filtered(lambda a: a.url == url_a)
         self.env.cr.execute(
             "UPDATE ir_attachment SET write_date = write_date - interval '30 days'"
@@ -388,23 +358,14 @@ class TestParentSelfBridge(TransactionCase):
             css=False,
         )
         bridges = setup_ab._bridges._build_parent_self_bridge()
-        # Every native module's specifier must have a bridge.  Sanity
-        # check with a small sample rather than exhaustively enumerating.
         native_specs = {a.module_path for a in setup_ab.native_modules}
         self.assertGreater(len(bridges), 0)
-        # Bridges normally resolve to content-addressable attachment URLs
-        # under ``/web/assets/esm/bridges/<hash>.js`` (see
-        # ``AssetsBundle._persist_bridge_shims``).  The pre-refactor inline
-        # ``data:text/javascript,<urlencoded>`` URI format still exists,
-        # but only as that helper's last-resort fallback when no writable
-        # cursor is reachable at all.
         for spec, url in list(bridges.items())[:20]:
             self.assertIn(spec, native_specs)
             self.assertTrue(
                 url.startswith("/web/assets/esm/bridges/"),
                 msg=f"bridge for {spec} is not an attachment URL: {url[:80]}",
             )
-            # Resolved attachment must be fetchable (128-bit hash + .js).
             self.assertRegex(url, r"^/web/assets/esm/bridges/[0-9a-f]{32}\.js$")
 
     def test_prod_import_map_bridges_parent_specifiers(self):
@@ -425,8 +386,6 @@ class TestParentSelfBridge(TransactionCase):
             js=True,
             css=False,
         )
-        # Pick an arbitrary @web/* specifier that exists — this avoids
-        # coupling the test to optional addons like ``ai``.
         sample_spec = next(
             a.module_path
             for a in setup_ab.native_modules
@@ -499,8 +458,6 @@ class TestPipelineIntegration(TransactionCase):
             "_esbuild_try_acquire_lock",
             return_value=False,
         ):
-            # Drop cached attachments so the prod path is actually
-            # attempted (otherwise the cache short-circuits the branch).
             self.env["ir.attachment"].sudo().search(
                 [
                     ("url", "=like", "/web/assets/esm/%/web.assets_web%"),
@@ -511,9 +468,6 @@ class TestPipelineIntegration(TransactionCase):
                 css=False,
                 js=True,
             )
-        # Fallback emits individual-file + importmap nodes rather than
-        # a single esbuild-bundled module; ensure the output is
-        # non-empty and contains an importmap.
         self.assertTrue(nodes, msg="fallback must still produce nodes")
         tags = {tag for tag, _attrs in nodes}
         self.assertIn("script", tags)
@@ -560,8 +514,6 @@ class TestPipelineIntegration(TransactionCase):
                 if tag == "script" and attrs.get("type") == "importmap"
             ]
 
-        # SimpleNamespace is a truthy attribute-bag stand-in for the werkzeug
-        # request proxy: it supports the getattr/setattr the flag logic needs.
         fake_request = SimpleNamespace()
         with patch.object(ir_qweb_assets, "request", fake_request):
             first = ir_qweb._get_asset_nodes(
@@ -639,24 +591,16 @@ class TestEsbuildIntegration(TransactionCase):
 
         result = bundle.esbuild_native_bundle()
 
-        # The esbuild entry point always calls registerNativeModules —
-        # the presence of this string is the structural-integrity check.
         self.assertIn(
             "odoo.loader.registerNativeModules",
             result.code,
             msg="bundle output must register modules via the loader API",
         )
-        # Minified output still has substance (emoji_data.js is ~36k
-        # lines); a suspiciously small output means esbuild silently
-        # dropped input — surface that as a test failure, not a warning.
         self.assertGreater(
             len(result.code),
             1000,
             msg=f"bundle output suspiciously small ({len(result.code)} bytes)",
         )
-        # Metafile is a side effect we expose to consumers; the real
-        # esbuild path MUST populate it.  Skipping this check would
-        # mask a regression where we lose the analysis side-channel.
         self.assertIsNotNone(
             result.metafile,
             msg="metafile sidecar must be captured after successful build",
@@ -673,7 +617,6 @@ class TestEsbuildIntegration(TransactionCase):
         """
         IrQweb = self.env["ir.qweb"]
         assets_params = self.env["ir.asset"]._get_asset_params()
-        # Re-use emoji bundle but exercise the signature change.
         bundle = IrQweb._get_asset_bundle(
             "web.assets_emoji",
             js=True,
@@ -681,8 +624,6 @@ class TestEsbuildIntegration(TransactionCase):
             debug_assets=False,
             assets_params=assets_params,
         )
-        # Explicit non-default args — smoke test that the overrides are
-        # accepted without raising TypeError.
         result = bundle.esbuild_native_bundle(timeout_s=60, target="es2022")
         self.assertIn("odoo.loader.registerNativeModules", result.code)
 
@@ -693,7 +634,6 @@ class TestEsbuildSettingLoader(TransactionCase):
 
     def test_unset_returns_default(self):
         IrQweb = self.env["ir.qweb"]
-        # A key that is definitely not set in a fresh test DB.
         self.env["ir.config_parameter"].sudo().search(
             [
                 ("key", "=", "web.esbuild.cooldown_s"),
@@ -738,8 +678,6 @@ class TestEsbuildSettingLoader(TransactionCase):
 
     def test_unknown_key_raises(self):
         IrQweb = self.env["ir.qweb"]
-        # Typos in setting names would silently read empty values — catch
-        # them at the call site with a fast-failing ValueError.
         with self.assertRaises(ValueError):
             IrQweb._get_esbuild_setting("totally_made_up", default=0)
 
@@ -752,8 +690,6 @@ class TestExternalLibsValidator(TransactionCase):
     def test_valid_configuration_passes(self):
         """The real configuration at import time must pass the validator."""
         IrQweb = self.env["ir.qweb"]
-        # Does not raise — proves the live configuration is consistent,
-        # including the on-disk existence of every import-map URL.
         AssetsBundle._validate_external_libs(IrQweb._ODOO_EXTERNAL_LIBS)
 
     def test_missing_alias_raises(self):
@@ -768,7 +704,6 @@ class TestExternalLibsValidator(TransactionCase):
 
     def test_pattern_externals_accepted(self):
         """@odoo/owl etc. are covered by --external:@odoo/* and don't need aliases."""
-        # Does not raise even though none are in _LIB_CANDIDATES.
         AssetsBundle._validate_external_libs(
             {
                 "@odoo/owl": "/web/static/lib/owl/owl.es.js",
@@ -805,7 +740,6 @@ class TestExternalLibsValidator(TransactionCase):
     def test_import_map_url_in_absent_addon_skipped(self):
         """URLs under an addon absent from addons_path are skipped — the
         lib is unreachable but so is any code importing it."""
-        # Does not raise.
         AssetsBundle._validate_external_libs(
             {"@odoo/owl": "/nonexistent_addon_xyz/static/lib/foo.js"},
             bare_specifiers=set(),
@@ -829,7 +763,6 @@ class TestExternalLibsValidator(TransactionCase):
     def test_lib_candidate_in_absent_addon_skipped(self):
         """Alias targets under an absent addon are skipped, mirroring the
         import-map URL rule."""
-        # Does not raise.
         AssetsBundle._validate_external_libs(
             {},
             bare_specifiers=set(),
@@ -893,8 +826,6 @@ class TestEsbuildSourceMaps(TransactionCase):
             result.sourcemap,
             msg="linked mode must capture the sourcemap sibling",
         )
-        # esbuild source maps are JSON; minimal sanity check that we
-        # captured the right bytes (not e.g. the metafile).
         parsed = json.loads(result.sourcemap)
         self.assertIn("version", parsed)
         self.assertIn("mappings", parsed)
@@ -931,9 +862,6 @@ class TestEsbuildSourceMaps(TransactionCase):
     def test_unknown_mode_silently_falls_back(self):
         """Garbage mode value is logged and ignored — never crashes the build."""
         bundle = self._bundle()
-        # The helper logs ``WARNING source_maps_unknown_mode`` on an
-        # invalid mode; consume it via ``assertLogs`` so the test log
-        # stays clean and the structured event is asserted.
         with self.assertLogs(
             f"{ASSET_ROOT}.esbuild", level=logging.WARNING
         ) as captured:
@@ -999,17 +927,11 @@ class TestEsbuildSourceMaps(TransactionCase):
         """``source_maps`` is in ``_ESBUILD_SETTING_KEYS`` for config-param overrides."""
         IrQweb = self.env["ir.qweb"]
         self.assertIn("source_maps", IrQweb._ESBUILD_SETTING_KEYS)
-        # Clear any operator-set value so the fallback path is what we
-        # actually exercise — otherwise a leftover
-        # ``web.esbuild.source_maps=linked`` from a manual e2e probe
-        # leaks into the test.
         self.env["ir.config_parameter"].sudo().search(
             [
                 ("key", "=", "web.esbuild.source_maps"),
             ]
         ).unlink()
-        # And the helper accepts it without raising the unknown-key
-        # ValueError that catches operator typos.
         val = IrQweb._get_esbuild_setting("source_maps", default="")
         self.assertEqual(val, "")
 
@@ -1216,7 +1138,7 @@ class TestBridgeHelpers(TransactionCase):
     def test_resolver_caches_and_get_protocol(self):
         """``read_source`` caches misses; ``get`` honors the source_map default."""
         r = _BridgeExportResolver({}, {}, "test")
-        self.assertIsNone(r.read_source("nope"))  # unmappable -> None, cached
+        self.assertIsNone(r.read_source("nope"))
         self.assertIn("nope", r._cache)
         self.assertIsNone(r._cache["nope"])
         self.assertIsNone(r.get("nope"))
@@ -1268,8 +1190,6 @@ class TestBridgeHelpers(TransactionCase):
             "@web/foo", set(), {"b", "a"}, True
         )
         self.assertFalse(star)
-        # Specifier literals are emitted with script-safe json.dumps (double
-        # quotes), matching the esbuild entry codegen.
         self.assertIn('const _m = odoo.loader.modules.get("@web/foo");', shim)
         self.assertIn("const _d = _m?.default ?? _m;", shim)
         self.assertIn("export default _d;", shim)
@@ -1341,7 +1261,6 @@ class TestTransitiveImportClosure(TransactionCase):
     def test_walk_finds_two_hop_specifier(self):
         """The real bootstrap chain yields the two-hop browser specifier."""
         res = discover_transitive_import_specifiers(
-            # The two direct out-of-bundle imports of @web/libs/bootstrap.
             [
                 "@web/../lib/bootstrap/bootstrap.esm.js",
                 "@web/core/utils/dom/scrolling",
@@ -1352,10 +1271,7 @@ class TestTransitiveImportClosure(TransactionCase):
             "test.report.closure",
         )
         self.assertIn("@web/core/browser/browser", res)
-        # @popperjs/core (imported by bootstrap.esm.js) is an external lib —
-        # already mapped, must NOT be re-discovered.
         self.assertNotIn("@popperjs/core", res)
-        # Known specifiers are never re-added.
         self.assertNotIn("@web/libs/bootstrap", res)
 
     def test_scan_covers_reexport_and_relative_shapes(self):
@@ -1380,8 +1296,6 @@ class TestTransitiveImportClosure(TransactionCase):
             },
             specs,
         )
-        # Dynamic import() is resolved at runtime through the map the page
-        # already has; the static walk must not chase it.
         self.assertNotIn("@web/dynamic_only", specs)
 
     def test_report_bundle_debug_importmap_is_transitively_complete(self):
@@ -1401,7 +1315,7 @@ class TestTransitiveImportClosure(TransactionCase):
             "@web/libs/bootstrap",
             "@web/../lib/bootstrap/bootstrap.esm.js",
             "@web/core/utils/dom/scrolling",
-            "@web/core/browser/browser",  # the two-hop regression specifier
+            "@web/core/browser/browser",
             "@popperjs/core",
         ):
             self.assertIn(spec, imports, msg=f"{spec} missing from import map")
@@ -1423,11 +1337,6 @@ class TestEsmLexer(TransactionCase):
         "export function beta() {}\n"
         "export default class Gamma {}\n"
         'export * as ns from "@web/ns_target";\n'
-        # NOTE: no line-commented export here — that is the one shape the
-        # two paths legitimately DIVERGE on (the regex extractor keeps
-        # line comments; the lexer ignores them by construction).  The
-        # lexer-only behavior is pinned by
-        # ``test_lexer_line_comment_immunity``.
         "/* export const block_commented = 2; */\n"
         "const tpl = `export const in_template = 3;`;\n"
     )
@@ -1454,9 +1363,7 @@ class TestEsmLexer(TransactionCase):
         from odoo.tools.assets import esm_graph
 
         expected = ({"alpha", "beta", "ns"}, True)
-        # Lexer path (primary).
         self.assertEqual(esm_graph._extract_esm_exports(self.SRC), expected)
-        # Regex path (fallback), forced by stubbing the worker out.
         with patch.object(esm_graph, "lex_module", return_value=None):
             self.assertEqual(esm_graph._extract_esm_exports(self.SRC), expected)
 
@@ -1537,7 +1444,6 @@ class TestQwebAssetHelpers(TransactionCase):
     def _qweb(self):
         return self.env["ir.qweb"]
 
-    # ── _specifier_to_static_url (the reserved @odoo namespace) ──
     def test_specifier_convention_resolves(self):
         """``@addon/path`` specifiers map to their served static URL."""
         cases = {
@@ -1564,16 +1470,13 @@ class TestQwebAssetHelpers(TransactionCase):
                 self._qweb._specifier_to_static_url(spec),
                 f"{spec} must not resolve via the addon convention",
             )
-            # …and the external map still has the real, non-empty URL.
             self.assertTrue(externals[spec])
-        # a bare @odoo/<x> not in the map also declines (clean not-found)
         self.assertIsNone(self._qweb._specifier_to_static_url("@odoo/nope"))
 
     def test_specifier_non_convention_returns_none(self):
         for spec in ["luxon", "@web", "@/foo", ""]:
             self.assertIsNone(self._qweb._specifier_to_static_url(spec), spec)
 
-    # ── _is_debug_assets (crash-proof debug flag) ──
     def test_is_debug_assets_string_semantics(self):
         q = self._qweb
         self.assertTrue(q._is_debug_assets("assets"))
@@ -1590,7 +1493,6 @@ class TestQwebAssetHelpers(TransactionCase):
 
     def test_get_asset_links_survives_bool_debug(self):
         """The public entry point no longer crashes when handed ``debug=True``."""
-        # Should not raise (empty css+js just returns []).
         self.assertEqual(
             self._qweb._get_asset_links(
                 "web.assets_web", css=False, js=False, debug=True
@@ -1598,7 +1500,6 @@ class TestQwebAssetHelpers(TransactionCase):
             [],
         )
 
-    # ── _link_to_node (stylesheet type) ──
     def test_link_to_node_stylesheet_is_text_css(self):
         """A stylesheet link is always ``text/css`` — never ``text/{ext}``."""
         for path in ["/x/a.css", "/x/a.scss", "/x/a.sass"]:
@@ -1619,7 +1520,6 @@ class TestQwebAssetHelpers(TransactionCase):
             ("script", "text/xml", "/x/a.xml"),
         )
 
-    # ── _import_map_url_breakdown ──
     def test_import_map_url_breakdown(self):
         im = {
             "a": "/web/static/src/a.js",
@@ -1630,7 +1530,6 @@ class TestQwebAssetHelpers(TransactionCase):
         self.assertEqual(self._qweb._import_map_url_breakdown(im), (2, 1, 1))
         self.assertEqual(self._qweb._import_map_url_breakdown({}), (0, 0, 0))
 
-    # ── _combine_bundle_with_templates ──
     def test_combine_no_templates_is_identity(self):
         self.assertEqual(
             self._qweb._combine_bundle_with_templates("CODE;", ""), "CODE;"
@@ -1822,7 +1721,7 @@ class TestProdNodesDeclineNotCached(TransactionCase):
     never enter the process cache (where it would be served to every later
     request long after the primary is back)."""
 
-    BUNDLE = "g4.decline.bundle"  # no children/includes registered
+    BUNDLE = "g4.decline.bundle"
 
     @property
     def _qweb(self):
@@ -1964,7 +1863,6 @@ class TestImportMapMergeHelpers(TransactionCase):
         with self._patch_registry(reg):
             dynamic = self._qweb._merge_child_import_maps(import_map, [dyn, plain])
         self.assertEqual(dynamic, [dyn])
-        # last child wins on conflicts (plain dict update, in child order)
         self.assertEqual(
             import_map,
             {"@a/x": "/b/override.js", "@b/y": "/b/static/src/y.js"},
@@ -1999,10 +1897,7 @@ class TestImportMapMergeHelpers(TransactionCase):
         self.assertEqual(include_names, ("inc.a",))
         cached_mock.assert_called_once()
         self.assertEqual(import_map["@inc/mod"], "/inc/static/src/mod.js")
-        # a NEW bridge shim is added...
         self.assertEqual(import_map["@parent/kept"], "/web/assets/esm/bridges/aa.js")
-        # ...but an existing direct URL (dynamic-child spec) is never
-        # overridden by the include's shim (first-wins).
         self.assertEqual(import_map["@child/direct"], "/child/static/src/direct.js")
 
     def test_merge_includes_debug_policy_resolves_bridges(self):
@@ -2037,7 +1932,6 @@ class TestImportMapMergeHelpers(TransactionCase):
         self.assertEqual(
             import_map["@web/core/registry"], "/web/static/src/core/registry.js"
         )
-        # unresolvable shim entries are DROPPED for a clean "module not found"
         self.assertNotIn("unresolvable-bare", import_map)
 
     def test_merge_secondary_is_first_wins(self):
@@ -2045,8 +1939,8 @@ class TestImportMapMergeHelpers(TransactionCase):
         sec_ab = self._fake_ab(
             "sec.a",
             {
-                "@parent/mod": "/web/assets/esm/bridges/shim.js",  # must lose
-                "@sec/new": "/sec/static/src/new.js",  # must be added
+                "@parent/mod": "/web/assets/esm/bridges/shim.js",
+                "@sec/new": "/sec/static/src/new.js",
             },
         )
         ir_qweb = self._qweb
@@ -2081,15 +1975,11 @@ class TestImportMapMergeHelpers(TransactionCase):
             ["@a/direct", "@b/shimmed", "@c/data", "bare-unresolvable", "@d/new"],
             drop_unresolved=True,
         )
-        # direct URL kept as-is, not re-resolved
         self.assertEqual(import_map["@a/direct"], "/a/static/src/direct.js")
         self.assertNotIn("@a/direct", resolved)
-        # bridge shim and data: URI replaced by convention-derived URLs
         self.assertEqual(import_map["@b/shimmed"], "/b/static/src/shimmed.js")
         self.assertEqual(import_map["@c/data"], "/c/static/src/data.js")
-        # discovered-but-absent specifier resolved and added
         self.assertEqual(import_map["@d/new"], "/d/static/src/new.js")
-        # unresolvable shim dropped when drop_unresolved=True
         self.assertNotIn("bare-unresolvable", import_map)
 
         import_map = dict(base_map)
@@ -2098,8 +1988,6 @@ class TestImportMapMergeHelpers(TransactionCase):
             ["bare-unresolvable"],
             drop_unresolved=False,
         )
-        # ...and left alone when drop_unresolved=False (historical behavior
-        # of the main debug pass)
         self.assertEqual(
             import_map["bare-unresolvable"], "/web/assets/esm/bridges/dd.js"
         )
@@ -2221,7 +2109,7 @@ class TestSecondaryBundleSingletons(TransactionCase):
             )
             specs = set(ab.get_native_module_data(with_bridges=False)["import_map"])
             if not specs:
-                continue  # uninstalled parent — its page never renders here
+                continue
             checked += 1
             self.assertLessEqual(
                 shared,
@@ -2288,8 +2176,6 @@ class TestSecondaryBundleSingletonsBuild(TransactionCase):
         inlined = ab.esbuild_native_bundle().code
         aliased = ab.esbuild_native_bundle(secondary_parent_stubs=stubs).code
 
-        # browser.js captures ``window.fetch.bind(window)`` at eval — that
-        # signature is the fingerprint of an INLINED copy of the module.
         sig = "window.fetch.bind(window)"
         self.assertIn(sig, inlined, "control: the unaliased build inlines browser.js")
         self.assertNotIn(

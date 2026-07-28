@@ -10,6 +10,25 @@ import { editModelDebug } from "@web/services/debug/debug_utils";
 const debugRegistry = registry.category("debug");
 
 /**
+ * Resolve a model name to its ``ir.model`` database id.
+ *
+ * Every item below needs this to build a domain or a ``default_model_id``;
+ * the same four-line search was inlined in each of them.
+ *
+ * @param {Object} env
+ * @param {string} resModel
+ * @returns {Promise<number|undefined>} the id, or undefined if the model has no ir.model row
+ */
+async function getModelId(env, resModel) {
+    const [modelId] = await env.services.orm.search(
+        "ir.model",
+        [["model", "=", resModel]],
+        { limit: 1 },
+    );
+    return modelId;
+}
+
+/**
  * Debug menu item: open the action's form view in the admin editor.
  * @param {{ action: Object, env: Object }} params
  * @returns {Object | null} debug menu item descriptor
@@ -44,15 +63,7 @@ function viewFields({ action, env }) {
         type: "item",
         description,
         callback: async () => {
-            const modelId = (
-                await env.services.orm.search(
-                    "ir.model",
-                    [["model", "=", action.res_model]],
-                    {
-                        limit: 1,
-                    },
-                )
-            )[0];
+            const modelId = await getModelId(env, action.res_model);
             await env.services.action.doAction({
                 res_model: "ir.model.fields",
                 name: description,
@@ -86,11 +97,7 @@ function ViewModel({ action, env }) {
         type: "item",
         description: _t("Model: %s", modelName),
         callback: async () => {
-            const modelId = (
-                await env.services.orm.search("ir.model", [["model", "=", modelName]], {
-                    limit: 1,
-                })
-            )[0];
+            const modelId = await getModelId(env, modelName);
             await editModelDebug(env, modelName, "ir.model", modelId);
         },
         sequence: 210,
@@ -145,15 +152,7 @@ function viewAccessRights({ accessRights, action, env }) {
         type: "item",
         description,
         callback: async () => {
-            const modelId = (
-                await env.services.orm.search(
-                    "ir.model",
-                    [["model", "=", action.res_model]],
-                    {
-                        limit: 1,
-                    },
-                )
-            )[0];
+            const modelId = await getModelId(env, action.res_model);
             await env.services.action.doAction({
                 res_model: "ir.model.access",
                 name: description,
@@ -182,20 +181,16 @@ function viewRecordRules({ accessRights, action, env }) {
     if (!action.res_model || !accessRights.canSeeRecordRules) {
         return null;
     }
+    // Two distinct strings on purpose: the menu entry sits under a "Model:
+    // <name>" heading and needs no qualifier, the opened action's own title
+    // does. `description` is the ACTION title here, unlike every sibling above
+    // where the two coincide.
     const description = _t("Model Record Rules");
     return {
         type: "item",
         description: _t("Record Rules"),
         callback: async () => {
-            const modelId = (
-                await env.services.orm.search(
-                    "ir.model",
-                    [["model", "=", action.res_model]],
-                    {
-                        limit: 1,
-                    },
-                )
-            )[0];
+            const modelId = await getModelId(env, action.res_model);
             await env.services.action.doAction({
                 res_model: "ir.rule",
                 name: description,

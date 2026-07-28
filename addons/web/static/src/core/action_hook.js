@@ -120,9 +120,6 @@ export function useSetupAction(params = {}) {
     if (__beforeLeave__ && beforeLeave) {
         useCallbackRecorder(__beforeLeave__, beforeLeave);
     }
-    // Only `rootRef` feeds LOCAL state (scroll position), never GLOBAL state, so
-    // gating the global recorder on `rootRef` registered a callback that always
-    // returned `{}` — a no-op. Register it only when `getGlobalState` exists.
     if (__getGlobalState__ && getGlobalState) {
         useCallbackRecorder(__getGlobalState__, () => {
             const state = {};

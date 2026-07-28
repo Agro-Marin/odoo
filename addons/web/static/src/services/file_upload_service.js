@@ -68,7 +68,7 @@ export const fileUploadService = {
                 type: files.length === 1 ? files[0].type : undefined,
             });
             uploads[upload.id] = upload;
-            xhr.upload.addEventListener("progress", async (ev) => {
+            xhr.upload.addEventListener("progress", (ev) => {
                 upload.progress = ev.total > 0 ? ev.loaded / ev.total : 0;
                 upload.loaded = ev.loaded;
                 upload.total = ev.total;
@@ -87,6 +87,33 @@ export const fileUploadService = {
             });
 
             /**
+             * Whether the request was redirected away from `route` — the
+             * signature of an expired session, which lands on the login page.
+             *
+             * The content-type cannot be used to detect this: measured against
+             * a live server, a SUCCESSFUL `/web/binary/upload_attachment` also
+             * answers `200 text/html` (it is a `type="http"` route returning a
+             * JSON string, so werkzeug labels it html). Both outcomes are
+             * `200 text/html`; only the final URL differs.
+             * @returns {boolean}
+             */
+            function wasRedirected() {
+                const finalUrl = xhr.responseURL;
+                if (!finalUrl) {
+                    return false;
+                }
+                try {
+                    const base = browser.location.href;
+                    return (
+                        new URL(finalUrl, base).pathname !==
+                        new URL(route, base).pathname
+                    );
+                } catch {
+                    return false;
+                }
+            }
+
+            /**
              * Parse the XHR response and throw if it indicates an error.
              * Handles JSON-RPC error objects and HTML error pages.
              * @returns {true}
@@ -98,6 +125,15 @@ export const fileUploadService = {
                 let errorMessage = "";
                 if (!(xhr.status >= 200 && xhr.status < 300)) {
                     error = true;
+                }
+                // XHR follows redirects, so an expired session answers 200 with
+                // the login page. That HTML parses into a Document, which
+                // satisfies `instanceof Object` below, carries no `.error`, and
+                // the upload is reported LOADED — a silent failure that loses
+                // the user's file.
+                if (!error && wasRedirected()) {
+                    error = true;
+                    errorMessage = _t("Your session expired. Please log in again.");
                 }
                 if (resp) {
                     let content = resp;
@@ -115,15 +151,16 @@ export const fileUploadService = {
                             }
                         }
                     }
-                    // Unparseable body (neither JSON nor HTML): treat the call as successful.
                     if (error && content instanceof Document) {
-                        errorMessage = content.body.textContent;
+                        // A parsed Document is not guaranteed to have a body
+                        // (empty/malformed response), and `new Error(null)`
+                        // renders as the literal "null" in the toast.
+                        errorMessage =
+                            content.body?.textContent?.trim() || errorMessage;
                     } else if (content instanceof Object) {
                         if (content.error) {
-                            // https://www.jsonrpc.org/specification#error_object
                             error = true;
                             if (content.error.data) {
-                                // JsonRPCDispatcher.handle_error and http.serialize_exception
                                 errorMessage = `${content.error.data.name}: ${content.error.data.message}`;
                             } else {
                                 errorMessage = content.error.message || errorMessage;
@@ -147,7 +184,6 @@ export const fileUploadService = {
                 delete uploads[upload.id];
                 upload.state = "error";
                 const displayError = params.displayErrorNotification ?? true;
-                // Disable this option if you need more explicit error handling.
                 if (displayError) {
                     notificationService.add(error?.message || defaultErrorMessage, {
                         type: "danger",
@@ -156,11 +192,8 @@ export const fileUploadService = {
                 }
                 bus.trigger(FileUploadEvent.ERROR, { upload });
             }
-            // The XHR "error" event is a ProgressEvent with no ``.error`` property,
-            // so the old ``ev.error`` was always undefined — fall back explicitly.
             xhr.addEventListener("error", () => onError());
-            // Abort listener, considered as error
-            xhr.addEventListener("abort", async () => {
+            xhr.addEventListener("abort", () => {
                 delete uploads[upload.id];
                 upload.state = "abort";
                 bus.trigger(FileUploadEvent.ERROR, { upload });

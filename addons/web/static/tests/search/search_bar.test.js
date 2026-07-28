@@ -57,6 +57,7 @@ class Partner extends models.Model {
     birth_datetime = fields.Datetime({ string: "Birth DateTime" });
     foo = fields.Char();
     bool = fields.Boolean();
+    int_field = fields.Integer({ string: "Int" });
     company = fields.Many2one({ relation: "partner" });
     properties = fields.Properties({
         definition_record: "bar",
@@ -166,8 +167,6 @@ test("computeState is null-safe when the input is not rendered", async () => {
         searchMenuTypes: [],
         searchViewId: false,
     });
-    // Simulate a collapsed/resized search bar where inputRef.el is null:
-    // computeState must not throw when writing the value.
     searchBar.inputRef = { el: null };
     await searchBar.computeState({ query: "First", expanded: [], subItems: [] });
     expect(searchBar.state.query).toBe("First");
@@ -251,15 +250,9 @@ test("typing keeps focus in the input while the filter menu is open", async () =
         searchViewId: false,
     });
 
-    // Open the search-bar menu via its caret toggler: this anchors the menu's
-    // focus-restore (Dropdown.focusToggleOnClosed) on the toggler button.
     await toggleSearchBarMenu();
     expect(`.o_search_bar_menu`).toHaveCount(1);
 
-    // Focus the input the way clicking into it would, then type. Typing closes
-    // the menu as a side effect; that close must NOT yank focus to the caret
-    // toggler, otherwise the following keystrokes land on the button and are
-    // lost (the reported "second keystroke jumps to the arrow" bug).
     queryFirst`.o_searchview input`.focus();
     await edit("a", { confirm: false });
     await animationFrame();
@@ -334,7 +327,6 @@ test("search date and datetime fields. Support of timezones", async () => {
         searchViewId: false,
     });
 
-    // Date case
     await editSearch("07/15/1983");
     await keyDown("ArrowDown");
     await animationFrame();
@@ -345,11 +337,9 @@ test("search date and datetime fields. Support of timezones", async () => {
     ]);
     expect(searchBar.env.searchModel.domain).toEqual([["birthday", "=", "1983-07-15"]]);
 
-    // Close Facet
     await click(`.o_searchview_facet .o_facet_remove`);
     await animationFrame();
 
-    // DateTime case
     await editSearch("07/15/1983 00:00:00");
     await keyDown("ArrowDown");
     await animationFrame();
@@ -368,7 +358,7 @@ test("autocomplete menu clickout interactions", async () => {
         resModel: "partner",
         searchMenuTypes: [],
         searchViewId: false,
-        searchViewArch: /* xml */ `
+        searchViewArch: `
             <search>
                 <field name="bar"/>
                 <field name="birthday"/>
@@ -379,8 +369,7 @@ test("autocomplete menu clickout interactions", async () => {
         `,
     });
 
-    // Input outside the search panel, used as a clickout target below.
-    await mountWithCleanup(/* xml */ `<input id="foo"/>`);
+    await mountWithCleanup(`<input id="foo"/>`);
 
     expect(`.o_searchview_autocomplete`).toHaveCount(0);
 
@@ -534,8 +523,6 @@ test("selecting (no result) triggers a search bar rendering", async () => {
 });
 
 test("update suggested filters in autocomplete menu with Japanese IME", async () => {
-    // Simulate as many events as possible during an IME composition session;
-    // unhandled ones are triggered to ensure they don't interfere.
     const TEST = "TEST";
     const TEST_JP = "テスト";
 
@@ -554,14 +541,12 @@ test("update suggested filters in autocomplete menu with Japanese IME", async ()
         `Search Foo for: ${TEST}`,
     );
 
-    // Simulate soft-selection of another suggestion from IME through keyboard navigation.
     await edit(TEST_JP, { composition: true });
     await animationFrame();
     expect(`.o_searchview_autocomplete .o-dropdown-item:first`).toHaveText(
         `Search Foo for: ${TEST_JP}`,
     );
 
-    // Simulate selection on suggestion item "TEST" from IME.
     await edit(TEST, { composition: true });
     await animationFrame();
     expect(`.o_searchview_autocomplete`).toHaveCount(1);
@@ -864,7 +849,7 @@ test("many2one_reference fields are supported in search view", async () => {
         resModel: "partner",
         searchMenuTypes: [],
         searchViewId: false,
-        searchViewArch: /*xml*/ `
+        searchViewArch: `
             <search>
                 <field name="foo" />
                 <field name="res_id" />
@@ -943,7 +928,9 @@ test("should wait label promises for many2one search defaults", async () => {
     const def = new Deferred();
     onRpc("read", () => def);
 
-    mountWithSearch(SearchBar, {
+    // Not awaited yet: the mount stays blocked on `def` (the label read), which
+    // is the state under test.
+    const mounted = mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: [],
         searchViewId: false,
@@ -953,6 +940,7 @@ test("should wait label promises for many2one search defaults", async () => {
     expect(`.o_cp_searchview`).toHaveCount(0);
 
     def.resolve();
+    await mounted;
     await animationFrame();
     expect(`.o_cp_searchview`).toHaveCount(1);
     expect(getFacetTexts()[0].replace("\n", "")).toBe("CompanyFirst record");
@@ -963,7 +951,9 @@ test("should wait label promises for many2many search defaults", async () => {
     const def = new Deferred();
     onRpc("read", () => def);
 
-    mountWithSearch(SearchBar, {
+    // Not awaited yet: the mount stays blocked on `def` (the label read), which
+    // is the state under test.
+    const mounted = mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: [],
         searchViewId: false,
@@ -978,6 +968,7 @@ test("should wait label promises for many2many search defaults", async () => {
     expect(`.o_cp_searchview`).toHaveCount(0);
 
     def.resolve();
+    await mounted;
     await animationFrame();
     expect(`.o_cp_searchview`).toHaveCount(1);
     expect(getFacetTexts()[0].replace("\n", "")).toBe(
@@ -986,9 +977,6 @@ test("should wait label promises for many2many search defaults", async () => {
 });
 
 test("many2one search default on a missing record does not crash the view", async () => {
-    // The record targeted by the default may have been deleted since the
-    // action context was written: the read returns no result and the facet
-    // must fall back to a string label instead of crashing the view.
     onRpc("read", ({ args }) => {
         expect.step(`read ${args[0]}`);
     });
@@ -1137,7 +1125,6 @@ test("search a property", async () => {
         `,
     });
 
-    // expand the properties field
     await editSearch("a");
     await contains(".o_expand").click();
 
@@ -1154,7 +1141,6 @@ test("search a property", async () => {
         "Custom Filter...",
     ]);
 
-    // click again on the expand icon to hide the properties
     await contains(".o_expand").click();
     expect(`.o_searchview_autocomplete .o-dropdown-item`).toHaveCount(2);
     expect(queryAllTexts`.o_searchview_autocomplete .o-dropdown-item`).toEqual([
@@ -1162,7 +1148,6 @@ test("search a property", async () => {
         "Custom Filter...",
     ]);
 
-    // search for a partner, and expand the many2many property
     await contains(`.o_searchview_input`).clear();
     await editSearch("Bo");
     await contains(".o_expand").click();
@@ -1180,7 +1165,6 @@ test("search a property", async () => {
         "Custom Filter...",
     ]);
 
-    // fold all the properties (included the search result)
     await contains(".o_expand").click();
     expect(`.o_searchview_autocomplete .o-dropdown-item`).toHaveCount(2);
     expect(queryAllTexts`.o_searchview_autocomplete .o-dropdown-item`).toEqual([
@@ -1188,7 +1172,6 @@ test("search a property", async () => {
         "Custom Filter...",
     ]);
 
-    // unfold all the properties but fold the search result
     await contains(".o_expand").click();
     await contains(
         ".o_searchview_autocomplete .o-dropdown-item:nth-child(3) .o_expand",
@@ -1202,7 +1185,6 @@ test("search a property", async () => {
         "Custom Filter...",
     ]);
 
-    // select Bobby
     await contains(
         ".o_searchview_autocomplete .o-dropdown-item:nth-child(3) .o_expand",
     ).click();
@@ -1213,7 +1195,6 @@ test("search a property", async () => {
         ["properties.my_partners", "in", 6],
     ]);
 
-    // expand the selection properties
     await contains(".o_cp_searchview").click();
     await editSearch("a");
     await contains(".o_expand").click();
@@ -1230,7 +1211,6 @@ test("search a property", async () => {
         "Custom Filter...",
     ]);
 
-    // select the selection option "AA"
     await contains(".o_searchview_autocomplete .o-dropdown-item:nth-child(5)").click();
     expect(searchBar.env.searchModel.domain).toEqual([
         "&",
@@ -1242,7 +1222,6 @@ test("search a property", async () => {
         ["properties.my_selection", "=", "aa"],
     ]);
 
-    // select the selection option "A"
     await contains(".o_cp_searchview").click();
     await editSearch("a");
     await contains(".o_expand").click();
@@ -1261,11 +1240,9 @@ test("search a property", async () => {
         ["properties.my_selection", "=", "a"],
     ]);
 
-    // reset the search
     await contains(".o_facet_remove").click();
     await contains(".o_facet_remove").click();
 
-    // search a many2one value
     await contains(".o_cp_searchview").click();
     await editSearch("Ali");
     await contains(".o_expand").click();
@@ -1289,7 +1266,6 @@ test("search a property", async () => {
         ["properties.my_partner", "=", 10],
     ]);
 
-    // search a tag value
     await contains(".o_cp_searchview").click();
     await editSearch("A");
     await contains(".o_expand").click();
@@ -1316,7 +1292,6 @@ test("search a property", async () => {
         ["bar", "=", 1],
         ["properties.my_tags", "in", "aa"],
     ]);
-    // add the tag "B"
     await contains(".o_cp_searchview").click();
     await editSearch("B");
     await contains(".o_expand").click();
@@ -1345,8 +1320,6 @@ test("search a property", async () => {
         ["properties.my_tags", "in", "b"],
     ]);
 
-    // try to click on the many2one properties without unfolding
-    // it should not add the domain, but unfold the item
     await editSearch("Bobby");
     await contains(".o_expand").click();
     await contains(".o_searchview_autocomplete .o-dropdown-item:nth-child(2)").click();
@@ -1373,7 +1346,6 @@ test("search a property", async () => {
         "Custom Filter...",
     ]);
 
-    // test the navigation with keyboard
     await contains(`.o_searchview_input`).clear();
     await animationFrame();
     await runAllTimers();
@@ -1381,58 +1353,48 @@ test("search a property", async () => {
     await editSearch("Bo");
     await animationFrame();
     expect(`.o-dropdown-item.focus`).toHaveText("Search Properties");
-    // unfold the properties field
     await keyDown("ArrowRight");
     await animationFrame();
     await runAllTimers();
     expect(`.o-dropdown-item.focus`).toHaveText("Search Properties");
     expect(".o-dropdown-item.focus:only .fa-caret-down").toHaveCount(1);
-    // move on the many2one property
     await keyDown("ArrowRight", { repeat: false });
     await animationFrame();
     await runAllTimers();
     expect(`.o-dropdown-item.focus`).toHaveText("My Partner (Bar 1)");
     expect(".o-dropdown-item.focus:only .fa-caret-right").toHaveCount(1);
-    // move on the many2many property
     await keyDown("ArrowDown");
     await animationFrame();
     expect(`.o-dropdown-item.focus`).toHaveText("My Partners (Bar 1)");
     expect(".o-dropdown-item.focus:only .fa-caret-right").toHaveCount(1);
-    // move on the many2one property again
     await keyDown("ArrowUp");
     await animationFrame();
     expect(`.o-dropdown-item.focus`).toHaveText("My Partner (Bar 1)");
     expect(".o-dropdown-item.focus:only .fa-caret-right").toHaveCount(1);
-    // unfold the many2one
     await keyDown("ArrowRight");
     await animationFrame();
     await runAllTimers();
     expect(`.o-dropdown-item.focus`).toHaveText("My Partner (Bar 1)");
     expect(".o-dropdown-item.focus:only .fa-caret-down").toHaveCount(1);
-    // select the first many2one
     await keyDown("ArrowRight", { repeat: false });
     await animationFrame();
     await runAllTimers();
     expect(`.o-dropdown-item.focus`).toHaveText("Bob");
-    // go up on the parent
     await keyDown("ArrowLeft");
     await animationFrame();
     await runAllTimers();
     expect(`.o-dropdown-item.focus`).toHaveText("My Partner (Bar 1)");
     expect(".o-dropdown-item.focus:only .fa-caret-down").toHaveCount(1);
-    // fold the parent
     await keyDown("ArrowLeft");
     await animationFrame();
     await runAllTimers();
     expect(`.o-dropdown-item.focus`).toHaveText("My Partner (Bar 1)");
     expect(".o-dropdown-item.focus:only .fa-caret-right").toHaveCount(1);
-    // go up on the properties field
     await keyDown("ArrowLeft");
     await animationFrame();
     await runAllTimers();
     expect(`.o-dropdown-item.focus`).toHaveText("Search Properties");
     expect(".o-dropdown-item.focus:only .fa-caret-down").toHaveCount(1);
-    // fold the properties field
     await keyDown("ArrowLeft");
     await animationFrame();
     await runAllTimers();
@@ -1495,7 +1457,7 @@ test("edit a filter", async () => {
     onRpc("/web/domain/validate", () => true);
     await mountWithSearch(SearchBar, {
         resModel: "partner",
-        searchMenuTypes: ["groupBy"], // we need it to have facet (see facets getter in search_model)
+        searchMenuTypes: ["groupBy"],
         searchViewId: false,
         searchViewArch: `
             <search>
@@ -1581,7 +1543,7 @@ test("edit a favorite", async () => {
     onRpc("/web/domain/validate", () => true);
     await mountWithSearch(SearchBar, {
         resModel: "partner",
-        searchMenuTypes: ["groupBy"], // we need it to have facet (see facets getter in search_model)
+        searchMenuTypes: ["groupBy"],
         searchViewId: false,
         searchViewArch: `
             <search>
@@ -1740,7 +1702,7 @@ test("facets display with any / not any operator", async function () {
 
     await contains(".modal footer button").click();
     expect(getFacetTexts()).toEqual([
-        "Company : ( Bar : ( Company = JD7 or KDB and Company = JD7 or KDB ) )",
+        "Company : ( Bar : ( Company = ( JD7 or KDB ) and Company = ( JD7 or KDB ) ) )",
     ]);
     expect.verifySteps([`/web/domain/validate`]);
 });
@@ -1846,10 +1808,8 @@ test("facets display with any / not any operator (check brackets)", async functi
 
 test("select autocompleted many2one with allowed_company_ids domain (cids: 1-5)", async () => {
     cookie.set("cids", "1-5");
-    // allowed_company_ids is initially set by the company_service
     serverState.companies = [
         ...serverState.companies,
-        // company_service only includes existing companies from cids
         {
             id: 5,
             name: "Hierophant",
@@ -1879,10 +1839,8 @@ test("select autocompleted many2one with allowed_company_ids domain (cids: 1-5)"
 
 test("select autocompleted many2one with allowed_company_ids domain (cids: 1)", async () => {
     cookie.set("cids", "1");
-    // allowed_company_ids is initially set by the company_service
     serverState.companies = [
         ...serverState.companies,
-        // company_service only includes existing companies from cids
         {
             id: 5,
             name: "Hierophant",
@@ -2102,7 +2060,6 @@ test("no crash when search component is destroyed with input", async () => {
 });
 
 test("search on full query without waiting for display synchronisation", async () => {
-    /* Typically a barcode scan where the dropdown display doesn't have the time to update */
     const searchBar = await mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: [],
@@ -2121,9 +2078,6 @@ test("search on full query without waiting for display synchronisation", async (
 
 test.tags("desktop");
 test("typing right after opening the search menu keeps focus in the input", async () => {
-    // Clicking the empty search input opens the SearchBarMenu; the first
-    // keystroke closes it again (onSearchInput). That close must not steal
-    // focus from the input mid-typing — "one character per click" (t23947).
     await mountWithSearch(SearchBar, {
         resModel: "partner",
         searchMenuTypes: ["filter", "groupBy", "favorite"],
@@ -2142,10 +2096,6 @@ test("typing right after opening the search menu keeps focus in the input", asyn
 });
 
 test("a stale expansion must not revert a cleared query", async () => {
-    // Expand a menu (async name_search), then clear the search before it
-    // resolves. The clearing computeState has no async work, so it must still
-    // supersede the in-flight expansion — otherwise the stale frame resumes on
-    // resolution and reverts the query (and input value) to the old text.
     const def = new Deferred();
     onRpc("name_search", () => def);
     const searchBar = await mountWithSearch(SearchBar, {
@@ -2160,12 +2110,59 @@ test("a stale expansion must not revert a cleared query", async () => {
     });
     await editSearch("rec");
     await contains(".o_expand").click();
-    // Clear the search while the expansion's name_search is still pending.
     await editSearch("");
-    // Resolve the stale expansion: it must NOT restore the old query.
     def.resolve();
     await animationFrame();
     expect(searchBar.state.query).toBe("", {
         message: "a superseded expansion must not revert the cleared query",
     });
+});
+
+test("a facet never advertises a value the domain does not use", async () => {
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: [],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <field name="int_field"/>
+            </search>
+        `,
+    });
+    await editSearch("5");
+
+    const item = searchBar.items.find((i) => i.fieldType === "integer");
+    expect(item.value).toBe(5);
+
+    // the query moved on before the click landed; "5x" is not a valid integer
+    searchBar.state.query = "5x";
+    searchBar.selectItem(item);
+    await animationFrame();
+
+    const { label, value } = searchBar.env.searchModel.query.find(
+        (q) => q.searchItemId === item.searchItemId,
+    ).autocompleteValue;
+    expect(value).toBe(5);
+    expect(label).toBe("5");
+});
+
+test("the custom filter entry is addressable like every other item", async () => {
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: [],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <field name="foo"/>
+            </search>
+        `,
+    });
+    await editSearch("a");
+
+    const customFilter = searchBar.items.find((i) => i.isAddCustomFilterButton);
+    // t-key and the DropdownItem id come from item.id; onItemActivated parses it
+    // back out of the DOM and onClickSearchIcon looks it up in items.
+    expect(customFilter.id).toBeOfType("number");
+    expect(searchBar.items.find((i) => i.id === customFilter.id)).toBe(customFilter);
+    expect(new Set(searchBar.items.map((i) => i.id)).size).toBe(searchBar.items.length);
 });

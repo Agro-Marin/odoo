@@ -111,7 +111,6 @@ test("error in a client action (after the first rendering)", async () => {
             this.boom = false;
         }
         get a() {
-            // a bit artificial, but makes the test firefox compliant
             throw new Error("Cannot read properties of undefined (reading 'b')");
         }
         onClick() {
@@ -144,17 +143,11 @@ test("connection lost when opening form view from kanban", async () => {
     mockFetch((input) => {
         expect.step(input);
         if (input === "/web/webclient/version_info") {
-            // simulate a connection restore at the end of the test, to have no
-            // impact on other tests (see connectionLostNotifRemove)
             return true;
         }
-        throw new Error(); // simulate a ConnectionLost error
+        throw new Error();
     });
     await contains(".o_kanban_record").click();
-    // Wait for the connection-lost notification to appear rather than betting on
-    // a single frame: the error travels several async hops (failed RPC -> error
-    // service -> notification service reactive mutation -> OWL render), which one
-    // animationFrame does not deterministically cover.
     await waitFor(".o_notification");
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_notification").toHaveCount(1);
@@ -166,13 +159,12 @@ test("connection lost when opening form view from kanban", async () => {
         "get_views",
         "web_search_read",
         "has_group",
-        "/web/dataset/call_kw/partner/web_read", // from mockFetch
-        "/web/dataset/call_kw/partner/web_search_read", // from mockFetch
+        "/web/dataset/call_kw/partner/web_read",
+        "/web/dataset/call_kw/partner/web_search_read",
     ]);
     await animationFrame();
-    expect.verifySteps([]); // doesn't indefinitely try to reload the list
+    expect.verifySteps([]);
 
-    // cleanup
     await runAllTimers();
     await animationFrame();
     expect.verifySteps(["/web/webclient/version_info"]);
@@ -184,9 +176,6 @@ test("connection lost when coming back to kanban from form", async () => {
     expect.errors(1);
 
     let offline = false;
-    // `/mail/data` and `/mail/action` are init_messaging/discuss-action RPCs
-    // fired on every backend mount — infrastructure noise, not part of the
-    // navigation sequence under test. Filter them like stepAllNetworkCalls does.
     const BOILERPLATE = new Set([
         "/web/webclient/translations",
         "/mail/data",
@@ -200,11 +189,10 @@ test("connection lost when coming back to kanban from form", async () => {
                 expect.step(url);
             }
             if (url === "/web/webclient/version_info") {
-                // simulate a connection restore
                 return true;
             }
             if (offline) {
-                throw new Error(); // simulate a ConnectionLost error
+                throw new Error();
             }
         },
         { pure: true },
@@ -236,7 +224,7 @@ test("connection lost when coming back to kanban from form", async () => {
         "/web/dataset/call_kw/partner/web_search_read",
     ]);
     await animationFrame();
-    expect.verifySteps([]); // doesn't indefinitely try to reload the list
+    expect.verifySteps([]);
 
     await runAllTimers();
     await animationFrame();
@@ -277,7 +265,6 @@ test("error on onMounted", async () => {
         setup() {
             super.setup();
             onMounted(() => {
-                // A faulty onMounted hook prevents the rest of onMounted from running.
                 throw new Error("Never Executed code");
             });
         },
@@ -299,7 +286,6 @@ test("error on onMounted", async () => {
     await contains(".o_kanban_record").click();
     await animationFrame();
     expect(".o_form_view").toHaveCount(0);
-    // check that the action manager is empty
     expect(".o_action_manager").toHaveText("");
     expect(".o_error_dialog").toHaveCount(1);
     expect.verifySteps(["web_read"]);

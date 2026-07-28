@@ -16,31 +16,26 @@ class TestImage(HttpCase):
         """Check that the placeholder image is resized per the URL's size
         parameters, keeping its original (square) aspect ratio."""
 
-        # CASE: resize placeholder, given size but original ratio is always kept
         response = self.url_open("/web/image/0/200x150")
         response.raise_for_status()
         image = Image.open(io.BytesIO(response.content))
         self.assertEqual(image.size, (150, 150))
 
-        # CASE: resize placeholder to 128
         response = self.url_open("/web/image/fake/0/image_128")
         response.raise_for_status()
         image = Image.open(io.BytesIO(response.content))
         self.assertEqual(image.size, (128, 128))
 
-        # CASE: resize placeholder to 256
         response = self.url_open("/web/image/fake/0/image_256")
         response.raise_for_status()
         image = Image.open(io.BytesIO(response.content))
         self.assertEqual(image.size, (256, 256))
 
-        # CASE: resize placeholder to 1024 (but placeholder image is too small)
         response = self.url_open("/web/image/fake/0/image_1024")
         response.raise_for_status()
         image = Image.open(io.BytesIO(response.content))
         self.assertEqual(image.size, (256, 256))
 
-        # CASE: no size found, use placeholder original size
         response = self.url_open("/web/image/fake/0/image_no_size")
         response.raise_for_status()
         image = Image.open(io.BytesIO(response.content))
@@ -52,11 +47,9 @@ class TestImage(HttpCase):
         query string, where the string "false" is truthy; it now coerces with
         ``str2bool`` like the send_file path.
         """
-        # download=false -> render inline -> placeholder image, 200
         resp = self.url_open("/web/image/fake/0/image_128?download=false")
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.headers["Content-Type"].startswith("image/"))
-        # download=true -> explicit download of a missing image -> 404 (control)
         resp = self.url_open("/web/image/fake/0/image_128?download=true")
         self.assertEqual(resp.status_code, 404)
 
@@ -91,8 +84,6 @@ class TestImage(HttpCase):
                     f"/web/content?id={bad_id} should 404",
                 )
 
-        # Controls: the same routes with a well-formed, non-existent id behave
-        # identically, so the coercion did not change the contract.
         self.assertEqual(self.url_open("/web/image?id=999999999").status_code, 200)
         self.assertEqual(self.url_open("/web/content?id=999999999").status_code, 404)
 
@@ -119,8 +110,6 @@ class TestImage(HttpCase):
                     "a falsy nocache must not disable caching",
                 )
 
-        # A truthy opt-out drops max-age AND immutable together, so the header
-        # stays coherent (``immutable`` without a lifetime is meaningless).
         opted_out = self.url_open(f"{url}?nocache=true").headers.get(
             "Cache-Control", ""
         )
@@ -165,7 +154,6 @@ class TestImage(HttpCase):
             }
         )
 
-        # CASE: no filename given
         res = self.url_open("/web/image/%s/0x0/?download=true" % att.id)
         res.raise_for_status()
         self.assertEqual(
@@ -173,7 +161,6 @@ class TestImage(HttpCase):
             "attachment; filename=testFilename.gif",
         )
 
-        # CASE: given filename without extension
         res = self.url_open("/web/image/%s/0x0/custom?download=true" % att.id)
         res.raise_for_status()
         self.assertEqual(
@@ -181,7 +168,6 @@ class TestImage(HttpCase):
             "attachment; filename=custom.gif",
         )
 
-        # CASE: given filename and extension
         res = self.url_open("/web/image/%s/0x0/custom.png?download=true" % att.id)
         res.raise_for_status()
         self.assertEqual(
@@ -282,21 +268,18 @@ class TestImage(HttpCase):
                 "mimetype": "image/gif",
             }
         )
-        # no token: ko
         res = self.url_open(f"/web/image/{attachment.id}")
         res.raise_for_status()
         self.assertEqual(
             res.headers["Content-Disposition"],
             "inline; filename=placeholder.png",
         )
-        # invalid token: ko
         res = self.url_open(f"/web/image/{attachment.id}?access_token=invalid_token")
         res.raise_for_status()
         self.assertEqual(
             res.headers["Content-Disposition"],
             "inline; filename=placeholder.png",
         )
-        # token from a different scope: ko
         token = limited_field_access_token(attachment, "raw", scope="other_scope")
         res = self.url_open(f"/web/image/{attachment.id}?access_token={token}")
         res.raise_for_status()
@@ -304,21 +287,18 @@ class TestImage(HttpCase):
             res.headers["Content-Disposition"],
             "inline; filename=placeholder.png",
         )
-        # valid token: ok
         token = attachment._get_raw_access_token()
         res = self.url_open(f"/web/image/{attachment.id}?access_token={token}")
         res.raise_for_status()
         self.assertEqual(
             res.headers["Content-Disposition"], "inline; filename=test.gif"
         )
-        # token about to expire: ok
         with freeze_time(get_datetime_from_token(token) - timedelta(seconds=1)):
             res = self.url_open(f"/web/image/{attachment.id}?access_token={token}")
             res.raise_for_status()
             self.assertEqual(
                 res.headers["Content-Disposition"], "inline; filename=test.gif"
             )
-        # expired token: ko
         with freeze_time(get_datetime_from_token(token)):
             res = self.url_open(f"/web/image/{attachment.id}?access_token={token}")
             res.raise_for_status()
@@ -326,10 +306,9 @@ class TestImage(HttpCase):
                 res.headers["Content-Disposition"],
                 "inline; filename=placeholder.png",
             )
-        # within a 14-days period, the same token is generated
         start_of_period = datetime(
             2021, 2, 18, 0, 0, 0
-        )  # 14-days period 2021-02-18 to 2021-03-04
+        )
         base_result = datetime(2021, 3, 24, 15, 25, 40)
         for i in range(14):
             with freeze_time(
@@ -341,8 +320,6 @@ class TestImage(HttpCase):
                     ),
                     base_result,
                 )
-        # on each following 14-days period another token is generated, valid for exactly 14 extra
-        # days from the previous token
         for i in range(50):
             with freeze_time(
                 start_of_period
@@ -355,25 +332,20 @@ class TestImage(HttpCase):
                     base_result + timedelta(days=14 * i),
                 )
         with freeze_time(datetime(2021, 3, 1, 1, 2, 3)):
-            # Same instant, but record/field/model differ below — each must
-            # still produce a distinct token.
             self.assertEqual(
                 get_datetime_from_token(
                     self.env["ir.attachment"].browse(2)._get_raw_access_token()
                 ),
                 base_result,
             )
-            # a different record generates a different token
             record_res = self.env["ir.attachment"].browse(3)._get_raw_access_token()
             self.assertNotIn(record_res, [base_result])
-            # a different field generates a different token
             field_res = get_datetime_from_token(
                 limited_field_access_token(
                     self.env["ir.attachment"].browse(3), "datas", scope="binary"
                 )
             )
             self.assertNotIn(field_res, [base_result, record_res])
-            # a different model generates a different token
             model_res = get_datetime_from_token(
                 limited_field_access_token(
                     self.env["res.partner"].browse(3), "raw", scope="binary"
@@ -386,11 +358,9 @@ class TestImage(HttpCase):
         reading an attachment through the ``/web/image`` route."""
         new_test_user(self.env, "portal_user", groups="base.group_portal")
         new_test_user(self.env, "internal_user")
-        # record of arbitrary model with restrictive ACL even for internal users
         restricted_record = self.env["res.users.settings"].create(
             {"user_id": self.env.user.id}
         )
-        # record of arbitrary model with permissive ACL for internal users
         accessible_record = self.env["res.partner"].create({"name": "test partner"})
         attachments = self.env["ir.attachment"].create(
             [
@@ -424,7 +394,6 @@ class TestImage(HttpCase):
         attachments.generate_access_token()
         internal_restricted, internal_accessible, standalone, public = attachments
         tests = [
-            # (attachment, user, token, expected result (True if accessible))
             (internal_restricted, "public_user", None, False),
             (internal_restricted, "public_user", "token", True),
             (internal_restricted, "public_user", "limited token", True),

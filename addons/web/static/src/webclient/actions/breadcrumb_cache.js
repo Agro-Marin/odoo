@@ -52,8 +52,6 @@ export class BreadcrumbCache {
         if (!this._entries.has(key)) {
             return undefined;
         }
-        // LRU touch: re-insert so the hit moves to the warm end. Map iteration
-        // is insertion-ordered, so the first key is always the coldest.
         const hit = this._entries.get(key);
         this._entries.delete(key);
         this._entries.set(key, hit);
@@ -67,7 +65,6 @@ export class BreadcrumbCache {
      */
     set(key, value) {
         if (!this._entries.has(key) && this._entries.size >= this._limit) {
-            // Map keys iterate oldest-first; drop that one.
             const coldest = this._entries.keys().next().value;
             this._entries.delete(coldest);
         }

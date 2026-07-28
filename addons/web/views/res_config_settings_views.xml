@@ -41,8 +41,6 @@
                     <div id="languages">
                         <block title="Languages" name="languages_setting_container">
                             <setting id="languages_setting">
-                                <!-- TODO This is not an ideal solution but it looks ok on the
-                                interface -->
                                 <div class="w-50">
                                     <field name="language_count" class="w-auto ps-1 fw-bold" />
                                     <span class="o_form_label" invisible="language_count &gt; 1">
@@ -139,7 +137,6 @@
                             <setting id="sms" string="Send SMS"
                                 documentation="/applications/marketing/sms_marketing/pricing/pricing_and_faq.html"
                                 help="Send texts to your contacts">
-                                <!-- Invisible to avoid breaking any custom inheriting templates -->
                                 <field name="module_sms" invisible="1" />
                             </setting>
                             <setting help="Automatically enrich your contact base with company data"

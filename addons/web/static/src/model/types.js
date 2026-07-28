@@ -67,6 +67,4 @@
  * }} SearchParams
  */
 
-// Mark this file as a module so the JSDoc typedefs above are visible to
-// `import { Field, FieldInfo, SearchParams } from "@web/model/types"` callers.
 export {};

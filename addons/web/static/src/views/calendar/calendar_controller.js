@@ -100,9 +100,6 @@ export class CalendarController extends Component {
             getLocalState: () => this.model.exportedState,
         });
 
-        // Both flags are boolean-only, persisted via String(value). Reading back with
-        // JSON.parse is brittle (a stray "undefined" string throws), so check
-        // whether the stored value is the string "false".
         const storedWeekendVisible = browser.localStorage.getItem(
             "calendar.isWeekendVisible",
         );
@@ -392,9 +389,7 @@ export class CalendarController extends Component {
                 this.model.unlinkRecord(record.id);
             },
             confirmLabel: _t("Delete"),
-            cancel: () => {
-                // `ConfirmationDialog` needs this prop to show the cancel button.
-            },
+            cancel: () => {},
             cancelLabel: _t("No, keep it"),
         };
     }
@@ -426,9 +421,6 @@ export class CalendarController extends Component {
         const ids = new Set();
         for (const element of selectedCells) {
             for (const event of [...element.querySelectorAll(".fc-event")]) {
-                // A multi-day event renders one .fc-event segment per day cell it
-                // spans, so the same record id appears in several selected cells —
-                // dedupe so the count (nbSelected) and unlink are per-record.
                 ids.add(Number.parseInt(event.dataset.eventId, 10));
             }
         }
@@ -462,9 +454,6 @@ export class CalendarController extends Component {
                 break;
         }
         await this.model.load({ date });
-        // ``load`` triggers an OWL patch that calls FullCalendar's ``gotoDate``, which
-        // resets the timegrid scroll to ``scrollTime`` — clobbering an event fired before
-        // load. Trigger AFTER load so the renderer's listener runs after the reset.
         if (scrollToCurrentHour) {
             this.model.bus.trigger(ModelEvent.SCROLL_TO_CURRENT_HOUR, false);
         }

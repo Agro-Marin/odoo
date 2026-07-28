@@ -12,9 +12,6 @@
  */
 export function getMeasureSpecs(config) {
     const { metaData } = config;
-    // Track the currency array_agg_distinct specs already requested: several
-    // monetary measures can share one currency_field, so the same spec would
-    // otherwise be pushed once per measure (L6).
     const seenCurrencySpecs = new Set();
     return metaData.activeMeasures.reduce((acc, measure) => {
         if (measure === "__count") {
@@ -22,8 +19,6 @@ export function getMeasureSpecs(config) {
             return acc;
         }
         const field = metaData.fields[measure];
-        // compute the m2o aggregator locally: writing it back onto `field`
-        // would mutate the shared field definition
         const aggregator =
             field.type === "many2one" ? "count_distinct" : field.aggregator;
         if (aggregator === undefined) {
@@ -33,18 +28,11 @@ export function getMeasureSpecs(config) {
         }
         acc.push(`${measure}:${aggregator}`);
         if (field.currency_field) {
-            // array_agg_distinct is kept for every monetary measure: it drives
-            // currency-symbol formatting and the multi-currency "?" popover
-            // (pivot_renderer) regardless of aggregator. Deduped via the Set (L6).
             const currencySpec = `${field.currency_field}:array_agg_distinct`;
             if (!seenCurrencySpecs.has(currencySpec)) {
                 seenCurrencySpecs.add(currencySpec);
                 acc.push(currencySpec);
             }
-            // sum_currency (convert-then-resum) is only meaningful for a summed
-            // measure. Emitting it for avg/min/max let getMeasurements
-            // substitute the converted SUM into those cells whenever a cell
-            // spanned >1 currency (M1); gate it on the sum aggregator.
             if (aggregator === "sum") {
                 acc.push(`${field.name}:sum_currency`);
             }
@@ -70,9 +58,6 @@ export function getMeasurements(group, config, measureSpecs) {
             return measurements;
         }
         if (aggregator === "sum_currency") {
-            // Filter NULLs kept by array_agg_distinct (a record with an unset
-            // currency): a lone NULL must not be counted as a "second currency"
-            // and trigger the converted-sum substitution / "?" popover (M1).
             const currencies = (
                 group[
                     `${metaData.fields[fieldName].currency_field}:array_agg_distinct`
@@ -110,9 +95,6 @@ export function getCurrencyIds(group, config, measureSpecs) {
         }
         const measureField = metaData.measures[fieldName];
         if (measureField.type === "monetary" && measureField.currency_field) {
-            // Filter NULLs so an unset-currency record does not fabricate a
-            // "second currency" (which would flip the cell to the multi-currency
-            // "?" popover in pivot_renderer) (M1).
             currencyIds[fieldName] = (
                 group[`${measureField.currency_field}:array_agg_distinct`] || []
             ).filter((currencyId) => currencyId != null);

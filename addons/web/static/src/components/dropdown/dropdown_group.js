@@ -21,7 +21,6 @@ function getGroup(id) {
 function removeGroup(id) {
     const groupData = GROUPS.get(id);
     if (!groupData) {
-        // Defensive: nothing to release (e.g. already deleted), avoids a TypeError.
         return;
     }
     groupData.count--;
@@ -40,8 +39,6 @@ export class DropdownGroup extends Component {
 
     setup() {
         if (this.props.group) {
-            // Capture at setup time: props.group may change before onWillDestroy
-            // fires, which would otherwise release the wrong group.
             const groupId = this.props.group;
             const group = getGroup(groupId);
             onWillDestroy(() => removeGroup(groupId));

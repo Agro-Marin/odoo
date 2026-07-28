@@ -44,8 +44,6 @@ MISC_SUITES = (
     "@web/mock_server",
     "@web/modules",
 )
-# Union of every suite prefix some CI method selects (html_editor lives in
-# its own addon and is not part of the web tests tree walk).
 ALL_WEB_SUITE_PREFIXES = (
     "@web/core",
     "@web/components",
@@ -278,8 +276,6 @@ class HOOTCommon(odoo.tests.HttpCase):
             h = self._generate_hash(f)
             if sign == "-":
                 h = f"-{h}"
-            # The hash doesn't distinguish a test from a suite, so pass it as
-            # a generic "job" id filter (HOOT resolves it against either).
             id_params += f"&id={h}"
         return id_params
 
@@ -287,11 +283,11 @@ class HOOTCommon(odoo.tests.HttpCase):
         self.assertEqual(self._generate_hash("@web/core"), "e39ce9ba")
         self.assertEqual(
             self._generate_hash("@web/core/autocomplete"), "69a6561d"
-        )  # suite
+        )
         self.assertEqual(
             self._generate_hash("@web/core/autocomplete/open dropdown on input"),
             "ee565d54",
-        )  # test
+        )
 
     def test_get_hoot_filter(self):
         self._test_params = []
@@ -309,6 +305,28 @@ class HOOTCommon(odoo.tests.HttpCase):
         self._test_params = [("-", "-@web/core/autocomplete,-@web/core/autocomplete2")]
         self.assertEqual(self.get_hoot_filters(), "&id=69a6561d&id=cb246db5")
 
+    @staticmethod
+    def _get_module_scope_param(suite_names):
+        """Return the ``&module_scope=`` param for a run, or ``""``.
+
+        Every suite name starts with the addon that owns it (``@mail/discuss``
+        → ``mail``), which is the addon whose ``src`` the run is allowed to
+        load; ``ir.asset._get_active_addons_list`` narrows the bundle to that
+        addon's dependency closure. Suites spanning several addons carry no
+        single closure, so they stay unscoped rather than silently dropping
+        one side's ``src``.
+
+        Deliberately not derived when ``hoot_filters`` overrides the run: an
+        explicit ``--test-tags`` path may select suites from another addon,
+        and scoping to this class's declared suites would then load none of
+        the addons those tests need.
+        """
+        addons = {name.partition("/")[0].removeprefix("@") for name in suite_names}
+        if len(addons) != 1:
+            return ""
+        addon = addons.pop()
+        return f"&module_scope={addon}" if addon else ""
+
     def _run_hoot(self, *suite_names, preset, timeout=600, tag="", extra=""):
         """Run specific hoot test suites by their module path.
 
@@ -325,11 +343,13 @@ class HOOTCommon(odoo.tests.HttpCase):
         """
         if self.hoot_filters:
             id_filters = self.hoot_filters
+            scope_param = ""
         else:
             id_filters = "".join(f"&id={self._generate_hash(n)}" for n in suite_names)
+            scope_param = self._get_module_scope_param(suite_names)
         tag_param = f"&tag={tag}" if tag else ""
         self.browser_js(
-            f"/web/tests?headless&loglevel=2&preset={preset}&timeout=15000{id_filters}{tag_param}{extra}",
+            f"/web/tests?headless&loglevel=2&preset={preset}&timeout=15000{id_filters}{tag_param}{scope_param}{extra}",
             "",
             "",
             login="admin",
@@ -458,8 +478,6 @@ class WebSuite(HOOTCommon):
         for test_file in sorted(tests_root.rglob("*.test.js")):
             rel = test_file.relative_to(tests_root).as_posix()
             if rel.startswith(("_framework/", "tours/")):
-                # _framework is the mock-server implementation; tours run
-                # through web.assets_tests, not the HOOT unit runner.
                 continue
             suite = "@web/" + rel[: -len(".test.js")]
             if not any(
@@ -584,8 +602,6 @@ class WebSuite(HOOTCommon):
         return uncovered
 
     def _check_forbidden_statements(self, bundle):
-        # As we currently are not in a request context, we cannot render `web.layout`.
-        # We then re-define it as a minimal proxy template.
         self.env.ref("web.layout").write(
             {
                 "arch_db": '<t t-name="web.layout"><html><head><meta charset="utf-8"/><link/><script id="web.layout.odooscript"/><meta/><t t-esc="head"/></head><body><t t-out="0"/></body></html></t>'

@@ -47,7 +47,7 @@ test("HandleField in x2m", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="p">
                     <list editable="bottom">
@@ -83,7 +83,7 @@ test("HandleField with falsy values", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="sequence" widget="handle" />
                 <field name="display_name" />
@@ -101,7 +101,7 @@ test("HandleField in a readonly one2many", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="p" readonly="1">
                     <list editable="top">

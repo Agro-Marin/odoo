@@ -13,8 +13,6 @@ import {
     useState,
     xml,
 } from "@odoo/owl";
-// Allows to disable transitions globally, useful for testing (and maybe for
-// a reduced motion setting in the future?)
 import { browser } from "@web/core/browser/browser";
 export const config = {
     disabled: false,
@@ -24,7 +22,7 @@ export const config = {
  *  --- in JS:
  *  this.transition = useTransition({ name: "myClass" });
  *  --- in XML:
- *  <div t-if="transition.shouldMount" t-att-class="transition.class"/>
+ *  <div t-if="transition.shouldMount" t-att-class="transition.className"/>
  *
  * @param {Object} options
  * @param {string} options.name the prefix to use for the transition classes
@@ -59,9 +57,6 @@ export function useTransition({
                 return state.shouldMount;
             },
             set shouldMount(val) {
-                // No transition to animate, but keep the onLeave contract
-                // symmetric with the animated path: fire it (synchronously)
-                // whenever the element goes from mounted to unmounted.
                 if (state.shouldMount && !val) {
                     onLeave();
                 }
@@ -75,8 +70,6 @@ export function useTransition({
             },
         };
     }
-    // Mount in "enter" state first so the transition fires when we switch to
-    // enter-active on the next patch (via onNextPatch).
     let onNextPatch = null;
     useEffect(() => {
         if (onNextPatch) {
@@ -86,8 +79,6 @@ export function useTransition({
     });
 
     let prevState, timer;
-    // Clear any pending leave timer so onLeave never fires against a
-    // destroyed component.
     onWillDestroy(() => browser.clearTimeout(timer));
     const transition = {
         get shouldMount() {
@@ -99,12 +90,9 @@ export function useTransition({
             }
             browser.clearTimeout(timer);
             prevState = newState;
-            // when true - transition from enter to enter-active
-            // when false - transition from enter-active to leave, unmount after leaveDuration
             if (newState) {
                 if (status(component) === "mounted" || immediate) {
                     state.stage = "enter";
-                    // force a render here so that we get a patch even if the state didn't change
                     component.render();
                     onNextPatch = () => {
                         state.stage = "enter-active";
@@ -115,9 +103,6 @@ export function useTransition({
                 state.shouldMount = true;
             } else {
                 state.stage = "leave";
-                // Only schedule unmount/onLeave when actually mounted, else the
-                // initial `shouldMount = initialVisibility` (false) would
-                // spuriously fire onLeave for an element never shown.
                 if (state.shouldMount) {
                     timer = browser.setTimeout(() => {
                         state.shouldMount = false;

@@ -28,8 +28,6 @@ export function useCustomDropzone(
 
     useExternalListener(document, "dragenter", onDragEnter, { capture: true });
     useExternalListener(document, "dragleave", onDragLeave, { capture: true });
-    // Prevents the browser to open or download the file when it is dropped
-    // outside of the dropzone.
     useExternalListener(window, "dragover", (ev) => {
         if (ev.dataTransfer && ev.dataTransfer.types.includes("Files")) {
             ev.preventDefault();
@@ -88,7 +86,6 @@ export function useCustomDropzone(
         () => [targetRef.el],
     );
 
-    // The overlay entry outlives the owner otherwise (host unmounted mid-drag).
     onWillDestroy(() => {
         if (removeDropzone) {
             removeDropzone();

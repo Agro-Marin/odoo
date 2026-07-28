@@ -33,14 +33,10 @@ class ResUserGroupIdsField extends Component {
      * Registers an onWillRender hook that recomputes group selection state each render.
      */
     setup() {
-        // Deep-copy: the categories/privileges are reshaped in place below
-        // (e.g. the "other" category push), which must not leak into the
-        // record's stored value nor accumulate across re-setups.
         const { groups, privileges, categories } = deepCopy(
             toRaw(this.props.record.data.view_group_hierarchy),
         );
 
-        // Generate the "other" category (for privileges that do not belong to any category)
         const privilegesWithoutCategory = Object.values(privileges)
             .filter((privilege) => !privilege.category_id)
             .sort((p1, p2) => p1.sequence - p2.sequence);
@@ -54,7 +50,6 @@ class ResUserGroupIdsField extends Component {
             });
         }
 
-        // Generate the extra rights category (for groups without privilege)
         this.extraCategory = {
             id: "extra",
             name: _t("Extra Rights"),
@@ -73,7 +68,6 @@ class ResUserGroupIdsField extends Component {
                 .sort((p1, p2) => p1.name.localeCompare(p2.name)),
         };
 
-        // Generate selection (for privileges) and boolean (for extra right groups) fields
         this._fields = {};
         const booleanFieldToGroupId = {};
         for (const category of categories) {
@@ -108,9 +102,8 @@ class ResUserGroupIdsField extends Component {
             };
             booleanFieldToGroupId[privilege.groupFieldName] = privilege.groupId;
         }
-        this.fields = deepCopy(this._fields); // dynamically modified before each rendering w.r.t. current groups
+        this.fields = deepCopy(this._fields);
 
-        // Generate archInfo to provide to the FormRenderer
         const models = { main: { fields: this._fields } };
         const arch = `
             <t>
@@ -122,25 +115,15 @@ class ResUserGroupIdsField extends Component {
         const { ArchParser } = viewRegistry.get("form");
         this.archInfo = new ArchParser().parse(parseXML(arch), models, "main");
 
-        // Information shared via env with "res_user_group_ids_privilege" widgets:
-        //  - `booleanFieldToGroupId`: generated boolean field name -> group id
-        //  - `privileges`: privilege id -> description
-        //  - `groups`: group id -> description (computed from currently selected groups)
         this.info = {
             booleanFieldToGroupId,
             groups: {},
             privileges,
         };
         useChildSubEnv({
-            resUserGroupsInfo: this.info, // computed in onWillRender
+            resUserGroupsInfo: this.info,
         });
         onWillRender(() => {
-            // Generate groups information based on current ids, i.e.
-            //  - `id`, `name`, `privilege_id`, `comment` are kept as in the static definition
-            //  - `selected` is true iff the group is explicitly selected (!= implied)
-            //  - `impliedByIds` only contains *selected* group ids that imply the given group
-            //  - `disjointIds` is only set for *selected* or *implied* groups
-            //  - `implyIds` excludes itself (redundant, simplifies later use)
             const selectedIds = new Set(
                 this.props.record.data[this.props.name].currentIds,
             );
@@ -173,13 +156,11 @@ class ResUserGroupIdsField extends Component {
                 this.info.groups[group.id].disjointIds = disjointIds;
             }
 
-            // Remove lower level groups from selection fields where a higher level group is implied
             for (const fieldName of Object.keys(this.fields)) {
                 if (this.fields[fieldName].type === "selection") {
                     const options = this._fields[fieldName].selection;
                     this.fields[fieldName].selection = options;
                     for (let i = options.length - 1; i > 0; i--) {
-                        // i > 0 to omit "false" option
                         const group = this.info.groups[options[i][0]];
                         const isImplied = group.impliedByIds.some(
                             (gid) =>
@@ -194,7 +175,6 @@ class ResUserGroupIdsField extends Component {
                 }
             }
 
-            // Generate values for the dynamically generated selection and boolean fields
             this.values = {};
             this.shadowedGroupIds = [];
             for (const category of categories) {
@@ -205,8 +185,6 @@ class ResUserGroupIdsField extends Component {
                     const fieldName = this.getFieldName(privilege);
                     const options = this.fields[fieldName].selection;
                     if (groupId && !options.some((option) => option[0] === groupId)) {
-                        // The option has been removed because a higher level group is implied
-                        // => force the value to false to show the implied group instead
                         this.shadowedGroupIds.push(groupId);
                         groupId = false;
                     }
@@ -296,8 +274,6 @@ class ResUserGroupIdsField extends Component {
                     this.fields[fieldName].type === "selection" && gid,
             )
             .map(([_, gid]) => gid);
-        // Keep shadowed groups, except if a higher level group has been set, in which case they
-        // are not shadowed anymore
         const { groups, privileges } = this.info;
         const shadowedGroupIds = this.shadowedGroupIds.filter(
             (gid) => !values[this.getFieldName(privileges[groups[gid].privilege_id])],

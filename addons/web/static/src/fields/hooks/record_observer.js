@@ -25,11 +25,7 @@ import { batched } from "@web/core/utils/timing";
 export function useRecordObserver(callback) {
     const component = useComponent();
     let currentId;
-    // Disposer for the active effect. Disposed on each record swap and on
-    // teardown so a superseded effect stops firing (no wasted batched rAF).
     let disposeEffect;
-    // Latest props received by the component; the callback invocations below
-    // read this at call time rather than capturing `observeRecord`'s argument.
     let latestProps = component.props;
     const observeRecord = (props) => {
         currentId = uniqueId();
@@ -41,20 +37,6 @@ export function useRecordObserver(callback) {
         const def = new Deferred();
         const effectId = currentId;
         let firstCall = true;
-        // ``def`` is a ``Promise.withResolvers`` pair, so it settles EXACTLY
-        // ONCE. Only the first invocation's outcome reaches OWL (the hook
-        // returns ``def`` to onWillStart / onWillUpdateProps, which await it);
-        // every later invocation resolves/rejects an already-settled deferred,
-        // which is a silent no-op. That is fine for a success, but it means a
-        // REJECTION from any later callback used to vanish completely — no
-        // dialog, no console entry, nothing to debug — across the ~14 async
-        // ``useRecordObserver`` callbacks in the codebase (e.g. a failed
-        // validity RPC in domain_field left the field's state silently stale).
-        // Superseded/unmounted effects return early below, so anything landing
-        // here is a genuine callback failure. Report it instead of dropping it.
-        // Deliberately console-only: routing it to the error service would pop
-        // a dialog for every transient network blip in a background observer,
-        // which is a UX regression, not an improvement.
         let settled = false;
         const runCallback = (record) =>
             Promise.resolve(callback(record, latestProps)).then(
@@ -76,11 +58,9 @@ export function useRecordObserver(callback) {
                     );
                 },
             );
-        // Coalesce all effect notifications within one animation frame.
         const batchedCallback = batched(
             (record) => {
                 if (effectId !== currentId) {
-                    // disposableEffect doesn't clean up on unmount; guard manually.
                     return;
                 }
                 return runCallback(record);
@@ -113,10 +93,6 @@ export function useRecordObserver(callback) {
         await observeRecord(component.props);
     });
     onWillUpdateProps(async (nextProps) => {
-        // Always refresh the props reference — even on a prop-only update —
-        // so pending/future callback invocations see the fresh props; only a
-        // record identity change requires re-arming the effect (and firing
-        // the callback) since the reactive subscriptions target the record.
         latestProps = nextProps;
         if (nextProps.record !== component.props.record) {
             await observeRecord(nextProps);

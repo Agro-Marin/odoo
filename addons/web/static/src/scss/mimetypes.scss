@@ -1,3 +1,59 @@
+// Ordered on purpose: the matchers are loose substrings that overlap, and later
+// entries deliberately win. `application/vnd...presentationml.presentation`
+// matches both "document" and "presentation"; `application/postscript` matches
+// both "script" and "postscript". A list rather than a map because two separate
+// entries resolve to the same `certificate` icon at different priorities.
+$o-mimetype-icons: (
+    (image, "[data-mimetype^='image']"),
+    (audio, "[data-mimetype^='audio']"),
+    (text, "[data-mimetype^='text'], [data-mimetype$='rtf']"),
+    (
+        binary,
+        "[data-mimetype*='octet-stream'], [data-mimetype*='download'], [data-mimetype*='python']"
+    ),
+    (video, "[data-mimetype^='video'], [title$='.mp4'], [title$='.avi']"),
+    (
+        archive,
+        "[data-mimetype$='archive'], [data-mimetype$='compressed'], [data-mimetype*='zip'], [data-mimetype$='tar'], [data-mimetype*='package']"
+    ),
+    (pdf, "[data-mimetype^='application/pdf']"),
+    (
+        document,
+        "[data-mimetype^='text-master'], [data-mimetype*='document'], [data-mimetype*='msword'], [data-mimetype*='wordprocessing']"
+    ),
+    (web_code, "[data-mimetype*='application/xml'], [data-mimetype$='html']"),
+    (web_style, "[data-mimetype$='css'], [data-mimetype$='less'], [data-ext$='less']"),
+    (
+        disk,
+        "[data-mimetype*='-image'], [data-mimetype*='diskimage'], [data-ext$='dmg']"
+    ),
+    (
+        spreadsheet,
+        "[data-mimetype$='csv'], [data-mimetype*='vc'], [data-mimetype*='excel'], [data-mimetype$='numbers'], [data-mimetype$='calc'], [data-mimetype*='mods'], [data-mimetype*='spreadsheet']"
+    ),
+    (certificate, "[data-mimetype^='key']"),
+    (
+        presentation,
+        "[data-mimetype*='presentation'], [data-mimetype*='keynote'], [data-mimetype*='teacher'], [data-mimetype*='slideshow'], [data-mimetype*='powerpoint']"
+    ),
+    (
+        certificate,
+        "[data-mimetype*='cert'], [data-mimetype*='rules'], [data-mimetype*='pkcs'], [data-mimetype$='stl'], [data-mimetype$='crl']"
+    ),
+    (font, "[data-mimetype*='-font'], [data-mimetype*='font-'], [data-ext$='ttf']"),
+    (print, "[data-mimetype*='-dvi']"),
+    (
+        script,
+        "[data-mimetype*='script'], [data-mimetype*='x-sh'], [data-ext*='bat'], [data-mimetype$='bat'], [data-mimetype$='cgi'], [data-mimetype$='-c'], [data-mimetype*='java'], [data-mimetype*='ruby']"
+    ),
+    (javascript, "[data-mimetype*='javascript']"),
+    (calendar, "[data-mimetype*='calendar'], [data-mimetype$='ldif']"),
+    (
+        vector,
+        "[data-mimetype$='postscript'], [data-mimetype$='cdr'], [data-mimetype$='xara'], [data-mimetype$='cgm'], [data-mimetype$='graphics'], [data-mimetype$='draw'], [data-mimetype*='svg']"
+    )
+) !default;
+
 .o_image {
     display: inline-block;
     width: 38px;
@@ -7,114 +63,9 @@
     background-repeat: no-repeat;
     background-position: center;
 
-    &[data-mimetype^="image"] {
-        background-image: url("/web/static/img/mimetypes/image.svg");
-    }
-    &[data-mimetype^="audio"] {
-        background-image: url("/web/static/img/mimetypes/audio.svg");
-    }
-    &[data-mimetype^="text"],
-    &[data-mimetype$="rtf"] {
-        background-image: url("/web/static/img/mimetypes/text.svg");
-    }
-    &[data-mimetype*="octet-stream"],
-    &[data-mimetype*="download"],
-    &[data-mimetype*="python"] {
-        background-image: url("/web/static/img/mimetypes/binary.svg");
-    }
-    &[data-mimetype^="video"],
-    &[title$=".mp4"],
-    &[title$=".avi"] {
-        background-image: url("/web/static/img/mimetypes/video.svg");
-    }
-    &[data-mimetype$="archive"],
-    &[data-mimetype$="compressed"],
-    &[data-mimetype*="zip"],
-    &[data-mimetype$="tar"],
-    &[data-mimetype*="package"] {
-        background-image: url("/web/static/img/mimetypes/archive.svg");
-    }
-    &[data-mimetype^="application/pdf"] {
-        background-image: url("/web/static/img/mimetypes/pdf.svg");
-    }
-    &[data-mimetype^="text-master"],
-    &[data-mimetype*="document"],
-    &[data-mimetype*="msword"],
-    &[data-mimetype*="wordprocessing"] {
-        background-image: url("/web/static/img/mimetypes/document.svg");
-    }
-    &[data-mimetype*="application/xml"],
-    &[data-mimetype$="html"] {
-        background-image: url("/web/static/img/mimetypes/web_code.svg");
-    }
-    &[data-mimetype$="css"],
-    &[data-mimetype$="less"],
-    &[data-ext$="less"] {
-        background-image: url("/web/static/img/mimetypes/web_style.svg");
-    }
-    &[data-mimetype*="-image"],
-    &[data-mimetype*="diskimage"],
-    &[data-ext$="dmg"] {
-        background-image: url("/web/static/img/mimetypes/disk.svg");
-    }
-    &[data-mimetype$="csv"],
-    &[data-mimetype*="vc"],
-    &[data-mimetype*="excel"],
-    &[data-mimetype$="numbers"],
-    &[data-mimetype$="calc"],
-    &[data-mimetype*="mods"],
-    &[data-mimetype*="spreadsheet"] {
-        background-image: url("/web/static/img/mimetypes/spreadsheet.svg");
-    }
-    &[data-mimetype^="key"] {
-        background-image: url("/web/static/img/mimetypes/certificate.svg");
-    }
-    &[data-mimetype*="presentation"],
-    &[data-mimetype*="keynote"],
-    &[data-mimetype*="teacher"],
-    &[data-mimetype*="slideshow"],
-    &[data-mimetype*="powerpoint"] {
-        background-image: url("/web/static/img/mimetypes/presentation.svg");
-    }
-    &[data-mimetype*="cert"],
-    &[data-mimetype*="rules"],
-    &[data-mimetype*="pkcs"],
-    &[data-mimetype$="stl"],
-    &[data-mimetype$="crl"] {
-        background-image: url("/web/static/img/mimetypes/certificate.svg");
-    }
-    &[data-mimetype*="-font"],
-    &[data-mimetype*="font-"],
-    &[data-ext$="ttf"] {
-        background-image: url("/web/static/img/mimetypes/font.svg");
-    }
-    &[data-mimetype*="-dvi"] {
-        background-image: url("/web/static/img/mimetypes/print.svg");
-    }
-    &[data-mimetype*="script"],
-    &[data-mimetype*="x-sh"],
-    &[data-ext*="bat"],
-    &[data-mimetype$="bat"],
-    &[data-mimetype$="cgi"],
-    &[data-mimetype$="-c"],
-    &[data-mimetype*="java"],
-    &[data-mimetype*="ruby"] {
-        background-image: url("/web/static/img/mimetypes/script.svg");
-    }
-    &[data-mimetype*="javascript"] {
-        background-image: url("/web/static/img/mimetypes/javascript.svg");
-    }
-    &[data-mimetype*="calendar"],
-    &[data-mimetype$="ldif"] {
-        background-image: url("/web/static/img/mimetypes/calendar.svg");
-    }
-    &[data-mimetype$="postscript"],
-    &[data-mimetype$="cdr"],
-    &[data-mimetype$="xara"],
-    &[data-mimetype$="cgm"],
-    &[data-mimetype$="graphics"],
-    &[data-mimetype$="draw"],
-    &[data-mimetype*="svg"] {
-        background-image: url("/web/static/img/mimetypes/vector.svg");
+    @each $-entry in $o-mimetype-icons {
+        &:is(#{nth($-entry, 2)}) {
+            background-image: url("/web/static/img/mimetypes/#{nth($-entry, 1)}.svg");
+        }
     }
 }

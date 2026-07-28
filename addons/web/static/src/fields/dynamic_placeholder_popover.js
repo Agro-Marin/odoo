@@ -50,9 +50,6 @@ export class DynamicPlaceholderPopover extends Component {
     }
 
     async _loadAllowedExpressions() {
-        // Service is a function (not an object with methods), so useService's
-        // _protectMethod wrapper does not apply meaningfully here — read the
-        // raw service entry directly.
         // eslint-disable-next-line no-restricted-syntax
         const getAllowedQwebExpressions = this.env.services["allowed_qweb_expressions"];
         [
@@ -108,7 +105,6 @@ export class DynamicPlaceholderPopover extends Component {
         this.state.path = "";
     }
 
-    // @TODO should rework this to use hotkeys
     async onInputKeydown(ev) {
         switch (ev.key) {
             case "Enter": {

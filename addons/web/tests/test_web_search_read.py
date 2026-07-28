@@ -38,8 +38,6 @@ class TestWebSearchRead(common.TransactionCase):
         self.assertEqual(search_count_called[0], expected_search_count_called)
 
     def test_unity_web_search_read(self):
-        # web_search_read reuses the data query's FROM/WHERE for counting
-        # via query.count_matching(), so search_count() is never called.
         self.assert_web_search_read(
             self.max, self.max, expected_search_count_called=False
         )
@@ -78,14 +76,12 @@ class TestWebSearchRead(common.TransactionCase):
         (offset 0) still short-circuits to length 0 with no count query.
         """
         self.assertGreater(self.max, 0)
-        # Past the end, with a limit: real length reported, records empty.
         res = self.ResCurrency.web_search_read(
             domain=[], specification={"id": {}}, offset=self.max + 50, limit=5
         )
         self.assertEqual(res["records"], [])
         self.assertEqual(res["length"], self.max)
 
-        # Genuinely empty result set (offset 0) stays length 0.
         res_empty = self.ResCurrency.web_search_read(
             domain=[("id", "=", -1)], specification={"id": {}}, offset=0, limit=5
         )
@@ -97,7 +93,6 @@ class TestWebSearchRead(common.TransactionCase):
         self.assertIn("display_name", result)
         self.assertIn("__formatted_display_name", result)
 
-    # -- unknown-field screening of the specification (stale cached views) ----
 
     def test_stale_specification_key_is_screened(self):
         """A stale field name in the spec must be dropped (mirroring

@@ -208,8 +208,6 @@ test("widget many2many_binary keeps valid files uploaded after an errored one", 
     /** @type {any} */ (mockService)("http", {
         post(route, { ufile }) {
             expect(route).toBe("/web/binary/upload_attachment");
-            // The errored file is FIRST; the valid file is second. The old code
-            // returned on the first error and abandoned the valid file.
             const ids = MockServer.env["ir.attachment"].create({
                 name: ufile[1].name,
                 mimetype: "text/plain",
@@ -246,7 +244,6 @@ test("widget many2many_binary keeps valid files uploaded after an errored one", 
     ]);
     await animationFrame();
 
-    // The valid file (uploaded after the errored one) must still be linked.
     expect(".o_attachment:nth-child(2) .caption a:eq(0)").toHaveText("good_file.txt");
     expect(".o_notification").toHaveCount(1);
     expect(".o_notification_content").toHaveText(

@@ -15,21 +15,13 @@ import { HootTestResult } from "./hoot_test_result.js";
  * }} HootReportingProps
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const { Boolean } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {keyof import("../core/runner").Runner["state"]} varName
  * @param {string} colorClassName
  */
-const issueTemplate = (varName, colorClassName) => /* xml */ `
+const issueTemplate = (varName, colorClassName) =>   `
     <t t-foreach="runnerState['${varName}']" t-as="key" t-key="key">
         <t t-set="issue" t-value="runnerState['${varName}'][key]" />
         <div
@@ -76,10 +68,6 @@ const COLORS = {
     skipped: "text-cyan",
     todo: "text-purple",
 };
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /** @extends {Component<HootReportingProps, import("../hoot").Environment>} */
 export class HootReporting extends Component {

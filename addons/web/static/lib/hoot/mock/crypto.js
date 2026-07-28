@@ -1,17 +1,9 @@
 /** @odoo-module */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Math: { random: $random, floor: $floor },
     TextEncoder,
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /** @type {SubtleCrypto["decrypt"]} */
 function decrypt(algorithm, key, data) {
@@ -55,10 +47,6 @@ function randomUUID() {
 
 const $encode = TextEncoder.prototype.encode.bind(new TextEncoder());
 const $decode = TextDecoder.prototype.decode.bind(new TextDecoder("utf-8"));
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 export const mockCrypto = {
     getRandomValues,

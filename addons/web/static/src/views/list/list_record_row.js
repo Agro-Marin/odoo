@@ -79,14 +79,7 @@ const SKIP_DELEGATION = new Set(["constructor", "props", "env", "__owl__"]);
 /** @extends Component */
 export class ListRecordRow extends Component {
     static template = "web.ListRecordRow";
-    // Filled per renderer class by ``getRowComponentClass`` with the RENDERER's
-    // components, so sub-component resolution inside the row body is identical
-    // to the historical t-call (which resolved through the renderer class).
     static components = {};
-    // The row receives the renderer's own props spread in (so ``props.X``
-    // expressions from inheriting templates — ``props.readonly``,
-    // ``props.subsections``, ``props.hidePrices``, ``props.archInfo`` … — keep
-    // resolving) plus per-row keys. Arbitrary keys ⇒ no closed schema.
     static props = ["*"];
 
     setup() {
@@ -144,45 +137,19 @@ export class ListRecordRow extends Component {
         installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
         onWillRender(() => {
             this._isRendering = true;
-            // Warn BEFORE the re-scan install: a renderer field first assigned
-            // AFTER the accessors were installed (a subclass setting `this.flag
-            // = …` in an event handler) is a delegation blind spot the debug
-            // build should surface exactly once. Running the install first would
-            // add the field to the delegated set before the warn scan looked,
-            // so the warning could never fire (it became dead code). Both calls
-            // still run in onWillRender, i.e. before this render paints, so the
-            // freshly-installed accessor is available to the template this same
-            // cycle — only the (debug-only) warn observes the pre-install state.
             if (odoo.debug) {
                 warnUndelegatedRendererFields(
                     /** @type {any} */ (this.constructor),
                     renderer,
                 );
             }
-            // Re-run the (idempotent, Set-guarded) install every render, not
-            // just at setup, so a renderer field first assigned after setup gets
-            // a delegation accessor instead of silently resolving to undefined
-            // in row templates. The re-scan installs only genuinely-new names,
-            // so the steady-state cost is a couple of Set lookups.
             installRendererDelegation(/** @type {any} */ (this.constructor), renderer);
-            // Per-record cache invalidation: when this row re-renders without a
-            // full renderer render, renderer-side per-render caches keyed by
-            // (column, record) may hold stale entries for this record.
             renderer.markRowRender?.(String(this.props.record.id));
             this._touchRecordDependencies();
         });
         onRendered(() => {
             this._isRendering = false;
         });
-        // NB: the destroyed row's ``_dualCache``/``_boundFns`` are intentionally
-        // NOT cleared in ``onWillDestroy``. Eagerly clearing ``_dualCache`` drops
-        // the last strong reference to the ``_subscribingWrapper`` reactive
-        // proxies, making them GC-eligible mid-suite; OWL's reactive-callback
-        // GC bookkeeping then non-deterministically disturbs virtualized-focus
-        // resolution in later tests (a cross-file order-dependent failure). The
-        // WeakRef in ``_shadowRender`` already covers the real leak — a leaked
-        // subscription retains only a tiny closure, and the destroyed row (with
-        // its two Maps) is collected normally once nothing else references it.
     }
 
     /**
@@ -357,8 +324,6 @@ function installRendererDelegation(RowClass, renderer) {
         }
         Object.defineProperty(RowClass.prototype, name, {
             configurable: true,
-            // Non-enumerable so OWL's context-capture paths do not iterate
-            // over these accessors (same constraint as the renderer mixins).
             enumerable: false,
             get() {
                 return this._delegateGet(name);
@@ -435,10 +400,6 @@ export function getRowComponentClass(RendererClass) {
             value: `ListRecordRow_${RendererClass.name}`,
             configurable: true,
         });
-        // Live view, not a snapshot: late additions to the renderer's
-        // ``static components`` (e.g. ``patch()`` after the first row class
-        // derivation) must stay visible to the row body. An explicit write
-        // (tests patching the row class directly) overrides the getter.
         Object.defineProperty(RowClass, "components", {
             configurable: true,
             get() {

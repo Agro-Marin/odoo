@@ -79,7 +79,7 @@ export class Dialog extends Component {
         slots: {
             type: Object,
             shape: {
-                default: Object, // Content is not optional
+                default: Object,
                 header: { type: Object, optional: true },
                 footer: { type: Object, optional: true },
             },
@@ -107,22 +107,13 @@ export class Dialog extends Component {
         useHotkey(
             "control+enter",
             () => {
-                // Scope the search to the dialog's own root node (Document or
-                // ShadowRoot) so the shortcut still resolves the footer button
-                // when the dialog is rendered inside a shadow DOM host (embedded/
-                // website contexts). querySelectorAll on `document` does not
-                // traverse shadow roots.
-                const searchRoot = this.modalRef.el?.getRootNode() ?? document;
-                const btns = searchRoot.querySelectorAll(
-                    ".o_dialog:not(.o_inactive_modal) .modal-footer button",
+                const btns =
+                    this.modalRef.el?.querySelectorAll(".modal-footer button") ?? [];
+                const firstActiveBtn = Array.from(btns).find(
+                    (/** @type {HTMLButtonElement} */ btn) =>
+                        !btn.disabled && getComputedStyle(btn).display !== "none",
                 );
-                const firstVisibleBtn = Array.from(btns).find((btn) => {
-                    const styles = getComputedStyle(btn);
-                    return styles.display !== "none";
-                });
-                if (firstVisibleBtn) {
-                    /** @type {HTMLElement} */ (firstVisibleBtn).click();
-                }
+                /** @type {HTMLElement | undefined} */ (firstActiveBtn)?.click();
             },
             { bypassEditableProtection: true },
         );
@@ -147,16 +138,14 @@ export class Dialog extends Component {
                     },
                 }),
             );
-            // useThrottleForAnimation (vs the bare throttleForAnimation)
-            // cancels the pending animation frame on destroy, so a resize
-            // fired just before closing can't run the handler on a destroyed
-            // component.
             const throttledResize = useThrottleForAnimation(this.onResize.bind(this));
             useExternalListener(window, "resize", throttledResize);
         }
         onWillDestroy(() => {
             if (this.env.isSmall) {
-                this.data.scrollToOrigin();
+                // Only the dialog service supplies this; a Dialog mounted on a
+                // hand-built `dialogData` must not crash on teardown.
+                this.data.scrollToOrigin?.();
             }
         });
         this.bodyTabIndex = hasTouch() ? "0" : undefined;

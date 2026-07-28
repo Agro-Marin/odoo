@@ -9,8 +9,6 @@ class TestLoadBreadcrumbs(HttpCase):
         super().setUpClass()
         model_id = cls.env["ir.model"]._get_id("res.partner")
 
-        # Switch to a user with a fixed name so display_name assertions below
-        # are stable both locally and on the runbot.
         cls.env = cls.env(user=cls.env.ref("base.user_admin"))
         cls.partner = cls.env["res.partner"].create(
             {
@@ -61,11 +59,6 @@ class TestLoadBreadcrumbs(HttpCase):
             }
         )
 
-        # A server action that has a path (so it is eligible for restoration)
-        # but whose code performs work without returning a follow-up ``action``.
-        # ``run()`` then returns ``False``; the controller must not dereference
-        # it (regression: previously raised an uncaught AttributeError/500 for
-        # the whole breadcrumb batch).
         cls.server_action_returning_nothing = cls.env["ir.actions.server"].create(
             {
                 "name": "Breadcrumb Server Action Returning Nothing",
@@ -273,9 +266,6 @@ class TestLoadBreadcrumbs(HttpCase):
         self.assertEqual(resp.json()["result"][1]["display_name"], None)
 
     def test_breadcrumbs_server_action_returning_nothing(self):
-        # A restorable server action whose run() returns a falsy value must
-        # degrade to an error breadcrumb, not crash the whole batch. The
-        # following entry (a plain window action) must still resolve.
         self.authenticate("admin", "admin")
         resp = self.url_open(
             "/web/action/load_breadcrumbs",

@@ -38,17 +38,10 @@ export function useAutoresize(ref, options = {}) {
                 const inputHandler = () => resize(true);
                 el.addEventListener("input", inputHandler);
                 const resizeObserver = new ResizeObserver(() => {
-                    // Suppress the observer fire that follows our own style
-                    // mutations, so we do not loop on a resize we just made.
                     if (wasProgrammaticallyResized) {
                         wasProgrammaticallyResized = false;
                         return;
                     }
-                    // The resize() call below mutates styles and will itself
-                    // trigger another observer fire — pass ``true`` so that
-                    // follow-up fire is suppressed, otherwise the observer
-                    // re-enters resize indefinitely (textareas in flex/grid
-                    // parents oscillate by 1px and the loop never terminates).
                     resize(true);
                 });
                 resizeObserver.observe(el);
@@ -84,11 +77,8 @@ function measureTextWidth(input) {
     span.style.visibility = "hidden";
     span.style.whiteSpace = "nowrap";
     span.textContent = input.value;
-    // Append to parent so it inherits the input's CSS context.
     const container = input.parentNode || document.body;
     container.appendChild(span);
-    // Use offsetWidth (not getBoundingClientRect) to match how browser computes
-    // integer pixel widths for offsetWidth on the readonly span counterpart.
     const width = span.offsetWidth;
     span.remove();
     return width;
@@ -99,7 +89,6 @@ function measureTextWidth(input) {
  * @param {{ offset?: number }} [options]
  */
 function resizeInput(input, options) {
-    // This mesures the maximum width of the input which can get from the flex layout.
     input.style.width = "100%";
     const maxWidth = input.clientWidth;
     input.style.width = "10px";
@@ -107,8 +96,6 @@ function resizeInput(input, options) {
         input.style.width = "auto";
         return;
     }
-    // Span-based measurement keeps text width consistent with the readonly
-    // counterpart (see measureTextWidth).
     const textWidth = measureTextWidth(input);
     const width = textWidth + (options?.offset || 0);
     if (width > maxWidth) {

@@ -44,8 +44,6 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
     if (groupRowValues.length) {
         const rowSubTree = findGroup(data.rowGroupTree, groupRowValues);
         if (!rowSubTree) {
-            // The parent group is gone (e.g. an ancestor was closed while
-            // this subdivision was computed): the result is stale, drop it.
             return;
         }
         groupRowLabels = rowSubTree.root.labels;
@@ -61,7 +59,6 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
         groupColLabels = colSubTree.root.labels;
     }
 
-    // Compute measure specs once for the whole pass, not per sub-group.
     const measureSpecs = getMeasureSpecs(config);
 
     groupSubdivisions.forEach((groupSubdivision) => {
@@ -102,8 +99,6 @@ export function aggregateSubdivisions(group, groupSubdivisions, config, deps) {
                 ),
             ];
 
-            // Both axes non-empty: the cell sits in an existing branch and is
-            // keyed below; only single-axis cases need a new tree node.
             if (!colValues.length && rowValues.length) {
                 addGroup(data.rowGroupTree, rowLabels, rowValues);
             }

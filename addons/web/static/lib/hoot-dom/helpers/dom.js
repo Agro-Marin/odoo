@@ -105,10 +105,6 @@ import { waitUntil } from "./time.js";
  * @typedef {MaybeIterable<T> | string | TemplateStringsArray | null | undefined | false} Target
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     document,
     DOMParser,
@@ -124,10 +120,6 @@ const {
     String: { raw: $raw },
     window,
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {Iterable<QueryFilter>} filters
@@ -273,7 +265,6 @@ function generateStringFromLayers(layers, tabSize) {
         let nextLayerIndex = layerIndex + 1;
         if (value.open) {
             if (value.textContent) {
-                // node with inline textContent (no wrapping white-spaces)
                 result.push(`${pad}${value.open}${value.textContent}${value.close}`);
                 layers.splice(layerIndex, 1);
                 nextLayerIndex--;
@@ -318,8 +309,6 @@ function getFiltersDescription(modifierInfo) {
             description.push(`${count} ${modifier} ${elements}`);
         }
         if (!count) {
-            // Stop at first null count to avoid situations like:
-            // "found 0 elements, including 0 visible elements, including 0 ..."
             break;
         }
     }
@@ -351,7 +340,6 @@ function getNodeContent(node) {
 
 /** @type {NodeFilter} */
 function getNodeIframe(node) {
-    // Note: should only apply on `iframe` elements
     /** @see parseSelector */
     const doc = node.contentDocument;
     return doc && doc.readyState !== "loading" ? doc : false;
@@ -655,7 +643,6 @@ function parseSelector(selector) {
         const char = selector[i];
         registerChar = true;
         switch (char) {
-            // Group separator (comma)
             case ",": {
                 if (!currentQuote && !currentPseudo) {
                     groups.push([[""]]);
@@ -665,7 +652,6 @@ function parseSelector(selector) {
                 }
                 break;
             }
-            // Part separator (white space)
             case " ":
             case "\t":
             case "\n":
@@ -674,8 +660,6 @@ function parseSelector(selector) {
             case "\v": {
                 if (!currentQuote && !currentPseudo) {
                     if (currentPart[0] || currentPart.length > 1) {
-                        // Only push new part if the current one is not empty
-                        // (has at least 1 character OR 1 pseudo-class filter)
                         currentGroup.push([""]);
                         currentPart = currentGroup.at(-1);
                     }
@@ -683,7 +667,6 @@ function parseSelector(selector) {
                 }
                 break;
             }
-            // Quote delimiters
             case `'`:
             case `"`: {
                 if (char === currentQuote) {
@@ -693,7 +676,6 @@ function parseSelector(selector) {
                 }
                 break;
             }
-            // Combinators
             case ">":
             case "+":
             case "~": {
@@ -705,7 +687,6 @@ function parseSelector(selector) {
                 }
                 break;
             }
-            // Pseudo classes
             case ":": {
                 if (!currentQuote && !currentPseudo) {
                     let pseudo = "";
@@ -725,7 +706,6 @@ function parseSelector(selector) {
                 }
                 break;
             }
-            // Parentheses
             case "(": {
                 if (!currentQuote) {
                     parens[0]++;
@@ -744,10 +724,6 @@ function parseSelector(selector) {
             if (parens[0] === parens[1]) {
                 const [pseudo, content] = currentPseudo;
                 if (pseudo === "iframe" && !currentPart[0].startsWith("iframe")) {
-                    // Special case: to optimise the ":iframe" pseudo class, we
-                    // always select actual `iframe` elements.
-                    // Note that this may create "impossible" tag names (like "iframediv")
-                    // but this pseudo won't work on non-iframe elements anyway.
                     currentPart[0] = `iframe${currentPart[0]}`;
                 }
                 const filter = getQueryFilter(pseudo, getStringContent(content));
@@ -830,18 +806,15 @@ function queryWithCustomSelector(nodes, selector) {
                 }
             }
 
-            // Slices modifier (if any)
             if (nodeGetter) {
                 baseSelector = baseSelector.slice(1);
             }
             nodeGetter ||= DESCENDANTS;
 
-            // Retrieve nodes from current group nodes
             const currentGroupNodes = nodeFlatMap(groupNodes, (node) =>
                 nodeGetter(node, baseSelector)
             );
 
-            // Filter/replace nodes based on custom pseudo-classes
             groupNodes = applyFilters(selectorPart.slice(1), currentGroupNodes);
         }
 
@@ -869,28 +842,23 @@ function registerQueryMessage(filteredNodes, expectedCount) {
     if (shouldRegisterQueryMessage || invalidCount) {
         const globalModifierInfo = [...globalFilterDescriptors.values()];
 
-        // First message part: final count
         lastQueryMessage += `found ${filteredCount} ${plural("element", filteredCount)}`;
         if (invalidCount) {
             lastQueryMessage += ` instead of ${expectedCount}`;
         }
 
-        // Next message part: initial element count (with selector if string)
         const rootModifierInfo = globalModifierInfo.shift();
         const [, rootContent, initialCount = 0] = rootModifierInfo;
         if (typeof rootContent === "string") {
             lastQueryMessage += `: ${initialCount} matching ${JSON.stringify(rootContent)}`;
             if (selectorFilterDescriptors.size) {
-                // Selector filters will only be available with a custom selector
                 const selectorModifierInfo = [...selectorFilterDescriptors.values()];
                 lastQueryMessage += ` (${getFiltersDescription(selectorModifierInfo).join(" > ")})`;
             }
         } else if (filteredCount !== initialCount) {
-            // Do not report count if same as announced initially
             lastQueryMessage += `: ${initialCount} ${plural("element", initialCount)}`;
         }
         if (initialCount) {
-            // Next message parts: each count associated with each modifier
             lastQueryMessage += getFiltersDescription(globalModifierInfo)
                 .map((part) => `, including ${part}`)
                 .join("");
@@ -945,7 +913,6 @@ function _queryAll(target, options) {
             nodes = root ? _queryAll(root) : [getDefaultRoot()];
         }
         selector = target.trim();
-        // HTMLSelectElement is iterable ¯\_(ツ)_/¯
     } else if (isIterable(target) && !isNode(target)) {
         nodes = filterUniqueNodes(target);
     } else if (target) {
@@ -968,7 +935,6 @@ function _queryAll(target, options) {
         );
     }
 
-    // Apply option modifiers on matching nodes
     const modifierFilters = [];
     for (const [modifier, content] of $entries(modifiers)) {
         if (content === false || !customPseudoClasses.has(modifier)) {
@@ -980,7 +946,6 @@ function _queryAll(target, options) {
     }
     const filteredNodes = applyFilters(modifierFilters, nodes);
 
-    // Register query message (if needed), and/or throw an error accordingly
     const message = registerQueryMessage(filteredNodes, count);
     if (message) {
         throw new HootDomError(message);
@@ -1027,7 +992,6 @@ class HootDomError extends Error {
     name = "HootDomError";
 }
 
-// Regexes
 const R_CHAR = /[\w-]/;
 /** \s without \n and \v */
 const R_HORIZONTAL_WHITESPACE =
@@ -1049,8 +1013,6 @@ const MODIFIER_SUFFIX_LABELS = {
 const QUERYABLE_NODE_TYPES = [Node.ELEMENT_NODE, Node.DOCUMENT_NODE, Node.DOCUMENT_FRAGMENT_NODE];
 
 const parser = new DOMParser();
-
-// Node getters
 
 /** @type {NodeGetter} */
 function DIRECT_CHILDREN(node, selector) {
@@ -1100,10 +1062,6 @@ let lastQueryMessage = "";
 let shouldRegisterQueryMessage = false;
 let queryAllLevel = 0;
 
-//-----------------------------------------------------------------------------
-// Pseudo classes
-//-----------------------------------------------------------------------------
-
 /** @type {Map<string, PseudoClassPredicateBuilder>} */
 const customPseudoClasses = new Map();
 
@@ -1144,16 +1102,10 @@ customPseudoClasses
 
 const rCustomPseudoClass = compilePseudoClassRegex();
 
-//-----------------------------------------------------------------------------
-// Internal exports (inside Hoot/Hoot-DOM)
-//-----------------------------------------------------------------------------
-
 export function cleanupDOM() {
-    // Dimensions
     currentDimensions.width = innerWidth;
     currentDimensions.height = innerHeight;
 
-    // Observers
     const remainingObservers = observers.size;
     if (remainingObservers) {
         for (const { observer } of observers.values()) {
@@ -1404,7 +1356,6 @@ export function isNodeDisplayed(node) {
     if (isRootElement(element) || element.offsetParent || element.closest("svg")) {
         return true;
     }
-    // `position=fixed` elements in Chrome do not have an `offsetParent`
     return !isFirefox() && getStyle(element)?.position === "fixed";
 }
 
@@ -1460,7 +1411,6 @@ export function isNodeScrollable(axis, node) {
             break;
         }
         default: {
-            // Check for any scrollable axis
             if (!isScrollableX && !isScrollableY) {
                 return false;
             }
@@ -1479,18 +1429,15 @@ export function isNodeScrollable(axis, node) {
 export function isNodeVisible(node) {
     const element = ensureElement(node);
 
-    // Must be displayed and not hidden by CSS
     if (!isNodeDisplayed(element) || !isNodeCssVisible(element)) {
         return false;
     }
 
     let visible = false;
 
-    // Check size (width & height)
     const { width, height } = getNodeRect(element);
     visible = width > 0 && height > 0;
 
-    // Check content (if display=contents)
     if (!visible && getStyle(element)?.display === "contents") {
         for (const child of element.childNodes) {
             if (isNodeVisible(child)) {
@@ -1556,8 +1503,6 @@ export function toSelector(node, options) {
     return options?.object ? parts : $values(parts).join("");
 }
 
-// Following selector is based on this spec:
-// https://html.spec.whatwg.org/multipage/interaction.html#dom-tabindex
 export const FOCUSABLE_SELECTOR = [
     "a[href]",
     "area[href]",
@@ -1570,10 +1515,6 @@ export const FOCUSABLE_SELECTOR = [
     "[tabindex]",
     "[contenteditable=true]",
 ].join(",");
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * Returns a standardized representation of the given `string` value as a human-readable
@@ -1605,27 +1546,18 @@ export function getActiveElement(node) {
     const { contentDocument, shadowRoot } = activeElement;
 
     if (contentDocument && contentDocument.activeElement !== contentDocument.body) {
-        // Active element is an "iframe" element (with an active element other than its own body):
         if (contentDocument.activeElement === contentDocument.body) {
-            // Active element is the body of the iframe:
-            // -> returns that element
             return contentDocument.activeElement;
         } else {
-            // Active element is something else than the body:
-            // -> get the active element inside the iframe document
             return getActiveElement(contentDocument);
         }
     }
 
     if (shadowRoot) {
-        // Active element has a shadow root:
-        // -> get the active element inside its root
         return shadowRoot.activeElement;
     }
 
     if (activeElement === doc.body && view !== view.parent) {
-        // Active element is the body of an iframe:
-        // -> get the active element of its parent frame (recursively)
         return getActiveElement(view.parent.document);
     }
 

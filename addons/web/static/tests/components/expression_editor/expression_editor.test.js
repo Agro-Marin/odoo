@@ -225,8 +225,6 @@ test("rendering of a valid fieldName in fields", async () => {
         { expr: `foo`, condition: ["Foo", label("set")] },
         { expr: `foo == "a"`, condition: ["Foo", label("="), "a"] },
         { expr: `foo != "a"`, condition: ["Foo", label("!="), "a"] },
-        // { expr: `foo is "a"`, complexCondition: `foo is "a"` },
-        // { expr: `foo is not "a"`, complexCondition: `foo is not "a"` },
         { expr: `not foo`, condition: ["Foo", label("not set")] },
         { expr: `foo + "a"`, complexCondition: `foo + "a"` },
     ];

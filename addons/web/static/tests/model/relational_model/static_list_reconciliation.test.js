@@ -16,8 +16,6 @@ import { StaticList } from "@web/model/relational_model/static_list";
 function makeList({ commands, resIds }) {
     const list = Object.create(StaticList.prototype);
     list._commands = commands;
-    // ``config`` is a getter over ``_config`` (DataPoint); the ``resIds`` getter
-    // reads ``this.config.resIds``.
     list._config = { resIds };
     return list;
 }
@@ -29,11 +27,9 @@ describe("StaticList create reconciliation", () => {
                 [x2ManyCommands.CREATE, "virtual_1"],
                 [x2ManyCommands.CREATE, "virtual_2"],
             ],
-            resIds: [3], // one pre-existing linked record
+            resIds: [3],
         });
-        // Snapshot BEFORE the save clears the CREATE commands.
         const token = list.snapshotCreateReconciliation();
-        // web_save assigns resIds in create-command order.
         list.config.resIds = [3, 10, 11];
 
         expect(list.resolveCreatedResId(token, { _virtualId: "virtual_1" })).toBe(10);
@@ -49,8 +45,6 @@ describe("StaticList create reconciliation", () => {
             resIds: [],
         });
         const token = list.snapshotCreateReconciliation();
-        // Server returned ids not in array order; the nth CREATE maps to the
-        // nth-smallest new id.
         list.config.resIds = [21, 20];
 
         expect(list.resolveCreatedResId(token, { _virtualId: "virtual_1" })).toBe(20);
@@ -63,11 +57,24 @@ describe("StaticList create reconciliation", () => {
             resIds: [],
         });
         const token = list.snapshotCreateReconciliation();
-        // A create() override added TWO rows for ONE CREATE command: ambiguous,
-        // so the caller surfaces "save first" instead of guessing.
         list.config.resIds = [10, 11];
 
         expect(list.resolveCreatedResId(token, { _virtualId: "virtual_1" })).toBe(
+            undefined,
+        );
+    });
+
+    test("resolveCreatedResId returns undefined when no CREATE claims the record", () => {
+        // The record is not one this save created, so there is no rank to map
+        // it to; guessing (the highest new id) would open an unrelated record.
+        const list = makeList({
+            commands: [[x2ManyCommands.CREATE, "virtual_1"]],
+            resIds: [3],
+        });
+        const token = list.snapshotCreateReconciliation();
+        list.config.resIds = [3, 10];
+
+        expect(list.resolveCreatedResId(token, { _virtualId: "virtual_9" })).toBe(
             undefined,
         );
     });

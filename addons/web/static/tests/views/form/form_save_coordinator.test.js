@@ -15,10 +15,6 @@ import {
     InvalidFormSaveTransitionError,
 } from "@web/views/form/form_save_coordinator";
 
-// ---------------------------------------------------------------------------
-// Mock factory
-// ---------------------------------------------------------------------------
-
 /**
  * Builds the minimal record + model + hooks shape required by the
  * coordinator.  Each option lets a test substitute a specific behavior
@@ -58,10 +54,6 @@ function makeContext({
     return { coordinator, record, model, hooks };
 }
 
-// ---------------------------------------------------------------------------
-// Initial state
-// ---------------------------------------------------------------------------
-
 describe("FormSaveCoordinator — initial state", () => {
     test("status defaults to 'clean'", () => {
         const { coordinator } = makeContext({ dirty: false });
@@ -70,10 +62,6 @@ describe("FormSaveCoordinator — initial state", () => {
         expect(coordinator.isSaving).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// requestSave — checkDirty short-circuit
-// ---------------------------------------------------------------------------
 
 describe("FormSaveCoordinator — requestSave (checkDirty)", () => {
     test("returns true without calling record.save when checkDirty=true and not dirty", async () => {
@@ -119,15 +107,8 @@ describe("FormSaveCoordinator — requestSave (checkDirty)", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// requestSave — happy path status transitions
-// ---------------------------------------------------------------------------
-
 describe("FormSaveCoordinator — requestSave (status transitions)", () => {
     test("transitions clean → saving → clean on success", async () => {
-        // Capture status from INSIDE the save mock to observe the
-        // in-flight value — the only post-``begin`` observation point
-        // that doesn't race the awaits in ``requestSave``.
         let statusDuringSave = null;
         const { coordinator } = makeContext({
             save: async () => {
@@ -147,23 +128,15 @@ describe("FormSaveCoordinator — requestSave (status transitions)", () => {
         const { coordinator } = makeContext({ save: async () => false });
         const result = await coordinator.requestSave();
         expect(result).toBe(false);
-        // false means validation failed pre-RPC (no exception) — coordinator
-        // settles to "dirty" (not "error") so the form can show invalid-fields UX.
         expect(coordinator.status).toBe("dirty");
     });
 });
-
-// ---------------------------------------------------------------------------
-// requestSave — error modes
-// ---------------------------------------------------------------------------
 
 describe("FormSaveCoordinator — errorMode", () => {
     test("errorMode='dialog' invokes hooks.onSaveError on RPC failure", async () => {
         let onSaveErrorCalls = 0;
         let capturedError = null;
         let onErrorPassedToSave = null;
-        // RPC-shaped: dialog path is reserved for errors carrying a server
-        // payload (``error.data``); payload-less errors rethrow before the hook.
         const fakeError = Object.assign(new Error("rpc-failed"), {
             data: { message: "rpc-failed" },
         });
@@ -182,7 +155,7 @@ describe("FormSaveCoordinator — errorMode", () => {
                 onSaveError: async (error, _callbacks) => {
                     onSaveErrorCalls++;
                     capturedError = error;
-                    return false; // user chose "stay here"
+                    return false;
                 },
             },
         });
@@ -192,24 +165,15 @@ describe("FormSaveCoordinator — errorMode", () => {
         expect(typeof onErrorPassedToSave).toBe("function");
         expect(onSaveErrorCalls).toBe(1);
         expect(capturedError).toBe(fakeError);
-        // false from onSaveError means "block the caller's operation" —
-        // coordinator returns that value.
         expect(result).toBe(false);
-        // lastError is recorded even when dialog UX resolved it, so callers
-        // like shouldExecuteAction can block menu actions on any save error.
         expect(coordinator.lastError).toBe(fakeError);
     });
 
     test("errorMode='dialog' rethrows payload-less errors instead of opening the dialog", async () => {
-        // Connection errors carry no `.data`, which FormErrorDialog requires;
-        // routing them to the dialog hook would TypeError. The coordinator
-        // rethrows instead so status settles to "error" and navigation blocks.
         let dialogCalls = 0;
-        const connectionError = new Error("Connection lost"); // no ``.data``
+        const connectionError = new Error("Connection lost");
         const { coordinator } = makeContext({
             save: async ({ onError } = {}) =>
-                // Mirror record_save.js: the error routes through the caller-provided
-                // onError callback; a throw from it propagates out of record.save().
                 await onError(connectionError, {
                     discard: () => {},
                     retry: () => true,
@@ -224,10 +188,10 @@ describe("FormSaveCoordinator — errorMode", () => {
 
         const result = await coordinator.requestSave({ errorMode: "dialog" });
 
-        expect(dialogCalls).toBe(0); // dialog never opened
+        expect(dialogCalls).toBe(0);
         expect(result).toBe(false);
         expect(coordinator.status).toBe("error");
-        expect(coordinator.lastError).toBe(connectionError); // not masked
+        expect(coordinator.lastError).toBe(connectionError);
     });
 
     test("errorMode='rethrow' propagates the error to the caller", async () => {
@@ -269,10 +233,6 @@ describe("FormSaveCoordinator — errorMode", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Multi-company recovery
-// ---------------------------------------------------------------------------
-
 describe("FormSaveCoordinator — multi-company recovery", () => {
     test("recoverFromSaveError shortcuts the dialog UX with retry()", async () => {
         let recoverCalls = 0;
@@ -307,14 +267,10 @@ describe("FormSaveCoordinator — multi-company recovery", () => {
         const result = await coordinator.requestSave({ errorMode: "dialog" });
         expect(recoverCalls).toBe(1);
         expect(retryCalls).toBe(1);
-        expect(dialogCalls).toBe(0); // dialog not shown — recovery succeeded
+        expect(dialogCalls).toBe(0);
         expect(result).toBe(true);
     });
 });
-
-// ---------------------------------------------------------------------------
-// saveOverride
-// ---------------------------------------------------------------------------
 
 describe("FormSaveCoordinator — saveOverride", () => {
     test("invokes saveOverride instead of record.save when provided", async () => {
@@ -335,22 +291,11 @@ describe("FormSaveCoordinator — saveOverride", () => {
         await coordinator.requestSave({ saveOverride, params: { custom: "arg" } });
         expect(recordSaveCalls).toBe(0);
         expect(overrideCalls).toBe(1);
-        // ``saveOverride`` receives the record proxied through OWL's
-        // reactive() (the coordinator stores ``this.model`` and reads
-        // ``this.model.root``, so the proxy wraps the access).  Compare
-        // identity via a unique field rather than strict ``toBe`` on the
-        // raw record reference.
         expect(overrideArgs.rec.save).toBe(record.save);
-        // The params object passed to saveOverride includes the custom arg
-        // so caller-side props.saveRecord has access to its own context.
         expect(overrideArgs.params.custom).toBe("arg");
     });
 
     test("a throwing saveOverride surfaces the error instead of returning false", async () => {
-        // Regression: with the default dialog errorMode (beforeLeave's mode),
-        // a saveOverride throw used to be swallowed into ``return false`` —
-        // blocking navigation with zero user feedback. It must propagate so the
-        // failure is visible (global error handler / caller try/catch).
         const boom = new Error("embedder save failed");
         const { coordinator } = makeContext();
         const saveOverride = async () => {
@@ -363,7 +308,6 @@ describe("FormSaveCoordinator — saveOverride", () => {
             caught = e;
         }
         expect(caught).toBe(boom);
-        // The failure is recorded as the coordinator's lastError for diagnostics.
         expect(coordinator.lastError).toBe(boom);
         expect(coordinator.status).toBe("error");
     });
@@ -372,19 +316,12 @@ describe("FormSaveCoordinator — saveOverride", () => {
 describe("FormSaveCoordinator — dirty surface", () => {
     test("reflects record.dirty (uncommitted user edits) independent of status", async () => {
         const { coordinator, record } = makeContext({ dirty: true });
-        // The save-lifecycle status only tracks committed outcomes, so a
-        // freshly-typed-into record is still "clean" by status while genuinely
-        // dirty — the ``dirty`` getter exposes that truth.
         expect(coordinator.status).toBe("clean");
         expect(coordinator.dirty).toBe(true);
         record.dirty = false;
         expect(coordinator.dirty).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// requestUrgentSave
-// ---------------------------------------------------------------------------
 
 describe("FormSaveCoordinator — requestUrgentSave", () => {
     test("calls record.urgentSave and returns its result", async () => {
@@ -402,11 +339,6 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
     });
 
     test("requestUrgentSave during an in-flight save defers settlement to that save", async () => {
-        // record.urgentSave() skips the beacon while a normal save's RPC is
-        // on the wire (``_saveInFlight``) and reports true. The coordinator
-        // must NOT claim the epoch and settle "ok" on that skip: if the
-        // unload is then canceled and the real save fails, its terminal
-        // would be epoch-dropped — status stuck "clean", lastError lost.
         let rejectSave;
         const savePromise = new Promise((_, reject) => (rejectSave = reject));
         let urgentCalls = 0;
@@ -415,33 +347,28 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
             save: () => savePromise,
             urgentSave: async () => {
                 urgentCalls++;
-                return true; // the _saveInFlight skip path
+                return true;
             },
         });
 
         const savePending = coordinator.requestSave({ errorMode: "silent" });
-        await Promise.resolve(); // let the save mock enter
+        await Promise.resolve();
         expect(coordinator.status).toBe("saving");
         const epochBefore = coordinator._saveEpoch;
 
         const succeeded = await coordinator.requestUrgentSave();
         expect(succeeded).toBe(true);
         expect(urgentCalls).toBe(1);
-        expect(coordinator._saveEpoch).toBe(epochBefore); // epoch not claimed
-        expect(coordinator.status).toBe("saving"); // not prematurely settled "ok"
+        expect(coordinator._saveEpoch).toBe(epochBefore);
+        expect(coordinator.status).toBe("saving");
 
-        // The unload was canceled and the real save now fails: its terminal
-        // still owns the epoch and must surface.
         rejectSave(lateFailure);
-        expect(await savePending).toBe(false); // silent mode swallows
+        expect(await savePending).toBe(false);
         expect(coordinator.status).toBe("error");
         expect(coordinator.lastError).toBe(lateFailure);
     });
 
     test("a failing urgent save during an in-flight save fires the hook without touching status", async () => {
-        // Deferred-to-in-flight urgent saves keep the failure signal
-        // (beforeUnload needs it to preventDefault) but leave the status
-        // settlement to the in-flight save's own terminal.
         let resolveSave;
         const savePromise = new Promise((r) => (resolveSave = r));
         let failedHookCalls = 0;
@@ -462,7 +389,7 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
         const succeeded = await coordinator.requestUrgentSave();
         expect(succeeded).toBe(false);
         expect(failedHookCalls).toBe(1);
-        expect(coordinator.status).toBe("saving"); // in-flight save still owns settlement
+        expect(coordinator.status).toBe("saving");
 
         resolveSave(true);
         await savePending;
@@ -486,10 +413,6 @@ describe("FormSaveCoordinator — requestUrgentSave", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// requestDiscard
-// ---------------------------------------------------------------------------
-
 describe("FormSaveCoordinator — requestDiscard", () => {
     test("calls record.discard and returns to clean", async () => {
         let discardCalls = 0;
@@ -498,7 +421,6 @@ describe("FormSaveCoordinator — requestDiscard", () => {
                 discardCalls++;
             },
         });
-        // Force a non-clean status to verify the transition resets it.
         coordinator.status = "error";
         await coordinator.requestDiscard();
         expect(discardCalls).toBe(1);
@@ -506,10 +428,6 @@ describe("FormSaveCoordinator — requestDiscard", () => {
         expect(coordinator.lastError).toBe(null);
     });
 });
-
-// ---------------------------------------------------------------------------
-// Transition guard
-// ---------------------------------------------------------------------------
 
 describe("FormSaveCoordinator — transition guard", () => {
     test("_transition('ok') from 'clean' throws InvalidFormSaveTransitionError", () => {
@@ -524,7 +442,7 @@ describe("FormSaveCoordinator — transition guard", () => {
         expect(caught).toBeInstanceOf(InvalidFormSaveTransitionError);
         expect(caught.from).toBe("clean");
         expect(caught.event).toBe("ok");
-        expect(coordinator.status).toBe("clean"); // unchanged
+        expect(coordinator.status).toBe("clean");
     });
 
     test("_transition('failed') from 'dirty' throws", () => {
@@ -586,10 +504,8 @@ describe("FormSaveCoordinator — transition guard", () => {
                 }
                 expect(caught).toBeInstanceOf(InvalidFormSaveTransitionError);
             }
-            // and valid from saving
             coordinator.status = "saving";
             coordinator._transition(/** @type {any} */ (event));
-            // landing state depends on event: ok→clean, recoverable→dirty, failed→error
         }
     });
 
@@ -604,24 +520,14 @@ describe("FormSaveCoordinator — transition guard", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// Concurrent saves — epoch invalidation
-// ---------------------------------------------------------------------------
-
 describe("FormSaveCoordinator — concurrent saves", () => {
     test("a second requestSave during an in-flight save supersedes the first's terminal", async () => {
-        // Scenario: beforeLeave calls requestSave while a user-initiated save is
-        // still in flight. Without epoch invalidation, the first save's stale
-        // "ok" would fire after the second has settled to "clean", throwing
-        // InvalidFormSaveTransitionError as an unhandled rejection.
         let resolveFirst, resolveSecond;
         const firstPromise = new Promise((r) => (resolveFirst = r));
         const secondPromise = new Promise((r) => (resolveSecond = r));
         let call = 0;
         let firstSaveEnteredAt = null;
         let secondSaveEnteredAt = null;
-        // `save` is the only post-begin observation point that doesn't race the
-        // awaits in requestSave; capture (status, epoch) as soon as each call lands.
         const { coordinator } = makeContext({
             save: () => {
                 const which = ++call;
@@ -643,28 +549,20 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         const firstSave = coordinator.requestSave();
         const secondSave = coordinator.requestSave();
 
-        // Resolve first → its ``ok`` should NOT transition (stale epoch).
         resolveFirst(true);
         await firstSave;
 
-        // Both calls have entered save() by now — both observed "saving".
         expect(firstSaveEnteredAt.status).toBe("saving");
         expect(secondSaveEnteredAt.status).toBe("saving");
         expect(secondSaveEnteredAt.epoch).toBe(firstSaveEnteredAt.epoch + 1);
-        // First's "ok" was a no-op; state still in flight under epoch 2.
         expect(coordinator.status).toBe("saving");
 
-        // Resolve second → its ``ok`` IS the current epoch → settles to clean.
         resolveSecond(true);
         await secondSave;
         expect(coordinator.status).toBe("clean");
     });
 
     test("a concurrent save's failure does not corrupt the winner's outcome", async () => {
-        // Symmetric to the previous test: the FIRST save throws but the SECOND
-        // (which has overtaken the epoch) succeeds. The first's "failed" transition
-        // must be suppressed, or lastError would carry a stale failure across an
-        // otherwise-successful save.
         let resolveSecond;
         const secondPromise = new Promise((r) => (resolveSecond = r));
         let call = 0;
@@ -677,21 +575,16 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         const secondSave = coordinator.requestSave();
 
         await firstSave;
-        // First's failure is suppressed by epoch invalidation.
         expect(coordinator.status).toBe("saving");
         expect(coordinator.lastError).toBe(null);
 
         resolveSecond(true);
         await secondSave;
         expect(coordinator.status).toBe("clean");
-        expect(coordinator.lastError).toBe(null); // never poisoned by stale failure
+        expect(coordinator.lastError).toBe(null);
     });
 
     test("a superseded save's dialog-mode error does not open the error dialog", async () => {
-        // Scenario: save A's RPC fails AFTER save B has claimed the epoch
-        // (e.g. pager-save interleaved with a Save click). A's dialog-mode
-        // onError must not render a stale FormErrorDialog over B's state —
-        // B owns settlement; A resolves false silently.
         let resolveSecond;
         const secondPromise = new Promise((r) => (resolveSecond = r));
         let triggerFirstFailure;
@@ -704,9 +597,6 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         const { coordinator } = makeContext({
             save: ({ onError } = {}) => {
                 if (++call === 1) {
-                    // Mirror record_save.js: the RPC failure routes through
-                    // the caller-provided onError; its return value becomes
-                    // save()'s return value.
                     return firstFailure.then(() =>
                         onError(staleError, {
                             discard: () => {},
@@ -724,16 +614,15 @@ describe("FormSaveCoordinator — concurrent saves", () => {
             },
         });
 
-        const firstSave = coordinator.requestSave(); // errorMode "dialog" (default)
-        const secondSave = coordinator.requestSave(); // claims the epoch
+        const firstSave = coordinator.requestSave();
+        const secondSave = coordinator.requestSave();
 
-        // First save's RPC fails only now — after being superseded.
         triggerFirstFailure();
         const firstResult = await firstSave;
-        expect(onSaveErrorCalls).toBe(0); // no stale dialog
+        expect(onSaveErrorCalls).toBe(0);
         expect(firstResult).toBe(false);
-        expect(coordinator.lastError).toBe(null); // not poisoned
-        expect(coordinator.status).toBe("saving"); // second save owns the state
+        expect(coordinator.lastError).toBe(null);
+        expect(coordinator.status).toBe("saving");
 
         resolveSecond(true);
         await secondSave;
@@ -741,9 +630,6 @@ describe("FormSaveCoordinator — concurrent saves", () => {
     });
 
     test("requestDiscard mid-save invalidates the in-flight save's terminal", async () => {
-        // The form controller may discard mid-save (e.g. multi-company recovery
-        // chose "discard"). requestDiscard bumps the epoch so the in-flight save's
-        // "ok" becomes a no-op instead of clobbering post-discard "clean".
         let resolveSave;
         const savePromise = new Promise((r) => (resolveSave = r));
         let statusInsideSave = null;
@@ -755,7 +641,6 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         });
 
         const savePending = coordinator.requestSave();
-        // Pump microtasks so the save mock has had a chance to run.
         await Promise.resolve();
         await Promise.resolve();
         expect(statusInsideSave).toBe("saving");
@@ -763,17 +648,12 @@ describe("FormSaveCoordinator — concurrent saves", () => {
         await coordinator.requestDiscard();
         expect(coordinator.status).toBe("clean");
 
-        // The save now resolves — its terminal should be silently dropped.
         resolveSave(true);
         await savePending;
-        expect(coordinator.status).toBe("clean"); // discard's settlement preserved
+        expect(coordinator.status).toBe("clean");
     });
 
     test("requestSave mid-discard supersedes the discard's settlement", async () => {
-        // Mirror of the previous test: Discard is held up by the model mutex while
-        // the user clicks Save. Save's "begin" claims a newer epoch, so the
-        // discard's stale "discard" transition must be a no-op — applying it would
-        // leave the in-flight save's terminal transition invalid from "clean".
         let resolveDiscard, resolveSave;
         const discardPromise = new Promise((r) => (resolveDiscard = r));
         const savePromise = new Promise((r) => (resolveSave = r));
@@ -789,18 +669,15 @@ describe("FormSaveCoordinator — concurrent saves", () => {
 
         const discardPending = coordinator.requestDiscard();
         const savePending = coordinator.requestSave();
-        // Pump microtasks so both calls are in flight.
         await Promise.resolve();
         await Promise.resolve();
         expect(discardCalls).toBe(1);
-        expect(coordinator.status).toBe("saving"); // save's begin applied
+        expect(coordinator.status).toBe("saving");
 
-        // The discard resolves first — its stale settlement is a no-op.
         resolveDiscard();
         await discardPending;
-        expect(coordinator.status).toBe("saving"); // save still owns the state
+        expect(coordinator.status).toBe("saving");
 
-        // The save's terminal owns the current epoch and settles cleanly.
         resolveSave(true);
         const saved = await savePending;
         expect(saved).toBe(true);

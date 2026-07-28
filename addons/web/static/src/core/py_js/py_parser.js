@@ -7,8 +7,6 @@ import { ASTType } from "./ast_type.js";
 import { binaryOperators, comparators } from "./py_tokenizer.js";
 import { TokenType } from "./token_type.js";
 
-// Types
-
 /**
  * @typedef { import("./py_tokenizer").Token } Token
  */
@@ -23,8 +21,6 @@ import { TokenType } from "./token_type.js";
  */
 
 class ParserError extends Error {}
-
-// Constants and helpers
 
 /**
  * Guard against unbounded parser recursion (deeply nested parentheses /
@@ -238,10 +234,6 @@ function parsePrefix(current, cur) {
                         }
                         cur.next();
                         const value = _parse(cur, 0);
-                        // A literal '__proto__' key must become a plain OWN entry
-                        // via defineProperty, not a [[Prototype]] write that
-                        // swallows it. (A null-prototype dict would also fix this
-                        // but breaks Object-typed consumers, e.g. OWL props validation.)
                         Object.defineProperty(dict, /** @type {any} */ (key).value, {
                             value,
                             writable: true,
@@ -252,7 +244,6 @@ function parsePrefix(current, cur) {
                             cur.next();
                         }
                     }
-                    // remove the } token
                     if (!cur.next()) {
                         throw new ParserError("parsing error");
                     }
@@ -273,9 +264,6 @@ function parseInfix(left, current, cur) {
     switch (current.type) {
         case TokenType.Symbol:
             if (infixOperators.has(/** @type {string} */ (current.value))) {
-                // ``**`` is right-associative (``2**3**2`` == 2**(3**2) == 512).
-                // Parsing its right operand with a binding power one below its
-                // own lets a following ``**`` bind into the right subtree.
                 const rightBp =
                     current.value === "**"
                         ? bindingPower(current) - 1
@@ -306,11 +294,6 @@ function parseInfix(left, current, cur) {
                     left,
                     right,
                 };
-                // Chained comparisons desugar to `and` pairs sharing the
-                // middle operand AST NODE, so `a < f() < b` evaluates f()
-                // twice (Python evaluates each operand once). Harmless for
-                // the pure expressions py_js handles; a true fix would need a
-                // temporary-binding node the interpreter lacks.
                 while (
                     chainedOperators.has(/** @type {string} */ (current.value)) &&
                     cur.peek() &&
@@ -337,17 +320,12 @@ function parseInfix(left, current, cur) {
             }
             switch (current.value) {
                 case "(": {
-                    // function call
                     const args = [];
                     /** @type {Record<string, AST>} */
                     const kwargs = {};
                     while (cur.peek() && !isSymbol(cur.peek(), ")")) {
                         const arg = _parse(cur, 0);
                         if (arg.type === ASTType.Assignment) {
-                            // defineProperty (as with dict literals) so a
-                            // literal ``__proto__=`` kwarg becomes a plain OWN
-                            // entry instead of a silently-dropped [[Prototype]]
-                            // write on the kwargs object.
                             Object.defineProperty(
                                 kwargs,
                                 /** @type {any} */ (arg).name.value,
@@ -386,7 +364,6 @@ function parseInfix(left, current, cur) {
                     }
                     break;
                 case "[": {
-                    // lookup in dictionary
                     const key = _parse(cur);
                     if (!cur.peek() || !isSymbol(cur.peek(), "]")) {
                         throw new ParserError("parsing error");
@@ -438,8 +415,6 @@ function _parse(cur, bpVal = 0) {
         parseDepth--;
     }
 }
-
-// Parse function
 
 /**
  * Parse a list of tokens.

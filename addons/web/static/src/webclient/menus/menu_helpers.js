@@ -42,27 +42,31 @@ export function computeAppsAndMenuItems(menuTree) {
             href: `/odoo/${menuItem.actionPath || `action-${menuItem.actionID}`}`,
             appID: menuItem.appID,
         };
-        if (isApp) {
-            if (menuItem.webIconData) {
-                item.webIconData = menuItem.webIconData;
-            } else {
-                const [iconClass, color, backgroundColor] = (
-                    menuItem.webIcon || ""
-                ).split(",");
-                if (backgroundColor !== undefined) {
-                    item.webIcon = { iconClass, color, backgroundColor };
-                } else {
-                    item.webIconData = "/web/static/img/default_icon_app.png";
-                }
-            }
-        } else {
-            item.menuID = parents[1].id;
-        }
-        if (isApp) {
-            apps.push(item);
-        } else {
+        if (!isApp) {
+            // A non-app item used to also get `menuID = parents[1].id`. That was
+            // the app's menu id — i.e. exactly `menuItem.appID`, already on
+            // `item` above — recomputed by indexing the ancestor chain, which
+            // silently assumes the traversal started at the "root" pseudo-menu.
+            // It was also read by nothing in odoo/enterprise/agromarin/
+            // design-themes. Dropped: it was write-only output whose only effect
+            // was to make this function throw on any subtree that is not rooted
+            // at "root".
             menuItems.push(item);
+            return;
         }
+        if (menuItem.webIconData) {
+            item.webIconData = menuItem.webIconData;
+        } else {
+            const [iconClass, color, backgroundColor] = (menuItem.webIcon || "").split(
+                ",",
+            );
+            if (backgroundColor !== undefined) {
+                item.webIcon = { iconClass, color, backgroundColor };
+            } else {
+                item.webIconData = "/web/static/img/default_icon_app.png";
+            }
+        }
+        apps.push(item);
     });
     return { apps, menuItems };
 }
@@ -74,21 +78,13 @@ export function computeAppsAndMenuItems(menuTree) {
  * @param {string[]} order - ordered array of xmlid strings
  */
 export function reorderApps(apps, order) {
-    // Snapshot the original positions *before* sorting. Calling
-    // ``apps.indexOf(a)`` inside the comparator reads the array while it is
-    // being mutated by ``sort`` — the returned index reflects the partially
-    // sorted state, which makes the comparator inconsistent (unspecified per
-    // the ES spec) and only accidentally preserves the original order.
     const pos = new Map(apps.map((a, i) => [a, i]));
     apps.sort((a, b) => {
         const aIndex = order.indexOf(a.xmlid);
         const bIndex = order.indexOf(b.xmlid);
         if (aIndex === -1 && bIndex === -1) {
-            // Neither app is in the custom order: keep their original
-            // relative order deterministically via the precomputed positions.
             return pos.get(a) - pos.get(b);
         }
-        // not found items always before found ones
         if (aIndex === -1) {
             return -1;
         }

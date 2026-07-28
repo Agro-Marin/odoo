@@ -13,11 +13,6 @@ class TestWebLoginCommon(HttpCase):
         new_test_user(cls.env, "portal_user", groups="base.group_portal")
 
     def setUp(self):
-        # Delegate session bootstrap to HttpCase.authenticate so the session
-        # is persisted in the store. The previous inline setUp created a
-        # session via session_store.new() but never .save()'d it, leaving
-        # the CSRF token signed against a sid the server could not load —
-        # producing 400 BAD REQUEST on every login POST.
         super().setUp()
         self.authenticate(None, None)
 
@@ -39,7 +34,6 @@ class TestWebLoginCommon(HttpCase):
 class TestWebLogin(TestWebLoginCommon):
     def test_web_login(self):
         res_post = self.login("internal_user", "internal_user")
-        # verify the session established by login() is actually authenticated
         self.url_open(
             "/web/session/check",
             headers={"Content-Type": "application/json"},
@@ -49,19 +43,11 @@ class TestWebLogin(TestWebLoginCommon):
 
     def test_web_login_external(self):
         res_post = self.login("portal_user", "portal_user")
-        # Landing on /web/login_successful (rather than /my) depends on the
-        # portal addon not being installed here: portal overrides
-        # _login_redirect() to send non-internal users to /my instead.
         self.assertEqual(res_post.request.path_url, "/web/login_successful")
 
     def test_web_login_bad_xhr(self):
-        # grab the CSRF token as if the login form had just been downloaded
         csrf_token = http.Request.csrf_token(self)
 
-        # Simulate a stray XHR (e.g. a leftover service worker request)
-        # hitting /web/login_successful, an auth="user" route, while the
-        # session is still unauthenticated: it must redirect rather than
-        # succeed, and must not invalidate the CSRF token grabbed above.
         bad_xhr = self.url_open("/web/login_successful", allow_redirects=False)
         self.assertNotEqual(bad_xhr.status_code, 200)
 

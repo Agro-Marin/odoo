@@ -5,7 +5,6 @@ import { registry } from "@web/core/registry";
 registry.category("web_tour.tours").add("test_user_group_settings", {
     url: "/odoo/settings?debug=assets,tests",
     steps: () => [
-        // create new privileges
         {
             trigger: 'button[data-menu-xmlid="base.menu_users"]',
             content: "open user menu",
@@ -91,7 +90,6 @@ registry.category("web_tour.tours").add("test_user_group_settings", {
             trigger:
                 "body:not(:has(.modal:visible)) .o_notebook_content:contains(bar user):contains(bar manager)",
         },
-        // and the new manager group to the demo user
         {
             trigger: 'button[data-menu-xmlid="base.menu_users"]',
             content: "open user menu",
@@ -124,7 +122,6 @@ registry.category("web_tour.tours").add("test_user_group_settings", {
             trigger: `.o-dropdown--menu .o_select_menu_item:contains("Bar Manager")`,
             run: "click",
         },
-        // open group information button (popover)
         {
             trigger:
                 '.o_field_widget[name="group_ids"] .o_cell:has(label:contains("Privi Foo")) + .o_cell .o_group_info_button',
@@ -136,7 +133,6 @@ registry.category("web_tour.tours").add("test_user_group_settings", {
             content: "open the group from the info button",
             run: "click",
         },
-        // check if demo user has this group
         {
             trigger: '.o_last_breadcrumb_item:contains("Bar Manager")',
             content: "check if is Bar Manager group",

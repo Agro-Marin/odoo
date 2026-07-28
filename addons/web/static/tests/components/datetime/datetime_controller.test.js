@@ -1,11 +1,5 @@
 // @ts-check
 
-// Direct, mount-free unit tests for the DateTimePickerController extracted from
-// the datetime picker service (audit F39). These exercise input DOM sync,
-// popover open/close and value marking/applying WITHOUT a full component mount —
-// the whole point of the extraction — by driving the controller methods against
-// a fake popover and plain <input> elements.
-
 import { beforeEach, expect, getFixture, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { DateTimePickerController } from "@web/components/datetime/datetime_picker_service";
@@ -72,7 +66,7 @@ function createController(params = {}, opts = {}) {
     const controller = new DateTimePickerController(
         fullParams,
         env,
-        /* popoverService */ null,
+        null,
         dateTimePickerList,
     );
     return { controller, dateTimePickerList, getPopover: () => popover };
@@ -117,17 +111,14 @@ test("enable() syncs inputs and wires listeners; disable removes them", () => {
     });
 
     const removeListeners = controller.enable();
-    // Input synced from the current value.
     expect(input.value).toBe("06/06/2023");
     expect(controller.disableListeners).toBe(removeListeners);
 
-    // A "click" now opens the popover through the wired listener.
     input.dispatchEvent(new Event("click"));
     expect(controller.isOpen()).toBe(true);
     controller.saveAndClose();
     expect(controller.isOpen()).toBe(false);
 
-    // Teardown detaches the handlers: a click no longer opens.
     removeListeners();
     expect(controller.disableListeners).toBe(null);
     input.dispatchEvent(new Event("click"));
@@ -150,7 +141,6 @@ test("updateValueFromInputs parses inputs into state and notifies onChange", () 
     expect(controller.pickerProps.value.toISODate()).toBe("2023-07-07");
     expect.verifySteps(["change:2023-07-07"]);
 
-    // An unparseable input restores the current value (no change fired).
     input.value = "not a date";
     controller.updateValueFromInputs();
     expect(controller.pickerProps.value.toISODate()).toBe("2023-07-07");
@@ -171,7 +161,6 @@ test("open()/close() drive the popover with the reactive pickerProps", () => {
     controller.open(0);
     expect(controller.isOpen()).toBe(true);
     expect(controller.pickerProps.focusedDateIndex).toBe(0);
-    // Popover opened on the target with the controller's own reactive props.
     expect(getPopover().lastTarget).toBe(input);
     expect(getPopover().lastProps.pickerProps).toBe(controller.pickerProps);
 
@@ -203,7 +192,6 @@ test("open() closes other pickers sharing the service registry", () => {
     a.controller.open(0);
     expect(a.controller.isOpen()).toBe(true);
 
-    // Opening B must close A (open() iterates the shared registry first).
     b.controller.open(0);
     expect(b.controller.isOpen()).toBe(true);
     expect(a.controller.isOpen()).toBe(false);
@@ -219,16 +207,13 @@ test("apply() fires onApply only when the value actually changed", async () => {
         pickerProps: { type: "date", value: false },
     });
 
-    // First real change applies.
     controller.pickerProps.value = DateTime.fromSQL("2023-07-07");
     await controller.apply();
     expect.verifySteps(["apply:2023-07-07"]);
 
-    // Same value again: deduped, no apply.
     await controller.apply();
     expect.verifySteps([]);
 
-    // New value applies again.
     controller.pickerProps.value = DateTime.fromSQL("2023-08-08");
     await controller.apply();
     expect.verifySteps(["apply:2023-08-08"]);
@@ -247,7 +232,6 @@ test("onSelect marks the value and applies for a single date picker", async () =
         pickerProps: { type: "date", value: false },
     });
 
-    // Simulate the picker component selecting a day (popover closed).
     await controller.pickerProps.onSelect(DateTime.fromSQL("2023-09-09"), "date");
 
     expect(controller.pickerProps.value.toISODate()).toBe("2023-09-09");
@@ -280,7 +264,6 @@ test("dispose() tears down: closes popover, removes listeners, releases registry
     expect(controller.disableListeners).toBe(null);
     expect(list.has(controller.picker)).toBe(false);
 
-    // After teardown, apply must be a no-op even with a pending value change.
     controller.pickerProps.value = DateTime.fromSQL("2024-01-01");
     await controller.apply();
     expect.verifySteps([]);
@@ -291,12 +274,10 @@ test("constructor tolerates an absent pickerProps (F13)", () => {
     expect(() => {
         controller = createController({ getInputs: () => [] }).controller;
     }).not.toThrow();
-    // Falls back to DateTimePicker default props.
     expect(controller.pickerProps.type).toBe("datetime");
 });
 
 test("getPopoverTarget range mode falls back when the first input is disconnected (F14)", () => {
-    // input0 is NOT attached (disconnected) → getInput(0) returns null.
     const input0 = document.createElement("input");
     const [input1] = makeInputs(1);
     const { controller } = createController({
@@ -304,7 +285,5 @@ test("getPopoverTarget range mode falls back when the first input is disconnecte
         pickerProps: { type: "date", range: true, value: [false, false] },
     });
 
-    // No target set, range true, first input disconnected: must not throw and
-    // must fall back to getInput(1).
     expect(controller.getPopoverTarget()).toBe(input1);
 });

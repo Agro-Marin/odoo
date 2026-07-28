@@ -24,6 +24,22 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
  * }} ProgressBarFieldProps
  */
 
+/**
+ * Coerce a raw ``max_value`` option to a finite number, or ``undefined`` when
+ * it names a field instead of stating a bound. Both ``200`` and ``"200"`` are
+ * literals; ``"total_employee"`` is not.
+ *
+ * @param {string | number | undefined} value
+ * @returns {number | undefined}
+ */
+function toFiniteNumber(value) {
+    if (value === undefined || value === null || value === "") {
+        return undefined;
+    }
+    const parsed = typeof value === "number" ? value : Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 /** @extends {Component<ProgressBarFieldProps>} */
 export class ProgressBarField extends Component {
     static template = "web.ProgressBarField";
@@ -48,9 +64,18 @@ export class ProgressBarField extends Component {
             name,
         } = this.props;
         this.currentValueField = currentValueField ? currentValueField : name;
-        if (maxValueFieldProp) {
-            this.maxValueField = maxValueFieldProp;
-        }
+
+        // `max_value` is authored either as a field name ("total_employee") or
+        // as a literal bound (200). Resolve which exactly once — the option
+        // comes from the static arch, so it cannot change over the component's
+        // life — and keep the two forms in separate slots so no getter has to
+        // re-guess by type-sniffing.
+        this.maxValueLiteral = toFiniteNumber(maxValueFieldProp);
+        this.maxValueFieldName =
+            this.maxValueLiteral === undefined && maxValueFieldProp
+                ? String(maxValueFieldProp)
+                : undefined;
+
         this.currentValueRef = useInputField({
             getValue: () => this.formatValue(this.currentValueField, this.currentValue),
             parse: (v) => this.parseValue(this.currentValueField, v),
@@ -58,18 +83,14 @@ export class ProgressBarField extends Component {
             fieldName: this.currentValueField,
             shouldSave: () => this.props.readonly,
         });
-        // Only a string maxValueField names a real record field; in percentage
-        // mode (numeric literal) or when absent, the max-value input is never
-        // rendered (template t-else), so the hook stays inert (ref.el null).
-        // Guarding to `undefined` here avoids silently binding this input to the
-        // MAIN field name via useInputField's `fieldName || props.name` fallback.
-        const maxValueField =
-            typeof this.maxValueField === "string" ? this.maxValueField : undefined;
         this.maxValueRef = useInputField({
-            getValue: () => this.formatValue(maxValueField, this.maxValue),
-            parse: (v) => this.parseValue(maxValueField, v),
+            getValue: () => this.formatValue(this.maxValueFieldName, this.maxValue),
+            parse: (v) => this.parseValue(this.maxValueFieldName, v),
             refName: "maxValue",
-            fieldName: maxValueField,
+            // Only bound when a field backs the max value; `canEditMaxValue`
+            // keeps the input out of the DOM otherwise, so this hook stays
+            // inert rather than falling back to the current-value field.
+            fieldName: this.maxValueFieldName,
             shouldSave: () => this.props.readonly,
         });
 
@@ -82,11 +103,27 @@ export class ProgressBarField extends Component {
     get isEditable() {
         return this.props.isEditable && !this.props.readonly;
     }
-    /** @returns {boolean} Whether maxValueField is a fixed number (percentage mode) rather than a field name. */
+
+    /**
+     * Percentage mode ("42%") applies only when no maximum was configured at
+     * all; any configured maximum renders as "current / max".
+     *
+     * This used to also treat a *numeric* ``max_value`` as percentage mode
+     * (``!isNaN(maxValueField)``), which contradicted both ``maxValue``'s
+     * explicit literal branch and the option's own help text ("e.g. 10 / 200"):
+     * ``max_value: 200`` on a value of 7 rendered "7%" while the bar filled to
+     * 3.5%, and ``edit_max_value`` produced no input at all.
+     *
+     * @returns {boolean}
+     */
     get isPercentage() {
-        return (
-            !this.props.maxValueField ||
-            !isNaN(/** @type {number} */ (this.props.maxValueField))
+        return this.maxValueLiteral === undefined && !this.maxValueFieldName;
+    }
+
+    /** @returns {boolean} Whether the max value is backed by an editable field. */
+    get canEditMaxValue() {
+        return Boolean(
+            this.isEditable && this.props.isMaxValueEditable && this.maxValueFieldName,
         );
     }
 
@@ -95,12 +132,12 @@ export class ProgressBarField extends Component {
         return this.props.record.data[this.currentValueField] || 0;
     }
 
-    /** @returns {number} Maximum value: literal number, record field, or 100 as default. */
+    /** @returns {number} Maximum value: literal bound, record field, or 100 as default. */
     get maxValue() {
-        if (typeof this.maxValueField === "number") {
-            return this.maxValueField;
+        if (this.maxValueLiteral !== undefined) {
+            return this.maxValueLiteral;
         }
-        return this.props.record.data[this.maxValueField] || 100;
+        return this.props.record.data[this.maxValueFieldName] || 100;
     }
 
     /** @returns {string} CSS class for the bar color; overflow class when value exceeds max. */
@@ -118,10 +155,6 @@ export class ProgressBarField extends Component {
      */
     formatValue(fieldName, value, humanReadable = !this.state.isEditing) {
         const type = this.props.record.fields[fieldName]?.type ?? "integer";
-        // NOTE: `field`/`digits` are intentionally NOT forwarded here — doing so
-        // is pinned against by the max-value formatting tests (they expect the
-        // default 2-decimal float rendering). Honoring the column's digits
-        // precision is deferred until those expectations are revisited.
         return getFieldCodec(type).format(value, { humanReadable });
     }
 
@@ -142,11 +175,7 @@ export class ProgressBarField extends Component {
      * @returns {string} Formatted max value
      */
     formatMaxValue(humanReadable = !this.state.isEditing) {
-        return this.formatValue(
-            /** @type {string} */ (this.maxValueField),
-            this.maxValue,
-            humanReadable,
-        );
+        return this.formatValue(this.maxValueFieldName, this.maxValue, humanReadable);
     }
 
     /**

@@ -31,8 +31,6 @@ class LoadMenusTests(HttpCase):
 
         menus = self.menu + self.menu_child
 
-        # Restrict ir.ui.menu results to the two test menus, so pre-existing
-        # menus from installed modules don't leak into the expected payload.
         origin_search_fetch = self.env.registry["ir.ui.menu"].search_fetch
 
         @api.model
@@ -48,7 +46,7 @@ class LoadMenusTests(HttpCase):
         menu_loaded = self.url_open("/web/webclient/load_menus")
         expected = {
             str(self.menu.id): {
-                "actionID": self.action.id,  # Take the first action in children (see load_web_menus)
+                "actionID": self.action.id,
                 "actionModel": "ir.actions.act_window",
                 "actionPath": False,
                 "appID": self.menu.id,

@@ -41,11 +41,6 @@ describe("isInRange", () => {
     });
 
     test("sorts a mixed-offset array chronologically, not by ISO string", () => {
-        // `earlier` is the earlier instant but has the *larger* ISO string
-        // ("…T10:00…Z"); `later` is the later instant rendered in a negative
-        // offset so its ISO string ("…T01:00…-10:00") sorts first. A plain
-        // `.sort()` (by string) would order them backwards and misjudge the
-        // range; a numeric sort keys on the true instant.
         const earlier = DateTime.fromISO("2024-01-01T10:00:00", { zone: "UTC" });
         const later = DateTime.fromISO("2024-01-01T11:00:00", { zone: "UTC" }).setZone(
             "UTC-10",
@@ -58,7 +53,6 @@ describe("isInRange", () => {
             DateTime.fromISO("2024-01-01T12:00:00Z"),
             DateTime.fromISO("2024-01-01T13:00:00Z"),
         ];
-        // The value interval is [10:00Z, 11:00Z]; the range sits fully inside.
         expect(isInRange([later, earlier], insideRange)).toBe(true);
         expect(isInRange([earlier, later], insideRange)).toBe(true);
         expect(isInRange([later, earlier], outsideRange)).toBe(false);

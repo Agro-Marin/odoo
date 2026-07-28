@@ -38,7 +38,6 @@ class TestOnchange(common.TransactionCase):
             {}, [], {"name": {}, "active": {}, "company_type": {}}
         )
         self.assertIn("value", result)
-        # res.partner.active defaults to True
         self.assertTrue(result["value"].get("active"))
 
     def test_field_change_recomputes_dependent(self):
@@ -107,15 +106,12 @@ class TestOnchange(common.TransactionCase):
 
         few = diff_queries(3)
         many = diff_queries(12)
-        # Constant, not N-proportional: a per-line N+1 would make ``many`` grow
-        # by ~9 relative to ``few``.
         self.assertEqual(
             few,
             many,
             f"diff query count scales with link lines (N+1): {few} vs {many}",
         )
 
-    # -- unknown-field screening of the fields SPEC (stale cached views) ------
 
     def test_stale_top_level_spec_field_dropped(self):
         """An unknown name in the top-level fields_spec must be dropped, not
@@ -139,7 +135,6 @@ class TestOnchange(common.TransactionCase):
         child = Partner.create({"name": "OC Sub Child"})
         parent = Partner.create({"name": "OC Sub Parent", "child_ids": [(4, child.id)]})
         result = parent.onchange(
-            # LINK command in values drives the o2m prefetch branch too.
             {"name": "Renamed", "child_ids": [[4, child.id, False]]},
             ["name"],
             {
@@ -171,7 +166,6 @@ class TestOnchange(common.TransactionCase):
         """
         result = self.env["res.partner"].onchange(
             {"company_type": "company", "is_company": False},
-            # ``name`` is a valid field, is in field_names, but absent from values
             ["company_type", "name"],
             {"company_type": {}, "is_company": {}, "name": {}},
         )

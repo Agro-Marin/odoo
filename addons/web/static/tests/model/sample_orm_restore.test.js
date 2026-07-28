@@ -22,7 +22,6 @@ test("model.orm is restored when the sample-data load throws", async () => {
     class BoomModel extends Model {
         async load() {
             if (realOrm && this.orm !== realOrm) {
-                // Second load — running against the sample ORM.
                 throw new Error("sample boom");
             }
         }
@@ -47,7 +46,6 @@ test("model.orm is restored when the sample-data load throws", async () => {
     await animationFrame();
 
     expect.verifyErrors([/sample boom/]);
-    // The real ORM was restored despite the throw; sample mode is off.
     expect(model.orm).toBe(realOrm);
     expect(model.useSampleModel).toBe(false);
 });

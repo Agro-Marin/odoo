@@ -38,7 +38,6 @@ test("contains: all actions", async () => {
     const KEY_PRESS_WITH_CHANGE = ["keydown", "change", "keyup"];
 
     const actions = [
-        // Pointer-based
         ["button", CLICK, (t) => contains(t).click()],
         ["button", ["pointerdown"], (t) => contains(t).drag()],
         [
@@ -51,37 +50,25 @@ test("contains: all actions", async () => {
         ["button", ["pointerdown", "focus"], (t) => contains(t).focus()],
         ["button", ["pointermove"], (t) => contains(t).hover()],
 
-        // Keyboard-based
         [
             "input[type=text]",
-            [
-                ...KEY_PRESS, // a
-                ...KEY_PRESS_WITH_CHANGE, // Enter
-            ],
+            [...KEY_PRESS, ...KEY_PRESS_WITH_CHANGE],
             (t) => contains(t).edit("a"),
         ],
         [
             "input[type=text]",
-            [
-                ...KEY_PRESS, // b
-                ...KEY_PRESS_WITH_CHANGE, // Enter
-            ],
+            [...KEY_PRESS, ...KEY_PRESS_WITH_CHANGE],
             (t) => contains(t).fill("b"),
         ],
         [
             "input[type=text]",
-            [
-                ...KEY_PRESS, // Control + a
-                ...KEY_PRESS, // Backspace
-                ...KEY_PRESS_WITH_CHANGE, // Enter
-            ],
+            [...KEY_PRESS, ...KEY_PRESS, ...KEY_PRESS_WITH_CHANGE],
             (t) => contains(t).clear(),
         ],
         ["button", ["keydown"], (t) => contains(t).keyDown("a")],
         ["button", ["keyup"], (t) => contains(t).keyUp("a")],
         ["button", KEY_PRESS, (t) => contains(t).press("a")],
 
-        // Other
         [".container", ["scroll"], (t) => contains(t).scroll({ top: 10 })],
         ["select", ["change"], (t) => contains(t).select("a")],
         [

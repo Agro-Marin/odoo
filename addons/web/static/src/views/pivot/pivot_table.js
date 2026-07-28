@@ -34,16 +34,13 @@ export function getTableHeaders(data, metaData) {
     let headers = [];
     const measureColumns = [];
 
-    // 1) generate col group rows (total row + one row for each col groupby)
     const colGroupRows = Array.from({ length: height }, () => []);
-    // blank top left cell
     colGroupRows[0].push({
         height: height + 1,
         title: "",
         width: 1,
     });
 
-    // col groupby cells with group values
     function generateTreeHeaders(tree) {
         const group = tree.root;
         const rowIndex = group.values.length;
@@ -74,7 +71,6 @@ export function getTableHeaders(data, metaData) {
 
     generateTreeHeaders(data.colGroupTree);
 
-    // blank top right cell for 'Total' group (if there is more than one leaf)
     if (leafCounts[JSON.stringify(data.colGroupTree.root.values)] > 1) {
         const groupId = [[], []];
         const totalTopRightCell = {
@@ -88,7 +84,6 @@ export function getTableHeaders(data, metaData) {
     }
     headers = [...headers, ...colGroupRows];
 
-    // 2) generate measures row
     const measuresRow = getMeasuresRow(measureColumns, metaData);
     headers.push(measuresRow);
 
@@ -106,8 +101,6 @@ export function getTableHeaders(data, metaData) {
  */
 export function getTableRows(tree, columns, data, metaData) {
     const rows = [];
-    // Stringify each column's group values once per table build instead of
-    // once per cell (rows × columns × 2 JSON.stringify otherwise).
     const columnKeys = columns.map((column) => JSON.stringify(column.groupId[1]));
     _collectTableRows(tree, columns, columnKeys, data, metaData, rows);
     return rows;
@@ -166,11 +159,6 @@ function _collectTableRows(tree, columns, columnKeys, data, metaData, rows) {
         subGroupMeasurements,
     });
 
-    // Fall back to Map insertion order whenever sortedKeys is missing OR stale
-    // (its length no longer matches the live subtree set — e.g. a group
-    // expanded after a sort, or a transposed tree). An out-of-date sortedKeys
-    // would otherwise skip the newly added children (rendered as an empty
-    // expanded group).
     const subTreeKeys =
         tree.sortedKeys && tree.sortedKeys.length === tree.directSubTrees.size
             ? tree.sortedKeys

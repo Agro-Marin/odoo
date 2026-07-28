@@ -26,9 +26,6 @@ const NUMBERING_SYSTEMS = [
     [/^ar-(sa|sy|001)$/i, "arab"],
     [/^bn/i, "beng"],
     [/^bo/i, "tibt"],
-    // [/^fa/i, "Farsi (Persian)"], // No numberingSystem found in Intl
-    // [/^(hi|mr|ne)/i, "Hindi"], // No numberingSystem found in Intl
-    // [/^my/i, "Burmese"], // No numberingSystem found in Intl
     [/^pa-in/i, "guru"],
     [/^ta/i, "tamldec"],
     [/.*/i, "latn"],
@@ -62,10 +59,6 @@ export const localizationService = {
     start: async () => {
         const localizationDB = new IndexedDB("localization", session.registry_hash);
         const translationURL = session.translationURL || "/web/webclient/translations";
-        // Single locale source for BOTH the translations fetch and the
-        // Luxon/localization.code configuration below — deriving them from
-        // different fallbacks would render terms in one language and format
-        // dates/numbers in another on public/portal pages (no user.lang).
         const locale =
             user.lang ||
             document.documentElement.getAttribute("lang") ||
@@ -114,15 +107,10 @@ export const localizationService = {
                 preload.loadTranslationsPromise &&
                 preload.loadTranslationsURL === url
             ) {
-                // Cold boot: adopt the parse-time preload started by
-                // web.webclient_bootstrap instead of fetching again.
                 l10nLog("fetch", "fetchTranslations adopting preload", `url=${url}`);
                 responsePromise = preload.loadTranslationsPromise;
             } else {
                 if (preload.loadTranslationsPromise) {
-                    // Unused preload (IndexedDB hit despite a stale marker, or
-                    // URL mismatch): discard it cheaply — release the response
-                    // body and swallow its errors.
                     preload.loadTranslationsPromise.then(
                         (/** @type {Response} */ res) => res.body?.cancel(),
                         () => {},
@@ -147,9 +135,22 @@ export const localizationService = {
             }
             const result = await response.json();
             if (result.hash !== hash) {
-                localizationDB.write(translationURL, JSON.stringify({ lang }), result);
-                markTranslationsCached();
+                // Apply first (nothing below blocks the UI on storage), then
+                // mark ONLY once the IndexedDB write has actually landed. The
+                // marker used to be set next to a fire-and-forget write, which
+                // can produce the one combination the marker contract does not
+                // cover: marker present, IndexedDB empty. The parse-time preload
+                // script in `web.webclient_bootstrap` then trusts the marker and
+                // skips its early fetch, so the next cold boot pays a fully
+                // serialized translation fetch — the exact cost this cache
+                // exists to avoid.
                 updateTranslations(result);
+                localizationDB
+                    .write(translationURL, JSON.stringify({ lang }), result)
+                    .then(markTranslationsCached, () => {
+                        // Storage unavailable/full: leave the marker unset so the
+                        // next boot prefetches instead of trusting a phantom cache.
+                    });
                 l10nLog(
                     "fetch",
                     "fetchTranslations cached + applied",
@@ -177,7 +178,6 @@ export const localizationService = {
          * }} result
          */
         const updateTranslations = (result) => {
-            // Eventually, we want a new python route to return directly the good result.
             /** @type {Record<string, Record<string, string>>} */
             const terms = {};
             for (const addon of Object.keys(result.modules)) {
@@ -226,15 +226,9 @@ export const localizationService = {
 
         const translationProm = fetchTranslations(storedTranslations?.hash);
         if (storedTranslations) {
-            // Warm boot: the fetch is only a background refresh — a failure
-            // means at worst slightly stale translations, so a warning is
-            // enough.
             translationProm.catch((e) =>
                 console.warn("Background translation fetch failed:", e),
             );
-            // Refresh the localStorage mirror: the IndexedDB cache provably
-            // holds translations for this registry_hash/lang, so the next
-            // boot can skip the parse-time preload.
             markTranslationsCached();
             updateTranslations(storedTranslations);
         } else {
@@ -242,12 +236,6 @@ export const localizationService = {
             try {
                 await translationProm;
             } catch (e) {
-                // Cold boot: this fetch is the ONLY source of lang_parameters
-                // — swallowing it would leave `localization` empty and break
-                // every formatter with no diagnosable error. Fall back to
-                // safe defaults and log loudly. No notification here: the
-                // notification service isn't started yet at this point in
-                // the boot (localization has no deps and starts first).
                 console.error(
                     "Translation fetch failed on cold boot; falling back to default localization parameters:",
                     e,

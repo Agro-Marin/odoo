@@ -135,9 +135,6 @@ export const listSortingMixin = {
         const cells = /** @type {HTMLTableCellElement[]} */ ([
             ...element.querySelectorAll("td"),
         ]);
-        // Read all header widths first, then write the cell widths: interleaving
-        // the reads (getComputedStyle) with the writes would force one reflow
-        // per cell.
         const headerWidths = headers.map((header) =>
             parseFloat(getComputedStyle(header).width),
         );

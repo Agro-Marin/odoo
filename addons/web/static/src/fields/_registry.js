@@ -123,22 +123,54 @@ export function fieldKey(spec) {
  * @returns {T}
  */
 export function registerField(nameOrSpec, widget, ...rest) {
+    return _register(nameOrSpec, widget, rest, false);
+}
+
+/**
+ * Register a widget only if the key is still free — the "fallback
+ * implementation" case, where a richer addon may already own the key or may
+ * claim it later with ``{ force: true }``.
+ *
+ * The single current user is ``html``: ``@web`` ships a textarea fallback and
+ * ``html_editor`` replaces it with the WYSIWYG editor. Whichever module loads
+ * first must win without ``registry.add`` warning about a duplicate, which is
+ * why a plain ``registerField`` cannot express this.
+ *
+ * It exists so that "register a field widget" stays a single entry point:
+ * ``html_field.js`` used to reach for ``registry.category("fields")`` directly,
+ * making it the one widget in the tree whose registration was invisible to
+ * anything grepping for ``registerField``.
+ *
+ * @template T
+ * @param {string | FieldRegistrationSpec} nameOrSpec
+ * @param {T} widget
+ * @param {...any} rest
+ * @returns {T}
+ */
+export function registerFallbackField(nameOrSpec, widget, ...rest) {
+    return _register(nameOrSpec, widget, rest, true);
+}
+
+/**
+ * @template T
+ * @param {string | FieldRegistrationSpec} nameOrSpec
+ * @param {T} widget
+ * @param {any[]} rest
+ * @param {boolean} onlyIfAbsent
+ * @returns {T}
+ */
+function _register(nameOrSpec, widget, rest, onlyIfAbsent) {
     const fieldsReg = registry.category("fields");
-    const primaryKey =
-        typeof nameOrSpec === "string" ? nameOrSpec : fieldKey(nameOrSpec);
-    // ``widget`` is the caller's generic ``T``; the fields registry shape is
-    // declared in ``@types/registries/registries.d.ts``. Cast at the boundary
-    // so callers retain their precise ``T`` return type.
-    fieldsReg.add(primaryKey, /** @type {any} */ (widget), ...rest);
+    const addKey = (key) => {
+        if (onlyIfAbsent && fieldsReg.contains(key)) {
+            return;
+        }
+        fieldsReg.add(key, /** @type {any} */ (widget), ...rest);
+    };
+    addKey(typeof nameOrSpec === "string" ? nameOrSpec : fieldKey(nameOrSpec));
     if (typeof nameOrSpec !== "string" && nameOrSpec.aliases?.length) {
-        // Bind every alias to the SAME ``widget`` reference so subsequent
-        // ``fieldRegistry.get(<alias>)`` returns the canonical object. The
-        // forwarded ``rest`` arguments (``force``, ``sequence``) apply
-        // identically to each alias so they share lookup ordering with the
-        // primary key.
         for (const alias of nameOrSpec.aliases) {
-            const aliasKey = typeof alias === "string" ? alias : fieldKey(alias);
-            fieldsReg.add(aliasKey, /** @type {any} */ (widget), ...rest);
+            addKey(typeof alias === "string" ? alias : fieldKey(alias));
         }
     }
     return widget;

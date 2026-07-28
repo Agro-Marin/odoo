@@ -5,19 +5,8 @@ import { advanceTime } from "@odoo/hoot-mock";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import lazyloader from "@web/public/lazyloader";
 
-// `lazyloader` (src/legacy/js/public/lazyloader.js) ships in
-// `web.assets_frontend_minimal`: it blocks button/form events until the lazy
-// `<script data-src>` chain loads, then replays them via
-// `allScriptsLoaded.then(stopWaitingLazy)`. Those page-level singletons settle
-// before a test can re-arm them, so tests drive the chain through the
-// `onAllScriptsDone` seam instead — proving it fires proves the page unblocks.
-
 describe.current.tags("headless");
 
-// Timeout after which a script that fired neither "load" nor "error" stops
-// blocking the page. Keep in sync with SCRIPT_LOAD_TIMEOUT_DELAY in
-// `@web/public/lazyloader` (not exported: the production export
-// surface is kept minimal on purpose).
 const SCRIPT_LOAD_TIMEOUT_DELAY = 60000;
 
 /**
@@ -40,11 +29,9 @@ test("success path: scripts load sequentially, in order", async () => {
     let doneCalls = 0;
     lazyloader.loadScripts([script1, script2], 0, () => doneCalls++);
 
-    // First script started: data-src promoted to src, defer set.
     expect(script1.src).toInclude("lazy_1.js");
     expect(script1.hasAttribute("data-src")).toBe(false);
     expect(script1.getAttribute("defer")).toBe("defer");
-    // Chain is sequential: the second script must not start yet.
     expect(script2.src).toBe("");
     expect(doneCalls).toBe(0);
 
@@ -55,8 +42,6 @@ test("success path: scripts load sequentially, in order", async () => {
     script2.dispatchEvent(new Event("load"));
     expect(doneCalls).toBe(1);
 
-    // The watchdog was cleared on completion: advancing past the timeout
-    // neither completes a second time nor logs anything.
     await advanceTime(SCRIPT_LOAD_TIMEOUT_DELAY + 1);
     expect(doneCalls).toBe(1);
 });
@@ -70,15 +55,11 @@ test("a failing script logs an error and does not block the chain", async () => 
     let doneCalls = 0;
     lazyloader.loadScripts([script1, script2], 0, () => doneCalls++);
 
-    // Network error / 404: the script fires "error", never "load".
     script1.dispatchEvent(new Event("error"));
     expect.verifySteps([`Failed to load lazy script: ${script1.src}`]);
 
-    // The chain moved on to the next script instead of stalling…
     expect(script2.src).toInclude("lazy_2.js");
     script2.dispatchEvent(new Event("load"));
-    // …and still completed: in production this resolves allScriptsLoaded,
-    // which runs stopWaitingLazy so clicks/submits stop being swallowed.
     expect(doneCalls).toBe(1);
 
     await advanceTime(SCRIPT_LOAD_TIMEOUT_DELAY + 1);
@@ -107,14 +88,59 @@ test("a hung script (neither load nor error) cannot block the page forever", asy
     ]);
 });
 
+test("a script that settles after the watchdog still runs, but is not reported twice", async () => {
+    patchWithCleanup(console, {
+        error: (message) => expect.step(String(message)),
+    });
+    const script1 = makeLazyScript("lazy_slow.js");
+    const script2 = makeLazyScript("lazy_2.js");
+    let doneCalls = 0;
+    lazyloader.loadScripts([script1, script2], 0, () => doneCalls++);
+
+    await advanceTime(SCRIPT_LOAD_TIMEOUT_DELAY + 1);
+    expect(doneCalls).toBe(1);
+    expect.verifySteps([
+        `Lazy script did not settle within ${SCRIPT_LOAD_TIMEOUT_DELAY}ms,` +
+            ` unblocking the page anyway: ${script1.src}`,
+    ]);
+
+    // the page is already unblocked, but the rest of the chain must still load
+    script1.dispatchEvent(new Event("load"));
+    expect(script2.src).toInclude("lazy_2.js");
+    script2.dispatchEvent(new Event("load"));
+    expect(doneCalls).toBe(1);
+
+    await advanceTime(SCRIPT_LOAD_TIMEOUT_DELAY + 1);
+    expect(doneCalls).toBe(1);
+    expect.verifySteps([]);
+});
+
 test("empty chain resolves the singleton and clears the waiting state", async () => {
-    // Production drives `_loadScripts` from a window-load `setTimeout(0)`; under
-    // the test runner's mocked clock that import-time timer is not a reliable
-    // signal, so drive the empty chain explicitly (the no-`script[data-src]`
-    // case): it must resolve the shared `allScriptsLoaded` promise, whose
-    // `.then(stopWaitingLazy)` removes the page's waiting class.
     document.body.classList.add("o_lazy_js_waiting");
     lazyloader.loadScripts([]);
     await lazyloader.allScriptsLoaded;
     expect(document.body).not.toHaveClass("o_lazy_js_waiting");
+});
+
+test("a stalled chain keeps its own watchdog when another chain completes", async () => {
+    patchWithCleanup(console, {
+        error: (message) => expect.step(String(message)),
+    });
+    const stalled = makeLazyScript("lazy_stalled.js");
+    let stalledDone = 0;
+    lazyloader.loadScripts([stalled], 0, () => stalledDone++);
+
+    // a second, unrelated chain runs to completion while the first waits
+    const quick = makeLazyScript("lazy_quick.js");
+    let quickDone = 0;
+    lazyloader.loadScripts([quick], 0, () => quickDone++);
+    quick.dispatchEvent(new Event("load"));
+    expect(quickDone).toBe(1);
+
+    await advanceTime(SCRIPT_LOAD_TIMEOUT_DELAY + 1);
+    expect.verifySteps([
+        `Lazy script did not settle within ${SCRIPT_LOAD_TIMEOUT_DELAY}ms,` +
+            ` unblocking the page anyway: ${stalled.src}`,
+    ]);
+    expect(stalledDone).toBe(1);
 });

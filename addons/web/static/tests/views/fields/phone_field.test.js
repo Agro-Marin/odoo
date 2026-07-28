@@ -28,7 +28,7 @@ test("PhoneField in form view on normal screens (readonly)", async () => {
         type: "form",
         resModel: "partner",
         readonly: true,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -38,9 +38,6 @@ test("PhoneField in form view on normal screens (readonly)", async () => {
             </form>`,
         resId: 1,
     });
-    // Filter by ``tel:`` href: with the ``sms`` module installed,
-    // ``sms.SendSMSButton`` adds a sibling ``.o_field_phone_sms`` link that the
-    // bare ``.o_field_phone a`` selector would also match.
     expect(".o_field_phone a[href^='tel:']").toHaveCount(1);
     expect(".o_field_phone a[href^='tel:']").toHaveText("yop");
     expect(".o_field_phone a[href^='tel:']").toHaveAttribute("href", "tel:yop");
@@ -50,7 +47,7 @@ test("PhoneField in form view on normal screens (edit)", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -62,17 +59,13 @@ test("PhoneField in form view on normal screens (edit)", async () => {
     });
     expect(`input[type="tel"]`).toHaveCount(1);
     expect(`input[type="tel"]`).toHaveValue("yop");
-    // Same SMS-button-coexistence pattern as above; here the visible link is
-    // the "Call" affordance from ``web.FormPhoneField``.
     expect(".o_field_phone a[href^='tel:']").toHaveCount(1);
     expect(".o_field_phone a[href^='tel:']").toHaveText("Call");
     expect(".o_field_phone a[href^='tel:']").toHaveAttribute("href", "tel:yop");
 
-    // change value in edit mode
     await click(`input[type="tel"]`);
     await edit("new");
     await animationFrame();
-    // save
     await clickSave();
     expect(`input[type="tel"]`).toHaveValue("new");
 });
@@ -88,7 +81,6 @@ test("PhoneField in editable list view on normal screens", async () => {
     expect("tbody td:not(.o_list_record_selector) a:first").toHaveText("yop");
     expect(".o_field_widget a.o_form_uri").toHaveCount(2);
 
-    // Edit a line and check the result
     const cell = queryFirst("tbody td:not(.o_list_record_selector)");
     await click(cell);
     await animationFrame();
@@ -110,7 +102,7 @@ test("use TAB to navigate to a PhoneField", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -132,7 +124,7 @@ test("phone field with placeholder", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -168,7 +160,7 @@ test("unset and readonly PhoneField", async () => {
         type: "form",
         resModel: "partner",
 
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -186,7 +178,7 @@ test("href is correctly formatted", async () => {
         type: "form",
         resModel: "partner",
         readonly: true,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -208,7 +200,7 @@ test("New record, fill in phone field, then click on call icon and save", async 
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -231,4 +223,22 @@ test("New record, fill in phone field, then click on call icon and save", async 
     expect(".o_field_widget[name=name] input").toHaveValue("TEST");
     expect(".o_field_widget[name=foo] input").toHaveValue("+12345678900");
     expect(`.o_form_status_indicator_buttons`).toHaveClass("invisible");
+});
+
+test("PhoneField honours the field's trim attribute", async () => {
+    // See the equivalent url_field test: Char.trim is client-enforced, so a
+    // widget without a `parse` writes untrimmed data to a trim=True column.
+    onRpc("web_save", ({ args }) => {
+        expect(args[1].foo).toBe("+32 494 44 44 44");
+        expect.step("web_save");
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="foo" widget="phone"/></form>`,
+    });
+    await contains(`.o_field_widget[name="foo"] input`).edit("  +32 494 44 44 44  ");
+    await clickSave();
+    expect.verifySteps(["web_save"]);
 });

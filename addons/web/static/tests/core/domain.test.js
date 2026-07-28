@@ -17,12 +17,8 @@ describe("Basic Properties", () => {
     test("constructing from an existing Domain reuses its AST (no string round-trip, no source corruption)", () => {
         const src = new Domain(`["|", ("a", "=", 1), ("b", "!=", false)]`);
         const copy = new Domain(src);
-        // Same semantics as the source (the constructor no longer round-trips
-        // through toString()+parseExpr).
         expect(copy.toString()).toBe(src.toString());
         expect(copy.toList({})).toEqual(src.toList({}));
-        // The copy owns its AST value array: a mutating derivation (not() does
-        // an in-place unshift on `new Domain(src)`) must not corrupt the source.
         const before = src.toString();
         Domain.not(src);
         expect(src.toString()).toBe(before);
@@ -77,13 +73,10 @@ describe("Basic Properties", () => {
     });
 
     test("'any'/'not any'/hierarchy operators in contains()", () => {
-        // No access to related/hierarchy records here, so `any`, `child_of`,
-        // `parent_of` always match, and `not any` is their strict dual (never matches).
         const value = [["id", "=", 1]];
         expect(new Domain([["line_ids", "any", value]]).contains({})).toBe(true);
         expect(new Domain([["parent_id", "child_of", 1]]).contains({})).toBe(true);
         expect(new Domain([["parent_id", "parent_of", 1]]).contains({})).toBe(true);
-        // `not any` never matches, and agrees with `!(x any y)`.
         expect(new Domain([["line_ids", "not any", value]]).contains({})).toBe(false);
         expect(new Domain(["!", ["line_ids", "any", value]]).contains({})).toBe(
             new Domain([["line_ids", "not any", value]]).contains({}),
@@ -140,15 +133,18 @@ describe("Basic Properties", () => {
         );
     });
 
-    test("inequalities never match unset fields", () => {
-        // SQL semantics: comparisons on NULL are falsy, while raw JS would
-        // evaluate `false < 5` as true. Known divergence: a numeric field
-        // whose client value is `false` is excluded even where the server
-        // stores an actual 0 (0 < 5 matches server-side, NULL does not).
+    test("inequalities: absent field never matches, unset value orders as zero", () => {
+        // An ABSENT key stays unmatched (the record simply doesn't carry the
+        // field). An UNSET value is a real NULL, which the server orders as the
+        // zero of the other operand's type — verified against res.partner with
+        // both search() and filtered_domain().
         for (const op of ["<", "<=", ">", ">="]) {
-            expect(new Domain([["a", op, 5]]).contains({ a: false })).toBe(false);
             expect(new Domain([["a", op, 5]]).contains({})).toBe(false);
         }
+        expect(new Domain([["a", "<", 5]]).contains({ a: false })).toBe(true);
+        expect(new Domain([["a", "<=", 5]]).contains({ a: false })).toBe(true);
+        expect(new Domain([["a", ">", 5]]).contains({ a: false })).toBe(false);
+        expect(new Domain([["a", ">=", 5]]).contains({ a: false })).toBe(false);
         expect(new Domain([["a", "<", 5]]).contains({ a: 3 })).toBe(true);
         expect(new Domain([["a", "<=", 0]]).contains({ a: 0 })).toBe(true);
         expect(new Domain([["a", ">", 5]]).contains({ a: 6 })).toBe(true);
@@ -269,14 +265,10 @@ describe("Basic Properties", () => {
     });
 
     test("like-family: an absent field never matches (no 'undefined' coercion)", () => {
-        // A record missing the field entirely (fieldValue === undefined) must
-        // behave like an unset field, NOT be coerced to the string "undefined"
-        // and matched against the pattern.
         expect(new Domain([["name", "ilike", "und"]]).contains({})).toBe(false);
         expect(new Domain([["name", "like", "und"]]).contains({})).toBe(false);
         expect(new Domain([["name", "=ilike", "unde%"]]).contains({})).toBe(false);
         expect(new Domain([["name", "=like", "unde%"]]).contains({})).toBe(false);
-        // Negated forms match an absent field (the pattern is not present).
         expect(new Domain([["name", "not ilike", "nde"]]).contains({})).toBe(true);
         expect(new Domain([["name", "not like", "nde"]]).contains({})).toBe(true);
     });
@@ -310,21 +302,14 @@ describe("Basic Properties", () => {
     });
 
     test("flat implicit-AND normalization scales (O(N)) and stays correct", () => {
-        // Regression for the O(N)-rewrite of normalizeDomainAST: N leaves with
-        // no explicit operator normalize to (N-1) leading "&" then the leaves in
-        // order. Exercised at a size that would be painfully O(N^2) under the
-        // old per-segment unshift.
         const N = 500;
         const leaves = Array.from({ length: N }, (_, i) => [`f${i}`, "=", i]);
         const dom = new Domain(leaves);
         const ast = dom.ast.value;
         expect(ast.length).toBe(2 * N - 1);
-        // First N-1 tokens are "&" operators...
         expect(ast.slice(0, N - 1).every((n) => n.value === "&")).toBe(true);
-        // ...followed by the N leaves in their original order.
         expect(ast[N - 1].value[0].value).toBe("f0");
         expect(ast.at(-1).value[0].value).toBe(`f${N - 1}`);
-        // And it still evaluates as a plain AND of all leaves.
         const record = Object.fromEntries(leaves.map(([f, , v]) => [f, v]));
         expect(dom.contains(record)).toBe(true);
         record.f7 = 999;
@@ -382,7 +367,6 @@ describe("Basic Properties", () => {
         ).toBe('["|", ("name", "=", "foo"), ("type", "=", "bar")]');
         expect(new Domain().toString()).toBe("[]");
 
-        // string domains are only reformatted
         expect(new Domain('[("name","ilike","foo")]').toString()).toBe(
             '[("name", "ilike", "foo")]',
         );
@@ -506,7 +490,7 @@ describe("Basic Properties", () => {
 
         const domainList = new Domain(
             "[('date', '>=', context_today() - relativedelta(days=30))]",
-        ).toList(); // domain creation using `parseExpr` function since the parameter is a string.
+        ).toList();
 
         expect(domainList[0][2]).toEqual(
             PyDate.create({ day: 25, month: 3, year: 2013 }),
@@ -517,9 +501,7 @@ describe("Basic Properties", () => {
         );
         expect(JSON.stringify(domainList)).toBe('[["date",">=","2013-03-25"]]');
 
-        const domainList2 = new Domain(domainList).toList(); // domain creation using `toAST` function since the parameter is a list.
-        // toPyValue serializes date-likes eagerly, so the PyDate round-trips
-        // through the list form as its date string.
+        const domainList2 = new Domain(domainList).toList();
         expect(domainList2[0][2]).toBe("2013-03-25");
         expect(JSON.stringify(domainList2)).toBe('[["date",">=","2013-03-25"]]');
     });
@@ -572,7 +554,7 @@ describe("Basic Properties", () => {
         expect(() => new Domain(`["a"]`)).toThrow(/Invalid domain AST/);
         expect(() => new Domain(`[1]`)).toThrow(/Invalid domain AST/);
         expect(() => new Domain(`[x]`)).toThrow(/Invalid domain AST/);
-        expect(() => new Domain(`[True]`)).toThrow(/Invalid domain AST/); // will possibly change with CHM work
+        expect(() => new Domain(`[True]`)).toThrow(/Invalid domain AST/);
         expect(() => new Domain(`[(x.=, "=", 1)]`)).toThrow(
             /Invalid domain representation/,
         );
@@ -584,8 +566,6 @@ describe("Basic Properties", () => {
     });
 
     test("malformed positional domains throw on construction", () => {
-        // A complete expression followed by a dangling operator is invalid
-        // in prefix notation — the server parser raises for these too.
         expect(() => new Domain([["a", "=", 1], "&", ["b", "=", 2]])).toThrow(
             /invalid domain .* \(missing 1 segment/,
         );
@@ -598,8 +578,6 @@ describe("Basic Properties", () => {
         expect(() => new Domain([["a", "=", 1], ["b", "=", 2], "&"])).toThrow(
             /invalid domain .* \(missing 2 segment/,
         );
-        // Mid-list operators that still receive their operands stay valid
-        // (server parity): [A, "&", B, C] means A AND (B AND C).
         const domain = new Domain([["a", "=", 1], "&", ["b", "=", 2], ["c", "=", 3]]);
         expect(domain.toList()).toEqual([
             "&",
@@ -613,16 +591,13 @@ describe("Basic Properties", () => {
     });
 
     test("matching a malformed evaluated domain throws", () => {
-        // Simulate a corrupted AST reaching the prefix stack machine: the
-        // leftover operand must raise instead of silently matching only the
-        // first segment.
         const leftover = new Domain(["&", ["a", "=", 1], ["b", "=", 2]]);
-        leftover.ast.value.shift(); // drop the "&" -> evaluates to [A, B]
+        leftover.ast.value.shift();
         expect(() => leftover.contains({ a: 1, b: 99 })).toThrow(
             /invalid domain \(unconsumed segment/,
         );
         const starved = new Domain(["&", ["a", "=", 1], ["b", "=", 2]]);
-        starved.ast.value.pop(); // drop an operand -> evaluates to ["&", A]
+        starved.ast.value.pop();
         expect(() => starved.contains({ a: 1 })).toThrow(
             /invalid domain \(missing operand/,
         );
@@ -659,16 +634,12 @@ describe("Basic Properties", () => {
     });
 });
 
-// Client/server matching parity (matchCondition / operator handling)
 describe("Matching parity", () => {
     test("Domain.not([]) is FALSE and matches nothing (no crash)", () => {
-        // Empty domain is TRUE; server maps ~TRUE -> FALSE. The old code
-        // produced the malformed ["!"] which crashed toString()/contains().
         expect(() => Domain.not([]).toString()).not.toThrow();
         expect(Domain.not([]).toString()).toBe('[(0, "=", 1)]');
         expect(Domain.not([]).contains({})).toBe(false);
         expect(Domain.not([]).contains({ a: 1 })).toBe(false);
-        // A non-empty domain is still negated the usual way.
         expect(Domain.not([["a", "=", 1]]).toString()).toBe('["!", ("a", "=", 1)]');
     });
 
@@ -678,7 +649,6 @@ describe("Matching parity", () => {
         expect(new Domain([["a", "=?", ""]]).contains(record)).toBe(true);
         expect(new Domain([["a", "=?", false]]).contains(record)).toBe(true);
         expect(new Domain([["a", "=?", null]]).contains(record)).toBe(true);
-        // Truthy value: behaves like '='.
         expect(new Domain([["a", "=?", 5]]).contains(record)).toBe(true);
         expect(new Domain([["a", "=?", 3]]).contains(record)).toBe(false);
     });
@@ -691,15 +661,11 @@ describe("Matching parity", () => {
     });
 
     test("like: '_' wildcard, non-string value, and escaped '\\%'/'\\_'", () => {
-        // '_' matches exactly one character.
         expect(new Domain([["a", "=like", "a_c"]]).contains({ a: "abc" })).toBe(true);
         expect(new Domain([["a", "=like", "a_c"]]).contains({ a: "abbc" })).toBe(false);
-        // Non-string value must not crash escapeRegExp.
         expect(new Domain([["a", "like", 12]]).contains({ a: "x123" })).toBe(true);
         expect(new Domain([["a", "like", 12]]).contains({ a: "x13" })).toBe(false);
-        // '%' remains a multi-char wildcard.
         expect(new Domain([["a", "=like", "a%c"]]).contains({ a: "abbbc" })).toBe(true);
-        // Escaped '\%' / '\_' match literal '%' / '_'.
         expect(new Domain([["a", "=like", "a\\%c"]]).contains({ a: "a%c" })).toBe(true);
         expect(new Domain([["a", "=like", "a\\%c"]]).contains({ a: "abbc" })).toBe(
             false,
@@ -714,11 +680,9 @@ describe("Matching parity", () => {
         const sub = [["x", "=", 1]];
         expect(new Domain([["a", "any", sub]]).contains({ a: 5 })).toBe(true);
         expect(new Domain([["a", "not any", sub]]).contains({ a: 5 })).toBe(false);
-        // !(x any y) is consistent with (x not any y).
         expect(new Domain(["!", ["a", "any", sub]]).contains({ a: 5 })).toBe(
             new Domain([["a", "not any", sub]]).contains({ a: 5 }),
         );
-        // child_of / parent_of stay always-true.
         expect(new Domain([["a", "child_of", [1]]]).contains({ a: 5 })).toBe(true);
         expect(new Domain([["a", "parent_of", [1]]]).contains({ a: 5 })).toBe(true);
     });
@@ -933,8 +897,6 @@ describe("Remove domain leaf", () => {
     test("Fully removed AND subtree inside OR becomes FALSE (neutral of OR).", () => {
         const domain = ["|", "&", ["a", "=", 1], ["a", "=", 2], ["b", "=", 3]];
         const newDomain = Domain.removeDomainLeaves(domain, ["a"]);
-        // Leaf-wise replacement would give OR(AND(TRUE, TRUE), b) = TRUE,
-        // silently matching ALL records; the OR must reduce to b = 3.
         expect(newDomain.toString()).toBe(`["|", (0, "=", 1), ("b", "=", 3)]`);
         expect(newDomain.contains({ a: 99, b: 3 })).toBe(true);
         expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
@@ -948,37 +910,31 @@ describe("Remove domain leaf", () => {
     });
 
     test("Fully removed subtrees under '!' neutralize the enclosing context.", () => {
-        // Whole domain is a removed negation -> stays TRUE.
         let newDomain = Domain.removeDomainLeaves(["!", ["a", "=", 1]], ["a"]);
         expect(newDomain.contains({ a: 1 })).toBe(true);
-        // AND(NOT(removed), b) reduces to b.
         newDomain = Domain.removeDomainLeaves(
             ["&", "!", ["a", "=", 1], ["b", "=", 3]],
             ["a"],
         );
         expect(newDomain.contains({ a: 1, b: 3 })).toBe(true);
         expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
-        // OR(NOT(removed), b) reduces to b.
         newDomain = Domain.removeDomainLeaves(
             ["|", "!", ["a", "=", 1], ["b", "=", 3]],
             ["a"],
         );
         expect(newDomain.contains({ a: 1, b: 3 })).toBe(true);
         expect(newDomain.contains({ a: 1, b: 4 })).toBe(false);
-        // Removed AND under NOT collapses before negation: NOT(AND(a, a)) -> TRUE.
         newDomain = Domain.removeDomainLeaves(
             ["!", "&", ["a", "=", 1], ["a", "=", 2]],
             ["a"],
         );
         expect(newDomain.contains({ a: 1 })).toBe(true);
-        // Partial removal under NOT keeps the remaining constraint negated.
         newDomain = Domain.removeDomainLeaves(
             ["!", "&", ["a", "=", 1], ["b", "=", 3]],
             ["a"],
         );
         expect(newDomain.contains({ b: 3 })).toBe(false);
         expect(newDomain.contains({ b: 4 })).toBe(true);
-        // Double negation of a removed leaf: AND(NOT(NOT(removed)), b) -> b.
         newDomain = Domain.removeDomainLeaves(
             ["&", "!", "!", ["a", "=", 1], ["b", "=", 3]],
             ["a"],
@@ -988,9 +944,6 @@ describe("Remove domain leaf", () => {
     });
 
     test("Remove leaf from a string-built domain (List leaves).", () => {
-        // String-built domains parse to List leaves (not Tuple). The removal
-        // must still neutralize 'a' to TRUE and KEEP 'b'; the old Tuple-only
-        // helpers dropped BOTH leaves and produced the malformed ["&"].
         const domain = new Domain("[['a', '=', 1], ['b', '=', 2]]");
         const newDomain = Domain.removeDomainLeaves(domain, ["a"]);
         expect(newDomain.contains({ a: 99, b: 2 })).toBe(true);
@@ -1003,8 +956,6 @@ describe("combine does not alias its input", () => {
     test("a single non-empty domain is copied, not returned by reference", () => {
         const d = new Domain([["a", "=", 1]]);
         const combined = Domain.and([d]);
-        // Was: returned `d` itself, so an in-place AST mutation on the result
-        // corrupted the caller's domain. Now it is a fresh copy.
         expect(combined).not.toBe(d);
         combined.ast.value.length = 0;
         expect(d.toString()).toBe(`[("a", "=", 1)]`);
@@ -1012,9 +963,6 @@ describe("combine does not alias its input", () => {
 
     test("single-domain combine copies the AST without a toString round-trip", () => {
         const d = new Domain([["a", "=", 1]]);
-        // The single-non-empty branch must not serialize+reparse the domain to
-        // obtain its defensive copy: it clones the AST array directly. Guard the
-        // hot path by asserting toString() is never invoked on the source.
         patchWithCleanup(d, {
             toString() {
                 throw new Error("combine must not round-trip through toString()");
@@ -1023,7 +971,6 @@ describe("combine does not alias its input", () => {
         const combined = Domain.and([d]);
         expect(combined).not.toBe(d);
         expect(combined.ast.value).not.toBe(d.ast.value);
-        // The copy is functionally identical and independently mutable.
         expect(combined.contains({ a: 1 })).toBe(true);
         combined.ast.value.length = 0;
         expect(d.ast.value.length).toBe(1);
@@ -1051,7 +998,6 @@ describe("contains: = / in use the py_compare kernel (bool==int, deep eq)", () =
     test("scalar = matches like the interpreter (True == 1)", () => {
         expect(new Domain([["x", "=", 1]]).contains({ x: true })).toBe(true);
         expect(new Domain([["x", "=", true]]).contains({ x: 1 })).toBe(true);
-        // Ordinary equality is unchanged.
         expect(new Domain([["x", "=", 5]]).contains({ x: 5 })).toBe(true);
         expect(new Domain([["x", "=", 5]]).contains({ x: 6 })).toBe(false);
         expect(new Domain([["x", "=", "abc"]]).contains({ x: "abc" })).toBe(true);
@@ -1065,19 +1011,12 @@ describe("contains: = / in use the py_compare kernel (bool==int, deep eq)", () =
     });
 
     test("x2many empty and overlap semantics are preserved", () => {
-        // ('x2many', '=', False) still matches an empty relation.
         expect(new Domain([["x", "=", false]]).contains({ x: [] })).toBe(true);
         expect(new Domain([["x", "=", false]]).contains({ x: [1] })).toBe(false);
-        // An array field value is treated as x2many ids (overlap), so it is NOT
-        // equal to a single list value.
         expect(new Domain([["x", "in", [[1, 2]]]]).contains({ x: [1, 2] })).toBe(false);
     });
 
     test("('field', '=', False) matches any present falsy value (server parity)", () => {
-        // The server's filtered_domain treats ``field = False`` as a falsiness
-        // check (``not getter(rec)``), so False, 0, "" and null all match — the
-        // interpreter kernel alone missed "" and null (Python ``"" == False`` is
-        // False). Verified against res.partner.filtered_domain.
         const eq = new Domain([["x", "=", false]]);
         const ne = new Domain([["x", "!=", false]]);
         for (const falsy of [false, 0, "", null]) {
@@ -1088,9 +1027,111 @@ describe("contains: = / in use the py_compare kernel (bool==int, deep eq)", () =
             expect(eq.contains({ x: truthy })).toBe(false);
             expect(ne.contains({ x: truthy })).toBe(true);
         }
-        // An ABSENT field is NOT coalesced to False (client invariant): it does
-        // not match ``= False`` and is treated as satisfying ``!= False``.
         expect(eq.contains({})).toBe(false);
         expect(ne.contains({})).toBe(true);
+    });
+});
+
+describe("contains: unset values compare as the server does", () => {
+    // Every expectation below was taken from a differential run against the
+    // server: for each domain, `res.partner.search()` and
+    // `filtered_domain()` were checked to agree, and their verdict is what is
+    // asserted here. The client carries `false` for an unset
+    // char/text/selection where the server stores NULL and compares it as "",
+    // so the two spellings have to select the same records.
+
+    test("'' and false are the same value for = / !=", () => {
+        for (const unset of [false, null, undefined, ""]) {
+            expect(new Domain([["x", "=", ""]]).contains({ x: unset })).toBe(
+                unset !== undefined,
+            );
+        }
+        expect(new Domain([["x", "=", ""]]).contains({ x: "a" })).toBe(false);
+        expect(new Domain([["x", "!=", ""]]).contains({ x: "a" })).toBe(true);
+        expect(new Domain([["x", "!=", ""]]).contains({ x: false })).toBe(false);
+    });
+
+    test("'' in the operand list selects unset values", () => {
+        expect(new Domain([["x", "in", [""]]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "in", ["", "a"]]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "in", [""]]]).contains({ x: "a" })).toBe(false);
+        expect(new Domain([["x", "not in", [""]]]).contains({ x: false })).toBe(false);
+        expect(new Domain([["x", "not in", [""]]]).contains({ x: "a" })).toBe(true);
+    });
+
+    test("an unset string field orders as ''", () => {
+        expect(new Domain([["x", "<=", "m"]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "<", "m"]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", ">=", "m"]]).contains({ x: false })).toBe(false);
+        expect(new Domain([["x", "<=", ""]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "<=", ""]]).contains({ x: "a" })).toBe(false);
+        // a false operand orders as "" too: everything is >= ""
+        expect(new Domain([["x", ">=", false]]).contains({ x: "a" })).toBe(true);
+        expect(new Domain([["x", ">=", false]]).contains({ x: false })).toBe(true);
+    });
+
+    test("an unset date/datetime field orders against nothing", () => {
+        // char/text and the numeric types declare a server-side falsy_value
+        // ("" / 0) that aliases NULL onto a comparable zero; date and datetime
+        // declare none, so on the server a NULL date satisfies no ordering
+        // comparison at all. Verified against the ORM on this fork:
+        // `ir.cron` rows with lastcall NULL are returned by neither
+        // `lastcall < '2016-03-01'` nor `lastcall >= '2015-01-01'`, while
+        // res.partner rows with ref NULL ARE returned by `ref < 'm'`.
+        for (const op of ["<", "<=", ">", ">="]) {
+            expect(new Domain([["x", op, "2016-03-01"]]).contains({ x: false })).toBe(
+                false,
+            );
+            expect(
+                new Domain([["x", op, "2016-03-01 12:30:00"]]).contains({ x: false }),
+            ).toBe(false);
+            expect(new Domain([["x", op, "2016-03-01"]]).contains({ x: null })).toBe(
+                false,
+            );
+        }
+        // a set date still compares normally
+        expect(
+            new Domain([["x", "<", "2016-03-01"]]).contains({ x: "2016-01-01" }),
+        ).toBe(true);
+        expect(
+            new Domain([["x", "<", "2016-03-01"]]).contains({ x: "2016-05-01" }),
+        ).toBe(false);
+    });
+
+    test("a false operand orders as 0 against a number", () => {
+        expect(new Domain([["x", "<=", false]]).contains({ x: 0 })).toBe(true);
+        expect(new Domain([["x", "<=", false]]).contains({ x: 5 })).toBe(false);
+        expect(new Domain([["x", "<=", false]]).contains({ x: -3.25 })).toBe(true);
+        expect(new Domain([["x", ">=", false]]).contains({ x: 5 })).toBe(true);
+    });
+
+    test("like-family: an unset field matches as ''", () => {
+        expect(new Domain([["x", "ilike", ""]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "like", ""]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "=like", ""]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "=like", ""]]).contains({ x: "a" })).toBe(false);
+        expect(new Domain([["x", "=ilike", ""]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "not like", ""]]).contains({ x: false })).toBe(false);
+        expect(new Domain([["x", "not ilike", ""]]).contains({ x: false })).toBe(false);
+    });
+
+    test("like-family: a false pattern matches everything, not the text 'false'", () => {
+        for (const value of ["anything", "", false, "false"]) {
+            expect(new Domain([["x", "like", false]]).contains({ x: value })).toBe(
+                true,
+            );
+            expect(new Domain([["x", "ilike", false]]).contains({ x: value })).toBe(
+                true,
+            );
+            expect(new Domain([["x", "not like", false]]).contains({ x: value })).toBe(
+                false,
+            );
+            expect(new Domain([["x", "not ilike", false]]).contains({ x: value })).toBe(
+                false,
+            );
+        }
+        // anchored variants: a false pattern is "", so only unset values match
+        expect(new Domain([["x", "=like", false]]).contains({ x: false })).toBe(true);
+        expect(new Domain([["x", "=like", false]]).contains({ x: "a" })).toBe(false);
     });
 });

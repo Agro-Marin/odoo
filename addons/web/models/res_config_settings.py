@@ -38,7 +38,6 @@ class ResConfigSettings(models.TransientModel):
         related="company_id.external_report_layout_id"
     )
 
-    # --- Users & languages ---
     active_user_count = fields.Integer(
         "Number of Active Users",
         compute="_compute_active_user_count",
@@ -48,7 +47,6 @@ class ResConfigSettings(models.TransientModel):
         compute="_compute_language_count",
     )
 
-    # --- Module toggles ---
     module_base_import = fields.Boolean(
         "Allow users to import data from CSV/XLS/XLSX/ODS files"
     )
@@ -73,14 +71,12 @@ class ResConfigSettings(models.TransientModel):
     module_website_cf_turnstile = fields.Boolean("Cloudflare Turnstile")
     module_google_address_autocomplete = fields.Boolean("Google Address Autocomplete")
 
-    # --- Groups ---
     group_multi_currency = fields.Boolean(
         string="Multi-Currencies",
         implied_group="base.group_multi_currency",
         help="Allows to work in a multi currency environment",
     )
 
-    # --- UI / misc ---
     show_effect = fields.Boolean(
         string="Show Effect", config_parameter="base.show_effect"
     )
@@ -106,8 +102,6 @@ class ResConfigSettings(models.TransientModel):
             "base.default_user_group", raise_if_not_found=False
         )
         if not default_group:
-            # Creating res.groups and ir.model.data requires admin rights;
-            # the settings manager group may not have them, so use sudo().
             default_group = (
                 self.env["res.groups"]
                 .sudo()
@@ -153,8 +147,6 @@ class ResConfigSettings(models.TransientModel):
             return False
         return self._prepare_report_view_action(self.external_report_layout_id.key)
 
-    # NOTE: TransientModel computed fields must depend on a stored field
-    # to avoid being evaluated without context. company_id is used as the trigger.
     @api.depends("company_id")
     def _compute_company_count(self) -> None:
         company_count = self.env["res.company"].sudo().search_count([])

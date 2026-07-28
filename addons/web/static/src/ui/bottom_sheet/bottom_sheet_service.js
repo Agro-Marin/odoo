@@ -14,6 +14,7 @@ import { BottomSheet } from "@web/ui/bottom_sheet/bottom_sheet";
  *   class?: string;
  *   role?: string;
  *   ref?: Function;
+ *   setActiveElement?: boolean;
  *   useBottomSheet?: Boolean;
  * }} BottomSheetServiceAddOptions
  *
@@ -39,21 +40,7 @@ export const bottomSheetService = {
          * @returns {() => void}
          */
         const add = (target, component, props = {}, options = {}) => {
-            let closed = false;
-            // Bookkeeping lives in onRemove (not the returned closer) so it fires on
-            // every removal path, including OverlayContainer.handleError's direct
-            // overlay.remove() when a subtree crashes — otherwise the count never
-            // decrements and bottom-sheet-open sticks on <body> forever.
             const onRemove = async (/** @type {any} */ removeParams) => {
-                // Close can be requested more than once (e.g. by concurrent
-                // animation listeners): only decrement the count once.
-                if (closed) {
-                    return;
-                }
-                closed = true;
-                // onClose may throw; keep the finally so the count/body-class
-                // bookkeeping still runs and can't leave scroll locked
-                // (mirrors dialog_service).
                 try {
                     await options.onClose?.(removeParams);
                 } finally {
@@ -74,6 +61,7 @@ export const bottomSheetService = {
                     ref: options.ref,
                     class: options.class,
                     role: options.role,
+                    setActiveElement: options.setActiveElement,
                 },
                 {
                     env: options.env,

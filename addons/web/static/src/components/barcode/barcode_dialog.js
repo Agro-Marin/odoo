@@ -60,7 +60,6 @@ export class BarcodeDialog extends Component {
  */
 export async function scanBarcode(env, facingMode = "environment") {
     return new Promise((resolve, reject) => {
-        // One-shot guard: result, error and close must not double-settle.
         let settled = false;
         const settle = (settler, value) => {
             if (settled) {
@@ -77,20 +76,10 @@ export async function scanBarcode(env, facingMode = "environment") {
                 onError: (error) => settle(reject, error),
             },
             {
-                // Manual close (X / ESC) is the normal cancel path: resolve
-                // `null` so awaiting consumers unblock instead of leaking a
-                // forever-pending promise.
                 onClose: () => settle(resolve, null),
             },
         );
     });
 }
 
-// Named-object export so tests can patch `scanBarcode` via patchWithCleanup.
-// `import * as BarcodeScanner` returns an ESM module-namespace whose
-// properties are non-configurable (per spec) and reject defineProperty —
-// the previous test pattern. A plain object's properties are configurable,
-// so `import { BarcodeScanner }; patchWithCleanup(BarcodeScanner, {...})`
-// works. The standalone `scanBarcode` function export above stays for the
-// 3 consumer addons that already do `import { scanBarcode } from ...`.
 export const BarcodeScanner = { scanBarcode };

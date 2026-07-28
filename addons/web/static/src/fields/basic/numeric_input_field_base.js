@@ -6,6 +6,7 @@
 import { Component, useState } from "@odoo/owl";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
+import { InvalidNumberError } from "@web/fields/parsers";
 
 /**
  * Base class for numeric input fields (integer, float, etc.).
@@ -19,11 +20,7 @@ import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
  *   - get formattedValue — returns the display value (format varies per type)
  */
 export class NumericInputFieldBase extends Component {
-    /**
-     * ``value`` is only used by MonetaryField (input-text mirror); it is
-     * declared here so the subclass doesn't shadow the field (TS2612).
-     * @type {{ hasFocus: boolean, value?: string }}
-     */
+    /** @type {{ hasFocus: boolean }} */
     state;
 
     setup() {
@@ -71,7 +68,7 @@ export class NumericInputFieldBase extends Component {
                         parsed < -2147483648 ||
                         parsed > 2147483647)
                 ) {
-                    throw new Error(`"${value}" is not a correct integer`);
+                    throw new InvalidNumberError(`"${value}" is not a correct integer`);
                 }
                 return parsed;
             }
@@ -82,5 +79,24 @@ export class NumericInputFieldBase extends Component {
     /** @returns {number | false} Raw field value from the record */
     get value() {
         return this.props.record.data[this.props.name];
+    }
+
+    /**
+     * The value for the display branches that bypass locale formatting: an
+     * ``<input type="number">`` in edit mode (the browser owns the format) and
+     * ``enable_formatting: false``.
+     *
+     * The ORM's "no value" sentinel is ``false``, and ``useInputField`` assigns
+     * this result straight to ``input.value`` — so returning ``false`` renders
+     * the literal string "false" in the input. Every numeric subclass has at
+     * least one such branch, and they used to normalize the sentinel by hand:
+     * integer and monetary did, float did not (only in its ``type=number``
+     * branch), so ``enable_formatting: false`` on a float whose value was
+     * ``false`` displayed "false". One definition instead of three copies.
+     *
+     * @returns {number | ""}
+     */
+    get rawValue() {
+        return this.value === false ? "" : this.value;
     }
 }

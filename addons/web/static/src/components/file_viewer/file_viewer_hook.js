@@ -22,8 +22,6 @@ export function createFileViewer() {
         }
         if (files.length) {
             const viewableFiles = files.filter((file) => file.isViewable);
-            // `file` may not be identical to any entry of `files` (e.g. a
-            // copy): never mount the viewer with startIndex -1.
             const index = Math.max(0, viewableFiles.indexOf(file));
             registry.category("main_components").add(
                 fileViewerId,

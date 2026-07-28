@@ -77,9 +77,6 @@ export function useListSelection({
             }
             const start = Math.min(recordIndex, lastCheckedRecordIndex);
             const end = Math.max(recordIndex, lastCheckedRecordIndex);
-            // Snapshot the target state before the loop: toggleSelection is
-            // async (mutex-scheduled), but the whole range must follow the
-            // clicked record's state at click time.
             const selected = !record.selected;
             for (let i = start; i <= end; i++) {
                 records[i].toggleSelection(selected);
@@ -97,8 +94,6 @@ export function useListSelection({
             const { records } = getProps().list;
             if (!record && direction === "down") {
                 const defaultRecord = records[0];
-                // Guard against an empty record list (e.g. all groups folded):
-                // records[0] is undefined and toggleSelection would throw.
                 if (!defaultRecord) {
                     return false;
                 }

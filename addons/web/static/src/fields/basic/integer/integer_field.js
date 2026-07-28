@@ -44,12 +44,9 @@ export class IntegerField extends NumericInputFieldBase {
     get formattedValue() {
         if (
             !this.props.formatNumber ||
-            (!this.props.readonly && this.props.inputType === "number")
+            (this.props.inputType === "number" && !this.props.readonly)
         ) {
-            if (this.value === false) {
-                return "";
-            }
-            return this.value;
+            return this.rawValue;
         }
         if (this.props.humanReadable && !this.state.hasFocus) {
             return formatInteger(this.value, {

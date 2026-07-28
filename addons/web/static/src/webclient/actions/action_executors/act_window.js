@@ -3,14 +3,61 @@
 
 /** @module @web/webclient/actions/action_executors/act_window - Executor for ir.actions.act_window */
 
-import { pick } from "@web/core/utils/collections/objects";
+import { omit, pick } from "@web/core/utils/collections/objects";
 import { View } from "@web/views/view";
 
 import { buildActionViews } from "../action_info_builders.js";
 import { findView } from "../action_views.js";
 
-/** @import { ActionManager } from "../action_service.js" */
-/** @import { ActWindowAction } from "@web/webclient/actions/action_service" */
+/** @import { ActionManager, ActionOptions, ActWindowAction } from "../action_service.js" */
+
+/**
+ * Settle the "lazy" trailing crumb a URL restore leaves behind.
+ *
+ * ``controllersFromState`` marks the last reconstructed controller ``lazy``
+ * when the URL points at a record: it stands for the multi-record view the
+ * record was opened FROM, which was never loaded. Now that the action is
+ * known, that placeholder either becomes a real crumb (the action does have a
+ * multi-record view to promote it into) or is dropped (it does not).
+ *
+ * Returns fresh ``options``/``newStack``/controller objects rather than
+ * editing them in place. ``doAction`` takes a shallow copy of ``options``
+ * (``action_service.js``), which reads as isolation but gives none one level
+ * down — so both branches used to reach back through it and mutate the
+ * caller's array and the caller's controller objects. No current caller
+ * observes that (``load_state`` and ``restore`` both hand over arrays they
+ * never read again), but the boundary should mean what it appears to mean:
+ * an executor gets to propose a stack, not to rewrite its caller's.
+ *
+ * @param {ActWindowAction} action
+ * @param {ActionOptions} options
+ * @returns {ActionOptions} ``options`` unchanged when there is no lazy crumb
+ */
+function resolveLazyCrumb(action, options) {
+    const newStack = options.newStack;
+    const lastController = newStack?.at(-1);
+    if (!lastController?.lazy) {
+        return options;
+    }
+    const multiView = action.views.find(
+        (view) => view[1] !== "form" && view[1] !== "search",
+    );
+    if (!multiView) {
+        return { ...options, newStack: newStack.slice(0, -1) };
+    }
+    return {
+        ...options,
+        newStack: [
+            ...newStack.slice(0, -1),
+            {
+                ...omit(lastController, "lazy"),
+                action,
+                displayName: action.display_name || action.name || "",
+                props: { ...lastController.props, type: multiView[1] },
+            },
+        ],
+    };
+}
 
 /**
  * Execute an action of type ``ir.actions.act_window``: resolve the view,
@@ -19,13 +66,10 @@ import { findView } from "../action_views.js";
  * lazy crumb is dropped.
  *
  * @param {ActWindowAction} action
- * @param {{
- *   viewType?: string,
- *   newWindow?: boolean,
- *   newStack?: object[],
- *   props?: object,
- *   forceLeave?: boolean,
- * }} options
+ * @param {ActionOptions} options the full caller options bag, forwarded
+ *   verbatim by the dispatcher and passed on to ``_updateUI`` — see the note in
+ *   ``act_url.js``. Narrowing it to the keys read here would reject callers
+ *   passing any other legitimate option.
  * @param {ActionManager} am
  */
 export async function executeActWindowAction(action, options, am) {
@@ -52,30 +96,7 @@ export async function executeActWindowAction(action, options, am) {
         views,
         ...am._getViewInfo(view, action, views, options.props),
     });
-    // preprocessAction always seeds `controllers` to {}, but the raw
-    // ActWindowAction type marks it optional; ??= satisfies the type while
-    // staying a no-op on the always-present runtime value.
     (action.controllers ??= {})[view.type] = controller;
 
-    const newStackLastController = options.newStack?.at(-1);
-    if (newStackLastController?.lazy) {
-        const multiView = action.views.find(
-            (view) => view[1] !== "form" && view[1] !== "search",
-        );
-        if (multiView) {
-            // The action has a multi-record view; keep the lazy crumb and
-            // promote it into a real breadcrumb pointing at that view.
-            delete newStackLastController.lazy;
-            newStackLastController.displayName =
-                action.display_name || action.name || "";
-            newStackLastController.action = action;
-            newStackLastController.props.type = multiView[1];
-        } else {
-            // No multi-record view — drop the lazy crumb entirely.
-            // newStack is guaranteed here (newStackLastController came from
-            // its last element); ?. satisfies strictNullChecks.
-            options.newStack?.splice(-1);
-        }
-    }
-    return am._updateUI(controller, options);
+    return am._updateUI(controller, resolveLazyCrumb(action, options));
 }

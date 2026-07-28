@@ -95,7 +95,6 @@ test(`Scale: init with year`, async () => {
 });
 
 test(`First day: 0 = Sunday`, async () => {
-    // the week start depends on the locale
     defineParams({
         lang_parameters: { week_start: 0 },
     });
@@ -116,7 +115,6 @@ test(`First day: 0 = Sunday`, async () => {
 });
 
 test(`First day: 1 = Monday`, async () => {
-    // the week start depends on the locale
     defineParams({
         lang_parameters: { week_start: 1 },
     });

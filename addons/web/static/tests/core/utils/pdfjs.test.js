@@ -12,9 +12,6 @@ function makeIframe() {
 }
 
 test("applies immediately when the iframe document is already loaded", () => {
-    // The viewer iframe may have fired "load" before the call (fast cache,
-    // re-mount): waiting for a future "load" event alone would never inject
-    // the style and the buttons would stay visible.
     const iframe = makeIframe();
     expect(iframe.contentDocument.readyState).toBe("complete");
     hidePDFJSButtons(iframe);
@@ -31,7 +28,6 @@ test("a later call with different options updates the injected style", () => {
     expect(styleEl.textContent).not.toInclude("#presentationMode");
 
     hidePDFJSButtons(iframe, { hidePresentation: true, hideRotation: true });
-    // Same element, updated content — no duplicated <style> nodes.
     expect(iframe.contentDocument.head.querySelectorAll("style")).toHaveLength(1);
     expect(styleEl.textContent).toInclude("button#presentationMode");
     expect(styleEl.textContent).toInclude("button#pageRotateCw");

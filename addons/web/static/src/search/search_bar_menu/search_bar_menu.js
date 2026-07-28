@@ -22,8 +22,6 @@ import {
 
 const favoriteMenuRegistry = registry.category("favoriteMenu");
 
-// Favorite-menu items are mounted under the search-bar's Favorites dropdown.
-// `groupNumber` clusters items visually; `isDisplayed` filters by env/config.
 favoriteMenuRegistry.addValidation({
     Component: Function,
     groupNumber: { type: Number, optional: true },
@@ -59,9 +57,7 @@ export class SearchBarMenu extends Component {
 
     setup() {
         this.facet_icons = FACET_ICONS;
-        // Filter
         this.actionService = useService("action");
-        // Favorite
         this.state = useState({ sharedFavoritesExpanded: false });
         useBus(
             this.env.searchModel,
@@ -70,7 +66,6 @@ export class SearchBarMenu extends Component {
         );
     }
 
-    // GroupBy
     /**
      * Groupable fields, sorted by label. A live getter rather than a setup-time
      * snapshot: `fillSearchViewItemsProperty` (properties flow) mutates
@@ -91,7 +86,6 @@ export class SearchBarMenu extends Component {
         return sortBy(fields, "string");
     }
 
-    // Filter Panel
     /** @returns {Object[]} enriched filter and dateFilter search items */
     get filterItems() {
         return this.env.searchModel.getSearchItems((searchItem) =>
@@ -116,7 +110,6 @@ export class SearchBarMenu extends Component {
         }
     }
 
-    // GroupBy Panel
     /**
      * @returns {boolean}
      */
@@ -164,8 +157,6 @@ export class SearchBarMenu extends Component {
     onAddCustomGroup(fieldName) {
         this.env.searchModel.createNewGroupBy(fieldName);
     }
-
-    // Favorite Panel
 
     /** @returns {Object[]} private favorite search items (owned by current user) */
     get favorites() {

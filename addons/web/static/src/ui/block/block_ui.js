@@ -59,13 +59,9 @@ export class BlockUI extends Component {
             line2: "",
         });
 
-        // Use useBus so the listeners are removed on teardown; the bus is a
-        // module-level singleton shared across mounts, so raw addEventListener
-        // with .bind(this) would leak an unremovable handler per instance.
         useBus(this.props.bus, AppEvent.BLOCK, this.block);
         useBus(this.props.bus, AppEvent.UNBLOCK, this.unblock);
 
-        // Ensure no pending timer fires on a destroyed instance.
         onWillDestroy(() => {
             browser.clearTimeout(this.showBlockedUITimer);
             browser.clearTimeout(this.msgTimer);
@@ -89,10 +85,6 @@ export class BlockUI extends Component {
         const showBlockedUI = () => {
             this.state.blockState = this.BLOCK_STATES.VISIBLY_BLOCKED;
             if (!ev.detail?.message) {
-                // Start the message rotation only once the overlay is actually
-                // visible — otherwise the "Still loading…" steps advance during
-                // the invisible pre-``delay`` window and the overlay appears
-                // already several messages in.
                 this.replaceMessage(0);
             }
         };

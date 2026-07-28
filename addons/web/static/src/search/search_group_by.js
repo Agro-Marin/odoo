@@ -13,11 +13,6 @@ import { rankInterval } from "./utils/dates.js";
  * @returns {Object[]}
  */
 export function getQueryGroups(query, searchItems) {
-    // Map keyed by groupId (and, per group, by searchItemId) instead of the
-    // former O(q²) `Array.find` scans: getQueryGroups is on the hot _getGroups
-    // spine. `preGroups`/`activeItems` arrays are kept alongside the maps to
-    // preserve query (insertion) order, which downstream group/facet order
-    // relies on.
     const preGroupMap = new Map();
     const preGroups = [];
     for (const queryElem of query) {
@@ -128,8 +123,6 @@ export function computeGroupBy({
             }
         }
     }
-    // All three sources (query group-bys, globalGroupBy, defaultGroupBy) are
-    // string[]; the former `typeof groupBy === "string"` normalization was dead.
     return groupBys.length
         ? groupBys
         : globalGroupBy.length
@@ -148,7 +141,9 @@ export function computeGroupBy({
  * @param {Object} searchItems
  * @param {string[]} groupBy - current groupBy result
  * @param {string|false} orderByCount
- * @param {OrderTerm[]} globalOrderBy
+ * @param {OrderTerm[]} globalOrderBy - copied, never returned by reference: the
+ *  caller memoizes and freezes the result, which would otherwise freeze the
+ *  action-owned array this was built from (see computeGroupBy, same rule).
  * @returns {OrderTerm[]}
  */
 export function computeOrderBy(
@@ -171,7 +166,7 @@ export function computeOrderBy(
             }
         }
     }
-    return orderBy.length ? orderBy : globalOrderBy;
+    return orderBy.length ? orderBy : globalOrderBy.slice();
 }
 
 /**

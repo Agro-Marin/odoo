@@ -14,15 +14,14 @@ export const SUCCESS_SIGNAL = "clickbot test succeeded";
 
 const MOUSE_EVENTS = ["mouseover", "mouseenter", "mousedown", "mouseup", "click"];
 const BLACKLISTED_MENUS = [
-    "base.menu_theme_store", // Open a new tab
-    "base.menu_third_party", // Open a new tab
-    "event.menu_event_registration_desk", // there's no way to come back from this menu (tablet mode)
-    "hr_attendance.menu_action_open_form", // same here (tablet mode)
-    "hr_attendance.menu_hr_attendance_onboarding", // same here (tablet mode)
-    "mrp_workorder.menu_mrp_workorder_root", // same here (tablet mode)
-    "pos_enterprise.menu_point_kitchen_display_root", // conditional menu that may leads to frontend
+    "base.menu_theme_store",
+    "base.menu_third_party",
+    "event.menu_event_registration_desk",
+    "hr_attendance.menu_action_open_form",
+    "hr_attendance.menu_hr_attendance_onboarding",
+    "mrp_workorder.menu_mrp_workorder_root",
+    "pos_enterprise.menu_point_kitchen_display_root",
 ];
-// If you change this selector, adapt Studio test "Studio icon matches the clickbot selector"
 const STUDIO_SYSTRAY_ICON_SELECTOR = ".o_web_studio_navbar_item:not(.o_disabled) i";
 
 let isEnterprise;
@@ -45,7 +44,7 @@ function setup(light, currentState) {
     stopButton.textContent = "Stop ClickAll!";
     stopButton.onclick = function () {
         browser.localStorage.removeItem("running.clickbot");
-        location.reload();
+        browser.location.reload();
     };
     document.body.appendChild(stopButton);
 
@@ -81,7 +80,6 @@ function onRPCRequest({ detail }) {
 }
 
 function onRPCResponse({ detail }) {
-    // Defensive: malformed events (null detail, missing data) can reach the
     // global rpcBus from tests/synthetic fires; don't surface those as exceptions.
     if (!detail?.data) {
         return;
@@ -101,8 +99,7 @@ function cleanup() {
     env.bus.removeEventListener(AppEvent.ACTION_MANAGER_UI_UPDATED, uiUpdate);
     rpcBus.removeEventListener(RpcEvent.REQUEST, /** @type {any} */ (onRPCRequest));
     rpcBus.removeEventListener(RpcEvent.RESPONSE, /** @type {any} */ (onRPCResponse));
-    const stopButton = document.getElementById("stop-clickbot");
-    stopButton.remove();
+    document.getElementById("stop-clickbot")?.remove();
 }
 
 /**
@@ -214,8 +211,6 @@ async function ensureHomeMenu() {
     if (!homeMenu) {
         let menuToggle = document.querySelector("nav.o_main_navbar > a.o_menu_toggle");
         if (!menuToggle) {
-            // The Barcode app has no navbar; o_stock_barcode_home_menu is the
-            // equivalent of o_menu_toggle there.
             menuToggle = document.querySelector(".o_stock_barcode_home_menu");
         }
         await triggerClick(menuToggle, "home menu toggle button");
@@ -246,23 +241,29 @@ async function getNextMenu() {
     const menuToggles = document.querySelectorAll(
         ".o_menu_sections > .dropdown-toggle, .o_menu_sections > .dropdown-item",
     );
-    if (state.menuIndex === menuToggles.length) {
+    if (state.menuIndex >= menuToggles.length) {
         state.menuIndex = 0;
-        return; // all menus done
+        return;
     }
     let menuToggle = menuToggles[state.menuIndex];
     if (menuToggle.classList.contains("dropdown-toggle")) {
-        // Dropdown toggler: open it and pick a menu inside the dropdown
         let dropdownMenu = getPopoverForTarget(/** @type {HTMLElement} */ (menuToggle));
         if (!dropdownMenu) {
             await triggerClick(menuToggle, "menu toggler");
             dropdownMenu = getPopoverForTarget(/** @type {HTMLElement} */ (menuToggle));
         }
         if (!dropdownMenu) {
-            state.menuIndex = 0; // empty More menu has no dropdown (FIXME?)
+            state.menuIndex = 0;
             return;
         }
         const items = dropdownMenu.querySelectorAll(".dropdown-item");
+        // A dropdown with nothing left to walk must advance menuIndex, not sit
+        // there incrementing subMenuIndex forever and returning undefined.
+        if (state.subMenuIndex >= items.length) {
+            state.menuIndex++;
+            state.subMenuIndex = 0;
+            return;
+        }
         menuToggle = items[state.subMenuIndex];
         if (state.subMenuIndex === items.length - 1) {
             state.menuIndex++;
@@ -331,7 +332,6 @@ async function testFilters() {
         return;
     }
 
-    // Avoid the "Custom Filter" menu item (it doesn't have the class .o_menu_item)
     const simpleFilterSel =
         ".o_filter_menu > .dropdown-item.o_menu_item:not(.o_add_custom_filter)";
     const dateFilterSel = ".o_filter_menu > .o_accordion";
@@ -342,7 +342,6 @@ async function testFilters() {
     state.testedFilters += filterMenuItems.length;
     for (const filter of filterMenuItems) {
         if (filter.classList.contains("o_accordion")) {
-            // Date filter: unfold its options, then click the first one.
             await triggerClick(
                 filter.querySelector(".o_accordion_toggle"),
                 `filter "${/** @type {HTMLElement} */ (filter).innerText.trim()}"`,
@@ -380,20 +379,38 @@ async function testViews() {
         "nav.o_cp_switch_buttons > button.o_switch_view:not(.active):not(.o_map)",
     );
     for (const switchButton of switchButtons) {
-        // Only way to get the viewType from the switchButton
-        const viewType = [...switchButton.classList]
-            .find((cls) => cls !== "o_switch_view" && cls.startsWith("o_"))
-            .slice(2);
-        browser.console.log(`Testing view switch: ${viewType}`);
-        // timeout to avoid click debounce
-        browser.setTimeout(function () {
-            const target = document.querySelector(
-                `nav.o_cp_switch_buttons > button.o_switch_view.o_${viewType}`,
+        const viewTypeClass = [...switchButton.classList].find(
+            (cls) => cls !== "o_switch_view" && cls.startsWith("o_"),
+        );
+        if (!viewTypeClass) {
+            // Every switcher button is expected to carry an `o_<viewtype>`
+            // class alongside `o_switch_view`. One that does not is a control
+            // panel change, not a view to test — skipping beats the TypeError
+            // that `.slice(2)` on undefined used to raise, which aborted the
+            // whole app's run at whichever view happened to be first.
+            browser.console.warn(
+                "Skipping a view switcher with no o_<viewtype> class:",
+                switchButton.className,
             );
-            if (target) {
-                triggerClick(target, `${viewType} view switcher`);
-            }
-        }, 250);
+            continue;
+        }
+        const viewType = viewTypeClass.slice(2);
+        browser.console.log(`Testing view switch: ${viewType}`);
+        // The click is deferred so the control panel has settled before it
+        // lands, and re-queried rather than reusing `switchButton` because the
+        // previous iteration re-rendered the switcher. Awaiting it keeps the
+        // click INSIDE this iteration: it used to be a bare setTimeout whose
+        // triggerClick promise nobody held, so a rejection (element gone)
+        // surfaced as an unhandled rejection attributed to no particular menu.
+        await new Promise((resolve) => browser.setTimeout(resolve, 250));
+        const target = document.querySelector(
+            `nav.o_cp_switch_buttons > button.o_switch_view.o_${viewType}`,
+        );
+        if (!target) {
+            browser.console.warn(`View switcher for ${viewType} disappeared`);
+            continue;
+        }
+        await triggerClick(target, `${viewType} view switcher`);
         await waitForCondition(
             () =>
                 document.querySelector(`.o_switch_view.o_${viewType}.active`) !== null,
@@ -414,19 +431,17 @@ async function testMenuItem(element) {
     const menuDescription = `${el.innerText.trim()} ${menu}`;
     if (BLACKLISTED_MENUS.includes(menu)) {
         browser.console.log(`Skipping blacklisted menu ${menuDescription}`);
-        return Promise.resolve(); // Skip black listed menus
+        return Promise.resolve();
     }
     browser.console.log(`Testing menu ${menuDescription}`);
-    state.testedMenus.push(menu);
+    if (!state.testedMenus.includes(menu)) {
+        state.testedMenus.push(menu);
+    }
     const startActionCount = actionCount;
     await triggerClick(element, `menu item "${el.innerText.trim()}"`);
     try {
         let isModal = false;
         await waitForCondition(() => {
-            // `waitForCondition` keeps polling this predicate while any RPC or
-            // OWL scheduler task is still pending, so it must be idempotent: the
-            // `!isModal` guard counts/logs a detected modal exactly once even if
-            // a later tick re-enters with the dialog still in the DOM.
             if (!isModal && document.querySelector(".o_dialog:not(.o_error_dialog)")) {
                 isModal = true;
                 browser.console.log(`Modal detected: ${menuDescription}`);
@@ -484,8 +499,11 @@ async function testApp() {
     if (state.light === true) {
         return;
     }
-    state.menuIndex = 0;
-    state.subMenuIndex = 0;
+    // Do NOT reset the cursor here: `state` may have been restored from
+    // localStorage after a mid-run page reload, and zeroing it made the bot
+    // re-walk every menu of the current app — inflating `testedMenus` (which is
+    // push-only and never consulted) and with it the run's own summary. The
+    // cursor is reset when we MOVE to a new app, in _clickEverywhere.
     let menu = await getNextMenu();
     while (menu) {
         await testMenuItem(menu);
@@ -508,10 +526,11 @@ async function _clickEverywhere(xmlId, light, currentState) {
             await testApp();
         } else {
             if (state.app) {
-                // This is needed to test the last app after a reload
                 await testApp();
             }
             while ((state.app = await getNextApp())) {
+                state.menuIndex = 0;
+                state.subMenuIndex = 0;
                 await testApp();
             }
         }

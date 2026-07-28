@@ -62,7 +62,7 @@ test("radio field on a many2one in a new record", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="product_id" widget="radio"/></form>`,
+        arch: `<form><field name="product_id" widget="radio"/></form>`,
     });
 
     expect("div.o_radio_item").toHaveCount(2);
@@ -75,7 +75,7 @@ test("required radio field on a many2one", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="product_id" widget="radio" required="1"/></form>`,
+        arch: `<form><field name="product_id" widget="radio" required="1"/></form>`,
     });
 
     expect(".o_field_radio input:checked").toHaveCount(0);
@@ -96,7 +96,7 @@ test("radio field change value by onchange", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="bar" />
                 <field name="product_id" widget="radio" />
@@ -120,7 +120,7 @@ test("radio field on a selection in a new record", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="color" widget="radio"/></form>`,
+        arch: `<form><field name="color" widget="radio"/></form>`,
     });
 
     expect("div.o_radio_item").toHaveCount(2);
@@ -129,7 +129,6 @@ test("radio field on a selection in a new record", async () => {
     });
     expect(".o_field_radio").toHaveText("Red\nBlack");
 
-    // click on 2nd option
     await click("input.o_radio_input:eq(1)");
     await animationFrame();
 
@@ -149,7 +148,7 @@ test("two radio field with same selection", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <group>
                     <field name="color" widget="radio"/>
@@ -164,7 +163,6 @@ test("two radio field with same selection", async () => {
     expect("[name='color'] input.o_radio_input[data-value=black]").toBeChecked();
     expect("[name='color_2'] input.o_radio_input[data-value=black]").toBeChecked();
 
-    // click on Red
     await click("[name='color_2'] label");
     await animationFrame();
 
@@ -178,7 +176,7 @@ test("radio field has o_horizontal or o_vertical class", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <group>
                     <field name="color" widget="radio" />
@@ -219,7 +217,7 @@ test("radio field with numerical keys encoded as strings", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="selection" widget="radio"/></form>`,
+        arch: `<form><field name="selection" widget="radio"/></form>`,
     });
     expect(".o_field_widget").toHaveText("Red\nBlack");
     expect(".o_radio_input:checked").toHaveCount(0);
@@ -239,7 +237,7 @@ test("radio field is empty", async () => {
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form edit="0">
                 <field name="trululu" widget="radio" />
             </form>

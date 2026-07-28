@@ -39,9 +39,6 @@ export class CalendarYearRenderer extends Component {
         this.months = Info.months();
         this.fcs = {};
         for (const month of this.months) {
-            // Pass a GETTER so v7 sees fresh options on every patch: the options
-            // carry model-dependent callbacks, so capturing them once would strand
-            // calendars on first-mount values when navigating between years.
             this.fcs[month] = useFullCalendar(`fullCalendar-${month}`, () =>
                 this.getOptionsForMonth(month),
             );
@@ -51,27 +48,16 @@ export class CalendarYearRenderer extends Component {
         );
         this.rootRef = useRef("root");
 
-        // Depend on the root element: dep-less, this re-ran updateSize() (a
-        // rect read + height write, i.e. a forced reflow over 12 mini
-        // calendars) on EVERY patch. Resizes are already covered by the
-        // window listener below.
         useEffect(
             () => this.updateSize(),
             () => [this.rootRef.el],
         );
 
-        // v7 dropped v6's ``windowResize`` option (ResizeObserver only);
-        // listen on ``window`` directly. One resize means one layout update:
-        // the root height is shared by all 12 mini calendars, so a
-        // per-instance fan-out would repeat the same forced
-        // layout (getBoundingClientRect + style write) 12 times.
         useExternalListener(window, "resize", () => this.onWindowResize());
     }
 
     get options() {
         return {
-            // v7 hashed the v6 ``fc-day-*`` state classes; re-inject the v6 names
-            // tests and CSS still target (see ``dayCellClassNames``).
             class: "fc",
             viewClass: ({ view }) =>
                 view && view.type ? `fc-view fc-${view.type}-view` : "fc-view",
@@ -80,19 +66,13 @@ export class CalendarYearRenderer extends Component {
             dayCellTopClass: "fc-daygrid-day-top",
             dayCellTopInnerClass: "fc-daygrid-day-number",
             dayHeaderClass: dayHeaderClassNames,
-            // Year view uses ``display: "background"`` for events.
             backgroundEventClass: "fc-bg-event",
-            // v7 toolbar splits into ``toolbarSectionClass`` elements; re-inject
-            // v6's ``fc-toolbar-chunk`` so tests targeting mini-calendar titles work.
             toolbarClass: "fc-toolbar",
             toolbarSectionClass: "fc-toolbar-chunk",
             toolbarTitleClass: "fc-toolbar-title",
             dayHeaderFormat: { weekday: "narrow" },
             dateClick: this.onDateClick,
             dayCellDidMount: this.onDayCellDidMount,
-            // Strip the offset (see formatFcInitialDate): an offset-bearing ISO
-            // makes FC re-derive the day in its zone and land on the previous
-            // day in fixed-offset/marker zones, mis-anchoring the mini months.
             initialDate: formatFcInitialDate(this.props.model.date),
             initialView: "dayGridMonth",
             direction: localization.direction,
@@ -100,11 +80,6 @@ export class CalendarYearRenderer extends Component {
             editable: this.props.model.canEdit,
             dayMaxEventRows: this.props.model.eventLimit,
             eventDidMount: this.onEventDidMount,
-            // Year view events use ``display: "background"`` (see
-            // ``convertRecordToEvent``), routed by v7 through
-            // ``backgroundEventDidMount`` instead of ``eventDidMount``. Without this,
-            // ``data-event-id``/``o_event*`` classes never land and id-based test
-            // selectors find 0 elements.
             backgroundEventDidMount: this.onEventDidMount,
             eventResizableFromStart: true,
             events: (_, successCb) => successCb(this.mapRecordsToEvents()),
@@ -116,7 +91,7 @@ export class CalendarYearRenderer extends Component {
             navLinks: false,
             nowIndicator: true,
             select: this.onSelect,
-            selectMinDistance: 5, // needed to not trigger select when click
+            selectMinDistance: 5,
             selectMirror: true,
             selectable: this.props.model.canCreate,
             showNonCurrentDates: false,
@@ -130,8 +105,6 @@ export class CalendarYearRenderer extends Component {
             viewDidMount: this.viewDidMount,
             weekends: this.props.isWeekendVisible,
             fixedWeekCount: false,
-            // Same rationale as ``calendar_common_renderer``: re-inject v6's
-            // ``fc-highlight`` class so tests/CSS targeting it work under FC v7.
             highlightClass: "fc-highlight",
         };
     }
@@ -143,26 +116,15 @@ export class CalendarYearRenderer extends Component {
     }
 
     viewDidMount({ el, view, options }) {
-        // v7 dropped ``view.calendar.currentData.options``; the same options now
-        // arrive as the ``options`` field of the didMount payload
-        // (``fullcalendar.esm.js``).
         if (!options) {
-            return; // v6-shape fallback or unexpected payload
+            return;
         }
-        // The didMount payload only echoes a subset of options (toolbars), not
-        // weekNumbers/weekTextShort — read those from this.options, mirroring
-        // the fix in CalendarCommonRenderer.viewDidMount (M14). Latent here
-        // (year sets weekNumbersWithinDays: true, so weekColumn is always
-        // false), but kept consistent to avoid a silent regression if that flips.
         const showWeek = this.options.weekNumbers;
         const weekText = options.weekTextShort ?? this.options.weekText ?? "";
         const weekColumn = !this.customOptions.weekNumbersWithinDays;
         if (showWeek && weekColumn) {
             makeWeekColumn(/** @type {any} */ ({ el, weekText }));
         }
-        // Same scroller-class re-injection as ``CalendarCommonRenderer.viewDidMount``:
-        // downstream CSS still targets ``.fc-scroller`` (see calendar_renderer.scss).
-        // Hashes are resolved at runtime so they survive FC library bumps.
         const scrollerClass = fcInternalClassName("internalScroller");
         const liquidClass = fcInternalClassName("liquid");
         for (const scrollerEl of el.querySelectorAll(`.${scrollerClass}`)) {
@@ -185,9 +147,6 @@ export class CalendarYearRenderer extends Component {
         };
     }
     getDateWithMonth(month) {
-        // Strip the offset (see formatFcInitialDate): this is the per-month anchor
-        // fed to FC as initialDate; an offset-bearing ISO would land on the previous
-        // day in fixed-offset/marker zones, shifting the whole mini month.
         return formatFcInitialDate(
             this.props.model.date.set({ month: this.months.indexOf(month) + 1 }),
         );
@@ -230,7 +189,6 @@ export class CalendarYearRenderer extends Component {
             return;
         }
 
-        // With date value we don't want to change the time, we need the exact date
         const date = DateTime.fromISO(info.dateStr);
         const records = Object.values(this.props.model.records).filter((r) =>
             Interval.fromDateTimes(r.start.startOf("day"), r.end.endOf("day")).contains(
@@ -244,7 +202,6 @@ export class CalendarYearRenderer extends Component {
             this.openPopover(target, date, records);
         } else if (this.props.model.canCreate) {
             this.props.createRecord({
-                // With date value we don't want to change the time, we need the exact date
                 start: DateTime.fromISO(info.dateStr),
                 isAllDay: true,
             });
@@ -290,8 +247,6 @@ export class CalendarYearRenderer extends Component {
     }
     onDayCellDidMount(info) {
         const classes = this.getDayCellClassNames(info);
-        // v7's renderProps shape varies between cell contexts; ``info.el`` may be
-        // absent on some payloads, so guard against a bad payload taking down the mount.
         if (classes.length && info.el) {
             info.el.classList.add(...classes);
         }
@@ -314,7 +269,6 @@ export class CalendarYearRenderer extends Component {
     async onSelect(info) {
         this.popover.close();
         await this.props.createRecord({
-            // With date value we don't want to change the time, we need the exact date
             start: DateTime.fromISO(info.startStr),
             end: DateTime.fromISO(info.endStr).minus({ days: 1 }),
             isAllDay: true,
@@ -326,7 +280,6 @@ export class CalendarYearRenderer extends Component {
     }
 
     onEventContent(info) {
-        // Remove the title on the background event like in FCv4
         if (info.event.display?.includes("background")) {
             return null;
         }

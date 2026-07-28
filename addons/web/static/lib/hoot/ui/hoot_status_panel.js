@@ -15,10 +15,6 @@ import { HootTestPath } from "./hoot_test_path.js";
  * }} HootStatusPanelProps
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Object: { values: $values },
     Math: { ceil: $ceil, floor: $floor, max: $max, min: $min, random: $random },
@@ -29,10 +25,6 @@ const {
 } = globalThis;
 /** @type {Performance["now"]} */
 const $now = performance.now.bind(performance);
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {HTMLCanvasElement | null} canvas
@@ -98,15 +90,11 @@ function updateTitle(failed) {
     setTitle(`${toAdd} ${title}`);
 }
 
-const TIMER_PRECISION = 100; // in ms
+const TIMER_PRECISION = 100;
 const TITLE_PREFIX = {
     fail: "✖",
     pass: "✔",
 };
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /** @extends {Component<HootStatusPanelProps, import("../hoot").Environment>} */
 export class HootStatusPanel extends Component {

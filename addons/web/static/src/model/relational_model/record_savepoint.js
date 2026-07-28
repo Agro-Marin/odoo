@@ -105,7 +105,6 @@ export function discard(record) {
     }
     const fromSavePoint = !!record._savePoint;
     if (fromSavePoint) {
-        // See restoreFromSavePoint above for invariants.
         restoreFromSavePoint(record);
     } else {
         record._clearChanges();
@@ -114,12 +113,9 @@ export function discard(record) {
     record.data = { ...record._values, ...record._changes };
     record._setEvalContext();
     if (!fromSavePoint) {
-        // Data is back to server truth, so prior invalid flags are stale.
         record._invalidFields.clear();
     }
     if (!record.isNew) {
-        // Recompute unset-required fields; never touches invalid-input
-        // flags it doesn't own.
         record._checkValidity();
     }
     record._closeInvalidFieldsNotification();

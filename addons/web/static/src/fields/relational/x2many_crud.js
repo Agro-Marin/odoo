@@ -31,8 +31,7 @@ export function useX2ManyCrud(getList, isMany2Many) {
      */
     const saveRecord = (object) =>
         isMany2Many && Array.isArray(object)
-            ? // linkRecords is always defined when isMany2Many is true (see above).
-              /** @type {Function} */ (linkRecords)(object)
+            ? /** @type {Function} */ (linkRecords)(object)
             : saveAndLink(object);
 
     const updateRecord = async (record) => {

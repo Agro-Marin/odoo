@@ -13,7 +13,6 @@ import { compareUrls, objectToUrlEncodedString } from "@web/core/utils/urls";
 
 import { browser } from "./browser.js";
 
-// Keys that are serialized in the URL as path segments instead of query string
 export const PATH_KEYS = ["resId", "action", "active_id", "model"];
 
 export const routerBus = new EventBus();
@@ -86,7 +85,6 @@ function parseString(/** @type {string} */ str) {
 function computeNextState(values, replace) {
     const nextState = replace ? pick(state, ..._lockedKeys) : { ...state };
     Object.assign(nextState, values);
-    // Update last entry in the actionStack
     if (nextState.actionStack?.length) {
         Object.assign(nextState.actionStack.at(-1), pick(nextState, ...PATH_KEYS));
     }
@@ -144,8 +142,6 @@ function pathFromActionState(/** @type {Route} */ state) {
         if (model.includes(".")) {
             path.push(model);
         } else {
-            // A few models don't have a dot at all, we need to distinguish
-            // them from action paths (eg: website)
             path.push(`m-${model}`);
         }
     }
@@ -177,9 +173,7 @@ function stateToUrl(state) {
                 active_id: prevActiveId,
             } = prevAct;
             const { action: currentAction, active_id: currentActiveId } = currentAct;
-            // actions would typically map to a path like `active_id/action/res_id`
             if (currentActiveId === prevResId) {
-                // avoid doubling up when the active_id is the same as the previous action's res_id
                 delete currentAct.active_id;
             }
             if (
@@ -187,7 +181,6 @@ function stateToUrl(state) {
                 !prevResId &&
                 currentActiveId === prevActiveId
             ) {
-                //avoid doubling up the action and the active_id when a single-record action is preceded by a multi-record action
                 delete currentAct.action;
                 delete currentAct.active_id;
             }
@@ -212,12 +205,8 @@ function urlToState(/** @type {URL} */ urlObj) {
     const { pathname, hash, search } = urlObj;
     const state = parseSearchQuery(search);
 
-    // ** url-retrocompatibility **
-    // A hash is either an anchor link (no key/value format, dropped by sanitizeHash)
-    // or legacy key/value data, which gets merged into the search.
     if (pathname === "/web") {
         const sanitizedHash = sanitizeHash(parseHash(hash));
-        // Old urls used "id", it is now resId for clarity. Remap to the new name.
         if (sanitizedHash.id) {
             sanitizedHash.resId = sanitizedHash.id;
             delete sanitizedHash.id;
@@ -253,7 +242,6 @@ function urlToState(/** @type {URL} */ urlObj) {
             }
 
             if (part.startsWith("action-")) {
-                // numeric id or xml_id
                 const actionId = part.slice(7);
                 action.action = isNumeric(actionId)
                     ? Number.parseInt(actionId, 10)
@@ -263,15 +251,12 @@ function urlToState(/** @type {URL} */ urlObj) {
             } else if (part.includes(".")) {
                 action.model = part;
             } else {
-                // action tag or path
                 action.action = part;
             }
 
             if (action.resId && action.action) {
                 actions.push(omit(action, "resId"));
             }
-            // Don't create actions for models without resId unless they're the last one.
-            // If the last one is a model but doesn't have a view_type, the action service will not mount it anyway.
             if (action.action || action.resId || i === splitPath.length - 1) {
                 actions.push(action);
             }
@@ -282,7 +267,6 @@ function urlToState(/** @type {URL} */ urlObj) {
             state.actionStack = actions;
         }
         if (prefix === "scoped_app" && !isDisplayStandalone()) {
-            // make sure /scoped_app are redirected to /odoo when using the browser instead of the PWA
             const url = browser.location.origin + router.stateToUrl(state);
             urlObj.href = url;
         }
@@ -313,10 +297,7 @@ let _hiddenKeysFromUrl = new Set();
 export function startRouter() {
     const url = new URL(/** @type {any} */ (browser.location));
     state = router.urlToState(url);
-    // ** url-retrocompatibility **
     if (browser.location.pathname === "/web") {
-        // Change the url of the current history entry to the canonical url,
-        // only at first load (not for old-style link clicks or back/forward).
         browser.history.replaceState(browser.history.state, "", url.href);
     }
     pushTimeout = null;
@@ -335,16 +316,12 @@ browser.addEventListener("popstate", (ev) => {
     browser.clearTimeout(pushTimeout);
     pushArgs = makePushArgs();
     if (!ev.state) {
-        // We are coming from a click on an anchor.
-        // Add the current state to the history entry so that a future loadstate behaves as expected.
         browser.history.replaceState({ nextState: state }, "", browser.location.href);
         return;
     }
     state =
         ev.state?.nextState ||
         router.urlToState(new URL(/** @type {any} */ (browser.location)));
-    // Some client actions want to handle loading their own state. This is a ugly hack to allow not
-    // reloading the webclient's state when they manipulate history.
     if (!ev.state?.skipRouteChange && !router.skipLoad) {
         routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
@@ -359,9 +336,6 @@ browser.addEventListener("popstate", (ev) => {
  */
 browser.addEventListener("pageshow", (ev) => {
     if (ev.persisted) {
-        // Drop the pending debounced push AND its aggregated args: a bfcache
-        // restore must not merge a stale aggregate (leaked pushArgs) into the
-        // next push. clearing pushTimeout alone left pushArgs behind.
         router.cancelPushes();
         routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
@@ -387,16 +361,10 @@ browser.addEventListener("click", (ev) => {
     if (href && !href.startsWith("#")) {
         let url;
         try {
-            // ev.target.href is the full url including current path
             url = new URL(a.href);
         } catch {
             return;
         }
-        // The app's active path prefix is "/odoo" normally, but "/scoped_app"
-        // when running as an installed PWA (see startUrl()/isScopedApp()).
-        // Hard-coding "/odoo" left every internal-link click in scoped-app mode
-        // falling through to a full page load — on mobile that escapes to an
-        // in-app browser, the very thing this handler exists to prevent.
         const prefix = `/${startUrl()}`;
         const onAppPath =
             browser.location.pathname === prefix ||
@@ -412,11 +380,6 @@ browser.addEventListener("click", (ev) => {
             !a.hasAttribute("download")
         ) {
             ev.preventDefault();
-            // Cancel any debounced push scheduled just before this click (e.g. a
-            // controller's updateActionState): otherwise doPush fires first and
-            // computeNextState merges the old controller's aggregated keys onto
-            // the new module state, corrupting the link navigation before
-            // loadState runs. popstate already does exactly this.
             router.cancelPushes();
             state = router.urlToState(url);
             if (url.pathname.startsWith(prefix) && url.hash) {
@@ -432,20 +395,11 @@ browser.addEventListener("click", (ev) => {
  */
 function makeDebouncedPush(mode) {
     function doPush() {
-        // Calculates new route based on aggregated search and options
         const nextState = computeNextState(pushArgs.state, pushArgs.replace);
         const url = browser.location.origin + router.stateToUrl(nextState);
         if (!compareUrls(url + browser.location.hash, browser.location.href)) {
-            // Route changed: push or replace using the mode from the aggregation
-            // bucket (not the closure `mode`) — batched calls share one history
-            // operation, and a "push" intent must win over "replace".
             if (pushArgs.mode === "push") {
-                // doPush is delayed, so the pushState call would otherwise create
-                // the history entry under the wrong (current) title: restore the
-                // title as it was at call time, push, then reset it.
                 const originalTitle = document.title;
-                // Always a string here: pushOrReplaceState set it before
-                // scheduling doPush.
                 document.title = /** @type {string} */ (pushArgs.title);
                 browser.history.pushState({ nextState }, "", url);
                 document.title = originalTitle;
@@ -453,7 +407,6 @@ function makeDebouncedPush(mode) {
                 browser.history.replaceState({ nextState }, "", url);
             }
         } else {
-            // URL didn't change but state might have, update it in place
             browser.history.replaceState({ nextState }, "", browser.location.href);
         }
         state = nextState;
@@ -468,8 +421,6 @@ function makeDebouncedPush(mode) {
     return function pushOrReplaceState(state, options = {}) {
         pushArgs.replace ||= /** @type {boolean} */ (options.replace);
         pushArgs.reload ||= /** @type {boolean} */ (options.reload);
-        // A "push" intent is stronger than "replace": once any batched call
-        // asks for a new history entry, keep it — never downgrade to replace.
         if (mode === "push") {
             pushArgs.mode = "push";
         }
@@ -495,16 +446,12 @@ export const router = {
     get current() {
         return state;
     },
-    // state <-> url conversions can be patched if needed in a custom webclient.
     stateToUrl,
     urlToState,
-    // TODO: stop debouncing these and remove the ugly hack to have the correct title for history entries
     pushState: makeDebouncedPush("push"),
     replaceState: makeDebouncedPush("replace"),
     cancelPushes: () => {
         browser.clearTimeout(pushTimeout);
-        // Also drop the aggregated args so a cancelled state does not resurface
-        // merged into the next push.
         pushArgs = makePushArgs();
     },
     addLockedKey: (/** @type {string} */ key) => _lockedKeys.add(key),

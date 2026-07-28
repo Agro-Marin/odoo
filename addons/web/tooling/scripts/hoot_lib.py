@@ -31,16 +31,6 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# --------------------------------------------------------------------------- #
-# Workspace layout — derived, never hardcoded.
-#
-# This file lives at <ws>/addons/odoo/addons/web/tooling/scripts/, so the odoo
-# checkout and the workspace root are fixed numbers of parents up. The venv is
-# whatever interpreter is running us (the CLI shebang trampolines guarantee it
-# is the workspace venv; ``$ODOO_VENV_PYTHON`` overrides). The conf follows
-# the workspace convention of one ``config/<venv-name>.conf`` per venv, with a
-# single-conf fallback and an ``$ODOO_CONF`` override.
-# --------------------------------------------------------------------------- #
 _SCRIPT_DIR = Path(__file__).resolve().parent
 ODOO_ROOT = _SCRIPT_DIR.parents[3]
 WORKSPACE = ODOO_ROOT.parents[1]
@@ -52,7 +42,6 @@ def _find_conf() -> Path:
     override = os.environ.get("ODOO_CONF")
     if override:
         return Path(override)
-    # Workspace convention: config/<name>.conf pairs with venv/<name>/.
     venv_name = VENV_PY.parent.parent.name
     candidate = WORKSPACE / "config" / f"{venv_name}.conf"
     if candidate.exists():
@@ -68,11 +57,6 @@ def _find_conf() -> Path:
 
 CONF = _find_conf()
 
-# Our dedicated slice of the world. Port 8069 + db ``wjsaudit`` are OFF-LIMITS.
-# One port is consumed per *warm server*, i.e. per DB, and warm servers outlive
-# the run that booted them: ``hoot-shard`` alone auto-scales to 8 shards (8 DBs)
-# and several parallel sessions each keep their own warm servers alive, so a
-# 5-port slice ran out and turned into "No usable port" mid-run.
 PORT_RANGE = range(8085, 8100)
 DEFAULT_DB = "hoot_web"
 HOST = "127.0.0.1"
@@ -81,14 +65,13 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 STATE_FILE = SCRIPT_DIR / ".hoot_state.json"
 LOG_DIR = SCRIPT_DIR / ".hoot_logs"
 
-# Suites are named ``@<addon>/...``; running an addon's suites requires that
-# addon installed in the warm DB. ``web`` is always installed (it owns the
-# /web/tests runner). Any ``@addon`` prefix maps to the module of the same
-# name — Odoo resolves dependencies (e.g. ``mail`` pulls ``bus`` and
-# ``html_editor``) at install time.
 ALWAYS_MODULES = ("web",)
 
-# HOOT log signals (see web/static/lib/hoot/core/runner.js).
+DEV_FLAGS = "--dev=assets,qweb"
+"""Watch asset sources and invalidate on change, with the asset caches left
+enabled. ``--dev=xml`` would give the same live reload by disabling those
+caches instead, at ~4.5x per ``/web/tests`` render."""
+
 SUCCESS_SIGNAL = "[HOOT] Test suite succeeded"
 RE_FAILED_TEST = re.compile(r'Test "(.+?)" failed')
 RE_PASSED_TEST = re.compile(r'Test "(.+?)" passed')
@@ -98,10 +81,6 @@ RE_PASSED_SUMMARY = re.compile(r"Passed (\d+) tests \((\d+) assertions")
 _log = logging.getLogger("hoot")
 
 
-# --------------------------------------------------------------------------- #
-# Hash: identical algorithm to web/tests/test_js.py ``_generate_hash``.
-# HOOT resolves each ``&id=<hash>`` against either a suite or a single test.
-# --------------------------------------------------------------------------- #
 def generate_hash(test_string: str) -> str:
     """Return the 8-hex-char HOOT id for a suite/test path.
 
@@ -111,18 +90,10 @@ def generate_hash(test_string: str) -> str:
     hash_val = 0
     for char in test_string:
         hash_val = (hash_val << 5) - hash_val + ord(char)
-        hash_val = hash_val & 0xFFFFFFFF
+        hash_val &= 0xFFFFFFFF
     return f"{hash_val:08x}"
 
 
-# --------------------------------------------------------------------------- #
-# Postgres / port helpers
-# --------------------------------------------------------------------------- #
-# PostgreSQL role: honor $PGUSER (the standard libpq env var), else the OS user
-# — Unix-socket peer auth maps to the same-named role. Never hardcode a role: a
-# hardcoded 'marin' broke the runner on machines whose PG role differs.
-# Set PGUSER if your role is not your OS username. The former 'odoo' TCP role
-# was dropped; see config/*.conf and the workspace CLAUDE.md.
 PG_USER = os.environ.get("PGUSER") or getpass.getuser()
 
 
@@ -167,14 +138,6 @@ def port_is_free(port: int) -> bool:
             return False
 
 
-# Port reservations held for the duration of this process. ``port_is_free`` is
-# a check, not a claim: between the probe and the moment the freshly spawned
-# odoo binds, any concurrent ``hoot`` (``hoot-shard`` runs N of them at once)
-# probes the same port and wins the race, so every loser dies with "Address
-# already in use" -> "Server exited early". An advisory lock file per port
-# closes that window across processes; it is released when the booting process
-# exits, by which time the warm server itself owns the port and ``port_is_free``
-# reports it busy.
 _PORT_LOCKS: dict[int, object] = {}
 
 
@@ -190,7 +153,7 @@ def _reserve_port(port: int) -> bool:
     except OSError:
         handle.close()
         return False
-    _PORT_LOCKS[port] = handle  # keep it open: closing would release the lock
+    _PORT_LOCKS[port] = handle
     return True
 
 
@@ -212,9 +175,6 @@ def _http_alive(port: int) -> bool:
         return False
 
 
-# --------------------------------------------------------------------------- #
-# Suite -> modules -> db derivation
-# --------------------------------------------------------------------------- #
 def addons_for_suites(suites: list[str]) -> set[str]:
     """Return the addon names referenced by ``@addon/...`` suite/test paths."""
     addons: set[str] = set()
@@ -241,12 +201,7 @@ def db_for_modules(modules: tuple[str, ...]) -> str:
     return DEFAULT_DB if not extras else "hoot_" + "_".join(sorted(extras))
 
 
-# --------------------------------------------------------------------------- #
-# Warm-server lifecycle (one state file per DB => concurrent warm servers)
-# --------------------------------------------------------------------------- #
 def state_file(db: str) -> Path:
-    # ``hoot_web`` keeps the legacy filename so a warm server booted by an
-    # older version of these scripts is still found.
     if db == DEFAULT_DB:
         return STATE_FILE
     return SCRIPT_DIR / f".hoot_state_{db}.json"
@@ -374,9 +329,6 @@ def boot_server(
         try:
             return _boot_server_on(db, port)
         except RuntimeError as exc:
-            # Lost the port anyway (another process bound it between our probe
-            # and odoo's bind, e.g. a non-hoot server): try the next one rather
-            # than failing the whole run.
             _release_port(port)
             errors.append(f"{port}: {exc}")
     raise RuntimeError(
@@ -387,9 +339,6 @@ def boot_server(
 
 def _boot_server_on(db: str, port: int) -> dict:
     LOG_DIR.mkdir(exist_ok=True)
-    # Named after the DB, not the port: concurrent boots that pick the same
-    # port would otherwise open the same file "wb" and truncate each other's
-    # log — including the winner's — leaving no diagnosis for the losers.
     log_path = LOG_DIR / f"server_{db}.log"
     cmd = [
         str(VENV_PY),
@@ -404,11 +353,7 @@ def _boot_server_on(db: str, port: int) -> dict:
         HOST,
         f"--db-filter=^{db}$",
         "--max-cron-threads=0",
-        # dev_mode makes the assets pipeline re-check source mtimes per request,
-        # so a JS edit is picked up by the warm server on the next run without a
-        # restart or an ir_attachment flush (the edit/run loop's whole point).
-        # 'xml,qweb' only — NOT 'reload' (that would py-autoreload the server).
-        "--dev=xml,qweb",
+        DEV_FLAGS,
     ]
     _log.info("Booting warm server: db=%s port=%s (log: %s)", db, port, log_path)
     log_fh = log_path.open("wb")
@@ -419,7 +364,6 @@ def _boot_server_on(db: str, port: int) -> dict:
         cwd=str(ODOO_ROOT),
         start_new_session=True,
     )
-    # Wait for HTTP readiness.
     deadline = time.time() + 120
     while time.time() < deadline:
         if proc.poll() is not None:
@@ -444,6 +388,21 @@ def _boot_server_on(db: str, port: int) -> dict:
     return state
 
 
+def _boot_flags_stale(state: dict) -> bool:
+    """True when the live server was booted with different ``--dev`` flags.
+
+    A server started before ``--dev=assets`` existed still runs ``--dev=xml``,
+    whose asset caches are disabled — it would keep paying the 4.5x render cost
+    forever. Recycling it once makes the speedup land without anyone having to
+    know to restart their warm server.
+    """
+    try:
+        cmdline = Path(f"/proc/{state['pid']}/cmdline").read_bytes()
+    except OSError:
+        return False
+    return DEV_FLAGS.encode() not in cmdline
+
+
 def ensure_server(
     db: str | None, modules: tuple[str, ...] = ALWAYS_MODULES, verbose: bool = False
 ) -> tuple[dict, bool]:
@@ -453,15 +412,18 @@ def ensure_server(
     state = read_state(db)
     if server_is_warm(state) and state["db"] == db:
         missing = set(modules) - installed_modules(db)
-        if not missing:
+        if missing:
+            _log.info(
+                "Warm server on %s lacks modules %s - recycling",
+                db,
+                ",".join(sorted(missing)),
+            )
+            stop_server(db)
+        elif _boot_flags_stale(state):
+            _log.info("Warm server on %s predates %s - recycling", db, DEV_FLAGS)
+            stop_server(db)
+        else:
             return state, False
-        # Installing into a live DB from a second process is unsafe; recycle.
-        _log.info(
-            "Warm server on %s lacks modules %s - recycling",
-            db,
-            ",".join(sorted(missing)),
-        )
-        stop_server(db)
     state = boot_server(db, modules, verbose=verbose)
     return state, True
 
@@ -502,9 +464,6 @@ def stop_server(db: str | None = None, clean: bool = False) -> str:
     return " ".join(msg)
 
 
-# --------------------------------------------------------------------------- #
-# Chrome / CDP: reuse Odoo's ChromeBrowser
-# --------------------------------------------------------------------------- #
 class _ConsoleCapture(logging.Handler):
     def __init__(self) -> None:
         super().__init__()
@@ -561,8 +520,6 @@ def _bootstrap_odoo() -> None:
     import odoo.logutils  # noqa: F401  (registers Logger.runbot)
     from odoo.tools import config
 
-    # ChromeBrowser reads these; keep screencasts off and give screenshots
-    # (only written on failure) a scratch dir.
     config["screencasts"] = ""
     if not config.get("screenshots"):
         config["screenshots"] = tempfile.mkdtemp(prefix="hoot_shots_")
@@ -596,15 +553,6 @@ class RunResult:
     failed_tests: list[str] = field(default_factory=list)
     wall: float = 0.0
     error: str | None = None
-    # True when HOOT's final summary line was never captured, i.e. the run did
-    # NOT complete: a wall-clock timeout cut it off mid-suite, the browser hung
-    # during teardown, or Chrome died. Whatever counts were recovered are a
-    # PREFIX of the suite — every test after the cut never ran and is invisible.
-    #
-    # This flag is about COMPLETION, deliberately independent of OUTCOME
-    # (``failed``). It used to be set only when no failures had been collected,
-    # so a truncated run that happened to contain failures was reported as an
-    # ordinary complete FAIL — hiding both the truncation and the unrun tests.
     incomplete: bool = False
 
 
@@ -625,21 +573,11 @@ def run_suites(
     _bootstrap_odoo()
     from odoo.tools import config
 
-    # ChromeBrowser's receiver thread names itself via get_db_name(), which
-    # reads config["db_name"] (a list). We are not a test process, so seed it.
     config["db_name"] = [db]
     from odoo.tests.common import ChromeBrowser, ChromeBrowserException
 
     run_logger = logging.getLogger("hoot.run")
-    # ChromeBrowser logs operational INFO on this logger; only surface it with
-    # -v. The console capture below lives on the ".browser" child at INFO with
-    # its own handler, so counts are captured regardless of this level.
     run_logger.setLevel(logging.INFO if verbose else logging.WARNING)
-    # ChromeBrowser routes console.log/dir/error through the ".browser" child.
-    # We must see every INFO record (the "Passed/Failed N tests" summary and
-    # per-test "Test ... failed" lines) to report counts, independent of the
-    # CLI's display verbosity. Attach the capture there at INFO, and silence
-    # the noisy passthrough to the root handler unless the user asked for -v.
     browser_logger = logging.getLogger("hoot.run.browser")
     browser_logger.setLevel(logging.INFO)
     prev_propagate = browser_logger.propagate
@@ -655,8 +593,6 @@ def run_suites(
     )
 
     def unit_test_error_checker(message: str) -> bool:
-        # Mirror test_js.py: HOOT's own [HOOT]-prefixed per-test errors are
-        # informational; the real stop signal is the un-prefixed summary error.
         return "[HOOT]" not in message
 
     shim = _ShimCase(run_logger, browser_size, touch_enabled)
@@ -687,7 +623,6 @@ def run_suites(
         browser_logger.removeHandler(capture)
         browser_logger.propagate = prev_propagate
 
-    # Parse captured console output for counts + failed test names.
     summary_seen = False
     passed_seen = 0
     for line in capture.lines:
@@ -702,18 +637,9 @@ def run_suites(
         for name in RE_FAILED_TEST.findall(line):
             if name not in result.failed_tests:
                 result.failed_tests.append(name)
-    # A browser-teardown timeout (e.g. Chrome's shutdown serviceWorker-unregister
-    # hanging) can raise after every test has run but before HOOT's final summary
-    # line is captured, leaving counts at 0/0. Recover them from the per-test log
-    # so a fully-passing suite isn't reported as an empty FAIL.
     if not summary_seen and (passed_seen or result.failed_tests):
         result.passed = passed_seen
         result.failed = len(result.failed_tests)
-        # No summary line means the run never reached HOOT's end-of-suite
-        # report, so the recovered counts are only a prefix. Flag that
-        # unconditionally — gating it on "no failures collected" (the previous
-        # behaviour) made a truncated run with failures indistinguishable from a
-        # complete one, silently dropping every test that never got to run.
         if not result.ok:
             result.incomplete = True
     if result.error and not result.ok:
@@ -721,9 +647,6 @@ def run_suites(
     return result
 
 
-# --------------------------------------------------------------------------- #
-# Affected-suite selection (import-graph approximation)
-# --------------------------------------------------------------------------- #
 WEB_ADDONS_ROOT = ODOO_ROOT / "addons"
 RE_IMPORT = re.compile(
     r"""(?:import|export)\s+(?:.+?\s+from\s+)?["']([^"']+)["']""",
@@ -757,7 +680,7 @@ def file_to_specifier(path: Path) -> str | None:
         return None
     parts = path.parts
     i = parts.index("static")
-    kind = parts[i + 1]  # src | tests | lib
+    kind = parts[i + 1]
     rel = "/".join(parts[i + 2 :])
     rel = re.sub(r"\.js$", "", rel)
     if kind == "src":
@@ -839,7 +762,7 @@ def affected_suites(changed: list[Path]) -> list[str]:
         spec = file_to_specifier(path)
         if spec is None:
             continue
-        if "/../tests/" in spec:  # a test file changed -> run its suite
+        if "/../tests/" in spec:
             suite = specifier_to_suite(spec)
             if suite:
                 suites.add(suite)
@@ -849,7 +772,6 @@ def affected_suites(changed: list[Path]) -> list[str]:
     if not changed_specs:
         return sorted(suites)
 
-    # One hop: src files that import a changed src become "affected" too.
     hop_specs: set[str] = set()
     for src in _iter_src_files():
         imports = _imports_of(src)
@@ -859,7 +781,6 @@ def affected_suites(changed: list[Path]) -> list[str]:
                 hop_specs.add(spec)
     target_specs = changed_specs | hop_specs
 
-    # Any test file importing a target spec contributes its suite.
     for test_file in _iter_test_files():
         if _imports_of(test_file) & target_specs:
             spec = file_to_specifier(test_file)

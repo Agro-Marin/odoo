@@ -25,18 +25,10 @@ import { HootTechnicalValue } from "./hoot_technical_value.js";
  * @typedef {import("./setup_hoot_ui").StatusFilter} StatusFilter
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Boolean,
     Object: { entries: $entries, fromEntries: $fromEntries },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {[number, CaseEvent][]} indexedResults
@@ -72,13 +64,12 @@ function filterResults(results, statusFilter) {
  * @param {string} owner
  */
 function stackTemplate(label, owner) {
-    // Defined with string concat because line returns are taken into account in <pre> tags.
     const preContent =
-        /* xml */ `<t t-foreach="parseStack(${owner}.stack)" t-as="part" t-key="part_index">` +
-        /* xml */ `<t t-if="typeof part === 'string'" t-esc="part" />` +
-        /* xml */ `<span t-else="" t-att-class="part.className" t-esc="part.value" />` +
-        /* xml */ `</t>`;
-    return /* xml */ `
+          `<t t-foreach="parseStack(${owner}.stack)" t-as="part" t-key="part_index">` +
+          `<t t-if="typeof part === 'string'" t-esc="part" />` +
+          `<span t-else="" t-att-class="part.className" t-esc="part.value" />` +
+          `</t>`;
+    return   `
         <t t-if="${owner}?.stack">
             <div class="flex col-span-2 gap-x-2 px-2 mt-1">
                 <span class="text-rose">
@@ -92,7 +83,7 @@ function stackTemplate(label, owner) {
 
 const DOC_URL = `https://www.odoo.com/documentation/18.0/developer/reference/frontend/unit_testing/hoot.html#`;
 
-const ERROR_TEMPLATE = /* xml */ `
+const ERROR_TEMPLATE =   `
     <div class="text-rose flex items-center gap-1 px-2 truncate">
         <i class="fa-solid fa-exclamation" />
         <strong t-esc="event.label" />
@@ -106,7 +97,7 @@ const ERROR_TEMPLATE = /* xml */ `
     ${stackTemplate("Cause", "event.cause")}
 `;
 
-const EVENT_TEMPLATE = /* xml */ `
+const EVENT_TEMPLATE =   `
     <div
         t-attf-class="text-{{ eventColor }} flex items-center gap-1 px-2 truncate"
     >
@@ -205,10 +196,6 @@ const CASE_EVENT_TYPES_INVERSE = $fromEntries(
 const R_STACK_LINE_START = isFirefox()
     ? /^\s*(?<prefix>@)(?<rest>.*)/i
     : /^\s*(?<prefix>at)(?<rest>.*)/i;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * @typedef {{

@@ -13,16 +13,24 @@ import {
 } from "@odoo/owl";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { ErrorHandler } from "@web/core/utils/components";
-/** @type {OverlayItem[]} */
-const OVERLAY_ITEMS = [];
+
 export const OVERLAY_SYMBOL = Symbol("Overlay");
+
+/**
+ * Env key holding the stack of `OverlayItem`s belonging to one
+ * `OverlayContainer`. Scoped per container rather than module-global: several
+ * containers coexist (main document plus one per shadow root), and an overlay
+ * in one root is not "inside" an overlay in another, so mixing their stacks
+ * would keep click-away from closing unrelated popovers.
+ */
+const OVERLAY_ITEMS = Symbol("OverlayItems");
 
 /**
  * Wrapper for a single overlay entry (popover, dialog, bottom sheet, etc.).
  *
- * Tracks itself in a global `OVERLAY_ITEMS` stack for nested click-away
- * containment checks. Injects an `OVERLAY_SYMBOL` into child env so
- * descendants can test whether a click target is "inside" the overlay tree.
+ * Registers itself in its container's stack for nested click-away containment
+ * checks. Injects an `OVERLAY_SYMBOL` into child env so descendants can test
+ * whether a click target is "inside" the overlay tree.
  */
 class OverlayItem extends Component {
     static template = "web.OverlayContainer.Item";
@@ -31,9 +39,6 @@ class OverlayItem extends Component {
         component: { type: Function },
         props: { type: Object },
         env: { type: Object, optional: true },
-        // Stacking coordinates, forwarded from the overlay entry so containment
-        // can order by z-order (sequence) rather than mount order. Optional for
-        // any out-of-band renderer that constructs an OverlayItem directly.
         sequence: { type: Number, optional: true },
         id: { type: Number, optional: true },
     };
@@ -41,13 +46,12 @@ class OverlayItem extends Component {
     setup() {
         this.rootRef = useRef("rootRef");
 
-        OVERLAY_ITEMS.push(this);
+        this.siblings = /** @type {OverlayItem[]} */ (this.env[OVERLAY_ITEMS]);
+        this.siblings.push(this);
         onWillDestroy(() => {
-            const index = OVERLAY_ITEMS.indexOf(this);
-            // Guard against a re-entrant/duplicated teardown: ``splice(-1, 1)``
-            // would remove the LAST (unrelated, live) overlay from the stack.
+            const index = this.siblings.indexOf(this);
             if (index >= 0) {
-                OVERLAY_ITEMS.splice(index, 1);
+                this.siblings.splice(index, 1);
             }
         });
 
@@ -62,22 +66,27 @@ class OverlayItem extends Component {
         });
     }
 
-    /** @returns {OverlayItem[]} this overlay and all overlays stacked above it */
+    /** @returns {[number, number]} stacking key: sequence first, then insertion id */
+    get stackKey() {
+        return [this.props.sequence ?? 50, this.props.id ?? 0];
+    }
+
+    /**
+     * This overlay and all overlays stacked above it. Every click-away check
+     * runs through here, so it stays a filter over the container's stack
+     * rather than sorting a copy of it on each call.
+     *
+     * @returns {OverlayItem[]}
+     */
     get subOverlays() {
-        // Order by ascending (sequence, id) — the SAME ordering
-        // OverlayContainer renders and the browser paints (z-order), NOT
-        // OVERLAY_ITEMS insertion order. Insertion order is MOUNT order: an
-        // overlay opened later but with a lower sequence mounts last yet renders
-        // BELOW an earlier higher-sequence one, so a raw ``slice(indexOf(this))``
-        // would mis-identify which overlays are "above me" and break click-away
-        // containment. ``id`` (monotonic from the service) is a stable tiebreak
-        // within one sequence.
-        const ordered = [...OVERLAY_ITEMS].sort(
-            (a, b) =>
-                (a.props.sequence ?? 50) - (b.props.sequence ?? 50) ||
-                (a.props.id ?? 0) - (b.props.id ?? 0),
-        );
-        return ordered.slice(ordered.indexOf(this));
+        const [sequence, id] = this.stackKey;
+        return this.siblings.filter((oi) => {
+            const [otherSequence, otherId] = oi.stackKey;
+            return (
+                otherSequence > sequence ||
+                (otherSequence === sequence && otherId >= id)
+            );
+        });
     }
 
     /**
@@ -86,10 +95,7 @@ class OverlayItem extends Component {
      */
     contains(target) {
         const node = /** @type {Node} */ (target);
-        return (
-            this.rootRef.el?.contains(node) ||
-            this.subOverlays.some((oi) => oi.rootRef.el?.contains(node))
-        );
+        return this.subOverlays.some((oi) => oi.rootRef.el?.contains(node));
     }
 }
 
@@ -97,25 +103,28 @@ class OverlayItem extends Component {
 export class OverlayContainer extends Component {
     static template = "web.OverlayContainer";
     static components = { ErrorHandler, OverlayItem };
-    static props = { overlays: { type: Object, optional: true } };
+    static props = {
+        overlays: { type: Object, optional: true },
+        rootId: { type: String, optional: true },
+    };
 
     setup() {
         this.root = useRef("root");
-        this.state = useState({ rootEl: null });
-        // Read the overlays from this env's overlay service (unless explicitly
-        // given as props): each rendered container must show the overlays of
-        // ITS OWN environment — see the registration in overlay_service. The
-        // raw service (not useService) is intentional: this is a plain read of
-        // the reactive `overlays` store, not a lifecycle-bound service handle.
+        this.state = useState({ rootId: this.props.rootId });
         // eslint-disable-next-line no-restricted-syntax
         const overlays = this.props.overlays ?? this.env.services.overlay.overlays;
         this.overlays = useState(overlays);
-        useEffect(
-            () => {
-                this.state.rootEl = this.root.el;
-            },
-            () => [this.root.el],
-        );
+        useChildSubEnv({ [OVERLAY_ITEMS]: [] });
+        if (!this.props.rootId) {
+            useEffect(
+                () => {
+                    this.state.rootId = /** @type {ShadowRoot} */ (
+                        this.root.el?.getRootNode()
+                    )?.host?.id;
+                },
+                () => [this.root.el],
+            );
+        }
     }
 
     /** @returns {Object[]} overlays sorted by ascending sequence */
@@ -127,11 +136,16 @@ export class OverlayContainer extends Component {
     }
 
     /**
+     * A container inside a shadow root should declare its `rootId` prop: until
+     * the root element is mounted it cannot tell its own host id apart from
+     * `undefined` (= the main document), and would mount every main-document
+     * overlay for one frame before dropping it again.
+     *
      * @param {Record<string, any>} overlay
      * @returns {boolean} whether overlay belongs to this container's shadow root
      */
     isVisible(overlay) {
-        return overlay.rootId === this.state.rootEl?.getRootNode()?.host?.id;
+        return overlay.rootId === this.state.rootId;
     }
 
     /**
@@ -140,8 +154,6 @@ export class OverlayContainer extends Component {
      */
     handleError(overlay, error) {
         overlay.remove();
-        // Uses Promise.resolve().then() (not queueMicrotask) so the error routes
-        // through the unhandledrejection handler → UncaughtPromiseError dialog.
         Promise.resolve().then(() => {
             throw error;
         });

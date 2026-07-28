@@ -23,9 +23,6 @@ describe.current.tags("headless");
 
 describe("batched", () => {
     test("a throwing callback is mirrored to console.error and still rejects", async () => {
-        // Nearly all callers invoke the batched function fire-and-forget:
-        // without the mirror, the error only surfaces as an
-        // unhandledrejection whose stack points at the microtask.
         const errors = [];
         patchWithCleanup(console, {
             error: (...args) => errors.push(args),
@@ -37,6 +34,44 @@ describe("batched", () => {
         await expect(fn()).rejects.toThrow("boom");
         expect(errors).toHaveLength(1);
         expect(errors[0][0]).toBe(boom);
+    });
+
+    test("every caller in a batch is settled after the callback ran, not before", async () => {
+        let ran = 0;
+        const fn = batched(() => ran++, animationFrame);
+
+        fn(); // opens the batch
+        const later = fn(); // joins it — must NOT resolve early
+
+        await later;
+        expect(ran).toBe(1);
+    });
+
+    test("the returned promise carries the callback's resolved value", async () => {
+        const fn = batched((n) => n * 2);
+        expect(await fn(21)).toBe(42);
+    });
+
+    test("an async callback is awaited before the batch settles", async () => {
+        let done = false;
+        const fn = batched(async () => {
+            await animationFrame();
+            done = true;
+            return "ok";
+        });
+        expect(await fn()).toBe("ok");
+        expect(done).toBe(true);
+    });
+
+    test("a throwing callback rejects every caller in the batch", async () => {
+        patchWithCleanup(console, { error: () => {} });
+        const fn = batched(() => {
+            throw new Error("boom");
+        }, animationFrame);
+        const first = fn();
+        const second = fn();
+        await expect(first).rejects.toThrow("boom");
+        await expect(second).rejects.toThrow("boom");
     });
 
     test("callback is called only once after operations", async () => {
@@ -101,10 +136,10 @@ describe("batched", () => {
         fn();
         expect(n).toBe(0);
 
-        await Promise.resolve(); // First batch
+        await Promise.resolve();
         expect(n).toBe(1);
 
-        await Promise.resolve(); // Second batch initiated from within the callback
+        await Promise.resolve();
         expect(n).toBe(2);
 
         await Promise.resolve();
@@ -119,10 +154,10 @@ describe("batched", () => {
         fn();
         expect(n).toBe(0);
 
-        await animationFrame(); // First batch
+        await animationFrame();
         expect(n).toBe(1);
 
-        await animationFrame(); // Second batch initiated from within the callback
+        await animationFrame();
         expect(n).toBe(2);
 
         await animationFrame();
@@ -137,10 +172,10 @@ describe("batched", () => {
         fn();
         expect(n).toBe(0);
 
-        await tick(); // First batch
+        await tick();
         expect(n).toBe(1);
 
-        await tick(); // Second batch initiated from within the callback
+        await tick();
         expect(n).toBe(2);
 
         await tick();
@@ -218,8 +253,6 @@ describe("debounce", () => {
         expect.verifySteps([]);
 
         await advanceTime(3000);
-        // func runs once (trailing edge), and BOTH the superseded call and the
-        // last call resolve with its result (the superseded call used to hang).
         expect.verifySteps(["myFunc", "superseded 42", "resolved 42"]);
     });
 
@@ -242,8 +275,8 @@ describe("debounce", () => {
         expect.verifySteps(["myFunc"]);
 
         imSearchDef.resolve(42);
-        await microTick(); // wait for promise returned by myFunc
-        await microTick(); // wait for promise returned by debounce
+        await microTick();
+        await microTick();
 
         expect.verifySteps(["superseded 42", "resolved 42"]);
     });
@@ -276,8 +309,8 @@ describe("debounce", () => {
         expect.verifySteps(["myFunc"]);
 
         imSearchDef.reject("nope");
-        await microTick(); // wait for promise returned by myFunc
-        await microTick(); // wait for promise returned by debounce
+        await microTick();
+        await microTick();
         expect.verifySteps(["rejected1 nope", "rejected2 nope"]);
     });
 
@@ -288,8 +321,6 @@ describe("debounce", () => {
         myDebouncedFunc.cancel();
         await microTick();
         await microTick();
-        // func is NOT executed, but the awaiter resolves (with undefined) so a
-        // caller that awaits the debounced fn on teardown does not hang.
         expect.verifySteps(["settled undefined"]);
     });
 
@@ -304,8 +335,8 @@ describe("debounce", () => {
         });
         expect.verifySteps(["myFunc"]);
 
-        await microTick(); // wait for promise returned by myFunc
-        await microTick(); // wait for promise returned by debounce
+        await microTick();
+        await microTick();
 
         expect.verifySteps(["resolved 42"]);
 
@@ -313,9 +344,6 @@ describe("debounce", () => {
             expect.step("resolved " + x);
         });
         await runAllTimers();
-        // func is NOT called (3000ms hasn't elapsed), but the suppressed call's
-        // promise still resolves (undefined, like cancel()) when the cooldown
-        // timer fires, so awaiters don't hang and entries don't accumulate.
         expect.verifySteps(["resolved undefined"]);
 
         myDebouncedFunc().then((x) => {
@@ -323,8 +351,8 @@ describe("debounce", () => {
         });
         expect.verifySteps(["myFunc"]);
 
-        await microTick(); // wait for promise returned by debounce
-        await microTick(); // wait for promise returned chained onto it (step resolved x)
+        await microTick();
+        await microTick();
         expect.verifySteps(["resolved 42"]);
     });
 
@@ -345,11 +373,11 @@ describe("debounce", () => {
         myDebouncedFunc();
         myDebouncedFunc.cancel();
         await runAllTimers();
-        expect.verifySteps([]); // Debounced call was cancelled
+        expect.verifySteps([]);
 
         myDebouncedFunc();
         await runAllTimers();
-        expect.verifySteps(["myFunc"]); // Debounced call was not cancelled
+        expect.verifySteps(["myFunc"]);
     });
 
     test("debounce with leading and trailing", async () => {
@@ -365,14 +393,12 @@ describe("debounce", () => {
         myDebouncedFunc(43).then((x) => expect.step("resolved " + x));
         myDebouncedFunc(44).then((x) => expect.step("resolved " + x));
         expect.verifySteps(["myFunc"]);
-        await microTick(); // wait for promise returned by debounce
-        await microTick(); // wait for promise returned chained onto it (step resolved x)
+        await microTick();
+        await microTick();
         expect.verifySteps(["resolved 42"]);
 
         await runAllTimers();
-        await microTick(); // wait for the inner promise
-        // The trailing execution now settles every queued call (43 and 44), not
-        // only the last one, so both resolve with the trailing result.
+        await microTick();
         expect.verifySteps(["myFunc", "resolved 44", "resolved 44"]);
     });
 });
@@ -454,8 +480,8 @@ describe("throttleForAnimation", () => {
             calls++;
             return calls === 1 ? "ok" : Promise.reject(new Error("boom2"));
         });
-        throttledFn(1); // leading — resolves "ok"
-        const trailing = throttledFn(2); // queued
+        throttledFn(1);
+        const trailing = throttledFn(2);
         let caught;
         const settled = trailing.catch((error) => (caught = error));
         await runAllTimers();
@@ -475,9 +501,6 @@ describe("throttleForAnimation", () => {
         throttledFn(2).then((v) => expect.step(`settled ${v}`));
         throttledFn.cancel();
         await runAllTimers();
-        // func is NOT executed for the cancelled trailing call, but its
-        // promise settles (with undefined, same contract as debounce.cancel())
-        // so a caller that awaits it — e.g. around unmount — does not hang.
         expect.verifySteps(["settled undefined"]);
     });
 });
@@ -486,8 +509,6 @@ describe("throttleForAnimationScrollEvent", () => {
     test("scroll loses target", async () => {
         let throttled = new Deferred();
         const throttledFn = throttleForAnimation((val, targetEl) => {
-            // In Chrome, scroll events' currentTarget is lost after the event
-            // is handled (null here), so pass it explicitly if needed.
             const nodeName = val && val.currentTarget && val.currentTarget.nodeName;
             const targetName = targetEl && targetEl.nodeName;
             expect.step(
@@ -524,11 +545,7 @@ describe("throttleForAnimationScrollEvent", () => {
         scrolled = new Deferred();
         el.scrollBy(3, 3);
         await scrolled;
-        expect.verifySteps([
-            "before scroll",
-            // Further call is delayed.
-            "after scroll",
-        ]);
+        expect.verifySteps(["before scroll", "after scroll"]);
         await throttled;
         expect.verifySteps([
             "throttled function called with null in event, but DIV in parameter",
@@ -642,7 +659,6 @@ describe("useThrottleForAnimation", () => {
         expect.verifySteps([]);
         expect(`button.c`).toHaveCount(1);
 
-        // Without destroy
         await click(`button.c`);
         expect.verifySteps(["throttled"]);
 
@@ -652,11 +668,9 @@ describe("useThrottleForAnimation", () => {
         await animationFrame();
         expect.verifySteps(["throttled"]);
 
-        // Clean restart
         await runAllTimers();
         expect.verifySteps([]);
 
-        // With destroy
         await click(`button.c`);
         expect.verifySteps(["throttled"]);
 

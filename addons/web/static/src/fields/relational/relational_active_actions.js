@@ -78,12 +78,8 @@ export function useActiveActions({
         const evalAction = (actionName) => evals[actionName](evalContext);
 
         result.create = !readonly && evalAction("create");
-        result.createEdit = !readonly && result.create && crudOptions.createEdit; // always a boolean
-        // `edit` is now sourced per-props from getEvalParams (like readonly) so a
-        // record whose edition state changes after mount re-derives it, instead
-        // of keeping the setup-time snapshot. Fall back to crudOptions.edit for
-        // callers that still pass it there (e.g. enterprise/stock_move).
-        /** @type {any} */ (result).edit = edit ?? crudOptions.edit; // always a boolean
+        result.createEdit = !readonly && result.create && crudOptions.createEdit;
+        /** @type {any} */ (result).edit = edit ?? crudOptions.edit;
         result.delete = !readonly && evalAction("delete");
         result.write = (isMany2Many || !readonly) && evalAction("write");
 
@@ -108,9 +104,6 @@ export function useActiveActions({
         let evalFn = () => true;
         if (crudOptions[actionName] != null) {
             const action = crudOptions[actionName];
-            // Lazy: some crudOptions entries are plain booleans whose eval
-            // function is never invoked (e.g. createEdit); only build the
-            // Domain once, on first evaluation.
             let domain;
             evalFn = (evalContext) => {
                 domain ??= action ? new Domain(action) : null;

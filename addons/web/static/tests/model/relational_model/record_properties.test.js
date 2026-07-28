@@ -19,8 +19,6 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { processProperties } from "@web/model/relational_model/record_properties";
 
-// Mock factory
-
 /**
  * Build a minimal record mock for processProperties tests.
  *
@@ -71,14 +69,11 @@ function makeStaticListMock(currentIds) {
     };
 }
 
-// processProperties — empty input and schema splice basics
-
 describe("processProperties — empty input and splice basics", () => {
     test("returns empty object when properties array is empty", () => {
         const rec = makePropertyRecord();
         const result = processProperties(rec, [], "props", false);
         expect(result).toEqual({});
-        // No schema mutation when nothing to splice.
         expect(Object.keys(rec.fields)).toEqual([]);
         expect(Object.keys(rec.activeFields)).toEqual([]);
     });
@@ -107,8 +102,6 @@ describe("processProperties — empty input and splice basics", () => {
         expect(result["props.color"]).toBe("red");
     });
 });
-
-// processProperties — sortable flag dispatch
 
 describe("processProperties — sortable flag", () => {
     test("sortable=false for relational and tag types", () => {
@@ -146,14 +139,10 @@ describe("processProperties — sortable flag", () => {
     });
 });
 
-// processProperties — relation back-pointer
-
 describe("processProperties — relatedPropertyField back-pointer", () => {
     test("field.relatedPropertyField names the parent field (no id/displayName here)", () => {
         const rec = makePropertyRecord();
         processProperties(rec, [{ name: "color", type: "char" }], "props", false);
-        // The field-level pointer is for the SCHEMA — only the parent
-        // field name. (The id/displayName are at the activeField level.)
         expect(rec.fields["props.color"].relatedPropertyField).toEqual({
             name: "props",
         });
@@ -181,8 +170,6 @@ describe("processProperties — relatedPropertyField back-pointer", () => {
     });
 });
 
-// processProperties — per-type value shaping
-
 describe("processProperties — scalar value shaping", () => {
     test("scalar with defined value passes through", () => {
         const rec = makePropertyRecord();
@@ -199,7 +186,7 @@ describe("processProperties — scalar value shaping", () => {
         const rec = makePropertyRecord();
         const result = processProperties(
             rec,
-            [{ name: "label", type: "char" }], // no .value
+            [{ name: "label", type: "char" }],
             "props",
             false,
         );
@@ -245,8 +232,6 @@ describe("processProperties — many2one value shaping", () => {
             "props",
             false,
         );
-        // The id is preserved; the display_name is the translated placeholder.
-        // toString() because _t() returns a LazyTranslatedString in some contexts.
         expect(result["props.partner"].id).toBe(5);
         expect(String(result["props.partner"].display_name)).toBe("No Access");
     });
@@ -289,7 +274,6 @@ describe("processProperties — many2many value shaping", () => {
             false,
         );
         expect(captured.fieldName).toBe("props.tags");
-        // Server tuples are mapped to {id, display_name} objects.
         expect(captured.data).toEqual([
             { id: 1, display_name: "A" },
             { id: 2, display_name: "B" },
@@ -338,15 +322,10 @@ describe("processProperties — many2many value shaping", () => {
         );
         expect(createCalled).toBe(false);
         expect(result["props.tags"]).toBe(existing);
-        // Membership already matches — no reconciliation commands.
         expect(existing.appliedCommands).toEqual([]);
     });
 
     test("reconciles cached StaticList membership with the incoming value", () => {
-        // Regression: on change-driven parses the cached list was reused and
-        // the server-sent membership silently ignored — the displayed tags
-        // stayed stale until reload. The list must be diffed in place
-        // (identity stable) via UNLINK/LINK commands.
         const existing = makeStaticListMock([1, 2]);
         const rec = makePropertyRecord();
         const result = processProperties(
@@ -366,11 +345,10 @@ describe("processProperties — many2many value shaping", () => {
             false,
             { "props.tags": existing },
         );
-        // Same datapoint object (OWL reactivity), reconciled membership.
         expect(result["props.tags"]).toBe(existing);
         expect(existing.appliedCommands).toEqual([
-            [3, 1, false], // UNLINK 1 (no longer a member)
-            [4, 3, { id: 3, display_name: "C" }], // LINK 3 with server data
+            [3, 1, false],
+            [4, 3, { id: 3, display_name: "C" }],
         ]);
     });
 
@@ -391,9 +369,6 @@ describe("processProperties — many2many value shaping", () => {
     });
 
     test("a non-array, non-false value (e.g. a live StaticList) is not diffed", () => {
-        // preprocessPropertiesChanges (list-cell property edit) can re-enter
-        // with the cached StaticList itself as the property value — that is
-        // the current membership, not a server payload to reconcile against.
         const existing = makeStaticListMock([1]);
         const rec = makePropertyRecord();
         const result = processProperties(
@@ -408,14 +383,12 @@ describe("processProperties — many2many value shaping", () => {
     });
 });
 
-// processProperties — hasCurrentValues schema-rewrite toggle
-
 describe("processProperties — schema-rewrite gating by hasCurrentValues", () => {
     test("no currentValues + field already exists: schema is NOT overwritten", () => {
         const existingFieldDef = {
             name: "props.color",
             type: "char",
-            patched_by_consumer: true, // marker we expect to survive
+            patched_by_consumer: true,
         };
         const rec = makePropertyRecord({
             fields: { "props.color": existingFieldDef },
@@ -425,9 +398,7 @@ describe("processProperties — schema-rewrite gating by hasCurrentValues", () =
             [{ name: "color", type: "char", value: "red" }],
             "props",
             false,
-            // no currentValues → initial-load path
         );
-        // Original field def survives — the marker is intact.
         expect(rec.fields["props.color"]).toBe(existingFieldDef);
         expect(rec.fields["props.color"].patched_by_consumer).toBe(true);
     });
@@ -446,16 +417,12 @@ describe("processProperties — schema-rewrite gating by hasCurrentValues", () =
             [{ name: "color", type: "char", value: "red" }],
             "props",
             false,
-            // Non-empty currentValues → change-driven path → schema rewrite.
             { "props.other": "unrelated existing value" },
         );
-        // A new field object replaced the existing one — the marker is GONE.
         expect(rec.fields["props.color"]).not.toBe(existingFieldDef);
         expect(rec.fields["props.color"].patched_by_consumer).toBe(undefined);
     });
 });
-
-// processProperties — combined return shape
 
 describe("processProperties — combined return", () => {
     test("returns a flat bag keyed by composite name across mixed property types", () => {

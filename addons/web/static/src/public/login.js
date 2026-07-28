@@ -21,10 +21,10 @@ export class Login extends Interaction {
      * @param {Event} ev
      */
     onSubmit(ev) {
-        if (!ev.defaultPrevented) {
-            const submitEl = /** @type {HTMLElement} */ (
-                ev.currentTarget
-            ).querySelector("button[type='submit']");
+        const submitEl = /** @type {HTMLElement} */ (ev.currentTarget).querySelector(
+            "button[type='submit']",
+        );
+        if (!ev.defaultPrevented && submitEl) {
             const removeLoadingEffect = addLoadingEffect(
                 /** @type {HTMLButtonElement} */ (submitEl),
             );

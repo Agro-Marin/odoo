@@ -1,7 +1,7 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
-import { animationFrame } from "@odoo/hoot-mock";
+import { describe, expect, test } from "@odoo/hoot";
+import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import {
     Component,
     onWillStart,
@@ -21,6 +21,7 @@ import {
     toggleMenuItem,
     toggleSearchBarMenu,
 } from "@web/../tests/web_test_helpers";
+import { SearchModelEvent } from "@web/core/events";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 import { WithSearch } from "@web/search/with_search/with_search";
 
@@ -332,8 +333,6 @@ test("reload with partial props preserves the unspecified search keys", async ()
     const parent = await mountWithCleanup(Parent);
     expect(searchModel.globalContext.key).toBe("val");
 
-    // Update only the domain and drop the other (optional) search props: the
-    // reload must not wipe the search keys that were not specified.
     parent.state.withOptionalKeys = false;
     parent.state.domain = [["type", "=", "herbivorous"]];
     await animationFrame();
@@ -405,4 +404,166 @@ test("search defaults are removed from context at reload", async function () {
     await animationFrame();
     expect.verifySteps(["willUpdateProps"]);
     expect(parent.searchState.context).toEqual(context);
+});
+
+describe("a query mutation racing a props-driven reload", () => {
+    class RacedRecord extends models.Model {
+        _name = "raced.record";
+        name = fields.Char();
+        type = fields.Selection({
+            selection: [
+                ["omnivorous", "Omnivorous"],
+                ["carnivorous", "Carnivorous"],
+            ],
+        });
+        owner_id = fields.Many2one({ string: "Owner", relation: "raced.owner" });
+        _records = [{ id: 1, type: "omnivorous", owner_id: 1 }];
+    }
+    class RacedOwner extends models.Model {
+        _name = "raced.owner";
+        name = fields.Char();
+        _records = [{ id: 1, name: "owner" }];
+    }
+    defineModels([RacedRecord, RacedOwner]);
+
+    const ARCH = `
+        <search>
+            <filter name="f1" string="F1" domain="[('type', '=', 'omnivorous')]"/>
+            <filter name="f2" string="F2" domain="[('type', '=', 'carnivorous')]"/>
+            <searchpanel><field name="friend_id" enable_counters="1"/></searchpanel>
+        </search>`;
+
+    /**
+     * Mount a real WithSearch whose props are reactive, so changing `domain`
+     * drives `searchModel.reload` through onWillUpdateProps exactly as an
+     * action controller does.
+     */
+    async function mountReactive() {
+        let searchModel = null;
+        const renderedDomains = [];
+        class Child extends Component {
+            static props = ["*"];
+            static template = xml`<div class="o_child" t-esc="tag"/>`;
+            setup() {
+                searchModel = this.env.searchModel;
+            }
+            get tag() {
+                renderedDomains.push(JSON.stringify(this.props.domain));
+                return renderedDomains.length;
+            }
+        }
+        class Parent extends Component {
+            static props = ["*"];
+            static components = { WithSearch, Child };
+            static template = xml`
+                <WithSearch t-props="searchProps" t-slot-scope="search">
+                    <Child domain="search.domain"/>
+                </WithSearch>`;
+            setup() {
+                useSubEnv({ config: {} });
+                this.state = useState({ domain: [] });
+            }
+            get searchProps() {
+                return {
+                    resModel: "raced.record",
+                    searchViewId: false,
+                    searchViewArch: ARCH,
+                    domain: this.state.domain,
+                };
+            }
+        }
+        const parent = await mountWithCleanup(Parent);
+        return { parent, searchModel, renderedDomains };
+    }
+
+    /** Block every search-panel fetch after the initial load. */
+    function gateSectionFetches() {
+        const gate = new Deferred();
+        let calls = 0;
+        onRpc("search_panel_select_range", async () => {
+            calls++;
+            if (calls > 1) {
+                await gate;
+            }
+            return { parent_field: false, values: [] };
+        });
+        return gate;
+    }
+
+    test("the mutation is not swallowed", async () => {
+        // `reload` blocks notifications around `_reloadSections`; a toggle
+        // landing inside that window parks a pending notification that only
+        // `_drainPendingNotification` can release. Without it the view keeps
+        // querying the pre-toggle domain until the next interaction.
+        const gate = gateSectionFetches();
+        const { parent, searchModel, renderedDomains } = await mountReactive();
+        let updates = 0;
+        searchModel.addEventListener(SearchModelEvent.UPDATE, () => updates++);
+
+        parent.state.domain = [["id", "=", 1]];
+        await animationFrame();
+        expect(searchModel.blockNotification).toBe(true);
+
+        const filterId = Object.values(searchModel.searchItems).find(
+            (item) => item.type === "filter",
+        ).id;
+        searchModel.toggleSearchItem(filterId);
+
+        gate.resolve();
+        await animationFrame();
+        await animationFrame();
+
+        const expected = ["&", ["id", "=", 1], ["type", "=", "omnivorous"]];
+        expect(updates).toBe(1);
+        expect(searchModel.domain).toEqual(expected);
+        expect(renderedDomains.at(-1)).toBe(JSON.stringify(expected));
+    });
+
+    test("several mutations converge to a single update", async () => {
+        const gate = gateSectionFetches();
+        const { parent, searchModel } = await mountReactive();
+        let updates = 0;
+        searchModel.addEventListener(SearchModelEvent.UPDATE, () => updates++);
+
+        parent.state.domain = [["id", "=", 1]];
+        await animationFrame();
+
+        const [first, second] = Object.values(searchModel.searchItems)
+            .filter((item) => item.type === "filter")
+            .map((item) => item.id);
+        searchModel.toggleSearchItem(first);
+        searchModel.toggleSearchItem(second);
+        searchModel.toggleSearchItem(second);
+        searchModel.toggleSearchItem(first);
+        searchModel.toggleSearchItem(first);
+
+        gate.resolve();
+        await animationFrame();
+        await animationFrame();
+        await animationFrame();
+
+        expect(updates).toBe(1);
+        expect(searchModel.domain).toEqual([
+            "&",
+            ["id", "=", 1],
+            ["type", "=", "omnivorous"],
+        ]);
+        expect(searchModel._pendingNotification).toBe(false);
+    });
+
+    test("a reload with nothing racing it emits no update at all", async () => {
+        onRpc("search_panel_select_range", () => ({
+            parent_field: false,
+            values: [],
+        }));
+        const { parent, searchModel } = await mountReactive();
+        let updates = 0;
+        searchModel.addEventListener(SearchModelEvent.UPDATE, () => updates++);
+
+        parent.state.domain = [["id", "=", 1]];
+        await animationFrame();
+        await animationFrame();
+
+        expect(updates).toBe(0);
+    });
 });

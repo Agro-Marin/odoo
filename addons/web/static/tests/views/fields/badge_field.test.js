@@ -37,7 +37,7 @@ class Partner extends models.Model {
         },
         {
             id: 3,
-            display_name: "", // empty value
+            display_name: "",
             selection_field: "done",
         },
         {
@@ -127,6 +127,6 @@ test("BadgeField component with color_field option", async () => {
     expect(`.o_field_badge[name="display_name"]`).toHaveCount(4);
     expect(`.o_field_badge[name="display_name"] .o_badge_color_1`).toHaveCount(1);
     expect(`.o_field_badge[name="display_name"] .o_badge_color_2`).toHaveCount(1);
-    expect(`.o_field_badge[name="display_name"] .o_badge_color_3`).toHaveCount(0); //empty value
+    expect(`.o_field_badge[name="display_name"] .o_badge_color_3`).toHaveCount(0);
     expect(`.o_field_badge[name="display_name"] .o_badge_color_4`).toHaveCount(1);
 });

@@ -48,16 +48,10 @@ export function usePropertiesSortable(options) {
         onToggleSeparators,
     } = options;
 
-    // Individual property drag — optionally crosses group boundaries
-    // so the user can move a property between columns / sections.
     useSortable({
         enable: getEnabled,
         ref: propertiesRef,
         handle: ".o_field_property_label .oi-draggable",
-        // On mono-column layout we also accept group labels as drop
-        // anchors so the user can drop a property right above a
-        // separator — a common mono-column UX pattern. Multi-column
-        // keeps the selector tight on actual property nodes.
         elements:
             getRenderedColumnsCount() === 1
                 ? "*:is(.o_property_field, .o_field_property_group_label)"
@@ -69,9 +63,6 @@ export function usePropertiesSortable(options) {
             propertiesRef.el.classList.add("o_property_dragging");
             element.classList.add("o_property_drag_item");
             group.classList.add("o_property_drag_group");
-            // Blur whatever input the user was editing — without this
-            // an in-flight ``char`` edit would write back as the drag
-            // settles and clobber the new position's value.
             /** @type {HTMLElement} */ (document.activeElement).blur();
         },
         onDrop: async ({ parent, element, next, previous }) => {
@@ -79,10 +70,6 @@ export function usePropertiesSortable(options) {
             let to = previous?.getAttribute("property-name");
             let moveBefore = false;
             if (!to && next) {
-                // The drop sits at the start of a group / column. The
-                // ``next`` sibling tells us the anchor; mono-column
-                // shifts to the parent ``.o_property_group`` so we
-                // pin to the group's own name.
                 if (next.classList.contains("o_field_property_group_label")) {
                     next = next.closest(".o_property_group");
                 }
@@ -90,10 +77,6 @@ export function usePropertiesSortable(options) {
                 moveBefore = !!to;
             }
             if (!to) {
-                // Drop into an empty group, or somewhere ``next`` /
-                // ``previous`` couldn't anchor — walk the
-                // groupedPropertiesList to find the group's last
-                // child, or pin to the group name itself when empty.
                 const groupName = parent.getAttribute("property-name");
                 const group = /** @type {any} */ (
                     getGroupedPropertiesList().find((g) => g.name === groupName)
@@ -126,9 +109,6 @@ export function usePropertiesSortable(options) {
         },
     });
 
-    // Group-level drag — reorder whole property groups (columns).
-    // Selector excludes the empty-name group ("the implicit ungrouped
-    // bucket") since reordering it has no semantic meaning.
     useSortable({
         enable: getEnabled,
         ref: propertiesRef,

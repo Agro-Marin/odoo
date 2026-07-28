@@ -10,7 +10,6 @@ import { formatValue, toValue } from "./condition_tree.js";
 
 /** @type {Record<string, string|Function>} */
 export const OPERATOR_DESCRIPTIONS = {
-    // valid operators (see TERM_OPERATORS in expression.py)
     "=": (/** @type {string} */ fieldDefType) => {
         switch (fieldDefType) {
             case "many2one":
@@ -97,7 +96,6 @@ export const OPERATOR_DESCRIPTIONS = {
         }
     },
 
-    // virtual operators
     set: _t("is set"),
     "not set": _t("is not set"),
 
@@ -118,7 +116,6 @@ export function toKey(operator, negate = false) {
         typeof operator === "string" &&
         Object.hasOwn(OPERATOR_DESCRIPTIONS, operator)
     ) {
-        // main case; keep it simple
         return operator;
     }
     return JSON.stringify([formatValue(operator), negate]);
@@ -129,9 +126,6 @@ export function toKey(operator, negate = false) {
  * @returns {[import("./condition_tree").Value, boolean]} operator and negate flag
  */
 export function toOperator(key) {
-    // Invariant (see toKey): the JSON-serialized form is always a
-    // `JSON.stringify([...])` — it starts with "[" — while the plain form is
-    // an operator from OPERATOR_DESCRIPTIONS, none of which starts with "[".
     if (!key.startsWith("[")) {
         return [key, false];
     }

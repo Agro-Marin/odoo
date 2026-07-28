@@ -56,8 +56,6 @@ class TestSessionInfo(common.HttpCase):
         """user_companies must list allowed companies (with currency_id) and
         their disallowed ancestors (without it) across a branch hierarchy."""
         self.authenticate(self.user.login, self.user_password)
-        # Pre-create the settings row: get_session_info is a readonly route
-        # and cannot create it itself.
         self.env["res.users.settings"]._find_or_create_for_user(self.user)
         response = self.url_open(
             "/web/session/get_session_info",

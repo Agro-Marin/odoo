@@ -1,6 +1,6 @@
 # Directory Map
 
-> **238 directories** | Maps directory → layer + responsibility
+> **234 entries** (233 subdirectories + `(root)`) | Maps directory → layer + responsibility
 >
 > Layers (Feature-Sliced Design): shared → entities → features → widgets → pages
 
@@ -50,6 +50,7 @@
 | `core/browser/` | shared | 5 | 776 | Prevents default scroll on bare "#" anchor clicks |
 | `core/colors/` | shared | 1 | 223 | Predefined color palettes for charts and graph visualizations |
 | `core/errors/` | shared | 1 | 215 | Traceback formatting, source-map annotation, and error chain utilities |
+| `core/file_upload/` | shared | 2 | 157 | `FileHandler` component: hidden file input driving upload/drop flows, with its OWL template |
 | `core/l10n/` | shared | 7 | 1,214 | Luxon-based date/datetime parsing, formatting, serialization, and locale-awar... |
 | `core/l10n/utils/` | shared | 3 | 395 | Locale-aware list formatting via Intl.ListFormat (conjunction, disjunction, u... |
 | `core/lib/` | shared | 2 | 108 | Lazy ESM loaders for import-map libraries: `chartjs.js` (`loadChartJS`) and `fullcalendar.js` (`loadFullCalendar`) — dynamic `import()` + live-bound exports; replaced `web.chartjs_lib` / `web.fullcalendar_lib` bundles |
@@ -87,7 +88,6 @@
 | `fields/basic/url/` | features | 1 | 77 | URL input field with clickable hyperlink in readonly mode |
 | `fields/display/` | features | 0 | — | Field-widget category (parent): read-only display widgets — see child dirs (badge, gauge, progress_bar, statusbar, …) |
 | `fields/display/badge/` | features | 1 | 75 | Read-only badge pill for Selection and Many2one columns |
-| `fields/display/contact_statistics/` | features | 1 | 27 | Read-only list display for contact statistics stored as JSON |
 | `fields/display/gauge/` | features | 1 | 141 | Chart.js doughnut gauge visualization for numeric fields |
 | `fields/display/handle/` | features | 1 | 31 | Drag handle icon for manual record reordering in list views |
 | `fields/display/percent_pie/` | features | 1 | 37 | Pie chart visualization showing a percentage value |

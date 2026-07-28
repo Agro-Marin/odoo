@@ -5,6 +5,7 @@ import { advanceTime, tick } from "@odoo/hoot-mock";
 import {
     Deferred,
     delay,
+    InFlight,
     KeepLast,
     Mutex,
     Race,
@@ -249,8 +250,6 @@ describe("KeepLast", () => {
         keepLast.add(def2).then(() => expect.step("ok [2]"));
         expect.verifySteps([]);
 
-        // The superseded task settles server-side afterwards; its wrapper must
-        // reject (not hang, not resolve).
         def1.resolve();
         await tick();
         expect.verifySteps(["ko [1]: superseded"]);
@@ -271,8 +270,6 @@ describe("KeepLast", () => {
         });
         keepLast.add(def2).then(() => expect.step("ok [2]"));
 
-        // Even if the superseded task itself rejects, the wrapper surfaces the
-        // supersession (not the original rejection reason).
         def1.reject(new Error("stale error nobody should see"));
         await tick();
         expect.verifySteps(["ko [1]: superseded"]);
@@ -284,9 +281,6 @@ describe("KeepLast", () => {
 
     test("rejectSuperseded: a hung superseded task rejects at supersession time", async () => {
         const keepLast = new KeepLast({ rejectSuperseded: true });
-        // def1 NEVER settles: the wrapper must still reject when superseded,
-        // otherwise its awaiters (e.g. doAction callers holding UI blocks)
-        // would hang forever.
         const def1 = new Deferred();
         const def2 = new Deferred();
 
@@ -299,8 +293,6 @@ describe("KeepLast", () => {
         );
         keepLast.add(def2).then(() => expect.step("ok [2]"));
 
-        // No settlement of def1 — the rejection happens because of the
-        // supersession itself.
         await tick();
         expect.verifySteps(["ko [1]: superseded"]);
 
@@ -332,7 +324,6 @@ describe("KeepLast", () => {
         def1.resolve();
         def2.resolve();
         await tick();
-        // The superseded wrapper neither resolved nor rejected.
         expect.verifySteps(["ok [2]"]);
     });
 });
@@ -509,5 +500,88 @@ describe("Race", () => {
         await tick();
         expect.verifySteps(["ok (44)"]);
         expect(race.getCurrentProm()).toBe(null);
+    });
+});
+
+describe("InFlight", () => {
+    test("is idle until something is tracked", async () => {
+        const inFlight = new InFlight();
+        expect(inFlight.isBusy).toBe(false);
+        inFlight.whenIdle().then(() => expect.step("idle"));
+        await tick();
+        expect.verifySteps(["idle"]);
+    });
+
+    test("track returns the caller's own promise, not a shared one", async () => {
+        const inFlight = new InFlight();
+        const def1 = new Deferred();
+        const def2 = new Deferred();
+        const tracked1 = inFlight.track(def1);
+        const tracked2 = inFlight.track(def2);
+        expect(tracked1).toBe(def1);
+        expect(tracked2).toBe(def2);
+
+        tracked1.then((v) => expect.step(`first (${v})`));
+        tracked2.then((v) => expect.step(`second (${v})`));
+        def2.resolve("b");
+        await tick();
+        expect.verifySteps(["second (b)"]);
+        def1.resolve("a");
+        await tick();
+        expect.verifySteps(["first (a)"]);
+    });
+
+    test("stays busy while a later operation is still pending", async () => {
+        // The flaw this replaces: Race.getCurrentProm() went null as soon as the
+        // FIRST member settled, reporting idle with work still in flight.
+        const inFlight = new InFlight();
+        const def1 = new Deferred();
+        const def2 = new Deferred();
+        inFlight.track(def1);
+        inFlight.track(def2);
+        expect(inFlight.isBusy).toBe(true);
+
+        inFlight.whenIdle().then(() => expect.step("idle"));
+        def1.resolve();
+        await tick();
+        expect(inFlight.isBusy).toBe(true);
+        expect.verifySteps([]);
+
+        def2.resolve();
+        await tick();
+        expect(inFlight.isBusy).toBe(false);
+        expect.verifySteps(["idle"]);
+    });
+
+    test("a rejected operation still counts as settled", async () => {
+        const inFlight = new InFlight();
+        const def = new Deferred();
+        const tracked = inFlight.track(def);
+        tracked.catch(() => expect.step("caller handled"));
+        inFlight.whenIdle().then(() => expect.step("idle"));
+
+        def.reject(new Error("boom"));
+        await tick();
+        expect(inFlight.isBusy).toBe(false);
+        expect.verifySteps(["caller handled", "idle"]);
+    });
+
+    test("a new operation after idle starts a fresh cycle", async () => {
+        const inFlight = new InFlight();
+        const def1 = new Deferred();
+        inFlight.track(def1);
+        def1.resolve();
+        await tick();
+        expect(inFlight.isBusy).toBe(false);
+
+        const def2 = new Deferred();
+        inFlight.track(def2);
+        expect(inFlight.isBusy).toBe(true);
+        inFlight.whenIdle().then(() => expect.step("idle again"));
+        await tick();
+        expect.verifySteps([]);
+        def2.resolve();
+        await tick();
+        expect.verifySteps(["idle again"]);
     });
 });

@@ -7,14 +7,151 @@
 
 import { Component, markup } from "@odoo/owl";
 
-// Markup class is not exported by @odoo/owl; derive it once from a markup()
-// instance.  The pre-ESM code looked it up lazily via `owl.markup` (global
-// `owl` object), which fails under strict-mode ESM where there is no global.
 const Markup = markup("").constructor;
 
 export const INITIAL_VALUE = Symbol("initial value");
-// Return this from event handlers to skip updateContent.
 export const SKIP_IMPLICIT_UPDATE = Symbol();
+
+const EVENT_MODIFIER_RE =
+    /^(?<event>.*)\.(?<suffix>prevent|stop|capture|once|noUpdate|withTarget)$/;
+
+/**
+ * Wrappers for the `.prevent`, `.stop`, `.noUpdate` and `.withTarget` event
+ * suffixes. `.capture` and `.once` are listener options rather than behaviour,
+ * and are handled directly in `Colibri.addListener`.
+ *
+ * @type {Record<string, (fn: Function, colibri: Colibri) => Function>}
+ */
+const EVENT_MODIFIERS = {
+    prevent:
+        (fn, colibri) =>
+        (ev, ...args) => {
+            ev.preventDefault();
+            return fn.call(colibri.interaction, ev, ...args);
+        },
+    stop:
+        (fn, colibri) =>
+        (ev, ...args) => {
+            ev.stopPropagation();
+            return fn.call(colibri.interaction, ev, ...args);
+        },
+    // awaited, so that an async handler's rejection still reaches the error
+    // channel: dropping the returned promise made `.noUpdate` the one suffix
+    // that turned a failing handler into an unhandled rejection
+    noUpdate:
+        (fn, colibri) =>
+        async (...args) => {
+            await fn.call(colibri.interaction, ...args);
+            return SKIP_IMPLICIT_UPDATE;
+        },
+    withTarget:
+        (fn, colibri) =>
+        (ev, ...args) =>
+            fn.call(colibri.interaction, ev, ev.currentTarget, ...args),
+};
+
+/**
+ * Normalizes anything a dynamic selector (or `Interaction.addListener`) may
+ * yield into an iterable of event targets.
+ *
+ * A single node is always wrapped rather than iterated: `<form>` and `<select>`
+ * are themselves iterable (over their controls / options), so an iterability
+ * test alone would silently fan a directive out over their children. `nodeType`
+ * is duck-typed rather than `instanceof Node` so the check also holds for nodes
+ * coming from another realm (the website builder's iframe).
+ *
+ * @param {any} target
+ * @returns {Iterable<any>}
+ */
+export function toEventTargets(target) {
+    if (target === null || target === undefined) {
+        return [];
+    }
+    if (typeof target.nodeType === "number" || !target[Symbol.iterator]) {
+        return [target];
+    }
+    return target;
+}
+
+/**
+ * @param {string} names whitespace-separated class names
+ * @returns {string[]}
+ */
+function splitClassNames(names) {
+    return names.split(/\s+/).filter(Boolean);
+}
+
+/**
+ * @param {string} attr
+ * @param {any} value
+ * @returns {asserts value is Record<string, any>}
+ */
+function assertAttrObject(attr, value) {
+    if (!value || typeof value !== "object") {
+        throw new Error(`t-att-${attr} directive expects an object`);
+    }
+}
+
+/**
+ * Yields the still-reachable nodes of a set of weak references, dropping the
+ * references whose node is gone.
+ *
+ * Directives are restored from what they have touched rather than from what
+ * their selector matches at destroy time: a node that left the match set — a
+ * dynamic selector now returning another element, a class another handler
+ * toggled — kept whatever the interaction had applied to it for good, since
+ * destroy() puts back exactly what it can still see. The references are weak
+ * because most departed nodes leave the document too, and a strong set would
+ * pin every one of them for the interaction's lifetime.
+ *
+ * @param {Set<WeakRef<HTMLElement>>} refs
+ * @returns {HTMLElement[]}
+ */
+function livingNodes(refs) {
+    const nodes = [];
+    for (const ref of refs) {
+        const node = ref.deref();
+        if (node) {
+            nodes.push(node);
+        } else {
+            refs.delete(ref);
+        }
+    }
+    return nodes;
+}
+
+/**
+ * A `t-att-*` / `t-out` entry is evaluated per node on every update, so a value
+ * that is not callable fails once per node per update, wrapped in the generic
+ * "could not update" error. Rejecting it where it is declared names the entry
+ * once, and at a point where the stack still points at the interaction.
+ *
+ * @param {Interaction} interaction
+ * @param {string} sel
+ * @param {string} directive
+ * @param {any} value
+ * @returns {void}
+ */
+function assertDefinitionFunction(interaction, sel, directive, value) {
+    if (typeof value !== "function") {
+        throw new Error(
+            `'${directive}' expects a function, got ${typeof value} ` +
+                `(selector '${sel}' in interaction '${interaction.constructor.name}')`,
+        );
+    }
+}
+
+/**
+ * @typedef {Object} ListenerRecord
+ * @property {EventTarget} node
+ * @property {string} event
+ * @property {EventListener} handler
+ * @property {AddEventListenerOptions | undefined} options
+ * @property {boolean} isDetached
+ * @property {() => void} forget drops this listener's entry from the cleanup list
+ * @property {EventListener} [reaper] one-shot listener that clears this record's
+ *  bookkeeping once a `once` listener has fired
+ */
 
 export class Colibri {
     /**
@@ -27,20 +164,31 @@ export class Colibri {
         this.isReady = false;
         this.hasStarted = false;
         this.isUpdating = false;
+        this.isDestroying = false;
         this.isDestroyed = false;
         this.dynamicAttrs = [];
         this.tOuts = [];
         this.cleanups = [];
-        // Index into `cleanups`, keyed by node, so `refreshNodes` can splice
-        // out entries for nodes that leave the DOM (avoids unbounded growth /
-        // detached-node retention under dynamic-content churn).
-        /** @type {Map<Node, Array<() => void>>} */
-        this.nodeCleanups = new Map();
+        /** @type {ListenerRecord[]} */
+        this.listenerRecords = [];
         this.listeners = new Map();
         this.dynamicNodes = new Map();
         this.core = core;
         this.interaction = new I(el, core.env, this);
-        this.setupInteraction();
+        try {
+            this.setupInteraction();
+        } catch (error) {
+            // setup() may already have registered cleanups or inserted nodes
+            // before throwing, and the caller discards this Colibri, so nothing
+            // else would ever undo them. The interaction's own destroy() is
+            // deliberately skipped: it is written against a completed setup and
+            // would run against a half-built instance.
+            for (const cleanupError of this.runCleanups()) {
+                core.reportError(cleanupError);
+            }
+            this.isDestroyed = true;
+            throw error;
+        }
     }
 
     /** @returns {void} */
@@ -48,14 +196,74 @@ export class Colibri {
         this.interaction.setup();
     }
 
-    /** @returns {void} */
-    destroyInteraction() {
-        for (const cleanup of this.cleanups.reverse()) {
-            cleanup();
+    /**
+     * Registers a teardown step. Returns a function that forgets it again,
+     * so that a step which has already run (a fired timeout, an early manual
+     * destroy) does not accumulate in the cleanup list for the whole life of
+     * the interaction.
+     *
+     * @param {Function} fn
+     * @returns {() => void}
+     */
+    addCleanup(fn) {
+        this.cleanups.push(fn);
+        return () => {
+            const index = this.cleanups.indexOf(fn);
+            if (index !== -1) {
+                this.cleanups.splice(index, 1);
+            }
+        };
+    }
+
+    /**
+     * Runs every registered teardown step, most recent first — listener
+     * removals are part of that list, so a cleanup still sees the listeners
+     * registered before it. A throwing step never skips the ones that follow:
+     * a single failing cleanup used to leave every remaining listener attached.
+     *
+     * The list is drained rather than iterated, because a step may edit it
+     * while it runs: every `forget()` splices an entry out, and `mountComponent`
+     * registers a step that forgets itself. Walking a reversed copy-in-place
+     * with a for..of meant that splice shifted the remaining entries left under
+     * the iterator, silently skipping the step registered just before the mount.
+     *
+     * @returns {Error[]} the errors raised by the steps
+     */
+    runCleanups() {
+        const errors = [];
+        while (this.cleanups.length) {
+            const cleanup = /** @type {Function} */ (this.cleanups.pop());
+            try {
+                cleanup();
+            } catch (error) {
+                errors.push(error);
+            }
         }
-        this.cleanups = [];
-        this.nodeCleanups.clear();
-        this.interaction.destroy();
+        this.listenerRecords = [];
+        return errors;
+    }
+
+    /**
+     * Tears the interaction down: every teardown step, then its own `destroy`.
+     *
+     * @returns {void}
+     */
+    destroyInteraction() {
+        const errors = this.runCleanups();
+        try {
+            this.interaction.destroy();
+        } catch (error) {
+            errors.push(error);
+        }
+        if (errors.length === 1) {
+            throw errors[0];
+        }
+        if (errors.length) {
+            throw new AggregateError(
+                errors,
+                `Some errors occured while cleaning up (in interaction '${this.interaction.constructor.name}')`,
+            );
+        }
     }
 
     /**
@@ -94,9 +302,13 @@ export class Colibri {
      * @param {string} event event name, optionally with dot-suffixed modifiers
      * @param {Function} fn
      * @param {AddEventListenerOptions} [options]
-     * @returns {[string, EventListener, AddEventListenerOptions | undefined]}
+     * @param {string} [sel] dynamicContent selector owning the listener, for
+     *  diagnostics only — nothing here depends on it, so a patch of this method
+     *  (the website builder wraps it) may forward only the documented arguments
+     *  without breaking listener bookkeeping
+     * @returns {{ event: string, handler: EventListener, options: AddEventListenerOptions | undefined, remove: () => void }}
      */
-    addListener(nodes, event, fn, options) {
+    addListener(nodes, event, fn, options, sel) {
         if (typeof fn !== "function") {
             throw new Error(`Invalid listener for event '${event}' (not a function)`);
         }
@@ -105,121 +317,194 @@ export class Colibri {
                 "this.addListener can only be called after the interaction is started. Maybe move the call in the start method.",
             );
         }
-        const re =
-            /^(?<event>.*)\.(?<suffix>prevent|stop|capture|once|noUpdate|withTarget)$/;
-        let groups = re.exec(event)?.groups;
+        let groups = EVENT_MODIFIER_RE.exec(event)?.groups;
         while (groups) {
-            fn = {
-                prevent:
-                    (f) =>
-                    (ev, ...args) => {
-                        ev.preventDefault();
-                        return f.call(this.interaction, ev, ...args);
-                    },
-                stop:
-                    (f) =>
-                    (ev, ...args) => {
-                        ev.stopPropagation();
-                        return f.call(this.interaction, ev, ...args);
-                    },
-                capture: (f) => {
-                    options ||= {};
-                    options.capture = true;
-                    return f;
-                },
-                once: (f) => {
-                    options ||= {};
-                    options.once = true;
-                    return f;
-                },
-                noUpdate:
-                    (f) =>
-                    (...args) => {
-                        f.call(this.interaction, ...args);
-                        return SKIP_IMPLICIT_UPDATE;
-                    },
-                withTarget:
-                    (f) =>
-                    (ev, ...args) => {
-                        const currentTarget = ev.currentTarget;
-                        return f.call(this.interaction, ev, currentTarget, ...args);
-                    },
-            }[groups.suffix](fn);
+            const { suffix } = groups;
+            if (suffix === "capture" || suffix === "once") {
+                // a fresh object: mutating the caller's would leak the flag to
+                // every other listener sharing that options object
+                options = { ...options, [suffix]: true };
+            } else {
+                fn = EVENT_MODIFIERS[suffix](fn, this);
+            }
             event = groups.event;
-            groups = re.exec(event)?.groups;
+            groups = EVENT_MODIFIER_RE.exec(event)?.groups;
         }
         const fnAny = /** @type {any} */ (fn);
         const handler = fnAny.isHandler
             ? fn
-            : async (...args) => {
-                  if (
-                      SKIP_IMPLICIT_UPDATE !==
-                      (await fn.call(this.interaction, ...args))
-                  ) {
-                      if (!this.isDestroyed) {
-                          this.updateContent();
+            : (...args) => {
+                  // the DOM drops an event listener's return value, so a
+                  // throwing handler — or a t-att definition that throws in
+                  // the implicit updateContent — only ever surfaced as an
+                  // unhandled rejection, never through the error channel
+                  const done = (async () => {
+                      if (
+                          SKIP_IMPLICIT_UPDATE !==
+                          (await fn.call(this.interaction, ...args))
+                      ) {
+                          if (!this.isDestroyed) {
+                              this.updateContent();
+                          }
                       }
-                  }
+                  })();
+                  done.catch((error) =>
+                      this.interaction.services["public.interactions"].reportError(
+                          error,
+                      ),
+                  );
+                  return done;
               };
         /** @type {any} */ (handler).isHandler = true;
         const eventListener = /** @type {EventListener} */ (handler);
+        /** @type {Set<ListenerRecord>} */
+        const records = new Set();
         for (const node of nodes) {
-            node.addEventListener(event, eventListener, options);
-            const remover = () =>
-                node.removeEventListener(event, eventListener, options);
-            // Keep the remover in the single ordered `cleanups` list AND index
-            // it by node, so `refreshNodes` can splice it back out when the
-            // node leaves the DOM.
-            this.cleanups.push(remover);
-            let removers = this.nodeCleanups.get(node);
-            if (!removers) {
-                removers = [];
-                this.nodeCleanups.set(node, removers);
+            if (typeof node?.addEventListener !== "function") {
+                throw new Error(
+                    `Cannot listen to '${event}' on a value that is not an event target` +
+                        (sel
+                            ? ` (selector '${sel}' in interaction '${this.interaction.constructor.name}')`
+                            : ""),
+                );
             }
-            removers.push(remover);
+            node.addEventListener(event, eventListener, options);
+            /** @type {ListenerRecord} */
+            const record = {
+                node,
+                event,
+                handler: eventListener,
+                options,
+                isDetached: false,
+                forget: () => {},
+            };
+            // detaching is a teardown step like any other, so it takes its
+            // place in the ordered cleanup list rather than in a parallel one
+            record.forget = this.addCleanup(() => this.detachListener(record));
+            if (options?.once) {
+                // the DOM drops a `once` listener the moment it fires, but its
+                // bookkeeping stayed behind: the record, the teardown step, and
+                // through them the handler's whole closure. An interaction that
+                // arms a one-shot listener on every cycle (the website popup
+                // re-arms two on each open) grew all three without bound, and
+                // pinned every element those closures had captured. A second
+                // one-shot listener, registered after it, reaps the first.
+                record.reaper = () => this.forgetListener(record);
+                node.addEventListener(event, record.reaper, options);
+            }
+            records.add(record);
+            this.listenerRecords.push(record);
         }
-        return [event, eventListener, options];
+        return {
+            event,
+            handler: eventListener,
+            options,
+            remove: () => this.removeListeners((record) => records.has(record)),
+        };
     }
 
-    /** @returns {void} */
+    /**
+     * Drops a listener's bookkeeping, for one the DOM has already dropped by
+     * itself. Leaves the DOM alone: a fired `once` listener, and the reaper
+     * that observed it, are both gone from the node already.
+     *
+     * @param {ListenerRecord} record
+     * @returns {void}
+     */
+    forgetListener(record) {
+        if (record.isDetached) {
+            return;
+        }
+        record.isDetached = true;
+        record.forget();
+        this.listenerRecords = this.listenerRecords.filter((r) => r !== record);
+    }
+
+    /**
+     * @param {ListenerRecord} record
+     * @returns {void}
+     */
+    detachListener(record) {
+        if (!record.isDetached) {
+            record.isDetached = true;
+            if (record.reaper) {
+                record.node.removeEventListener(
+                    record.event,
+                    record.reaper,
+                    record.options,
+                );
+            }
+            record.node.removeEventListener(
+                record.event,
+                record.handler,
+                record.options,
+            );
+        }
+    }
+
+    /**
+     * Detaches every listener matching `predicate`, forgetting both its record
+     * and its cleanup entry so that bookkeeping and the DOM cannot drift apart.
+     * Dropping the whole node's cleanups instead — as the departed-node pruning
+     * used to — silently unregistered the removal of listeners bound to that
+     * same node through another selector, which then outlived the interaction.
+     *
+     * @param {(record: ListenerRecord) => boolean} predicate
+     * @returns {void}
+     */
+    removeListeners(predicate) {
+        /** @type {ListenerRecord[]} */
+        const kept = [];
+        for (const record of this.listenerRecords) {
+            if (predicate(record)) {
+                record.forget();
+                this.detachListener(record);
+            } else {
+                kept.push(record);
+            }
+        }
+        this.listenerRecords = kept;
+    }
+
+    /**
+     * Re-evaluates every dynamic selector: listeners of departed nodes are
+     * detached and listeners of newly matched nodes are attached.
+     *
+     * Departed listeners are matched by handler identity rather than by the
+     * selector they were registered under: `addListener` is a patch point, and
+     * a patch forwarding only its documented arguments left every record
+     * untagged, so nothing here could ever detach them again. The handler of a
+     * (selector, event) pair is unique — `addListener` wraps each definition in
+     * a fresh closure — and stable, since the wrapper is passed through
+     * unchanged when it comes back for a newly matched node.
+     *
+     * @returns {void}
+     */
     refreshNodes() {
         for (const sel of this.dynamicNodes.keys()) {
             const nodes = this.getNodes(sel);
-            if (this.listeners.has(sel)) {
+            const events = this.listeners.get(sel);
+            if (events) {
                 const newNodes = new Set(nodes);
-                const oldNodes = this.dynamicNodes.get(sel);
-                const events = this.listeners.get(sel);
-                const toRemove = new Set();
-                for (const node of oldNodes) {
-                    if (newNodes.has(node)) {
-                        newNodes.delete(node);
-                    } else {
-                        toRemove.add(node);
+                const goneNodes = new Set();
+                for (const node of this.dynamicNodes.get(sel)) {
+                    if (!newNodes.delete(node)) {
+                        goneNodes.add(node);
                     }
                 }
-                for (const event of Object.keys(events)) {
-                    const [handler, options] = events[event];
-                    for (const node of toRemove) {
-                        node.removeEventListener(event, handler, options);
-                    }
-                    if (newNodes.size) {
-                        this.addListener(newNodes, event, handler, options);
-                    }
+                if (goneNodes.size) {
+                    const handlers = new Set(
+                        Object.values(events).map(([handler]) => handler),
+                    );
+                    this.removeListeners(
+                        (record) =>
+                            handlers.has(record.handler) && goneNodes.has(record.node),
+                    );
                 }
-                // The departed nodes' listeners were just removed above; splice
-                // their (now no-op) removers out of `cleanups` and drop the
-                // index entries, so neither grows unbounded nor retains the
-                // detached nodes.
-                for (const node of toRemove) {
-                    const removers = this.nodeCleanups.get(node);
-                    if (removers) {
-                        for (const remover of removers) {
-                            const i = this.cleanups.indexOf(remover);
-                            if (i !== -1) {
-                                this.cleanups.splice(i, 1);
-                            }
-                        }
-                        this.nodeCleanups.delete(node);
+                if (newNodes.size) {
+                    for (const event of Object.keys(events)) {
+                        const [handler, options] = events[event];
+                        this.addListener(newNodes, event, handler, options, sel);
                     }
                 }
             }
@@ -243,25 +528,42 @@ export class Colibri {
     }
 
     /**
-     * Mounts an OWL component inside `node` and registers cleanup.
+     * Mounts an OWL component inside `node` and registers cleanup. The mount is
+     * tracked by the service so that `isReady` — and therefore the page's
+     * `is-ready` flag that tours and the website builder wait on — accounts for
+     * sub-components too. A mount failure is reported but does not reject
+     * `isReady`, so one broken component cannot mark a whole page unready.
      *
      * @param {HTMLElement} node
      * @param {import("@odoo/owl").ComponentConstructor} C
      * @param {Record<string, any>} [props]
      * @param {InsertPosition} [position]
-     * @returns {() => void} cleanup function
+     * @returns {() => void} cleanup function, safe to call more than once
      */
     mountComponent(node, C, props, position = "beforeend") {
-        const root = this.core.prepareRoot(node, C, props, position);
-        // root.mount() (owl App root mount) rejects if the mounted component's
-        // setup/willStart/render throws. This runs async after start() has
-        // already resolved, so an uncaught rejection would escape the service's
-        // tracked-promise chain and surface as an unhandled rejection (or reach
-        // the frontend crash reporter). Route it through the same soft error
-        // channel used by interaction_service._mountComponent.
-        root.mount().catch((e) => this.core._reportInteractionError(e));
-        this.cleanups.push(() => root.destroy());
-        return root.destroy;
+        const core = this.core;
+        const root = core.prepareRoot(node, C, props, position);
+        let isRootDestroyed = false;
+        let forget = () => {};
+        const destroy = () => {
+            if (!isRootDestroyed) {
+                isRootDestroyed = true;
+                forget();
+                root.destroy();
+            }
+        };
+        // registered before the mount: `prepareRoot` has already put a host
+        // element in the document, and a mount that throws synchronously would
+        // otherwise leave it there with nothing left to remove it
+        forget = this.addCleanup(destroy);
+        core._trackProm(
+            root.mount().catch((error) => {
+                if (!isRootDestroyed) {
+                    core.reportError(error);
+                }
+            }),
+        );
+        return destroy;
     }
 
     /**
@@ -280,36 +582,29 @@ export class Colibri {
         if (value === INITIAL_VALUE) {
             value = initialValue;
         }
-        if (value instanceof Markup) {
-            let nodes = el === this.interaction.el ? el.children : [el];
-            for (const node of nodes) {
-                this.core.env.services["public.interactions"].stopInteractions(node);
+        const interactions = this.core.env.services["public.interactions"];
+        // `el.children` is live and stopping an interaction may detach nodes
+        // (an insert()/renderAt() cleanup does), which would make the iteration
+        // skip every other sibling. Snapshot before touching anything.
+        const isRoot = el === this.interaction.el;
+        const stopTargets = () => {
+            for (const node of isRoot ? [...el.children] : [el]) {
+                interactions.stopInteractions(node);
             }
-            // Markup wraps a string; .toString() returns the underlying HTML.
+        };
+        if (value instanceof Markup) {
+            stopTargets();
             el.innerHTML = value.toString();
             if (!restoring) {
-                if (el === this.interaction.el) {
-                    nodes = el.children;
-                }
-                for (const node of nodes) {
-                    this.core.env.services["public.interactions"].startInteractions(
-                        node,
-                    );
-                }
+                // one scan of the whole subtree: the service already skips the
+                // interactions still active on `el` itself, so scanning per
+                // child only multiplied the cost by the number of children
+                interactions.startInteractions(el);
                 this.refreshNodes();
             }
         } else {
-            // Assigning textContent detaches any existing element children.
-            // Mirror the Markup branch and stop their interactions first, so
-            // Colibri instances started on those children are torn down (their
-            // listeners/cleanups run) instead of leaking on now-detached DOM.
             if (el.children.length) {
-                const nodes = el === this.interaction.el ? el.children : [el];
-                for (const node of nodes) {
-                    this.core.env.services["public.interactions"].stopInteractions(
-                        node,
-                    );
-                }
+                stopTargets();
             }
             el.textContent = value;
         }
@@ -327,23 +622,18 @@ export class Colibri {
      */
     applyAttr(el, attr, value, initialValue) {
         if (attr === "class") {
-            if (typeof value !== "object") {
-                throw new Error("t-att-class directive expects an object");
-            }
+            assertAttrObject(attr, value);
             for (const cl of Object.keys(value)) {
                 const toApply = value[cl];
-                for (const c of cl.trim().split(" ")) {
-                    // initialValue is keyed per individual class (multi-class
-                    // keys are split at capture time), so each class of an
-                    // "a b" key restores to its own initial presence.
+                // a key holding several class names may be padded or
+                // double-spaced; an empty token makes classList.toggle throw
+                for (const c of splitClassNames(cl)) {
                     const apply = toApply === INITIAL_VALUE ? initialValue[c] : toApply;
                     el.classList.toggle(c, apply || false);
                 }
             }
         } else if (attr === "style") {
-            if (typeof value !== "object") {
-                throw new Error("t-att-style directive expects an object");
-            }
+            assertAttrObject(attr, value);
             for (const prop of Object.keys(value)) {
                 let style = value[prop];
                 if (style === INITIAL_VALUE) {
@@ -384,15 +674,7 @@ export class Colibri {
     getNodes(sel) {
         const selectors = this.interaction.dynamicSelectors;
         if (sel in selectors) {
-            const elems = selectors[sel]();
-            if (elems) {
-                if (elems.nodeName && ["FORM", "SELECT"].includes(elems.nodeName)) {
-                    return [elems];
-                }
-                return elems[Symbol.iterator] ? elems : [elems];
-            } else {
-                return [];
-            }
+            return toEventTargets(selectors[sel]() || null);
         }
         return this.interaction.el.querySelectorAll(sel);
     }
@@ -422,26 +704,30 @@ export class Colibri {
             for (const directive of Object.keys(descr)) {
                 const value = descr[directive];
                 if (directive.startsWith("t-on-")) {
-                    const ev = directive.slice(5);
-                    const [event, handler, options] = this.addListener(
+                    const { event, handler, options } = this.addListener(
                         nodes,
-                        ev,
+                        directive.slice(5),
                         value,
+                        undefined,
+                        sel,
                     );
                     this.mapSelectorToListeners(sel, event, handler, options);
                 } else if (directive.startsWith("t-att-")) {
-                    const attr = directive.slice(6);
+                    assertDefinitionFunction(this.interaction, sel, directive, value);
                     this.dynamicAttrs.push({
                         sel,
-                        attr,
+                        attr: directive.slice(6),
                         definition: value,
-                        initialValues: null,
+                        initialValues: new WeakMap(),
+                        touched: new Set(),
                     });
                 } else if (directive === "t-out") {
+                    assertDefinitionFunction(this.interaction, sel, directive, value);
                     this.tOuts.push({
                         sel,
                         definition: value,
-                        initialValue: null,
+                        initialValue: new WeakMap(),
+                        touched: new Set(),
                     });
                 } else if (directive === "t-component") {
                     if (Object.prototype.isPrototypeOf.call(Component, value)) {
@@ -474,14 +760,17 @@ export class Colibri {
      * @returns {void}
      */
     updateContent() {
-        if (this.isDestroyed || !this.isReady) {
+        if (this.isDestroyed) {
+            throw new Error("Cannot update the content of a destroyed interaction");
+        }
+        if (!this.isReady) {
             throw new Error(
-                "Cannot update content of an interaction that is not ready or is destroyed",
+                "Cannot update the content of an interaction that has not started yet (dynamic content is applied once willStart resolves)",
             );
         }
         if (this.isUpdating) {
             throw new Error(
-                "Updatecontent should not be called while interaction is updating",
+                "updateContent should not be called while interaction is updating",
             );
         }
         this.isUpdating = true;
@@ -509,6 +798,57 @@ export class Colibri {
     }
 
     /**
+     * Captures the value an attribute had before the interaction first touched
+     * it, so that destroy() can put it back.
+     *
+     * A `t-att-class` / `t-att-style` definition does not have to yield the
+     * same keys every time (`() => this.isOpen ? { open: true } : { shut: true }`
+     * is a normal definition), and destroy() restores exactly what was
+     * captured: capturing once, from the first evaluation, left every key
+     * introduced later applied for good. Keys are therefore topped up as they
+     * appear — a key seen for the first time has by definition not been touched
+     * by this directive yet, so the node still holds its original value.
+     *
+     * @param {HTMLElement} node
+     * @param {string} attr
+     * @param {any} value the definition's current value, whose keys tell which
+     *  classes / style properties are in play
+     * @param {WeakMap<HTMLElement, any>} initialValues
+     * @returns {any}
+     */
+    captureInitialAttr(node, attr, value, initialValues) {
+        if (attr !== "class" && attr !== "style") {
+            if (!initialValues.has(node)) {
+                initialValues.set(node, node.getAttribute(attr));
+            }
+            return initialValues.get(node);
+        }
+        assertAttrObject(attr, value);
+        let initial = initialValues.get(node);
+        if (!initial) {
+            initial = {};
+            initialValues.set(node, initial);
+        }
+        for (const key of Object.keys(value)) {
+            for (const name of attr === "class" ? splitClassNames(key) : [key]) {
+                if (name in initial) {
+                    continue;
+                }
+                if (attr === "class") {
+                    initial[name] = node.classList.contains(name);
+                } else {
+                    const propertyValue = node.style.getPropertyValue(name);
+                    const priority = node.style.getPropertyPriority(name);
+                    initial[name] = propertyValue
+                        ? propertyValue + (priority ? ` !${priority}` : "")
+                        : undefined;
+                }
+            }
+        }
+        return initial;
+    }
+
+    /**
      * Applies dynamic attributes and t-out definitions to the DOM, collecting
      * errors instead of aborting so that a single failing definition does not
      * prevent the rest of the content from being updated.
@@ -525,56 +865,21 @@ export class Colibri {
             }
         }
         const interaction = this.interaction;
-        for (const dynamicAttr of this.dynamicAttrs) {
-            const { sel, attr, definition } = dynamicAttr;
-            let { initialValues } = dynamicAttr;
-            const nodes = this.dynamicNodes.get(sel) || [];
-            if (!initialValues && nodes.length) {
-                initialValues = new Map();
-                dynamicAttr.initialValues = initialValues;
-            }
-            for (const node of nodes) {
+        for (const { sel, attr, definition, initialValues, touched } of this
+            .dynamicAttrs) {
+            for (const node of this.dynamicNodes.get(sel) || []) {
                 try {
                     const value = definition.call(interaction, node);
-                    if (!initialValues || !initialValues.has(node)) {
-                        let attrValue;
-                        switch (attr) {
-                            case "class":
-                                // Capture per individual class: a multi-class
-                                // key ("a b") can never satisfy classList
-                                // .contains and each class may differ in
-                                // initial presence.
-                                attrValue = {};
-                                for (const classNames of Object.keys(value)) {
-                                    for (const c of classNames.trim().split(" ")) {
-                                        attrValue[c] = node.classList.contains(c);
-                                    }
-                                }
-                                break;
-                            case "style":
-                                attrValue = {};
-                                for (const property of Object.keys(value)) {
-                                    const propertyValue =
-                                        node.style.getPropertyValue(property);
-                                    const priority =
-                                        node.style.getPropertyPriority(property);
-                                    attrValue[property] = propertyValue
-                                        ? propertyValue +
-                                          (priority ? ` !${priority}` : "")
-                                        : undefined;
-                                }
-                                break;
-                            default:
-                                attrValue = node.getAttribute(attr);
-                        }
-                        initialValues.set(node, attrValue);
+                    if (!initialValues.has(node)) {
+                        touched.add(new WeakRef(node));
                     }
-                    this.applyAttr(
+                    const initial = this.captureInitialAttr(
                         node,
                         attr,
                         value,
-                        dynamicAttr.initialValues.get(node),
+                        initialValues,
                     );
+                    this.applyAttr(node, attr, value, initial);
                 } catch (error) {
                     errors.push({
                         error,
@@ -583,26 +888,22 @@ export class Colibri {
                 }
             }
         }
-        for (const tOut of this.tOuts) {
-            const { sel, definition } = tOut;
-            let { initialValue } = tOut;
-            const nodes = this.dynamicNodes.get(sel) || [];
-            if (!initialValue && nodes.length) {
-                initialValue = new Map();
-                tOut.initialValue = initialValue;
-            }
-            for (const node of nodes) {
+        for (const { sel, definition, initialValue, touched } of this.tOuts) {
+            for (const node of this.dynamicNodes.get(sel) || []) {
                 try {
-                    if (!initialValue || !initialValue.has(node)) {
-                        const value = node.children.length
-                            ? markup(node.innerHTML)
-                            : node.textContent;
-                        initialValue.set(node, value);
+                    if (!initialValue.has(node)) {
+                        touched.add(new WeakRef(node));
+                        initialValue.set(
+                            node,
+                            node.children.length
+                                ? markup(node.innerHTML)
+                                : node.textContent,
+                        );
                     }
                     this.applyTOut(
                         node,
                         definition.call(interaction, node),
-                        tOut.initialValue.get(node),
+                        initialValue.get(node),
                     );
                 } catch (error) {
                     errors.push({
@@ -622,23 +923,18 @@ export class Colibri {
      * @returns {void}
      */
     destroy() {
-        // Idempotency guard: applyTOut's content restore can trigger a nested
-        // stopInteractions() that re-enters destroy() on this same Colibri
-        // before the outer call finished. Without this guard the user
-        // destroyInteraction() ran twice and the second pass dereferenced the
-        // already-nulled `this.core` (NPE on this.core.env).
-        if (this.isDestroyed) {
+        // `isDestroying` and not just `isDestroyed`: a teardown step may stop
+        // interactions of its own (removing an inserted subtree does), and the
+        // service still lists this one until its own destroy() returns, so a
+        // re-entrant call would run the whole teardown a second time
+        if (this.isDestroyed || this.isDestroying) {
             return;
         }
+        this.isDestroying = true;
         const errors = [];
         try {
-            // restore t-att to their initial values
-            for (const dynAttrs of this.dynamicAttrs) {
-                const { sel, attr, initialValues } = dynAttrs;
-                if (!initialValues) {
-                    continue;
-                }
-                for (const node of this.dynamicNodes.get(sel) || []) {
+            for (const { attr, initialValues, touched } of this.dynamicAttrs) {
+                for (const node of livingNodes(touched)) {
                     if (initialValues.has(node)) {
                         try {
                             this.applyAttr(node, attr, initialValues.get(node));
@@ -649,14 +945,8 @@ export class Colibri {
                 }
             }
 
-            // restore t-out to their initial values (`restoring`: do not
-            // start interactions found in the restored content)
-            for (const tOut of this.tOuts) {
-                const { sel, initialValue } = tOut;
-                if (!initialValue) {
-                    continue;
-                }
-                for (const node of this.dynamicNodes.get(sel) || []) {
+            for (const { initialValue, touched } of this.tOuts) {
+                for (const node of livingNodes(touched)) {
                     if (initialValue.has(node)) {
                         try {
                             this.applyTOut(node, initialValue.get(node), null, true);
@@ -667,12 +957,12 @@ export class Colibri {
                 }
             }
         } finally {
-            // even if the restore phase crashed, listeners and cleanups must
-            // be removed: the service drops this Colibri no matter what.
             this.listeners.clear();
             this.dynamicNodes.clear();
             try {
                 this.destroyInteraction();
+            } catch (error) {
+                errors.push(error);
             } finally {
                 this.core = null;
                 this.isDestroyed = true;

@@ -8,17 +8,9 @@ import { STORAGE, storageGet, storageSet } from "../hoot_utils.js";
  * @typedef {"dark" | "light"} ColorScheme
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Object: { entries: $entries, keys: $keys },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /** @type {ColorScheme[]} */
 const COLOR_SCHEMES = $keys(getAllColors()).filter((key) => key !== "default");
@@ -53,10 +45,6 @@ const current = reactive(
     }
 );
 current.root;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 export function generateStyleSheets() {
     /** @type {Record<string, string>} */

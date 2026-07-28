@@ -102,9 +102,6 @@ export class CalendarYearPopover extends Component {
      */
     getSortedRecordGroups(recordGroups) {
         return recordGroups.sort((a, b) => {
-            // Same-day groups sort first, compared symmetrically — the old
-            // code returned ±MAX_SAFE_INTEGER asymmetrically for same-day
-            // pairs, violating the sort contract and yielding unstable order.
             const aSameDay = a.start.hasSame(a.end, "days");
             const bSameDay = b.start.hasSame(b.end, "days");
             if (aSameDay !== bSameDay) {

@@ -109,16 +109,12 @@ export class KeepLast {
                         this._rejectPending = null;
                         resolve(value);
                     }
-                    // else: superseded — silently discarded (default mode) or
-                    // already rejected at supersession time (rejectSuperseded).
                 },
                 (reason) => {
                     if (this._id === currentId) {
                         this._rejectPending = null;
                         reject(reason);
                     }
-                    // else: superseded — silently discarded (default mode) or
-                    // already rejected at supersession time (rejectSuperseded).
                 },
             );
         });
@@ -208,7 +204,6 @@ export class Mutex {
             }
             return Promise.resolve(result).finally(() => {
                 if (--this._queueSize === 0) {
-                    // Always set by the time the queue drains (see exec above).
                     /** @type {() => void} */ (this._unlock)();
                 }
             });
@@ -260,7 +255,7 @@ export class Race {
             this.currentProm = raceProm;
             this.currentPromResolver = (value) => {
                 if (this._generation !== gen) {
-                    return; // stale callback from a previous race — ignore
+                    return;
                 }
                 this.currentProm = null;
                 this.currentPromResolver = null;
@@ -269,7 +264,7 @@ export class Race {
             };
             this.currentPromRejecter = (error) => {
                 if (this._generation !== gen) {
-                    return; // stale callback from a previous race — ignore
+                    return;
                 }
                 this.currentProm = null;
                 this.currentPromResolver = null;
@@ -286,6 +281,58 @@ export class Race {
      */
     getCurrentProm() {
         return this.currentProm;
+    }
+}
+
+/**
+ * Counts how many operations are currently running, answering two questions a
+ * {@link Race} cannot: "is anything still in flight?" and "tell me when
+ * everything has settled".
+ *
+ * ``Race`` settles on the FIRST of its members to finish, so a caller using
+ * ``getCurrentProm()`` as a busy flag sees idle as soon as any one operation
+ * ends — while later ones are still pending. Guards written that way release
+ * mutations onto half-loaded state. ``Race`` also hands every caller the same
+ * promise, so each observes whichever member happened to finish first rather
+ * than its own result; ``track`` returns the caller's own promise unchanged.
+ *
+ * A rejected member counts as settled and does not reject ``whenIdle()``; the
+ * caller keeps ownership of the failure through the promise ``track`` returns.
+ */
+export class InFlight {
+    constructor() {
+        this._count = 0;
+        /** @type {Promise<void> & { resolve: () => void } | null} */
+        this._idle = null;
+    }
+    /** @returns {boolean} whether at least one tracked operation is running */
+    get isBusy() {
+        return this._count > 0;
+    }
+    /**
+     * @template T
+     * @param {Promise<T>} promise
+     * @returns {Promise<T>} the very same promise, for chaining
+     */
+    track(promise) {
+        this._count++;
+        this._idle ||= /** @type {any} */ (new Deferred());
+        const settled = () => {
+            if (--this._count === 0) {
+                const idle = /** @type {any} */ (this._idle);
+                this._idle = null;
+                idle.resolve();
+            }
+        };
+        promise.then(settled, settled);
+        return promise;
+    }
+    /**
+     * @returns {Promise<void>} resolved once every currently tracked operation
+     *   has settled — immediately when none is running
+     */
+    whenIdle() {
+        return this._idle || Promise.resolve();
     }
 }
 

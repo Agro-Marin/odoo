@@ -65,8 +65,6 @@ export const menuStorage = {
             storedVersion = browser.localStorage.getItem(VERSION_KEY);
             hash = browser.localStorage.getItem(HASH_KEY) || undefined;
         } catch {
-            // Storage unavailable (private mode, blocked cookies): behave as a
-            // cold boot rather than letting the read throw through `start()`.
             return { menus: null, raw: null, hash: undefined };
         }
         if (!raw || storedVersion !== session.registry_hash) {
@@ -106,17 +104,11 @@ export const menuStorage = {
             if (hash) {
                 browser.localStorage.setItem(HASH_KEY, hash);
             } else if (browser.localStorage.getItem(HASH_KEY) !== null) {
-                // No hash (e.g. mocked route): drop any stale one so the next
-                // boot fetches the full payload. Only touch storage when a hash
-                // was actually stored, to avoid a spurious removeItem in tests
-                // that spy on localStorage.
                 browser.localStorage.removeItem(HASH_KEY);
             }
-            // Version LAST — see the ordering rule above.
             browser.localStorage.setItem(VERSION_KEY, session.registry_hash);
         } catch (error) {
             console.error("Error while storing menus in localStorage", error);
-            // Close the gate: a partially-written trio must not be reused.
             removeKey(VERSION_KEY);
         }
     },

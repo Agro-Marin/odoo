@@ -240,4 +240,4 @@ A single `@http.route(routes=[...])` counts as one handler but several URL varia
 | vCard | 1 / 2 | vcard (one handler, two URLs) |
 | Settings | 2 / 2 | settings |
 | Observability | 2 / 2 | observability (CWV beacon + JS error beacon) |
-| **Total** | **73 handlers / ~105 URL variants** | **21 controller classes** (across 23 files; export.py contains 3: Export, CSVExport, ExcelExport. `json_helpers.py`, `export_writers.py`, `utils.py`, `__init__.py` have no routes.) |
+| **Total** | **75 handlers / 108 declared URL paths** | **22 controller classes** (across 20 route-bearing files of 24 in `controllers/`; export.py contains 3: Export, CSVExport, ExcelExport. `json_helpers.py`, `export_writers.py`, `utils.py`, `__init__.py` have no routes.) |

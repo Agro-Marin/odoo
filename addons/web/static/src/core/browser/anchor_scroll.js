@@ -8,7 +8,7 @@ import { browser } from "./browser.js";
 browser.addEventListener("click", (ev) => {
     const href = /** @type {Element} */ (ev.target).closest("a")?.getAttribute("href");
     if (href && href === "#") {
-        ev.preventDefault(); // a lone "#" href only activates the anchor tag
+        ev.preventDefault();
         return;
     }
 });

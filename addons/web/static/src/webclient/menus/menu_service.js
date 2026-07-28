@@ -33,9 +33,6 @@ const EMPTY_MENUS = {
  */
 async function fetchMenus(reload, cachedHash) {
     if (!reload && /** @type {any} */ (odoo).loadMenusPromise) {
-        // Parse-time preload from web.webclient_bootstrap: already normalized
-        // to the same `{menus, hash} | null` shape (and already carries the
-        // stored hash when it was valid).
         return /** @type {any} */ (odoo).loadMenusPromise;
     }
     const url = cachedHash
@@ -102,10 +99,6 @@ class MenuTree {
     getMenuAsTree(menuID) {
         const menu = this.getMenu(menuID);
         if (!menu) {
-            // menusData can be swapped by a reload/revalidation between the
-            // caller capturing an id and this lookup (e.g. the command palette
-            // holding a stale menu id); return nothing instead of throwing a
-            // raw TypeError dialog.
             return;
         }
         if (!menu.childrenTree) {
@@ -128,8 +121,6 @@ class MenuTree {
      */
     getAppIdByAction(action, preferredAppId) {
         if (!this._appByAction) {
-            // One pass over the tree instead of one per lookup. Rebuilt on
-            // every setData, so it can never outlive its menusData.
             this._appByAction = new Map();
             for (const menu of this.getAll()) {
                 for (const key of [menu.actionID, menu.actionPath]) {
@@ -163,16 +154,8 @@ class MenuTree {
  */
 export const menuService = {
     dependencies: ["action"],
-    // selectMenu/reload are async: destroy-protection at useService("menu")
-    // keeps a navbar/burger-menu/hotkey component from resuming into a
-    // destroyed state if it unmounts mid-call.
     async: ["selectMenu", "reload"],
     async start(env) {
-        // Serializes the async writers of the tree (boot-time background
-        // revalidation vs. reload() vs. concurrent reload()s): each fetch
-        // snapshots the counter and only commits if still the latest, so a slow
-        // stale response can never overwrite fresher menus (nor persist its
-        // stale hash, which would 304-pin the stale copy on next boots).
         let fetchGeneration = 0;
 
         const {
@@ -183,17 +166,12 @@ export const menuService = {
         const tree = new MenuTree(cachedMenus || EMPTY_MENUS);
 
         if (cachedMenus) {
-            // Warm boot: serve the cached copy now, revalidate in the
-            // background.
             const generation = ++fetchGeneration;
             fetchMenus(false, storedHash)
                 .then((res) => {
                     if (generation !== fetchGeneration) {
-                        // A reload() committed fresher menus while this
-                        // revalidation was in flight; drop this resolution.
                         return;
                     }
-                    // res === null -> 304: cached copy confirmed up-to-date.
                     if (!res?.menus) {
                         return;
                     }
@@ -202,34 +180,21 @@ export const menuService = {
                         tree.setData(res.menus);
                         env.bus.trigger(AppEvent.MENUS_APP_CHANGED);
                     } else if (res.hash && res.hash !== storedHash) {
-                        // Same payload but hash changed (e.g. first boot after
-                        // upgrading to the conditional-fetch server): persist so
-                        // the next boot gets a 304.
                         menuStorage.write(res.menus, res.hash);
                     }
                 })
-                // Background revalidation only: stale menus are already on
-                // screen, so a failed refetch isn't worth surfacing — but log
-                // it so a persistent failure is diagnosable.
                 .catch((error) => {
                     console.warn("Background menu revalidation failed", error);
                 });
         } else {
-            // Cold boot: no usable stored copy for this registry version.
             let res = await fetchMenus().catch(() => null);
             if (!res?.menus) {
-                // The preload can resolve null on a 304 against a
-                // stale/mismatched localStorage copy, which would leave the
-                // tree empty and blank the webclient. Refetch unconditionally
-                // (no cached hash -> never a 304).
                 res = await fetchMenus(true).catch(() => null);
             }
             if (res?.menus) {
                 tree.setData(res.menus);
                 menuStorage.write(res.menus, res.hash);
             } else if (storedRaw) {
-                // Last resort: a stale, version-mismatched copy beats a blank
-                // client (a corrupt one falls through to the minimal root).
                 tree.setData(menuStorage.parse(storedRaw) || EMPTY_MENUS);
             }
         }
@@ -256,9 +221,6 @@ export const menuService = {
             async selectMenu(menu) {
                 menu = typeof menu === "number" ? tree.getMenu(menu) : menu;
                 if (!menu || !menu.actionID) {
-                    // The id may no longer resolve (the tree was swapped by a
-                    // reload/revalidation while a stale id was held); bail out
-                    // instead of throwing a raw TypeError.
                     return;
                 }
                 await env.services.action.doAction(menu.actionID, {
@@ -269,17 +231,13 @@ export const menuService = {
                 });
             },
             async reload() {
-                // Explicit reload (e.g. after app install): skip the cached
-                // hash, a change is expected, always take the full payload.
                 const generation = ++fetchGeneration;
                 const res = await fetchMenus(true);
                 if (generation !== fetchGeneration) {
-                    // Superseded by a newer fetch; it will commit and notify.
                     return;
                 }
                 if (res?.menus) {
                     tree.setData(res.menus);
-                    // Persist so the next boot doesn't serve stale menus.
                     menuStorage.write(res.menus, res.hash);
                 }
                 env.bus.trigger(AppEvent.MENUS_APP_CHANGED);

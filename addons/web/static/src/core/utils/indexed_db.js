@@ -53,17 +53,8 @@ export class IndexedDB {
          */
         this._degraded = false;
         this.mutex = new Mutex();
-        // Constructor can't be async, so this promise isn't awaited — but it
-        // must be observed: ``_checkVersion`` -> ``_execute`` opens the DB
-        // synchronously, which throws in private-browsing/storage-disabled
-        // contexts. Swallow it; subsequent calls open their own connection
-        // and degrade gracefully via their ``onerror`` arm.
         this.mutex.exec(() => this._checkVersion(version)).catch(() => {});
     }
-
-    // -------------------------------------------------------------------------
-    // Public
-    // -------------------------------------------------------------------------
 
     /**
      * Reads data from a given table.
@@ -178,10 +169,6 @@ export class IndexedDB {
         return this.mutex.exec(() => this._execute(callback));
     }
 
-    // -------------------------------------------------------------------------
-    // Protected
-    // -------------------------------------------------------------------------
-
     /**
      * Close and drop the cached connection (no-op when there is none).
      */
@@ -193,7 +180,6 @@ export class IndexedDB {
     }
 
     async _deleteDatabase(/** @type {() => any} */ callback) {
-        // An open cached connection would block the deleteDatabase request.
         this._closeCachedDB();
         return new Promise((resolve) => {
             let settled = false;
@@ -208,9 +194,6 @@ export class IndexedDB {
                 if (runCallback) {
                     Promise.resolve(callback()).then(resolve);
                 } else {
-                    // Don't run the callback: it typically reopens the DB,
-                    // and that open would queue behind the still-pending
-                    // delete — the very hang we're escaping.
                     resolve(undefined);
                 }
             };
@@ -291,10 +274,6 @@ export class IndexedDB {
         if (this._degraded) {
             return callback();
         }
-        // Fast path: reuse the cached connection when it already contains
-        // every table this instance knows about (the common case once the
-        // schema is warm). Runs under the same mutex as the open path, so
-        // no schema-changing open can interleave with it.
         if (this._db && idbVersion === undefined) {
             const db = this._db;
             const dbTables = new Set(db.objectStoreNames);
@@ -303,9 +282,6 @@ export class IndexedDB {
                     return await this._runCallback(db, callback);
                 } catch (e) {
                     if (e?.name === "InvalidStateError") {
-                        // The connection was closed under us (browser-initiated
-                        // close, versionchange from another tab): drop the
-                        // cached handle and retry with a fresh open.
                         if (this._db === db) {
                             this._db = null;
                         }
@@ -314,19 +290,10 @@ export class IndexedDB {
                     throw e;
                 }
             }
-            // A table is missing: close the cached connection so the open
-            // below can perform the version-bump upgrade that creates it.
             this._closeCachedDB();
         }
         return new Promise((resolve, reject) => {
             let request;
-            // ``onblocked`` guard, mirroring ``_deleteDatabase``: a
-            // version-bump open (schema upgrade creating a missing table)
-            // stays blocked as long as another context holds a connection to
-            // the previous version — e.g. a frozen tab that never processes
-            // its ``versionchange`` event. This runs inside the instance
-            // mutex, so without the timeout every subsequent operation would
-            // queue behind the never-completing open, forever.
             let settled = false;
             /** @type {any} */
             let blockedTimeoutId;
@@ -341,13 +308,6 @@ export class IndexedDB {
             try {
                 request = indexedDB.open(this.name, idbVersion);
             } catch (e) {
-                // ``indexedDB.open`` throws SYNCHRONOUSLY in storage-denied
-                // contexts (private browsing, third-party-cookie-blocked
-                // iframes). The async ``onerror`` arm below already degrades
-                // to the no-db path; a sync throw must do the same instead of
-                // rejecting the promise — boot-path consumers
-                // (localization_service.start(), the RPC disk cache) await
-                // reads unguarded, so a rejection here kills the webclient.
                 console.warn(`IndexedDB unavailable: ${e?.message}`);
                 this._degraded = true;
                 Promise.resolve(callback()).then(resolve, reject);
@@ -362,11 +322,6 @@ export class IndexedDB {
             request.onsuccess = (event) => {
                 const db = /** @type {IDBOpenDBRequest} */ (event.target).result;
                 if (settled) {
-                    // The blocked-timeout already degraded this instance and
-                    // settled the promise; the open finally completed once
-                    // the blocking context went away. Close the late
-                    // connection immediately so it can't in turn block other
-                    // contexts' upgrades or deletes.
                     db.close();
                     return;
                 }
@@ -376,19 +331,9 @@ export class IndexedDB {
                     if (newTables.size !== 0) {
                         db.close();
                         const version = db.version + 1;
-                        // Forward BOTH arms: a failing version-bump upgrade
-                        // (e.g. the ``onupgradeneeded`` transaction aborts)
-                        // must reject this promise, not leave it pending
-                        // forever with an unhandled rejection dangling off
-                        // the inner ``_execute``.
                         this._execute(callback, version).then(resolve, reject);
                         return;
                     }
-                    // Cache the connection for subsequent operations. Drop
-                    // (and close) it as soon as another context requests a
-                    // version change — keeping it open would block that
-                    // upgrade — or when the browser closes the connection
-                    // itself.
                     this._db = db;
                     db.onversionchange = () => {
                         db.close();
@@ -432,22 +377,16 @@ export class IndexedDB {
         /** @type {any} */ record,
     ) {
         return new Promise((resolve, reject) => {
-            // AAB: do we care about write performance?
-            // Relaxed durability improves the write performances
-            // https://nolanlawson.com/2021/08/22/speeding-up-indexeddb-reads-and-writes/
-            // https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction/durability
             const transaction = db.transaction(table, "readwrite", {
                 durability: "relaxed",
             });
-            transaction.objectStore(table).put(record, key); // put to allow updates
+            transaction.objectStore(table).put(record, key);
             transaction.onerror = (ev) =>
-                reject(/** @type {IDBTransaction} */ (ev.target).error); // firefox (DOMException)
+                reject(/** @type {IDBTransaction} */ (ev.target).error);
             transaction.onabort = (ev) =>
-                reject(/** @type {IDBTransaction} */ (ev.target).error); // chrome (QuotaExceededError)
+                reject(/** @type {IDBTransaction} */ (ev.target).error);
             transaction.oncomplete = resolve;
 
-            // Force the changes to be committed to the database asap
-            // https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction/commit
             transaction.commit();
         });
     }
@@ -467,9 +406,6 @@ export class IndexedDB {
             if (!tables.length) {
                 return resolve(undefined);
             }
-            // Relaxed durability improves the write performances
-            // https://nolanlawson.com/2021/08/22/speeding-up-indexeddb-reads-and-writes/
-            // https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction/durability
             const transaction = db.transaction(tables, "readwrite", {
                 durability: "relaxed",
             });
@@ -482,14 +418,9 @@ export class IndexedDB {
                     }),
             );
             transaction.onerror = () => reject(transaction.error);
-            // Without an ``onabort`` arm an aborted transaction (e.g. quota
-            // exceeded) settles neither handler and the promise stays
-            // pending forever, wedging the instance mutex.
             transaction.onabort = () => reject(transaction.error);
             Promise.all(proms).then(resolve);
 
-            // Force the changes to be committed to the database asap
-            // https://developer.mozilla.org/en-US/docs/Web/API/IDBTransaction/commit
             transaction.commit();
         });
     }
@@ -505,9 +436,6 @@ export class IndexedDB {
             const r = objectStore.get(key);
             r.onsuccess = () => resolve(r.result);
             transaction.onerror = () => reject(transaction.error);
-            // See ``_invalidate``: an aborted transaction fires neither
-            // ``onsuccess`` nor ``onerror`` — reject instead of leaving the
-            // promise (and the instance mutex) pending forever.
             transaction.onabort = () => reject(transaction.error);
         });
     }
@@ -533,8 +461,6 @@ export class IndexedDB {
             transaction.onabort = () => reject(transaction.error);
             for (const table of targetTables) {
                 const objectStore = transaction.objectStore(table);
-                // ``openCursor`` reads ``cursor.value.model`` (see docblock
-                // above); entries without ``model`` are kept as-is.
                 const request = objectStore.openCursor();
                 request.onsuccess = (event) => {
                     const cursor = /** @type {IDBCursorWithValue | null} */ (
@@ -565,22 +491,13 @@ export class IndexedDB {
             if (!targetTables.length) {
                 return resolve(undefined);
             }
-            // Relaxed durability matches sibling write paths; the
-            // cursor iteration runs inside the single transaction so
-            // either every targeted entry is deleted or none is.
             const transaction = db.transaction(targetTables, "readwrite", {
                 durability: "relaxed",
             });
-            // ``oncomplete`` fires only once every queued request (cursor
-            // continuations, ``delete(key)`` writes) has landed; wired
-            // before opening cursors so the handlers exist when it fires.
             transaction.oncomplete = () => resolve(undefined);
             transaction.onerror = () => reject(transaction.error);
             transaction.onabort = () => reject(transaction.error);
             for (const table of targetTables) {
-                // Keep a store reference: ``openKeyCursor`` yields a
-                // key-only ``IDBCursor`` with no ``.delete()`` (reserved for
-                // value cursors), so delete via the store by explicit key.
                 const objectStore = transaction.objectStore(table);
                 const request = objectStore.openKeyCursor();
                 request.onsuccess = (event) => {
@@ -588,8 +505,6 @@ export class IndexedDB {
                         /** @type {IDBRequest} */ (event.target).result
                     );
                     if (!cursor) {
-                        // Exhausted; the transaction auto-commits once every
-                        // table's cursor reaches this branch.
                         return;
                     }
                     let shouldDelete = false;
@@ -604,11 +519,6 @@ export class IndexedDB {
                     cursor.continue();
                 };
             }
-            // No explicit ``commit()``: cursor iteration queues one
-            // ``continue()`` per tick, and committing while requests are
-            // pending would make the next ``continue()`` raise
-            // ``TransactionInactiveError``. Auto-commits once every cursor
-            // exhausts.
         });
     }
 }

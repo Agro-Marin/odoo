@@ -60,7 +60,7 @@ test("ProgressBarField: max_value should update", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="name" />
                 <field name="float_field" invisible="1" />
@@ -86,7 +86,7 @@ test("ProgressBarField: value should update in edit mode when typing in input", 
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="int_field" widget="progressbar" options="{'editable': true}"/>
             </form>`,
@@ -123,7 +123,7 @@ test("ProgressBarField: value should update in edit mode when typing in input wi
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="float_field" invisible="1" />
                 <field name="int_field" widget="progressbar" options="{'editable': true, 'max_value': 'float_field'}" />
@@ -160,7 +160,7 @@ test("ProgressBarField: max value should update in edit mode when typing in inpu
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="float_field" invisible="1" />
                 <field name="int_field" widget="progressbar" options="{'editable': true, 'max_value': 'float_field', 'edit_max_value': true}" />
@@ -199,7 +199,7 @@ test("ProgressBarField: Standard readonly mode is readonly", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form edit="0">
                 <field name="float_field" invisible="1"/>
                 <field name="int_field" widget="progressbar" options="{'editable': true, 'max_value': 'float_field', 'edit_max_value': true}"/>
@@ -230,7 +230,7 @@ test("ProgressBarField: field is editable in kanban", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
                 <kanban>
                     <templates>
                         <t t-name="card">
@@ -269,7 +269,7 @@ test("force readonly in kanban", async (assert) => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <kanban>
             <templates>
                 <t t-name="card">
@@ -292,7 +292,7 @@ test("ProgressBarField: readonly and editable attrs/options in kanban", async ()
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -342,7 +342,7 @@ test("ProgressBarField: write int in locale format works", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="int_field" widget="progressbar" options="{'editable': true}"/>
             </form>`,
@@ -381,15 +381,13 @@ test("ProgressBarField: write float instead of int is rejected, in locale", asyn
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="int_field" widget="progressbar" options="{'editable': true}"/>
             </form>`,
         resId: 1,
     });
 
-    // Same integrality rule as the integer widget: a fractional value is
-    // rejected instead of being silently floored.
     await click(".o_progressbar_value .o_input");
     await animationFrame();
     await edit("1#037:9", { confirm: "enter" });
@@ -406,15 +404,13 @@ test("ProgressBarField: out-of-bounds int is rejected", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="int_field" widget="progressbar" options="{'editable': true}"/>
             </form>`,
         resId: 1,
     });
 
-    // parseInteger's int32 bounds check: 1e12 must not reach the server
-    // (psycopg would reject the overflow).
     await click(".o_progressbar_value .o_input");
     await animationFrame();
     await edit("1000000000000", { confirm: "enter" });
@@ -435,7 +431,7 @@ test("ProgressBarField: value can be edited with a formula", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="int_field" widget="progressbar" options="{'editable': true}"/>
             </form>`,
@@ -459,7 +455,7 @@ test("ProgressBarField: write gibberish instead of int throws warning", async ()
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="int_field" widget="progressbar" options="{'editable': true}"/>
             </form>`,
@@ -489,7 +485,7 @@ test("ProgressBarField: bar exposes progressbar semantics", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="int_field" widget="progressbar" title="Progress"/>
             </form>`,
@@ -506,7 +502,7 @@ test("ProgressBarField: color is correctly set when value > max value", async ()
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="float_field" widget="progressbar" options="{'overflow_class': 'bg-warning'}"/>
             </form>`,
@@ -516,4 +512,62 @@ test("ProgressBarField: color is correctly set when value > max value", async ()
         message:
             "As the value has excedded the max value, the color should be set to bg-warning",
     });
+});
+
+test("ProgressBarField: a numeric max_value renders 'current / max', not a percentage", async () => {
+    Partner._records[0].int_field = 7;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="int_field" widget="progressbar" options="{'max_value': 200}"/>
+            </form>`,
+    });
+    expect(queryText(".o_progressbar_value").replace(/\s+/g, " ").trim()).toBe(
+        "7 / 200",
+        {
+            message: "a literal max_value is a bound, not a percentage denominator",
+        },
+    );
+    expect(".o_progressbar_value").not.toHaveText("7%");
+});
+
+test("ProgressBarField: edit_max_value with a numeric max_value exposes no stray input", async () => {
+    Partner._records[0].int_field = 7;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="int_field" widget="progressbar"
+                    options="{'max_value': 200, 'editable': true, 'edit_max_value': true}"/>
+            </form>`,
+    });
+    // A literal bound is backed by no field, so there is nothing to write to:
+    // rendering an input would commit the max value into int_field itself.
+    expect(".o_progressbar_value input[data-ref=maxValue]").toHaveCount(0);
+    expect(queryText(".o_progressbar_value").replace(/\s+/g, " ").trim()).toBe(
+        "7 / 200",
+    );
+});
+
+test("ProgressBarField: a field-backed max_value stays editable", async () => {
+    Partner._records[0].int_field = 7;
+    Partner._records[0].int_field2 = 200;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="int_field2" invisible="1"/>
+                <field name="int_field" widget="progressbar"
+                    options="{'max_value': 'int_field2', 'editable': true, 'edit_max_value': true}"/>
+            </form>`,
+    });
+    expect(".o_progressbar_value input").toHaveCount(1);
+    expect(queryValue(".o_progressbar_value input")).toBe("200");
 });

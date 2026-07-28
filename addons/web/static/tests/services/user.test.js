@@ -7,8 +7,10 @@ import {
     patchWithCleanup,
     serverState,
 } from "@web/../tests/web_test_helpers";
+import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
-import { _makeUser, user } from "@web/services/user";
+import { UserEvent } from "@web/core/events";
+import { _makeUser, getLastConnectedUsers, user, userBus } from "@web/services/user";
 
 describe.current.tags("headless");
 
@@ -42,8 +44,6 @@ test("checkAccessRight without context is cached by model/operation/ids", async 
     expect(await user.checkAccessRight("res.partner", "read", 1)).toBe(true);
     expect(await user.checkAccessRight("res.partner", "write", 1)).toBe(true);
 
-    // The second identical (model, operation, ids) read is served from the
-    // cache — only the first read and the distinct write hit the server.
     expect.verifySteps(["res.partner/read/[1]", "res.partner/write/[1]"]);
 });
 
@@ -56,20 +56,12 @@ test("checkAccessRight with explicit context bypasses the cache and forwards it"
         return true;
     });
 
-    // A context-scoped probe (e.g. checking access under companies the user
-    // has not switched to yet) must never read from — nor write to — the
-    // company-independent cache, whose key omits the context. Each call hits
-    // the server, and the supplied context reaches has_access verbatim.
     await user.checkAccessRight("res.partner", "read", 1, {
         context: { allowed_company_ids: [2] },
     });
     await user.checkAccessRight("res.partner", "read", 1, {
         context: { allowed_company_ids: [2] },
     });
-    // A subsequent cache-backed read still hits the server (a third step
-    // fires): the context probes above did not populate — hence could not
-    // poison — the shared cache. This read carries the user's own active
-    // companies, not the probe's throwaway context.
     await user.checkAccessRight("res.partner", "read", 1);
 
     expect.verifySteps(["read:[2]", "read:[2]", "read:[1]"]);
@@ -91,8 +83,6 @@ test("set user settings do not override old valid keys", async () => {
 });
 
 test("extract allowed company ids from cookies", async () => {
-    // cookies need to be set before the serverState
-    // the modification of the serverState will force the re-creation of the user with the new values (see mock_user.hoot.js)
     cookie.set("cids", "3-1");
     serverState.companies = [
         { id: 1, name: "Company 1", sequence: 1, parent_id: false, child_ids: [] },
@@ -146,7 +136,6 @@ test("activate company branches after access error", async () => {
     const activeCompanyIds = user.activeCompanies.map((c) => c.id);
     activeCompanyIds.push(2);
     user.activateCompanies(activeCompanyIds);
-    // Activating the first branch should activate all branches
     expect(cookie.get("cids")).toBe("1-2-3");
 });
 
@@ -158,11 +147,77 @@ test("activateCompanies does not mutate the caller's array", async () => {
         { id: 3, name: "Branch 2", sequence: 3, parent_id: 1, child_ids: [] },
     ];
 
-    // Passing a company with children used to alias the argument and push the
-    // resolved child ids onto it, corrupting the caller's own data.
     const callerIds = [1];
     user.activateCompanies(callerIds, { reload: false });
     expect(callerIds).toEqual([1], { message: "caller's array must not be mutated" });
-    // The children were still activated (via the internal copy).
     expect(cookie.get("cids")).toBe("1-2-3");
+});
+
+test("activateCompanies tolerates companies without child_ids", async () => {
+    // `child_ids` is optional on a UserCompany (the typedef says so, and
+    // `disallowed_ancestor_companies` / `{id}`-only test stubs omit it), but
+    // `addCompanies` iterated it raw — `for…of undefined` threw a TypeError
+    // and the company switch died halfway, leaving the cookie unwritten.
+    patchWithCleanup(cookie, { set: () => {}, get: () => "" });
+    const testUser = _makeUser({
+        uid: 2,
+        user_context: {},
+        user_companies: {
+            current_company: 1,
+            allowed_companies: {
+                1: { id: 1, name: "Root", child_ids: [2] },
+                2: { id: 2, name: "Child, no child_ids" },
+            },
+        },
+    });
+    await testUser.activateCompanies([1], { reload: false });
+    expect(testUser.activeCompanies.map((c) => c.id)).toEqual([1, 2]);
+});
+
+test("re-selecting the same companies does not fire ACTIVE_COMPANIES_CHANGED", async () => {
+    // Every listener of this event invalidates something expensive (the group
+    // and access-right caches here, the whole display-name cache in
+    // name_service). A no-op switch used to pay for all of it.
+    patchWithCleanup(cookie, { set: () => {}, get: () => "" });
+    const testUser = _makeUser({
+        uid: 2,
+        user_context: {},
+        user_companies: {
+            current_company: 1,
+            allowed_companies: {
+                1: { id: 1, name: "Root", child_ids: [] },
+                2: { id: 2, name: "Other", child_ids: [] },
+            },
+        },
+    });
+    let fired = 0;
+    const onChange = () => fired++;
+    userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, onChange);
+
+    await testUser.activateCompanies([1], { reload: false });
+    expect(fired).toBe(0);
+    expect(testUser.activeCompanies.map((c) => c.id)).toEqual([1]);
+
+    await testUser.activateCompanies([1, 2], { reload: false });
+    expect(fired).toBe(1);
+
+    await testUser.activateCompanies([1, 2], { reload: false });
+    expect(fired).toBe(1);
+
+    userBus.removeEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, onChange);
+});
+
+test("a corrupt lastConnectedUsers entry degrades to an empty list", async () => {
+    // JSON.parse returns a number/string/object here just as happily as an
+    // array; callers then .filter()/.slice() it and throw on every boot.
+    browser.localStorage.setItem("web.lastConnectedUser", "42");
+    expect(getLastConnectedUsers()).toEqual([]);
+    expect(browser.localStorage.getItem("web.lastConnectedUser")).toBe(null);
+
+    browser.localStorage.setItem("web.lastConnectedUser", '{"not":"an array"}');
+    expect(getLastConnectedUsers()).toEqual([]);
+
+    browser.localStorage.setItem("web.lastConnectedUser", '[{"userId":7}]');
+    expect(getLastConnectedUsers()).toEqual([{ userId: 7 }]);
+    browser.localStorage.removeItem("web.lastConnectedUser");
 });

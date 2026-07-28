@@ -11,8 +11,6 @@ describe.current.tags("headless");
 test("humanSize", () => {
     allowTranslations();
     patchWithCleanup(localization, { decimalPoint: "." });
-    // Byte units use the uppercase-B abbreviations (KB/MB = bytes); the old
-    // "Kb"/"Mb" spellings denote bits and were incorrect.
     expect(humanSize(0)).toBe("0.00 Bytes");
     expect(humanSize(3)).toBe("3.00 Bytes");
     expect(humanSize(2048)).toBe("2.00 KB");

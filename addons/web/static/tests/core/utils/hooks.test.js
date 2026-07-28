@@ -179,7 +179,7 @@ describe("useAutofocus", () => {
             `;
             setup() {
                 useAutofocus({ refName: "second" });
-                useAutofocus({ refName: "first" }); // test requires this at second position
+                useAutofocus({ refName: "first" });
 
                 this.state = useState(state);
             }
@@ -187,10 +187,8 @@ describe("useAutofocus", () => {
 
         await mountWithCleanup(MyComponent);
 
-        // "first" is focused first since it has the last call to "useAutofocus"
         expect("input:first").toBeFocused();
 
-        // We now remove and add again the second input, which triggers the useEffect of the hook and and apply focus
         state.showSecond = false;
         await animationFrame();
 
@@ -393,7 +391,6 @@ describe("useService", () => {
 
         await mountWithCleanup(Parent);
 
-        // Functions and methods have the correct this
         def.resolve();
         await expect(objectService.asyncMethod()).resolves.toBe(objectService);
         await expect(objectService.asyncMethod.call("boundThis")).resolves.toBe(
@@ -403,7 +400,6 @@ describe("useService", () => {
         await expect(functionService.call("boundThis")).resolves.toBe("boundThis");
         expect(nbCalls).toBe(4);
 
-        // Functions that were called before the component is destroyed but resolved after never resolve
         def = new Deferred();
         objectService.asyncMethod().then(() => expect.step("resolved"));
         objectService.asyncMethod.call("boundThis").then(() => expect.step("resolved"));
@@ -416,7 +412,6 @@ describe("useService", () => {
         def.resolve();
         expect.verifySteps([]);
 
-        // Calling the functions after the destruction rejects the promise
         await expect(objectService.asyncMethod()).rejects.toThrow(
             "Component is destroyed",
         );
@@ -434,7 +429,6 @@ describe("useService", () => {
 
 describe("useSpellCheck", () => {
     test("ref is on the textarea", async () => {
-        // See MDN docs on the spellcheck attribute vs property behavior.
         class MyComponent extends Component {
             static props = ["*"];
             static template = xml`<div><textarea t-ref="spellcheck" class="textArea"/></div>`;
@@ -451,7 +445,6 @@ describe("useSpellCheck", () => {
         await click(".textArea");
         expect(".textArea").toBeFocused();
 
-        // Click out to trigger blur
         await click(getFixture());
 
         expect(".textArea").toHaveProperty("spellcheck", false);
@@ -481,7 +474,6 @@ describe("useSpellCheck", () => {
 
         expect(".textArea").toBeFocused();
 
-        // Click out to trigger blur
         await click(getFixture());
 
         expect(".textArea").toHaveProperty("spellcheck", false);
@@ -514,7 +506,6 @@ describe("useSpellCheck", () => {
         await click(".editableDiv");
         expect(".editableDiv").toBeFocused();
 
-        // Click out to trigger blur
         await click(getFixture());
 
         expect(".textArea").toHaveProperty("spellcheck", false);
@@ -563,7 +554,6 @@ describe("useSpellCheck", () => {
         await click(".editableDiv");
         expect(".editableDiv").toBeFocused();
 
-        // Click out to trigger blur
         await click(getFixture());
 
         expect(".textArea").toHaveProperty("spellcheck", false);

@@ -20,7 +20,6 @@ afterEach(() => {
 test("globals are installed", () => {
     expect(typeof globalThis.__renderStats).toBe("function");
     expect(typeof globalThis.__renderReset).toBe("function");
-    // ``__renderTrace`` is a boolean toggle, default false.
     expect(Boolean(globalThis.__renderTrace)).toBe(false);
 });
 
@@ -55,7 +54,6 @@ test("counter is a no-op when trace is off", async () => {
             this.state = useState({ tick: 0 });
         }
     }
-    // ``__renderTrace`` already false from beforeEach.
     const probe = await mountWithCleanup(Probe);
     expect(globalThis.__renderStats().probe).toBe(undefined);
     probe.state.tick = 1;

@@ -1,5 +1,3 @@
-// = Search Panel Variables
-// ============================================================================
 
 $o-search-panel-width: 220px;
 $o-search-panel-font-size: 1em;
@@ -19,7 +17,6 @@ $o-search-panel-font-size: 1em;
 }
 
 @mixin o-details-hide-caret {
-    // Hide the caret. For details see https://developer.mozilla.org/en-US/docs/Web/HTML/Element/summary
     list-style-type: none;
     &::-webkit-details-marker {
         display: none;

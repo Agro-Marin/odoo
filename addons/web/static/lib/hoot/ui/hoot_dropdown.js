@@ -11,10 +11,6 @@ import { useAutofocus, useHootKey, useWindowListener } from "../hoot_utils.js";
  * }} HootDropdownProps
  */
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 /** @extends {Component<HootDropdownProps, import("../hoot").Environment>} */
 export class HootDropdown extends Component {
     static template = xml`

@@ -50,10 +50,6 @@ import { FullCalendar, loadFullCalendar } from "@web/core/lib/fullcalendar";
 export function getFullCalendarTimeZone() {
     const zone = Settings.defaultZone;
     const name = zone.name;
-    // ``iana``-typed zones carry an IANA name by construction; the
-    // ``system`` zone's name is Intl's resolved identifier. Both pass
-    // through when Intl can actually resolve the name (``isValidZone``
-    // guards invalid IANAZone instances and exotic system names).
     if (
         typeof name === "string" &&
         (zone.type === "iana" || zone.type === "system") &&
@@ -61,14 +57,6 @@ export function getFullCalendarTimeZone() {
     ) {
         return name;
     }
-    // Fixed-offset zones (and anything unresolvable above) follow the
-    // POSIX ``Etc/GMT±N`` translation — this is the ``mockTimeZone(±N)``
-    // test path.
-    // zone.offset(0): minutes from UTC (no DST). IANA's ``Etc/GMT±N`` only
-    // covers integer-hour offsets in [-12, +14] (``Etc/zone.tab``); outside
-    // that range (e.g. ``mockTimeZone(±40)`` in tests) fall back to
-    // ``"local"`` — ``fcEventToRecord`` already handles marker conversion
-    // for that case.
     if (typeof zone.offset === "function") {
         const offsetMinutes = zone.offset(0);
         if (Number.isFinite(offsetMinutes) && offsetMinutes % 60 === 0) {
@@ -77,7 +65,6 @@ export function getFullCalendarTimeZone() {
                 return "UTC";
             }
             if (hours >= -12 && hours <= 14) {
-                // POSIX inversion: positive UTC offset → Etc/GMT-N.
                 return hours > 0 ? `Etc/GMT-${hours}` : `Etc/GMT+${-hours}`;
             }
         }
@@ -155,17 +142,7 @@ export function dayCellClassNames(info) {
     if (info?.isDisabled) {
         classes.push("fc-day-disabled");
     }
-    // v6 carried ``fc-daygrid-day`` on every day cell (month-view cells and
-    // the all-day strip cells of a timegrid week/day view); v7 dropped it.
-    // Re-add unconditionally: tests select compound selectors like
-    // ``.fc-daygrid-day.o_calendar_disabled`` from both contexts, and
-    // ``fc-day`` alone doesn't cover that. Timegrid SLOT cells use
-    // ``dayLaneClass`` instead — they don't hit this generator.
     classes.push("fc-daygrid-day");
-    // v6 also carried ``fc-day-<short-weekday>`` per cell. v7 dropped it but
-    // exposes ``info.dow`` (0=Sunday..6=Saturday) — see
-    // ``fullcalendar.esm.js`` (``getDateMeta``). Derive the suffix from
-    // ``dow`` directly, independent of timezone-marker handling on ``info.date``.
     if (Number.isInteger(info?.dow) && info.dow >= 0 && info.dow < 7) {
         const SHORT_WEEKDAY = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
         classes.push(`fc-day-${SHORT_WEEKDAY[info.dow]}`);
@@ -232,8 +209,6 @@ function eventSetFingerprint(instance) {
             .sort()
             .join("|");
     } catch {
-        // Never let the fingerprint break the patch cycle — an error here
-        // forces the rebuild.
         return `error:${Date.now()}`;
     }
 }
@@ -243,13 +218,6 @@ export function useFullCalendar(refName, paramsOrGetter) {
     const ref = useRef(refName);
     let instance = null;
 
-    // ``params`` may be the literal options object captured at setup time
-    // OR a function/getter that returns a fresh options object on every
-    // call.  In v7 we need fresh values on every ``onPatched`` (the
-    // renderer's ``initialDate`` / ``initialView`` change when the OWL
-    // ``scale`` prop updates).  Accepting a getter lets callers stay on
-    // the existing ``this.options`` accessor pattern without forcing them
-    // to allocate a new object on every render.
     function currentParams() {
         return typeof paramsOrGetter === "function" ? paramsOrGetter() : paramsOrGetter;
     }
@@ -265,28 +233,15 @@ export function useFullCalendar(refName, paramsOrGetter) {
         return newParams;
     }
 
-    // Block body so the arrow returns ``Promise<void>`` rather than the
-    // bundle loader's ``Promise<void[]>`` (same idiom as
-    // ``components/code_editor/code_editor.js``).
     onWillStart(async () => {
         await loadFullCalendar();
     });
 
     onMounted(() => {
         try {
-            // v7's ``Calendar`` wrapper already pre-injects the five default
-            // plugins (dayGrid/timeGrid/interaction/list/multiMonth — see
-            // fullcalendar.esm.js); callers don't pass ``plugins``.
-            // Mark the FC root as portal host BEFORE construction so the
-            // fork-local ``getAppendableRoot`` override (fullcalendar.esm.js)
-            // routes MorePopover/ElementMirror here instead of <body>, which
-            // sits outside the test fixture's query scope.
             ref.el.setAttribute("data-fc-portal-host", "true");
             const mountParams = boundParams();
             instance = new FullCalendar.Calendar(ref.el, mountParams);
-            // Seed the no-op-gotoDate guard with the initial anchor so the
-            // first ``onPatched`` doesn't re-issue gotoDate for the same
-            // date and reset scrollTop via FC v7's componentDidUpdate path.
             instance.__lastInitialDate =
                 typeof mountParams.initialDate !== "undefined"
                     ? mountParams.initialDate
@@ -302,30 +257,16 @@ export function useFullCalendar(refName, paramsOrGetter) {
     onPatched(() => {
         const params = currentParams();
         instance.setOption("weekends", component.props.isWeekendVisible);
-        // v7 only honours options that mutate via the explicit API, so switch
-        // the view manually when the OWL component's scale prop changes.
-        //
-        // Order matters: ``changeView(view, date)`` must set both atomically
-        // — separate ``changeView`` + ``gotoDate`` calls trigger two render
-        // passes, briefly landing on the wrong (previous) date and dropping
-        // out-of-range events. ``refetchEvents`` runs last so it fetches for
-        // the correct, post-change date window.
         const currentViewType = instance.view?.type;
         const targetView =
             typeof params.initialView === "string" ? params.initialView : null;
         const targetDate =
             typeof params.initialDate !== "undefined" ? params.initialDate : null;
-        // Whether the view type or displayed date window moved this patch; the
-        // refetch below is gated on it (plus a records-identity change) so
-        // render-only patches (sidebar toggle, popover open/close,
-        // multi-select) don't rebuild FullCalendar's entire event store.
         let viewOrDateChanged = false;
         if (targetView && currentViewType && currentViewType !== targetView) {
             try {
                 instance.changeView(targetView, targetDate);
             } catch {
-                // Fall back to the legacy two-step path if changeView
-                // rejects the date payload (unusual range types).
                 instance.changeView(targetView);
                 if (targetDate) {
                     try {
@@ -338,13 +279,6 @@ export function useFullCalendar(refName, paramsOrGetter) {
             instance.__lastInitialDate = targetDate;
             viewOrDateChanged = true;
         } else if (targetDate && targetDate !== instance.__lastInitialDate) {
-            // v7's ``gotoDate`` resets the timegrid scroll to ``scrollTime``
-            // even when called with the SAME date (FC's ``scrollTimeReset``
-            // still produces a new ``dateProfile``), clobbering any
-            // ``scrollToTime`` on a no-op date change (e.g. "Today" while
-            // already on today). Track the last issued date and skip the
-            // redundant call to preserve scroll position; a scale change
-            // still updates ``__lastInitialDate`` via ``changeView`` above.
             try {
                 instance.gotoDate(targetDate);
                 instance.__lastInitialDate = targetDate;
@@ -353,10 +287,6 @@ export function useFullCalendar(refName, paramsOrGetter) {
                 // Bad date string — keep current position.
             }
         }
-        // The model rebuilds its records object on every (re)load (filter
-        // toggle, date move, another session's change), so an identity change
-        // is the reliable "events may differ" signal. Render-only patches keep
-        // the same reference and can skip the whole refetch/fingerprint pass.
         const recordsChanged = instance.__lastRecords !== component.props.model.records;
         instance.__lastRecords = component.props.model.records;
         if (viewOrDateChanged || recordsChanged) {
@@ -365,14 +295,6 @@ export function useFullCalendar(refName, paramsOrGetter) {
                     ? eventSetFingerprint(instance)
                     : "";
             instance.refetchEvents();
-            // Year view renders events as background events; v7 schedules their
-            // re-render asynchronously, so after a filter toggle stale
-            // ``.fc-bg-event`` nodes linger until the next frame unless we force
-            // a synchronous destroy+render here.
-            //
-            // Gated on an actual event-set change: the year renderer holds 12
-            // hook instances, and an unconditional destroy+render on every OWL
-            // patch meant 12 full FC rebuild cycles per patch.
             if (
                 component.props.model.scale === "year" &&
                 eventsBefore !== eventSetFingerprint(instance)
@@ -383,9 +305,6 @@ export function useFullCalendar(refName, paramsOrGetter) {
         }
     });
     onWillUnmount(() => {
-        // When onMounted threw (e.g. v7 rejected the time-zone before
-        // ``new Calendar`` returned) ``instance`` stays null; destroy
-        // would then NPE and mask the original error message.
         instance?.destroy();
     });
 

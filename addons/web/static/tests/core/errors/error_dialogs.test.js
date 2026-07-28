@@ -192,11 +192,11 @@ test("RedirectWarningDialog", async () => {
         "Close",
     ]);
 
-    await click("footer button:nth-child(1)"); // click on "Buy book on cryptography"
+    await click("footer button:nth-child(1)");
     await animationFrame();
     expect.verifySteps(["buy_action_id", "dialog-closed"]);
 
-    await click("footer button:nth-child(2)"); // click on "Cancel"
+    await click("footer button:nth-child(2)");
     await animationFrame();
     expect.verifySteps(["dialog-closed"]);
 });

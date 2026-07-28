@@ -5,9 +5,6 @@
 
 import { SearchModel } from "@web/search/search_model";
 
-// Widen to `any` so dynamically-set instance state (`searchItems`,
-// `preparingIrFilterDescription`) and protected methods used by the subclass
-// don't trip TS — the strict shape is preserved by the import.
 /** @type {any} */
 const Base = SearchModel;
 

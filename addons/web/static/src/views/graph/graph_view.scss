@@ -1,4 +1,3 @@
-// ------- Graph renderer -------
 .o_graph_view {
     --ControlPanel-border-bottom: none;
 
@@ -11,7 +10,6 @@
     }
 }
 
-// ------- Sample mode -------
 .o_graph_view .o_view_sample_data {
     .o_graph_canvas_container {
         @include o-sample-data-disabled;

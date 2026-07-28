@@ -15,8 +15,6 @@ const macroSchema = {
         element: {
             type: Object,
             shape: {
-                // `action` is always CALLED (`action(trigger)`); accepting only a
-                // function (not `[Function, String]`) fails fast on a bad step.
                 action: { type: Function, optional: true },
                 timeout: { type: Number, optional: true },
                 trigger: { type: [Function, String], optional: true },
@@ -69,12 +67,6 @@ async function waitForTrigger(trigger, signal) {
         return;
     }
     try {
-        // Check the trigger IMMEDIATELY, then poll via requestAnimationFrame
-        // (waitUntil already does exactly this). The previous unconditional
-        // `await delay(50)` before the first check padded every step by 50 ms —
-        // 5+ seconds of pure latency over a 100-step tour — for no benefit:
-        // waitUntil keeps polling until the trigger appears anyway, so a step
-        // whose trigger is already present now resolves on the first frame.
         return await waitUntil(
             () => {
                 if (typeof trigger === "function") {
@@ -127,9 +119,6 @@ export async function waitUntil(predicate, { signal } = {}) {
             try {
                 result = predicate();
             } catch (error) {
-                // A throwing predicate must reject the promise; otherwise the
-                // exception escaped the rAF callback and the promise hung until
-                // the caller's (up to 10s) timeout.
                 reject(error);
                 return;
             }
@@ -169,11 +158,6 @@ export class Macro {
     steps = [];
     /** @type {AbortController | undefined} */
     abortController;
-    // `onComplete`/`onStep`/`onError` are deliberately NOT class fields: a
-    // field initializer would create an own no-op property on every instance,
-    // shadowing subclass prototype methods (e.g. knowledge's AbstractMacro
-    // defines `onError` on its prototype) and making the constructor defaults
-    // below dead code.
     /**
      * @param {{ name?: string, timeout?: number, steps?: MacroStep[], onComplete?: Function, onStep?: Function, onError?: Function }} descr
      */
@@ -187,9 +171,6 @@ export class Macro {
             );
         }
         Object.assign(this, descr);
-        // `??=` reads through the prototype chain: a handler from the
-        // descriptor (own property set by Object.assign above) or from a
-        // subclass prototype method wins over these defaults.
         /** @type {Function} */
         this.onComplete ??= () => {};
         /** @type {Function} */
@@ -233,8 +214,6 @@ export class Macro {
             let timerHandle;
             const timerPromise = new Promise((resolve, reject) => {
                 timerHandle = browser.setTimeout(() => {
-                    // Cancel the trigger polling loop, which would otherwise
-                    // keep running (and leak) after losing the race.
                     abortController.abort();
                     reject(
                         new MacroError(
@@ -245,25 +224,15 @@ export class Macro {
                 }, timeoutDelay);
             });
             const stepPromise = executeStep();
-            // The race may settle with the timer's rejection: keep the losing
-            // step promise's abort rejection from being reported as unhandled.
             stepPromise.catch(() => {});
-            // Falsy result → proceed to next step. `Macro.STOP` (or a legacy
-            // truthy value) halts without onComplete/onError.
             let actionResult;
             try {
                 actionResult = await Promise.race([stepPromise, timerPromise]);
             } finally {
-                // Whichever way the race settles, the timer must not keep
-                // running: a won race would otherwise leave a live timeout
-                // (and closure) per step for its full duration, and its
-                // late abort() would target an already-finished step.
                 browser.clearTimeout(timerHandle);
             }
             if (actionResult) {
                 if (actionResult !== Macro.STOP) {
-                    // Backward-compat: some callers (e.g. web_tour) still return an
-                    // ad-hoc truthy value to halt; keep working but nudge toward Macro.STOP.
                     console.warn(
                         "Macro: a step action returned a truthy value to halt the macro. " +
                             "Return `Macro.STOP` instead; other truthy return values are deprecated.",
@@ -310,8 +279,6 @@ export class MacroMutationObserver {
      */
     constructor(callback) {
         this.callback = callback;
-        // Every listener is registered with this controller's signal so
-        // disconnect() removes them all (previously the iframe "load" listeners leaked).
         this.abortController = new AbortController();
         /** @type {WeakSet<HTMLIFrameElement>} Guard against double-adding iframe "load" listeners. */
         this.observedIframes = new WeakSet();
@@ -365,7 +332,6 @@ export class MacroMutationObserver {
      */
     observe(target) {
         this.observer.observe(target, this.observerOptions);
-        //When iframes already exist at "this.target" initialization
         target
             .querySelectorAll("iframe")
             .forEach((el) =>
@@ -375,7 +341,6 @@ export class MacroMutationObserver {
                     () => this.callback(),
                 ),
             );
-        //When shadowDom already exist at "this.target" initialization
         this.findAllShadowRoots(target).forEach((shadowRoot) => {
             this.observer.observe(shadowRoot, this.observerOptions);
         });

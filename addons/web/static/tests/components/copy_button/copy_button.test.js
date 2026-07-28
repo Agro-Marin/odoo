@@ -61,8 +61,6 @@ test("copies an object via a function to the clipboard", async () => {
 });
 
 test("copies a string from an async function to the clipboard", async () => {
-    // A function-typed `content` may be async; its resolved value must be
-    // awaited before being handed to the clipboard.
     const content = async () => "async content";
     await mountWithCleanup(CopyButton, { props: { content } });
     await click(".o_clipboard_button");

@@ -60,8 +60,6 @@ function makeX2ManyList(resIds) {
 function makeRecordWith(list) {
     const record = Object.create(RelationalRecord.prototype);
     Object.assign(record, {
-        // fields/activeFields/resModel/context are DataPoint getters deriving
-        // from _config (see datapoint.js).
         _config: {
             resModel: "some.model",
             context: {},
@@ -75,10 +73,7 @@ function makeRecordWith(list) {
             },
         },
         data: { line_ids: list },
-        // dirty/_changes/_textValues/_invalidFields proxy to _editState.
         _editState: new RecordEditState(),
-        // Peripheral machinery unrelated to list command state — stubbed so
-        // the test isolates the undo contract (not eval-context / validity).
         _setEvalContext() {},
         _checkValidity() {},
         _removeInvalidFields() {},
@@ -98,38 +93,28 @@ describe("RelationalRecord._applyChanges undo — x2many sub-list", () => {
 
         const record = makeRecordWith(list);
 
-        // Server onchange returns a LINK for the x2many: parseServerValues
-        // replays it into the existing StaticList in place.
         const undoChanges = record._applyChanges(
             {},
             { line_ids: [[LINK, 99, SERVER_ROWS[99]]] },
             { undoable: true },
         );
 
-        // The command is staged in place (mutation is synchronous).
         expect(list._currentIds).toEqual([1, 2, 99]);
         expect(list._commands.length).toBe(1);
         expect(list.count).toBe(3);
 
-        // The onchange consumer then failed (e.g. _onUpdate threw), so the
-        // update is rolled back. undoChanges() must revert the list too, not
-        // just record.data — otherwise a phantom LINK ships on the next save.
         undoChanges();
 
         expect(list._commands).toEqual([]);
         expect(list._currentIds).toEqual([1, 2]);
         expect(list.count).toBe(2);
 
-        // Drain any tracked command promise so nothing floats past the test.
         if (list._commandsPromise) {
             await list._commandsPromise;
         }
     });
 
     test("after undo the x2many save payload carries no phantom command", async () => {
-        // The concrete harm of the leak is a phantom command shipping on the
-        // next web_save. ``_getCommands`` builds that payload from
-        // ``_commands``, so the real guarantee is: undo empties it.
         const list = makeX2ManyList([1, 2]);
         expect(list._getCommands()).toEqual([]);
 
@@ -140,12 +125,10 @@ describe("RelationalRecord._applyChanges undo — x2many sub-list", () => {
             { line_ids: [[LINK, 99, SERVER_ROWS[99]]] },
             { undoable: true },
         );
-        // The onchange staged a real command into the save payload.
         expect(list._getCommands().length).toBe(1);
 
         undoChanges();
 
-        // ...which the undo must fully remove.
         expect(list._getCommands()).toEqual([]);
 
         if (list._commandsPromise) {

@@ -15,6 +15,11 @@ export const BUTTON_HANDLER_SELECTOR =
  * stopPropagation calls are skipped too — use the preventDefault/
  * stopPropagation/stopImmediatePropagation args to still apply them.
  *
+ * Releasing the lock means observing the wrapped call's outcome, so a failure
+ * is carried by the returned promise and by nothing else. A caller that
+ * discards that promise — a raw DOM listener does — therefore has to report its
+ * own errors; see `waitForLazyAndRetrigger`.
+ *
  * @param {(...args: any[]) => any} fct
  *      The function which is to be used as a handler. If a promise
  *      is returned, it is used to determine when the handler's action is
@@ -66,7 +71,11 @@ export function makeAsyncHandler(
             _unlock();
             throw error;
         }
-        Promise.resolve(result).finally(_unlock);
+        // `.then(_unlock, _unlock)` and not `.finally(_unlock)`: `finally`
+        // forwards the rejection to a derived promise nobody holds, so a
+        // failing async handler was reported as an unhandled rejection on top
+        // of — or instead of — reaching whoever awaits the returned one
+        Promise.resolve(result).then(_unlock, _unlock);
         return result;
     };
 }
@@ -94,8 +103,6 @@ export function makeButtonHandler(
     stopPropagation,
     stopImmediatePropagation,
 ) {
-    // Fallback: also wrap as an async handler in case some events ignore
-    // the button's disabled state.
     fct = makeAsyncHandler(
         fct,
         preventDefault,
@@ -113,8 +120,6 @@ export function makeButtonHandler(
             return handlerResult;
         }
 
-        // Disable the button for the handler's action, or at least the
-        // click debounce (without visual effect during the debounce itself).
         buttonEl.classList.add("pe-none");
         let showDebouncedLoading = false;
         const addLoadingIfPending = () => {

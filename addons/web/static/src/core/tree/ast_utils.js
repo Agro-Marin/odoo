@@ -45,7 +45,7 @@ export function not(ast) {
         return { ...ast, value: !ast.value };
     }
     if (ast.type === ASTType.BinaryOperator && COMPARATORS.includes(ast.op)) {
-        return { ...ast, op: TERM_OPERATORS_NEGATION_EXTENDED[ast.op] }; // do not use this if ast is within a domain context!
+        return { ...ast, op: TERM_OPERATORS_NEGATION_EXTENDED[ast.op] };
     }
     return {
         type: ASTType.UnaryOperator,

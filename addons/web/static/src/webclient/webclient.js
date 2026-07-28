@@ -41,24 +41,18 @@ export class WebClient extends Component {
         this.title = useService("title");
         useOwnDebugContext({ categories: ["default"] });
         if (this.env.debug) {
-            registry.category("systray").add(
-                "web.debug_mode_menu",
-                {
-                    Component: /** @type {any} */ (DebugMenu),
-                },
-                { sequence: 100 },
-            );
+            registry
+                .category("systray")
+                .add(
+                    "web.debug_mode_menu",
+                    { Component: DebugMenu },
+                    { sequence: 100 },
+                );
         }
         this.localization = localization;
         this.state = useState({
             fullscreen: false,
         });
-        // The route-change load rides the action manager's shared KeepLast; if
-        // a newer doAction supersedes it (Ctrl+K palette, hotkey-triggered
-        // button...), loadRouterState rejects with a SupersededError, which the
-        // error service swallows. No escape hatch needed — supersession is now
-        // observable (was: a pointer-events freeze/thaw workaround around a
-        // never-settling promise).
         useBus(routerBus, RouterEvent.ROUTE_CHANGE, () => this.loadRouterState());
         useBus(
             this.env.bus,
@@ -74,8 +68,6 @@ export class WebClient extends Component {
         useBus(this.env.bus, AppEvent.WEBCLIENT_LOAD_DEFAULT_APP, this._loadDefaultApp);
         onMounted(() => {
             this.loadRouterState();
-            // the chat window and dialog services listen to 'web_client_ready' event in
-            // order to initialize themselves:
             this.env.bus.trigger(AppEvent.WEB_CLIENT_READY);
         });
         useExternalListener(window, "click", /** @type {any} */ (this.onGlobalClick), {
@@ -95,8 +87,6 @@ export class WebClient extends Component {
      * @returns {number} the app id, or 0 when the URL names none
      */
     _resolveMenuFromUrl(storedMenuId) {
-        // ** url-retrocompatibility **
-        // the menu_id in the url is only possible if we came from an old url
         const menuId = Number(router.current.menu_id || 0);
         if (menuId) {
             return menuId;
@@ -127,9 +117,6 @@ export class WebClient extends Component {
 
     /** Resolve the current URL state to an action + menu, then load it. */
     async loadRouterState() {
-        // Read once, up front: both the URL resolution below and the
-        // post-load fallback must see the same value, and `setCurrentMenu`
-        // rewrites the key in between.
         const storedMenuId = Number(browser.sessionStorage.getItem("menu_id"));
         let menuId = this._resolveMenuFromUrl(storedMenuId);
         if (menuId) {
@@ -140,17 +127,8 @@ export class WebClient extends Component {
             stateLoaded = await this.actionService.loadState();
         } catch (error) {
             if (error instanceof SupersededError) {
-                // A newer navigation superseded this route change; it owns the
-                // UI now. Re-throw so the error service swallows it silently —
-                // do NOT fall back to the default app (that would fight the
-                // newer navigation).
                 throw error;
             }
-            // Still surface the error (dialog) but don't let it strand the
-            // webclient: with nothing on screen, load the default app; with
-            // a controller already displayed, keep it. Don't fall through to
-            // the retrocompat branches — they would re-derive (and re-run)
-            // an action from the same broken state.
             Promise.reject(error);
             if (!this.actionService.currentController) {
                 await this._loadDefaultApp();
@@ -158,8 +136,6 @@ export class WebClient extends Component {
             return;
         }
 
-        // ** url-retrocompatibility **
-        // when there is only menu_id in url
         if (!stateLoaded && menuId) {
             const actionId = this.menuService.getMenu(menuId)?.actionID;
             if (actionId) {
@@ -170,8 +146,6 @@ export class WebClient extends Component {
             }
         }
 
-        // Setting the menu based on the action after it was loaded (eg when the
-        // action in url is an xmlid)
         if (stateLoaded && !menuId) {
             const actionId = this.actionService.currentController?.action.id;
             menuId =
@@ -184,7 +158,6 @@ export class WebClient extends Component {
         if (stateLoaded) {
             this._scrollToUrlAnchor();
         } else {
-            // If no action => falls back to the default app
             await this._loadDefaultApp();
         }
     }
@@ -194,9 +167,6 @@ export class WebClient extends Component {
         const root = this.menuService.getMenu("root");
         const firstApp = root.children[0];
         if (firstApp) {
-            // ``children`` is ``(number | string)[]``; ``selectMenu`` accepts
-            // ``MenuItem | number``. Resolve through ``getMenu`` so the call
-            // is type-clean regardless of which form the id takes.
             return this.menuService.selectMenu(this.menuService.getMenu(firstApp));
         }
     }
@@ -205,9 +175,6 @@ export class WebClient extends Component {
      * @param {MouseEvent} ev
      */
     onGlobalClick(ev) {
-        // When a ctrl-click occurs inside an <a href/> element
-        // we let the browser do the default behavior and
-        // we do not want any other listener to execute.
         if (
             (ev.ctrlKey || ev.metaKey) &&
             !(/** @type {any} */ (ev.target).isContentEditable) &&

@@ -11,11 +11,21 @@
  */
 
 /**
+ * An omitted ``asc`` means ASCENDING, matching every other reader and writer of
+ * an order term: {@link stringToOrderBy} parses a bare ``"foo"`` as
+ * ``{ name: "foo", asc: true }``, ``search_favorites`` serializes with
+ * ``o.asc === false ? " desc" : ""``, and SQL's own default is ASC. This used
+ * to test ``o.asc`` for truthiness, so a term built without the optional field
+ * serialized as DESC and a round trip through ``stringToOrderBy`` flipped the
+ * sort direction.
+ *
  * @param {OrderTerm[]} orderBy
  * @returns {string}
  */
 export function orderByToString(orderBy) {
-    return orderBy.map((o) => `${o.name} ${o.asc ? "ASC" : "DESC"}`).join(", ");
+    return orderBy
+        .map((o) => `${o.name} ${o.asc === false ? "DESC" : "ASC"}`)
+        .join(", ");
 }
 
 /**

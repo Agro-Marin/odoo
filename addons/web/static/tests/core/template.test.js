@@ -46,7 +46,6 @@ function registerTemplates(...templates) {
     const translations = {};
 
     for (const { name, content, inheritFrom, inheritMode } of templates) {
-        // we should avoid do twice makeTemplate/makeTemplateExtension
         const template =
             inheritMode === "extension"
                 ? makeTemplateExtension({ content, inheritFrom })
@@ -491,13 +490,6 @@ test("translation-context: wrappers around texts do not affect xpaths (1)", asyn
     `);
 });
 
-// TemplateRegistry class — scoped-instance contract
-//
-// Module-level functions delegate to a singleton anchored on
-// ``globalThis.__odooTemplates__`` (see templates.js). These tests verify the
-// *class* contract: a fresh ``TemplateRegistry`` gives a fully isolated scope,
-// for future embedded-app use cases that want their own registry.
-
 test("TemplateRegistry: fresh instance has independent state from singleton", () => {
     const scoped = new TemplateRegistry();
     scoped.registerTemplate(
@@ -510,9 +502,6 @@ test("TemplateRegistry: fresh instance has independent state from singleton", ()
 });
 
 test("TemplateRegistry: module-level wrappers see the canonical singleton", () => {
-    // ``templates`` IS the singleton the wrappers delegate to — load-bearing,
-    // since boot/start.js passes ``getTemplate`` as a detached function
-    // reference to OWL's App constructor, so it can't rely on `this`.
     const unreg = registerTemplate(
         "tr-canon-1",
         "/canon_addon",
@@ -536,10 +525,6 @@ test("TemplateRegistry: unregister callback removes scoped entry", () => {
 });
 
 test("TemplateRegistry: primary unregister leaves other owners' extensions intact", () => {
-    // The registry is a globalThis-shared singleton in production: the
-    // unregister callback of a PRIMARY registration must only tear down the
-    // state it created, not the raw extension registrations that other owners
-    // added on the same template name (each has its own unregister callback).
     const scoped = new TemplateRegistry();
     const primary = `<t t-name="tr-shared"><div class="base"/></t>`;
     const makeExt = (attr) =>
@@ -554,21 +539,16 @@ test("TemplateRegistry: primary unregister leaves other owners' extensions intac
         makeExt("data-b"),
     );
     scoped.registerTemplateExtension("tr-shared", "/addon_c", makeExt("data-c"));
-    // Populate the parse/compile caches so the unregister has to evict them.
     let div = scoped.getTemplate("tr-shared").querySelector("div");
     expect(div.hasAttribute("data-b")).toBe(true);
     expect(div.hasAttribute("data-c")).toBe(true);
 
-    // Owner A tears down its primary registration (e.g. per-test cleanup),
-    // then re-registers it: the other owners' extensions must still apply.
     unregPrimary();
     scoped.registerTemplate("tr-shared", "/addon_a", primary);
     div = scoped.getTemplate("tr-shared").querySelector("div");
     expect(div.hasAttribute("data-b")).toBe(true);
     expect(div.hasAttribute("data-c")).toBe(true);
 
-    // And each extension's own unregister callback still works — scoped to
-    // its own registration only.
     unregExtB();
     div = scoped.getTemplate("tr-shared").querySelector("div");
     expect(div.hasAttribute("data-b")).toBe(false);
@@ -600,9 +580,6 @@ test("TemplateRegistry: re-registering the same key+content is idempotent", () =
 });
 
 test("TemplateRegistry: dedup hit returns a callable no-op unregister", () => {
-    // `const un = registerTemplate(...); un()` must work regardless of
-    // registration order in a test lifecycle: the second identical
-    // registration used to return undefined, crashing the caller.
     const scoped = new TemplateRegistry();
     const first = scoped.registerTemplate(
         "tr-noop",
@@ -615,7 +592,6 @@ test("TemplateRegistry: dedup hit returns a callable no-op unregister", () => {
         `<t t-name="tr-noop"/>`,
     );
     expect(typeof second).toBe("function");
-    // The dedup no-op must not unregister the first registration.
     second();
     expect("tr-noop" in scoped.templates).toBe(true);
     first();
@@ -623,18 +599,13 @@ test("TemplateRegistry: dedup hit returns a callable no-op unregister", () => {
 });
 
 test("TemplateRegistry: dedup hit is verified against the stored registration", () => {
-    // The dedup keys are 53-bit hashes: a colliding key must not silently
-    // skip a registration. Simulate a collision by pre-seeding the key that
-    // a different triple hashes to.
     const scoped = new TemplateRegistry();
     const name = "tr-collision";
     const url = "/addon_a";
     const templateString = `<t t-name="tr-collision"/>`;
-    // Compute this triple's dedup key by registering and reading it back.
     const probe = new TemplateRegistry();
     probe.registerTemplate(name, url, templateString);
     const [key] = [...probe.registered];
-    // Seed the collision: key present, but no matching registration stored.
     scoped.registered.add(key);
     const unregister = scoped.registerTemplate(name, url, templateString);
     expect("tr-collision" in scoped.templates).toBe(true);
@@ -652,7 +623,6 @@ test("TemplateRegistry: extension dedup hit returns a callable no-op unregister"
     expect(typeof first).toBe("function");
     expect(typeof second).toBe("function");
     second();
-    // The extension registered by `first` must survive the no-op.
     const blocks = Object.values(scoped.templateExtensions["tr-ext-base"]);
     expect(blocks.some((block) => block.length > 0)).toBe(true);
 });
@@ -681,9 +651,6 @@ test("TemplateRegistry: blockId cursor advances when register type alternates", 
 
 test("TemplateRegistry: registering after a negative-lookup probe serves the real template", () => {
     const scoped = new TemplateRegistry();
-    // Probe an unknown name first. ``getTemplate`` memoises the ``null`` miss
-    // behind a ``has()`` guard, so without eviction on registration the null
-    // would be served forever.
     expect(scoped.getTemplate("tr-probe")).toBe(null);
     scoped.registerTemplate(
         "tr-probe",
@@ -702,13 +669,9 @@ test("TemplateRegistry: an extension registered after the first get is applied o
         "/addon_base",
         `<t t-name="tr-late-ext"><div class="base">base</div></t>`,
     );
-    // Eager render compiles and caches the pre-extension DOM.
     expect(scoped.getTemplate("tr-late-ext").textContent).toMatch(/base/);
     expect(scoped.getTemplate("tr-late-ext").textContent).not.toMatch(/ext/);
 
-    // A lazily-loaded bundle registers an extension for the already-compiled
-    // parent. Without cache eviction on registration, the stale pre-extension
-    // DOM would be served forever.
     scoped.registerTemplateExtension(
         "tr-late-ext",
         "/addon_ext",
@@ -729,12 +692,67 @@ test("TemplateRegistry: unregistering an extension does not re-apply it on re-ge
         "/addon_ext",
         `<t t-inherit="tr-ext-base" t-inherit-mode="extension"><xpath expr="div" position="inside"><span class="ext">ext</span></xpath></t>`,
     );
-    // First build applies the extension.
     expect(scoped.getTemplate("tr-ext-base").textContent).toMatch(/ext/);
-    // After unregistering, a re-get must NOT re-apply the removed extension
-    // from the stale parsed/processed caches.
     unregExt();
     const rebuilt = scoped.getTemplate("tr-ext-base");
     expect(rebuilt.textContent).toMatch(/base/);
     expect(rebuilt.textContent).not.toMatch(/ext/);
+});
+
+test("TemplateRegistry: extensions apply in registration order", () => {
+    const scoped = new TemplateRegistry();
+    const makeExt = (word) =>
+        `<t t-inherit="tr-order" t-inherit-mode="extension">` +
+        `<xpath expr="div" position="inside"><span>${word}</span></xpath></t>`;
+    scoped.registerTemplate("tr-order", "/addon_a", `<t t-name="tr-order"><div/></t>`);
+    scoped.registerTemplateExtension("tr-order", "/addon_b", makeExt("one"));
+    // A primary registration in between forces a new block id, so the two
+    // extensions land in DIFFERENT blocks and their relative order is decided
+    // by the block ordering rather than by array order within one block.
+    scoped.registerTemplate("tr-order-sep", "/addon_a", `<t t-name="tr-order-sep"/>`);
+    scoped.registerTemplateExtension("tr-order", "/addon_c", makeExt("two"));
+
+    expect(
+        [...scoped.getTemplate("tr-order").querySelectorAll("span")].map(
+            (el) => el.textContent,
+        ),
+    ).toEqual(["one", "two"]);
+});
+
+test("TemplateRegistry: inheriting child only sees extensions registered before it", () => {
+    const scoped = new TemplateRegistry();
+    // Burn block ids so the ones under test straddle the 9 -> 10 boundary,
+    // where comparing block ids as STRINGS ("10" > "9") answers differently
+    // from comparing them as numbers.
+    for (let i = 0; i < 5; i++) {
+        scoped.registerTemplate(`tr-fill-${i}`, "/f", `<t t-name="tr-fill-${i}"/>`);
+        scoped.registerTemplateExtension(
+            `tr-fill-${i}`,
+            "/f",
+            `<t t-inherit="tr-fill-${i}" t-inherit-mode="extension"/>`,
+        );
+    }
+    const makeExt = (word) =>
+        `<t t-inherit="tr-cut" t-inherit-mode="extension">` +
+        `<xpath expr="div" position="inside"><span>${word}</span></xpath></t>`;
+    scoped.registerTemplate("tr-cut", "/addon_a", `<t t-name="tr-cut"><div/></t>`);
+    scoped.registerTemplateExtension("tr-cut", "/addon_b", makeExt("before"));
+    scoped.registerTemplate(
+        "tr-cut-child",
+        "/addon_c",
+        `<t t-name="tr-cut-child" t-inherit="tr-cut"/>`,
+    );
+    scoped.registerTemplateExtension("tr-cut", "/addon_d", makeExt("after"));
+
+    expect(scoped.blockId).toBeGreaterThan(9);
+    const words = [...scoped.getTemplate("tr-cut-child").querySelectorAll("span")].map(
+        (el) => el.textContent,
+    );
+    expect(words).toEqual(["before"]);
+    // The base itself, resolved with no cut-off, still gets both.
+    expect(
+        [...scoped.getTemplate("tr-cut").querySelectorAll("span")].map(
+            (el) => el.textContent,
+        ),
+    ).toEqual(["before", "after"]);
 });

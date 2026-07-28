@@ -69,20 +69,13 @@ class Base(models.AbstractModel):
         field_name = groupby_spec.split(".", maxsplit=1)[0].split(":", maxsplit=1)[0]
         field = self._fields[field_name]
 
-        # Existing non-empty group values; passed to group_expand so it can
-        # merge them with the full set it computes.
         values = [group_value for group_value, *__ in groups if group_value]
 
-        # field.group_expand returns the full set of groups to display for this
-        # field (recordset or list of values, depending on the field type), so
-        # kanban columns without any record can still be shown.
         if field.relational:
-            # groups is a recordset; determine order on groups's model
             values = self.env[field.comodel_name].browse(value.id for value in values)
             expand_values = field.determine_group_expand(self, values, domain)
             all_record_ids = tuple(unique(expand_values._ids + values._ids))
         else:
-            # groups is a list of values
             expand_values = field.determine_group_expand(self, values, domain)
 
         is_desc = any(
@@ -216,22 +209,13 @@ class Base(models.AbstractModel):
             return groups
 
         if ":" not in groupby_name:
-            # Date/datetime field grouped without a granularity specifier;
-            # there are no periodic "holes" to fill.
             return groups
 
         granularity = groupby_name.split(":")[1]
         if granularity not in READ_GROUP_TIME_GRANULARITY:
-            # Number granularities (month_number, day_of_week, ...) yield integer
-            # buckets with no contiguous temporal interval to fill — there are no
-            # periodic "holes" to complete. Guard here so a crafted read_group
-            # with such a granularity degrades to a no-op instead of raising
-            # KeyError below at ``READ_GROUP_TIME_GRANULARITY[granularity]``.
             return groups
         days_offset = 0
         if granularity == "week":
-            # _read_group week groups are dependent on the
-            # locale, so filled groups should be too to avoid overlaps.
             first_week_day = int(get_lang(self.env).week_start) - 1
             days_offset = first_week_day and 7 - first_week_day
         existing = sorted(
@@ -239,9 +223,6 @@ class Base(models.AbstractModel):
         ) or [None]
         existing_from, existing_to = existing[0], existing[-1]
 
-        # Resolve the bounds via the shared ORM helper (parse by field type, snap
-        # to the granularity, keep naive to match the naive group keys); absent
-        # bounds fall back to the existing extrema.
         if fill_from:
             fill_from = self._read_group_fill_temporal_bound(
                 field, granularity, days_offset, fill_from
@@ -326,7 +307,6 @@ class Base(models.AbstractModel):
             return formatter_follow_many2one
 
         if field.type == "many2many":
-            # many2many: (field, '=', False) would bypass ir.rule, so express "no value" as "not any" instead.
             def formatter_many2many(value):
                 if not value:
                     return False, [(field_name, "not any", [])]
@@ -372,7 +352,6 @@ class Base(models.AbstractModel):
                             range_start = tzinfo.localize(range_start).astimezone(
                                 pytz.utc
                             )
-                            # take into account possible hour change between start and end
                             range_end = tzinfo.localize(range_end).astimezone(pytz.utc)
 
                         label = babel.dates.format_datetime(
@@ -388,12 +367,10 @@ class Base(models.AbstractModel):
                             locale=locale,
                         )
 
-                    # special case weeks because babel is broken *and*
-                    # ubuntu reverted a change so it's also inconsistent
                     if granularity == "week":
                         year, week = date_utils.weeknumber(
                             babel.Locale.parse(locale),
-                            value,  # provide date or datetime without UTC conversion
+                            value,
                         )
                         label = f"W{week} {year:04}"
 
@@ -402,7 +379,6 @@ class Base(models.AbstractModel):
                         (field_name, ">=", range_start.strftime(fmt)),
                         (field_name, "<", range_end.strftime(fmt)),
                     ]
-                    # TODO: date label should be created by the webclient.
                     return (range_start.strftime(fmt), label), additional_domain
 
                 return formatter_time_granularity
@@ -444,8 +420,6 @@ class Base(models.AbstractModel):
 
             def formatter_property_selection(value):
                 if not value:
-                    # Can't use ('selection', '=', False): the database may have
-                    # an option that no longer exists in the current selection.
                     return value, [
                         "|",
                         (fullname, "=", False),
@@ -461,8 +435,6 @@ class Base(models.AbstractModel):
 
             def formatter_property_many2one(value):
                 if not value:
-                    # Can't use only ('many2one', '=', False): the database may
-                    # have a record that no longer exists.
                     return value, [
                         "|",
                         (fullname, "=", False),
@@ -516,16 +488,12 @@ class Base(models.AbstractModel):
                         else []
                     )
 
-                # tags.get(value) is (raw value, label, color); replaces the raw value
                 return tags.get(value), [(fullname, "in", [value])]
 
             return formatter_property_tags
 
         if property_type in ("date", "datetime"):
             if func in READ_GROUP_NUMBER_GRANULARITY:
-                # Integer granularities (month_number, year_number, etc.) use
-                # an identity formatter with a dotted-path domain, just like
-                # regular date fields.
                 def formatter_property_date_number(value):
                     if value is None:
                         return None, [(fullname, "=", value)]
@@ -534,7 +502,6 @@ class Base(models.AbstractModel):
                 return formatter_property_date_number
 
             interval = READ_GROUP_TIME_GRANULARITY[func]
-            # Date/Datetime values aren't JSON-serializable, so store them as raw text
             fmt = (
                 DEFAULT_SERVER_DATE_FORMAT
                 if property_type == "date"
@@ -546,7 +513,6 @@ class Base(models.AbstractModel):
                     return False, [(fullname, "=", False)]
 
                 if func == "week":
-                    # the value is the first day of the week (based on locale)
                     start = value
                 else:
                     start = date_utils.start_of(value, func)

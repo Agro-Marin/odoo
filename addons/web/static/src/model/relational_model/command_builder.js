@@ -17,8 +17,6 @@ import { x2ManyCommands } from "./commands.js";
 
 const { CREATE, UPDATE, LINK, SET } = x2ManyCommands;
 
-// Command serialization
-
 /**
  * Serialize pending x2many commands into server-ready ORM command tuples.
  *
@@ -57,9 +55,6 @@ export function serializeCommands(commands, params) {
 
     for (const command of commands) {
         if (command[0] === UPDATE && command[1] in unknownRecordCommands) {
-            // Deferred unity-format commands: either the record was never
-            // loaded, or a loaded record carries sub-x2many slices its view
-            // doesn't display (always-invisible / not in activeFields).
             const uCommands = unknownRecordCommands[command[1]];
             const deferredValues = {};
             for (const uCommand of uCommands) {
@@ -71,40 +66,29 @@ export function serializeCommands(commands, params) {
             });
             const record = getRecord(command[1]);
             if (record) {
-                // The record is cached and live: the deferred slices must
-                // not shadow its own changeset — merge both, the record's
-                // (user-visible, editable) changes winning. Before this
-                // merge, any inline edit made after the stash was silently
-                // dropped from the save payload.
                 Object.assign(values, getRecordChanges(record, withReadonly));
             }
             result.push([UPDATE, command[1], values]);
         } else if (command[0] === CREATE || command[0] === UPDATE) {
             const record = getRecord(command[1]);
             if (!record) {
-                continue; // stale command referencing a deleted/abandoned record
+                continue;
             }
             if (command[0] === CREATE && record?.resId) {
-                // Record was created in x2many dialog and already saved to DB.
-                // Replace CREATE with LINK to avoid re-creating.
                 result.push([LINK, record.resId, false]);
             } else {
                 const values = getRecordChanges(record, withReadonly);
-                // For UPDATE, skip if no actual changes
                 if (command[0] === CREATE || Object.keys(values).length) {
                     result.push([command[0], command[1], values]);
                 }
             }
         } else {
-            // DELETE, UNLINK, LINK, SET, CLEAR — pass through unchanged
             result.push(command);
         }
     }
 
     return /** @type {[number, string | number, any?][]} */ (result);
 }
-
-// Command deduplication / cancellation
 
 /**
  * Determine whether a DELETE command should be emitted for a record,
@@ -119,7 +103,6 @@ export function serializeCommands(commands, params) {
  */
 export function shouldEmitDelete(ownCommands) {
     const hasCreate = ownCommands.some((x) => x.command[0] === CREATE);
-    // Clear all commands for this id regardless
     ownCommands.splice(0);
     return !hasCreate;
 }
@@ -136,11 +119,6 @@ export function shouldEmitDelete(ownCommands) {
  * @returns {boolean} true if an UNLINK command should be emitted
  */
 export function shouldEmitUnlink(ownCommands) {
-    // Symmetric with ``shouldEmitDelete``: a record CREATEd in this session that
-    // is then UNLINKed never existed server-side, so every staged command for it
-    // (CREATE + any UPDATE) must be dropped and NOTHING emitted. Without this an
-    // ``[UNLINK, virtualId]`` was emitted while ``[CREATE, virtualId, vals]``
-    // survived in the log, so a row the user removed got created anyway.
     if (ownCommands.some((x) => x.command[0] === CREATE)) {
         ownCommands.splice(0);
         return false;
@@ -148,16 +126,6 @@ export function shouldEmitUnlink(ownCommands) {
     const linkIndex = ownCommands.findIndex((x) => x.command[0] === LINK);
     if (linkIndex >= 0) {
         ownCommands.splice(linkIndex, 1);
-        // If that was the LAST link, the record is no longer part of the
-        // relation, so every staged CREATE/UPDATE for it must go too —
-        // "net effect: nothing happened", as this function's contract states.
-        // A surviving `[UPDATE, id]` is not inert: `serializeCommands` keeps
-        // commands whose record is still in `_cache`, and the engine's UNLINK
-        // branch prunes `_unknownRecordCommands` / `_loadingStubIds` but never
-        // `_cache`. The save therefore wrote the user's edits into a record
-        // they had just removed from the relation.
-        // A remaining LINK means the row is still linked (duplicate-link
-        // ref-counting), so its pending edits stay valid.
         if (!ownCommands.some((x) => x.command[0] === LINK)) {
             ownCommands.splice(0);
         }
@@ -187,12 +155,6 @@ export function absorbUnlinkIntoSet(allCommands, recordId) {
         return false;
     }
     firstCommand[2] = ids.filter((id) => id !== recordId);
-    // A SET carries per-record UPDATE commands (``_replaceWith`` rebuilds
-    // ``_commands = [SET(ids), ...updateCommandsToKeep]``). Once the record is
-    // removed from the SET's id list it is no longer part of the relation, so a
-    // surviving ``[UPDATE, id]`` would write the user's edits into a record the
-    // server just removed via SET. Drop them in lockstep (iterate from the end
-    // so splicing does not skip entries).
     for (let i = allCommands.length - 1; i > 0; i--) {
         if (allCommands[i][0] === UPDATE && allCommands[i][1] === recordId) {
             allCommands.splice(i, 1);

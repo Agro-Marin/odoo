@@ -164,7 +164,7 @@ test("AceEditorField only trigger onchanges when blurred", async () => {
     expect.verifySteps(["get_views: []", "web_read: [[1]]"]);
 
     await editAce("a");
-    await contains(getFixture()).focus(); // blur ace editor
+    await contains(getFixture()).focus();
     expect.verifySteps([
         `onchange: [[1],{"foo":"a"},["foo"],{"display_name":{},"foo":{}}]`,
     ]);
@@ -174,9 +174,6 @@ test("AceEditorField only trigger onchanges when blurred", async () => {
 });
 
 test("AceEditorField commits its pending edit into the tab-close beacon", async () => {
-    // Regression: WILL_SAVE_URGENTLY must push its commit promise into
-    // ev.detail.proms so the urgent-save coordinator awaits the re-commit before
-    // sendBeacon serializes _changes, or a pending un-blurred edit gets dropped.
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("sendBeacon");
@@ -198,8 +195,6 @@ test("AceEditorField commits its pending edit into the tab-close beacon", async 
         arch: `<form><field name="foo" widget="code"/></form>`,
     });
 
-    // Edit without blurring: the change stays pending in the component and has
-    // not yet reached the record's _changes.
     await editAce("urgent");
     await unload();
     await sendBeaconDeferred;

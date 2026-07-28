@@ -52,7 +52,6 @@ async function hasSettled(promise) {
 
 describe("service worker activation settlement", () => {
     test("helper sanity: hasSettled reports a resolved deferred", async () => {
-        // Guards the assertion below from passing for the wrong reason.
         const resolved = new Deferred();
         resolved.resolve();
         expect(await hasSettled(resolved)).toBe(true);
@@ -60,20 +59,14 @@ describe("service worker activation settlement", () => {
     });
 
     test("registerServiceWorker settles the deferred when SW is unavailable", async () => {
-        // Real product function, real Deferred. `navigator.serviceWorker` is
-        // undefined here (Hoot's mock), i.e. the non-secure-context case.
         const deferred = new Deferred();
 
         await registerServiceWorker(deferred);
 
-        // Was the regression: the function returned without settling, so every
-        // `await` on the deferred was permanent and mail's push mutex wedged.
         expect(await hasSettled(deferred)).toBe(true);
     });
 
     test("a consumer awaiting the deferred proceeds instead of hanging", async () => {
-        // Models mail's `_doUnsubscribePush`, which awaits the promise inside
-        // a Mutex: what matters is that the await returns at all.
         const deferred = new Deferred();
         await registerServiceWorker(deferred);
 
@@ -85,8 +78,6 @@ describe("service worker activation settlement", () => {
     });
 
     test("the service exposes an `activated` promise that settles", async () => {
-        // The contract mail now depends on, exercised through the service's
-        // own start() rather than the bare function.
         const { activated } = serviceWorkerService.start();
         expect(await hasSettled(activated)).toBe(true);
     });

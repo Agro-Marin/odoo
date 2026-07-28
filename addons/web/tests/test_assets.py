@@ -22,8 +22,6 @@ class TestAssetsGenerateTimeCommon(odoo.tests.TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Ensure the dart:sass singleton is shut down after this class so the
-        # test framework's child-process check does not warn about it.
         cls.addClassCleanup(close_sass_compiler)
 
     def generate_bundles(self, unlink=True):
@@ -40,21 +38,10 @@ class TestAssetsGenerateTimeCommon(odoo.tests.TransactionCase):
             key
             for module in installed_module_names
             for key in get_manifest(module).get("assets", [])
-            # Skip private sub-bundles (documented convention: segment after '.'
-            # starts with '_'). These are composition-only bundles never meant
-            # to compile standalone; e.g. web._assets_helpers, web._assets_bootstrap.
             if not any(seg.startswith("_") for seg in key.split("."))
         }
 
         for bundle_name in bundles:
-            # Two loggers can fire here: the legacy classic pipeline logs under
-            # "odoo.addons.base.models.assetsbundle", while the asset event bus
-            # (``get_asset_logger``) logs under "odoo.assets.bundle" — the latter
-            # emits one ERROR per module-syntax file when an ESM-only bundle
-            # (e.g. web.assets_backend, served only via its ESM parent
-            # web.assets_web) is force-generated standalone here. This test only
-            # measures timing, so both must be muted; naming just the first let
-            # ~1880 spurious ERRORs leak per run.
             with mute_logger(
                 "odoo.addons.base.models.assetsbundle", "odoo.assets.bundle"
             ):
@@ -164,7 +151,6 @@ class TestAssetsGenerateTime(TestAssetsGenerateTimeCommon):
 class TestLoad(HttpCase):
     def test_assets_already_exists(self):
         self.authenticate("admin", "admin")
-        # TODO xdo adapt this test. url open won't generate attachment anymore even if not pregenerated
         _save_attachment = (
             odoo.addons.base.models.assetsbundle.AssetsBundle.save_attachment
         )
@@ -305,8 +291,6 @@ class TestSourceUrlRewrite(odoo.tests.BaseCase):
         )
 
     def test_scss_protocol_relative_url_is_not_a_comment(self):
-        # ``//`` here opens a host, not a comment: an unanchored line-comment
-        # arm would eat the rest of the ``src:`` list and lose ``./b.woff``.
         source = ".a { src: url(//cdn/a.woff) format('woff'),"
         source += " url('./b.woff') format('woff'); }"
         self.assertEqual(

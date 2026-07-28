@@ -8,7 +8,6 @@ describe.current.tags("headless");
 
 describe("class", () => {
     test("callback registered without SignalStore class constructor will not notify", async () => {
-        // This test exists to showcase why we need the SignalStore class
         const bus = new EventBus();
         class MyReactiveClass {
             constructor() {
@@ -21,15 +20,12 @@ describe("class", () => {
             expect.step(`counter: ${obj.counter}`);
         });
 
-        obj.counter; // initial subscription to counter
+        obj.counter;
         obj.counter++;
         expect.verifySteps(["counter: 1"]);
         bus.trigger("change");
         expect(obj.counter).toBe(2);
-        expect.verifySteps([
-            // Empty: `this` in the event handler is captured non-reactively at
-            // construction, so the mutation is missed.
-        ]);
+        expect.verifySteps([]);
     });
 
     test("callback registered in SignalStore class constructor will notify", async () => {
@@ -44,7 +40,7 @@ describe("class", () => {
         const obj = reactive(new MyReactiveClass(), () => {
             expect.step(`counter: ${obj.counter}`);
         });
-        obj.counter; // initial subscription to counter
+        obj.counter;
         obj.counter++;
         expect.verifySteps(["counter: 1"]);
         bus.trigger("change");
@@ -75,15 +71,12 @@ describe("effect", () => {
             },
             [state],
         );
-        // effect runs immediately
         expect.verifySteps(["counter: 0"]);
 
         state.counter++;
-        // first mutation runs the effect
         expect.verifySteps(["counter: 1"]);
 
         state.counter++;
-        // subsequent mutations run the effect
         expect.verifySteps(["counter: 2"]);
     });
 
@@ -112,7 +105,7 @@ describe("effect", () => {
         expect(reactiveCallCount).toBe(0, {
             message: "did not call the original reactive's callback",
         });
-        state.counter; // subscribe the original reactive
+        state.counter;
         state.counter = 2;
         expect.verifySteps(["counter: 2"]);
         expect(reactiveCallCount).toBe(1, {

@@ -3,7 +3,6 @@
 
 /** @module @web/model/relational_model/read_group_builder - Pure assembly of the kwargs payload sent to web_read_group */
 
-import { pick } from "@web/core/utils/collections/objects";
 import { orderByToString } from "@web/core/utils/order_by";
 
 import { getBasicEvalContext } from "./field_context.js";
@@ -66,7 +65,8 @@ function buildOpeningInfo(groups) {
 export function buildWebReadGroupParams(config, deps) {
     const { groupByInfo, initialLimit } = deps;
     const aggregates = getAggregateSpecifications(
-        pick(config.fields, ...config.fieldsToAggregate),
+        config.fields,
+        config.fieldsToAggregate,
     );
     const currentGroupInfos = buildOpeningInfo(config.groups);
     const { activeFields, fields } = config;

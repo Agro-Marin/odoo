@@ -6,11 +6,6 @@
 import { loadCSS } from "@web/core/assets";
 import { makeLazyFacade } from "@web/core/module_bridge";
 
-// Fork-patched v7 vanilla bundle re-exported as an ES module via the
-// `@fullcalendar/core` import map. `Calendar` pre-registers the five default
-// plugins (dayGrid/timeGrid/interaction/list/multiMonth), so callers must NOT
-// pass a `plugins` option. Replaces the old `window.FullCalendar` script bundle.
-
 /** @type {any} the loaded namespace, null until {@link loadFullCalendar} resolves */
 let _fullCalendar = null;
 
@@ -50,9 +45,6 @@ export async function loadFullCalendar() {
             _fullCalendar = coreModule;
             return FullCalendar;
         })().catch((error) => {
-            // Never cache a rejection: a transient fetch failure would
-            // otherwise disable every future calendar until a full page
-            // reload (the pre-ESM loadJS path also allowed retries).
             loadPromise = null;
             throw error;
         });

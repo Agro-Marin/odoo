@@ -136,9 +136,9 @@ class Partner extends models.Model {
         },
     ];
     _views = {
-        toy: /* xml */ `<toy/>`,
-        list: /* xml */ `<list><field name="foo"/></list>`,
-        kanban: /* xml */ `
+        toy: `<toy/>`,
+        list: `<list><field name="foo"/></list>`,
+        kanban: `
             <kanban>
                 <templates>
                     <div t-name="card">
@@ -147,15 +147,15 @@ class Partner extends models.Model {
                 </templates>
             </kanban>
         `,
-        form: /* xml */ `
+        form: `
             <form>
                 <button name="1" type="action" string="multi view"/>
                 <field name="foo"/>
                 <field name="company_id"/>
             </form>
         `,
-        pivot: /* xml */ `<pivot><field name="int_field" type="measure"/></pivot>`,
-        search: /* xml */ `
+        pivot: `<pivot><field name="int_field" type="measure"/></pivot>`,
+        search: `
             <search>
                 <filter name="false_domain" string="False Domain" domain="[(0, '=', 1)]"/>
                 <filter name="filter" string="Filter" domain="[('bar', '=', true)]"/>
@@ -233,7 +233,7 @@ test("basic rendering of a component without search panel", async () => {
         display: { searchPanel: false },
     });
     expect(`.o_search_panel`).toHaveCount(0);
-    expect(component.domain).toEqual([]); // initial domain
+    expect(component.domain).toEqual([]);
 });
 
 test("basic rendering of a component with empty search panel", async () => {
@@ -249,7 +249,7 @@ test("basic rendering of a component with empty search panel", async () => {
         searchViewId: false,
     });
     expect(`.o_search_panel`).toHaveCount(0);
-    expect(component.domain).toEqual([]); // initial domain
+    expect(component.domain).toEqual([]);
     expect.verifySteps([]);
 });
 
@@ -290,11 +290,11 @@ test("basic rendering of a component with search panel", async () => {
         "search_panel_select_range",
         "search_panel_select_multi_range",
     ]);
-    expect(component.domain).toEqual([]); // initial domain (does not need the sections to be loaded)
+    expect(component.domain).toEqual([]);
 });
 
 test("when category is empty fallback to All", async () => {
-    Partner._views.search = /* xml */ `
+    Partner._views.search = `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -342,13 +342,10 @@ test("cache search panel", async () => {
     spSelectRangeDef = new Deferred();
     spSelectMultiRangeDef = new Deferred();
 
-    // Go to a form view
     await getService("action").doAction(2);
     expect(`.o_form_view`).toHaveCount(1);
 
-    // Came back to search panel
     await getService("action").doAction(1);
-    // Search Panel is rendered with cached data !
     expect(`.o_search_panel`).toHaveCount(1);
     expect(`.o_search_panel_section`).toHaveCount(2);
     expect(
@@ -442,19 +439,15 @@ test("cache search panel (onFinish called after anoter load - Category)", async 
         queryAllTexts`.o_search_panel_section:eq(1) .o_search_panel_filter_value`,
     ).toEqual(["gold\n1", "silver\n3"]);
 
-    // Go to a form view
     await getService("action").doAction(2);
     expect(`.o_form_view`).toHaveCount(1);
 
-    // Came back to search panel
     await getService("action").doAction(1);
     await animationFrame();
 
-    // Click on a Filter !
     await contains(queryAll`.o_search_panel_label`[4]).click();
     await animationFrame();
 
-    // resolve RPCs (3th call) from the click
     spSelectRangeDef[2].resolve({
         parent_field: "parent_id",
         values: [
@@ -471,7 +464,6 @@ test("cache search panel (onFinish called after anoter load - Category)", async 
         queryAllTexts`.o_search_panel_section:eq(0) .o_search_panel_category_value`,
     ).toEqual(["All", "plop22\n8"]);
 
-    // resolve RPCs (2nd call) from the came back => must be ignored
     spSelectRangeDef[1].resolve({
         parent_field: "parent_id",
         values: [
@@ -521,19 +513,15 @@ test("cache search panel (onFinish called after anoter load - Filters)", async (
         queryAllTexts`.o_search_panel_section:eq(1) .o_search_panel_filter_value`,
     ).toEqual(["gold\n1", "silver\n3"]);
 
-    // Go to a form view
     await getService("action").doAction(2);
     expect(`.o_form_view`).toHaveCount(1);
 
-    // Came back to search panel
     await getService("action").doAction(1);
     await animationFrame();
 
-    // click on a Category
     await contains(queryAll`.o_search_panel_label`[1]).click();
     await animationFrame();
 
-    // resolve RPCs (3th call) from the click
     spSelectMultiRangeDef[2].resolve({
         values: [
             {
@@ -548,7 +536,6 @@ test("cache search panel (onFinish called after anoter load - Filters)", async (
         queryAllTexts`.o_search_panel_section:eq(1) .o_search_panel_filter_value`,
     ).toEqual(["plop22\n99"]);
 
-    // resolve RPCs (2nd call) from the came back => must be ignored
     spSelectMultiRangeDef[1].resolve({
         values: [
             {
@@ -576,7 +563,7 @@ test("cache search panel (onFinish called after anoter load - Filters)", async (
 
 test("sections with custom icon and color", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel view_types="toy">
                     <field name="company_id" icon="fa-car" color="blue" enable_counters="1"/>
@@ -602,10 +589,8 @@ test("sections with custom icon and color", async () => {
 });
 
 test(`sections with attr invisible="1" are ignored`, async () => {
-    // 'groups' attributes are converted server-side into invisible="1" when the user doesn't
-    // belong to the given group
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -626,7 +611,7 @@ test(`sections with attr invisible="1" are ignored`, async () => {
 
 test("categories and filters order is kept", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -651,7 +636,7 @@ test("categories and filters order is kept", async () => {
 
 test("specify active category value in context and manually change category", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -674,7 +659,6 @@ test("specify active category value in context and manually change category", as
     ).toEqual(["All", "GHI"]);
     expect(component.domain).toEqual([["state", "=", "ghi"]]);
 
-    // select 'ABC' in the category 'state'
     await contains(queryAll`.o_search_panel_category_value header`[4]).click();
     expect(
         queryAllTexts`.o_search_panel_category_value header.active .o_search_panel_label`,
@@ -684,7 +668,7 @@ test("specify active category value in context and manually change category", as
 
 test("use category (on many2one) to refine search", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -704,7 +688,6 @@ test("use category (on many2one) to refine search", async () => {
     });
     expect(component.domain).toEqual([["bar", "=", true]]);
 
-    // select "asustek"
     await contains(queryAll`.o_search_panel_category_value header`[1]).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:eq(1) .active`).toHaveCount(1);
@@ -714,7 +697,6 @@ test("use category (on many2one) to refine search", async () => {
         ["company_id", "child_of", 3],
     ]);
 
-    // select "agrolait"
     await contains(queryAll`.o_search_panel_category_value header`[2]).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:eq(2) .active`).toHaveCount(1);
@@ -724,7 +706,6 @@ test("use category (on many2one) to refine search", async () => {
         ["company_id", "child_of", 5],
     ]);
 
-    // select "All"
     await contains(queryAll`.o_search_panel_category_value header`[0]).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
@@ -733,7 +714,7 @@ test("use category (on many2one) to refine search", async () => {
 
 test("use category (on selection) to refine search", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" enable_counters="1"/>
@@ -748,19 +729,16 @@ test("use category (on selection) to refine search", async () => {
     });
     expect(component.domain).toEqual([]);
 
-    // select 'abc'
     await contains(`.o_search_panel_category_value:nth-of-type(2) header`).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:nth-of-type(2) .active`).toHaveCount(1);
     expect(component.domain).toEqual([["state", "=", "abc"]]);
 
-    // select 'ghi'
     await contains(`.o_search_panel_category_value:nth-of-type(4) header`).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:nth-of-type(4) .active`).toHaveCount(1);
     expect(component.domain).toEqual([["state", "=", "ghi"]]);
 
-    // select 'All' again
     await contains(`.o_search_panel_category_value:nth-of-type(1) header`).click();
     expect(`.o_search_panel_category_value:nth-of-type(1) .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
@@ -794,7 +772,7 @@ test("category has been archived", async () => {
         },
     ];
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -813,7 +791,7 @@ test("category has been archived", async () => {
 
 test("use two categories to refine search", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -831,7 +809,6 @@ test("use two categories to refine search", async () => {
     expect(component.domain).toEqual([["bar", "=", true]]);
     expect(`.o_search_panel_section`).toHaveCount(2);
 
-    // select 'asustek'
     await contains(
         `.o_search_panel_category_value header .o_search_panel_label_title:contains(asustek)`,
     ).click();
@@ -841,7 +818,6 @@ test("use two categories to refine search", async () => {
         ["company_id", "child_of", 3],
     ]);
 
-    // select 'abc'
     await contains(
         `.o_search_panel_category_value header .o_search_panel_label_title:contains(abc)`,
     ).click();
@@ -853,7 +829,6 @@ test("use two categories to refine search", async () => {
         ["state", "=", "abc"],
     ]);
 
-    // select 'ghi'
     await contains(
         `.o_search_panel_category_value header .o_search_panel_label_title:contains(ghi)`,
     ).click();
@@ -865,13 +840,11 @@ test("use two categories to refine search", async () => {
         ["state", "=", "ghi"],
     ]);
 
-    // select 'All' in first category (company_id)
     await contains(
         `.o_search_panel_section:eq(0) .o_search_panel_category_value header`,
     ).click();
     expect(component.domain).toEqual(["&", ["bar", "=", true], ["state", "=", "ghi"]]);
 
-    // select 'All' in second category (state)
     await contains(
         `.o_search_panel_section:eq(1) .o_search_panel_category_value header`,
     ).click();
@@ -885,7 +858,7 @@ test("category with parent_field", async () => {
     );
     Partner._records[1].company_id = 40;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1" expand="1"/>
@@ -899,13 +872,11 @@ test("category with parent_field", async () => {
         searchViewId: false,
     });
 
-    // 'All' is selected by default
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value`).toHaveCount(3);
     expect(`.o_search_panel_category_value .o_toggle_fold > i`).toHaveCount(1);
 
-    // unfold parent category and select 'All' again
     await contains(`.o_search_panel_category_value header:eq(2)`).click();
     await contains(`.o_search_panel_category_value header:eq(0)`).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
@@ -916,7 +887,6 @@ test("category with parent_field", async () => {
     );
     expect(component.domain).toEqual([]);
 
-    // click on first child company
     await contains(`.o_search_panel_category_value header:eq(3)`).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(
@@ -924,24 +894,20 @@ test("category with parent_field", async () => {
     ).toHaveCount(1);
     expect(component.domain).toEqual([["company_id", "child_of", 40]]);
 
-    // click on parent company
     await contains(`.o_search_panel_category_value header:eq(2)`).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:eq(2) .active`).toHaveCount(1);
     expect(component.domain).toEqual([["company_id", "child_of", 5]]);
 
-    // fold parent company by clicking on it
     await contains(`.o_search_panel_category_value header:eq(2)`).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:eq(2) .active`).toHaveCount(1);
 
-    // parent company should be folded
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:eq(2) .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value`).toHaveCount(3);
     expect(component.domain).toEqual([["company_id", "child_of", 5]]);
 
-    // fold category with children
     await contains(`.o_search_panel_category_value header:eq(2)`).click();
     await contains(`.o_search_panel_category_value header:eq(2)`).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
@@ -952,7 +918,7 @@ test("category with parent_field", async () => {
 
 test("category with no parent_field", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="category_id" enable_counters="1"/>
@@ -967,16 +933,14 @@ test("category with no parent_field", async () => {
     });
     expect(component.domain).toEqual([]);
 
-    // 'All' is selected by default
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value`).toHaveCount(3);
 
-    // click on 'gold' category
     await contains(queryAll`.o_search_panel_category_value header`[1]).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:eq(1) .active`).toHaveCount(1);
-    expect(component.domain).toEqual([["category_id", "=", 6]]); // must use '=' operator (instead of 'child_of')
+    expect(component.domain).toEqual([["category_id", "=", 6]]);
 });
 
 test("can (un)fold parent category values", async () => {
@@ -986,7 +950,7 @@ test("can (un)fold parent category values", async () => {
     );
     Partner._records[1].company_id = 40;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1" expand="1"/>
@@ -1007,7 +971,6 @@ test("can (un)fold parent category values", async () => {
     ).toHaveClass("fa-caret-right");
     expect(`.o_search_panel_category_value`).toHaveCount(3);
 
-    // unfold agrolait
     await contains(
         `.o_search_panel_category_value header:contains(agrolait) .o_toggle_fold > i`,
     ).click();
@@ -1016,7 +979,6 @@ test("can (un)fold parent category values", async () => {
     ).toHaveClass("fa-caret-down");
     expect(`.o_search_panel_category_value`).toHaveCount(5);
 
-    // fold agrolait
     await contains(
         `.o_search_panel_category_value header:contains(agrolait) .o_toggle_fold > i`,
     ).click();
@@ -1033,7 +995,7 @@ test("fold status is kept at reload", async () => {
     );
     Partner._records[1].company_id = 40;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="True Domain" domain="[(1, '=', 1)]"/>
                 <searchpanel>
@@ -1048,7 +1010,6 @@ test("fold status is kept at reload", async () => {
         searchViewId: false,
     });
 
-    // unfold agrolait
     await contains(
         queryFirst`.o_search_panel_category_value > header:contains(agrolait)`,
     ).click();
@@ -1067,7 +1028,7 @@ test("fold status is kept at reload", async () => {
 
 test("concurrency: delayed component update", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -1089,31 +1050,25 @@ test("concurrency: delayed component update", async () => {
         domain: [["bar", "=", true]],
     });
 
-    // 'All' should be selected by default
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(component.domain).toEqual([["bar", "=", true]]);
 
-    // select 'asustek' (delay the reload)
     const asustekPromise = promise;
     await contains(`.o_search_panel_category_value:eq(1) header`).click();
 
-    // 'asustek' should not be selected yet, and there should still be 3 records
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(component.domain).toEqual([["bar", "=", true]]);
 
-    // select 'agrolait' (delay the reload)
     promise = new Deferred();
     const agrolaitPromise = promise;
     await contains(`.o_search_panel_category_value:eq(2) header`).click();
 
-    // 'agrolait' should not be selected yet, and there should still be 3 records
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(component.domain).toEqual([["bar", "=", true]]);
 
-    // unlock asustek search (should be ignored, so there should still be 3 records)
     asustekPromise.resolve();
     await animationFrame();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
@@ -1124,7 +1079,6 @@ test("concurrency: delayed component update", async () => {
         ["company_id", "child_of", 3],
     ]);
 
-    // unlock agrolait search, there should now be 1 record
     agrolaitPromise.resolve();
     await animationFrame();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
@@ -1138,7 +1092,7 @@ test("concurrency: delayed component update", async () => {
 
 test("concurrency: single category", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="Filter" domain="[('id', '=', 1)]"/>
                 <searchpanel>
@@ -1158,7 +1112,6 @@ test("concurrency: single category", async () => {
         searchViewId: false,
     });
 
-    // Case 1: search panel is awaited to build the query with search defaults
     await animationFrame();
     expect.verifySteps([]);
 
@@ -1166,7 +1119,6 @@ test("concurrency: single category", async () => {
     await compPromise;
     expect.verifySteps(["get_views", "search_panel_select_range"]);
 
-    // Case 2: search domain changed so we wait for the search panel once again
     promise = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("Filter");
@@ -1176,11 +1128,9 @@ test("concurrency: single category", async () => {
     await animationFrame();
     expect.verifySteps(["search_panel_select_range"]);
 
-    // Case 3: search domain is the same and default values do not matter anymore
     promise = new Deferred();
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
 
-    // The search read is executed right away in this case
     expect.verifySteps([]);
     promise.resolve();
     await animationFrame();
@@ -1189,7 +1139,7 @@ test("concurrency: single category", async () => {
 
 test("concurrency: category and filter", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="category_id" enable_counters="1"/>
@@ -1226,7 +1176,7 @@ test("concurrency: category and filter", async () => {
 
 test("concurrency: category and filter with a domain", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="category_id"/>
@@ -1260,7 +1210,7 @@ test("concurrency: category and filter with a domain", async () => {
 
 test("concurrency: misordered get_filters", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" enable_counters="1"/>
@@ -1281,34 +1231,28 @@ test("concurrency: misordered get_filters", async () => {
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(component.domain).toEqual([]);
 
-    // select 'abc' (delay the reload)
     promise = new Deferred();
     const abcDef = promise;
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
 
-    // 'All' should still be selected
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(component.domain).toEqual([["state", "=", "abc"]]);
 
-    // select 'ghi' (delay the reload)
     promise = new Deferred();
     const ghiDef = promise;
     await contains(`.o_search_panel_category_value header:eq(3)`).click();
 
-    // 'All' should still be selected
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(component.domain).toEqual([["state", "=", "ghi"]]);
 
-    // unlock ghi search
     ghiDef.resolve();
     await animationFrame();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:eq(3) .active`).toHaveCount(1);
     expect(component.domain).toEqual([["state", "=", "ghi"]]);
 
-    // unlock abc search (should be ignored)
     abcDef.resolve();
     await animationFrame();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
@@ -1318,7 +1262,7 @@ test("concurrency: misordered get_filters", async () => {
 
 test("concurrency: delayed get_filter", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="Filter" domain="[('id', '=', 1)]"/>
                 <searchpanel>
@@ -1336,7 +1280,6 @@ test("concurrency: delayed get_filter", async () => {
     });
     expect(component.domain).toEqual([]);
 
-    // trigger a reload and delay the get_filter
     promise = new Deferred();
     await toggleSearchBarMenu();
     await toggleMenuItem("Filter");
@@ -1349,7 +1292,7 @@ test("concurrency: delayed get_filter", async () => {
 
 test("use filter (on many2one) to refine search", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="Filter" domain="[('id', '=', 1)]"/>
                 <searchpanel>
@@ -1369,7 +1312,6 @@ test("use filter (on many2one) to refine search", async () => {
     expect(getFiltersContent()).toEqual(["asustek: 2", "agrolait: 1"]);
     expect(component.domain).toEqual([["bar", "=", true]]);
 
-    // check 'asustek'
     await contains(queryAll`.o_search_panel_filter_value:eq(0) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(getFiltersContent()).toEqual(["asustek: 2", "agrolait: 1"]);
@@ -1379,7 +1321,6 @@ test("use filter (on many2one) to refine search", async () => {
         ["company_id", "in", [3]],
     ]);
 
-    // check 'agrolait'
     await contains(queryAll`.o_search_panel_filter_value:eq(1) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(2);
     expect(getFiltersContent()).toEqual(["asustek: 2", "agrolait: 1"]);
@@ -1389,7 +1330,6 @@ test("use filter (on many2one) to refine search", async () => {
         ["company_id", "in", [3, 5]],
     ]);
 
-    // uncheck 'asustek'
     await contains(queryAll`.o_search_panel_filter_value:eq(0) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(getFiltersContent()).toEqual(["asustek: 2", "agrolait: 1"]);
@@ -1399,7 +1339,6 @@ test("use filter (on many2one) to refine search", async () => {
         ["company_id", "in", [5]],
     ]);
 
-    // uncheck 'agrolait'
     await contains(queryAll`.o_search_panel_filter_value:eq(1) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(0);
     expect(getFiltersContent()).toEqual(["asustek: 2", "agrolait: 1"]);
@@ -1408,7 +1347,7 @@ test("use filter (on many2one) to refine search", async () => {
 
 test("use filter (on selection) to refine search", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="Filter" domain="[('id', '=', 1)]"/>
                 <searchpanel>
@@ -1428,7 +1367,6 @@ test("use filter (on selection) to refine search", async () => {
     expect(getFiltersContent()).toEqual(["ABC: 1", "DEF: 1", "GHI: 1"]);
     expect(component.domain).toEqual([["bar", "=", true]]);
 
-    // check 'abc'
     await contains(queryAll`.o_search_panel_filter_value:eq(0) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(getFiltersContent()).toEqual(["ABC: 1", "DEF: 1", "GHI: 1"]);
@@ -1438,7 +1376,6 @@ test("use filter (on selection) to refine search", async () => {
         ["state", "in", ["abc"]],
     ]);
 
-    // check 'def'
     await contains(queryAll`.o_search_panel_filter_value:eq(1) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(2);
     expect(getFiltersContent()).toEqual(["ABC: 1", "DEF: 1", "GHI: 1"]);
@@ -1448,7 +1385,6 @@ test("use filter (on selection) to refine search", async () => {
         ["state", "in", ["abc", "def"]],
     ]);
 
-    // uncheck 'abc'
     await contains(queryAll`.o_search_panel_filter_value:eq(0) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(getFiltersContent()).toEqual(["ABC: 1", "DEF: 1", "GHI: 1"]);
@@ -1458,7 +1394,6 @@ test("use filter (on selection) to refine search", async () => {
         ["state", "in", ["def"]],
     ]);
 
-    // uncheck 'def'
     await contains(queryAll`.o_search_panel_filter_value:eq(1) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(0);
     expect(getFiltersContent()).toEqual(["ABC: 1", "DEF: 1", "GHI: 1"]);
@@ -1467,7 +1402,7 @@ test("use filter (on selection) to refine search", async () => {
 
 test("only reload categories and filters when domains change (counters disabled, selection)", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
                 <search>
                     <filter name="Filter" domain="[('id', '&lt;', 5)]"/>
                     <searchpanel>
@@ -1489,19 +1424,17 @@ test("only reload categories and filters when domains change (counters disabled,
         "search_panel_select_multi_range",
     ]);
 
-    // reload with another domain, so the filters should be reloaded
     await toggleSearchBarMenu();
     await toggleMenuItem("Filter");
     expect.verifySteps(["search_panel_select_multi_range"]);
 
-    // change category value, so the filters should be reloaded
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
     expect.verifySteps(["search_panel_select_multi_range"]);
 });
 
 test("only reload categories and filters when domains change (counters disabled, many2one)", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
                 <search>
                     <filter name="domain" domain="[('id', '&lt;', 5)]"/>
                     <searchpanel>
@@ -1522,19 +1455,17 @@ test("only reload categories and filters when domains change (counters disabled,
         "search_panel_select_multi_range",
     ]);
 
-    // reload with another domain, so the filters should be reloaded
     await toggleSearchBarMenu();
     await toggleMenuItem("domain");
     expect.verifySteps(["search_panel_select_multi_range"]);
 
-    // change category value, so the filters should be reloaded
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
     expect.verifySteps(["search_panel_select_multi_range"]);
 });
 
 test("category counters", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="Filter" domain="[('id', '&lt;', 3)]"/>
                 <searchpanel>
@@ -1571,7 +1502,6 @@ test("category counters", async () => {
         "agrolait",
     ]);
 
-    // reload with another domain, so the categories 'state' and 'company_id' should be reloaded
     await toggleSearchBarMenu();
     await toggleMenuItem("Filter");
     expect.verifySteps(["search_panel_select_range", "state"]);
@@ -1585,7 +1515,6 @@ test("category counters", async () => {
         "agrolait",
     ]);
 
-    // change category value, so the category 'state' should be reloaded
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
     expect.verifySteps(["search_panel_select_range", "state"]);
     expect(getCategoriesContent()).toEqual([
@@ -1601,7 +1530,7 @@ test("category counters", async () => {
 
 test("category selection without counters", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="Filter" domain="[('id', '&lt;', 3)]"/>
                 <searchpanel>
@@ -1624,13 +1553,11 @@ test("category selection without counters", async () => {
     expect.verifySteps(["search_panel_select_range", "state"]);
     expect(getCategoriesContent()).toEqual(["All", "ABC", "DEF", "GHI"]);
 
-    // reload with another domain, so the category 'state' should be reloaded
     await toggleSearchBarMenu();
     await toggleMenuItem("Filter");
     expect.verifySteps([]);
     expect(getCategoriesContent()).toEqual(["All", "ABC", "DEF", "GHI"]);
 
-    // change category value, so the category 'state' should be reloaded
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
     expect.verifySteps([]);
     expect(getCategoriesContent()).toEqual(["All", "ABC", "DEF", "GHI"]);
@@ -1639,7 +1566,7 @@ test("category selection without counters", async () => {
 test("filter with groupby", async () => {
     Company._records.push({ id: 11, name: "camptocamp", category_id: 7 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" groupby="category_id" enable_counters="1" expand="1"/>
@@ -1671,7 +1598,6 @@ test("filter with groupby", async () => {
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(0);
     expect(component.domain).toEqual([["bar", "=", true]]);
 
-    // check 'asustek'
     await contains(queryAll`.o_search_panel_filter_value:eq(0) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(
@@ -1684,7 +1610,6 @@ test("filter with groupby", async () => {
         ["company_id", "in", [3]],
     ]);
 
-    // check 'agrolait'
     await contains(queryAll`.o_search_panel_filter_value:eq(1) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(2);
     expect(
@@ -1704,7 +1629,6 @@ test("filter with groupby", async () => {
         ["company_id", "in", [5]],
     ]);
 
-    // check 'camptocamp'
     await contains(queryAll`.o_search_panel_filter_value:eq(2) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(3);
     expect(queryAll`.o_search_panel_filter_value:eq(1) input`).toBeChecked();
@@ -1720,7 +1644,6 @@ test("filter with groupby", async () => {
         ["company_id", "in", [5, 11]],
     ]);
 
-    // uncheck second group
     await contains(`.o_search_panel_filter_group:eq(1) header > div > input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(queryAll`.o_search_panel_filter_value:eq(1) input`).not.toBeChecked();
@@ -1738,7 +1661,7 @@ test("filter with groupby", async () => {
 test("filter with domain", async () => {
     Company._records.push({ id: 40, name: "child company 1", parent_id: 3 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" domain="[('parent_id','=',False)]" enable_counters="1" expand="1"/>
@@ -1773,7 +1696,7 @@ test("filter with domain", async () => {
 
 test("filter with domain depending on category", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="category_id"/>
@@ -1784,7 +1707,6 @@ test("filter with domain depending on category", async () => {
     };
 
     onRpc("search_panel_select_multi_range", ({ kwargs }) => {
-        // the following keys should have same value for all calls to this route
         const { group_by, search_domain, filter_domain } = kwargs;
         expect({ group_by, search_domain, filter_domain }).toEqual({
             group_by: false,
@@ -1799,38 +1721,35 @@ test("filter with domain depending on category", async () => {
         searchViewId: false,
     });
 
-    // select 'gold' category
     await contains(`.o_search_panel_category_value:eq(1) header`).click();
     expect(`.o_search_panel_category_value .active`).toHaveCount(1);
     expect(`.o_search_panel_category_value:eq(1) .active`).toHaveCount(1);
     expect(`.o_search_panel_filter_value`).toHaveCount(1);
     expect(getFiltersContent()).toEqual(["asustek: 1"]);
 
-    // select 'silver' category
     await contains(`.o_search_panel_category_value:eq(2) header`).click();
     expect(`.o_search_panel_category_value:eq(2) .active`).toHaveCount(1);
     expect(`.o_search_panel_filter_value`).toHaveCount(1);
     expect(getFiltersContent()).toEqual(["agrolait: 2"]);
 
-    // select All
     await contains(`.o_search_panel_category_value:eq(0) header`).click();
     expect(`.o_search_panel_category_value:first .active`).toHaveCount(1);
     expect(`.o_search_panel_filter_value`).toHaveCount(0);
     expect.verifySteps([
-        [], // category_domain (All)
-        [["category_id", "=", false]], // comodel_domain (All)
-        [["category_id", "=", 6]], // category_domain ('gold')
-        [["category_id", "=", 6]], // comodel_domain ('gold')
-        [["category_id", "=", 7]], // category_domain ('silver')
-        [["category_id", "=", 7]], // comodel_domain ('silver')
-        [], // category_domain (All)
-        [["category_id", "=", false]], // comodel_domain (All)
+        [],
+        [["category_id", "=", false]],
+        [["category_id", "=", 6]],
+        [["category_id", "=", 6]],
+        [["category_id", "=", 7]],
+        [["category_id", "=", 7]],
+        [],
+        [["category_id", "=", false]],
     ]);
 });
 
 test("specify active filter values in context", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" enable_counters="1"/>
@@ -1855,7 +1774,6 @@ test("specify active filter values in context", async () => {
         ["state", "in", ["abc", "ghi"]],
     ]);
 
-    // manually untick a default value
     await contains(queryAll`.o_search_panel_filter_value:eq(1) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(2);
     expect(component.domain).toEqual([["state", "in", ["abc", "ghi"]]]);
@@ -1863,7 +1781,7 @@ test("specify active filter values in context", async () => {
 
 test("retrieved filter value from context does not exist", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" enable_counters="1"/>
@@ -1885,7 +1803,7 @@ test("retrieved filter value from context does not exist", async () => {
 test("filter with groupby and default values in context", async () => {
     Company._records.push({ id: 11, name: "camptocamp", category_id: 7 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" groupby="category_id" enable_counters="1" expand="1"/>
@@ -1916,7 +1834,7 @@ test('Does not confuse false and "false" groupby values', async () => {
         { id: 5, name: "B", char_field: "false" },
     ];
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" groupby="char_field"/>
@@ -1934,7 +1852,6 @@ test('Does not confuse false and "false" groupby values', async () => {
     });
     expect(`.o_search_panel_section`).toHaveCount(1);
 
-    // There should be a group 'false' displayed with only value B inside it.
     expect(`.o_search_panel_filter_group`).toHaveCount(1);
     expect(`.o_search_panel_filter_group header`).toHaveText("false");
     expect(
@@ -1942,8 +1859,6 @@ test('Does not confuse false and "false" groupby values', async () => {
     ).toEqual(["B"]);
     expect(`.o_search_panel_filter_group .o_search_panel_filter_value`).toHaveCount(1);
 
-    // Globally, there should be two values, one displayed in the group 'false', and one at the end of the section
-    // (the group false is not displayed and its values are displayed at the first level)
     expect(`.o_search_panel_filter_value`).toHaveCount(2);
     expect(getFiltersContent()).toEqual(["B", "A"]);
 });
@@ -1954,7 +1869,7 @@ test("tests conservation of category record order", async () => {
         { id: 2, name: "lowID", category_id: 6 },
     );
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1" expand="1"/>
@@ -1978,7 +1893,7 @@ test("tests conservation of category record order", async () => {
 });
 
 test("search panel is available on list and kanban by default", async () => {
-    Partner._views.search = /* xml */ `
+    Partner._views.search = `
             <search>
                 <filter name="false_domain" string="False Domain" domain="[(0, '=', 1)]"/>
                 <filter name="filter" string="Filter" domain="[('bar', '=', true)]"/>
@@ -2011,7 +1926,7 @@ test("search panel is available on list and kanban by default", async () => {
 });
 
 test("search panel with view_types attribute", async () => {
-    Partner._views.search = /* xml */ `
+    Partner._views.search = `
             <search>
                 <filter name="false_domain" string="False Domain" domain="[(0, '=', 1)]"/>
                 <filter name="filter" string="Filter" domain="[('bar', '=', true)]"/>
@@ -2049,7 +1964,6 @@ test("search panel state is shared between views", async () => {
     expect(`.o_search_panel_category_value header:eq(0)`).toHaveClass("active");
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(4);
 
-    // select 'asustek' company
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
     expect(`.o_search_panel_category_value header:eq(1)`).toHaveClass("active");
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(2);
@@ -2058,7 +1972,6 @@ test("search panel state is shared between views", async () => {
     expect(`.o_search_panel_category_value header:eq(1)`).toHaveClass("active");
     expect(`.o_data_row`).toHaveCount(2);
 
-    // select 'agrolait' company
     await contains(`.o_search_panel_category_value header:eq(2)`).click();
     expect(`.o_search_panel_category_value header:eq(2)`).toHaveClass("active");
     expect(`.o_data_row`).toHaveCount(2);
@@ -2067,11 +1980,11 @@ test("search panel state is shared between views", async () => {
     expect(`.o_search_panel_category_value header:eq(2)`).toHaveClass("active");
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(2);
     expect.verifySteps([
-        [], // initial search_read
-        [["company_id", "child_of", 3]], // kanban, after selecting the first company
-        [["company_id", "child_of", 3]], // list
-        [["company_id", "child_of", 5]], // list, after selecting the other company
-        [["company_id", "child_of", 5]], // kanban
+        [],
+        [["company_id", "child_of", 3]],
+        [["company_id", "child_of", 3]],
+        [["company_id", "child_of", 5]],
+        [["company_id", "child_of", 5]],
     ]);
 });
 
@@ -2085,7 +1998,6 @@ test("search panel filters are kept between switch views", async () => {
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(0);
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(4);
 
-    // select gold filter
     await contains(queryAll`.o_search_panel_filter_value:eq(0) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(1);
@@ -2094,7 +2006,6 @@ test("search panel filters are kept between switch views", async () => {
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(`.o_data_row`).toHaveCount(1);
 
-    // select silver filter
     await contains(queryAll`.o_search_panel_filter_value:eq(1) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(2);
     expect(`.o_data_row`).toHaveCount(4);
@@ -2106,12 +2017,12 @@ test("search panel filters are kept between switch views", async () => {
     await contains(`.o_kanban_record`).click();
     await contains(`.breadcrumb-item`).click();
     expect.verifySteps([
-        [], // initial search_read
-        [["category_id", "in", [6]]], // kanban, after selecting the gold filter
-        [["category_id", "in", [6]]], // list
-        [["category_id", "in", [6, 7]]], // list, after selecting the silver filter
-        [["category_id", "in", [6, 7]]], // kanban
-        [["category_id", "in", [6, 7]]], // kanban, after switching back from form view
+        [],
+        [["category_id", "in", [6]]],
+        [["category_id", "in", [6]]],
+        [["category_id", "in", [6, 7]]],
+        [["category_id", "in", [6, 7]]],
+        [["category_id", "in", [6, 7]]],
     ]);
 });
 
@@ -2124,18 +2035,15 @@ test("search panel filters are kept when switching to a view with no search pane
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(0);
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(4);
 
-    // select gold filter
     await contains(queryAll`.o_search_panel_filter_value:eq(0) input`).click();
     expect(`.o_search_panel_filter_value input:checked`).toHaveCount(1);
     expect(`.o_kanban_record:not(.o_kanban_ghost)`).toHaveCount(1);
 
-    // switch to pivot
     await getService("action").switchView("pivot");
     expect(`.o_pivot_view .o_content`).toHaveCount(1);
     expect(`.o_content .o_search_panel`).toHaveCount(0);
     expect(`.o_pivot_cell_value`).toHaveText("15");
 
-    // switch to list
     await getService("action").switchView("list");
     expect(`.o_list_view .o_content.o_component_with_search_panel`).toHaveCount(1);
     expect(`.o_content.o_component_with_search_panel .o_search_panel`).toHaveCount(1);
@@ -2160,13 +2068,12 @@ test("categories and filters are not reloaded when switching between views", asy
     await getService("action").switchView("list");
     await getService("action").switchView("kanban");
     expect.verifySteps([
-        "search_panel_select_range", // kanban: categories
-        "search_panel_select_multi_range", // kanban: filters
+        "search_panel_select_range",
+        "search_panel_select_multi_range",
     ]);
 });
 
 test("categories and filters are loaded when switching from a view without the search panel", async () => {
-    // set the pivot view as the default view
     defineActions(
         [
             {
@@ -2222,14 +2129,11 @@ test("scroll kanban view with searchpanel and kept scroll position", async () =>
     await getService("action").doAction(1);
     await getService("action").switchView("kanban");
 
-    // simulate a scroll in the kanban view
     queryFirst(`.o_renderer`).scrollTop = 100;
     await getService("action").doAction(2);
 
-    // execute a second action (in which we don't scroll)
     expect(`.o_content`).toHaveProperty("scrollTop", 0);
 
-    // go back using the breadcrumbs
     await contains(`.o_control_panel .breadcrumb a`).click();
     expect(`.o_renderer`).toHaveProperty("scrollTop", 100);
 });
@@ -2252,14 +2156,12 @@ test("scroll position is kept when switching between controllers", async () => {
     expect(`.o_kanban_view .o_content`).toHaveCount(1);
     expect(queryFirst(`.o_search_panel`).scrollTop).toBe(0);
 
-    // simulate a scroll in the search panel and switch into list
     await scroll(`.o_search_panel`, { y: 100 });
     await animationFrame();
     await getService("action").switchView("list");
     expect(`.o_list_view .o_content`).toHaveCount(1);
     expect(queryFirst(`.o_search_panel`).scrollTop).toBe(100);
 
-    // simulate another scroll and switch back to kanban
     await scroll(`.o_search_panel`, { y: 25 });
     await getService("action").switchView("kanban");
     expect(`.o_kanban_view .o_content`).toHaveCount(1);
@@ -2272,8 +2174,8 @@ test("search panel is not instantiated in dialogs", async () => {
         name: `Company${i + 1}`,
     }));
     Company._views = {
-        [["list", false]]: /* xml */ `<list><field name="name"/></list>`,
-        [["search", false]]: /* xml */ `
+        [["list", false]]: `<list><field name="name"/></list>`,
+        [["search", false]]: `
             <search>
                 <field name="name"/>
                 <searchpanel>
@@ -2296,7 +2198,7 @@ test("search panel is not instantiated in dialogs", async () => {
 
 test("Reload categories with counters when filter values are selected", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="category_id" enable_counters="1"/>
@@ -2334,7 +2236,7 @@ test("many2one: select one, expand, hierarchize, counters", async () => {
     );
     Partner._records[1].company_id = 50;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1" expand="1"/>
@@ -2363,7 +2265,7 @@ test("many2one: select one, no expand, hierarchize, counters", async () => {
     );
     Partner._records[1].company_id = 50;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -2392,7 +2294,7 @@ test("many2one: select one, expand, no hierarchize, counters", async () => {
     );
     Partner._records[1].company_id = 50;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" hierarchize="0" enable_counters="1" expand="1"/>
@@ -2417,7 +2319,7 @@ test("many2one: select one, no expand, no hierarchize, counters", async () => {
     );
     Partner._records[1].company_id = 50;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" hierarchize="0" enable_counters="1"/>
@@ -2442,7 +2344,7 @@ test("many2one: select one, expand, hierarchize, no counters", async () => {
     );
     Partner._records[1].company_id = 50;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" expand="1"/>
@@ -2471,7 +2373,7 @@ test("many2one: select one, no expand, hierarchize, no counters", async () => {
     );
     Partner._records[1].company_id = 50;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id"/>
@@ -2500,7 +2402,7 @@ test("many2one: select one, expand, no hierarchize, no counters", async () => {
     );
     Partner._records[1].company_id = 50;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" hierarchize="0" expand="1"/>
@@ -2525,7 +2427,7 @@ test("many2one: select one, no expand, no hierarchize, no counters", async () =>
     );
     Partner._records[1].company_id = 50;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" hierarchize="0"/>
@@ -2546,7 +2448,7 @@ test("many2one: select one, no expand, no hierarchize, no counters", async () =>
 test("many2one: select multi, expand, groupby, counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" groupby="category_id" enable_counters="1" expand="1"/>
@@ -2567,7 +2469,7 @@ test("many2one: select multi, expand, groupby, counters", async () => {
 test("many2one: select multi, no expand, groupby, counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" groupby="category_id" enable_counters="1"/>
@@ -2588,7 +2490,7 @@ test("many2one: select multi, no expand, groupby, counters", async () => {
 test("many2one: select multi, expand, no groupby, counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" enable_counters="1" expand="1"/>
@@ -2609,7 +2511,7 @@ test("many2one: select multi, expand, no groupby, counters", async () => {
 test("many2one: select multi, no expand, no groupby, counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" enable_counters="1"/>
@@ -2630,7 +2532,7 @@ test("many2one: select multi, no expand, no groupby, counters", async () => {
 test("many2one: select multi, expand, groupby, no counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" groupby="category_id" expand="1"/>
@@ -2651,7 +2553,7 @@ test("many2one: select multi, expand, groupby, no counters", async () => {
 test("many2one: select multi, no expand, groupby, no counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" groupby="category_id"/>
@@ -2672,7 +2574,7 @@ test("many2one: select multi, no expand, groupby, no counters", async () => {
 test("many2one: select multi, expand, no groupby, no counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" expand="1"/>
@@ -2693,7 +2595,7 @@ test("many2one: select multi, expand, no groupby, no counters", async () => {
 test("many2one: select multi, no expand, no groupby, no counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi"/>
@@ -2714,7 +2616,7 @@ test("many2one: select multi, no expand, no groupby, no counters", async () => {
 test("many2many: select multi, expand, groupby, counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_ids" select="multi" groupby="category_id" enable_counters="1" expand="1"/>
@@ -2735,7 +2637,7 @@ test("many2many: select multi, expand, groupby, counters", async () => {
 test("many2many: select multi, no expand, groupby, counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_ids" select="multi" groupby="category_id" enable_counters="1"/>
@@ -2756,7 +2658,7 @@ test("many2many: select multi, no expand, groupby, counters", async () => {
 test("many2many: select multi, expand, no groupby, counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_ids" select="multi" enable_counters="1" expand="1"/>
@@ -2777,7 +2679,7 @@ test("many2many: select multi, expand, no groupby, counters", async () => {
 test("many2many: select multi, no expand, no groupby, counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_ids" select="multi" enable_counters="1"/>
@@ -2798,7 +2700,7 @@ test("many2many: select multi, no expand, no groupby, counters", async () => {
 test("many2many: select multi, expand, groupby, no counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_ids" select="multi" groupby="category_id" expand="1"/>
@@ -2819,7 +2721,7 @@ test("many2many: select multi, expand, groupby, no counters", async () => {
 test("many2many: select multi, no expand, groupby, no counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_ids" select="multi" groupby="category_id"/>
@@ -2840,7 +2742,7 @@ test("many2many: select multi, no expand, groupby, no counters", async () => {
 test("many2many: select multi, expand, no groupby, no counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_ids" select="multi" expand="1"/>
@@ -2861,7 +2763,7 @@ test("many2many: select multi, expand, no groupby, no counters", async () => {
 test("many2many: select multi, no expand, no groupby, no counters", async () => {
     Company._records.push({ id: 666, name: "Mordor Inc.", category_id: 6 });
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_ids" select="multi"/>
@@ -2882,7 +2784,7 @@ test("many2many: select multi, no expand, no groupby, no counters", async () => 
 test("selection: select one, expand, counters", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" enable_counters="1" expand="1"/>
@@ -2903,7 +2805,7 @@ test("selection: select one, expand, counters", async () => {
 test("selection: select one, no expand, counters", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" enable_counters="1"/>
@@ -2924,7 +2826,7 @@ test("selection: select one, no expand, counters", async () => {
 test("selection: select one, expand, no counters", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" expand="1"/>
@@ -2945,7 +2847,7 @@ test("selection: select one, expand, no counters", async () => {
 test("selection: select one, no expand, no counters", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state"/>
@@ -2966,7 +2868,7 @@ test("selection: select one, no expand, no counters", async () => {
 test("selection: select multi, expand, counters", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" select="multi" enable_counters="1" expand="1"/>
@@ -2987,7 +2889,7 @@ test("selection: select multi, expand, counters", async () => {
 test("selection: select multi, no expand, counters", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" select="multi" enable_counters="1"/>
@@ -3008,7 +2910,7 @@ test("selection: select multi, no expand, counters", async () => {
 test("selection: select multi, expand, no counters", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" select="multi" expand="1"/>
@@ -3029,7 +2931,7 @@ test("selection: select multi, expand, no counters", async () => {
 test("selection: select multi, no expand, no counters", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="state" select="multi"/>
@@ -3047,14 +2949,10 @@ test("selection: select multi, no expand, no counters", async () => {
     expect(getFiltersCounter()).toEqual([]);
 });
 
-//-------------------------------------------------------------------------
-// Model domain and count domain distinction
-//-------------------------------------------------------------------------
-
 test("selection: select multi, no expand, counters, extra_domain", async () => {
     Partner._records.shift();
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id"/>
@@ -3077,13 +2975,9 @@ test("selection: select multi, no expand, counters, extra_domain", async () => {
     expect(getFiltersCounter()).toEqual([1]);
 });
 
-//-------------------------------------------------------------------------
-// Limit
-//-------------------------------------------------------------------------
-
 test("reached limit for a category", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" limit="2"/>
@@ -3106,7 +3000,7 @@ test("reached limit for a category", async () => {
 
 test("reached limit for a filter", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" select="multi" limit="2"/>
@@ -3129,7 +3023,7 @@ test("reached limit for a filter", async () => {
 
 test("a selected value becomming invalid should no more impact the view", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <filter name="filter_on_def" string="DEF" domain="[('state', '=', 'def')]"/>
                 <searchpanel>
@@ -3146,11 +3040,9 @@ test("a selected value becomming invalid should no more impact the view", async 
     });
     expect.verifySteps(["search_panel_select_range"]);
 
-    // select 'ABC' in search panel
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
     expect.verifySteps(["search_panel_select_range"]);
 
-    // select DEF in filter menu
     await toggleSearchBarMenu();
     await toggleMenuItem("DEF");
     expect.verifySteps(["search_panel_select_range"]);
@@ -3160,7 +3052,7 @@ test("a selected value becomming invalid should no more impact the view", async 
 
 test("Categories with default attributes should be udpated when external domain changes", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
                 <search>
                     <filter name="filter_on_def" string="DEF" domain="[('state', '=', 'def')]"/>
                     <searchpanel>
@@ -3178,12 +3070,10 @@ test("Categories with default attributes should be udpated when external domain 
     expect.verifySteps(["search_panel_select_range"]);
     expect(getCategoriesContent()).toEqual(["All", "ABC", "DEF", "GHI"]);
 
-    // select 'ABC' in search panel --> no need to update the category value
     await contains(`.o_search_panel_category_value header:eq(1)`).click();
     expect.verifySteps([]);
     expect(getCategoriesContent()).toEqual(["All", "ABC", "DEF", "GHI"]);
 
-    // select DEF in filter menu --> the external domain changes --> the values should be updated
     await toggleSearchBarMenu();
     await toggleMenuItem("DEF");
     expect.verifySteps(["search_panel_select_range"]);
@@ -3192,7 +3082,7 @@ test("Categories with default attributes should be udpated when external domain 
 
 test("Category with counters and filter with domain", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="category_id"/>
@@ -3211,7 +3101,7 @@ test("Category with counters and filter with domain", async () => {
 
 test("Category with counters and filter with domain and context", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="category_id"/>
@@ -3303,7 +3193,7 @@ test("search panel can be collapsed by default if it was set in local storage be
 
 test("search panel collapse with multiple filter categories selected", async () => {
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -3385,7 +3275,7 @@ test("search panel width is kept when switching between controllers", async () =
 test("hide search panel if there is no records", async () => {
     Partner._records = [];
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" enable_counters="1"/>
@@ -3416,7 +3306,7 @@ test("many2one: select one, hierarchize and depth", async () => {
     Partner._records[0].company_id = 6;
     Partner._records[1].company_id = 7;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" depth="3"/>
@@ -3450,7 +3340,7 @@ test("many2one: select one, hierarchize and depth and search_default", async () 
     Partner._records[0].company_id = 6;
     Partner._records[1].company_id = 7;
     Partner._views = {
-        search: /* xml */ `
+        search: `
             <search>
                 <searchpanel>
                     <field name="company_id" depth="2"/>
@@ -3472,7 +3362,7 @@ test("many2one: select one, hierarchize and depth and search_default", async () 
 
 test("search panel with sample data", async () => {
     Partner._records = [];
-    Partner._views.kanban = /* xml */ `
+    Partner._views.kanban = `
         <kanban sample="1">
             <templates>
                 <div t-name="card" class="oe_kanban_global_click">
@@ -3480,7 +3370,7 @@ test("search panel with sample data", async () => {
                 </div>
             </templates>
         </kanban>`;
-    Partner._views.list = /* xml */ `
+    Partner._views.list = `
         <list sample="1">
             <field name="foo"/>
         </list>`;
@@ -3498,4 +3388,73 @@ test("search panel with sample data", async () => {
     expect(`.o_search_panel_filter_value:eq(0) input`).toHaveStyle({
         "pointer-events": "auto",
     });
+});
+
+test("a category tree survives an imported state that predates it", async () => {
+    // getGlobalState can run before onWillStart's expandDefaultValue has seeded
+    // state.expanded, so a restored panel may carry no entry for a category.
+    onRpc("search_panel_select_range", () => ({
+        parent_field: "parent_id",
+        values: [
+            { id: 6, display_name: "gold", parent_id: false, __count: 2 },
+            { id: 7, display_name: "silver", parent_id: 6, __count: 1 },
+        ],
+    }));
+    await mountWithSearch(SearchPanel, {
+        resModel: "partner",
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <searchpanel>
+                    <field name="category_id"/>
+                </searchpanel>
+            </search>`,
+        globalState: {
+            searchPanel: JSON.stringify({
+                expanded: {},
+                scrollTop: 0,
+                sidebarExpanded: true,
+                width: "10px",
+            }),
+        },
+    });
+    await animationFrame();
+
+    expect(".o_search_panel_category_value").toHaveCount(2);
+    expect(
+        queryAll(".o_toggle_fold .fa-caret-right, .o_toggle_fold .fa-caret-down"),
+    ).toHaveLength(1);
+});
+
+test("group and value checkboxes of one section get distinct ids", async () => {
+    // group ids and value ids come from different comodels and overlap freely
+    onRpc("search_panel_select_multi_range", () => ({
+        values: [
+            {
+                id: 6,
+                display_name: "Value six",
+                group_id: 6,
+                group_name: "Group six",
+                __count: 1,
+            },
+        ],
+    }));
+    await mountWithSearch(SearchPanel, {
+        resModel: "partner",
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <searchpanel>
+                    <field name="company_id" select="multi" groupby="category_id"/>
+                </searchpanel>
+            </search>`,
+    });
+    await animationFrame();
+
+    const ids = queryAll("input[type=checkbox]").map((el) => el.id);
+    expect(ids).toHaveLength(2);
+    expect(new Set(ids).size).toBe(2);
+    for (const id of ids) {
+        expect(id).toMatch(/^\d+_(group|input)_\d+$/);
+    }
 });

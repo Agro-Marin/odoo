@@ -16,7 +16,6 @@ export class SkeletonView extends Component {
     };
 
     setup() {
-        // Pre-built arrays for t-foreach loops (OWL templates lack range())
         /** @type {number[]} */
         this.listRows = Array.from({ length: 8 }, (_, i) => i);
         /** @type {number[]} */

@@ -524,9 +524,6 @@ test(`handles many2one fields: value is an object with id only`, async () => {
 });
 
 test(`handles many2one fields: target record is missing or inaccessible`, async () => {
-    // web_read silently omits ids that no longer exist / are inaccessible, so
-    // loadDisplayName can receive an empty result. The Record must degrade to a
-    // blank label instead of throwing and failing the whole render.
     class Bar extends models.Model {
         name = fields.Char();
 
@@ -551,23 +548,18 @@ test(`handles many2one fields: target record is missing or inaccessible`, async 
                     relation: "bar",
                 },
             };
-            // Bare id pointing to a record that no longer exists.
             this.values = {
                 foo: 999,
             };
         }
     }
 
-    // Simulate the deleted/inaccessible target: web_read returns no record.
     onRpc("bar", "web_read", () => {
         expect.step("bar/web_read");
         return [];
     });
     await mountWithCleanup(Parent);
     expect.verifySteps(["bar/web_read"]);
-    // Rendered without crashing. An unresolvable target has a blank
-    // display_name, which Many2OneField renders as its standard "Unnamed"
-    // placeholder — not a hard error.
     expect(`.o_field_many2one_selection input`).toHaveValue("Unnamed");
 });
 
@@ -707,7 +699,6 @@ test(`can switch records`, async () => {
     expect(`div[name='foo']`).toHaveText("yop");
 
     await contains(`#increment`).click();
-    // No reload when a render from upstream comes
     expect.verifySteps([]);
     expect(`#increment`).toHaveText("1");
     expect(`div[name='foo']`).toHaveText("yop");
@@ -763,19 +754,13 @@ test(`can switch records with values`, async () => {
         (component) => component instanceof Record.components._Record,
     );
 
-    // No load since the values are provided to the record
     expect.verifySteps([]);
-    // First values are loaded
     expect(`div[name='foo']`).toHaveText("abc");
-    // Verify that the underlying _Record Model root has the specified resId
     expect(_record.model.root.resId).toBe(99);
 
     await contains(`#next`).click();
-    // Still no load.
     expect.verifySteps([]);
-    // Second values are loaded
     expect(`div[name='foo']`).toHaveText("def");
-    // Verify that the underlying _Record Model root has the updated resId
     expect(_record.model.root.resId).toBe(100);
 });
 
@@ -922,15 +907,10 @@ test(`re-setting a many2one to its current value records no change and does not 
     const field = findComponent(parent, (c) => c instanceof Many2OneField);
     const record = field.props.record;
 
-    // Re-set the many2one to the SAME value it already holds.
     const changes = { foo: { id: 1, display_name: "bar1" } };
     await record.update(changes);
 
-    // No-op m2o change is filtered out: no parent change recorded.
     expect.verifySteps([]);
-    // _update no longer mutates the caller's object in place (previously
-    // deleted the key via `delete changes.foo`).
     expect("foo" in changes).toBe(true);
-    // The record value is unchanged.
     expect(record.data.foo).toEqual({ id: 1, display_name: "bar1" });
 });

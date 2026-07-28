@@ -25,7 +25,7 @@ export const TERM_OPERATORS_NEGATION_EXTENDED = {
     is: "is not",
     "is not": "is",
     "==": "!=",
-    "!=": "==", // override here
+    "!=": "==",
 };
 
 /** @type {string[]} All comparison operators valid in Python expressions */

@@ -135,7 +135,6 @@ test(`Rendering with default ControlPanel and SearchPanel`, async () => {
 });
 
 test(`Nested layouts`, async () => {
-    // Component C: bottom (no control panel)
     class ToyC extends Component {
         static props = ["*"];
         static template = xml`
@@ -153,7 +152,6 @@ test(`Nested layouts`, async () => {
         }
     }
 
-    // Component B: center (with custom search panel)
     class SearchPanel extends Component {
         static props = ["*"];
         static template = xml`<div class="o_toy_search_panel"/>`;
@@ -180,7 +178,6 @@ test(`Nested layouts`, async () => {
         }
     }
 
-    // Component A: top
     class ToyA extends Component {
         static props = ["*"];
         static template = xml`

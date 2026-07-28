@@ -1,13 +1,14 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { click, hover, pointerDown, pointerUp } from "@odoo/hoot-dom";
+import { animationFrame, click, hover, pointerDown, pointerUp } from "@odoo/hoot-dom";
+import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { FileModel } from "@web/components/file_viewer/file_model";
 import { FileViewer } from "@web/components/file_viewer/file_viewer";
 
 describe.current.tags("desktop");
 
-// 1x1 transparent PNG
 const IMAGE_SOURCE =
     "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==";
 
@@ -39,22 +40,17 @@ test("releasing an image pan outside the image does not close the viewer", async
     await pointerDown(".o-FileViewer-viewImage");
     expect(viewer.isDragging).toBe(true);
 
-    // Pan: the pointer moves off the image, over the main view.
     await hover(".o-FileViewer-main", { position: { x: 5, y: 5 } });
     expect(viewer.didDrag).toBe(true);
 
-    // Releasing the pointer outside the image must end the pan, and the
-    // composed click on the main view must not close the viewer.
     await pointerUp(".o-FileViewer-main");
     expect(viewer.isDragging).toBe(false);
     expect.verifySteps([]);
 
-    // Panning stopped: further pointer moves must not translate the image.
     await hover(".o-FileViewer-main", { position: { x: 60, y: 60 } });
     expect(viewer.translate.dx).toBe(0);
     expect(viewer.translate.dy).toBe(0);
 
-    // A genuine click on the backdrop still closes the viewer.
     await click(".o-FileViewer-main");
     expect.verifySteps(["close"]);
 });
@@ -72,4 +68,88 @@ test("switching file resets the iframe loaded state", async () => {
     await click(".o-FileViewer-navigation[aria-label='Next']");
     expect(viewer.state.isIframeLoaded).toBe(false);
     expect(viewer.state.index).toBe(1);
+});
+
+test("re-anchors on a new files list", async () => {
+    const other = { ...IMAGE_FILE, name: "other.png" };
+    let update;
+    class Parent extends Component {
+        static components = { FileViewer };
+        static props = {};
+        static template = xml`<FileViewer files="state.files" startIndex="0" modal="false"/>`;
+        setup() {
+            this.state = useState({ files: [IMAGE_FILE, other] });
+            update = (files) => (this.state.files = files);
+        }
+    }
+    await mountWithCleanup(Parent);
+    expect(".o-FileViewer-header .text-truncate").toHaveText("test.png");
+
+    // Reordering keeps the viewed file, not the index.
+    update([other, IMAGE_FILE]);
+    await animationFrame();
+    expect(".o-FileViewer-header .text-truncate").toHaveText("test.png");
+
+    // Removing the viewed file falls back within the new list.
+    update([other]);
+    await animationFrame();
+    expect(".o-FileViewer-header .text-truncate").toHaveText("other.png");
+
+    // Emptying the list renders nothing instead of a stale preview.
+    update([]);
+    await animationFrame();
+    expect(".o-FileViewer").toHaveCount(0);
+});
+
+test("re-anchors on a plain (non-reactive) files list", async () => {
+    const other = { ...IMAGE_FILE, name: "other.png" };
+    let reorder;
+    class Parent extends Component {
+        static components = { FileViewer };
+        static props = {};
+        static template = xml`<FileViewer files="files" startIndex="0" modal="false"/>`;
+        setup() {
+            this.state = useState({ flipped: false });
+            this.rawFiles = [IMAGE_FILE, other];
+            reorder = () => {
+                this.rawFiles = [other, IMAGE_FILE];
+                this.state.flipped = true;
+            };
+        }
+        get files() {
+            return this.rawFiles;
+        }
+    }
+    await mountWithCleanup(Parent);
+    expect(".o-FileViewer-header .text-truncate").toHaveText("test.png");
+
+    reorder();
+    await animationFrame();
+    expect(".o-FileViewer-header .text-truncate").toHaveText("test.png");
+});
+
+test("youtube URLs are matched on the host, not on a substring", async () => {
+    const videoId = (url) =>
+        Object.assign(new FileModel(), { type: "url", url }).youtubeVideoId;
+
+    expect([
+        videoId("https://www.youtube.com/watch?v=abc123"),
+        videoId("https://youtube.com/watch?app=desktop&v=abc123&t=30"),
+        videoId("https://youtu.be/abc123"),
+        videoId("https://youtu.be/abc123?t=30"),
+        videoId("https://www.youtube.com/embed/abc123"),
+        videoId("https://www.youtube.com/shorts/abc123"),
+        videoId("https://www.youtube-nocookie.com/embed/abc123"),
+    ]).toEqual(Array(7).fill("abc123"));
+
+    // A link that merely contains "youtu" must stay a plain URL.
+    const impostor = Object.assign(new FileModel(), {
+        type: "url",
+        url: "https://example.com/my-youtube-clone/page",
+    });
+    expect(impostor.isUrlYoutube).toBe(false);
+    expect(impostor.defaultSource).not.toInclude("youtube.com/embed");
+
+    // Subdomain spoofing must not pass either.
+    expect(videoId("https://youtube.evil.com/watch?v=abc123")).toBe(null);
 });

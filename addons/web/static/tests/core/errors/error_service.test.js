@@ -178,14 +178,7 @@ test("handle normal RPC_ERROR of type='server' and associated custom dialog clas
 });
 
 test("session-expired RPC error (code 100) routes to SessionExpiredDialog", async () => {
-    // Seam-pinning test: the key registered in the error_dialogs registry MUST
-    // match the SERVER serialized name. serialize_exception (odoo/http/helpers.py)
-    // emits `type(exc).__module__ + "." + type(exc).__name__`, and
-    // SessionExpiredException pins `__module__ = "odoo.http"` (its public
-    // re-export path) in odoo/http/exceptions.py, so the wire name is
-    // "odoo.http.SessionExpiredException". A mismatch degrades the expired-
-    // session UX to a generic RPCErrorDialog traceback.
-    expect.assertions(3); // 2 in dialog.add + verifyErrors
+    expect.assertions(3);
     expect.errors(1);
     const error = makeErrorFromResponse({
         code: 100,
@@ -211,10 +204,6 @@ test("session-expired RPC error (code 100) routes to SessionExpiredDialog", asyn
 });
 
 test("ServerActionWithWarningsError routes to WarningDialog (fork and legacy names)", async () => {
-    // This fork moved ServerActionWithWarningsError from ir_actions.py to
-    // ir_actions_server.py, changing its serialized name. Both the fork name
-    // (actually emitted by the server) and the upstream/legacy name (kept as a
-    // registry alias for third-party emitters) must select WarningDialog.
     expect.errors(2);
     mockService("dialog", {
         add(dialogClass, props) {
@@ -259,7 +248,7 @@ test("handle CONNECTION_LOST_ERROR", async () => {
             };
         },
     });
-    const values = [false, true]; // simulate the 'back online status' after 2 'version_info' calls
+    const values = [false, true];
     onRpc("/web/webclient/version_info", async () => {
         expect.step("version_info");
         const online = values.shift();
@@ -292,9 +281,6 @@ test("handle CONNECTION_LOST_ERROR", async () => {
 });
 
 test("defaultHandler tolerates an error event target without a location", async () => {
-    // `error.event.target` may be an object with no `location` (only Window-ish
-    // targets have one). The optional chain must stop before `.host` instead of
-    // throwing INSIDE the error handler.
     const env = {
         services: {
             dialog: {
@@ -308,7 +294,6 @@ test("defaultHandler tolerates an error event target without a location", async 
     const error = new Error("boom");
     /** @type {any} */ (error).event = { target: {} };
 
-    // Must not throw while building the dialog props.
     defaultHandler(/** @type {any} */ (env), /** @type {any} */ (error));
     expect.verifySteps(["dialog"]);
 });
@@ -326,7 +311,6 @@ test("CONNECTION_LOST_ERROR reconnection backoff is capped at 60s", async () => 
         versionInfoCalls++;
         return online ? true : Promise.reject();
     });
-    // random() === 0 makes the backoff sequence deterministic.
     patchWithCleanup(Math, {
         random: () => 0,
     });
@@ -335,16 +319,11 @@ test("CONNECTION_LOST_ERROR reconnection backoff is capped at 60s", async () => 
     Promise.reject(new ConnectionLostError("/fake_url"));
     await animationFrame();
 
-    // Keep failing across a long virtual window (awaiting each step so the
-    // rejected RPC reschedules the next retry). With the 60s cap the retry
-    // fires roughly once a minute (dozens of attempts); an *uncapped*
-    // exponential backoff would slow down and fire only ~17 times.
     for (let i = 0; i < 80; i++) {
         await advanceTime(60_000);
     }
     expect(versionInfoCalls > 30).toBe(true);
 
-    // Let it reconnect so the retry loop and its module state are cleaned up.
     online = true;
     await advanceTime(60_000);
 
@@ -380,9 +359,9 @@ test("originalError is the root cause of the error chain", async () => {
     const error = new Error();
     error.name = "boom";
     errorHandlerRegistry.add("__test_handler__", (env, err, originalError) => {
-        expect(err).toBeInstanceOf(UncaughtPromiseError); // Wrapped by error service
-        expect(err.cause).toBeInstanceOf(OwlError); // Wrapped by owl
-        expect(err.cause.cause).toBe(originalError); // original error
+        expect(err).toBeInstanceOf(UncaughtPromiseError);
+        expect(err.cause).toBeInstanceOf(OwlError);
+        expect(err.cause.cause).toBe(originalError);
         expect.step("in handler");
         return true;
     });
@@ -496,8 +475,6 @@ test("don't show dialog for errors in third-party scripts", async () => {
     });
     await makeMockEnv();
 
-    // Error events from errors in third-party scripts have no colno, no lineno and no filename
-    // because of CORS.
     await manuallyDispatchProgrammaticEvent(window, "error", { error });
     await animationFrame();
     expect.verifyErrors(["Script error."]);
@@ -518,8 +495,6 @@ test("show dialog for errors in third-party scripts in debug mode", async () => 
     });
     await makeMockEnv();
 
-    // Error events from errors in third-party scripts have no colno, no lineno and no filename
-    // because of CORS.
     await manuallyDispatchProgrammaticEvent(window, "error", { error });
     await animationFrame();
     expect.verifyErrors(["Script error."]);
@@ -549,8 +524,6 @@ test("lazy loaded handlers", async () => {
 });
 
 test("supersededErrorHandler runs before the dialog handlers", async () => {
-    // Registered with a low sequence so no later handler (dialogs, RPC, etc.)
-    // ever sees a SupersededError.
     const env = await makeMockEnv();
     const names = errorHandlerRegistry.getEntries().map(([name]) => name);
     expect(names.indexOf("supersededErrorHandler")).toBeLessThan(
@@ -560,10 +533,8 @@ test("supersededErrorHandler runs before the dialog handlers", async () => {
     let prevented = false;
     const uncaught = new UncaughtPromiseError();
     /** @type {any} */ (uncaught).event = { preventDefault: () => (prevented = true) };
-    // Swallows a SupersededError and prevents the browser/console log.
     expect(supersededErrorHandler(env, uncaught, new SupersededError())).toBe(true);
     expect(prevented).toBe(true);
-    // Leaves any other error for the next handler.
     expect(supersededErrorHandler(env, uncaught, new Error("real"))).toBe(false);
 });
 
@@ -639,18 +610,12 @@ describe("Error Service Logs", () => {
             cancelable: true,
         });
         errorEvent.error = error;
-        errorEvent.filename = "dummy_file.js"; // needed to not be treated as a CORS error
+        errorEvent.filename = "dummy_file.js";
         await errorCb(errorEvent);
         expect(errorEvent.defaultPrevented).toBe(true);
     });
 
     test("error in handlers while handling an error", async () => {
-        // Scenario: an error occurs at the early stage of the "boot" sequence, error handlers
-        // that are supposed to spawn dialogs are not ready then and will crash.
-        // Contract: a crashing handler is logged unconditionally in SHORT form (handler name +
-        // its own error + one-line original error) WITHOUT aborting the pipeline, so handlers
-        // registered after it still run; the original traceback is then logged exactly once by
-        // the service's fallback, which also does the preventDefault.
         errorHandlerRegistry.add(
             "__test_handler__",
             (env, err, originalError) => {
@@ -662,7 +627,6 @@ describe("Error Service Logs", () => {
         errorHandlerRegistry.add(
             "__later_handler__",
             () => {
-                // Must still run despite the crash of __test_handler__.
                 sawLaterHandler = true;
             },
             { sequence: 1 },
@@ -693,7 +657,7 @@ describe("Error Service Logs", () => {
 
         errorEvent.error = new Error("Genuine Business Boom");
         errorEvent.error.annotatedTraceback = "annotated";
-        errorEvent.filename = "dummy_file.js"; // needed to not be treated as a CORS error
+        errorEvent.filename = "dummy_file.js";
         await errorCb(errorEvent);
         expect(errorEvent.defaultPrevented).toBe(true);
         expect(sawLaterHandler).toBe(true);

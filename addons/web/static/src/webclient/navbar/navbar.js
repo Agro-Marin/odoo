@@ -20,10 +20,10 @@ import { registry } from "@web/core/registry";
 import { ErrorHandler } from "@web/core/utils/components";
 import { useService } from "@web/core/utils/hooks";
 import { debounce } from "@web/core/utils/timing";
+
+import { SWIPE_LEFT, SwipeTracker } from "../swipe.js";
 const systrayRegistry = registry.category("systray");
 
-// Schema for systray items. Consumers (this navbar's template) read
-// `Component`, `props`, and `isDisplayed`; everything else is forwarded.
 systrayRegistry.addValidation({
     Component: { validate: (c) => c?.prototype instanceof Component },
     props: { type: Object, optional: true },
@@ -33,7 +33,13 @@ systrayRegistry.addValidation({
 
 const getBoundingClientRect = Element.prototype.getBoundingClientRect;
 
-const SWIPE_ACTIVATION_THRESHOLD = 100;
+/**
+ * Width reserved for the overflow ("More") toggle when deciding how many
+ * sections fit. Budgeted up front because the toggle only exists once at least
+ * one section has overflowed — measuring it is impossible before the decision
+ * that creates it.
+ */
+const MORE_MENU_WIDTH = 46;
 
 /** Dropdown subclass for navbar sub-menus (enables enterprise/website patching). */
 export class MenuDropdown extends Dropdown {}
@@ -58,11 +64,6 @@ export class NavBar extends Component {
 
     setup() {
         this.currentAppSectionsExtra = [];
-        // Keys of systray items whose component threw during render, so the
-        // getter can filter them out permanently. `handleItemError` used to
-        // mutate a per-render COPY of the item (systrayItems rebuilds fresh
-        // objects each render), so the faulty item remounted and re-threw —
-        // and re-queued an error dialog — on every navbar re-render.
         this.failedSystrayKeys = new Set();
         this.actionService = useService("action");
         this.menuService = useService("menu");
@@ -82,8 +83,6 @@ export class NavBar extends Component {
         systrayRegistry.addEventListener("UPDATE", renderAndAdapt);
         this.env.bus.addEventListener(AppEvent.MENUS_APP_CHANGED, renderAndAdapt);
 
-        // onWillDestroy (not onWillUnmount): unmount hooks don't fire for
-        // components destroyed before mount, which would leak the listeners.
         onWillDestroy(() => {
             systrayRegistry.removeEventListener("UPDATE", renderAndAdapt);
             this.env.bus.removeEventListener(
@@ -92,7 +91,6 @@ export class NavBar extends Component {
             );
         });
 
-        // Adapt only when menus or systrays changed, not on every patch.
         useEffect(
             () => {
                 this.adapt();
@@ -104,6 +102,7 @@ export class NavBar extends Component {
             isAllAppsMenuOpened: false,
             isAppMenuSidebarOpened: false,
         });
+        this.swipe = new SwipeTracker(SWIPE_LEFT);
     }
 
     /**
@@ -111,14 +110,7 @@ export class NavBar extends Component {
      * @param {Object} item - the systray item that errored
      */
     handleItemError(error, item) {
-        // Record the failing item's stable registry key (not the transient
-        // per-render copy) so systrayItems drops it on every subsequent
-        // render — otherwise it remounts and re-throws on the next navbar
-        // re-render (app switch, systray UPDATE, overflow adapt), one error
-        // dialog per render.
         this.failedSystrayKeys.add(item.key);
-        // Uses Promise.resolve().then() (not queueMicrotask) so the error routes
-        // through the unhandledrejection handler → UncaughtPromiseError dialog.
         Promise.resolve().then(() => {
             throw error;
         });
@@ -138,24 +130,9 @@ export class NavBar extends Component {
         );
     }
 
-    // Load-bearing no-op setter — NOT redundant with the getter above.
-    //
-    // ``website`` overrides this accessor with ``patch(NavBar.prototype, {get
-    // currentAppSections() {...}})``. A POJO declaring only a getter produces
-    // the descriptor ``{get, set: undefined}``, which ``Object.defineProperty``
-    // would install verbatim, wiping any setter the target had.
-    // ``core/utils/patch.js`` guards that ("get/set are defined together"): when
-    // an extension supplies only one half it inherits the other from the
-    // ancestor descriptor. But inheritance can only propagate a setter that
-    // exists SOMEWHERE in the chain — this is that source. Drop it and the
-    // property becomes getter-only for every patcher downstream, so any
-    // ``this.currentAppSections = ...`` throws in strict mode.
-    //
-    // No such assignment exists today anywhere in odoo/addons or enterprise
-    // (checked 2026-07-25), so this is insurance rather than an active fix —
-    // but its absence is invisible to the test suite, precisely because nothing
-    // assigns. Retire both setters together, and only with a grep over the
-    // deployed addons, not on the strength of a green run.
+    /**
+     * Deliberate no-op, and NOT dead code — see the note on {@link systrayItems}.
+     */
     set currentAppSections(_) {}
 
     get isScopedApp() {
@@ -178,8 +155,24 @@ export class NavBar extends Component {
             .reverse();
     }
 
-    // Load-bearing no-op setter — see the note on ``set currentAppSections``.
-    // ``website`` patches this accessor with a getter-only extension too.
+    /**
+     * Deliberate no-op paired with the getter above, kept because it changes
+     * what `patch()` produces for overriders, not because anything reads it.
+     *
+     * `website` overrides both this and {@link currentAppSections} via
+     * `patch(NavBar.prototype, { get systrayItems() { ... super.systrayItems } })`
+     * — a getter with no setter. `patch()` fills the missing half from the
+     * ancestor descriptor (`core/utils/patch.js`, the
+     * `Boolean(get) !== Boolean(set)` branch), so this no-op is what the
+     * patched property ends up with as its setter. Delete it and the property
+     * becomes getter-only, turning any assignment from a TypeError-in-strict-
+     * mode into the failure this was added to absorb.
+     *
+     * Nothing in odoo/enterprise/agromarin assigns to either today (verified by
+     * grep), so this is belt-and-braces inherited from upstream — but the cost
+     * of keeping it is two lines and the cost of being wrong is a runtime throw
+     * inside another addon's patch.
+     */
     set systrayItems(_) {}
 
     /**
@@ -192,24 +185,17 @@ export class NavBar extends Component {
     async adapt() {
         if (!this.root.el) {
             /** @todo do we still need this check? */
-            // 'render' resolves after the render finishes even if the
-            // component was destroyed meanwhile, so this.el may be unset.
             return;
         }
 
-        // ------- Initialize -------
         const sectionsMenu = this.appSubMenus.el;
         if (!sectionsMenu) {
-            // No need to continue adaptations if there is no sections menu.
             return;
         }
 
-        // Save initial state to further check if new render has to be done.
         const initialAppSectionsExtra = this.currentAppSectionsExtra;
-        const firstInitialAppSectionExtra = [...initialAppSectionsExtra].shift();
-        const initialAppId = firstInitialAppSectionExtra?.appID;
+        const initialAppId = initialAppSectionsExtra[0]?.appID;
 
-        // Restore (needed to get offset widths)
         const sections = [
             ...sectionsMenu.querySelectorAll(":scope > *:not(.o_menu_sections_more)"),
         ];
@@ -218,32 +204,16 @@ export class NavBar extends Component {
         }
         this.currentAppSectionsExtra = [];
 
-        // ------- Check overflowing sections -------
-        // Measure everything once (getBoundingClientRect, not offsetWidth,
-        // avoids rounding errors), then run the overflow arithmetic and the
-        // class mutations on the cached widths: interleaving reads with the
-        // d-none writes would force one synchronous reflow per iteration.
         const sectionsAvailableWidth = getBoundingClientRect.call(sectionsMenu).width;
         const sectionWidths = sections.map((s) => getBoundingClientRect.call(s).width);
         const sectionsTotalWidth = sectionWidths.reduce((sum, w) => sum + w, 0);
         if (sectionsAvailableWidth < sectionsTotalWidth) {
-            // Sections are overflowing
-            // Initial width is harcoded to the width the more menu dropdown will take
-            let width = 46;
-            for (const [index] of sections.entries()) {
+            let width = MORE_MENU_WIDTH;
+            for (let index = 0; index < sections.length; index++) {
                 if (sectionsAvailableWidth < width + sectionWidths[index]) {
-                    // Last sections are overflowing
                     const overflowingSections = sections.slice(index);
                     for (const s of overflowingSections) {
-                        // Hide from normal menu
                         s.classList.add("d-none");
-                        // Show inside "more" menu
-                        // Guard the lookup: an enterprise/website sub-menu
-                        // patch may render a direct child carrying no
-                        // ``data-section`` on itself or any descendant, and
-                        // ``find`` may miss after a menus swap — never deref a
-                        // null query result nor push ``undefined`` into the
-                        // "More" menu.
                         const sectionNode = s.dataset.section
                             ? s
                             : s.querySelector("[data-section]");
@@ -264,14 +234,11 @@ export class NavBar extends Component {
             }
         }
 
-        // ------- Final rendering -------
-        const firstCurrentAppSectionExtra = [...this.currentAppSectionsExtra].shift();
-        const currentAppId = firstCurrentAppSectionExtra?.appID;
+        const currentAppId = this.currentAppSectionsExtra[0]?.appID;
         if (
             initialAppSectionsExtra.length === this.currentAppSectionsExtra.length &&
             initialAppId === currentAppId
         ) {
-            // Do not render if more menu items stayed the same.
             return;
         }
         return this.render();
@@ -303,10 +270,6 @@ export class NavBar extends Component {
         this.state.isAllAppsMenuOpened = !this.state.isAllAppsMenuOpened;
     }
     async _onMenuClicked(menu) {
-        // Close the sidebar whether or not the navigation completes: if a newer
-        // navigation supersedes this one, selectMenu rejects with a
-        // SupersededError (swallowed by the error service) — the `finally` still
-        // closes the sidebar (was: sidebar stayed open on a never-settling await).
         try {
             await this.menuService.selectMenu(menu);
         } finally {
@@ -314,20 +277,11 @@ export class NavBar extends Component {
         }
     }
     _onSwipeStart(ev) {
-        this.swipeStartX = ev.changedTouches[0].clientX;
+        this.swipe.start(ev);
     }
     _onSwipeEnd(ev) {
-        if (!this.swipeStartX) {
-            return;
+        if (this.swipe.end(ev)) {
+            this._closeAppMenuSidebar();
         }
-        const deltaX = this.swipeStartX - ev.changedTouches[0].clientX;
-        // Disarm on every touchend, not just an activating one: a below-
-        // threshold gesture used to leave the start point armed, so a later
-        // touchend with no matching touchstart measured against a stale origin.
-        this.swipeStartX = null;
-        if (deltaX < SWIPE_ACTIVATION_THRESHOLD) {
-            return;
-        }
-        this._closeAppMenuSidebar();
     }
 }

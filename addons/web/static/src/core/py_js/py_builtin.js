@@ -3,9 +3,6 @@
 
 /** @module @web/core/py_js/py_builtin - Python built-in functions (bool, len, set, sorted, etc.) for the JS evaluator */
 
-// Runtime-only use inside max()/min(); the import cycle with py_compare.js
-// (which needs pyTypeName/EvaluationError from here) is safe because neither
-// side touches the other's bindings at module-evaluation time.
 import { isLess } from "./py_compare.js";
 import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_date.js";
 
@@ -65,9 +62,6 @@ export function pyRepr(value) {
         return value.size === 0 ? "set()" : `{${[...value].map(pyRepr).join(", ")}}`;
     }
     if (typeof value === "object") {
-        // A typed Py* object defines its own toString; a plain dict is a
-        // regular Object (see the defineProperty rework in py_parser /
-        // py_interpreter) and only inherits Object.prototype.toString.
         if (
             typeof value.toString === "function" &&
             value.toString !== Object.prototype.toString
@@ -100,10 +94,6 @@ export function pyStr(value) {
         return pyRepr(value);
     }
     if (typeof value === "object") {
-        // Plain dicts render via repr; typed Py* objects (custom toString) do
-        // not. Dict literals are regular Objects (see py_interpreter /
-        // py_parser), so inheriting Object.prototype.toString (or having
-        // none, for null-proto objects from other sources) means plain dict.
         return typeof value.toString !== "function" ||
             value.toString === Object.prototype.toString
             ? pyRepr(value)
@@ -131,8 +121,6 @@ export function _pythonRound(value, ndigits) {
         return value;
     }
     if (ndigits < 0) {
-        // Negative ndigits: round to nearest 10^|ndigits|.
-        // Integer powers of 10 are exact, so divide→round→multiply is safe.
         const factor = 10 ** -ndigits;
         return _pythonRound(value / factor, 0) * factor;
     }
@@ -140,12 +128,8 @@ export function _pythonRound(value, ndigits) {
     const sign = Math.sign(value);
     const abs = Math.abs(value);
 
-    // 17 significant digits uniquely identify any IEEE-754 double, matching
-    // CPython's dtoa shortest-representation behaviour.
     const repr = abs.toPrecision(17);
     if (repr.includes("e")) {
-        // Extreme magnitudes (>10^17 or <10^-17): sub-ulp precision is
-        // irrelevant, fall back to simple multiply approach.
         const factor = 10 ** ndigits;
         return Math.round(value * factor) / factor;
     }
@@ -155,7 +139,7 @@ export function _pythonRound(value, ndigits) {
     const decPart = dotIdx === -1 ? "" : repr.slice(dotIdx + 1);
 
     if (ndigits >= decPart.length) {
-        return value; // fewer stored digits than requested precision
+        return value;
     }
 
     const roundDigit = Number.parseInt(decPart[ndigits]);
@@ -171,14 +155,11 @@ export function _pythonRound(value, ndigits) {
         return sign * (truncated + increment);
     }
 
-    // roundDigit === 5: check remaining digits to determine if above/below/at halfway.
     const remaining = decPart.slice(ndigits + 1);
     if (/[1-9]/.test(remaining)) {
-        // Digits after the '5' push the value above the halfway point → round away from zero.
         return sign * (truncated + increment);
     }
 
-    // Exactly at halfway — banker's round (round to nearest even).
     const lastKeptDigit =
         ndigits === 0
             ? Number.parseInt(intPart[intPart.length - 1])
@@ -223,8 +204,6 @@ function pyIntFromString(raw, base) {
             hadPrefix = true;
         } else {
             base = 10;
-            // A leading zero is legal only for the literal 0 (``int("010", 0)``
-            // is a ValueError, but ``int("0", 0)`` / ``int("0_0", 0)`` are 0).
             if (/^0[0-9_]*[1-9]/.test(s)) {
                 fail();
             }
@@ -233,13 +212,9 @@ function pyIntFromString(raw, base) {
         s = s.slice(2);
         hadPrefix = true;
     }
-    // A single underscore may follow the base prefix (``0x_1f``); strip it so
-    // the between-digits underscore rule below applies to the remainder.
     if (hadPrefix && s[0] === "_") {
         s = s.slice(1);
     }
-    // Underscores are allowed only singly, between digits — never leading,
-    // trailing, or doubled.
     if (!s || s[0] === "_" || s.at(-1) === "_" || s.includes("__")) {
         fail();
     }
@@ -284,8 +259,6 @@ export function pyTypeName(value) {
  */
 export function execOnIterable(iterable, func) {
     if (iterable === null) {
-        // new Set(null) is fine in js but set(None) (-> new Set(null))
-        // is not in Python
         throw new EvaluationError(`value not iterable`);
     }
     if (
@@ -293,11 +266,9 @@ export function execOnIterable(iterable, func) {
         !Array.isArray(iterable) &&
         !(iterable instanceof Set)
     ) {
-        // dicts are considered as iterable in Python
         iterable = Object.keys(iterable);
     }
     if (typeof iterable?.[Symbol.iterator] !== "function") {
-        // rules out undefined and other values not iterable
         throw new EvaluationError(`value not iterable`);
     }
     return func(iterable);
@@ -319,16 +290,12 @@ export function execOnIterable(iterable, func) {
  */
 function maxMinItems(args, name) {
     const kwargs = args[args.length - 1];
-    // `key=`/`default=` change WHICH element is returned; silently dropping
-    // them (as slicing off kwargs did) returns a different value than the
-    // server would. Fail loudly instead — matching this subsystem's
-    // convention of raising on unsupported features.
     if (kwargs && typeof kwargs === "object" && Object.keys(kwargs).length) {
         throw new EvaluationError(
             `${name}() keyword arguments (${Object.keys(kwargs).join(", ")}) are not supported`,
         );
     }
-    const values = args.slice(0, -1); // remove kwargs
+    const values = args.slice(0, -1);
     let items = values;
     if (values.length === 1) {
         const arg = values[0];
@@ -337,7 +304,6 @@ function maxMinItems(args, name) {
         } else if (arg !== null && typeof arg?.[Symbol.iterator] === "function") {
             items = [...arg];
         } else if (arg !== null && typeof arg === "object") {
-            // dicts iterate over their keys in Python
             items = Object.keys(arg);
         } else {
             throw new EvaluationError(`'${pyTypeName(arg)}' object is not iterable`);
@@ -355,9 +321,6 @@ export const BUILTINS = {
      * @returns {boolean}
      */
     bool(value) {
-        // The evaluator always appends a trailing kwargs object, so >1
-        // positional means arguments.length > 2. CPython: bool() takes at
-        // most 1 argument (mirrors the set() guard below).
         if (arguments.length > 2) {
             throw new EvaluationError(
                 `bool expected at most 1 argument, got ${arguments.length - 1}`,
@@ -374,10 +337,6 @@ export const BUILTINS = {
             case "boolean":
                 return value;
             case "object":
-                // typeof guard: a plain data dict may carry an `isTrue` KEY
-                // (server-controlled json/properties values); only call it
-                // when it is actually a method (same precedent as the
-                // `isEqual` guard in py_interpreter.js).
                 if (typeof value.isTrue === "function") {
                     return value.isTrue();
                 }
@@ -394,7 +353,6 @@ export const BUILTINS = {
 
     set(/** @type {any} */ iterable) {
         if (arguments.length > 2) {
-            // we always receive at least one argument: kwargs (return fnValue(...args, kwargs); in FunctionCall case)
             throw new EvaluationError(
                 `set expected at most 1 argument, got (${arguments.length - 1})`,
             );
@@ -407,11 +365,6 @@ export const BUILTINS = {
 
     max(/** @type {any[]} */ ...args) {
         const items = maxMinItems(args, "max");
-        // Share the interpreter's `isLess` kernel rather than the JS `>`:
-        // `>` coerces with Number() (so max("b","a")/max(dateA,dateB) gave NaN)
-        // AND stringifies lists (so max([[2],[10]]) wrongly returned [2] where
-        // Python returns [10]). Keeping `acc` on ties matches Python's "first
-        // maximal element wins".
         return items.reduce((acc, item) => (isLess(acc, item) ? item : acc));
     },
 
@@ -457,23 +410,13 @@ export const BUILTINS = {
             typeof value.negate === "function" &&
             typeof value.total_seconds === "function"
         ) {
-            // PyTimeDelta: negate if total duration is negative
             return value.total_seconds() >= 0 ? value : value.negate();
         }
         if (typeof value !== "number" && typeof value !== "boolean") {
-            // Python raises TypeError; without this guard ``abs('x')`` returns
-            // NaN, which — since ``typeof NaN === "number"`` — slips past every
-            // downstream numeric guard and serialises to ``null`` in a domain
-            // sent to the server, silently returning wrong results.
             throw new EvaluationError(
                 `bad operand type for abs(): '${pyTypeName(value)}'`,
             );
         }
-        // ``Number(...)`` is the bool-is-int coercion, not a cast to silence
-        // tsc: the guard above deliberately admits booleans because Python's
-        // ``bool`` IS an ``int`` subclass, so ``abs(True)`` must evaluate to 1.
-        // ``Math.abs`` would coerce anyway; doing it explicitly states that the
-        // boolean branch is intended rather than tolerated.
         return Math.abs(Number(value));
     },
 
@@ -489,8 +432,6 @@ export const BUILTINS = {
         const kwargs = rest.at(-1);
         const base = rest.length > 1 ? rest[0] : kwargs?.base;
         if (base !== undefined) {
-            // Python: int(number, base) raises "can't convert non-string with
-            // explicit base"; the base itself must be 0 or 2..36.
             if (typeof value !== "string") {
                 throw new EvaluationError(
                     "int() can't convert non-string with explicit base",
@@ -511,8 +452,6 @@ export const BUILTINS = {
             return pyIntFromString(value, 10);
         }
         if (typeof value !== "number") {
-            // Python: int(None)/int([]) raise TypeError; Number() would
-            // silently coerce them to 0.
             throw new EvaluationError(
                 `int() argument must be a string, a bytes-like object or a real number, not '${pyTypeName(value)}'`,
             );
@@ -526,8 +465,6 @@ export const BUILTINS = {
             return value ? 1.0 : 0.0;
         }
         if (typeof value !== "number" && typeof value !== "string") {
-            // Python: float(None)/float([]) raise TypeError; Number() would
-            // silently coerce null to 0.
             throw new EvaluationError(
                 `float() argument must be a string or a real number, not '${pyTypeName(value)}'`,
             );
@@ -536,9 +473,6 @@ export const BUILTINS = {
             throw new EvaluationError(`could not convert string to float: '${value}'`);
         }
         if (typeof value === "string") {
-            // CPython accepts "inf"/"infinity"/"nan" (case-insensitive, optional
-            // sign); ``Number()`` only understands "Infinity", so float("inf")
-            // was wrongly raising while float("Infinity") worked.
             const trimmed = value.trim();
             const magnitude = trimmed.replace(/^[+-]/, "").toLowerCase();
             if (magnitude === "inf" || magnitude === "infinity") {
@@ -557,26 +491,17 @@ export const BUILTINS = {
 
     /** Convert to string. */
     str(/** @type {any} */ value) {
-        // Known divergence: JS numbers carry no int/float distinction, so
-        // str(1.0) returns "1" where Python returns "1.0".
         return pyStr(value);
     },
 
     /** Round a number to a given number of decimal places (banker's rounding). */
     round(/** @type {any} */ value, /** @type {any[]} */ ...rest) {
-        // The interpreter always appends the kwargs object as the last
-        // argument, so `round(x, ndigits=2)` arrives as rest = [{ndigits: 2}]
-        // while `round(x, 2)` arrives as rest = [2, {}].
         const kwargs = rest.at(-1);
         const ndigits = rest.length > 1 ? rest[0] : (kwargs?.ndigits ?? 0);
         if (typeof value === "boolean") {
-            // Python: bool is an int subclass, so round(True) == 1.
             value = value ? 1 : 0;
         }
         if (typeof value !== "number") {
-            // Python raises TypeError; without this ``round('x')`` returns the
-            // string unchanged and ``round(None)`` returns null — both slip into
-            // domain values instead of surfacing the broken expression.
             throw new EvaluationError(
                 `type ${pyTypeName(value)} doesn't define __round__ method`,
             );
@@ -585,13 +510,10 @@ export const BUILTINS = {
     },
 
     context_today() {
-        // Alias of PyDate.today() (both the user-timezone date). Kept routed
-        // through PyDate.today so a single date source stays mockable.
         return PyDate.today();
     },
 
     get current_date() {
-        // deprecated: today should be preferred
         return this.today;
     },
 

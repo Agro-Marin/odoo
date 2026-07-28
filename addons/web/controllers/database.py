@@ -6,6 +6,7 @@ import re
 import tempfile
 
 from lxml import html
+from markupsafe import Markup
 from werkzeug.datastructures import (
     FileStorage,
 )
@@ -16,7 +17,7 @@ from odoo import http
 from odoo.exceptions import UserError
 from odoo.http import Response, content_disposition, dispatch_rpc, request
 from odoo.service import db
-from odoo.service.db import DBNAME_PATTERN  # re-exported; used by template renderer too
+from odoo.service.db import DBNAME_PATTERN
 from odoo.tools.misc import file_open, str2bool
 from odoo.tools.translate import _
 
@@ -35,6 +36,39 @@ def _is_loopback(addr: str | None) -> bool:
         return False
     mapped = getattr(ip, "ipv4_mapped", None)
     return (mapped or ip).is_loopback
+
+
+DATABASE_MANAGER_TEMPLATES = {
+    "database_manager": "web/static/src/public/database_manager.qweb.html",
+    "master_input": "web/static/src/public/database_manager.master_input.qweb.html",
+    "create_form": "web/static/src/public/database_manager.create_form.qweb.html",
+}
+
+
+def render_database_manager(values: dict) -> Markup:
+    """Render the database manager page from *values*.
+
+    Free of ``request`` so that the templates — which the page's JS addresses by
+    id — can be rendered, and asserted on, for any combination of values.
+    """
+    templates = {}
+    for name, path in DATABASE_MANAGER_TEMPLATES.items():
+        with file_open(path, "r") as fd:
+            templates[name] = fd.read()
+
+    def load(template_name):
+        fromstring = (
+            html.document_fromstring
+            if template_name == "database_manager"
+            else html.fragment_fromstring
+        )
+        return (fromstring(templates[template_name]), template_name)
+
+    # a doctype written in the template is dropped by the lxml round-trip, and
+    # without one the page renders in quirks mode: <body> stretches to the
+    # viewport, document.scrollingElement becomes <body>, and Bootstrap is
+    # unsupported there
+    return Markup("<!DOCTYPE html>\n") + qweb_render("database_manager", values, load)
 
 
 class Database(http.Controller):
@@ -90,28 +124,7 @@ class Database(http.Controller):
         except odoo.exceptions.AccessDenied:
             d["databases"] = [request.db] if request.db else []
 
-        templates = {}
-
-        with file_open("web/static/src/public/database_manager.qweb.html", "r") as fd:
-            templates["database_manager"] = fd.read()
-        with file_open(
-            "web/static/src/public/database_manager.master_input.qweb.html", "r"
-        ) as fd:
-            templates["master_input"] = fd.read()
-        with file_open(
-            "web/static/src/public/database_manager.create_form.qweb.html", "r"
-        ) as fd:
-            templates["create_form"] = fd.read()
-
-        def load(template_name):
-            fromstring = (
-                html.document_fromstring
-                if template_name == "database_manager"
-                else html.fragment_fromstring
-            )
-            return (fromstring(templates[template_name]), template_name)
-
-        return qweb_render("database_manager", d, load)
+        return render_database_manager(d)
 
     @http.route("/web/database/selector", type="http", auth="none")
     def selector(self, **kw) -> str:
@@ -143,7 +156,6 @@ class Database(http.Controller):
                         "Houston, we have a database naming issue! Make sure you only use letters, numbers, underscores, hyphens, or dots in the database name, and you'll be golden."
                     )
                 )
-            # post.get() can return the string "False", which is truthy in Python
             country_code = post.get("country_code") or False
             dispatch_rpc(
                 "db",
@@ -203,7 +215,7 @@ class Database(http.Controller):
                 [master_pwd, name, new_name, str2bool(neutralize_database)],
             )
             if request.db == name:
-                request.env.cr.close()  # duplicating a database leads to an unusable cursor
+                request.env.cr.close()
             return request.redirect("/web/database/manager")
         except Exception as e:
             _logger.exception("Database duplication error.")
@@ -223,7 +235,7 @@ class Database(http.Controller):
             if not dispatch_rpc("db", "drop", [master_pwd, name]):
                 raise RuntimeError(f"Database {name!r} was not found")
             if request.session.db == name:
-                request.env.cr.close()  # dropping this database killed our cursor
+                request.env.cr.close()
                 request.session.logout()
             return request.redirect("/web/database/manager")
         except Exception as e:
@@ -248,10 +260,6 @@ class Database(http.Controller):
         filestore = str2bool(filestore)
         self._handle_insecure_password(master_pwd)
         try:
-            # Checked here too (not only in ``dump_db``) so a bad format renders
-            # the friendly error page instead of a traceback, but the vocabulary
-            # comes from the service layer that implements the formats — a
-            # duplicated literal set here would silently drift from it.
             if backup_format not in odoo.service.db.BACKUP_FORMATS:
                 expected = ", ".join(
                     repr(f) for f in sorted(odoo.service.db.BACKUP_FORMATS)
@@ -293,9 +301,6 @@ class Database(http.Controller):
     ) -> str | Response:
         tmp_path = None
         try:
-            # Inside the try so a failure here (e.g. the admin-password upgrade
-            # hitting the minimum-length rule) is logged and surfaced as a
-            # restore error instead of escaping as an unlogged 500.
             self._handle_insecure_password(master_pwd)
             db.check_super(master_pwd)
             if not re.match(DBNAME_PATTERN, name):
@@ -305,9 +310,6 @@ class Database(http.Controller):
                     )
                 )
             with tempfile.NamedTemporaryFile(delete=False) as tmp:
-                # Capture the path BEFORE save() so a failed upload is still
-                # cleaned up in the finally block: NamedTemporaryFile is created
-                # with delete=False, so it is not removed automatically on error.
                 tmp_path = pathlib.Path(tmp.name)
                 backup_file.save(tmp)
             db.restore_db(
@@ -334,14 +336,6 @@ class Database(http.Controller):
     )
     def change_password(self, master_pwd: str, master_pwd_new: str) -> str | Response:
         try:
-            # Same remote-lockout vector ``_handle_insecure_password`` closes:
-            # while the master password is still the insecure default 'admin',
-            # ``change_admin_password`` only requires that well-known value, so a
-            # NON-loopback caller against an exposed database manager could rotate
-            # it to an attacker secret and lock the real admin out. Refuse remote
-            # rotation until the default has been promoted from localhost (or
-            # ``admin_passwd`` set in the config). A caller who already knows a
-            # non-default master password is unaffected.
             if odoo.tools.config.verify_admin_password("admin"):
                 remote_addr = request.httprequest.remote_addr
                 if not _is_loopback(remote_addr):
@@ -364,10 +358,6 @@ class Database(http.Controller):
             return self._render_template(error=error)
 
     @http.route("/web/database/list", type="jsonrpc", auth="none")
-    # Stringified return annotation: the method name ``list`` shadows the
-    # builtin in the class scope where PEP 649 evaluates ``__annotate__``,
-    # so an unquoted ``list[str]`` resolves to the method and raises
-    # ``TypeError: 'function' object is not subscriptable`` on Python 3.14.
     def list(self) -> list[str]:
         """List available databases; used by the Mobile app.
 

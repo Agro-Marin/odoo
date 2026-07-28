@@ -81,12 +81,6 @@ export class KanbanRenderer extends Component {
 
     static defaultProps = {
         scrollTop: () => {},
-        // NOTE: quickCreateState is intentionally NOT defaulted here. A static
-        // defaultProps object is shared by reference across every renderer
-        // instance, and this state is mutated in place (here and in
-        // KanbanHeader), so a shared default let sibling renderers — e.g.
-        // several x2many kanban embeds on one form — clobber each other's
-        // quick-create selection. A per-instance fallback is built in setup (M5).
     };
 
     /** @type {any[]} */
@@ -106,17 +100,9 @@ export class KanbanRenderer extends Component {
 
     setup() {
         useRenderCounter("kanban.KanbanRenderer");
-        // Per-instance quick-create state: use the one supplied by the parent
-        // (the kanban controller) when present, else a fresh reactive fallback
-        // — never a shared static default (see defaultProps note, M5).
         this.quickCreateState =
             this.props.quickCreateState || useState({ groupId: false });
         this.dialogClose = [];
-        // Identity-stable ``onValidate`` for KanbanColumnQuickCreate: an inline
-        // ``props.list.createGroup.bind(props.list)`` in the template minted a
-        // fresh function each render, so the quick-create re-rendered on every
-        // renderer render. The wrapper reads ``props.list`` at call time, so it
-        // stays correct even if the list datapoint is replaced.
         this._onValidateQuickCreate = (...args) => this.props.list.createGroup(...args);
         this.state = useState({
             selectionAvailable: false,
@@ -199,8 +185,6 @@ export class KanbanRenderer extends Component {
 
         useKanbanSelection(this.state);
 
-        // After unfolding a group, scroll to the next group if it's folded, else to
-        // the unfolded group itself.
         onPatched(() => {
             if (this.lastOpenedGroupId) {
                 const groups = this.getGroupsOrRecords();
@@ -209,9 +193,6 @@ export class KanbanRenderer extends Component {
                 );
                 let groupIdToFocus = this.lastOpenedGroupId;
                 if (
-                    // When the opened group is gone (findIndex === -1),
-                    // ``groups[0]`` must NOT be treated as "the next group" —
-                    // that would scroll to the wrong (first) column.
                     lastOpenedGroupIndex >= 0 &&
                     lastOpenedGroupIndex < groups.length - 1 &&
                     groups[lastOpenedGroupIndex + 1].group.isFolded
@@ -228,7 +209,6 @@ export class KanbanRenderer extends Component {
                     return;
                 }
                 const rect = groupEl.getBoundingClientRect();
-                // Don't scroll if the group to focus is completely inside of the viewport
                 if (rect.x + rect.width > window.innerWidth) {
                     groupEl.scrollIntoView({
                         behavior: "smooth",
@@ -239,10 +219,6 @@ export class KanbanRenderer extends Component {
             }
         });
     }
-
-    // ------------------------------------------------------------------------
-    // Getters
-    // ------------------------------------------------------------------------
 
     get canUseSortable() {
         return !this.env.isSmall;
@@ -382,9 +358,6 @@ export class KanbanRenderer extends Component {
 
     getGroupUnloadedCount(group) {
         const records = group.list.records.filter((r) => !r.isInQuickCreation);
-        // ?? not ||: a filtered active bar with 0 matching records is a legit
-        // count of 0; `|| group.count` would fall through to the unfiltered
-        // total and show a phantom "Load more".
         const count = this.props.progressBarState?.getGroupCount(group) ?? group.count;
         return count - records.length;
     }
@@ -401,10 +374,6 @@ export class KanbanRenderer extends Component {
         return MOVABLE_RECORD_TYPES.includes(field.type);
     }
 
-    // ------------------------------------------------------------------------
-    // Permissions
-    // ------------------------------------------------------------------------
-
     canCreateGroup() {
         const { activeActions, defaultGroupBy } = this.props.archInfo;
         return (
@@ -414,16 +383,7 @@ export class KanbanRenderer extends Component {
         );
     }
 
-    // ------------------------------------------------------------------------
-    // Edition methods
-    // ------------------------------------------------------------------------
-
     async archiveRecord(record, active) {
-        // Kanban is a multi-record view: after (un)archiving a single card the
-        // record must leave (or rejoin) its group and the counters/progressbars
-        // must refresh. The default single-datapoint reload only re-reads the
-        // record by id (which ignores the active filter), leaving a stale card —
-        // so pass a list-level reload, matching the bulk "archive all" path.
         const reload = () => this.props.list.model.load();
         if (active) {
             this.dialog.add(ConfirmationDialog, {
@@ -483,8 +443,6 @@ export class KanbanRenderer extends Component {
     }
 
     toggleSelection(record, isRange = false) {
-        // Guard against a stale anchor (e.g. removed by a reload): fall back
-        // to a plain toggle, as the list renderer does.
         const isAnchorPresent =
             this.lastCheckedRecord &&
             this.props.list.records.some((e) => e.id === this.lastCheckedRecord.id);
@@ -504,20 +462,11 @@ export class KanbanRenderer extends Component {
         );
         const start = Math.min(recordIndex, lastCheckedRecordIndex);
         const end = Math.max(recordIndex, lastCheckedRecordIndex);
-        // Snapshot the target state before the loop (same rationale as the
-        // list twin in list_selection.js): toggleSelection is async
-        // (mutex-scheduled), so once the loop toggles the clicked record,
-        // reading record.selected mid-loop would flip the target state for
-        // the rest of the range.
         const selected = !record.selected;
         for (let i = start; i <= end; i++) {
             records[i].toggleSelection(selected);
         }
     }
-
-    // ------------------------------------------------------------------------
-    // Handlers
-    // ------------------------------------------------------------------------
 
     async onGroupClick(group, ev) {
         if (!this.env.isSmall && group.isFolded) {
@@ -595,8 +544,6 @@ export class KanbanRenderer extends Component {
             parent?.dataset.id === element.parentElement?.dataset.id
         ) {
             if (!this.props.list.records.find((r) => r.id === dataRecordId)) {
-                // Race: a pending render hasn't reached the DOM yet and the dropped
-                // record is no longer referenced in the model — abort.
                 return;
             }
             this.toggleProcessing(dataRecordId, true);
@@ -614,8 +561,6 @@ export class KanbanRenderer extends Component {
                 !!targetGroupId &&
                 targetGroupId !== dataGroupId;
             if (isGroupMove) {
-                // Let progress bars reconcile the two affected groups locally on save,
-                // instead of refetching counts over the full domain.
                 this.props.progressBarState?.registerRecordMove(
                     dataRecordId,
                     dataGroupId,
@@ -632,8 +577,6 @@ export class KanbanRenderer extends Component {
             } finally {
                 this.toggleProcessing(dataRecordId, false);
                 if (isGroupMove) {
-                    // No-op if consumed by the post-save reconcile; otherwise drops the
-                    // registration (move failed or was reverted).
                     this.props.progressBarState?.cancelRecordMove(dataRecordId);
                 }
             }
@@ -693,11 +636,6 @@ export class KanbanRenderer extends Component {
         const groups = isGrouped
             ? [...area.querySelectorAll(".o_kanban_group")]
             : [area];
-        // Exclude the non-focusable filler cards that also carry
-        // ``.o_kanban_record``: the "add" button and the ghost cards. Counting
-        // them would let arrow navigation step onto a tabindex-less <div>
-        // (focus() is a no-op) while still reporting the key as handled, which
-        // strands keyboard focus at the end of a column/row.
         const cards = [...groups]
             .map((group) => [
                 ...group.querySelectorAll(
@@ -715,12 +653,9 @@ export class KanbanRenderer extends Component {
                 break;
             }
         }
-        // Focused card belongs to no rendered group (filtered out / DOM changed under
-        // us): iGroup ran past ``cards``, so ``cards[iGroup]`` below would throw. Bail.
         if (iCard === -1) {
             return;
         }
-        // Find next card to focus
         let nextCard;
         switch (direction) {
             case "down":

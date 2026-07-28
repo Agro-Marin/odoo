@@ -4,7 +4,6 @@ import { expect, test } from "@odoo/hoot";
 import { FileModel } from "@web/components/file_viewer/file_model";
 
 test("isUrlYoutube returns false when url is a boolean false (binary attachment)", () => {
-    // ir.attachment.url is False in Python for binary files → false in JS
     const fileModel = Object.assign(new FileModel(), { url: false, type: "binary" });
     expect(fileModel.isUrlYoutube).toBe(false);
 });

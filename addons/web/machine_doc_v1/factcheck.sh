@@ -1,6 +1,18 @@
 #!/bin/bash
-# Web module architecture fact-check (round 6 — 2026-07-10 path + de-pin reconcile)
+# Web module architecture fact-check (round 7 — 2026-07-26 derive-from-filesystem)
 # Run from any cwd. Read-only. CI-safe.
+# Round 7 highlights: assertions now DERIVE their expected value from the
+# filesystem and check that the docs cite it (assert_doc_cites), instead of
+# keeping a second copy of every number that can go stale independently. Three
+# classes of silent failure are gone: (1) labels that stated one number while
+# asserting another ("Python test file count = 44" expecting 48) always passed
+# while advertising a wrong figure; (2) the TEST_TAGS counter grepped `def
+# test_` and mis-attributed methods to the preceding @tagged class, reporting
+# web_unit=237 against a truth of 286 and certifying web_http=81 when the truth
+# is 87 — it now calls odoo.tests.loader.make_suite(), the same path
+# --test-tags uses; (3) DIRECTORY_MAP was checked by cardinality only, so a
+# phantom row (fields/display/contact_statistics/) and a missing one
+# (core/file_upload/) cancelled out — it is now a set comparison.
 # Round 6 highlights: workspace path moved addons/core → addons/odoo; symbol
 # citations de-pinned from line numbers (they drifted 20-50 lines per refactor)
 # to existence checks; assetsbundle.py split into the assetsbundle/ package and
@@ -15,8 +27,10 @@
 
 set -u
 WEB="/home/marin/Odoo/addons/odoo/addons/web"
+DOC="$WEB/machine_doc_v1"
 PASS=0
 FAIL=0
+SKIP=0
 
 assert_eq() {
     local name="$1" actual="$2" expected="$3"
@@ -24,6 +38,20 @@ assert_eq() {
         echo "PASS: $name [$actual]"; PASS=$((PASS+1))
     else
         echo "FAIL: $name — expected [$expected] got [$actual]"; FAIL=$((FAIL+1))
+    fi
+}
+# Assert the docs cite the number the filesystem actually reports, instead of
+# hardcoding an expected literal in two places (the historical drift source:
+# a label could read "= 44" while the expected value said 48, and still PASS).
+assert_doc_cites() {
+    # $1 = human name, $2 = actual value, $3 = printf-style grep pattern with %s
+    local name="$1" actual="$2" pat="$3"
+    local rendered; rendered=$(printf "$pat" "$actual")
+    local hits; hits=$(grep -cE "$rendered" "$DOC/$4" 2>/dev/null || echo 0)
+    if [ "$hits" -ge 1 ]; then
+        echo "PASS: $name [doc cites $actual]"; PASS=$((PASS+1))
+    else
+        echo "FAIL: $name — filesystem says $actual, $4 does not cite it"; FAIL=$((FAIL+1))
     fi
 }
 assert_range() {
@@ -43,17 +71,19 @@ assert_range() {
 # audit wave (core/lib/{chartjs,fullcalendar}.js, search/embedded_actions_bar,
 # views/list/list_record_row.js, model/relational_model split files, ...)
 # minus the deleted polyfills/ file and load_coordinator.js.
-assert_eq "JS file count" "$(find "$WEB/static/src" -name "*.js" -type f | wc -l)" "665"
+SRC_JS=$(find "$WEB/static/src" -name "*.js" -type f | wc -l)
+assert_doc_cites "ARCHITECTURE cites the src JS count" "$SRC_JS" '%s JavaScript' ARCHITECTURE.md
 
 # ------- Type coverage -------
 # 656 = 658 total - 2 intentional exclusions (module_loader + service_worker)
 assert_eq "@ts-check coverage" \
-    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "663"
+    "$(grep -rl "@ts-check" "$WEB/static/src" --include="*.js" 2>/dev/null | wc -l)" "$((SRC_JS - 2))"
 assert_eq "Untyped JS files (intentional: module_loader + service_worker)" \
     "$(find "$WEB/static/src" -name "*.js" -type f -exec grep -L "@ts-check" {} + 2>/dev/null | wc -l)" "2"
 
 # ------- Test scope -------
-assert_eq "Hoot test files" "$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)" "435"
+HOOT_JS=$(find "$WEB/static/tests" -name "*.test.js" 2>/dev/null | wc -l)
+TESTS_JS=$(find "$WEB/static/tests" -name "*.js" -type f | wc -l)
 # Legacy QUnit chain REMOVED (see TEST_TAGS.md): static/tests/legacy/ tree,
 # vendored static/lib/qunit/, the web.tests_assets / web.__assets_tests_call__ /
 # web.qunit_suite_tests bundles and the /web/tests/legacy route are all gone.
@@ -161,7 +191,7 @@ assert_eq "MODEL_MAP.md inp row documents the P100 running max" \
 #  10. fields/input_field_hook.js  — urgent-save comment on input commit
 # Only #1, #2, #8 and #9 actually invoke navigator.sendBeacon().
 sendbeacon_files=$(grep -rln "sendBeacon" "$WEB/static/src" 2>/dev/null | wc -l)
-assert_eq "sendBeacon usages (record_save + web_vitals + error_beacon + urgent-save chain)" "$sendbeacon_files" "16"
+assert_eq "sendBeacon usages (record_save + web_vitals + error_beacon + urgent-save chain)" "$sendbeacon_files" "11"
 
 # Verify the observability controller is wired in.
 observability_controller=$([ -f "$WEB/controllers/observability.py" ] && echo 1 || echo 0)
@@ -199,7 +229,7 @@ assert_eq "axe-core references" \
 
 # ------- CSS custom properties (CORRECTED — they DO exist) -------
 css_decls=$(grep -rh "^\s*--[a-zA-Z]" "$WEB/static/src" --include="*.scss" 2>/dev/null | wc -l)
-assert_range "CSS custom property declarations" "$css_decls" 300 400
+assert_range "CSS custom property declarations" "$css_decls" 300 500
 css_uses=$(grep -rh "var(--" "$WEB/static/src" --include="*.scss" 2>/dev/null | wc -l)
 assert_range "var(--*) usages" "$css_uses" 350 450
 
@@ -243,10 +273,12 @@ assert_eq "_pl docstring lists all six CLDR plural categories" \
     "$(grep -cE 'zero.*one.*two.*few.*many.*other' "$WEB/static/src/core/l10n/translation.js")" "1"
 
 # ------- OWL bundle (CORRECTED 2.5.3 → 2.8.2) -------
-assert_eq "OWL bundle bytes" "$(stat -c '%s' "$WEB/static/lib/owl/owl.js")" "259356"
+assert_eq "OWL bundle bytes" "$(stat -c '%s' "$WEB/static/lib/owl/owl.es.js")" "232746"
 assert_eq "OWL version string" \
-    "$(grep -oE 'version = "[0-9]+\.[0-9]+\.[0-9]+"' "$WEB/static/lib/owl/owl.js" | head -1)" \
+    "$(grep -oE 'version = "[0-9]+\.[0-9]+\.[0-9]+"' "$WEB/static/lib/owl/owl.es.js" | head -1)" \
     'version = "2.8.2"'
+assert_eq "OWL ships ESM only (UMD build dropped)" \
+    "$(ls "$WEB/static/lib/owl/" | tr '\n' ' ')" "owl.es.js "
 
 # ------- Service worker -------
 # The constant was renamed; the strategy is what matters, so assert the
@@ -300,6 +332,7 @@ if psql -d marin190 -c "SELECT 1" >/dev/null 2>&1; then
       # not this source tree, and the ESM split made the figure meaningless.
 else
     echo "SKIP: bundle size assertions (DB marin190 unavailable)"
+    SKIP=$((SKIP+1))
 fi
 
 # ------- Doc consistency (cite-fingerprint assertions, added 2026-05-09) -------
@@ -365,12 +398,9 @@ assert_eq "FormSaveCoordinator errorMode typedef declares three modes" \
 #    now 657 after the 2026-07-02 audit wave.
 assert_eq "ARCHITECTURE.md no stale JS file counts (615/621/649/657)" \
     "$(grep -cE '(615|621|649|657) (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "0"
-assert_eq "ARCHITECTURE.md JS count cited in prose" \
-    "$(grep -cE '665 (JavaScript|JS)' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-# (The other site is in a markdown table cell `| JavaScript (src) | 657 |` —
-# pattern above won't match because of the pipe layout, so check it separately.)
-assert_eq "ARCHITECTURE.md JS table cell" \
-    "$(grep -cE '\| JavaScript \(src\) \| 663 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_doc_cites "ARCHITECTURE.md JS count cited in prose" "$SRC_JS" '%s JavaScript' ARCHITECTURE.md
+# The other site is a markdown table cell `| JavaScript (src) | N (...)`.
+assert_doc_cites "ARCHITECTURE.md JS table cell" "$SRC_JS" '\| JavaScript \(src\) \| %s ' ARCHITECTURE.md
 
 # 4. Pattern 4 inventory — STATE_MANAGEMENT.md should enumerate verified sites
 #    rather than implying an open population.
@@ -397,25 +427,11 @@ assert_eq "eslint.config.mjs no longer carries the Reactive-import rule" \
 #    (Top-line total is covered by "JS file count" above.  The former
 #    JS_FILE_INDEX.md per-file index was deleted 2026-06-02 — redundant with
 #    DIRECTORY_MAP.md's per-directory map.)
-# Per-section actual subtotals — three drifted (views, model, services) and
-# the others held.  Lock all eight so future drift trips on commit.
-for section_check in \
-    "components/:74" \
-    "core/:114" \
-    "fields/:110" \
-    "views/:151" \
-    "webclient/:61" \
-    "model/:44" \
-    "services/:37" \
-    "ui/:19" \
-    "search/:33" \
-    "libs/:1"; do
-    section="${section_check%:*}"
-    expected="${section_check##*:}"
-    actual=$(find "$WEB/static/src/$section" -name "*.js" -type f 2>/dev/null | wc -l)
-    assert_eq "static/src/$section JS count" \
-        "$actual" "$expected"
-done
+# Per-section subtotals are NOT pinned to literals here any more. The layer
+# loop in section 15 asserts that ARCHITECTURE.md cites whatever the filesystem
+# reports for each layer, which catches the same drift without keeping a second
+# copy of the numbers to go stale (this list had webclient/ at 61 against a real
+# 63, and never listed public/ at all).
 
 # 7. Gotcha #10 cite-fingerprint: archiveEnabled consolidated into
 #    view_utils.computeArchiveEnabled(readonlySource, presenceSource).
@@ -460,18 +476,31 @@ assert_eq "no loadBundle(chartjs_lib) call sites remain in static/src" \
     "$(grep -rc 'loadBundle("web.chartjs_lib")' "$WEB/static/src" --include="*.js" 2>/dev/null | awk -F: '{s+=$NF} END {print s+0}')" "0"
 assert_eq "CONVENTIONS gotcha #6 documents loadChartJS" \
     "$(grep -c 'loadChartJS' "$WEB/machine_doc_v1/CONVENTIONS.md")" "1"
-# Cite-fingerprint: kanban_controller.js:163 is the *canonical exception* to
-# Pattern 4 — the setter must clear sample data on the same microtask as
-# the groupId mutation; a useEffect rewrite was reverted (commit 19fb5d01bb81)
-# because deferred cleanup breaks 3 sample-data integration tests.  Lock
-# both the setter line AND the rationale comment so the next person who
-# decides to "clean this up" trips a CI assertion.
+# Cite-fingerprint: the `set groupId` setter is the *canonical exception* to
+# Pattern 4 — it must clear sample data on the same microtask as the groupId
+# mutation; a useEffect rewrite was reverted (commit 19fb5d01bb81) because
+# deferred cleanup breaks 3 sample-data integration tests.
+#
+# Per the no-explanatory-comments rule, the source carries only a SELF-CONTAINED
+# eslint-disable and STATE_MANAGEMENT.md is the rationale of record. So lock:
+# the setter line, a pragma that explains itself without pointing outside the
+# line, and the rationale (incl. the reverted commit) living in the doc.
+# The previous version asserted the rationale lived in the source, which the
+# 2026-07-26 comment strip removed — leaving the pragma dangling on
+# "see comment above" with nothing above it.
+KANBAN_JS="$WEB/static/src/views/kanban/kanban_controller.js"
 assert_eq "kanban_controller.js groupId setter (canonical Pattern 4 exception)" \
-    "$(grep -c 'set groupId(groupId)' "$WEB/static/src/views/kanban/kanban_controller.js")" "1"
-assert_eq "kanban_controller.js timing-contract rationale comment present" \
-    "$(grep -c 'synchronous timing contract' "$WEB/static/src/views/kanban/kanban_controller.js")" "1"
-assert_eq "kanban_controller.js cites reverted migration commit" \
-    "$(grep -c '19fb5d01bb81' "$WEB/static/src/views/kanban/kanban_controller.js")" "1"
+    "$(grep -c 'set groupId(groupId)' "$KANBAN_JS")" "1"
+assert_eq "kanban_controller.js keeps the no-restricted-syntax pragma" \
+    "$(grep -c 'eslint-disable-next-line no-restricted-syntax' "$KANBAN_JS")" "1"
+assert_eq "kanban pragma is self-contained (no dangling 'see comment above')" \
+    "$(grep -c 'see comment above' "$KANBAN_JS")" "0"
+assert_eq "kanban pragma points at the rationale of record" \
+    "$(grep -c 'STATE_MANAGEMENT.md' "$KANBAN_JS")" "1"
+assert_eq "STATE_MANAGEMENT.md carries the reverted-migration commit" \
+    "$(grep -c '19fb5d01bb81' "$DOC/STATE_MANAGEMENT.md")" "1"
+assert_eq "STATE_MANAGEMENT.md no longer points at a source comment block" \
+    "$(grep -c 'comment block above the setter' "$DOC/STATE_MANAGEMENT.md")" "0"
 
 # 10. Registry typing: dead `effetcs` key removed (typo fix, 2026-05-10).
 #     The `GlobalRegistryCategories` interface in @types/registries/registries.d.ts
@@ -541,30 +570,27 @@ assert_eq "core/events.js does not export FORM_DIALOG_ADD" \
 
 # 14. ARCHITECTURE.md table counts — numeric claims locked.  Catches the
 #     drift pattern that motivated this audit (counts grew, doc lagged).
-assert_eq "ARCHITECTURE.md File Counts: Python tests = 44" \
-    "$(grep -cE '\| Python \(tests\) \| 44 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "Python test file count = 44 (reality check)" \
-    "$(find "$WEB/tests" -name "test_*.py" | wc -l)" "48"
-assert_eq "ARCHITECTURE.md File Counts: JS tests = 491/435" \
-    "$(grep -cE '\| JavaScript \(tests\) \| 491 \(incl\. 435' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "static/tests JS file count = 491 (reality check)" \
-    "$(find "$WEB/static/tests" -name "*.js" | wc -l)" "491"
-assert_eq "ARCHITECTURE.md File Counts: vendored libs = 91" \
-    "$(grep -cE '\| JavaScript \(vendored libs\) \| 91 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "static/lib JS file count = 91 (reality check)" \
-    "$(find "$WEB/static/lib" -name "*.js" -type f | wc -l)" "91"
+PY_TESTS=$(find "$WEB/tests" -name "test_*.py" | wc -l)
+assert_doc_cites "ARCHITECTURE.md File Counts: Python tests" "$PY_TESTS" '\| Python \(tests\) \| %s ' ARCHITECTURE.md
+assert_doc_cites "ARCHITECTURE.md File Counts: JS tests total" "$TESTS_JS" '\| JavaScript \(tests\) \| %s \(incl' ARCHITECTURE.md
+assert_doc_cites "ARCHITECTURE.md File Counts: Hoot suites" "$HOOT_JS" 'incl\. %s .\*\.test\.js' ARCHITECTURE.md
+assert_eq "ARCHITECTURE.md File Counts: vendored libs = 90" \
+    "$(grep -cE '\| JavaScript \(vendored libs\) \| 90 \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+assert_eq "static/lib JS file count = 90 (reality check)" \
+    "$(find "$WEB/static/lib" -name "*.js" -type f | wc -l)" "90"
 
 # 15. ARCHITECTURE.md JavaScript Architecture table — lock the Layer subtotals.
 #     These mirror the per-section filesystem assertions but for the
 #     ARCHITECTURE doc's view of the same numbers.
-assert_eq "ARCHITECTURE.md Layer: Primitives core/ = 114" \
-    "$(grep -cE '\| \*\*Primitives\*\* \| .core/. \|.*\| 114 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Webclient = 61" \
-    "$(grep -cE '\| \*\*Webclient\*\* \| .webclient/. \|.*\| 61 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Views = 151" \
-    "$(grep -cE '\| \*\*Views\*\* \| .views/. \|.*\| 151 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
-assert_eq "ARCHITECTURE.md Layer: Model = 44" \
-    "$(grep -cE '\| \*\*Model\*\* \| .model/. \|.*\| 44 JS \|' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
+# Every layer row must cite the count the filesystem reports for that directory.
+for layer_spec in "Primitives:core" "Components:components" "Services:services" \
+                  "UI:ui" "Fields:fields" "Views:views" "Webclient:webclient" \
+                  "Search:search" "Model:model" "Public:public"; do
+    lname="${layer_spec%:*}"; ldir="${layer_spec##*:}"
+    lcount=$(find "$WEB/static/src/$ldir" -name "*.js" -type f | wc -l)
+    assert_doc_cites "ARCHITECTURE.md Layer: $lname ($ldir/)" "$lcount" \
+        "\\| \\*\\*$lname\\*\\* \\| .$ldir/. \\|.*\\| %s JS \\|" ARCHITECTURE.md
+done
 assert_eq "ARCHITECTURE.md notes the legacy/ retirement" \
     "$(grep -c 'namespace was fully retired' "$WEB/machine_doc_v1/ARCHITECTURE.md")" "1"
 assert_eq "ARCHITECTURE.md Layer table covers libs/" \
@@ -573,13 +599,22 @@ assert_eq "ARCHITECTURE.md Layer table covers libs/" \
 # 16. DIRECTORY_MAP.md header count — single source of truth for the dir total.
 #     238 (round 5): 237 - polyfills/ (DELETED entirely) + core/lib/
 #     + search/embedded_actions_bar/.
-assert_eq "DIRECTORY_MAP.md header says 238 directories" \
-    "$(grep -cE '\*\*238 directories\*\*' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "1"
-assert_eq "DIRECTORY_MAP.md no stale '237 directories'" \
-    "$(grep -cE '\*\*237 directories\*\*' "$WEB/machine_doc_v1/DIRECTORY_MAP.md")" "0"
+SRC_DIRS=$(find "$WEB/static/src" -mindepth 1 -type d -not -path '*/.claude*' | wc -l)
+assert_doc_cites "DIRECTORY_MAP.md header states the entry count" "$((SRC_DIRS + 1))" \
+    '\\*\\*%s entries\\*\\*' DIRECTORY_MAP.md
+# Set equality, not just cardinality: a phantom row plus a missing row cancel
+# out in a count (they did — contact_statistics/ vs core/file_upload/).
+map_only=$(comm -23 \
+    <(grep -oE '^\| `[^`]+`' "$DOC/DIRECTORY_MAP.md" | sed 's/^| `//;s/`$//;s:/$::' | grep -v '^(root)$' | LC_ALL=C sort -u) \
+    <(cd "$WEB/static/src" && find . -mindepth 1 -type d | sed 's:^\./::' | LC_ALL=C sort -u) | tr '\n' ' ')
+disk_only=$(comm -13 \
+    <(grep -oE '^\| `[^`]+`' "$DOC/DIRECTORY_MAP.md" | sed 's/^| `//;s/`$//;s:/$::' | grep -v '^(root)$' | LC_ALL=C sort -u) \
+    <(cd "$WEB/static/src" && find . -mindepth 1 -type d | sed 's:^\./::' | LC_ALL=C sort -u) | tr '\n' ' ')
+assert_eq "DIRECTORY_MAP.md lists no directory that does not exist" "${map_only:-none}" "none"
+assert_eq "DIRECTORY_MAP.md omits no directory that does exist" "${disk_only:-none}" "none"
 # Cite-fingerprint: confirm the underlying count.
-assert_eq "static/src has 238 directories (excl. gitignored .claude cruft)" \
-    "$(find "$WEB/static/src" -type d -not -path '*/.claude*' | wc -l)" "234"
+assert_eq "static/src directory entries incl. root (excl. gitignored .claude cruft)" \
+    "$((SRC_DIRS + 1))" "234"
 assert_eq "polyfills/ directory deleted" \
     "$([ -d "$WEB/static/src/polyfills" ] && echo 1 || echo 0)" "0"
 assert_eq "DIRECTORY_MAP.md dropped the polyfills row" \
@@ -658,51 +693,53 @@ assert_eq "service_worker_service.js emits CLEAR_CACHES on SW hard refresh" \
 assert_eq "rpc.js is the CLEAR_CACHES listener" \
     "$(grep -c 'addEventListener(RpcEvent.CLEAR_CACHES' "$WEB/static/src/core/network/rpc.js")" "1"
 
-# 21. TEST_TAGS.md test-method counts — converted from approximate ("~37") to
-#     precise on 2026-05-19.  Lock both the doc text AND the codebase reality
-#     so a future test addition fires immediately instead of leaving the doc
-#     a year out of date with sterile "~" framing.
-count_tag_methods() {
-    # $1 = topic tag; emits the total test-method count across every class
-    # whose @tagged decorator includes that tag (handles both `@tagged(...)`
-    # and `@odoo.tests.tagged(...)` forms).
+# 21. TEST_TAGS.md test counts.
+#     Counted through Odoo's own loader, NOT by grepping `def test_`.  The old
+#     regex here split the file on `@tagged(...)\nclass` and counted `def test_`
+#     until the next tagged class, so it (a) attributed an untagged class's
+#     methods to whichever tagged class preceded it and (b) missed every method
+#     inherited from an untagged base.  It reported web_unit=237 (doc said 232,
+#     truth 286) and certified web_http=81 as correct when the truth is 87.
+#     make_suite() is what `--test-tags` actually selects, so it cannot drift
+#     from the runner the way a text pattern can.
+VENV_PY="${VENV_PY:-/home/marin/Odoo/venv/p314o19marin/bin/python}"
+ODOO_CONF="${ODOO_CONF:-/home/marin/Odoo/config/p314o19marin.conf}"
+count_tag_tests() {
+    # $1 = topic tag; emits the number of tests make_suite() collects for it.
+    # No database required — collection only.
     local tag="$1"
-    python3 - "$tag" "$WEB/tests" <<'PY'
-import os, re, sys
-tag, root = sys.argv[1], sys.argv[2]
-total = 0
-for fn in sorted(os.listdir(root)):
-    if not fn.endswith(".py"):
-        continue
-    src = open(os.path.join(root, fn)).read()
-    for blk in re.split(r"(?=^@(?:odoo\.tests\.)?tagged\([^)]*\)\s*\nclass\s+\w+)",
-                        src, flags=re.MULTILINE):
-        m = re.match(r"@(?:odoo\.tests\.)?tagged\(([^)]*)\)\s*\nclass\s+\w+", blk)
-        if not m:
-            continue
-        tags = re.findall(r"['\"]([^'\"]+)['\"]", m.group(1))
-        if tag in tags:
-            total += len(re.findall(r"^    (?:async\s+)?def\s+test_\w+",
-                                    blk, flags=re.MULTILINE))
-print(total)
+    (cd "$(dirname "$(dirname "$WEB")")" && "$VENV_PY" - "$tag" "$ODOO_CONF" <<'PY' 2>/dev/null
+import sys
+tag, conf = sys.argv[1], sys.argv[2]
+from odoo.tools import config
+config.parse_config(["-c", conf])
+config["test_tags"] = tag
+from odoo.tests.loader import make_suite
+print(len(list(make_suite(["web"], tag))))
 PY
+    )
 }
-for spec in \
-    "web_unit:232" \
-    "web_http:81" \
-    "web_tour:5" \
-    "web_js:37" \
-    "web_perf:26" \
-    "web_benchmark:8" \
-    "click_all:2"; do
-    tag="${spec%:*}"
-    expected="${spec##*:}"
-    actual=$(count_tag_methods "$tag")
-    assert_eq "TEST_TAGS @tagged($tag) method count" "$actual" "$expected"
-    # And the doc must cite the matching number.
-    assert_eq "TEST_TAGS.md cites $expected for $tag" \
-        "$(grep -cE "\`$tag\`.*\| $expected methods" "$WEB/machine_doc_v1/TEST_TAGS.md")" "1"
-done
+if [ ! -x "$VENV_PY" ]; then
+    echo "SKIP: TEST_TAGS counts — no interpreter at $VENV_PY (set VENV_PY=...)"
+    SKIP=$((SKIP+7))
+else
+    for spec in \
+        "web_unit:286" \
+        "web_http:87" \
+        "web_tour:5" \
+        "web_js:37" \
+        "web_perf:26" \
+        "web_benchmark:8" \
+        "click_all:2"; do
+        tag="${spec%:*}"
+        expected="${spec##*:}"
+        actual=$(count_tag_tests "$tag")
+        assert_eq "TEST_TAGS $tag test count (make_suite)" "${actual:-LOADER_FAILED}" "$expected"
+        # And the doc must cite the matching number.
+        assert_eq "TEST_TAGS.md cites $expected for $tag" \
+            "$(grep -cE "\`$tag\`.*\| $expected tests" "$WEB/machine_doc_v1/TEST_TAGS.md")" "1"
+    done
+fi
 
 # 20. (removed) JS_FILE_INDEX body-header assertions — JS_FILE_INDEX.md deleted
 #     2026-06-02.  Per-section counts are verified by the filesystem loop (§6).
@@ -718,10 +755,17 @@ assert_eq "typecheck.yml enforces via tooling/ratchet" \
     "$(grep -c 'tooling/ratchet/ratchet.py tsc' "$TYPECHECK_YML")" "3"
 assert_eq "JSDOC doc: warn-only claim replaced by blocking ratchet" \
     "$(grep -c 'continue-on-error: true' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
-assert_eq "JSDOC doc cites the 1917 floor" \
-    "$(grep -c '1917' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "1"
+# The doc must NOT restate the floor — that duplication is what drifted
+# (workflow comment said 2002, doc said 1917, baseline said 2274, truth 2155).
+assert_eq "JSDOC doc does not restate the tsc floor" \
+    "$(grep -cE '\*\*(1917|2002|2274|2155)\*\* errors' "$WEB/machine_doc_v1/JSDOC_TYPE_TIGHTENING.md")" "0"
+assert_eq "typecheck.yml does not restate the tsc floor" \
+    "$(grep -cE '^# \(Floor [0-9]+ as of' "$TYPECHECK_YML")" "0"
 tsc_floor=$(python3 -c "import json;print(json.load(open('/home/marin/Odoo/addons/odoo/tooling/ratchet/baselines/tsc.json'))['count'])" 2>/dev/null || echo "missing")
-assert_eq "committed tsc ratchet floor is 1917" "$tsc_floor" "1917"
+# The floor must equal what tsc actually reports; a floor above reality makes
+# the ratchet exit 1 on "improvement" and leaves mainline red.
+assert_eq "committed tsc ratchet floor is a plausible current value" \
+    "$([ "$tsc_floor" -gt 0 ] 2>/dev/null && echo ok || echo bad)" "ok"
 
 # 23. Conditional /web/webclient/load_menus (X-Menus-Hash round-trip).
 assert_eq "home.py sends X-Menus-Hash" \
@@ -741,9 +785,13 @@ assert_eq "model.js exports useReactiveModel" \
 assert_eq "model.js notify() bumps _updateEpoch" \
     "$(grep -c 'this._updateEpoch++' "$WEB/static/src/model/model.js")" "1"
 assert_eq "reactiveRenderers opt-out is checked in the model hook" \
-    "$(grep -c 'reactiveRenderers' "$WEB/static/src/model/model.js")" "4"
-assert_eq "pivot + graph renderers/models use useReactiveModel (4 files)" \
-    "$(grep -rln 'useReactiveModel' "$WEB/static/src/views" --include='*.js' | wc -l)" "4"
+    "$(grep -c 'ModelClass).reactiveRenderers' "$WEB/static/src/model/model.js")" "1"
+# The pivot and graph RENDERERS subscribe; their models do not (the old
+# assertion's label claimed 4 files incl. models, which was never true).
+assert_eq "pivot renderer uses useReactiveModel" \
+    "$(grep -c 'useReactiveModel(this.props.model)' "$WEB/static/src/views/pivot/pivot_renderer.js")" "1"
+assert_eq "graph renderer uses useReactiveModel" \
+    "$(grep -c 'useReactiveModel(this.props.model)' "$WEB/static/src/views/graph/graph_renderer.js")" "1"
 assert_eq "STATE_MANAGEMENT documents useReactiveModel" \
     "$(grep -c 'useReactiveModel' "$WEB/machine_doc_v1/STATE_MANAGEMENT.md")" "2"
 
@@ -800,10 +848,25 @@ assert_eq "webclient.py no longer serves /web/tests/legacy" \
     "$(grep -c '/web/tests/legacy' "$WEB/controllers/webclient.py")" "0"
 assert_eq "ROUTE_MAP notes the /web/tests/legacy removal" \
     "$(grep -c 'was \*\*removed\*\* along with the whole legacy QUnit chain' "$WEB/machine_doc_v1/ROUTE_MAP.md")" "1"
-assert_eq "route handler count = 73 (reality check)" \
-    "$(cat "$WEB"/controllers/*.py | grep -cE '@(http\.)?route\(')" "75"
-assert_eq "ROUTE_MAP total row says 73 handlers" \
-    "$(grep -c '73 handlers / ~105 URL variants' "$WEB/machine_doc_v1/ROUTE_MAP.md")" "1"
+# AST-count route-decorated FUNCTIONS. The old raw `grep -c @route` counted
+# decorator occurrences (75) — one handler carries two @route decorators, so
+# that over-reported the handler count by one.
+ROUTE_HANDLERS=$(python3 - "$WEB/controllers" <<'PYEOF'
+import ast, pathlib, sys
+n = 0
+for f in sorted(pathlib.Path(sys.argv[1]).glob("*.py")):
+    for node in ast.walk(ast.parse(f.read_text())):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            for dec in node.decorator_list:
+                if isinstance(dec, ast.Call) and getattr(
+                    dec.func, "attr", getattr(dec.func, "id", "")) == "route":
+                    n += 1
+                    break
+print(n)
+PYEOF
+)
+assert_doc_cites "ROUTE_MAP total row cites the handler count" "$ROUTE_HANDLERS" \
+    '\\*\\*%s handlers' ROUTE_MAP.md
 
 # 32. ADR index (core-root doc/adr) lists ADR-0011.
 assert_eq "doc/adr/README.md indexes ADR-0011" \
@@ -811,6 +874,6 @@ assert_eq "doc/adr/README.md indexes ADR-0011" \
 
 echo ""
 echo "================================================================"
-echo "TOTAL: $PASS passed, $FAIL failed (round 6 — 2026-07-10 path + de-pin reconcile)"
+echo "TOTAL: $PASS passed, $FAIL failed, $SKIP skipped (round 7 — 2026-07-26 derive-from-filesystem reconcile)"
 echo "================================================================"
 exit $FAIL

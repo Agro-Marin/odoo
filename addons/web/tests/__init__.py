@@ -13,6 +13,7 @@ from . import test_favorite
 from . import test_feature_flags
 from . import test_health
 from . import test_image
+from . import test_ir_asset_scope
 from . import test_ir_model
 from . import test_ir_qweb
 from . import test_ir_ui_view
@@ -30,6 +31,7 @@ from . import test_res_partner_properties
 from . import test_res_users
 from . import test_res_users_settings
 from . import test_router
+from . import test_scss_design_system
 from . import test_search_panel_version
 from . import test_session_info
 from . import test_translate

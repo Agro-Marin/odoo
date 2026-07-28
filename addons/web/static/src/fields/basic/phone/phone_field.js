@@ -3,13 +3,13 @@
 
 /** @module @web/fields/basic/phone/phone_field - Phone number input field with tel: link in readonly mode */
 
-import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
+import { TextInputFieldBase } from "@web/fields/basic/text_input_field_base";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class PhoneField extends Component {
+export class PhoneField extends TextInputFieldBase {
     static template = "web.PhoneField";
     static props = {
         ...standardFieldProps,
@@ -20,6 +20,7 @@ export class PhoneField extends Component {
     setup() {
         useInputField({
             getValue: () => this.props.record.data[this.props.name] || "",
+            parse: (v) => this.parse(v),
         });
     }
     /** @returns {string} tel: URI with whitespace stripped */
@@ -42,9 +43,6 @@ export const phoneField = {
     supportedTypes: ["char"],
     extractProps: ({ placeholder }, dynamicInfo) => ({
         placeholder,
-        // Matches EmailField/UrlField: without this a required phone never got
-        // the t-att-required HTML attribute (declared+extracted here, bound in
-        // the template).
         required: dynamicInfo.required,
     }),
 };

@@ -22,16 +22,10 @@ import {
 } from "@web/views/calendar/calendar_date_range";
 import { normalizeCalendarRecord } from "@web/views/calendar/calendar_record";
 
-// luxon is available as a module-level global in the Hoot browser environment
 const { DateTime } = luxon;
-
-// ---------------------------------------------------------------------------
-// computeCalendarRange — scale-based date range computation
-// ---------------------------------------------------------------------------
 
 describe("computeCalendarRange — day scale", () => {
     test("returns the full day containing the anchor date", () => {
-        // Jan 15, 2024 — a Monday
         const date = DateTime.fromISO("2024-01-15T14:30:00");
 
         const { start, end } = computeCalendarRange("day", date, 1, false);
@@ -47,12 +41,10 @@ describe("computeCalendarRange — day scale", () => {
 
 describe("computeCalendarRange — week scale, Monday start", () => {
     test("returns Mon–Sun when firstDayOfWeek=1 and anchor is a Wednesday", () => {
-        // Jan 17, 2024 is a Wednesday (ISO weekday 3)
         const date = DateTime.fromISO("2024-01-17");
 
         const { start, end } = computeCalendarRange("week", date, 1, false);
 
-        // Monday Jan 15 → Sunday Jan 21
         expect(start.day).toBe(15);
         expect(start.month).toBe(1);
         expect(end.day).toBe(21);
@@ -60,7 +52,7 @@ describe("computeCalendarRange — week scale, Monday start", () => {
     });
 
     test("anchor on Monday itself is already the start of the week", () => {
-        const date = DateTime.fromISO("2024-01-15"); // Monday
+        const date = DateTime.fromISO("2024-01-15");
 
         const { start } = computeCalendarRange("week", date, 1, false);
 
@@ -68,12 +60,10 @@ describe("computeCalendarRange — week scale, Monday start", () => {
     });
 
     test("anchor on Sunday returns preceding Monday as start", () => {
-        // Jan 21, 2024 is a Sunday (ISO weekday 7)
         const date = DateTime.fromISO("2024-01-21");
 
         const { start, end } = computeCalendarRange("week", date, 1, false);
 
-        // Start should be Mon Jan 15; end should be Sun Jan 21
         expect(start.day).toBe(15);
         expect(end.day).toBe(21);
     });
@@ -81,12 +71,10 @@ describe("computeCalendarRange — week scale, Monday start", () => {
 
 describe("computeCalendarRange — week scale, Sunday start", () => {
     test("returns Sun–Sat when firstDayOfWeek=0 and anchor is a Wednesday", () => {
-        // Jan 17, 2024 (Wednesday, ISO weekday 3)
         const date = DateTime.fromISO("2024-01-17");
 
         const { start, end } = computeCalendarRange("week", date, 0, false);
 
-        // Sunday Jan 14 → Saturday Jan 20
         expect(start.day).toBe(14);
         expect(end.day).toBe(20);
     });
@@ -107,22 +95,17 @@ describe("computeCalendarRange — month scale, no overflow", () => {
 
 describe("computeCalendarRange — month scale, with overflow", () => {
     test("returns a 6-week range starting from the aligned first day of the first week", () => {
-        // January 2024: starts on Monday (Jan 1 = Mon, firstDayOfWeek=1)
-        // → start = Jan 1, end = Jan 1 + 6 weeks - 1 day = Feb 11
         const date = DateTime.fromISO("2024-01-17");
 
         const { start, end } = computeCalendarRange("month", date, 1, true);
 
         expect(start.day).toBe(1);
         expect(start.month).toBe(1);
-        // 6 weeks from Jan 1 - 1 day = Feb 11
         expect(end.month).toBe(2);
         expect(end.day).toBe(11);
     });
 
     test("start aligns to firstDayOfWeek when month begins mid-week", () => {
-        // February 2024 starts on Thursday (ISO weekday 4); firstDayOfWeek=1 (Monday)
-        // currentWeekOffset = (4 - 1) % 7 = 3 → start = Feb 1 - 3 = Jan 29
         const date = DateTime.fromISO("2024-02-15");
 
         const { start } = computeCalendarRange("month", date, 1, true);
@@ -131,10 +114,6 @@ describe("computeCalendarRange — month scale, with overflow", () => {
         expect(start.day).toBe(29);
     });
 });
-
-// ---------------------------------------------------------------------------
-// computeRangeDomain — overlap domain construction
-// ---------------------------------------------------------------------------
 
 describe("computeRangeDomain — with date_stop", () => {
     test("produces two-condition domain for events overlapping the range", () => {
@@ -149,7 +128,6 @@ describe("computeRangeDomain — with date_stop", () => {
             range,
         );
 
-        // date_start <= end AND date_stop >= start
         expect(domain.length).toBe(2);
         expect(domain[0][0]).toBe("start_date");
         expect(domain[0][1]).toBe("<=");
@@ -165,13 +143,8 @@ describe("computeRangeDomain — without date_stop, without date_delay", () => {
             end: DateTime.fromISO("2024-01-21"),
         };
 
-        const domain = computeRangeDomain(
-            { date_start: "start_date" }, // no date_stop, no date_delay
-            "date",
-            range,
-        );
+        const domain = computeRangeDomain({ date_start: "start_date" }, "date", range);
 
-        // date_start <= end AND date_start >= start
         expect(domain.length).toBe(2);
         expect(domain[0][0]).toBe("start_date");
         expect(domain[0][1]).toBe("<=");
@@ -193,7 +166,6 @@ describe("computeRangeDomain — with date_delay (no date_stop)", () => {
             range,
         );
 
-        // Only the upper bound: date_start <= end
         expect(domain.length).toBe(1);
         expect(domain[0][0]).toBe("start_date");
         expect(domain[0][1]).toBe("<=");
@@ -209,15 +181,10 @@ describe("computeRangeDomain — serialization format", () => {
 
         const domain = computeRangeDomain({ date_start: "start_date" }, "date", range);
 
-        // Values should be ISO date strings
         expect(typeof domain[0][2]).toBe("string");
         expect(domain[0][2]).toMatch(/^\d{4}-\d{2}-\d{2}/);
     });
 });
-
-// ---------------------------------------------------------------------------
-// computeFiltersDomain — filter section → domain conversion
-// ---------------------------------------------------------------------------
 
 describe("computeFiltersDomain — static filters (writeResModel)", () => {
     test("produces 'in' domain from active static filter values", () => {
@@ -261,13 +228,13 @@ describe("computeFiltersDomain — dynamic filters (no writeResModel)", () => {
             categ_id: {
                 filters: [
                     { value: 10, active: true },
-                    { value: 20, active: false }, // excluded
-                    { value: 30, active: false }, // excluded
+                    { value: 20, active: false },
+                    { value: 30, active: false },
                 ],
             },
         };
         const filtersInfo = {
-            categ_id: {}, // no writeResModel → dynamic
+            categ_id: {},
         };
 
         const domain = computeFiltersDomain(filterSections, filtersInfo);
@@ -313,10 +280,6 @@ describe("computeFiltersDomain — mixed static and dynamic", () => {
         expect(categClause[1]).toBe("not in");
     });
 });
-
-// ---------------------------------------------------------------------------
-// normalizeCalendarRecord — raw record transformation
-// ---------------------------------------------------------------------------
 
 describe("normalizeCalendarRecord — datetime event (timed)", () => {
     test("extracts id, title, start/end DateTimes, and isAllDay=false", () => {
@@ -375,7 +338,6 @@ describe("normalizeCalendarRecord — date event (all-day)", () => {
         });
 
         expect(result.isAllDay).toBe(true);
-        // date fields never show time
         expect(result.isTimeHidden).toBe(true);
         expect(result.isMonth).toBe(true);
     });
@@ -484,7 +446,6 @@ describe("normalizeCalendarRecord — duration fallback", () => {
             isSmall: false,
         });
 
-        // end = start + 3 hours — check relative diff, not absolute hour (timezone-agnostic)
         expect(result.end.diff(result.start, "hours").hours).toBe(3);
     });
 });

@@ -23,9 +23,6 @@ function onKeydown(/** @type {KeyboardEvent} */ ev) {
         /** @type {number} */ (target.selectionEnd),
         "end",
     );
-    // setRangeText does not fire an input event, so useInputField's dirty
-    // tracking (FIELD_IS_DIRTY, field validity reset) would miss this
-    // keystroke without a synthetic one.
     target.dispatchEvent(new InputEvent("input", { bubbles: true }));
 }
 
@@ -45,14 +42,11 @@ function onFocus(/** @type {FocusEvent} */ ev) {
 export function useNumpadDecimal() {
     const ref = useRef("numpadDecimal");
     const isIOSDevice = isIOS();
-    // Delegated listeners: a single pair on the root element instead of one
-    // pair per input rewired on every patch.
     const handleKeydown = (/** @type {KeyboardEvent} */ ev) => {
         if (/** @type {HTMLElement} */ (ev.target).closest("input")) {
             onKeydown(ev);
         }
     };
-    // "focus" does not bubble: use "focusin" for delegation.
     const handleFocusin = (/** @type {FocusEvent} */ ev) => {
         if (/** @type {HTMLElement} */ (ev.target).closest("input")) {
             onFocus(ev);

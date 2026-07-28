@@ -45,15 +45,6 @@ class ResUsersSettings(models.Model):
             ],
             limit=1,
         )
-        # Whitelist the client-settable fields. Without this, an arbitrary key
-        # in ``vals`` flows straight into ``write()``; in particular a caller
-        # could pass ``user_setting_id`` to RE-POINT their own config row onto
-        # another user's settings — the ir.rule (web_security.xml) only checks
-        # the pre-image, which is the caller's own row — polluting the victim's
-        # embedded-actions bar and squatting their ``(user_setting_id,
-        # action_id, res_id)`` unique slot. The identity fields
-        # (``user_setting_id``/``action_id``/``res_id``) are set explicitly on
-        # create below and must never be writable from the client.
         _ID_LIST_FIELDS = ("embedded_actions_order", "embedded_actions_visibility")
         _SETTABLE_FIELDS = (*_ID_LIST_FIELDS, "embedded_visibility", "res_model")
         new_vals = {}

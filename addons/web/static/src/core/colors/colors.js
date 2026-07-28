@@ -11,87 +11,80 @@ import { clamp } from "@web/core/utils/format/numbers";
 
 const COLORS_ENT_BRIGHT = ["#875A7B", "#A5D8D7", "#DCD0D9"];
 const COLORS_ENT_DARK = ["#6B3E66", "#147875", "#5A395A"];
-const COLORS_SM = [
-    "#4EA7F2", // Blue
-    "#EA6175", // Red
-    "#43C5B1", // Teal
-    "#F4A261", // Orange
-    "#8481DD", // Purple
-    "#FFD86D", // Yellow
-];
+const COLORS_SM = ["#4EA7F2", "#EA6175", "#43C5B1", "#F4A261", "#8481DD", "#FFD86D"];
 const COLORS_MD = [
-    "#4EA7F2", // Blue #1
-    "#3188E6", // Blue #2
-    "#43C5B1", // Teal #1
-    "#00A78D", // Teal #2
-    "#EA6175", // Red #1
-    "#CE4257", // Red #2
-    "#F4A261", // Orange #1
-    "#F48935", // Orange #2
-    "#8481DD", // Purple #1
-    "#5752D1", // Purple #2
-    "#FFD86D", // Yellow #1
-    "#FFBC2C", // Yellow #2
+    "#4EA7F2",
+    "#3188E6",
+    "#43C5B1",
+    "#00A78D",
+    "#EA6175",
+    "#CE4257",
+    "#F4A261",
+    "#F48935",
+    "#8481DD",
+    "#5752D1",
+    "#FFD86D",
+    "#FFBC2C",
 ];
 const COLORS_LG = [
-    "#4EA7F2", // Blue #1
-    "#3188E6", // Blue #2
-    "#056BD9", // Blue #3
-    "#A76DBC", // Violet #1
-    "#7F4295", // Violet #2
-    "#6D2387", // Violet #3
-    "#EA6175", // Red #1
-    "#CE4257", // Red #2
-    "#982738", // Red #3
-    "#43C5B1", // Teal #1
-    "#00A78D", // Teal #2
-    "#0E8270", // Teal #3
-    "#F4A261", // Orange #1
-    "#F48935", // Orange #2
-    "#BE5D10", // Orange #3
-    "#8481DD", // Purple #1
-    "#5752D1", // Purple #2
-    "#3A3580", // Purple #3
-    "#A4A8B6", // Gray #1
-    "#7E8290", // Gray #2
-    "#545B70", // Gray #3
-    "#FFD86D", // Yellow #1
-    "#FFBC2C", // Yellow #2
-    "#C08A16", // Yellow #3
+    "#4EA7F2",
+    "#3188E6",
+    "#056BD9",
+    "#A76DBC",
+    "#7F4295",
+    "#6D2387",
+    "#EA6175",
+    "#CE4257",
+    "#982738",
+    "#43C5B1",
+    "#00A78D",
+    "#0E8270",
+    "#F4A261",
+    "#F48935",
+    "#BE5D10",
+    "#8481DD",
+    "#5752D1",
+    "#3A3580",
+    "#A4A8B6",
+    "#7E8290",
+    "#545B70",
+    "#FFD86D",
+    "#FFBC2C",
+    "#C08A16",
 ];
 const COLORS_XL = [
-    "#4EA7F2", // Blue #1
-    "#3188E6", // Blue #2
-    "#056BD9", // Blue #3
-    "#155193", // Blue #4
-    "#A76DBC", // Violet #1
-    "#7F4295", // Violet #2
-    "#6D2387", // Violet #3
-    "#4F1565", // Violet #4
-    "#EA6175", // Red #1
-    "#CE4257", // Red #2
-    "#982738", // Red #3
-    "#791B29", // Red #4
-    "#43C5B1", // Teal #1
-    "#00A78D", // Teal #2
-    "#0E8270", // Teal #3
-    "#105F53", // Teal #4
-    "#F4A261", // Orange #1
-    "#F48935", // Orange #2
-    "#BE5D10", // Orange #3
-    "#7D380D", // Orange #4
-    "#8481DD", // Purple #1
-    "#5752D1", // Purple #2
-    "#3A3580", // Purple #3
-    "#26235F", // Purple #4
-    "#A4A8B6", // Gray #1
-    "#7E8290", // Gray #2
-    "#545B70", // Gray #3
-    "#3F4250", // Gray #4
-    "#FFD86D", // Yellow #1
-    "#FFBC2C", // Yellow #2
-    "#C08A16", // Yellow #3
-    "#936A12", // Yellow #4
+    "#4EA7F2",
+    "#3188E6",
+    "#056BD9",
+    "#155193",
+    "#A76DBC",
+    "#7F4295",
+    "#6D2387",
+    "#4F1565",
+    "#EA6175",
+    "#CE4257",
+    "#982738",
+    "#791B29",
+    "#43C5B1",
+    "#00A78D",
+    "#0E8270",
+    "#105F53",
+    "#F4A261",
+    "#F48935",
+    "#BE5D10",
+    "#7D380D",
+    "#8481DD",
+    "#5752D1",
+    "#3A3580",
+    "#26235F",
+    "#A4A8B6",
+    "#7E8290",
+    "#545B70",
+    "#3F4250",
+    "#FFD86D",
+    "#FFBC2C",
+    "#C08A16",
+    "#936A12",
 ];
 
 /**

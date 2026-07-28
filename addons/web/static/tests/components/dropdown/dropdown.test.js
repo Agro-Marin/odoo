@@ -116,10 +116,6 @@ test("can be rendered", async () => {
 });
 
 test("items prop validates each item's shape", async () => {
-    // Regression: the `items` prop schema used the plural key `elements`, which
-    // OWL ignores, so a malformed item (missing `onSelected`) passed validation
-    // and only blew up later inside DropdownPopover. With the schema fixed to the
-    // singular `element` key, the bad shape must be rejected at mount time.
     class Parent extends Component {
         static components = { Dropdown };
         static props = ["*"];
@@ -133,11 +129,6 @@ test("items prop validates each item's shape", async () => {
     await expect(mountWithCleanup(Parent)).rejects.toThrow(
         /Invalid props for component 'Dropdown'/,
     );
-    // The rejected mount also surfaces the error through owl's global handler,
-    // but asynchronously (owl re-emits it as a window error event on a later
-    // tick, after the mount promise has already rejected). Wait a frame so the
-    // error has been registered before consuming it, else verifyErrors sees an
-    // empty list and the late error is counted as unverified.
     await animationFrame();
     expect.verifyErrors([/Invalid props for component 'Dropdown'/]);
 });
@@ -258,7 +249,6 @@ test("close on item selection", async () => {
 
 test.tags("desktop");
 test("hold position on hover", async () => {
-    // Disable popover animations for this test
     patchWithCleanup(Popover.prototype, {
         onPositioned(el, solution) {
             this.shouldAnimate = false;
@@ -324,7 +314,6 @@ test("unlock position after close", async () => {
     expect(DROPDOWN_MENU).toHaveCount(1);
     const menuBox1 = queryOne(DROPDOWN_MENU).getBoundingClientRect();
 
-    // Pointer enter the dropdown menu to lock the menu
     await hover(DROPDOWN_MENU);
 
     await click(DROPDOWN_TOGGLE);
@@ -400,7 +389,6 @@ test("dropdowns keynav", async () => {
         expect(".dropdown-menu > .focus").toBeFocused();
     }
 
-    // Select last one activated in previous scenario (item1)
     await press("enter");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
@@ -410,7 +398,6 @@ test("dropdowns keynav", async () => {
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // Select second item through data-hotkey attribute
     await press("alt+2");
     await tick();
     await animationFrame();
@@ -421,7 +408,6 @@ test("dropdowns keynav", async () => {
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // Close dropdown with keynav
     await press("escape");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
@@ -452,7 +438,6 @@ test("dropdowns keynav is not impacted by bootstrap", async () => {
 
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // This class presence makes bootstrap ignore the below event
     expect(DROPDOWN_MENU).toHaveClass("o-dropdown--menu");
 
     await pointerDown("select");
@@ -486,8 +471,6 @@ test("refocus toggler on close with keynav", async () => {
 
 test.tags("desktop");
 test("opening a dropdown over another restores focus to its own toggler", async () => {
-    // Open B via state (no outside pointerdown) so A closes through the nesting
-    // bus mid-cascade — the exact ordering that used to leak A's focus target to B.
     let parent;
     class Parent extends Component {
         static components = { Dropdown, DropdownItem };
@@ -514,20 +497,16 @@ test("opening a dropdown over another restores focus to its own toggler", async 
     }
     await mountWithCleanup(Parent);
 
-    // Open A, keeping DOM focus on A's toggler.
     queryOne(".toggler-a").focus();
     parent.stateA.open();
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
     expect(".toggler-a").toBeFocused();
 
-    // A closes via the nesting bus mid-cascade; B's restore-focus must still
-    // anchor on its own toggler, not on A's.
     parent.stateB.open();
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // Closing B (Escape) returns focus to B's toggler, not to A's old target.
     await press("Escape");
     await animationFrame();
     expect(".toggler-b").toBeFocused();
@@ -559,13 +538,9 @@ test("programmatic close does not steal focus from an editable outside the dropd
     expect(DROPDOWN_MENU).toHaveCount(1);
     expect(DROPDOWN_TOGGLE).toBeFocused();
 
-    // The user moves on to type somewhere else (e.g. the search input).
     queryOne("input.outside-input").focus();
     expect("input.outside-input").toBeFocused();
 
-    // Something closes the dropdown programmatically (e.g. SearchBar's
-    // onSearchInput closing the SearchBarMenu on the first keystroke,
-    // t23947): the close must NOT yank focus away from the editable.
     comp.dropdownState.close();
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
@@ -596,8 +571,6 @@ test("closing with focus on an editable inside the dropdown refocuses the toggle
     queryOne("input.inside-input").focus();
     expect("input.inside-input").toBeFocused();
 
-    // An editable INSIDE the closing menu is about to be unmounted: the
-    // focus restore to the toggler must still happen (guard boundary).
     comp.dropdownState.close();
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
@@ -623,11 +596,9 @@ test("navigationProps changes navigation behaviour", async () => {
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
 
-    // Toggler is focused, no focus in dropdown
     expect(DROPDOWN_TOGGLE).toBeFocused();
     expect(".o-dropdown-item:nth-child(1)").not.toHaveClass("focus");
 
-    // After arrow down, toggler is still focused, virtual focus in dropdown
     await press("arrowdown");
 
     expect(DROPDOWN_TOGGLE).toBeFocused();
@@ -635,7 +606,6 @@ test("navigationProps changes navigation behaviour", async () => {
 
     expect.verifySteps([]);
 
-    // Arrow up is overridden, nothing should change
     await press("arrowup");
 
     expect(DROPDOWN_TOGGLE).toBeFocused();
@@ -676,14 +646,11 @@ test("'o-dropdown-caret' class adds a caret", async () => {
         return styles.content;
     };
 
-    // Check that the "::after" pseudo-element is NOT empty, there is a caret
     expect(getContent(".first")).not.toBe("none");
 
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
-    // Check that the "::after" pseudo-element is NOT empty, there is a caret
     expect(getContent(".second")).not.toBe("none");
-    // Check that the "::after" pseudo-element is empty,there are not caret
     expect(getContent(".third")).toBe("none");
 });
 
@@ -774,7 +741,7 @@ test("date picker inside does not close when a click occurs in date picker", asy
     expect(".o_datetime_picker").toHaveCount(1);
     expect(".o_datetime_input").toHaveValue("");
 
-    await click(getPickerCell("15")); // select some day
+    await click(getPickerCell("15"));
     await animationFrame();
 
     expect(DROPDOWN_MENU).toHaveCount(1);
@@ -867,7 +834,6 @@ test("Dropdown with CheckboxItem: toggle value", async () => {
 test("don't close dropdown outside the active element", async () => {
     const env = await makeMockEnv();
 
-    // Opening a dropdown inside a dialog spawned from another dropdown must not close the latter.
     class CustomDialog extends Component {
         static components = { Dialog, Dropdown, DropdownItem };
         static props = { close: true };
@@ -972,7 +938,6 @@ test("t-if t-else as toggler", async () => {
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
 
-    // Change button then open
     state.foo = "boo";
     await animationFrame();
     await click(DROPDOWN_TOGGLE);
@@ -1019,24 +984,20 @@ test("Dropdown in dialog in dropdown, first dropdown should stay open when click
     await mountWithCleanup(Parent, { env });
     expect(DROPDOWN_MENU).toHaveCount(0);
 
-    // Open dialog
     await click(".root-dropdown");
     await animationFrame();
     await click(".root-button");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
 
-    // Open dropdown in dialog => both dropdown should be open
     await click(".dialog-dropdown");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(2);
 
-    // Click inside dropdown inside dialog => both dropdown should not close
     await click(".dialog-button");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(2);
 
-    // Click outside dropdown inside dialog => only first dropdown should be open
     if (getMockEnv().isSmall) {
         await click(".o_bottom_sheet_backdrop");
     } else {
@@ -1074,10 +1035,9 @@ test("multi-level dropdown: initial open state can be true", async () => {
     }
 
     await mountWithCleanup(Parent);
-    // Dropdown needs one tick to open as it goes through the popover/overlay service
-    await animationFrame(); // Wait for first dropdown to open
-    await animationFrame(); // Wait for second dropdown
-    await animationFrame(); // Wait for third dropdown
+    await animationFrame();
+    await animationFrame();
+    await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(3);
 });
 
@@ -1145,18 +1105,15 @@ test("multi-level dropdown: parent closing modes on item selection", async () =>
     }
     await mountWithCleanup(Parent);
 
-    // Open the 2-level dropdowns
     await click(".dropdown-a");
     await animationFrame();
     await click(".dropdown-b");
     await animationFrame();
 
-    // Select item (closingMode=none)
     await click(".item1");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(2);
 
-    // Select item (closingMode=closest)
     await click(".item2");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
@@ -1164,18 +1121,15 @@ test("multi-level dropdown: parent closing modes on item selection", async () =>
     await click(".dropdown-b");
     await animationFrame();
 
-    // Select item (closingMode=all)
     await click(".item3");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
 
-    // Reopen the 2-level dropdowns
     await click(".dropdown-a");
     await animationFrame();
     await click(".dropdown-b");
     await animationFrame();
 
-    // Select item (default should be closingMode=all)
     await click(".item4");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
@@ -1221,7 +1175,7 @@ test("multi-level dropdown: recursive template can be rendered", async () => {
 
     await mountWithCleanup(Parent, {
         templates: {
-            ["recursive.Template"]: /* xml */ `
+            ["recursive.Template"]: `
                 <Dropdown state="dropdown">
                     <button><t t-esc="name" /></button>
                     <t t-set-slot="content">
@@ -1242,7 +1196,6 @@ test("multi-level dropdown: recursive template can be rendered", async () => {
         },
     });
 
-    // Each sub-dropdown needs a tick to open
     await animationFrame();
     await animationFrame();
     await animationFrame();
@@ -1303,7 +1256,6 @@ test("multi-level dropdown: keynav", async () => {
         message: "menus are closed at the start",
     });
 
-    // Highlighting and selecting items
     const scenarioSteps = [
         { hotkey: "alt+1" },
         { hotkey: "arrowup", highlighted: ["first-last"] },
@@ -1379,13 +1331,11 @@ test("multi-level dropdown: keynav", async () => {
                         : lastActiveElement,
                 ).toBeFocused();
             } else {
-                // no active element means that the main dropdown is closed
                 expect(document.activeElement).toHaveClass("first");
             }
         }
         if (step.selected !== undefined) {
             const verify = step.selected === false ? [] : [step.selected];
-            // step ${stepIndex}: selected item is correct
             expect.verifySteps(verify);
         }
     }
@@ -1424,7 +1374,6 @@ test("multi-level dropdown: keynav when rtl direction", async () => {
         message: "menus are closed at the start",
     });
 
-    // Highlighting and selecting items
     const scenarioSteps = [
         { hotkey: "alt+1" },
         { hotkey: "arrowdown", highlighted: ["first-first"] },
@@ -1508,12 +1457,10 @@ test("multi-level dropdown: submenu keeps position when patched", async () => {
 
     await click(".two");
     await animationFrame();
-    // Change submenu content
     parentState.foo = true;
     await animationFrame();
     expect.verifySteps(["submenu patched"]);
 
-    // Change submenu content
     parentState.foo = false;
     await animationFrame();
     expect.verifySteps(["submenu patched"]);
@@ -1628,7 +1575,6 @@ test("multi-level dropdown: unsubscribe all keynav when root destroyed", async (
     expect(DROPDOWN_MENU).toHaveCount(0);
     expect(registeredHotkeys.size).toBe(0);
 
-    // Open dropdowns one by one
     await click(".first");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(1);
@@ -1648,7 +1594,6 @@ test("multi-level dropdown: unsubscribe all keynav when root destroyed", async (
     expect(DROPDOWN_MENU).toHaveCount(2);
     checkKeys(removedHotkeys);
 
-    // Reset hover
     await hover(getFixture());
 
     await hover(".third");
@@ -1656,19 +1601,16 @@ test("multi-level dropdown: unsubscribe all keynav when root destroyed", async (
     expect(DROPDOWN_MENU).toHaveCount(3);
     checkKeys(registeredHotkeys);
 
-    // Close third, second and first
     await press("escape");
     await animationFrame();
 
     await press("escape");
     await animationFrame();
-    // Third dropdown is completely destroyed => check for removed keys
     checkKeys(removedHotkeys);
 
     await press("escape");
     await animationFrame();
     expect(DROPDOWN_MENU).toHaveCount(0);
-    // Second dropdown is completely destroyed => check for removed keys
     checkKeys(removedHotkeys);
 });
 

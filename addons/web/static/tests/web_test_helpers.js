@@ -190,16 +190,10 @@ export function defineWebModels() {
  */
 export function preloadBundle(bundleName) {
     before(async function preloadBundle() {
-        // An earlier test may have loaded this bundle through the mock server,
-        // caching a lightweight STUB descriptor (see HEAVY_STATIC_BUNDLE_STUBS)
-        // under the same name. Preloading means the suite wants the REAL
-        // bundle: evict the cached entry so it isn't shadowed by the stub.
         globalBundleCache.delete(bundleName);
         await withFetch(globalCachedFetch, () => loadBundle(bundleName));
     });
     after(() => {
-        // Don't leak the real (heavy) bundle to later suites: evict it again
-        // so they go back to the stub the mock server serves.
         globalBundleCache.delete(bundleName);
     });
 }
@@ -261,35 +255,7 @@ export const webModels = {
     ResUsersSettings,
 };
 
-// Extra-narrow seed of routing-infrastructure models. Tests that render
-// avatars or images call `/web/image/<model>/<id>/<field>` which routes
-// through `ir.http.binary_content`; without IrHttp registered, those tests
-// fail with "Cannot find a definition for model 'ir.http'" plus cascade
-// HootTimingError. We deliberately do NOT seed IrAttachment because some
-// tests assert against the missing-model error path for upload flows
-// (html_editor's link popover file upload), and broader webModels are
-// avoided because they leak record presence into search-panel/webclient
-// tests' record-absence assertions.
 setDefaultMockModels({ IrHttp });
 
-// Default mock for the mail bootstrap routes.
-//
-// mail's store_service eagerly fires ``/mail/data`` (or ``/mail/action``) on
-// WebClient mount to pre-seed its store. Core tests that mount WebClient or
-// CommandPalette without ``mail_test_helpers`` then hit "Unimplemented server
-// route", which Hoot counts as an unverified RPC_ERROR — failing tests for a
-// side-effect unrelated to what they assert.
-//
-// An empty ``setDefaultMockRoute`` handler makes the routes "known" so the
-// bootstrap no-ops. Mail tests can still override via ``onRpc(...)``, which
-// shadows this default (``_defineParams`` is ``mode: "add"``).
-//
-// ``onRpc`` at module load does NOT work here: it registers inside
-// ``before(...)``, which is suite-scoped and no-ops outside a ``describe``
-// block. ``setDefaultMockRoute`` instead folds into the runner-level params
-// snapshot (``getCurrentParams``), picked up at the start of every job.
-//
-// Both routes are mocked because ``store_service.fetchReadonly`` decides
-// which one to call at runtime, and tests don't pin it.
 setDefaultMockRoute("/mail/data", () => ({}));
 setDefaultMockRoute("/mail/action", () => ({}));

@@ -31,7 +31,6 @@ export function assertDateTimePicker(expectedParams) {
 
     const { title, date, time } = expectedParams;
 
-    // Title
     if (title) {
         expect(".o_datetime_picker_header").toHaveCount(1);
         expect(".o_datetime_picker_header").toHaveText(title);
@@ -39,7 +38,6 @@ export function assertDateTimePicker(expectedParams) {
         expect(".o_datetime_picker_header").toHaveCount(0);
     }
 
-    // Time picker
     if (time) {
         expect(".o_time_picker").toHaveCount(time.length);
         for (let i = 0; i < time.length; i++) {
@@ -54,7 +52,6 @@ export function assertDateTimePicker(expectedParams) {
         expect(".o_time_picker").toHaveCount(0);
     }
 
-    // Date picker
     expect(".o_date_picker").toHaveCount(date.length);
 
     let selectedCells = 0;
@@ -93,25 +90,21 @@ export function assertDateTimePicker(expectedParams) {
             });
         }
 
-        // Date cells
         const expectedCells = cells.flatMap((row, rowIndex) =>
             row.map((cell, colIndex) => {
                 const cellEl = cellEls[rowIndex * PICKER_COLS + colIndex];
                 let value = cell;
                 if (Array.isArray(cell)) {
-                    // Selected
                     value = value[0];
                     selectedCells++;
                     expect(cellEl).toHaveClass("o_selected");
                 }
                 if (typeof value === "string") {
-                    // Today
                     value = Number(value);
                     todayCells++;
                     expect(cellEl).toHaveClass("o_today");
                 }
                 if (value < 0) {
-                    // Invalid
                     value = Math.abs(value);
                     invalidCells++;
                     expect(cellEl).toHaveAttribute("disabled");

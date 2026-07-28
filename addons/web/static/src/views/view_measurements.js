@@ -39,16 +39,6 @@ export const computeReportMeasures = (
         }
     }
 
-    // Include active measures not already listed: rarely needed, but supports
-    // a non-stored functional field with an overridden read_group. Such
-    // fields' aggregate will otherwise always be 0.
-    //
-    // Guard `fields[measure]`: a favorite/action context can carry a measure
-    // whose field was since removed or renamed (this fork renames fields, e.g.
-    // free_qty -> qty_free). Assigning `undefined` here would leak into the
-    // sort comparator below (`f.string.toLowerCase()`) and hard-crash the view
-    // on favorite activation. Skip the unknown measure instead — callers drop
-    // it from activeMeasures (see dropUnknownMeasures).
     for (const measure of activeMeasures) {
         if (!measures[measure] && fields[measure]) {
             measures[measure] = fields[measure];
@@ -57,8 +47,6 @@ export const computeReportMeasures = (
 
     for (const fieldName of Object.keys(fieldAttrs)) {
         if (fieldAttrs[fieldName].string && fieldName in measures) {
-            // copy before mutating: `measures[fieldName]` aliases the live
-            // shared field definition
             measures[fieldName] = {
                 ...measures[fieldName],
                 string: fieldAttrs[fieldName].string,
@@ -68,7 +56,7 @@ export const computeReportMeasures = (
 
     const sortedMeasures = Object.entries(measures).sort(([m1, f1], [m2, f2]) => {
         if (m1 === "__count" || m2 === "__count") {
-            return m1 === "__count" ? 1 : -1; // Count is always last
+            return m1 === "__count" ? 1 : -1;
         }
         return f1.string.toLowerCase().localeCompare(f2.string.toLowerCase());
     });
@@ -120,8 +108,6 @@ export function computeAggregatedValue(values, aggregator) {
     } else if (aggregator === "avg") {
         return values.reduce((acc, v) => v + acc, 0) / values.length;
     } else if (aggregator === "min") {
-        // reduce instead of Math.min(...values): spreading very large arrays
-        // exceeds the argument limit and throws a RangeError
         return values.reduce((acc, v) => (v < acc ? v : acc), Infinity);
     } else if (aggregator === "max") {
         return values.reduce((acc, v) => (v > acc ? v : acc), -Infinity);

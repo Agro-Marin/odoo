@@ -26,9 +26,6 @@ import {
     isVideoElementReady,
 } from "./ZXingBarcodeDetector.js";
 
-// A persistently failing detector (e.g. broken codec/canvas state) would
-// otherwise call onError in a 100ms loop forever: give up after this many
-// consecutive detect() rejections.
 const MAX_CONSECUTIVE_DETECT_ERRORS = 5;
 
 export class BarcodeVideoScanner extends Component {
@@ -70,8 +67,6 @@ export class BarcodeVideoScanner extends Component {
 
         onWillStart(async () => {
             let DetectorClass;
-            // Use the Barcode Detection API if available; fall back to
-            // ZXing (support is still bleeding edge, mainly Chrome/Android).
             if ("BarcodeDetector" in window) {
                 DetectorClass = BarcodeDetector;
             } else {
@@ -154,7 +149,6 @@ export class BarcodeVideoScanner extends Component {
      * @returns {Promise} resolves when the video element is ready
      */
     async isVideoReady() {
-        // FIXME: even if it shouldn't happened, a timeout could be useful here.
         while (!isVideoElementReady(this.videoPreviewRef.el)) {
             await delay(10);
             if (status(this) === "destroyed") {
@@ -171,8 +165,6 @@ export class BarcodeVideoScanner extends Component {
     onResize(overlayInfo) {
         this.overlayInfo = overlayInfo;
         if (this.isZXingBarcodeDetector()) {
-            // TODO need refactoring when ZXing will support multiple result in one scan
-            // https://github.com/zxing-js/library/issues/346
             /** @type {any} */ (this.detector).setCropArea(
                 this.adaptValuesWithRatio(this.overlayInfo, true),
             );
@@ -192,13 +184,6 @@ export class BarcodeVideoScanner extends Component {
             this.consecutiveDetectErrors = 0;
         } catch (err) {
             this.consecutiveDetectErrors++;
-            // A single detect() rejection is usually transient (e.g. the ZXing
-            // polyfill throws InvalidStateError when video.readyState briefly
-            // drops). Only surface it as an error once the retry budget is
-            // exhausted — reporting every frame made consumers that treat
-            // onError as fatal (BarcodeDialog swaps the live camera for the
-            // error screen) kill the scanner on the first hiccup, turning the
-            // MAX_CONSECUTIVE_DETECT_ERRORS budget into dead code.
             if (this.consecutiveDetectErrors >= MAX_CONSECUTIVE_DETECT_ERRORS) {
                 this.props.onError(err);
                 this.cleanStreamAndTimeout();

@@ -34,13 +34,13 @@ class Partner extends models.Model {
         { id: 5, display_name: "Fifth record" },
     ];
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <group>
                     <field name="display_name"/>
                 </group>
             </form>`,
-        kanban: /* xml */ `
+        kanban: `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -117,10 +117,7 @@ test("'CLEAR-UNCOMMITTED-CHANGES' is not triggered for switchView", async () => 
 
     await getService("action").doAction(1);
     await getService("action").switchView("kanban", {}, { newWindow: true });
-    expect.verifySteps([
-        "CLEAR-UNCOMMITTED-CHANGES", // The first do action clear uncommitted changes as expected. The second one doesn't
-        "open: /odoo/action-1",
-    ]);
+    expect.verifySteps(["CLEAR-UNCOMMITTED-CHANGES", "open: /odoo/action-1"]);
 });
 
 test("can execute dynamic act_window actions in a new window", async () => {
@@ -176,12 +173,6 @@ test("can execute client actions in a new window", async () => {
 });
 
 test("opening in a new window seeds sessionStorage, then restores this window's", async () => {
-    // sessionStorage is copied into the new browsing context at the moment it
-    // is opened, so `openActionInNewWindow` must have the DESTINATION's action
-    // and state in place across the `browser.open` call — and must leave this
-    // window exactly as it found it. Without the restore, the originating tab
-    // keeps pointing at whatever it just launched elsewhere: its next reload
-    // would resume the other tab's action.
     defineActions([
         {
             id: 2,
@@ -204,7 +195,6 @@ test("opening in a new window seeds sessionStorage, then restores this window's"
     });
 
     await mountWithCleanup(WebClient);
-    // Commit action 1 in THIS window, so there is a value worth preserving.
     await getService("action").doAction(1);
     const before = {
         action: browser.sessionStorage.getItem("current_action"),
@@ -213,21 +203,15 @@ test("opening in a new window seeds sessionStorage, then restores this window's"
     expect(JSON.parse(before.action).id).toBe(1);
 
     await getService("action").doAction(2, { newWindow: true });
-    // The whole breadcrumb stack rides along, so the new tab opens on
-    // action 2 *under* action 1 — not on a bare action 2.
     expect.verifySteps(["open: /odoo/action-1/action-2"]);
 
-    // The new window was seeded with action 2...
     expect(JSON.parse(duringOpen.action).id).toBe(2);
     expect(JSON.parse(duringOpen.state).action).toBe(2);
-    // ...and this window still holds action 1.
     expect(browser.sessionStorage.getItem("current_action")).toBe(before.action);
     expect(browser.sessionStorage.getItem("current_state")).toBe(before.state);
 });
 
 test("opening in a new window from a blank session leaves no residue", async () => {
-    // The restore must also cover "there was nothing here before": the keys are
-    // removed, not left holding the destination window's action.
     defineActions([
         {
             id: 2,

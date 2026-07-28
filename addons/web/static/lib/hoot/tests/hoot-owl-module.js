@@ -35,5 +35,4 @@ export {
     validateType,
     whenReady,
     xml,
-    // ``@odoo/owl`` would resolve back to this file via the import map.
 } from "/web/static/lib/owl/owl.es.js";

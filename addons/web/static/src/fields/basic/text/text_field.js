@@ -63,19 +63,6 @@ export class TextField extends TextInputFieldBase {
         });
     }
 
-    /** @returns {boolean} */
-    get shouldTrim() {
-        return this.props.record.fields[this.props.name].trim;
-    }
-
-    /** @param {string} value @returns {string} */
-    parse(value) {
-        if (this.shouldTrim) {
-            return value.trim();
-        }
-        return value;
-    }
-
     /** @returns {number} */
     get minimumHeight() {
         return this.props.lineBreaks ? 50 : 0;
@@ -89,13 +76,6 @@ export class TextField extends TextInputFieldBase {
 export const textField = {
     component: TextField,
     displayName: _t("Multiline Text"),
-    // ``html``, ``text`` and ``char`` all render in this widget's
-    // textarea.  ``text`` is the canonical fit (multi-line free-form);
-    // ``char`` is supported for short-string columns the arch-author
-    // wants to give more visual room; ``html`` renders as plain text
-    // (HTML markup is shown literally), useful for source-editing or
-    // debug views.  Overlap with ``charField.supportedTypes`` is
-    // intentional polymorphism — see the comment there.
     supportedTypes: ["html", "text", "char"],
     supportedOptions: [
         {
@@ -108,12 +88,6 @@ export const textField = {
             label: _t("Dynamic Placeholder"),
             name: "placeholder_field",
             type: "field",
-            // Mirrors ``charField``'s placeholder option: both ``char``
-            // and ``text`` server types are valid sources for a
-            // dynamic placeholder string.  The historical ``["char"]``
-            // here was an asymmetry — text widgets render the same
-            // placeholder string regardless of whether the source
-            // field is char or text.
             availableTypes: ["char", "text"],
             help: _t(
                 "Displays the value of the selected field as a textual hint. If the selected field is empty, the static placeholder attribute is displayed instead.",

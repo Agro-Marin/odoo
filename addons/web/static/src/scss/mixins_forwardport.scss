@@ -1,4 +1,3 @@
-// For each breakpoint, define the maximum width of the container in a media query
 @mixin make-container-max-widths(
     $max-widths: $container-max-widths,
     $breakpoints: $grid-breakpoints
@@ -10,7 +9,6 @@
     }
 }
 
-//addons/web/static/lib/bootstrap-4/scss/mixins/_text-emphasis.scss
 @mixin text-emphasis-variant($parent, $color) {
     #{$parent} {
         color: $color !important;

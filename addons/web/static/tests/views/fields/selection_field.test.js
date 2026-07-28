@@ -99,7 +99,6 @@ test("SelectionField in a list view with multi_edit", async () => {
         resModel: "partner",
         arch: '<list string="Colors" multi_edit="1"><field name="color"/></list>',
     });
-    // select two records and edit them
     await click(".o_data_row:eq(0) .o_list_record_selector input:first");
     await animationFrame();
     await click(".o_data_row:eq(1) .o_list_record_selector input:first");
@@ -125,7 +124,7 @@ test("SelectionField, edition and on many2one field", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="product_id" widget="selection" />
                 <field name="trululu" widget="selection" />
@@ -156,7 +155,7 @@ test("SelectionField on a many2one passes the field context to name_search", asy
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="product_id" widget="selection" context="{'special_key': 1}" />
             </form>`,
@@ -170,7 +169,7 @@ test("SelectionField keeps a current many2one value excluded by the domain", asy
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="product_id" widget="selection" domain="[('name', '=', 'xphone')]" />
             </form>`,
@@ -183,8 +182,6 @@ test("SelectionField keeps a current many2one value excluded by the domain", asy
 });
 
 test("unset selection field with 0 as key", async () => {
-    // The server can't distinguish "unset" from selection value 0 — both
-    // return false — so the client must convert false to 0 when it exists.
     Partner._fields.selection = fields.Selection({
         selection: [
             [0, "Value O"],
@@ -196,7 +193,7 @@ test("unset selection field with 0 as key", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ '<form edit="0"><field name="selection" /></form>',
+        arch: '<form edit="0"><field name="selection" /></form>',
     });
 
     expect(".o_field_widget").toHaveText("Value O", {
@@ -208,8 +205,6 @@ test("unset selection field with 0 as key", async () => {
 });
 
 test("unset selection field with string keys", async () => {
-    // Same false/0 ambiguity as above, but here the keys are strings, so
-    // value 0 doesn't exist and unset must stay empty.
     Partner._fields.selection = fields.Selection({
         selection: [
             ["0", "Value O"],
@@ -220,7 +215,7 @@ test("unset selection field with string keys", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ '<form edit="0"><field name="selection" /></form>',
+        arch: '<form edit="0"><field name="selection" /></form>',
     });
 
     expect(".o_field_widget").toHaveText("", {
@@ -242,7 +237,7 @@ test("unset selection on a many2one field", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ '<form><field name="trululu" widget="selection" /></form>',
+        arch: '<form><field name="trululu" widget="selection" /></form>',
     });
 
     await editSelectMenu(".o_field_widget[name='trululu'] input", { value: "" });
@@ -252,14 +247,13 @@ test("unset selection on a many2one field", async () => {
 });
 
 test("field selection with many2ones and special characters", async () => {
-    // edit the partner with id=4
     Partner._records[2].display_name = "<span>hey</span>";
 
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ '<form><field name="trululu" widget="selection" /></form>',
+        arch: '<form><field name="trululu" widget="selection" /></form>',
     });
 
     await contains(".o_field_widget[name='trululu'] input").click();
@@ -280,7 +274,7 @@ test("required selection widget should not have blank option", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
                 <form>
                     <field name="feedback_value" />
                     <field name="color" required="feedback_value == 'bad'" />
@@ -290,7 +284,6 @@ test("required selection widget should not have blank option", async () => {
     await contains(".o_field_widget[name='feedback_value'] input").click();
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["Good", "Bad"]);
 
-    // change value to update widget modifier values
     await editSelectMenu(".o_field_widget[name='feedback_value'] input", {
         value: "Bad",
     });
@@ -302,7 +295,7 @@ test("selection field with placeholder", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="trululu" widget="selection" placeholder="Placeholder"/></form>`,
+        arch: `<form><field name="trululu" widget="selection" placeholder="Placeholder"/></form>`,
     });
 
     expect(`.o_field_widget[name='trululu'] input`).toHaveAttribute(
@@ -333,7 +326,7 @@ test("SelectionField in kanban view", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -356,7 +349,7 @@ test("SelectionField - auto save record in kanban view", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
                 <kanban>
                     <templates>
                         <t t-name="card">
@@ -374,7 +367,7 @@ test("SelectionField don't open form view on click in kanban view", async functi
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
                 <kanban>
                     <templates>
                         <t t-name="card">
@@ -406,7 +399,7 @@ test("SelectionField is disabled if field readonly", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
                 <kanban>
                     <templates>
                         <t t-name="card">
@@ -427,7 +420,7 @@ test("SelectionField is disabled with a readonly attribute", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
                 <kanban>
                     <templates>
                         <t t-name="card">
@@ -449,7 +442,7 @@ test("SelectionField search is disabled in BottomSheet", async function (assert)
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
                 <kanban>
                     <templates>
                         <t t-name="card">

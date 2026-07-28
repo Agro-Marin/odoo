@@ -3,17 +3,38 @@
 
 /** @module @web/webclient/density/density_service - Service managing content density (default/compact/condensed) via body CSS class toggles */
 
+import { reactive } from "@odoo/owl";
 import { cookie } from "@web/core/browser/cookie";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 
-/** @type {string[]} */
-const VALID_DENSITIES = ["default", "compact", "condensed"];
-/** @type {Record<string, string>} */
+/**
+ * The densities, in cycle order — ``cycle()`` steps to the next entry and
+ * wraps. This array is the ONLY place the order lives: it used to be spelled
+ * out three times (this list, a re-declared ``order`` inside ``cycle()``, and
+ * the ``next:`` chain of ``DENSITY_META`` in ``density_toggle.js``), so adding
+ * a density meant editing three lists in two files and any one of them could
+ * silently disagree.
+ *
+ * @type {string[]}
+ */
+export const DENSITIES = ["default", "compact", "condensed"];
+
+/**
+ * Body class per density. ``default`` deliberately has no entry: it is the
+ * absence of an override, not a class of its own.
+ * @type {Record<string, string>}
+ */
 const DENSITY_CLASSES = {
     compact: "o-density-compact",
     condensed: "o-density-condensed",
 };
+
+/** @param {string} density @returns {string} the density that follows it in the cycle */
+export function nextDensity(density) {
+    const index = DENSITIES.indexOf(density);
+    return DENSITIES[(index + 1) % DENSITIES.length];
+}
 
 /**
  * Manage content density (default/compact/condensed) via a body class.
@@ -25,39 +46,49 @@ const DENSITY_CLASSES = {
 export const densityService = {
     /** @returns {{ current: string, set: (density: string) => Promise<void>, cycle: () => Promise<void> }} */
     start() {
-        let effectiveDensity = "default";
         const userDensity = user.settings?.density;
-        if (VALID_DENSITIES.includes(userDensity)) {
-            effectiveDensity = userDensity;
+        /**
+         * Reactive so every consumer re-renders on a change, wherever it came
+         * from. ``DensityToggle`` used to mirror ``current`` into its own
+         * ``useState`` and re-read it only inside its own ``toggle()``, so a
+         * density set by anything else left the systray icon and tooltip
+         * showing the previous mode until the next unrelated render.
+         */
+        const state = reactive({
+            density: DENSITIES.includes(userDensity) ? userDensity : "default",
+        });
+
+        if (cookie.get("content_density") !== state.density) {
+            cookie.set("content_density", state.density);
         }
 
-        // Reconcile cookie with user setting
-        if (cookie.get("content_density") !== effectiveDensity) {
-            cookie.set("content_density", effectiveDensity);
-        }
-
-        // Apply body class (may already be set by SSR)
-        applyDensityClass(effectiveDensity);
+        applyDensityClass(state.density);
 
         return {
+            /**
+             * The reactive density holder. Exposed (rather than only the
+             * ``current`` getter) because a getter reads the reactive from a
+             * closure, which subscribes nothing: a component must be handed
+             * the reactive object itself to ``useState`` for its render to be
+             * re-run on a change.
+             */
+            state,
             get current() {
-                return effectiveDensity;
+                return state.density;
             },
             /** Switch to the given density without page reload. */
             async set(density) {
-                if (!VALID_DENSITIES.includes(density)) {
+                if (!DENSITIES.includes(density)) {
                     return;
                 }
-                effectiveDensity = density;
+                state.density = density;
                 applyDensityClass(density);
                 cookie.set("content_density", density);
                 await user.setUserSettings("density", density);
             },
             /** Cycle: default → compact → condensed → default. */
             async cycle() {
-                const order = ["default", "compact", "condensed"];
-                const idx = (order.indexOf(effectiveDensity) + 1) % order.length;
-                await this.set(order[idx]);
+                await this.set(nextDensity(state.density));
             },
         };
     },

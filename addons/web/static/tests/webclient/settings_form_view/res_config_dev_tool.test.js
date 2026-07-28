@@ -27,7 +27,7 @@ test("Simple render", async () => {
     redirect("/odoo");
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="MyApp" name="my_app">
                     <widget name='res_config_dev_tool'/>
@@ -55,7 +55,7 @@ test("Activate the developer mode", async () => {
     redirect("/odoo");
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="MyApp" name="my_app">
                     <widget name='res_config_dev_tool'/>
@@ -80,7 +80,7 @@ test("Activate the developer mode (with assets)", async () => {
     redirect("/odoo");
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="MyApp" name="my_app">
                     <widget name='res_config_dev_tool'/>
@@ -105,7 +105,7 @@ test("Activate the developer mode (with tests assets)", async () => {
     redirect("/odoo");
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="MyApp" name="my_app">
                     <widget name='res_config_dev_tool'/>
@@ -132,7 +132,7 @@ test("Activate the developer modeddd (with tests assets)", async () => {
     redirect("/odoo?debug=assets%2Ctests");
     await mountView({
         type: "form",
-        arch: /* xml */ `
+        arch: `
             <form js_class="base_settings">
                 <app string="MyApp" name="my_app">
                     <widget name='res_config_dev_tool'/>

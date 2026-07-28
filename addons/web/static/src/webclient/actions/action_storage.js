@@ -52,7 +52,6 @@ function readJSON(key) {
     try {
         raw = browser.sessionStorage.getItem(key);
     } catch {
-        // Storage disabled entirely (private mode, blocked cookies).
         return {};
     }
     if (!raw) {
@@ -60,8 +59,6 @@ function readJSON(key) {
     }
     try {
         const parsed = JSON.parse(raw);
-        // ``null`` parses fine but is not a usable state/action object, and a
-        // primitive would blow up on the property access every caller does.
         return parsed && typeof parsed === "object" ? parsed : {};
     } catch {
         console.warn(`Discarding a corrupt "${key}" entry in sessionStorage`);

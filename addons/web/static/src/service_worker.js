@@ -1,41 +1,12 @@
 // @odoo-module ignore
-/// <reference lib="webworker" />
 
 const cacheName = "odoo-sw-cache";
 const homepageURL = "/odoo";
 const offLineURL = `${homepageURL}/offline`;
 
-// Separate cache for long-lived static responses.  Distinct from
-// ``cacheName`` above so a ``caches.delete`` on logout purges user-scoped
-// data without nuking the offline page.  Holds asset bundles and
-// cache-busted ``/web/image/`` responses.
 const staticCacheName = "odoo-static-cache";
 
-// URL patterns eligible for stale-while-revalidate.  Only CONTENT-ADDRESSED
-// asset URLs qualify: `/web/assets/<hex-hash>/…` (or `/web/assets/esm/<hash>/…`)
-// — reusing a cached entry for such a URL is always correct because the hash
-// changes when the content does.  The binary controller also serves MUTABLE
-// asset URLs where the "unique" segment is `debug`, `any`, or `%`
-// (controllers/binary.py); requiring a hex-hash segment (>=7 hex chars)
-// excludes those, so a developer in `?debug=assets` no longer gets the
-// previous build served stale on every reload.
-//
-// ``/web/webclient/translations`` must NOT be listed here: the URL is not
-// content-addressed (the hash rides in a QUERY PARAM and identifies the
-// CLIENT's cached version, not the response).  The localization service owns
-// that route's caching — it persists translations in IndexedDB for instant
-// warm boots and revalidates them with a ``cache: "no-store"`` fetch whose
-// hash round-trip the server answers with a minimal ``{lang, hash}`` body on
-// match (services/localization_service.js:fetchTranslations,
-// controllers/webclient.py:translations).  A SW cache layer on top replayed
-// per-URL "unchanged" bodies after the server had moved to a new hash, and
-// after a deploy re-seeded the fresh IndexedDB cache from the pre-deploy
-// full payload — i.e. it served stale terms, never fresher ones.
 const STATIC_PATH_RE = /^\/web\/assets\/(esm\/)?[0-9a-f]{7,}\//;
-// ``/web/image/`` URLs are only content-addressable when the caller passed a
-// cache-busting token (``unique=`` — see ``core/utils/urls.js:imageUrl``); a
-// bare ``/web/image/<model>/<id>/<field>`` URL is mutable server-side and
-// must NOT be served stale-first.
 const IMAGE_PATH_RE = /^\/web\/image(\/|$)/;
 
 /**
@@ -49,10 +20,6 @@ const isStaleWhileRevalidateURL = (url) =>
     STATIC_PATH_RE.test(url.pathname) ||
     (IMAGE_PATH_RE.test(url.pathname) && !!url.searchParams.get("unique"));
 
-// Synthetic cache key holding the session info scrubbed out of the cached
-// app shell.  Persisted in ``caches`` (module state does not survive the
-// ~30s idle termination of a service worker instance; a fresh instance
-// would otherwise never be able to serve the cached shell offline).
 const sessionInfoURL = "/web/__sw_session_info__";
 
 /** In-memory fast path over the persisted session info. */
@@ -61,10 +28,6 @@ let sessionInfo = null;
 self.addEventListener("install", (event) => {
     event.waitUntil(
         Promise.all([
-            // Needed because the sw is register after the initial fetch.
-            // Skip redirected responses: an invalid/expired session answers
-            // /odoo with a 303 to the login page, and caching that as the app
-            // shell would serve the login screen offline forever.
             fetch(homepageURL).then((res) =>
                 res.ok && !res.redirected ? storeDataOnCache(homepageURL, res) : null,
             ),
@@ -74,15 +37,6 @@ self.addEventListener("install", (event) => {
 });
 
 self.addEventListener("activate", (event) => {
-    // "activate" fires exactly once per new service-worker version taking
-    // over.  Image entries are only correct while the record they belong to
-    // is — a version change is a cheap, reliable point to drop them.  Asset
-    // entries are content-addressed (hash in the path), so after a deploy the
-    // HTML references NEW hashes and the old cached bundles are dead weight
-    // that only ever grows: purge them here too, bounding the static cache to
-    // roughly one deploy's worth instead of accumulating every superseded
-    // bundle set until browser quota eviction nukes the whole origin (which
-    // would also take the IndexedDB RPC cache with it).
     event.waitUntil(purgeSupersededStaticEntries());
 });
 
@@ -134,8 +88,6 @@ const extractSessionInfo = (htmlContent) => {
     if (htmlContent[start] !== "{") {
         return null;
     }
-    // JSON string literals only use double quotes; track them (and escapes)
-    // so braces inside string values don't unbalance the scan.
     let depth = 0;
     let inString = false;
     let escaped = false;
@@ -244,12 +196,6 @@ const storeDataOnCache = async (url, response) => {
     const htmlBody = await getTextFromResponse(response);
     const isOffline = url.endsWith(offLineURL);
     const extracted = extractSessionInfo(htmlBody);
-    // Fail CLOSED on the scrub: if extraction fails (the marker regex is
-    // format-coupled to `odoo.__session_info__ = {`; a template/serializer
-    // change breaks it silently), the page still carries the session info +
-    // registry HMAC + company data. Caching it would persist that at rest in
-    // Cache Storage indefinitely. The offline shell (no session info) is
-    // exempt — nothing to scrub there.
     if (!isOffline && !extracted) {
         console.warn(
             "[sw] could not extract session info from the app shell; " +
@@ -265,10 +211,6 @@ const storeDataOnCache = async (url, response) => {
         : htmlBody;
     return cache.put(
         isOffline ? url : homepageURL,
-        // Minimal headers: the scrub changes the body length, so reusing the
-        // network response's Content-Length / Content-Encoding would describe
-        // a body that no longer matches (and a stale Content-Encoding could
-        // make the browser try to gunzip plain text).
         new Response(body, { headers: { "Content-Type": "text/html" } }),
     );
 };
@@ -301,31 +243,26 @@ const readDataOnCache = async (url) => {
     if (url === offLineURL) {
         return response;
     }
-    // if you come from /odoo to project the url is now /odoo/project, but it doesn't exist in cache so use /odoo instead
     if (!response) {
         if (url === homepageURL) {
-            return undefined; // homepage itself is not cached — nothing to serve
+            return undefined;
         }
         return readDataOnCache(homepageURL);
     }
     const htmlBody = await getTextFromResponse(response);
     const info = await getSessionInfo();
     if (!info) {
-        // No session info to splice back in: the scrubbed shell would boot
-        // with a corrupt placeholder — treat as uncacheable.
         return undefined;
     }
     return new Response(restoreSessionInfo(htmlBody, info), {
-        // Minimal headers: the restored body differs in length from what the
-        // original network headers describe (see storeDataOnCache).
         headers: { "Content-Type": "text/html" },
     });
 };
 
 const fetchErrorMessages = [
-    "Failed to fetch", // Chromium
-    "Load failed", // WebKit
-    "NetworkError when attempting to fetch resource.", // Firefox
+    "Failed to fetch",
+    "Load failed",
+    "NetworkError when attempting to fetch resource.",
 ];
 
 /**
@@ -348,8 +285,6 @@ const staleWhileRevalidate = async (event) => {
     const networkPromise = fetch(request)
         .then(async (response) => {
             if (response.ok) {
-                // ``response.clone()`` because putting the original would
-                // lock the body stream before we return it to the caller.
                 await cache.put(request, response.clone()).catch(() => {
                     // Quota exceeded or storage disabled — drop silently.
                 });
@@ -358,12 +293,6 @@ const staleWhileRevalidate = async (event) => {
         })
         .catch(() => cached);
     if (cached) {
-        // Keep the worker alive until the background refresh (fetch + cache
-        // write) settles: once ``respondWith`` resolves with the cached
-        // response the browser may terminate the worker at any point, and a
-        // fire-and-forget refresh would be silently dropped — pinning the
-        // stale entry until some later request happens to complete one.
-        // ``networkPromise`` never rejects (errors resolve to ``cached``).
         event.waitUntil(networkPromise);
         return cached;
     }
@@ -384,9 +313,6 @@ const navigateOrDisplayOfflinePage = async (event) => {
     try {
         const response = await fetch(request);
         if (response.ok && !isDebugAssets) {
-            // Keep the worker alive until the shell is fully written: a
-            // fire-and-forget storeDataOnCache could be cut off by the ~30s
-            // idle termination mid-write, leaving a truncated/absent shell.
             event.waitUntil(storeDataOnCache(request.url, response.clone()));
         }
         return response;
@@ -396,9 +322,6 @@ const navigateOrDisplayOfflinePage = async (event) => {
             requestError instanceof TypeError &&
             fetchErrorMessages.includes(requestError.message)
         ) {
-            // getSessionInfo falls back to the persisted copy, so a fresh
-            // service-worker instance (idle termination re-evaluates the
-            // script) can still serve the cached app shell offline.
             const info = await getSessionInfo();
             if (info?.length && !isDebugAssets) {
                 const cachedResponse = await readDataOnCache(request.url);
@@ -422,22 +345,14 @@ const navigateOrDisplayOfflinePage = async (event) => {
  * @returns {void}
  */
 const serveShareTarget = (event) => {
-    // Redirect so the user can refresh the page without resending data.
     event.respondWith(Response.redirect("/odoo?share_target=trigger"));
     event.waitUntil(
         (async () => {
-            // The page sends this message to tell the service worker it's ready to receive the file.
             await waitingMessage("odoo_share_target");
             const client = await /** @type {any} */ (self).clients.get(
                 event.resultingClientId || event.clientId,
             );
             if (!client) {
-                // ``clients.get`` resolves to ``undefined`` when the target
-                // client closed or performed a full-document navigation (a
-                // new client id makes the captured ``resultingClientId``
-                // stale) before the ready message settled. Dereferencing it
-                // would throw an unhandled rejection inside ``waitUntil``;
-                // drop the share instead.
                 return;
             }
             const data = await event.request.formData();
@@ -456,9 +371,6 @@ self.addEventListener("fetch", (event) => {
     ) {
         return serveShareTarget(event);
     }
-    // Stale-while-revalidate for static, content-addressable resources.
-    // Fires before the navigation branch because the URL patterns here
-    // never match ``destination === "document"`` or ``accept: text/html``.
     if (
         event.request.method === "GET" &&
         isStaleWhileRevalidateURL(new URL(event.request.url))
@@ -469,7 +381,6 @@ self.addEventListener("fetch", (event) => {
     if (
         (event.request.mode === "navigate" &&
             event.request.destination === "document") ||
-        // request.mode = navigate isn't supported in all browsers => check for http header accept:text/html
         event.request.headers.get("accept")?.includes("text/html")
     ) {
         event.respondWith(navigateOrDisplayOfflinePage(event));
@@ -495,13 +406,6 @@ const waitingMessage = async (message) =>
 
 self.addEventListener("message", (event) => {
     if (event.data?.type === "SKIP_WAITING") {
-        // Sent by the webclient (webclient.js:watchServiceWorkerUpdates)
-        // when this worker version finished installing while an older
-        // version is still active: activate immediately instead of waiting
-        // for every tab under the scope to close.  Mid-session activation
-        // is safe — the fetch handlers are stateless (pure URL-pattern
-        // routing over persistent caches), so swapping versions between two
-        // fetches cannot corrupt in-flight state.
         self.skipWaiting();
         return;
     }
@@ -513,13 +417,7 @@ self.addEventListener("message", (event) => {
         nextMessageMap.delete(event.data);
     }
     if (event.data === "user_logout") {
-        // Clears both the in-memory copy and the persisted cache entry.
         saveSessionInfo(null);
-        // Drop the static cache too — a different user might land on
-        // this browser and any lingering hash-keyed responses that
-        // depended on the prior user's ACLs (``/web/image/`` with a
-        // non-public record) would be wrong.  The cache will rebuild
-        // on first access after the next login.
         caches.delete(staticCacheName).catch(() => {
             // Storage unavailable (private mode, quota exceeded
             // during delete, ...) — nothing to do; entries are
@@ -528,16 +426,8 @@ self.addEventListener("message", (event) => {
     }
 });
 
-// Pure helpers exposed for unit testing.  Service workers run as classic
-// scripts (no ``export``), so the hoot suite fetches this file's source,
-// evaluates it against a stub ``self``, and reads the functions back from
-// this hook object (see static/tests/core/service_worker.test.js).
-// Harmless in production: it only adds a property to the worker global.
 self.__ODOO_SW_TEST_HOOKS__ = {
     extractSessionInfo,
     isStaleWhileRevalidateURL,
     restoreSessionInfo,
 };
-
-// Service workers run as classic scripts (not ES modules).
-// TypeScript scope isolation is handled by the /// <reference lib="webworker" /> directive above.

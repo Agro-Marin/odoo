@@ -18,8 +18,11 @@ describe("orderByToString", () => {
         expect(orderByToString([{ name: "date", asc: false }])).toBe("date DESC");
     });
 
-    test("missing asc defaults to DESC (falsy)", () => {
-        expect(orderByToString([{ name: "date" }])).toBe("date DESC");
+    // `asc` is optional; omitting it means ASC, like `stringToOrderBy`, like
+    // `search_favorites`'s `o.asc === false ? " desc" : ""`, and like SQL.
+    test("missing asc defaults to ASC", () => {
+        expect(orderByToString([{ name: "date" }])).toBe("date ASC");
+        expect(orderByToString([{ name: "date", asc: undefined }])).toBe("date ASC");
     });
 
     test("multiple terms", () => {

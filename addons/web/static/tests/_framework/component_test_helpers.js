@@ -141,7 +141,6 @@ export async function mountWithCleanup(ComponentClass, options) {
         templates,
         translatableAttributes,
         translateFn,
-        // The following keys are forced to ensure validation of all tested components
         dev: false,
         test: true,
         warnIfNoStaticProps: true,
@@ -157,7 +156,6 @@ export async function mountWithCleanup(ComponentClass, options) {
     }
 
     if (typeof ComponentClass === "string") {
-        // Convert templates to components (if needed)
         ComponentClass = class extends Component {
             static name = "anonymous component";
             static props = {};

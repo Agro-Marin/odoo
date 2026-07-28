@@ -3,7 +3,8 @@
 
 /**
  * Bootstrap library extensions and fixes, built on the official ESM bundle
- * (all 12 components, auto-init for data-bs-*). Namespace import keeps
+ * (all 12 components; the data-api auto-binds every component except tooltip,
+ * popover, scrollspy and toast, which stay opt-in). Namespace import keeps
  * esbuild from tree-shaking the bundle.
  */
 
@@ -13,8 +14,6 @@ import {
     getScrollingElement,
 } from "@web/core/utils/dom/scrolling";
 
-// Re-export all Bootstrap components so other modules can import them:
-//   import { Tooltip, Modal } from "@web/libs/bootstrap";
 export const {
     Alert,
     Button,
@@ -33,12 +32,17 @@ export const {
 /**
  * Keep Bootstrap sanitization enabled (needed because Bootstrap uses
  * tooltip/popover DOM attributes in an "unsafe" way) but extend the allow
- * list with common tags (tables, buttons) and attributes (style, data-*).
+ * list with common tags (tables, buttons) and attributes (data-*).
  * Per-instance custom tags/attributes go through the whitelist BS param.
+ *
+ * `style` is deliberately NOT allowed: tooltip content reaches this list from
+ * stored records, and Odoo's server-side html_sanitize keeps inline styles, so
+ * allowing them here lets stored content paint a fixed, viewport-sized overlay.
+ * `data-bs-*` is excluded for the same reason - the data-api acts on it.
  */
 const bsSanitizeAllowList = Tooltip.Default.allowList;
 
-bsSanitizeAllowList["*"].push("title", "style", /^data-[\w-]+/);
+bsSanitizeAllowList["*"].push("title", /^data-(?!bs-)[\w-]+$/);
 
 bsSanitizeAllowList.header = [];
 bsSanitizeAllowList.main = [];
@@ -64,125 +68,128 @@ bsSanitizeAllowList.section = [];
 bsSanitizeAllowList.button = ["type"];
 bsSanitizeAllowList.del = [];
 
-/* Bootstrap tooltip defaults overwrite (Bootstrap.Default has no upstream
- * types in this fork, so widen via cast). */
 const TooltipDefault = /** @type {any} */ (Tooltip.Default);
 TooltipDefault.placement = "auto";
 TooltipDefault.fallbackPlacements = ["bottom", "right", "left", "top"];
 TooltipDefault.html = true;
 TooltipDefault.trigger = "hover";
 TooltipDefault.container = "body";
-// Constrain to the window, as the BS4-era "window" value intended: the
-// vendored Popper maps the "viewport" string to the viewport rect in
-// getClientRectFromMixedType (Popper 2 has no "window" boundary).
 TooltipDefault.boundary = "viewport";
 TooltipDefault.delay = { show: 1000, hide: 0 };
 
-const bootstrapShowFunction = Tooltip.prototype.show;
 /**
- * Patched Tooltip.show: removes any existing tooltips before showing a new one
- * to prevent duplicates. Silently ignores "show on visible elements" errors.
- * @returns {*} The original show() return value, or 0 if suppressed.
+ * At most one tooltip is on screen at a time, so the previous one is tracked
+ * directly instead of being rediscovered from the DOM. Popovers are excluded:
+ * they coexist with tooltips and must not dismiss each other.
+ * @type {any}
+ */
+let shownTooltip = null;
+
+/**
+ * Take a tooltip off screen without going through `hide()`.
+ *
+ * Removing the tip element alone would strand the Popper instance, which keeps
+ * scroll and resize listeners alive, and leave `aria-describedby` pointing at a
+ * node that no longer exists. Bootstrap only releases both from `hide()`'s
+ * completion callback, which never runs once the anchor has been re-rendered
+ * away, so the release is done here.
+ * @param {any} tooltip
+ */
+function dismissTooltip(tooltip) {
+    if (shownTooltip === tooltip) {
+        shownTooltip = null;
+    }
+    tooltip._element.removeAttribute("aria-describedby");
+    tooltip._disposePopper();
+}
+
+const bsTooltipShow = Tooltip.prototype.show;
+/**
+ * Patched Tooltip.show: dismisses the tooltip currently on screen so that two
+ * are never visible at once, and skips hidden anchors, which Bootstrap answers
+ * with a thrown error rather than a no-op.
+ * @returns {*} The original show() return value, or undefined if skipped.
  */
 Tooltip.prototype.show = function () {
-    document.querySelectorAll(".tooltip").forEach((el) => el.remove());
-    const errorsToIgnore = ["Please use show on visible elements"];
-    try {
-        return bootstrapShowFunction.call(this);
-    } catch (error) {
-        if (errorsToIgnore.includes(error.message)) {
-            return 0;
-        }
-        throw error;
+    if (shownTooltip && shownTooltip !== this) {
+        dismissTooltip(shownTooltip);
     }
+    if (this._element.style.display === "none") {
+        return;
+    }
+    const result = bsTooltipShow.call(this);
+    if (!(this instanceof Popover) && this._isShown()) {
+        shownTooltip = this;
+    }
+    return result;
+};
+
+const bsTooltipDispose = Tooltip.prototype.dispose;
+/**
+ * The reference is dropped on dispose (not on hide) because Bootstrap's dispose
+ * nulls every own property, including `_element`. Keeping it across hide is
+ * deliberate: a hide still mid-transition is then torn down by the next show
+ * instead of briefly overlapping it.
+ */
+Tooltip.prototype.dispose = function (...args) {
+    if (shownTooltip === this) {
+        shownTooltip = null;
+    }
+    return bsTooltipDispose.apply(this, args);
 };
 
 /**
  * Patched _detectNavbar: always returns false so Bootstrap enables dynamic
- * dropdown positioning, preventing website sub-menu overflow.
+ * dropdown positioning, preventing website sub-menu overflow. The resulting
+ * offset is neutralised for hoverable navbars in website's own _getOffset patch.
  * @returns {false}
  */
 Dropdown.prototype._detectNavbar = function () {
     return false;
 };
 
-// Bootstrap's Dropdown constructor reads `element.parentNode` unguarded and
-// crashes on undefined/detached toggles (test fixtures, or
-// `SelectorEngine.prev()` returning nothing). `getOrCreateInstance` is looked
-// up on the class at each call, so we intercept it and return a no-op stub
-// (rather than null) for those cases — keeping any subsequent `instance.show()`
-// / `_isShown()` / `_selectMenuItem()` / `focus()` calls safe — instead of
-// letting the constructor throw.
-//
-// NOTE (removed 2026): this patch used to ALSO intercept elements matching
-// `.o-dropdown--menu`, on the theory that Bootstrap's document-level
-// `keydown.bs.dropdown` data-API listener on SELECTOR_MENU reached Odoo's OWL
-// <Dropdown> menus (which reuse the `dropdown-menu` class). That branch was
-// dead code: BOTH keydown data-API registrations are commented out in the
-// vendored 5.3.8 build (see `static/lib/bootstrap/bootstrap.esm.js`), and the
-// remaining `getOrCreateInstance` callers (`clearMenus`, the click data-API)
-// operate on toggles, never on `.o-dropdown--menu` elements — so the
-// `closest(".o-dropdown--menu")` clause was unreachable. Odoo's component owns
-// its keynav independently (`dropdown.test.js`
-// "dropdowns keynav is not impacted by bootstrap").
-const _origDropdownGetOrCreateInstance = Dropdown.getOrCreateInstance;
-const NO_OP_DROPDOWN = Object.freeze({
-    show() {},
-    hide() {},
-    toggle() {},
-    dispose() {},
-    focus() {},
-    _isShown() {
-        return false;
-    },
-    _selectMenuItem() {},
-});
-Dropdown.getOrCreateInstance = function (element, config) {
-    if (!element || !element.parentNode) {
-        return NO_OP_DROPDOWN;
-    }
-    return _origDropdownGetOrCreateInstance.call(this, element, config);
-};
-
-/* Bootstrap modal scrollbar compensation on non-body */
-const bsAdjustDialogFunction = Modal.prototype._adjustDialog;
+const bsModalShow = Modal.prototype.show;
 /**
- * Patched _adjustDialog: compensates scrollbar on the actual scrolling element
- * (not just document.body) before delegating to the original Bootstrap logic.
- * @returns {*} The original _adjustDialog() return value.
+ * Patched Modal.show: compensates the scrollbar of the real scrolling element,
+ * which is rarely document.body, before Bootstrap applies its own body-level
+ * lock.
+ *
+ * The measurement is only valid while `.modal-open` is off, because it makes
+ * the body fixed; hence the reset/remove before and Bootstrap's own re-lock
+ * after. Doing it here rather than in `_adjustDialog` keeps it off the
+ * unthrottled window-resize path, where a scrollbar width - a UA constant that
+ * the open modal has frozen anyway - cannot have changed.
+ * @returns {*} The original show() return value.
  */
-Modal.prototype._adjustDialog = function () {
-    const document = this._element.ownerDocument;
-
-    this._scrollBar.reset();
-    document.body.classList.remove("modal-open");
-
-    const scrollable = getScrollingElement(document);
-    if (document.body.contains(scrollable)) {
+Modal.prototype.show = function (...args) {
+    if (this._isShown || this._isTransitioning) {
+        return bsModalShow.apply(this, args);
+    }
+    const doc = this._element.ownerDocument;
+    // ScrollBarHelper is not exported and pins itself to the top-level body, so
+    // an iframe-owned modal would lock the wrong document.
+    this._scrollBar._element = doc.body;
+    const scrollable = getScrollingElement(doc);
+    if (doc.body.contains(scrollable)) {
+        this._scrollBar.reset();
+        doc.body.classList.remove("modal-open");
         compensateScrollbar(scrollable, true);
     }
-
-    this._scrollBar.hide();
-    document.body.classList.add("modal-open");
-
-    return bsAdjustDialogFunction.apply(this, /** @type {any} */ (arguments));
+    return bsModalShow.apply(this, args);
 };
 
 const bsResetAdjustmentsFunction = Modal.prototype._resetAdjustments;
 /**
- * Patched _resetAdjustments: removes scrollbar compensation from the actual
- * scrolling element before delegating to the original Bootstrap logic.
+ * Patched _resetAdjustments: removes the scrollbar compensation applied by
+ * show(). Bootstrap's _hideModal already drops `.modal-open` and resets its own
+ * scrollbar helper around this call, so neither is repeated here.
  * @returns {*} The original _resetAdjustments() return value.
  */
-Modal.prototype._resetAdjustments = function () {
-    const document = this._element.ownerDocument;
-
-    this._scrollBar.reset();
-    document.body.classList.remove("modal-open");
-
-    const scrollable = getScrollingElement(document);
-    if (document.body.contains(scrollable)) {
+Modal.prototype._resetAdjustments = function (...args) {
+    const doc = this._element.ownerDocument;
+    const scrollable = getScrollingElement(doc);
+    if (doc.body.contains(scrollable)) {
         compensateScrollbar(scrollable, false);
     }
-    return bsResetAdjustmentsFunction.apply(this, /** @type {any} */ (arguments));
+    return bsResetAdjustmentsFunction.apply(this, args);
 };

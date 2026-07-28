@@ -82,7 +82,6 @@ test(`FilterableSelectionField test blacklist`, async () => {
 });
 
 test(`FilterableSelectionField test with invalid value`, async () => {
-    // The field should still display the current value in the list
     await mountView({
         resModel: "program",
         type: "form",
@@ -107,9 +106,6 @@ test(`FilterableSelectionField test with invalid value`, async () => {
 });
 
 test(`FilterableSelectionField keeps the current many2one value visible`, async () => {
-    // The current value is an {id, display_name} object on many2one fields:
-    // the keep-current escape hatch must compare against the id, so a
-    // selected-but-filtered value still shows up in the dropdown.
     await mountView({
         resModel: "program",
         type: "form",

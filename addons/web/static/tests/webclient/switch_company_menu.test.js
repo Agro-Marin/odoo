@@ -257,7 +257,7 @@ test("multi company mode: log into a non selected company", async () => {
      */
     await contains(".log_into:eq(1)").click();
     expect(".dropdown-menu").toHaveCount(0, { message: "dropdown is directly closed" });
-    expect(cookie.get("cids")).toEqual("2-1-3"); // 1-3 in that order, they are sorted
+    expect(cookie.get("cids")).toEqual("2-1-3");
 });
 
 test("multi company mode: log into an already selected company", async () => {
@@ -322,7 +322,6 @@ test("companies can be logged in even if some toggled within delay", async () =>
 });
 
 test("always show the name of the company on the top right of the app", async () => {
-    // initialize a single company
     const companyName = "Single company";
     serverState.companies = [
         { id: 1, name: companyName, sequence: 1, parent_id: false, child_ids: [] },
@@ -330,7 +329,6 @@ test("always show the name of the company on the top right of the app", async ()
 
     await createSwitchCompanyMenu();
 
-    // in case of a single company, drop down button should be displayed but disabled
     expect(".dropdown-toggle").toBeVisible();
     expect(".dropdown-toggle").not.toBeEnabled();
     expect(".dropdown-toggle").toHaveText(companyName);
@@ -552,19 +550,19 @@ test("navigation with search input", async () => {
     expect(".o_switch_company_item.focus").toHaveCount(0);
 
     const navigationSteps = [
-        { hotkey: "arrowdown", focused: 1, selectedCompanies: [3] }, // Go to first item
-        { hotkey: "arrowup", focused: 0 }, // Go to search input
-        { hotkey: "arrowup", focused: 10 }, // Go to last item
-        { hotkey: "Space", focused: 10, selectedCompanies: [3, 10] }, // Select last item
-        { hotkey: ["shift", "tab"], focused: 9, selectedCompanies: [3, 10] }, // Go to previous item
-        { hotkey: "tab", focused: 10, selectedCompanies: [3, 10] }, // Go to next item
-        { hotkey: "arrowdown", focused: 11 }, // Go to Confirm
-        { hotkey: "arrowdown", focused: 12 }, // Go to Reset
-        { hotkey: "enter", focused: 10, selectedCompanies: [3] }, // Reset, focus is on last item
-        { hotkey: "arrowdown", focused: 0 }, // Go to seach input
-        { input: "a", focused: 0 }, // Type "a"
-        { hotkey: "arrowdown", focused: 1 }, // Go to first item
-        { hotkey: "Space", focused: 1, selectedCompanies: [2] }, // Select first item
+        { hotkey: "arrowdown", focused: 1, selectedCompanies: [3] },
+        { hotkey: "arrowup", focused: 0 },
+        { hotkey: "arrowup", focused: 10 },
+        { hotkey: "Space", focused: 10, selectedCompanies: [3, 10] },
+        { hotkey: ["shift", "tab"], focused: 9, selectedCompanies: [3, 10] },
+        { hotkey: "tab", focused: 10, selectedCompanies: [3, 10] },
+        { hotkey: "arrowdown", focused: 11 },
+        { hotkey: "arrowdown", focused: 12 },
+        { hotkey: "enter", focused: 10, selectedCompanies: [3] },
+        { hotkey: "arrowdown", focused: 0 },
+        { input: "a", focused: 0 },
+        { hotkey: "arrowdown", focused: 1 },
+        { hotkey: "Space", focused: 1, selectedCompanies: [2] },
     ];
 
     for (const navigationStep of navigationSteps) {
@@ -577,7 +575,6 @@ test("navigation with search input", async () => {
             await edit(input);
         }
 
-        // Ensure debounced mutation listener update and owl re-render
         await animationFrame();
         await runAllTimers();
 
@@ -606,24 +603,20 @@ test("select and de-select all", async () => {
     await createSwitchCompanyMenu();
     await openCompanyMenu();
 
-    // Show search
     await edit(" ");
     await animationFrame();
 
-    // One company is selected, there should be a check box with minus inside
     expect("[role=menuitemcheckbox][title='Deselect all'] i").toHaveClass(
         "fa-square-minus",
     );
 
     await contains("[role=menuitemcheckbox][title='Deselect all']").click();
-    // No company is selected, there should be a empty check box
     expect("[role=menuitemcheckbox][title='Select all'] i").toHaveClass("fa-square");
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(0);
 
     await contains("[role=menuitemcheckbox][title='Select all']").click();
-    // All companies are selected, there should be a checked check box
     expect("[role=menuitemcheckbox][title='Deselect all'] i").toHaveClass(
         "fa-square-check",
     );
@@ -632,7 +625,6 @@ test("select and de-select all", async () => {
     ).toHaveCount(5);
 
     await contains("[role=menuitemcheckbox][title='Deselect all']").click();
-    // No company is selected, there should be a empty check box
     expect("[role=menuitemcheckbox][title='Select all'] i").toHaveClass("fa-square");
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
@@ -643,31 +635,26 @@ test("de-select only changes visible companies", async () => {
     await createSwitchCompanyMenu();
     await openCompanyMenu();
 
-    // Show search
     await edit(" ");
     await toggleCompany(4);
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(2);
 
-    // Show search
     await contains("input").edit("m");
     await animationFrame();
 
-    // One company is selected, unselect all
     await contains("[role=menuitemcheckbox][title='Deselect all']").click();
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(0);
 
-    // Hidden company is still selected
     await contains("input").clear();
     await animationFrame();
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(1);
 
-    // Filter and select all visible companies
     await contains("input").edit("m");
     await animationFrame();
     await contains("[role=menuitemcheckbox][title='Select all']").click();
@@ -675,8 +662,6 @@ test("de-select only changes visible companies", async () => {
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(3);
 
-    // Selecting a parent cascades to its (filtered-out) children, exactly as
-    // the per-item checkbox does: all five companies end up selected.
     await contains("input").clear();
     await animationFrame();
     expect(
@@ -691,7 +676,6 @@ test("select all cascades to filtered-out children", async () => {
     await createSwitchCompanyMenu();
     await openCompanyMenu();
 
-    // Show search, then filter down to the parent company only.
     await edit(" ");
     await animationFrame();
     await contains("input").edit("Heroes");
@@ -700,8 +684,6 @@ test("select all cascades to filtered-out children", async () => {
 
     await contains("[role=menuitemcheckbox][title='Select all']").click();
 
-    // Clearing the filter shows the children were selected along with their
-    // parent — a state also reachable through the individual checkboxes.
     await contains("input").clear();
     await animationFrame();
     expect(
@@ -727,13 +709,9 @@ test("closing the dropdown without confirming discards the pending selection", a
     await toggleCompany(1);
     expect(".o_switch_company_menu_buttons button").toHaveCount(2);
 
-    // Close the dropdown without confirming (user believes the change
-    // is discarded).
     await contains(".dropdown-toggle").click();
     expect(".dropdown-menu").toHaveCount(0);
 
-    // A later Ctrl+Enter (e.g. while typing anywhere in the app) must not
-    // apply the forgotten draft selection.
     await keyDown(["control", "enter"]);
     await animationFrame();
     await runAllTimers();
@@ -750,13 +728,10 @@ test("reopening the dropdown after closing shows the active companies", async ()
     await toggleCompany(1);
     expect("[data-company-id] .fa-square-check").toHaveCount(2);
 
-    // Close without confirming, then reopen.
     await contains(".dropdown-toggle").click();
     expect(".dropdown-menu").toHaveCount(0);
     await openCompanyMenu();
 
-    // The stale draft is gone: only the actual active company is checked
-    // and there is nothing to confirm.
     expect("[data-company-id] .fa-square-check").toHaveCount(1);
     expect(
         queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked"),
@@ -787,22 +762,18 @@ test("select all does not select disallowed ancestor companies", async () => {
     expect(user.activeCompanies.map((c) => c.id)).toEqual([1, 3]);
     await openCompanyMenu();
 
-    // Show the select/deselect all checkbox.
     await edit(" ");
     await animationFrame();
 
-    // Both allowed companies are active: deselect all, then select all.
     await contains("[role=menuitemcheckbox][title='Deselect all']").click();
     expect(
         ".o_switch_company_item:has([role=menuitemcheckbox][aria-checked=true])",
     ).toHaveCount(0);
 
     await contains("[role=menuitemcheckbox][title='Select all']").click();
-    // The disallowed ancestor is not selected...
     expect(
         queryAllAttributes("[data-company-id] [role=menuitemcheckbox]", "aria-checked"),
     ).toEqual(["true", "false", "true"]);
-    // ...and nothing activatable changed, so there is nothing to confirm.
     expect(".o_switch_company_menu_buttons").toHaveCount(0);
 });
 
@@ -848,15 +819,10 @@ test("disallowed companies in between allowed companies are not enabled", async 
 });
 
 test("switching company probes record access under the new companies before mutating the cookie", async () => {
-    // A form/record view is open on res.partner id 1 when the switch happens.
     const controller = { props: { resId: 1, resModel: "res.partner" } };
     const actionService = { currentController: controller };
 
     const calls = [];
-    // Stub the access check to capture the exact ordering-sensitive state at
-    // the moment it is invoked: the cookie must still hold the OLD selection
-    // (no half-switched window), and the probe must carry the NEW
-    // allowed_company_ids so record rules are evaluated for the target.
     patchWithCleanup(user, {
         checkAccessRight(model, operation, ids, options) {
             calls.push({
@@ -883,9 +849,7 @@ test("switching company probes record access under the new companies before muta
     expect(calls[0].operation).toBe("read");
     expect(calls[0].ids).toBe(1);
     expect(calls[0].allowedCompanyIds).toEqual([2]);
-    // The probe ran BEFORE any cookie mutation...
     expect(calls[0].cidsAtCallTime).toBe("3");
-    // ...and only once it resolved was the switch committed.
     expect(cookie.get("cids")).toBe("2");
 });
 
@@ -893,7 +857,6 @@ test("switching company drops the current record when it is inaccessible under t
     const controller = { props: { resId: 1, resModel: "res.partner" } };
     const actionService = { currentController: controller };
 
-    // The record is not readable under the target company set.
     patchWithCleanup(user, {
         checkAccessRight: () => Promise.resolve(false),
     });
@@ -913,14 +876,9 @@ test("switching company drops the current record when it is inaccessible under t
     await selector.apply();
 
     expect(pushes).toHaveLength(1);
-    // A denied record is dropped: the reload replaces the current history
-    // entry and pops the record off the action stack rather than reloading
-    // straight back onto a record the user can no longer see.
     expect(pushes[0].options.replace).toBe(true);
     expect(pushes[0].options.reload).toBe(true);
     expect(pushes[0].state.actionStack).toBeInstanceOf(Array);
-    // The cookie still switches — the access failure only affects which view
-    // is restored, not whether the company change takes effect.
     expect(cookie.get("cids")).toBe("2");
 });
 
@@ -947,7 +905,6 @@ test("switching company keeps an accessible record and does not touch the action
     await selector.apply();
 
     expect(pushes).toHaveLength(1);
-    // Accessible record: plain reload, no replace, action stack left intact.
     expect(pushes[0].options.reload).toBe(true);
     expect(pushes[0].options.replace).toBe(undefined);
     expect(pushes[0].state.actionStack).toBe(undefined);
@@ -955,8 +912,6 @@ test("switching company keeps an accessible record and does not touch the action
 });
 
 test("switching company with no record open performs no access probe", async () => {
-    // A list view or the home menu: nothing to re-check, so the switch must
-    // not issue a spurious access check.
     const actionService = { currentController: null };
 
     let probed = false;
@@ -977,25 +932,9 @@ test("switching company with no record open performs no access probe", async () 
     expect(cookie.get("cids")).toBe("2");
 });
 
-// ---------------------------------------------------------------------------
-// Disallowed-ancestor hierarchy
-//
-// ``allowedCompaniesWithAncestors`` carries companies the user may NOT act in,
-// present only so the tree that links the allowed ones can be drawn. Until the
-// ``disallowedAncestorCompanies`` server-state key existed, the mock session
-// hardcoded ``disallowed_ancestor_companies: {}``, so every one of these paths
-// was dead in the JS suites (web and enterprise alike).
-//
-//   Root (disallowed)
-//   ├── Alpha  (allowed)
-//   │   └── Gamma (allowed)
-//   └── Beta   (allowed)
-// ---------------------------------------------------------------------------
 describe("disallowed ancestors", () => {
     beforeEach(() => {
         cookie.set("cids", "10");
-        // Nothing in the hoot framework resets cookies between tests, so a
-        // `cids` set here would leak into every later suite in a full run.
         after(() => cookie.set("cids", "3"));
         serverState.companies = [
             { id: 10, name: "Alpha", sequence: 2, parent_id: 99, child_ids: [12] },
@@ -1017,14 +956,12 @@ describe("disallowed ancestors", () => {
         await createSwitchCompanyMenu();
         await openCompanyMenu();
 
-        // The ancestor is drawn so the tree reads correctly...
         expect(queryAllTexts(".company_label")).toEqual([
             "Root",
             "Alpha",
             "Gamma",
             "Beta",
         ]);
-        // ...but its row is disabled, unlike its allowed descendants.
         expect(
             queryAllAttributes(".o_switch_company_item", "class").map((c) =>
                 c.includes("disabled"),
@@ -1037,11 +974,8 @@ describe("disallowed ancestors", () => {
         await openCompanyMenu();
         expect(cookie.get("cids")).toBe("10");
 
-        await toggleCompany(0); // the Root row
+        await toggleCompany(0);
 
-        // The selection is unchanged, so the Confirm/Reset bar never appears
-        // (it is rendered on `companySelector.hasSelectionChanged`) and Root
-        // stays unchecked.
         expect(".o_switch_company_menu_buttons").toHaveCount(0);
         expect(
             queryAllAttributes(
@@ -1056,10 +990,8 @@ describe("disallowed ancestors", () => {
         await createSwitchCompanyMenu();
         await openCompanyMenu();
 
-        // Alpha is already active; toggle it off, then back on. Turning it on
-        // must cascade to Gamma and must NOT walk up into Root.
-        await toggleCompany(1); // Alpha off (cascades Gamma off)
-        await toggleCompany(1); // Alpha on (cascades Gamma on)
+        await toggleCompany(1);
+        await toggleCompany(1);
         await clickConfirm();
 
         expect(cookie.get("cids")).toBe("10-12");
@@ -1069,41 +1001,22 @@ describe("disallowed ancestors", () => {
         await createSwitchCompanyMenu();
         await openCompanyMenu();
 
-        // Reveal the filter row, which carries the select/deselect-all control.
         await edit(" ");
         await animationFrame();
 
-        // Alpha is active, so the control reads "Deselect all": clear first,
-        // then select all, which is the path that must skip Root.
         await contains("[role=menuitemcheckbox][title='Deselect all']").click();
         await contains("[role=menuitemcheckbox][title='Select all']").click();
         await clickConfirm();
 
-        // Root (99) must never appear in the applied company ids.
         const cids = cookie.get("cids").split("-").map(Number);
         expect(cids).not.toInclude(99);
         expect(cids.toSorted((a, b) => a - b)).toEqual([10, 11, 12]);
     });
 });
 
-// ---------------------------------------------------------------------------
-// The id -> company index
-// ---------------------------------------------------------------------------
-
-// `getCompany` memoizes an id -> company Map. Keyed by the companies ARRAY (a
-// WeakMap), so a rebuilt user — which is when the data can actually change —
-// invalidates it for free. A module-level slot compared by hand would need every
-// future call site to remember that comparison.
-//
-// These two describes run in sequence with DISJOINT company sets: a stale index
-// would make the second resolve through the first's companies. Note the sets
-// must be installed in `beforeEach` — the mock user is rebuilt from
-// `serverState` between tests, so assigning inside a test body is too late.
 describe("company index (first set)", () => {
     beforeEach(() => {
         cookie.set("cids", "3");
-        // Nothing in the hoot framework resets cookies between tests, so a
-        // `cids` set here would leak into every later suite in a full run.
         after(() => cookie.set("cids", "3"));
         serverState.companies = [
             { id: 3, name: "Hermit", sequence: 1, parent_id: false, child_ids: [] },
@@ -1121,8 +1034,6 @@ describe("company index (first set)", () => {
 describe("company index (disjoint second set)", () => {
     beforeEach(() => {
         cookie.set("cids", "7");
-        // Nothing in the hoot framework resets cookies between tests, so a
-        // `cids` set here would leak into every later suite in a full run.
         after(() => cookie.set("cids", "3"));
         serverState.companies = [
             { id: 7, name: "Vandelay", sequence: 1, parent_id: false, child_ids: [8] },
@@ -1133,8 +1044,6 @@ describe("company index (disjoint second set)", () => {
     test("resolves ids the previous set never had", async () => {
         await createSwitchCompanyMenu();
         await openCompanyMenu();
-        // Child 8 is reached through `getCompany` during the tree walk, so a
-        // stale index would drop it (or throw) rather than nest it under 7.
         expect(queryAllTexts(".company_label")).toEqual(["Vandelay", "Industries"]);
     });
 });

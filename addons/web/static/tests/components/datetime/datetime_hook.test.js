@@ -55,7 +55,7 @@ test("reactivity: useState & update getter object", async () => {
 
     await mountInput(() => {
         const state = useState(pickerProps);
-        state.value; // artificially subscribe to value
+        state.value;
 
         useDateTimePicker({
             get pickerProps() {
@@ -193,7 +193,6 @@ test("close popover when owner component is unmounted", async () => {
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // we can't simply add a button because `useClickAway` will be triggered, thus closing the popover properly
     hidePopover();
     await animationFrame();
     await animationFrame();
@@ -201,8 +200,6 @@ test("close popover when owner component is unmounted", async () => {
 });
 
 test("popover closed on owner unmount does not apply against the destroyed owner", async () => {
-    // Uses the DEFAULT popover (makePopover, no createPopover override) which,
-    // unlike usePopover, has no built-in destroyed-owner guard.
     class Child extends Component {
         static components = { DateTimeInput };
         static props = [];
@@ -245,13 +242,10 @@ test("popover closed on owner unmount does not apply against the destroyed owner
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // Pending, uncommitted change in the input (popover still open).
     await edit("07/07/2023", { confirm: false });
     await animationFrame();
     expect.verifySteps([]);
 
-    // Unmount the owner while the popover is open. The popover is torn down, but
-    // its onClose must NOT apply the pending value against the destroyed owner.
     hidePopover();
     await animationFrame();
     await animationFrame();

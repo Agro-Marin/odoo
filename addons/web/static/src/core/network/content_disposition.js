@@ -165,7 +165,6 @@ export function parse(string) {
         throw new TypeError("invalid type format");
     }
 
-    // normalize type
     let index = match[0].length;
     const type = match[1].toLowerCase();
 
@@ -176,10 +175,8 @@ export function parse(string) {
     const params = {};
     let value;
 
-    // calculate index to start at
     index = PARAM_REGEXP.lastIndex = match[0].at(-1) === ";" ? index - 1 : index;
 
-    // match parameters
     while ((match = PARAM_REGEXP.exec(string))) {
         if (match.index !== index) {
             throw new TypeError("invalid parameter format");
@@ -196,11 +193,9 @@ export function parse(string) {
         names.push(key);
 
         if (key.indexOf("*") + 1 === key.length) {
-            // decode extended value
             key = key.slice(0, -1);
             value = decodefield(value);
 
-            // overwrite existing value
             params[key] = value;
             continue;
         }
@@ -210,7 +205,6 @@ export function parse(string) {
         }
 
         if (value[0] === '"') {
-            // remove quotes and escapes
             value = value.slice(1, -1).replace(QESC_REGEXP, "$1");
         }
 

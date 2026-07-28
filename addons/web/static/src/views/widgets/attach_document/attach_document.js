@@ -18,10 +18,6 @@ export class AttachDocumentWidget extends Component {
     };
 
     setup() {
-        // Uploads go through a *detached* <input> whose change handler can fire
-        // after the component is destroyed (e.g. a statusbar overflow dropdown
-        // closing on click). useService() proxies would throw "Component is
-        // destroyed" in that window, so use the raw env services instead.
         // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
         this.http = this.env.services.http;
         // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
@@ -63,7 +59,6 @@ export class AttachDocumentWidget extends Component {
     /** Save the record first, then open the native file picker. */
     async triggerUpload() {
         if (await this.beforeOpen()) {
-            // Reset so re-selecting the same file still fires "change".
             this.fileInput.value = "";
             this.fileInput.click();
         }

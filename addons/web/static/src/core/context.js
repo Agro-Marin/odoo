@@ -35,8 +35,6 @@ export function makeContext(contexts, initialEvaluationContext) {
         if (ctx !== "") {
             ctx = typeof ctx === "string" ? evaluateExpr(ctx, evaluationContext) : ctx;
             Object.assign(context, ctx);
-            // Feed accumulated keys back so later expressions can reference earlier ones.
-            // e.g. [{ a: 1 }, "{'b': a + 1}", "{'c': b + 1}"] → { a: 1, b: 2, c: 3 }
             Object.assign(evaluationContext, context);
         }
     }

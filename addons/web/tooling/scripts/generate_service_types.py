@@ -73,92 +73,33 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# Path math: /home/marin/Odoo/addons/odoo/addons/web/tooling/scripts/<this>
-#   parents[0] = scripts/, [1] = tooling/, [2] = web/,
-#   parents[3] = addons/ (inner), [4] = core/, [5] = addons/ (outer),
-#   parents[6] = Odoo/        ← the workspace root.
 REPO_ROOT = Path(__file__).resolve().parents[6]
 WEB_SRC_ROOT = REPO_ROOT / "addons/odoo/addons/web/static/src"
 DEFAULT_OUTPUT = WEB_SRC_ROOT / "@types/services.d.ts"
 
-# Registration grammar — three concrete forms occur in the tree:
-#
-#   1. Direct chain (most common):
-#        registry.category("services").add("key", factoryVar);
-#
-#   2. Multi-line chain (chained ``add`` after ``category`` on prior line):
-#        registry
-#            .category("services")
-#            .add("key", factoryVar);
-#
-#   3. Aliased registry variable (declared once per file):
-#        const services = registry.category("services");
-#        services.add("key", factoryVar);
-#      or with a different variable name:
-#        const serviceRegistry = registry.category("services");
-#        serviceRegistry.add("key", factoryVar);
-#
-# Orthogonally, the factory argument may be wrapped in a JSDoc type cast:
-#        services.add("key", /** @type {any} */ (factoryVar));
-# These wrappers are stripped during a preprocessing pass
-# (``_strip_jsdoc_casts``) before the registration regex runs, so the
-# regex itself only has to match a bare identifier.
-#
-# The capture is intentionally narrow:
-#   - Group 1: service key (string literal between double quotes).  Keys
-#     with embedded quotes are not supported — none exist in the tree.
-#   - Group 2: factory identifier.  Anonymous object literals (``{ ... }``)
-#     are intentionally NOT matched — they have no exported symbol to
-#     import.  They surface as a "skipped: <key>" diagnostic.
-#
-# ``re.DOTALL`` lets the body span newlines (multi-line ``.add(`` calls
-# that put each arg on its own line).
 _DIRECT_CHAIN = r'registry\s*\.\s*category\s*\(\s*"services"\s*\)'
 
-# ``const services = registry.category("services");`` or any other
-# identifier on the LHS.  Captured group becomes a per-file alias for
-# the services registry.
 _ALIAS_DECL_RE = re.compile(
     r"(?:const|let|var)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*" + _DIRECT_CHAIN,
 )
 
-# JSDoc cast wrapper: ``/** @type {X} */ (name)`` → ``name``.
-#
-# The comment body uses the standard "single block-comment" pattern
-# (``[^*]*(?:\*(?!/)[^*]*)*``) instead of ``.*?``-with-DOTALL.  The
-# naive non-greedy form looks correct in isolation but is unsafe across
-# a whole file: at the first ``/**`` in the source, ``.*?`` is allowed
-# to extend across intermediate comment closers as long as the overall
-# pattern eventually succeeds, so the regex happily spans from the file
-# header all the way to the first inline cast — replacing hundreds of
-# lines with a single identifier and destroying the export declarations
-# downstream.  The bracketed form below is anchored to one ``*/`` and
-# cannot cross over.
 _JSDOC_CAST_RE = re.compile(
     r"/\*\*[^*]*(?:\*(?!/)[^*]*)*\*/\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*\)",
 )
 
-# ``export const factoryName = …`` declaration.  ``let`` and ``var``
-# are intentionally not matched — every in-tree service factory is
-# declared with ``export const``; widening the match would only invite
-# false positives.
 _EXPORT_CONST_RE = re.compile(
     r"^\s*export\s+const\s+([A-Za-z_][A-Za-z0-9_]*)\s*=",
     re.MULTILINE,
 )
 
-# Skip these path fragments.  Tests are mocks; legacy is dead-on-arrival.
 _SKIP_FRAGMENTS = ("/tests/", "/legacy/")
 
-# Top-level directories under ``static/src/`` mapped to category labels.
-# Order matters: the emitted file groups imports in this order so the
-# layout matches the previous hand-maintained file.
 _CATEGORY_ORDER: list[tuple[str, str]] = [
     ("core", "Core infrastructure services"),
     ("public", "Public services"),
     ("services", "Domain services"),
-    ("fields", "Domain services"),  # field-adjacent services
-    ("components", "Domain services"),  # component-adjacent services
+    ("fields", "Domain services"),
+    ("components", "Domain services"),
     ("ui", "UI overlay services"),
     ("views", "View services"),
     ("webclient", "Webclient services"),
@@ -183,7 +124,6 @@ def _js_to_import_path(file: Path) -> str:
     → ``@web/services/orm_service``
     """
     rel = file.relative_to(WEB_SRC_ROOT)
-    # Strip ``.js`` and use forward slashes regardless of host OS.
     return "@web/" + rel.with_suffix("").as_posix()
 
 
@@ -224,8 +164,8 @@ def _build_registration_re(aliases: set[str]) -> re.Pattern[str]:
     return re.compile(
         chain
         + r"\s*\.\s*add\s*\("
-        + r'\s*"([^"]+)"\s*,'  # group 1: service key
-        + r"\s*([A-Za-z_][A-Za-z0-9_]*)"  # group 2: factory identifier
+        + r'\s*"([^"]+)"\s*,'
+        + r"\s*([A-Za-z_][A-Za-z0-9_]*)"
         + r"\s*[,)]",
         re.DOTALL,
     )
@@ -245,15 +185,12 @@ def discover(src_root: Path = WEB_SRC_ROOT) -> list[Registration]:
     """
     found: list[Registration] = []
     for js_file in sorted(src_root.rglob("*.js")):
-        # Path-fragment filter — relative-to-src for portability.
         rel_str = "/" + js_file.relative_to(src_root).as_posix()
         if any(frag in rel_str for frag in _SKIP_FRAGMENTS):
             continue
         try:
             raw_text = js_file.read_text(encoding="utf-8")
         except UnicodeDecodeError:
-            # JS source must be UTF-8 in this codebase; surface the
-            # offender rather than emit a broken types file.
             print(
                 f"  ✗ {js_file}: not UTF-8, skipping",
                 file=sys.stderr,
@@ -265,10 +202,6 @@ def discover(src_root: Path = WEB_SRC_ROOT) -> list[Registration]:
         for match in registration_re.finditer(text):
             key, factory_var = match.group(1), match.group(2)
             if not _find_export(text, factory_var):
-                # Factory is registered but not declared in this file.
-                # Could be: imported from elsewhere (rare for services)
-                # or a typo. Surface as a warning so the operator can
-                # decide; v1 skips it from the type output.
                 print(
                     f"  ⚠ {js_file.name}: registers {key!r} as "
                     f"{factory_var!r} but no `export const {factory_var}` "
@@ -285,7 +218,6 @@ def discover(src_root: Path = WEB_SRC_ROOT) -> list[Registration]:
                     top_level_dir=_top_level_dir(js_file),
                 )
             )
-    # Sort by key for deterministic output.
     return sorted(found)
 
 
@@ -335,17 +267,10 @@ def render(registrations: list[Registration]) -> str:
     out.append('declare module "services" {\n')
     out.append('    import { ServicesRegistryShape } from "registries";\n')
 
-    # Group registrations by top-level directory; canonical ordering is
-    # applied below by walking _CATEGORY_ORDER rather than this dict.
     by_dir: dict[str, list[Registration]] = {}
     for reg in registrations:
         by_dir.setdefault(reg.top_level_dir, []).append(reg)
 
-    # Emit imports grouped by label, suppressing duplicate headers when
-    # multiple directories map to the same label (e.g. services/, fields/,
-    # components/ all → "Domain services").  The header is printed on
-    # the first directory that contributes; subsequent directories in the
-    # same label append silently underneath.
     last_label: str | None = None
     for dirname, label in _CATEGORY_ORDER:
         items = by_dir.get(dirname, [])
@@ -360,8 +285,6 @@ def render(registrations: list[Registration]) -> str:
             for reg in sorted(items, key=lambda r: r.factory_var)
         )
 
-    # Any directory not in _CATEGORY_ORDER goes under a generic
-    # "Other services" header so unexpected layouts still surface.
     handled = {d for d, _ in _CATEGORY_ORDER}
     other: list[Registration] = []
     for dirname, items in by_dir.items():
@@ -442,9 +365,6 @@ def main() -> int:
         try:
             rel = output_path.relative_to(REPO_ROOT)
         except ValueError:
-            # Output path is outside the repo (e.g. /tmp during smoke
-            # tests). Fall back to the absolute path so the user still
-            # sees where the file landed.
             rel = output_path
         print(f"✓ Wrote {len(registrations)} services to {rel}")
     return 0

@@ -59,7 +59,7 @@ test("Signature widget renders a Sign button on desktop", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
         <form>
             <header>
                 <widget name="signature" string="Sign"/>
@@ -95,7 +95,7 @@ test("Signature widget renders a Sign button on mobile", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
         <form>
             <header>
                 <widget name="signature" string="Sign"/>
@@ -133,7 +133,7 @@ test("Signature widget: full_name option on desktop", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
         <form>
             <header>
                 <widget name="signature" string="Sign" full_name="display_name"/>
@@ -160,7 +160,7 @@ test("Signature widget: full_name option on mobile", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
         <form>
             <header>
                 <widget name="signature" string="Sign" full_name="display_name"/>
@@ -182,7 +182,7 @@ test("Signature widget: highlight option on desktop", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
         <form>
             <header>
                 <widget name="signature" string="Sign" highlight="1"/>
@@ -205,7 +205,7 @@ test("Signature widget: highlight option on mobile", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
         <form>
             <header>
                 <widget name="signature" string="Sign" highlight="1"/>
@@ -251,14 +251,12 @@ test("Signature widget works inside of a dropdown", async () => {
             `,
     });
 
-    // change display_name to enable auto-sign feature
     await contains(".o_field_widget[name=display_name] input").edit("test");
 
     await contains(".o_statusbar_buttons button:has(.oi-ellipsis-v").click();
     await contains(".o_widget_signature button.o_sign_button").click();
     await waitFor(".modal .modal-body");
 
-    // use auto-sign feature, might take a while
     await contains(".o_web_sign_auto_button").click();
 
     expect(".modal-footer button.btn-primary").toHaveCount(1);
@@ -279,9 +277,6 @@ test("Signature widget works inside of a dropdown", async () => {
 
 test.tags("desktop");
 test("Signature widget on an unsaved record persists via the record (no write to id=false)", async () => {
-    // On a new (unsaved) record ``resId`` is false. Writing to id ``false``
-    // throws server-side and the captured signature is lost. The widget must
-    // instead route through the record (update + save).
     onRpc("web_save", ({ args }) => {
         expect.step("web_save");
         expect("sign" in args[1]).toBe(true);
@@ -293,8 +288,7 @@ test("Signature widget on an unsaved record persists via the record (no write to
     await mountView({
         type: "form",
         resModel: "partner",
-        // no resId => new (unsaved) record
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <widget name="signature" string="Sign" full_name="display_name" signature_field="sign"/>
@@ -303,7 +297,6 @@ test("Signature widget on an unsaved record persists via the record (no write to
             </form>`,
     });
 
-    // set a name to enable the auto-sign feature
     await contains(".o_field_widget[name=display_name] input").edit("test");
 
     await click(".o_widget_signature button.o_sign_button");
@@ -320,6 +313,5 @@ test("Signature widget on an unsaved record persists via the record (no write to
     await clickModalButton({ text: "Adopt & Sign" });
 
     expect(".modal-dialog").toHaveCount(0, { message: "Should have no modal opened" });
-    // The record was saved (web_save) and no write to a false id was attempted.
     expect.verifySteps(["web_save"]);
 });

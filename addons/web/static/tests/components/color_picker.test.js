@@ -105,7 +105,6 @@ test("keyboard navigation", async () => {
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:first-of-type",
     ).toBeFocused();
 
-    // cannot move if no previous color
     await press("arrowleft");
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:first-of-type",
@@ -144,7 +143,6 @@ test("keyboard navigation", async () => {
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:last-of-type",
     ).toBeFocused();
 
-    // cannot move if no next color
     await press("arrowright");
     expect(
         ".o_font_color_selector .o_color_section .o_color_button[data-color]:last-of-type",
@@ -240,14 +238,11 @@ test("custom color picker does not mutate its props", async () => {
     const picker = await mountWithCleanup(CustomColorPicker, {
         props: { defaultColor: "#FF0000", defaultOpacity: 0.5 },
     });
-    // OWL props are owned by the parent: the component must not rewrite them
-    // (the old in-place mutation was also non-idempotent).
     expect(picker.props.defaultColor).toBe("#FF0000");
     expect(picker.props.defaultOpacity).toBe(0.5);
-    // Derived display values live on the instance instead.
-    expect(picker.defaultOpacity).toBe(50); // 0.5 in (0,1] scaled to a percentage
-    expect(picker.defaultColor).toBe("#FF000080"); // opacity hex appended once
-    expect(picker.selectedColor).toBe("#FF000080"); // falls back to defaultColor
+    expect(picker.defaultOpacity).toBe(50);
+    expect(picker.defaultColor).toBe("#FF000080");
+    expect(picker.selectedColor).toBe("#FF000080");
 });
 
 test("should preserve color slider when picking max lightness color", async () => {
@@ -272,7 +267,7 @@ test("should preserve color slider when picking max lightness color", async () =
     const colorPickerRect = colorPickerArea.getBoundingClientRect();
 
     const clientX = colorPickerRect.left + colorPickerRect.width / 2;
-    const clientY = colorPickerRect.top; // Lightness 100%
+    const clientY = colorPickerRect.top;
     manuallyDispatchProgrammaticEvent(colorPickerArea, "pointerdown", {
         clientX,
         clientY,
@@ -337,8 +332,6 @@ test("useColorPicker commits the previewed custom color on close without a calle
                 selectedColor: "#FF0000",
                 defaultTab: "custom",
             });
-            // No `onClose` in the options: the previewed custom color must
-            // still be committed when the popover closes.
             this.picker = useColorPicker(
                 "colorButton",
                 {
@@ -359,7 +352,6 @@ test("useColorPicker commits the previewed custom color on close without a calle
     expect(".o_font_color_selector").toHaveCount(1);
     expect(".o_color_pick_area").toHaveCount(1);
 
-    // Preview a color by dragging on the picking area.
     const colorPickerArea = queryOne(".o_color_pick_area");
     const colorPickerRect = colorPickerArea.getBoundingClientRect();
     const clientX = colorPickerRect.left + colorPickerRect.width / 2;
@@ -373,14 +365,11 @@ test("useColorPicker commits the previewed custom color on close without a calle
         clientY,
     });
     await animationFrame();
-    // The dragged color is only previewed at this point, not committed.
     expect.verifySteps([]);
 
     /** @type {any} */ (comp).picker.close();
     await animationFrame();
-    // Closing the popover commits the previewed color.
     expect.verifySteps(["applyColor"]);
-    // The hook must not mutate the caller's options object.
     expect("onClose" in pickerOptions).toBe(false);
 });
 

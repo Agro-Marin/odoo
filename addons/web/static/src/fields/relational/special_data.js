@@ -22,14 +22,6 @@ export function useSpecialData(loadFn) {
     const record = component.props.record;
     const { specialDataCaches } = record.model;
     const orm = component.env.services.orm;
-    // Guard ``result.data`` against out-of-order loads across all three paths
-    // (the record-observer effect, onWillUpdateProps, and the cache "changed"
-    // callback below): a slower earlier load must not clobber a newer one.
-    // Each load takes a monotonic ticket and writes only if no newer load has
-    // already written. This is deliberately NOT a KeepLast: KeepLast abandons a
-    // superseded promise outright, so the first valid result would be dropped
-    // and the update forced to wait for a later refetch — a visible render lag
-    // (e.g. a dynamic-domain status bar not reflecting a re-fetch in time).
     let loadTicket = 0;
     let appliedTicket = 0;
     const apply = (ticket, data) => {
@@ -41,15 +33,13 @@ export function useSpecialData(loadFn) {
     const ormWithCache = Object.create(orm);
     ormWithCache.call = (...args) => {
         const key = JSON.stringify(args);
-        if (!specialDataCaches[key]) {
-            // Store the in-flight promise synchronously so concurrent first
-            // calls share it instead of re-entering the RPC cache layer.
+        if (!specialDataCaches.has(key)) {
             const prom = orm
                 .cache({
                     type: "disk",
                     update: "always",
                     callback: (res, hasChanged) => {
-                        specialDataCaches[key] = Promise.resolve(res);
+                        specialDataCaches.set(key, Promise.resolve(res));
                         if (status(component) !== "destroyed" && hasChanged) {
                             const ticket = ++loadTicket;
                             loadFn(ormWithCache, component.props).then((res) =>
@@ -59,15 +49,14 @@ export function useSpecialData(loadFn) {
                     },
                 })
                 .call(...args);
-            specialDataCaches[key] = prom;
+            specialDataCaches.set(key, prom);
             prom.catch(() => {
-                // Do not cache failures: the next call must retry.
-                if (specialDataCaches[key] === prom) {
-                    delete specialDataCaches[key];
+                if (specialDataCaches.get(key) === prom) {
+                    specialDataCaches.delete(key);
                 }
             });
         }
-        return specialDataCaches[key];
+        return specialDataCaches.get(key);
     };
 
     /** @type {{ data: T }} */
@@ -77,7 +66,6 @@ export function useSpecialData(loadFn) {
         apply(ticket, await loadFn(ormWithCache, { ...props, record }));
     });
     onWillUpdateProps(async (props) => {
-        // useRecordObserver callback is not called when the record doesn't change
         if (props.record.id === component.props.record.id) {
             const ticket = ++loadTicket;
             apply(ticket, await loadFn(ormWithCache, props));

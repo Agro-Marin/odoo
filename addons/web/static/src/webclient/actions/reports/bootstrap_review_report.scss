@@ -1,6 +1,3 @@
-// WeasyPrint supports CSS custom properties, but we keep explicit bg/text
-// utility overrides to guarantee consistent colors in PDF output regardless
-// of how custom properties are resolved in the paged media context.
 @each $color-name, $color-value in $utilities-bg {
     .bg-#{$color-name} {
         background-color: RGB($color-value)
@@ -8,7 +5,6 @@
     }
 }
 
-// Do a similar operation than before for grays.
 @each $color-name, $color-value in $grays {
     .bg-#{$color-name} {
         background-color: $color-value
@@ -16,8 +12,6 @@
     }
 }
 
-// Add the extra theme colors to match backend text-x colors
-// Note: text-muted is using $o-gray-600 (bs_overidden_report) to avoid rgba.
 $report-text-colors: map-merge-multiple(
     $theme-colors,
     $o-theme-text-colors,
@@ -28,17 +22,14 @@ $report-text-colors: map-merge-multiple(
     )
 );
 
-// Generate 'text-x' utility classes.
 @each $color-name, $color-value in $report-text-colors {
     .text-#{$color-name} {
         color: $color-value if($enable-important-utilities, !important, null);
     }
 }
 
-// Cleanup temporary map
 $report-text-colors: null;
 
-// Prevent page breaks inside structural snippets in PDF output.
 .jumbotron,
 .panel,
 .carousel,
@@ -46,7 +37,6 @@ section {
     break-inside: avoid;
 }
 
-// Hide print-none elements in PDF context
 .d-print-none {
     display: none;
 }
@@ -56,7 +46,6 @@ section {
 }
 
 .report-wrapping-flexbox {
-    // overriding the `display` prop of `.row`
     display: block !important;
 }
 
@@ -64,10 +53,6 @@ section {
     float: left;
 }
 
-// Report footer: the standard footer now uses CSS Grid (.o_report_footer_grid)
-// in PDF mode, which doesn't need Bootstrap responsive breakpoint overrides.
-// Keep .col-lg-* overrides for the company.report_footer HTML content, which
-// is user-editable via the Odoo editor and may contain Bootstrap columns.
 .footer {
     .col-lg-3,
     .col-lg-4,
@@ -88,7 +73,6 @@ section {
     }
 }
 
-// Explicit container padding for consistent PDF output
 .container {
     padding-right: $container-padding-x;
     padding-left: $container-padding-x;
@@ -99,8 +83,6 @@ section {
     background-color: $table-bg;
 }
 
-// Removes borders within a table-borderless as its new definition in
-// Boostrap 5 still has its borders visible in PDFs
 .table-borderless {
     tbody,
     thead,

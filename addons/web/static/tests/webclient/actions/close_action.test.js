@@ -97,7 +97,6 @@ test("close dialog by clicking on the header button", async () => {
     expect(".o_dialog").toHaveCount(0);
     expect.verifySteps(["on_close"]);
 
-    // should not call on_close again: it was already called.
     await getService("action").doAction({ type: "ir.actions.act_window_close" });
     expect.verifySteps([]);
 });
@@ -109,13 +108,11 @@ test('execute "on_close" only if there is no dialog to close', async () => {
         expect.step("on_close");
     }
     const options = { onClose };
-    // should not call on_close: there is still a dialog to close.
     await getService("action").doAction(
         { type: "ir.actions.act_window_close" },
         options,
     );
     expect.verifySteps([]);
-    // should call on_close now that there is no dialog to close.
     await getService("action").doAction(
         { type: "ir.actions.act_window_close" },
         options,
@@ -151,9 +148,6 @@ test("on_close chaining a follow-up inline action fires exactly once", async () 
     await mountWithCleanup(WebClient);
     function onClose() {
         expect.step("on_close");
-        // The inline follow-up closes all dialogs when it dispatches
-        // (_dispatchInline calls dialog.closeAll()); that must not re-enter
-        // the on_close of the dialog already being closed.
         return getService("action").doAction(1);
     }
     await getService("action").doAction(5, { onClose });
@@ -188,7 +182,6 @@ test("history back called within on_close", async () => {
     await getService("action").doAction(5, { onClose });
 
     await contains(".modal-header button.btn-close").click();
-    // await nextTick();
     expect(".modal").toHaveCount(0);
     expect(".o_list_view").toHaveCount(0);
     expect(".o_kanban_view").toHaveCount(1);
@@ -208,19 +201,13 @@ test("web client is not deadlocked when a view crashes", async () => {
     });
     await mountWithCleanup(WebClient);
     await getService("action").doAction(3);
-    // open first record in form view: this will crash, no form view shown
     await contains(".o_list_view .o_data_cell").click();
     readOnFirstRecordDef.reject(new Error("not working as intended"));
-    // The crash surfaces several async hops later (unhandled rejection ->
-    // error service), which a single animationFrame does not deterministically
-    // cover. Waiting on the error channel keeps the assertion from racing the
-    // propagation — otherwise the error lands in a later test and fails it.
     await expect.waitForErrors(["not working as intended"]);
 
     expect(".o_list_view").toHaveCount(1, {
         message: "there should still be a list view in dom",
     });
-    // open another record, the read will not crash
     await contains(".o_list_view .o_data_row:eq(1) .o_data_cell").click();
     expect(".o_list_view").toHaveCount(0, {
         message: "there should not be a list view in dom",

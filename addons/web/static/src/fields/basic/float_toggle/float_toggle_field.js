@@ -25,18 +25,10 @@ export class FloatToggleField extends Component {
         disableReadOnly: false,
     };
 
-    // TODO perf issue (because of update round trip)
-    // we probably want to have a state and a useEffect or onWillUpateProps
     /** Advances to the next value in the range cycle and updates the record. */
     onChange() {
         const range = this.props.range;
         const current = this.props.record.data[this.props.name] * this.factor;
-        // `Array.indexOf` uses exact float equality: a factor that doesn't
-        // round-trip (e.g. value * factor = 0.30000000000000004) would never
-        // match its range entry and silently reset to range[0]. Match within an
-        // epsilon instead. A value that is genuinely off the range still matches
-        // nothing (index -1), preserving the previous "advance to range[0]"
-        // behaviour for arbitrary values.
         const EPSILON = 1e-6;
         let currentIndex = range.findIndex((v) => Math.abs(v - current) < EPSILON);
         currentIndex++;
@@ -52,9 +44,6 @@ export class FloatToggleField extends Component {
     get factor() {
         const factor = this.props.factor;
         if (!factor) {
-            // options="{'factor': 0}" would otherwise divide by 0 in onChange
-            // and commit Infinity to the record. Mirror FloatFactorField's
-            // guard: warn and fall back to 1.
             console.warn("float_toggle: factor must be non-zero; falling back to 1");
             return 1;
         }

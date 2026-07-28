@@ -18,11 +18,7 @@ export class IrUiViewCodeEditor extends CodeEditor {
         this.markers = [];
 
         onMounted(() => {
-            // Editor-level event (not session-level): the parent CodeEditor
-            // swaps sessions on sessionId change, which would orphan a
-            // listener attached to the initial session only.
             this.aceEditor.on("change", () => {
-                // Markers have fixed pixel positions, so they get wonky on change.
                 this.clearMarkers();
             });
         });
@@ -76,12 +72,6 @@ export class IrUiViewCodeEditor extends CodeEditor {
                             endPos.row,
                             endPos.column,
                         );
-                        // Record the {session, id} pair. Marker ids are
-                        // per-session, and the parent CodeEditor swaps
-                        // aceEditor.session on sessionId change; removing by id
-                        // against whatever session is current at cleanup time
-                        // would target the wrong session and leave the stale
-                        // highlight on the old one.
                         const session = this.aceEditor.session;
                         this.markers.push({
                             session,

@@ -44,10 +44,6 @@ test("reload currencies when updating a res.currency", async () => {
 });
 
 test("do not reload webclient when the res.currency write was refused", async () => {
-    // Only a SERVER rejection is skipped: the transaction rolled back, so
-    // nothing changed. A write whose response was merely lost may have
-    // committed and does trigger a reload -- see
-    // `@web/webclient/rpc_mutation_listeners` for the full policy matrix.
     onRpc("get_all_currencies", ({ method }) => {
         expect.step(method);
     });
@@ -72,8 +68,6 @@ test("do not reload webclient when the res.currency write was refused", async ()
 });
 
 test("a failed background currency reload does not raise an unhandled rejection", async () => {
-    // The reload is fire-and-forget: a rejected `get_all_currencies` must be
-    // swallowed (via console.warn), not left as an unhandled rejection.
     patchWithCleanup(console, {
         warn: () => expect.step("warn"),
     });
@@ -87,6 +81,5 @@ test("a failed background currency reload does not raise an unhandled rejection"
         result: {},
     });
     await animationFrame();
-    // The rejection was routed to console.warn, not left unhandled.
     expect.verifySteps(["warn"]);
 });

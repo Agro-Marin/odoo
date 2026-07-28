@@ -26,8 +26,6 @@ export class BooleanToggleField extends BooleanField {
         try {
             await this.props.record.update(changes, { save: this.props.autosave });
         } catch (error) {
-            // Same rollback as BooleanField.onChange: a rejected update never
-            // re-fires the observer, so resync the optimistic mirror.
             this.state.value = this.props.record.data[this.props.name];
             throw error;
         }

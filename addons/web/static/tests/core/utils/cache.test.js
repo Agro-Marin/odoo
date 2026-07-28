@@ -14,7 +14,6 @@ describe("Cache", () => {
         });
         expect(cache.read("a")).toBe("a");
         expect(callCount).toBe(1);
-        // Second read should return cached value without recomputing
         expect(cache.read("a")).toBe("a");
         expect(callCount).toBe(1);
     });
@@ -27,10 +26,8 @@ describe("Cache", () => {
         });
         expect(cache.read("model", "field", "key")).toBe("model:field:key");
         expect(callCount).toBe(1);
-        // Same path returns cached
         expect(cache.read("model", "field", "key")).toBe("model:field:key");
         expect(callCount).toBe(1);
-        // Different path computes new value
         expect(cache.read("model", "field", "other")).toBe("model:field:other");
         expect(callCount).toBe(2);
     });
@@ -59,10 +56,8 @@ describe("Cache", () => {
         cache.read("b");
         expect(callCount).toBe(2);
         cache.clear("a");
-        // "a" was cleared, must recompute
         cache.read("a");
         expect(callCount).toBe(3);
-        // "b" is still cached
         cache.read("b");
         expect(callCount).toBe(3);
     });
@@ -76,7 +71,6 @@ describe("Cache", () => {
         cache.clear("x", "y");
         cache.read("x", "y");
         expect(callCount).toBe(3);
-        // Other nested key still cached
         cache.read("x", "z");
         expect(callCount).toBe(3);
     });
@@ -101,19 +95,15 @@ describe("Cache", () => {
             const key = String(idx);
             const result = cache.read(key);
             expect(result).toBe(val);
-            // Second read returns same falsy value
             expect(cache.read(key)).toBe(val);
         }
-        // getValue was called exactly once per key
         expect(idx).toBe(values.length);
     });
 
     test("clear() on non-existent key is a no-op", () => {
         const cache = new Cache(() => 1);
         cache.read("a");
-        // Should not throw
         cache.clear("nonexistent");
-        // Existing entry still intact
         let callCount = 0;
         const cache2 = new Cache(() => ++callCount);
         cache2.read("a");
@@ -126,25 +116,20 @@ describe("Cache", () => {
         let callCount = 0;
         const cache = new Cache(
             () => ++callCount,
-            // Collapse all paths to same key
             () => "same",
         );
         cache.read("a");
         cache.read("b");
         cache.read("c");
-        // All resolve to the same key, so getValue called only once
         expect(callCount).toBe(1);
     });
 
     test("throws on a non-primitive path segment when getKey is absent", () => {
         const cache = new Cache((x) => x);
-        // Objects/functions would all coerce to "[object Object]" and collide
-        // into one slot; null/undefined collide with "null"/"undefined".
         expect(() => cache.read({})).toThrow(/invalid path segment/);
         expect(() => cache.read("model", [1, 2])).toThrow(/invalid path segment/);
         expect(() => cache.read(null)).toThrow(/invalid path segment/);
         expect(() => cache.read(undefined)).toThrow(/invalid path segment/);
-        // Primitive segments are still accepted.
         expect(cache.read("ok")).toBe("ok");
         expect(cache.read(1)).toBe(1);
     });
@@ -165,9 +150,7 @@ describe("Cache", () => {
             return "recovered";
         });
         await expect(cache.read("k")).rejects.toThrow(/boom/);
-        // Let the self-eviction .catch run.
         await Promise.resolve();
-        // The rejected slot was evicted, so the next read recomputes.
         expect(await cache.read("k")).toBe("recovered");
         expect(calls).toBe(2);
     });

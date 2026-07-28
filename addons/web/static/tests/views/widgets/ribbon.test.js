@@ -17,15 +17,11 @@ class Partner extends models.Model {
 defineModels([Partner]);
 
 test("web_ribbon renders when neither title nor text is set", async () => {
-    // Neither ``title`` nor ``text`` is provided, so ``extractProps`` used to
-    // yield ``undefined`` for the required String ``text`` prop, failing
-    // validation and throwing in the ``classes`` getter (``text.length``).
-    // ``text`` must default to "" instead.
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <widget name="web_ribbon"/>
             </form>`,
@@ -40,13 +36,11 @@ test("web_ribbon uses the title attribute as its label", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <widget name="web_ribbon" title="Archived"/>
             </form>`,
     });
 
-    // The ribbon CSS uppercases its label (text-transform), so the rendered
-    // text is "ARCHIVED"; what matters is that the title attribute drives it.
     expect(".ribbon span").toHaveText("ARCHIVED");
 });

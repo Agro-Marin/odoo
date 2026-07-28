@@ -48,9 +48,6 @@ export class MultiSelectionButtons extends Component {
         this.state = useState({ isReady: false });
         onWillRender(() => {
             if (this.props.reactive.visible && !this.state.isReady) {
-                // Store the promise: onWillRender fires on every render while
-                // not ready, which would otherwise start concurrent loads and
-                // retry (with unhandled rejections) on every render on failure.
                 this._loadViewProm ??= this.loadMultiCreateView()
                     .then(() => {
                         this.state.isReady = true;
@@ -98,11 +95,6 @@ export class MultiSelectionButtons extends Component {
                 const left = Math.floor((parentWidth - width) / 2);
                 el.style.setProperty("left", `${left}px`);
             },
-            // `nbSelected` is in the deps because the toolbar width is data-driven:
-            // the selected-count text grows/shrinks and the Delete button
-            // (t-if="nbSelected > 0") appears/disappears. OWL patches the same
-            // persistent root node across renders, so `rootRef.el` alone is a
-            // stable reference and the effect would never re-center on width change.
             () => [rootRef.el, this.props.reactive.nbSelected],
         );
 
@@ -127,7 +119,6 @@ export class MultiSelectionButtons extends Component {
 
     /** Fetch and parse the multi-create form view definition from the server. */
     async loadMultiCreateView() {
-        // todo: accept variable context,... ?
         const { context, resModel, multiCreateView } = this.props.reactive;
         const result = await this.viewService.loadViews(
             /** @type {any} */ ({

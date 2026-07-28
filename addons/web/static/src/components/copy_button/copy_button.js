@@ -28,8 +28,6 @@ export class CopyButton extends Component {
         /** @type {import("@odoo/owl").Ref<HTMLButtonElement>} */
         this.button = useRef("button");
         this.popover = usePopover(Tooltip);
-        // Clear the auto-close timer on unmount so it can't fire (and touch
-        // the popover service) after the component is gone.
         onWillUnmount(() => browser.clearTimeout(this.tooltipCloseTimer));
     }
 
@@ -46,8 +44,6 @@ export class CopyButton extends Component {
     async onClick() {
         let write, content;
         if (typeof this.props.content === "function") {
-            // Await so an async provider yields its resolved value; otherwise a
-            // Promise would be handed to clipboard.write() and rejected.
             content = await this.props.content();
         } else {
             content = this.props.content;

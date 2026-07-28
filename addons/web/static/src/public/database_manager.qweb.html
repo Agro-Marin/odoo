@@ -87,6 +87,8 @@
                 </t>
                 <t t-elif="list_db">
                     <form role="form" action="/web/database/create" method="post">
+                        <t t-set="form_prefix" t-value="'page_'" />
+                        <t t-set="set_master_pwd" t-value="False" />
                         <t t-call="create_form" />
                         <input type="submit" value="Create database" class="btn btn-primary float-start"/>
                     </form>
@@ -105,6 +107,8 @@
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
+                            <t t-set="form_prefix" t-value="'create_'" />
+                            <t t-set="set_master_pwd" t-value="False" />
                             <t t-call="create_form" />
                             <small class="text-muted">
                                 To enhance your experience, some data may be sent to Odoo online services. See our <a href="https://www.odoo.com/privacy" target="_blank">Privacy Policy</a>.
@@ -128,6 +132,8 @@
                     </div>
                     <form id="form_restore_db" role="form" action="/web/database/restore" method="post" enctype="multipart/form-data">
                         <div class="modal-body">
+                            <t t-set="form_prefix" t-value="'restore_'" />
+                            <t t-set="set_master_pwd" t-value="False" />
                             <t t-call="master_input" />
                             <div class="row mb-3">
                                 <label for="backup_file" class="col-md-4 col-form-label">File</label>
@@ -181,13 +187,14 @@
                         <div class="modal-body">
                             <p>The master password is required to create, delete, dump or restore databases.</p>
                             <t t-set="set_master_pwd" t-value="True" />
+                            <t t-set="form_prefix" t-value="'master_'" />
                             <t t-call="master_input" />
                             <div class="row mb-3">
                                 <label for="master_pwd_new" class="col-md-5 col-form-label">New Master Password</label>
                                 <div class="col-md-7">
                                     <div class="input-group">
                                         <input id="master_pwd_new" type="password" name="master_pwd_new" class="form-control" required autocomplete="new-password"/>
-                                        <span class="o_little_eye input-group-text" style="cursor: pointer;"><i class="fa-regular fa-eye" aria-hidden="true"></i></span>
+                                        <button type="button" class="o_little_eye input-group-text" style="cursor: pointer;" aria-label="Show password" aria-pressed="false"><i class="fa-regular fa-eye" aria-hidden="true"></i></button>
                                     </div>
                                 </div>
                             </div>
@@ -211,6 +218,7 @@
                     <form id="form-duplicate-db" role="form" action="/web/database/duplicate" method="post">
                         <div class="modal-body">
                             <t t-set="set_master_pwd" t-value="False" />
+                            <t t-set="form_prefix" t-value="'duplicate_'" />
                             <t t-call="master_input" />
                             <div class="row mb-3">
                                 <label for="dbname_duplicate" class="col-md-4 col-form-label">Database Name</label>
@@ -249,6 +257,8 @@
                     </div>
                     <form id="form_drop_db" role="form" action="/web/database/drop" method="post">
                         <div class="modal-body">
+                            <t t-set="form_prefix" t-value="'delete_'" />
+                            <t t-set="set_master_pwd" t-value="False" />
                             <t t-call="master_input" />
                             <div class="row mb-3">
                                 <label for="dbname_delete" class="col-md-4 col-form-label">Database</label>
@@ -281,6 +291,8 @@
                     </div>
                     <form id="form_backup_db" role="form" action="/web/database/backup" method="post">
                         <div class="modal-body">
+                            <t t-set="form_prefix" t-value="'backup_'" />
+                            <t t-set="set_master_pwd" t-value="False" />
                             <t t-call="master_input" />
                             <div class="row mb-3">
                                 <label for="dbname_backup" class="col-md-4 col-form-label">Database Name</label>

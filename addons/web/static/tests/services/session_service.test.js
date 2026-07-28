@@ -57,7 +57,7 @@ test("Only call once session info data when services calls lazy session", async 
         "service_b_before",
         "service_b_after",
         "web_client_mounted",
-        "load_session_info", // <= only do it once after webclient is mounted
+        "load_session_info",
         "session_a_after_lazy",
         "session_b_after_lazy",
     ]);
@@ -108,7 +108,7 @@ test("Only call once lazy session info data on action", async () => {
         "web_client_mounted",
         "myaction_before",
         "myaction_on_will_start",
-        "load_session_info", // <= only do it once after webclient is mounted
+        "load_session_info",
         "myaction_on_will_start_after",
         "myaction_before",
         "myaction_on_will_start",
@@ -168,7 +168,7 @@ test("Call lazy session info after webclient init with action and service", asyn
         "service_before",
         "service_after",
         "web_client_mounted",
-        "load_session_info", // <= only do it once after webclient is mounted
+        "load_session_info",
         "session_after_lazy",
         "myaction_before",
         "myaction_on_will_start",

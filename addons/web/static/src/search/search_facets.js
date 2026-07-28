@@ -10,6 +10,25 @@ import { computeActiveItemDomains } from "./search_domain.js";
 import { SPECIAL } from "./search_state.js";
 import { INTERVAL_OPTIONS } from "./utils/dates.js";
 import { FACET_COLORS, FACET_ICONS } from "./utils/misc.js";
+
+/**
+ * Icon of a facet: a group-by facet carries the count-sort arrow whenever the
+ * count sort is on. Shared by the query-driven facets and the synthetic
+ * default-group-by facet below — `computeOrderBy` count-sorts a surviving
+ * `defaultGroupBy` too, so the two must show the same icon or the sort looks
+ * inactive on the only facet the user can click to flip it.
+ *
+ * @param {string} type
+ * @param {string|false} orderByCount
+ * @returns {string}
+ */
+function groupByIcon(type, orderByCount) {
+    if (type === "groupBy" && orderByCount) {
+        return FACET_ICONS[orderByCount === "Asc" ? "groupByAsc" : "groupByDesc"];
+    }
+    return FACET_ICONS[type];
+}
+
 /**
  * Build the facets array from active query groups.
  *
@@ -48,8 +67,6 @@ export function buildFacets({
         let tooltip;
         for (const activeItem of group.activeItems) {
             const searchItem = searchItems[activeItem.searchItemId];
-            // ||=: keep the first tooltip found in the group — a later item
-            // without one (e.g. OR'd split filters) must not erase it.
             tooltip ||= searchItem.tooltip;
             switch (searchItem.type) {
                 case "field_property":
@@ -103,12 +120,7 @@ export function buildFacets({
         if (type === "field") {
             facet.title = title;
         } else {
-            if (type === "groupBy" && orderByCount) {
-                facet.icon =
-                    FACET_ICONS[orderByCount === "Asc" ? "groupByAsc" : "groupByDesc"];
-            } else {
-                facet.icon = FACET_ICONS[type];
-            }
+            facet.icon = groupByIcon(type, orderByCount);
             facet.color = FACET_COLORS[type];
         }
         if (tooltip) {
@@ -120,7 +132,6 @@ export function buildFacets({
         facets.push(facet);
     }
 
-    // Add default groupBy facet if none active
     const hasAGroupByFacet = facets.some((f) => f.type === "groupBy");
     if (
         !hasAGroupByFacet &&
@@ -133,9 +144,6 @@ export function buildFacets({
             type: "groupBy",
             values: defaultGroupBy.map((gb) => {
                 const [fieldName, interval] = gb.split(":");
-                // A default groupBy may reference a field absent from the search
-                // view (dotted/related, or removed); fall back to the raw
-                // name instead of throwing and poisoning the whole control panel.
                 const string = searchViewFields[fieldName]?.string ?? fieldName;
                 if (interval) {
                     const option = INTERVAL_OPTIONS[interval];
@@ -148,7 +156,7 @@ export function buildFacets({
                 return string;
             }),
             separator: ">",
-            icon: FACET_ICONS.groupBy,
+            icon: groupByIcon("groupBy", orderByCount),
             color: FACET_COLORS.groupBy,
         });
     }

@@ -46,11 +46,6 @@ async function start(props = {}, target) {
 
 preloadFullCalendar();
 beforeEach(() => {
-    // "UTC+1" makes Luxon produce a FixedOffsetZone name that
-    // Intl.DateTimeFormat rejects, breaking FullCalendar's mount. Use
-    // "Africa/Algiers" (UTC+1 year-round, no DST) instead of e.g.
-    // Europe/Brussels, which would be UTC+2 (CEST) in July and break the
-    // millisecond assertions below by an hour.
     luxon.Settings.defaultZone = "Africa/Algiers";
 });
 
@@ -76,8 +71,6 @@ test(`Month: mount a CalendarCommonRenderer`, async () => {
 
 test(`Day: check week number`, async () => {
     await start({ model: { ...FAKE_MODEL, scale: "day" } });
-    // The visible/tested element is the outer ``.fc-week-number`` cell
-    // (carrying our injected class); an inner generic div shares its label.
     expect(`.fc-week-number`).toHaveCount(1);
     expect(`.fc-week-number`).toHaveText(/(Week )?28/);
 });
@@ -144,11 +137,6 @@ test(`Day: click on event`, async () => {
 
 test.tags("desktop");
 test(`two fast single-clicks on DIFFERENT events open both popovers, no edit`, async () => {
-    // Regression: double-click detection must be per-event. A single-click on
-    // event 1 followed within the 250ms window by a single-click on event 2
-    // used to be treated as a double-click on event 2 (opening its edit form
-    // and swallowing event 1's popover), because the click timer was shared
-    // with no target-identity check.
     mockService("popover", () => ({
         add(target, component, { record }) {
             expect.step(`popover-${record.id}`);
@@ -160,12 +148,9 @@ test(`two fast single-clicks on DIFFERENT events open both popovers, no edit`, a
             expect.step(`edit-${record.id}`);
         },
     });
-    // Click event 1 then event 2 WITHOUT flushing the timer in between.
     await click(findEvent(1));
     await click(findEvent(2));
     await runAllTimers();
-    // Event 1's popover is flushed synchronously when event 2 is clicked;
-    // event 2's popover opens once its own timer elapses. No edit form.
     expect.verifySteps(["popover-1", "popover-2"]);
 });
 
@@ -185,16 +170,11 @@ test(`two fast clicks on the SAME event still open the edit form`, async () => {
     await click(findEvent(1));
     await click(findEvent(1));
     await runAllTimers();
-    // Second click on the same event is a real double-click: edit form opens
-    // and the pending popover is cancelled.
     expect.verifySteps(["edit-1"]);
 });
 
 test(`Week: check week number`, async () => {
     await start({ model: { ...FAKE_MODEL, scale: "week" } });
-    // v7 dropped the v6 ``fc-scrollgrid-section-header`` /
-    // ``fc-timegrid-axis-cushion`` containers; the week-label cell is
-    // emitted with the ``fc-week-number`` class directly.
     expect(`.fc-week-number`).toHaveCount(1);
     expect(`.fc-week-number`).toHaveText(/(Week )?28/);
 });
@@ -225,14 +205,7 @@ test(`Week: check dates`, async () => {
 test(`Day: automatically scroll to 6am`, async () => {
     await mountWithCleanup(`<div class="scrollable" style="height: 500px;"/>`);
     await start({ model: { ...FAKE_MODEL, scale: "day" } }, queryFirst(`.scrollable`));
-    // FC v7's ``applyTimeScroll`` defers via ``afterSize`` →
-    // ``requestAnimationFrame``. Flush one RAF so the auto-scroll
-    // lands before we assert position.
     await animationFrame();
-    // v7 hashes class names, but ``viewDidMount`` re-injects
-    // ``fc-scroller-liquid-y`` on the vertical time-grid scroller; after
-    // auto-scroll the 6am slot sits at the top of THAT scroller, not of the
-    // outer ``.fc-timeGridDay-view`` (which also wraps a header row).
     const scrollerY = queryRect(`.fc-scroller-liquid-y`).y;
     const slotY = queryRect(`[data-time="06:00:00"]:eq(0)`).y;
     expect(Math.abs(slotY - scrollerY)).toBeLessThan(2);
@@ -243,9 +216,6 @@ test(`Week: automatically scroll to 6am`, async () => {
     await start({ model: { ...FAKE_MODEL, scale: "week" } }, queryFirst(`.scrollable`));
     await runAllTimers();
     await animationFrame();
-    // See Day-version comment: ``.fc-scroller-liquid-y`` is the
-    // vertical time-grid scroller, tagged by ``viewDidMount`` so
-    // tests can target it stably across FC v7 hash changes.
     const scrollerY = queryRect(`.fc-scroller-liquid-y`).y;
     const slotY = queryRect(`[data-time="06:00:00"]:eq(0)`).y;
     expect(Math.abs(slotY - scrollerY)).toBeLessThan(2);
@@ -257,9 +227,6 @@ test("Month: remove row when no day of current month", async () => {
 });
 
 test(`o_past_event: an all-day event on its last day today is not styled past`, async () => {
-    // All-day records normalize their end to start-of-day, so a single-day
-    // all-day event today has end === midnight of today. It must not be greyed
-    // out until the day is actually over (start of the following day).
     mockDate("2021-07-16T12:00:00");
     const today = luxon.DateTime.now().startOf("day");
     const model = {
@@ -289,28 +256,21 @@ test(`o_past_event: an all-day event on its last day today is not styled past`, 
         },
     };
     const renderer = await start({ model });
-    // FIX: today's all-day event is not past.
     expect(renderer.eventClassNames({ event: { id: 10 } })).not.toInclude(
         "o_past_event",
     );
-    // Regression guards: a genuinely finished event is still styled past.
     expect(renderer.eventClassNames({ event: { id: 11 } })).toInclude("o_past_event");
     expect(renderer.eventClassNames({ event: { id: 12 } })).toInclude("o_past_event");
 });
 
 test(`isSelectionAllowed: a timed selection ending exactly at midnight is allowed`, async () => {
     const renderer = await start();
-    // Build Dates with native local-tz setters: isSelectionAllowed compares via
-    // local Date methods, but a bare ``new Date(y, m, d, h)`` is interpreted as
-    // UTC by Hoot's MockDate and would drift under a non-UTC runtime.
     const atLocal = (year, monthIndex, day, hour) => {
         const d = new Date();
         d.setFullYear(year, monthIndex, day);
         d.setHours(hour, 0, 0, 0);
         return d;
     };
-    // 23:00 -> 24:00 rolls the end over to 00:00 of the next day; the last slot
-    // of a day must still be selectable.
     expect(
         renderer.isSelectionAllowed({
             allDay: false,
@@ -318,7 +278,6 @@ test(`isSelectionAllowed: a timed selection ending exactly at midnight is allowe
             end: atLocal(2021, 6, 17, 0),
         }),
     ).toBe(true);
-    // A single-slot selection within the day stays allowed.
     expect(
         renderer.isSelectionAllowed({
             allDay: false,
@@ -326,7 +285,6 @@ test(`isSelectionAllowed: a timed selection ending exactly at midnight is allowe
             end: atLocal(2021, 6, 16, 9),
         }),
     ).toBe(true);
-    // A genuinely cross-day selection is still refused.
     expect(
         renderer.isSelectionAllowed({
             allDay: false,
@@ -338,8 +296,6 @@ test(`isSelectionAllowed: a timed selection ending exactly at midnight is allowe
 
 test(`fcEventToRecord returns null when the dragged record was removed mid-interaction`, async () => {
     const renderer = await start({ model: { ...FAKE_MODEL, scale: "week" } });
-    // id 9999 is not among the model's records: a reload landing mid-drag can
-    // drop the record, and dereferencing existingRecord.start/.id used to throw.
     expect(
         renderer.fcEventToRecord({
             id: 9999,
@@ -348,7 +304,6 @@ test(`fcEventToRecord returns null when the dragged record was removed mid-inter
             end: new Date(2021, 6, 16, 11, 0),
         }),
     ).toBe(null);
-    // A live record (id 1) still converts normally, carrying its id back.
     expect(
         renderer.fcEventToRecord({
             id: 1,

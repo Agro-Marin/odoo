@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { check, uncheck } from "@odoo/hoot-dom";
+import { animationFrame, check, uncheck } from "@odoo/hoot-dom";
 import { Component, useState, xml } from "@odoo/owl";
 import {
     contains,
@@ -163,7 +163,6 @@ test("pressing ENTER on a disabled checkbox does nothing", async () => {
 
     await contains(".o-checkbox input").press("Enter");
 
-    // The Enter hotkey must be a no-op on a disabled checkbox, like onClick.
     expect(`.o-checkbox input`).not.toBeChecked();
     expect.verifySteps([]);
 });
@@ -179,4 +178,43 @@ test("checkbox with props indeterminate", async () => {
 
     expect(`.o-checkbox input`).toHaveCount(1);
     expect(`.o-checkbox input`).toBeChecked({ indeterminate: true });
+});
+
+test("controlled checkbox is restored when the parent rejects the change", async () => {
+    let received;
+    class Parent extends Component {
+        static components = { CheckBox };
+        static props = {};
+        static template = xml`<CheckBox value="state.value" onChange.bind="onChange"/>`;
+        setup() {
+            this.state = useState({ value: false });
+        }
+        onChange(checked) {
+            received = checked;
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    await check("input");
+    // The restore is applied by the render owl schedules for the next frame;
+    // `check()` itself asserts the interaction landed before that.
+    await animationFrame();
+
+    expect(received).toBe(true);
+    expect(`.o-checkbox input`).not.toBeChecked();
+});
+
+test("uncontrolled checkbox (no value prop) still toggles freely", async () => {
+    class Parent extends Component {
+        static components = { CheckBox };
+        static props = {};
+        static template = xml`<CheckBox onChange="() => {}"/>`;
+    }
+    await mountWithCleanup(Parent);
+
+    await check("input");
+    expect(`.o-checkbox input`).toBeChecked();
+
+    await uncheck("input");
+    expect(`.o-checkbox input`).not.toBeChecked();
 });

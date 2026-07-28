@@ -12,21 +12,13 @@ import {
 } from "@web/components/emoji_picker/emoji_picker";
 import { browser } from "@web/core/browser/browser";
 
-// No `preloadBundle("web.assets_emoji")`: that path fetches the real ~530 KB
-// bundle over the network (it runs under `withFetch(globalCachedFetch)`, which
-// bypasses the mock server). The mock server now serves a lightweight emoji
-// stub for `web.assets_emoji`, so the picker's own `onWillStart` load is
-// instant and needs no preload.
-
 test("frequent emojis with unknown codepoints do not crash the picker", async () => {
-    // Simulate a stale localStorage entry with codepoints no longer in the current bundle.
     browser.localStorage.setItem(
         "web.emoji.frequent",
         JSON.stringify({ "<removed codepoints>": 5, "😀": 2 }),
     );
     await mountWithCleanup(EmojiPicker, { props: { onSelect: () => {} } });
     expect(".o-EmojiPicker").toHaveCount(1);
-    // Only the emoji still present in the data shows up in "Frequently used" (sortId 0).
     expect(".o-EmojiPicker-content .o-Emoji[data-category='0']").toHaveCount(1);
     expect(".o-EmojiPicker-content .o-Emoji[data-category='0']").toHaveText("😀");
 });
@@ -68,10 +60,6 @@ test("mobile picker dialog is torn down with its owner", async () => {
     await waitFor(".modal .o-EmojiPicker");
 
     parent.state.show = false;
-    // Two frames: the emoji data now loads asynchronously (mock stub, no
-    // synchronous preload), so the picker's teardown settles one render cycle
-    // after the owner's — the first frame unmounts the owner, the second
-    // flushes the dialog removal.
     await animationFrame();
     await animationFrame();
     expect(".modal").toHaveCount(0);
@@ -108,4 +96,32 @@ test("mobile picker app is torn down with its owner", async () => {
     await animationFrame();
     expect(".o-EmojiPicker").toHaveCount(0);
     expect.verifySteps(["closed"]);
+});
+
+test("the active emoji is read from the rendered list, not from the DOM", async () => {
+    patchWithCleanup(loader, { loadEmoji: () => Promise.resolve() });
+    /** @type {any} */
+    let instance;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            instance = this;
+        }
+    }
+    await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    await animationFrame();
+
+    const matchesList = () =>
+        instance.activeEmoji?.codepoints ===
+        instance.getEmojisFromSearch()[instance.state.activeEmojiIndex]?.codepoints;
+
+    expect(matchesList()).toBe(true);
+
+    instance.handleNavigation("ArrowRight");
+    await animationFrame();
+    expect(matchesList()).toBe(true);
+
+    // Reading it without a mounted grid must not throw.
+    instance.gridRef = { el: null };
+    expect(() => instance.activeEmoji).not.toThrow();
 });

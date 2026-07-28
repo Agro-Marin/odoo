@@ -57,7 +57,7 @@ defineModels([Foo, ResCompany, ResPartner, ResUsers]);
 registerTemplate(
     "test_list_record_row.RecordRow",
     "/web/static/tests/views/list/list_record_row.test.js",
-    /* xml */ `
+    `
     <t t-name="test_list_record_row.RecordRow"
        t-inherit="web.ListRenderer.RecordRow"
        t-inherit-mode="primary">
@@ -115,7 +115,6 @@ test("bare-name methods dispatch on the renderer with the row's record (C1/C4)",
         "label:beta",
         "label:gamma",
     ]);
-    // The inherited row body is intact (C4): one name cell per row.
     expect(".o_data_row .o_data_cell[name='name']").toHaveCount(3);
 });
 
@@ -165,8 +164,6 @@ test("late renderer field assignment warns in debug mode (C6)", async () => {
 
     expect(warnings).toEqual([]);
 
-    // Assign a NEW instance field after every row installed its accessors,
-    // then force a row re-render.
     captured.renderer.lateAssignedFlag = true;
     captured.renderer.rowState.highlight = true;
     await animationFrame();
@@ -177,12 +174,6 @@ test("late renderer field assignment warns in debug mode (C6)", async () => {
 
 test.tags("desktop");
 test("destroyed row: shadow subscriptions are inert and caches are cleared", async () => {
-    // OWL only clears its own render callback's reactive subscriptions on
-    // destroy — the row's custom ``_shadowRender`` callback (C3 subscriptions
-    // to delegated renderer state) stays registered in the reactivity maps.
-    // The WeakRef + status guard must make such a leaked subscription inert
-    // (no re-render of a destroyed row), and ``onWillDestroy`` must clear the
-    // delegation caches so the destroyed row stops referencing renderer state.
     /** @type {any[]} */
     const rowInstances = [];
     patchWithCleanup(ListRecordRow.prototype, {
@@ -201,7 +192,6 @@ test("destroyed row: shadow subscriptions are inert and caches are cleared", asy
     expect(queryAll(".o_data_row")).toHaveLength(3);
     expect(rowInstances).toHaveLength(3);
 
-    // Fold the first group: its row component is destroyed.
     await contains(".o_group_header").click();
     await animationFrame();
     const destroyed = rowInstances.filter((row) => status(row) === "destroyed");
@@ -210,31 +200,17 @@ test("destroyed row: shadow subscriptions are inert and caches are cleared", asy
     let renders = 0;
     for (const row of destroyed) {
         row.render = () => renders++;
-        // A leaked shadow subscription firing after destroy is a no-op: the
-        // WeakRef in _shadowRender derefs to a destroyed component, so it never
-        // calls render(). (The caches are intentionally left for normal GC —
-        // eagerly clearing them mid-suite disturbs OWL's reactive-callback GC;
-        // see the note in list_record_row.js.)
         row._shadowRender();
     }
-    // Mutating the renderer state the rows subscribed to (C3) must not
-    // re-render destroyed rows either…
     captured.renderer.rowState.highlight = true;
     await animationFrame();
     expect(renders).toBe(0);
-    // …while live rows still react.
     expect(queryAll(".o_data_row").every((row) => row.dataset.highlight === "on")).toBe(
         true,
     );
 });
 
 test("row.group resolves the flat parentGroup even when virtualization is active", () => {
-    // Regression: the virtualized branch used to short-circuit ``get group()``
-    // to undefined, dropping group context for grouped lists past the
-    // virtualization threshold (Enter mis-targets the new row,
-    // onEditNextRecord opens the form view instead of the next inline row).
-    // The flat grid carries ``parentGroup`` regardless of virtualization, so
-    // the getter must return it unconditionally.
     const groupGetter = Object.getOwnPropertyDescriptor(
         ListRecordRow.prototype,
         "group",
@@ -253,8 +229,6 @@ test("row.group resolves the flat parentGroup even when virtualization is active
             },
         },
     });
-    // Non-virtualized (unchanged behavior) AND virtualized (the fix) both
-    // resolve the enclosing group.
     expect(groupGetter.call(makeThis(false))).toBe(parentGroup);
     expect(groupGetter.call(makeThis(true))).toBe(parentGroup);
 });

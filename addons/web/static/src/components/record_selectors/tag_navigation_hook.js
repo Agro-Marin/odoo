@@ -24,9 +24,6 @@ export function useTagNavigation(refName, options = {}) {
 
     const onBackspaceKeydown = (navigator) => {
         const el = navigator.activeItem.el;
-        // Tag indices are computed relative to the actual tag items rather
-        // than assuming the input is the last navigable item, so a template
-        // reordering can't silently delete the wrong tag.
         const tagItems = navigator.items.filter((item) =>
             item.el.classList.contains("o_tag"),
         );

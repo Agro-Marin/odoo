@@ -20,19 +20,11 @@ import { makeErrorFromResponse } from "@web/core/network/rpc";
  * @typedef {import("./mock_server").KwArgs} KwArgs
  */
 
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
-
 /**
  * This is a flag on keyword arguments, so that they can easily be distinguished
  * from args in ORM methods. They can then be easily retrieved with {@link getKwArgs}.
  */
 const KWARGS_SYMBOL = Symbol("is_kwargs");
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * Flags keyword arguments, so that they can easily be distinguished from regular

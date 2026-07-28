@@ -84,7 +84,6 @@ test("record swap re-arms the observer and fires with the new record", async () 
     await animationFrame();
     expect.verifySteps(["foo:swapped|readonly:false"]);
 
-    // The superseded effect must be disposed: mutating the OLD record fires nothing.
     oldRecord.data.foo = "stale";
     await animationFrame();
     expect.verifySteps([]);
@@ -95,8 +94,6 @@ test("a prop-only update delivers fresh props to later invocations", async () =>
     const { parentState } = await mountObserver(record);
     expect.verifySteps(["foo:abc|readonly:false"]);
 
-    // Prop-only update: the record is untouched, so the callback must not
-    // fire — but the props it will receive next must be refreshed.
     parentState.readonly = true;
     await animationFrame();
     expect.verifySteps([]);
@@ -111,11 +108,6 @@ test("destroying the component during an in-flight batched call is safe", async 
     const { parent } = await mountObserver(record);
     expect.verifySteps(["foo:abc|readonly:false"]);
 
-    // Schedule a batched invocation (its animation-frame promise is now
-    // pending), then destroy the app synchronously — hoot's `destroy` is
-    // idempotent, so the mountWithCleanup teardown stays a no-op. When the
-    // frame fires, the in-flight call must be swallowed by the hook's
-    // currentId guard instead of running against a destroyed component.
     record.data.foo = "def";
     destroy(parent);
     await animationFrame();
@@ -124,10 +116,6 @@ test("destroying the component during an in-flight batched call is safe", async 
 });
 
 test("a rejection after the initial call is reported, not silently dropped", async () => {
-    // ``def`` (Promise.withResolvers) settles exactly once, so only the FIRST
-    // invocation's rejection can reach OWL through onWillStart. A later
-    // rejection lands on an already-settled deferred and disappears; the hook
-    // must at least make it observable.
     const record = makeRecord({ foo: "abc" });
     const errors = [];
     const originalError = console.error;
@@ -157,8 +145,6 @@ test("a rejection after the initial call is reported, not silently dropped", asy
         await mountWithCleanup(Parent);
         expect.verifySteps(["observed:abc"]);
 
-        // Second invocation rejects: the component must survive, and the
-        // failure must be reported rather than vanishing.
         record.data.foo = "boom";
         await animationFrame();
         await animationFrame();

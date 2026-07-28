@@ -25,10 +25,7 @@
  * }} StackFrame
  */
 
-// V8:      "    at fn (https://x/y.js:1:2)" | "    at https://x/y.js:1:2"
-//          (optional "async " / "new " prefixes on the function name)
 const V8_FRAME_RE = /^\s*at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?\s*$/;
-// FF/Safari: "fn@https://x/y.js:1:2" | "@https://x/y.js:1:2" | "https://x/y.js:1:2"
 const GECKO_FRAME_RE = /^\s*(?:(.*?)@)?(.+?):(\d+):(\d+)\s*$/;
 
 /**
@@ -60,12 +57,6 @@ export function parseStackFrames(stack) {
     return frames;
 }
 
-// ── Sourcemap consumer ─────────────────────────────────────────────
-//
-// Deliberately minimal: decode the ``mappings`` VLQ into per-generated-line
-// segment arrays and binary-search them.  No ``sourcesContent`` handling,
-// no section-indexed maps — esbuild emits neither.
-
 const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 const BASE64_VALUES = new Map([...BASE64_CHARS].map((c, i) => [c, i]));
 
@@ -95,7 +86,6 @@ export function decodeMappings(mappings) {
                 for (const char of segText) {
                     const digit = BASE64_VALUES.get(char);
                     if (digit === undefined) {
-                        // Corrupt segment: drop it rather than misalign.
                         values.length = 0;
                         break;
                     }
@@ -103,7 +93,6 @@ export function decodeMappings(mappings) {
                     if (digit & 32) {
                         shift += 5;
                     } else {
-                        // Sign bit is the LSB of the assembled value.
                         values.push(value & 1 ? -(value >>> 1) : value >>> 1);
                         value = 0;
                         shift = 0;
@@ -119,8 +108,6 @@ export function decodeMappings(mappings) {
                     origCol += values[3];
                     segments.push([genCol, srcIdx, origLine, origCol]);
                 }
-                // 1-field segments (generated-only) carry no source info —
-                // nothing to look up, skip. 5th field (name index) unused.
             }
         }
         lines.push(segments);
@@ -155,7 +142,6 @@ class SourceMapConsumer {
         if (!segments || !segments.length) {
             return null;
         }
-        // Binary search: last segment whose generated column <= column.
         const genCol = column - 1;
         let lo = 0;
         let hi = segments.length - 1;
@@ -202,29 +188,17 @@ function getConsumer(scriptUrl) {
     if (!promise) {
         promise = (async () => {
             const scriptText = await (await fetch(scriptUrl)).text();
-            // Last directive wins (matches browser behavior). Scan from the
-            // LAST occurrence of the directive marker rather than a
-            // fixed-size tail: an inline ``data:`` sourcemap makes the final
-            // line arbitrarily long (base64 of the whole map), so any byte
-            // cap would cut the directive off.
             const directiveIndex = scriptText.lastIndexOf("//# sourceMappingURL=");
             const tail = directiveIndex === -1 ? "" : scriptText.slice(directiveIndex);
             const match = SOURCE_MAPPING_URL_RE.exec(tail);
             if (!match) {
                 return null;
             }
-            // Resolve relative to the script URL, itself resolved against
-            // the document (frame fileNames may be path-absolute).
             const scriptHref = new URL(scriptUrl, globalThis.location.href);
             const mapUrl = new URL(match[1], scriptHref).href;
             const map = await (await fetch(mapUrl)).json();
             return new SourceMapConsumer(map);
-        })().catch(
-            () =>
-                // Unreachable script, no directive, cross-origin block, corrupt
-                // map: annotation degrades to raw frames, never an error.
-                null,
-        );
+        })().catch(() => null);
         consumerCache.set(scriptUrl, promise);
     }
     return promise;
@@ -240,8 +214,6 @@ function getConsumer(scriptUrl) {
 export async function mapFramesToSource(frames) {
     return Promise.all(
         frames.map(async (frame) => {
-            // Only same-document http(s)/path script URLs can carry a map
-            // we may fetch (data:, blob:, <anonymous> cannot).
             if (!/^(https?:)?\//.test(frame.fileName)) {
                 return frame;
             }

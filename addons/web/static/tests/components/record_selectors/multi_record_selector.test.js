@@ -26,7 +26,6 @@ class Partner extends models.Model {
     ];
 }
 
-// Required for the select create dialog
 class Users extends models.Model {
     _name = "res.users";
     has_group = () => true;
@@ -156,15 +155,11 @@ test("Display name is correctly fetched", async () => {
 });
 
 test("A superseded display-name load does not overwrite the current selection", async () => {
-    // Regression: computeDerivedParams must route loads through a KeepLast so a
-    // slow (uncached -> RPC) load for a since-deselected id cannot resolve after
-    // a fast (cached) load and render a record that is no longer selected.
     Partner._records.push({ id: 99, name: "Zoe" });
     const held = new Deferred();
     onRpc("partner", "web_search_read", async ({ kwargs }) => {
         const ids = kwargs.domain[0][2];
         if (ids.includes(99)) {
-            // Hold the RPC for id 99 so its load resolves last.
             await held;
         }
     });
@@ -180,18 +175,15 @@ test("A superseded display-name load does not overwrite the current selection", 
         }
     }
     await mountWithCleanup(Parent);
-    expect(".o_tag").toHaveText("Alice"); // id 1 loaded and now cached
+    expect(".o_tag").toHaveText("Alice");
 
-    // Select id 99 -> triggers a (held) RPC that stays pending.
     parent.state.resIds = [99];
     await animationFrame();
 
-    // Re-select id 1 (already cached) -> resolves before the held id-99 load.
     parent.state.resIds = [1];
     await animationFrame();
     expect(".o_tag").toHaveText("Alice");
 
-    // Let the stale id-99 load finish; it must not clobber the current tag.
     held.resolve();
     await animationFrame();
     await animationFrame();
@@ -268,7 +260,6 @@ test("Can focus tags with arrow right and left", async () => {
         resModel: "partner",
         resIds: [1, 2],
     });
-    // Click twice because to get the focus and make disappear the autocomplete popover
     await click(".o_multi_record_selector input");
     await click(".o_multi_record_selector input");
     await animationFrame();
@@ -297,7 +288,6 @@ test("Delete the focused element", async () => {
         resModel: "partner",
         resIds: [1, 2],
     });
-    // Click twice because to get the focus and make disappear the autocomplete popover
     await click(".o_multi_record_selector input");
     await click(".o_multi_record_selector input");
     await animationFrame();
@@ -329,7 +319,6 @@ test("Backspace do nothing when the input is currently edited", async () => {
     expect(".o_tag").toHaveCount(2);
 });
 
-// Desktop only because a kanban view is used instead of a list in mobile
 test.tags("desktop");
 test("Can pass domain to search more", async () => {
     Partner._records.push(
@@ -340,7 +329,7 @@ test("Can pass domain to search more", async () => {
         { id: 8, name: "Helen" },
         { id: 9, name: "Ivy" },
     );
-    Partner._views["list"] = /* xml */ `<list><field name="name"/></list>`;
+    Partner._views["list"] = `<list><field name="name"/></list>`;
     await mountMultiRecordSelector({
         resModel: "partner",
         resIds: [],

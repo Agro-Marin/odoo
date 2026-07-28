@@ -3,7 +3,7 @@
 
 /** @module @web/components/file_viewer/file_viewer - Full-screen image, PDF, video, and text file preview with navigation controls */
 
-import { Component, useEffect, useRef, useState } from "@odoo/owl";
+import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
 /**
@@ -63,6 +63,7 @@ export class FileViewer extends Component {
             isIframeLoaded: false,
         });
         this.ui = useService("ui");
+        onWillUpdateProps((nextProps) => this.onFilesUpdated(nextProps.files));
         useEffect(
             (el) => {
                 if (el) {
@@ -91,18 +92,57 @@ export class FileViewer extends Component {
     }
 
     next() {
+        if (!this.props.files.length) {
+            return;
+        }
         const last = this.props.files.length - 1;
         this.activateFile(this.state.index === last ? 0 : this.state.index + 1);
     }
 
     previous() {
+        if (!this.props.files.length) {
+            return;
+        }
         const last = this.props.files.length - 1;
         this.activateFile(this.state.index === 0 ? last : this.state.index - 1);
     }
 
-    activateFile(index) {
+    /**
+     * Re-anchors the viewer on a new file list. Without this, `state.index` and
+     * `state.file` stay the snapshot taken in `setup`, so deleting or replacing
+     * an attachment while the viewer is open leaves it previewing a file that no
+     * longer exists — while `next()` / `previous()` read a fresh
+     * `props.files.length`, mixing the two lists.
+     *
+     * The currently viewed file wins over the index: reordering the list should
+     * keep showing the same document.
+     *
+     * @param {Array<Object>} files
+     */
+    onFilesUpdated(files) {
+        if (files === this.props.files) {
+            return;
+        }
+        const index = files.indexOf(this.state.file);
+        if (index === this.state.index) {
+            return;
+        }
+        if (index !== -1) {
+            this.state.index = index;
+            return;
+        }
+        this.activateFile(Math.min(this.state.index, files.length - 1), files);
+    }
+
+    /**
+     * @param {number} index
+     * @param {Array<Object>} [files] list to read from; defaults to the current
+     *  props, but must be passed explicitly from `onWillUpdateProps`, where
+     *  `this.props` is still the previous set.
+     */
+    activateFile(index, files = this.props.files) {
         this.state.index = index;
-        this.state.file = this.props.files[index];
+        this.state.file = files[index];
         this.state.scale = 1;
         this.state.angle = 0;
         this.state.imageLoaded = false;
@@ -111,6 +151,9 @@ export class FileViewer extends Component {
     }
 
     onKeydown(ev) {
+        if (!this.state.file) {
+            return;
+        }
         switch (ev.key) {
             case "ArrowRight":
                 this.next();
@@ -168,9 +211,6 @@ export class FileViewer extends Component {
         this.didDrag = false;
         this.dragStartX = ev.clientX;
         this.dragStartY = ev.clientY;
-        // Capture the pointer so move/up keep flowing during the pan even if
-        // it leaves the image. Untrusted (test) pointers can't be captured —
-        // the main view's pointerup handler still ends the drag then.
         try {
             ev.target.setPointerCapture(ev.pointerId);
         } catch {

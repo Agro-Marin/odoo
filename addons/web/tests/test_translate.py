@@ -27,17 +27,14 @@ class TestTranslationOverride(TransactionCase):
         self.assertEqual(categoryEN.name, "commonName")
         self.assertEqual(categoryFR.name, "commonName")
 
-        # cannot void translations (including en_US)
         self.category.web_override_translations({"name": False})
         self.assertEqual(categoryEN.name, "commonName")
         self.assertEqual(categoryFR.name, "commonName")
 
-        # empty str is a valid translation
         self.category.web_override_translations({"name": ""})
         self.assertEqual(categoryEN.name, "")
         self.assertEqual(categoryFR.name, "")
 
-        # translated html fields are not changed
         self.custom.web_override_translations(
             {"name": "<div>dont</div><div>change</div>"}
         )

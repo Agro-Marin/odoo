@@ -25,14 +25,10 @@ export function useDateTimePicker(params) {
         useRef(params.endDateRefName || "end-date"),
     ];
 
-    // Need original object since 'pickerProps' (or any other param) can be defined
-    // as getters
     const serviceParams = Object.assign(Object.create(params), {
         getInputs,
         useOwlHooks: true,
     });
 
-    // With `useOwlHooks` the service auto-registers an onWillDestroy that
-    // disposes the picker (popover teardown + registration release).
     return useService("datetime_picker").create(serviceParams);
 }

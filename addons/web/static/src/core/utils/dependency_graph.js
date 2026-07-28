@@ -45,24 +45,17 @@ export function findDependencyCycle(graph) {
             continue;
         }
 
-        // Iterative DFS using an explicit stack.
-        // Each frame is [node, depIndex] — depIndex tracks which dependency
-        // to visit next, avoiding re-processing already-visited deps.
         /** @type {Array<[string, number]>} */
         const stack = [[startNode, 0]];
         state.set(startNode, IN_STACK);
         parent.set(startNode, null);
 
         while (stack.length) {
-            // `stack.length` is non-zero here, so the top frame exists. Index
-            // (typed as the element type) rather than `.at(-1)` (typed
-            // `T | undefined`) so the access is statically known-defined.
             const frame = stack[stack.length - 1];
             const node = frame[0];
             const deps = graph.get(node) || [];
 
             if (frame[1] >= deps.length) {
-                // All deps processed — mark done and backtrack
                 state.set(node, DONE);
                 stack.pop();
                 continue;
@@ -70,14 +63,12 @@ export function findDependencyCycle(graph) {
 
             const dep = deps[frame[1]++];
 
-            // Skip nodes not in the graph (external dependencies)
             if (!graph.has(dep)) {
                 continue;
             }
 
             const depState = state.get(dep);
             if (depState === IN_STACK) {
-                // Found a cycle — reconstruct the path
                 return _reconstructCycle(parent, node, dep);
             }
             if (depState === DONE) {
@@ -102,16 +93,14 @@ export function findDependencyCycle(graph) {
  * @returns {string[]} The cycle path, e.g. ["a", "b", "c", "a"]
  */
 function _reconstructCycle(parent, from, to) {
-    // Walk backwards from `from` to `to` via parent pointers.
-    // The cycle is: to → ... → from → to
     const path = [from];
     let current = from;
     while (current !== to) {
         current = /** @type {string} */ (parent.get(current));
         path.push(current);
     }
-    path.reverse(); // Now: [to, ..., from]
-    path.push(to); // Close the cycle
+    path.reverse();
+    path.push(to);
     return path;
 }
 
@@ -175,10 +164,6 @@ export function createWaveResolver({ isLoaded }) {
     return {
         track(name, deps) {
             if (pending.has(name)) {
-                // Idempotent: a second track call for the same name is
-                // a no-op.  The caller may legitimately re-track in
-                // response to registry updates; we don't want to
-                // double-count dependencies.
                 return;
             }
             let unmet = 0;
@@ -191,9 +176,6 @@ export function createWaveResolver({ isLoaded }) {
                         waiters = new Set();
                         dependents.set(dep, waiters);
                     }
-                    // Dedup waiters: ``track("b", ["a", "a"])`` must
-                    // unblock on a single propagate("a"), not wait for
-                    // two.  Otherwise the entry deadlocks forever.
                     if (!waiters.has(name)) {
                         waiters.add(name);
                         owned.push(dep);
@@ -232,11 +214,15 @@ export function createWaveResolver({ isLoaded }) {
         },
         untrack(name) {
             pending.delete(name);
-            // Also drop this entry's outgoing reverse edges. Leaving ``name`` in
-            // a ``dependents`` set would let a later re-track skip incrementing
-            // ``unmet`` for that dep (the stale-but-present waiter is deduped
-            // away), so the re-tracked entry would be declared ready while it
-            // still has an unmet dependency.
+            // Also drop it from the ready FIFO. `untrack` is documented as
+            // "remove an entry from the resolver", but a name that had already
+            // become ready stayed queued and a later `shift()` handed it back —
+            // so a caller that untracks on FAILURE (as the service launcher
+            // does) could be told to start the very entry it just gave up on.
+            const readyIndex = ready.indexOf(name);
+            if (readyIndex !== -1) {
+                ready.splice(readyIndex, 1);
+            }
             const owned = waitingOn.get(name);
             if (owned) {
                 for (const dep of owned) {

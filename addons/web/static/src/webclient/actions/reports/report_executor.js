@@ -10,17 +10,10 @@ import { user } from "@web/services/user";
 import { ReportAction } from "./report_action.js";
 import { downloadReport, getReportUrl } from "./utils.js";
 
-// Pre-execution hooks for ir.actions.report. Each handler is called with
-// `(action, options, env)`; returning a truthy value short-circuits the
-// default report flow (used by IoT and POS to redirect printing).
 registry
     .category("ir.actions.report handlers")
     .addValidation((entry) => typeof entry === "function");
 
-// One specifier per module: tsc gives `@web/webclient/actions/action_service`
-// and `../action_service.js` distinct type identities, so splitting these two
-// imports across both spellings makes structurally identical typedefs
-// mutually unassignable (same trap as action_executors/act_url.js).
 /** @import { ActionManager, ReportAction as ReportActionType } from "../action_service.js" */
 
 /**
@@ -53,6 +46,30 @@ export function executeReportClientAction(action, options, am) {
 }
 
 /**
+ * Settle the dialog (if any) the report was launched from.
+ *
+ * Both terminal paths of {@link executeReportAction} — a registry handler
+ * claiming the report, and the built-in PDF/text download — owe the caller the
+ * same thing once the document has been produced, and carried identical copies
+ * of it.
+ *
+ * @param {ReportActionType} action
+ * @param {Object} options
+ * @param {ActionManager} am
+ * @returns {Promise|undefined} the close action's promise when one is
+ *   dispatched, so callers can keep propagating it as the action's result
+ *   exactly as both copies did
+ */
+function finishReport(action, options, am) {
+    const { onClose } = options;
+    if (action.close_on_report_download) {
+        return am.doAction({ type: "ir.actions.act_window_close" }, { onClose });
+    }
+    onClose?.();
+    return undefined;
+}
+
+/**
  * Execute a report action. Delegates to registered report handlers first,
  * then falls back to HTML preview or PDF/text download.
  *
@@ -66,16 +83,7 @@ export async function executeReportAction(action, options, am) {
     for (const handler of handlers) {
         const result = await handler(action, options, am.env);
         if (result) {
-            const { onClose } = options;
-            if (action.close_on_report_download) {
-                return am.doAction(
-                    { type: "ir.actions.act_window_close" },
-                    { onClose },
-                );
-            } else if (onClose) {
-                onClose();
-            }
-            return result;
+            return finishReport(action, options, am) ?? result;
         }
     }
     if (action.report_type === "qweb-html") {
@@ -91,19 +99,11 @@ export async function executeReportAction(action, options, am) {
             if (action.context) {
                 Object.assign(downloadContext, action.context);
             }
-            // WeasyPrint always produces the file or throws (no wkhtmltopdf
-            // fallback): downloadReport resolves on success, rejects (via
-            // the error service) on failure.
             await downloadReport(rpc, action, type, downloadContext);
         } finally {
             am.env.services.ui.unblock();
         }
-        const { onClose } = options;
-        if (action.close_on_report_download) {
-            return am.doAction({ type: "ir.actions.act_window_close" }, { onClose });
-        } else if (onClose) {
-            onClose();
-        }
+        return finishReport(action, options, am);
     } else {
         console.error(
             `The ActionManager can't handle reports of type ${action.report_type}`,

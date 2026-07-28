@@ -3,14 +3,14 @@
 
 /** @module @web/fields/basic/url/url_field - URL input field with clickable hyperlink in readonly mode */
 
-import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
 import { registerField } from "@web/fields/_registry";
+import { TextInputFieldBase } from "@web/fields/basic/text_input_field_base";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export class UrlField extends Component {
+export class UrlField extends TextInputFieldBase {
     static template = "web.UrlField";
     static props = {
         ...standardFieldProps,
@@ -21,7 +21,10 @@ export class UrlField extends Component {
     };
 
     setup() {
-        useInputField({ getValue: () => this.value });
+        useInputField({
+            getValue: () => this.value,
+            parse: (v) => this.parse(v),
+        });
     }
 
     /** @returns {string} raw field value or empty string */
@@ -41,11 +44,6 @@ export class UrlField extends Component {
             return "";
         }
         if (!this.props.websitePath) {
-            // Prefix "http://" unless the value already carries a full scheme
-            // (http(s)://, ftp(s)://) or is a site-relative path (/...). The
-            // scheme branch requires BOTH slashes so a single-slash typo like
-            // "http:/x" is treated as scheme-less and prefixed, not left as a
-            // dead link.
             const regex = /^((ftp|http)s?:\/\/|\/)/i;
             value = !regex.test(value) ? `http://${value}` : value;
         }

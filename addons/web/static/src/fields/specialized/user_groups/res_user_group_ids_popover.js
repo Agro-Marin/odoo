@@ -29,13 +29,10 @@ export class ResUserGroupIdsPopover extends Component {
         this.group = this.groups[this.props.groupId];
         this.privilege = this.privileges[this.group.privilege_id];
 
-        // filter out impliedBy groups from same privilege
         this.impliedGroups = this.group.impliedByIds
             .map((gid) => this.groups[gid])
             .filter((g) => !this.privilege || g.privilege_id !== this.privilege.id);
 
-        // split joint/joint extra/exclusive implies (at most one group by privilege, the one with
-        // higher level, and omit groups of same privilege as the current group)
         const implyGroups = this.group.implyIds.map((gid) => this.groups[gid]);
         const implyGroupsByPrivilege = groupBy(implyGroups, (g) => g.privilege_id);
         const keysToOmit = this.privilege

@@ -19,9 +19,6 @@ import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 export async function executeButtonCallback(el, fct) {
     let btns = [];
     function disableButtons() {
-        // ``el`` can be null (unmounted, or no ".modal" ancestor in a dialog);
-        // guard it so the click still resolves via ``fct`` instead of
-        // throwing on ``null.querySelectorAll`` (overlay buttons stay disabled).
         btns = [
             ...btns,
             ...(el ? el.querySelectorAll("button:not([disabled])") : []),

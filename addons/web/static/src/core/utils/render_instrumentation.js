@@ -27,7 +27,6 @@ export function useRenderCounter(label) {
     });
 }
 
-// Install global accessors once per process. Idempotent so HMR is safe.
 if (
     typeof (/** @type {Record<string, any>} */ (globalThis).__renderStats) !==
     "function"

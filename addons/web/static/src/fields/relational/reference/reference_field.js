@@ -47,12 +47,10 @@ export class ReferenceField extends Component {
     setup() {
         /** @type {{formattedCharValue?: ReferenceValue, modelName?: string}} */
         this.state = useState({
-            formattedCharValue: undefined, // Value extracted from reference char field
-            modelName: undefined, // Name get of the value of the model field
+            formattedCharValue: undefined,
+            modelName: undefined,
             currentRelation: undefined,
         });
-        // Serialize the async observers below: without it, two rapid value
-        // changes can resolve out of order and leave stale state behind.
         const keepLast = new KeepLast();
         if (this._isCharField(this.props)) {
             /** Fetch the display name of the record referenced by the field */
@@ -147,22 +145,8 @@ export class ReferenceField extends Component {
 
     /** @param {{ id: number, display_name: string }|false} value */
     updateM2O(value) {
-        // Record the id against the SAME model the picker searched — the
-        // autocomplete's `relation` is `getRelation()` (see the template and
-        // setup). Preferring `currentRelation` here instead would, once an
-        // onchange/reload has repopulated the value with another model (so
-        // `getRelation()` returns that model), persist "modelA,<id-from-modelB>"
-        // — a reference pair that never co-existed. When the model select was
-        // just changed, the value is cleared and `getRelation()` already returns
-        // `currentRelation`, so this stays correct in that case too.
         const resModel = this.getRelation();
         if (this._isCharField(this.props)) {
-            // A char-backed reference stores the wire format "model,id" string
-            // (or false when cleared), NOT the {resModel, resId, displayName}
-            // object used for real reference fields. Writing the object here
-            // would make the char serializer forward it verbatim to the server
-            // AND make the record observer's _fetchReferenceCharData crash on
-            // recordData.split(",") (object has no split).
             this.props.record.update({
                 [this.props.name]: value ? `${resModel},${value.id}` : false,
             });
@@ -194,21 +178,18 @@ export class ReferenceField extends Component {
         const [resModel, _resId] = recordData.split(",");
         const resId = Number.parseInt(_resId, 10);
         if (resModel && resId) {
-            // CROSS-GROUP(name_service): this per-widget specialDataCaches
-            // name_get bypasses the shared name_service cache; unifying the two
-            // is owned by the model/core group. The resId/resModel guards above
-            // already keep the request well-formed.
             const { specialDataCaches, orm } = props.record.model;
             const key = `__reference__name_get-${recordData}`;
-            if (!specialDataCaches[key]) {
-                specialDataCaches[key] = orm
-                    .read(resModel, [resId], ["display_name"])
-                    .catch((e) => {
-                        delete specialDataCaches[key];
+            if (!specialDataCaches.has(key)) {
+                specialDataCaches.set(
+                    key,
+                    orm.read(resModel, [resId], ["display_name"]).catch((e) => {
+                        specialDataCaches.delete(key);
                         throw e;
-                    });
+                    }),
+                );
             }
-            const result = await specialDataCaches[key];
+            const result = await specialDataCaches.get(key);
             if (!result[0]) {
                 return false;
             }
@@ -245,15 +226,16 @@ export class ReferenceField extends Component {
         }
         const { specialDataCaches, orm } = props.record.model;
         const key = `__reference__ir_model-${modelId}`;
-        if (!specialDataCaches[key]) {
-            specialDataCaches[key] = orm
-                .read("ir.model", [modelId], ["model"])
-                .catch((e) => {
-                    delete specialDataCaches[key];
+        if (!specialDataCaches.has(key)) {
+            specialDataCaches.set(
+                key,
+                orm.read("ir.model", [modelId], ["model"]).catch((e) => {
+                    specialDataCaches.delete(key);
                     throw e;
-                });
+                }),
+            );
         }
-        const result = await specialDataCaches[key];
+        const result = await specialDataCaches.get(key);
         return result[0]?.model ?? false;
     }
 }
@@ -276,14 +258,6 @@ export const referenceField = {
     ],
     supportedTypes: ["reference", "char"],
     extractProps(staticInfo, dynamicInfo) {
-        /*
-        1 - <field name="ref" options="{'model_field': 'model_id'}" />
-        2 - <field name="ref" options="{'hide_model': True}" />
-        3 - <field name="ref" options="{'model_field': 'model_id' 'hide_model': True}" />
-        4 - <field name="ref"/>
-
-        We want to display the model selector only in the 4th case.
-        */
         const { options } = staticInfo;
         const props = extractM2OFieldProps(staticInfo, dynamicInfo);
         props.hideModel = !!options.hide_model;

@@ -12,7 +12,7 @@ import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-export const MAX_FILENAME_SIZE_BYTES = 0xff; // filenames do not exceed 255 bytes on Linux/Windows/MacOS
+export const MAX_FILENAME_SIZE_BYTES = 0xff;
 
 const textEncoder = new TextEncoder();
 
@@ -50,7 +50,6 @@ export class BinaryField extends Component {
     static props = {
         ...standardFieldProps,
         acceptedFileExtensions: { type: String, optional: true },
-        // See https://www.iana.org/assignments/media-types/media-types.xhtml
         allowedMIMETypes: { type: String, optional: true },
         fileNameField: { type: String, optional: true },
     };
@@ -68,8 +67,6 @@ export class BinaryField extends Component {
         if (fileName) {
             return truncateToByteLength(fileName, MAX_FILENAME_SIZE_BYTES);
         }
-        // Fallback: the base64 content stands in for the name; slice at the
-        // base64 length whose decoded size fits the filename limit.
         let value = this.props.record.data[this.props.name];
         value = value && typeof value === "string" ? value : "";
         return value.slice(0, toBase64Length(MAX_FILENAME_SIZE_BYTES));

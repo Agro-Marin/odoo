@@ -29,10 +29,6 @@ async function payloadOf(blob) {
     return JSON.parse(await blob.text());
 }
 
-// Every test uses a UNIQUE message: the throttle ``seen`` set is module-level
-// and lives for the whole page (test run), so a reused (message,line,col)
-// would be swallowed by an earlier test's entry.
-
 test("reportJsError: an empty message is dropped without touching sendBeacon", () => {
     const { calls } = spyBeacon();
     expect(reportJsError({ message: "" })).toBe(false);
@@ -84,7 +80,6 @@ test("reportJsError: kind is normalized to error | unhandledrejection", async ()
     reportJsError({ message: "beacon-kind-rej", kind: "unhandledrejection" });
     reportJsError({ message: "beacon-kind-bogus", kind: /** @type {any} */ ("weird") });
     expect((await payloadOf(calls[0].blob)).kind).toBe("unhandledrejection");
-    // Any non-"unhandledrejection" kind collapses to "error".
     expect((await payloadOf(calls[1].blob)).kind).toBe("error");
 });
 
@@ -96,14 +91,14 @@ test("reportJsError: line/col are coerced to integers, filename defaults to ''",
         col: /** @type {any} */ ("7"),
     });
     const a = await payloadOf(calls[0].blob);
-    expect(a.line).toBe(9); // 9.9 | 0
-    expect(a.col).toBe(7); // "7" | 0
+    expect(a.line).toBe(9);
+    expect(a.col).toBe(7);
     expect(a.filename).toBe("");
-    expect(a.stack).toBe(""); // no stack provided
+    expect(a.stack).toBe("");
 
     reportJsError({ message: "beacon-coerce-2" });
     const b = await payloadOf(calls[1].blob);
-    expect(b.line).toBe(0); // undefined | 0
+    expect(b.line).toBe(0);
     expect(b.col).toBe(0);
 });
 
@@ -129,14 +124,11 @@ test("reportJsError: phase reflects odoo.isReady (pre_boot vs post_boot)", async
 });
 
 test("reportJsError: never throws and returns false when sendBeacon is unavailable", () => {
-    // No mockSendBeacon → the mocked navigator.sendBeacon throws
-    // (throwNotImplemented). Telemetry must swallow it and report failure.
     expect(() => reportJsError({ message: "beacon-nobeacon" })).not.toThrow();
     expect(reportJsError({ message: "beacon-nobeacon-2" })).toBe(false);
 });
 
 test("reportJsError: a sendBeacon that rejects the payload returns false", () => {
-    // UA quota exceeded → sendBeacon returns false; reportJsError mirrors it.
     mockSendBeacon(() => false);
     expect(reportJsError({ message: "beacon-quota" })).toBe(false);
 });

@@ -26,9 +26,6 @@ import { toStringExpression } from "@web/views/view_utils";
 
 const compilersRegistry = registry.category("form_compilers");
 
-// Form compilers transform a CSS-selected node in the arch into an OWL
-// template AST. `selector` matches by tag name (e.g. "chatter") and `fn`
-// receives the node and returns the compiled element.
 compilersRegistry.addValidation({
     selector: String,
     fn: Function,
@@ -41,8 +38,6 @@ function appendAttf(el, attr, string) {
 }
 
 export function appendToExpr(expr, string) {
-    // Append the new interpolation, preserving surrounding literal text (a prior
-    // regex-based version dropped static text like "foo " in `t-attf-class="foo {{expr}}"`).
     return expr ? `${expr} {{${string} }}` : `{{${string} }}`;
 }
 
@@ -57,9 +52,6 @@ export function objectToString(obj) {
 }
 
 export class FormCompiler extends ViewCompiler {
-    // NB: must be initialized here, NOT in setup(). `ViewCompiler`'s constructor
-    // calls `this.setup()`, but class-field initializers run *after* super()
-    // returns, so a value setup() assigns would be clobbered back to `undefined`.
     /** @type {Record<string, any>} */
     encounteredFields = {};
     /** @type {Record<string, Element[] | null>} */
@@ -141,10 +133,6 @@ export class FormCompiler extends ViewCompiler {
         this.labels[fieldName] = this.labels[fieldName] || [];
         this.labels[fieldName].push(label);
     }
-
-    //-----------------------------------------------------------------------------
-    // Compilers
-    //-----------------------------------------------------------------------------
 
     /**
      * @param {Element} el
@@ -235,12 +223,6 @@ export class FormCompiler extends ViewCompiler {
             dynamicLabel(label);
         }
         this.encounteredFields[fieldName] = dynamicLabel;
-        // Pending labels are LOOKED UP by `id || name` (see `labelsForAttr`
-        // above), so a forward reference must be registered under the same key.
-        // Registering only under `name` meant `<label for="X"/>` placed AFTER
-        // `<field id="X">` missed the lookup and was pushed into a bucket that
-        // is never drained — rendering as a bare, unbound <label>. (The reverse
-        // order worked, which is why this went unnoticed.)
         if (labelsForAttr !== fieldName) {
             this.encounteredFields[labelsForAttr] = dynamicLabel;
         }
@@ -264,7 +246,7 @@ export class FormCompiler extends ViewCompiler {
             ? `d-flex d-print-block {{ __comp__.uiService.size < ${SIZES.XXL} ? "flex-column" : "flex-nowrap h-100" }}`
             : "d-block";
         const stateClasses =
-            "{{ __comp__.props.record.dirty ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}";
+            "{{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}";
         const form = createElement("div", {
             class: "o_form_renderer",
             "t-att-class": "__comp__.props.class",
@@ -272,8 +254,6 @@ export class FormCompiler extends ViewCompiler {
         });
         if (!sheetNode) {
             for (const child of el.childNodes) {
-                // ButtonBox are already compiled for the control panel and should not
-                // be recompiled for the renderer of the view
                 if (
                     /** @type {any} */ (child).attributes?.name?.value !== "button_box"
                 ) {
@@ -415,12 +395,6 @@ export class FormCompiler extends ViewCompiler {
                     const fieldName = /** @type {Element} */ (child).getAttribute(
                         "name",
                     );
-                    // ``getAttribute("id")`` returns an already-quoted string
-                    // literal (``'field_id'``, set by compileField). The fallback
-                    // must stay a quoted literal too — a bare ``fieldName`` would
-                    // compile to ``id: name`` / ``fieldNodes[name]`` (an
-                    // undefined identifier reference), not the intended string
-                    // key. Latent today because base always sets ``field_id``.
                     const fieldId =
                         /** @type {Element} */ (slotContent).getAttribute("id") ||
                         `'${fieldName}'`;
@@ -441,7 +415,6 @@ export class FormCompiler extends ViewCompiler {
                     mainSlot.setAttribute("subType", "'item_component'");
                 }
             } else {
-                // TODO: remove the 'o_td_label' condition in favor of 'o_wrap_label' once every app is revamped
                 if (
                     child.classList.contains("o_wrap_label") ||
                     child.classList.contains("o_td_label") ||
@@ -568,8 +541,6 @@ export class FormCompiler extends ViewCompiler {
      */
     compileLabel(el, params) {
         const forAttr = el.getAttribute("for");
-        // A label may or may not contain the labelable element it targets via `for=`;
-        // if not, the target is elsewhere among its nextChildren.
         if (forAttr) {
             let label = createElement("label");
             copyAttributes(el, label);
@@ -659,10 +630,6 @@ export class FormCompiler extends ViewCompiler {
             const isVisibleExpr = makeIsVisibleExpr(invisible);
             pageSlot.setAttribute("isVisible", isVisibleExpr);
 
-            // Local collector per page — do NOT mutate the incoming params. A nested
-            // notebook reuses this SAME array via notebookPageFields, so its fields
-            // land here too; otherwise computeInvalidPages misses nested fields and
-            // the stale reference leaks to siblings compiled after the notebook.
             const pageFields = [];
             for (const contents of child.children) {
                 append(
@@ -675,8 +642,6 @@ export class FormCompiler extends ViewCompiler {
                 );
             }
             pageSlot.setAttribute("fieldNames", `${JSON.stringify(pageFields)}`);
-            // Propagate upward: if this notebook is itself nested inside a
-            // parent page's collector, that page must also see these fields.
             params.notebookPageFields?.push(...pageFields);
         }
 
@@ -693,9 +658,6 @@ export class FormCompiler extends ViewCompiler {
             info: toStringExpression(el.getAttribute("info") || ""),
             title: toStringExpression(el.getAttribute("title") || ""),
             help: toStringExpression(el.getAttribute("help") || ""),
-            // exprToBoolean: accept "1"/"true"/"True" like every other
-            // boolean-ish arch attribute (`=== "1" || "false"` silently
-            // dropped the icon for the "True" spelling).
             companyDependent: exprToBoolean(el.getAttribute("company_dependent") || "")
                 ? "true"
                 : "false",
@@ -782,8 +744,6 @@ export class FormCompiler extends ViewCompiler {
                 continue;
             }
             if (compiled.nodeName === "ButtonBox") {
-                // In form views with a sheet, the button box is moved to the
-                // control panel; dialogs have no button box at all.
                 continue;
             }
             if (getTag(child, true) === "field") {

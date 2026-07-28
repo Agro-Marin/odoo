@@ -45,7 +45,7 @@ test("StateSelectionField in form view", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -174,7 +174,7 @@ test("Check role attribute for dropdown items", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -203,7 +203,7 @@ test("StateSelectionField with readonly modifier", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `<form><field name="selection" widget="state_selection" readonly="1"/></form>`,
+        arch: `<form><field name="selection" widget="state_selection" readonly="1"/></form>`,
         resId: 1,
     });
 
@@ -220,7 +220,7 @@ test("StateSelectionField for form view with hide_label option", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="selection" widget="state_selection" options="{'hide_label': False}"/>
             </form>
@@ -245,7 +245,7 @@ test("StateSelectionField for list view with hide_label option", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="graph_type" widget="state_selection" options="{'hide_label': True}"/>
                 <field name="selection" widget="state_selection" options="{'hide_label': False}"/>
@@ -283,7 +283,7 @@ test("StateSelectionField in editable list view", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list editable="bottom">
                 <field name="foo"/>
                 <field name="selection" widget="state_selection"/>
@@ -411,7 +411,7 @@ test("StateSelectionField line stay in edit mode when StateSelectionField is ope
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list editable="bottom">
                 <field name="foo"/>
                 <field name="selection" widget="state_selection"/>
@@ -447,7 +447,7 @@ test('StateSelectionField edited by the smart actions "Set kanban state as <stat
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="selection" widget="state_selection"/>
             </form>
@@ -477,7 +477,7 @@ test("StateSelectionField readonly hides the smart actions", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="selection" widget="state_selection" readonly="1"/>
             </form>
@@ -505,7 +505,7 @@ test("StateSelectionField uses legend_* fields", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -546,7 +546,7 @@ test("works when required in a readonly view", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -570,7 +570,7 @@ test("StateSelectionField - auto save record when field toggled", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -594,7 +594,7 @@ test("StateSelectionField -  prevent auto save with autosave option", async () =
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -629,7 +629,7 @@ test("StateSelectionField - hotkey handling when there are more than 3 options a
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -669,10 +669,8 @@ test("StateSelectionField shows the label by default outside kanban (form)", asy
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="selection" widget="state_selection"/></form>`,
+        arch: `<form><field name="selection" widget="state_selection"/></form>`,
     });
-    // With no `hide_label` option, non-kanban views default to showing the
-    // label (defaultProps.showLabel is no longer dead).
     expect(".o_status_label").toHaveCount(1);
 });
 
@@ -680,7 +678,7 @@ test("StateSelectionField hides the label by default in kanban", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -689,7 +687,6 @@ test("StateSelectionField hides the label by default in kanban", async () => {
                 </templates>
             </kanban>`,
     });
-    // Kanban keeps the compact colored-dot default (no label).
     expect(".o_field_state_selection .o_status").toHaveCount(5);
     expect(".o_status_label").toHaveCount(0);
 });

@@ -6,8 +6,8 @@
 import { renderToFragment } from "@web/core/utils/render";
 import { debounce, throttleForAnimation } from "@web/core/utils/timing";
 
-import { INITIAL_VALUE, SKIP_IMPLICIT_UPDATE } from "./colibri.js";
-import { makeAsyncHandler, makeButtonHandler } from "./utils.js";
+import { INITIAL_VALUE, SKIP_IMPLICIT_UPDATE, toEventTargets } from "./colibri.js";
+import { makeAsyncHandler, makeButtonHandler } from "./minimal_dom.js";
 /**
  * Base class for interactions: web-framework integration (env/services), a
  * defined lifecycle, dynamic content, and helpers for common tasks like
@@ -17,6 +17,33 @@ import { makeAsyncHandler, makeButtonHandler } from "./utils.js";
  * website), but can be (e.g. switching to "edit" mode) — clean up after
  * yourself.
  */
+
+/**
+ * Adapts a debounced / throttled function to the dynamic-content protocol: the
+ * wrapped call runs later and applies the content itself, so the handler must
+ * opt out of the implicit update the framework would otherwise do on return.
+ *
+ * Opting out also cuts the deferred call off from the framework's error
+ * channel — nothing awaits it — so its failures are routed explicitly. Without
+ * this, a throwing debounced handler was reported as a bare unhandled
+ * rejection, naming neither the interaction nor the event.
+ *
+ * @param {Interaction} interaction
+ * @param {((...args: any[]) => any) & { cancel: () => void }} fn
+ * @returns {((...args: any[]) => symbol) & { cancel: () => void }}
+ */
+function asDeferredHandler(interaction, fn) {
+    const handler = (...args) => {
+        Promise.resolve(fn(...args)).catch((error) =>
+            interaction.services["public.interactions"].reportError(error),
+        );
+        return SKIP_IMPLICIT_UPDATE;
+    };
+    // the debug-facing name is worth keeping across the wrapper
+    Object.defineProperty(handler, "name", { value: fn.name, configurable: true });
+    handler.cancel = fn.cancel;
+    return handler;
+}
 
 export class Interaction {
     /**
@@ -59,7 +86,12 @@ export class Interaction {
     dynamicSelectors = {
         _root: () => this.el,
         _body: () => this.el.ownerDocument.body,
-        _window: () => window,
+        // the element's own view, so that an interaction running against
+        // another realm's document (the builder's iframe) agrees with _document
+        // and _body — but a document with no view at all (one built by
+        // createHTMLDocument or DOMParser) yields null, and a dynamic selector
+        // returning null binds nothing at all rather than failing
+        _window: () => this.el.ownerDocument.defaultView || window,
         _document: () => this.el.ownerDocument,
     };
 
@@ -129,10 +161,6 @@ export class Interaction {
         return this.__colibri__.isDestroyed;
     }
 
-    // -------------------------------------------------------------------------
-    // lifecycle methods
-    // -------------------------------------------------------------------------
-
     /**
      * This is the standard constructor method. This is the proper place to
      * initialize everything needed by the interaction. The el element is
@@ -161,10 +189,6 @@ export class Interaction {
      */
     destroy() {}
 
-    // -------------------------------------------------------------------------
-    // helpers
-    // -------------------------------------------------------------------------
-
     /**
      * Applies the dynamic content description to the dom synchronously (e.g.
      * dynamic attributes defined with t-att-). Already called after each
@@ -175,31 +199,46 @@ export class Interaction {
     }
 
     /**
-     * Wraps a promise into a promise that will only be resolved if the instance
-     * has not been destroyed, and will also call `updateContent` after the
-     * calling code has acted.
+     * Wraps a promise into one that settles only while the instance is alive,
+     * and that calls `updateContent` once the calling code has acted.
+     *
+     * Neither outcome settles after a destroy: the point of `await
+     * this.waitFor(...)` is that what follows it never runs against a destroyed
+     * interaction, and a rejection is no exception — a `catch` block touches
+     * the same dead instance a `then` block would. The error goes to the
+     * service's channel instead of being dropped.
      */
     waitFor(promise = Promise.resolve()) {
         const prom = new Promise((resolve, reject) => {
-            promise
-                .then((result) => {
-                    if (!this.isDestroyed) {
-                        resolve(result);
-                        prom.then(() => {
-                            if (this.isReady) {
-                                this.updateContent();
-                            }
-                        });
+            const updateAfterCaller = () => {
+                if (this.isReady && !this.isDestroyed) {
+                    try {
+                        this.updateContent();
+                    } catch (error) {
+                        // this update hangs off a promise nobody holds, so a
+                        // failing definition surfaced as an unhandled rejection
+                        // naming neither the interaction nor the directive
+                        this.services["public.interactions"].reportError(error);
                     }
-                })
-                .catch((e) => {
-                    reject(e);
-                    prom.catch(() => {
-                        if (this.isReady && !this.isDestroyed) {
-                            this.updateContent();
-                        }
-                    });
-                });
+                }
+            };
+            promise.then(
+                (result) => {
+                    if (this.isDestroyed) {
+                        return;
+                    }
+                    resolve(result);
+                    prom.then(updateAfterCaller);
+                },
+                (error) => {
+                    if (this.isDestroyed) {
+                        this.services["public.interactions"].reportError(error);
+                        return;
+                    }
+                    reject(error);
+                    prom.catch(updateAfterCaller);
+                },
+            );
         });
         return prom;
     }
@@ -241,38 +280,62 @@ export class Interaction {
     }
 
     /**
+     * Runs a callback scheduled for later and applies the dynamic content,
+     * unless the interaction was destroyed in the meantime.
+     *
+     * Failures go to the service's error channel: these callbacks run from a
+     * timer or a frame callback, with no caller left to catch them, so an
+     * exception escaped as a bare uncaught error instead of being reported like
+     * every other interaction failure.
+     *
+     * @param {Function} fn
+     * @returns {void}
+     */
+    _runDeferred(fn) {
+        if (this.isDestroyed) {
+            return;
+        }
+        try {
+            fn.call(this);
+            if (this.isReady) {
+                this.updateContent();
+            }
+        } catch (error) {
+            this.services["public.interactions"].reportError(error);
+        }
+    }
+
+    /**
      * Wait for a specific timeout, then execute the given function (unless the
      * interaction has been destroyed). The dynamic content is then applied.
+     * The timer is cancelled on destroy, so a pending long delay keeps neither
+     * the callback's closure nor a scheduled task alive.
      */
     waitForTimeout(fn, delay) {
         fn = this.__colibri__.protectSyncAfterAsync(this, "waitForTimeout", fn);
-        return setTimeout(
-            () => {
-                if (!this.isDestroyed) {
-                    fn.call(this);
-                    if (this.isReady) {
-                        this.updateContent();
-                    }
-                }
-            },
-            Number.parseInt(delay, 10),
-        );
+        let forget;
+        const timer = setTimeout(() => {
+            forget();
+            this._runDeferred(fn);
+        }, delay);
+        forget = this.__colibri__.addCleanup(() => clearTimeout(timer));
+        return timer;
     }
 
     /**
      * Wait for a animation frame, then execute the given function (unless the
      * interaction has been destroyed). The dynamic content is then applied.
+     * The frame is cancelled on destroy.
      */
     waitForAnimationFrame(fn) {
         fn = this.__colibri__.protectSyncAfterAsync(this, "waitForAnimationFrame", fn);
-        return window.requestAnimationFrame(() => {
-            if (!this.isDestroyed) {
-                fn.call(this);
-                if (this.isReady) {
-                    this.updateContent();
-                }
-            }
+        let forget;
+        const handle = window.requestAnimationFrame(() => {
+            forget();
+            this._runDeferred(fn);
         });
+        forget = this.__colibri__.addCleanup(() => window.cancelAnimationFrame(handle));
+        return handle;
     }
 
     /**
@@ -293,17 +356,7 @@ export class Interaction {
         this.registerCleanup(() => {
             debouncedFn.cancel();
         });
-        return Object.assign(
-            {
-                [debouncedFn.name]: (...args) => {
-                    debouncedFn(...args);
-                    return SKIP_IMPLICIT_UPDATE;
-                },
-            }[debouncedFn.name],
-            {
-                cancel: debouncedFn.cancel,
-            },
-        );
+        return asDeferredHandler(this, debouncedFn);
     }
 
     /**
@@ -321,17 +374,7 @@ export class Interaction {
         this.registerCleanup(() => {
             throttledFn.cancel();
         });
-        return Object.assign(
-            {
-                [throttledFn.name]: (...args) => {
-                    throttledFn(...args);
-                    return SKIP_IMPLICIT_UPDATE;
-                },
-            }[throttledFn.name],
-            {
-                cancel: throttledFn.cancel,
-            },
-        );
+        return asDeferredHandler(this, throttledFn);
     }
 
     /**
@@ -360,22 +403,8 @@ export class Interaction {
      * @returns {Function} removes the listeners
      */
     addListener(target, event, fn, options) {
-        /** @type {any[]} */
-        let nodes;
-        const t = /** @type {any} */ (target);
-        if (t.nodeName && ["FORM", "SELECT"].includes(t.nodeName)) {
-            nodes = [target];
-        } else {
-            nodes = t[Symbol.iterator] ? t : [target];
-        }
-        const [ev, handler, opts] = this.__colibri__.addListener(
-            nodes,
-            event,
-            fn,
-            options,
-        );
-        return () =>
-            nodes.forEach((node) => node.removeEventListener(ev, handler, opts));
+        return this.__colibri__.addListener(toEventTargets(target), event, fn, options)
+            .remove;
     }
 
     /**
@@ -389,11 +418,18 @@ export class Interaction {
      * @param { boolean } [removeOnClean]
      */
     insert(el, locationEl = this.el, position = "beforeend", removeOnClean = true) {
+        const interactions = this.services["public.interactions"];
         locationEl.insertAdjacentElement(position, el);
         if (removeOnClean) {
-            this.registerCleanup(() => el.remove());
+            // the subtree is activated below, so removing it has to deactivate
+            // it as well: detaching the nodes on its own left their interactions
+            // registered and running on an element no longer in the document
+            this.registerCleanup(() => {
+                interactions.stopInteractions(el);
+                el.remove();
+            });
         }
-        this.services["public.interactions"].startInteractions(el);
+        interactions.startInteractions(el);
         this.__colibri__.refreshNodes();
     }
 
@@ -401,11 +437,22 @@ export class Interaction {
      * Removes the children of an element.
      * The children will be inserted back when the interaction is destroyed.
      *
+     * They come back inert: their interactions are stopped here and are not
+     * started again, because a teardown step cannot start interactions. A stop
+     * pass iterates over a snapshot of the service's list and filters that list
+     * afterwards, so anything registered while it runs survives it — the
+     * restored subtree would be left running on a page meant to be stopped. The
+     * next full scan (the website builder does one on every mode change) picks
+     * the markup back up.
+     *
      * @param { HTMLElement } el
      * @param { boolean } [insertBackOnClean]
      */
     removeChildren(el, insertBackOnClean = true) {
-        for (const child of el.children) {
+        // snapshot first: `el.children` is live and stopping an interaction can
+        // detach nodes, which would make the iteration skip siblings and leave
+        // their interactions running on elements no longer in the document
+        for (const child of [...el.children]) {
             this.services["public.interactions"].stopInteractions(
                 /** @type {HTMLElement} */ (child),
             );
@@ -439,7 +486,7 @@ export class Interaction {
     ) {
         const fragment = renderToFragment(template, renderContext);
         const result = /** @type {HTMLElement[]} */ ([...fragment.children]);
-        const els = [...fragment.children];
+        const els = [...result];
         callback?.(els);
         if (["afterend", "afterbegin"].includes(position)) {
             els.reverse();
@@ -461,9 +508,10 @@ export class Interaction {
      * at the location where the side effect is created.
      *
      * @param {Function} fn
+     * @returns {Function} forgets the cleanup without running it
      */
     registerCleanup(fn) {
-        this.__colibri__.cleanups.push(fn.bind(this));
+        return this.__colibri__.addCleanup(fn.bind(this));
     }
 
     /**

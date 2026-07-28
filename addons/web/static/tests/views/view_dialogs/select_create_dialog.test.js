@@ -83,13 +83,13 @@ beforeEach(() => onRpc("has_group", () => true));
 test.tags("desktop");
 test("SelectCreateDialog use domain, group_by and search default on desktop", async () => {
     expect.assertions(4);
-    Partner._views["list"] = /* xml */ `
+    Partner._views["list"] = `
         <list string="Partner">
             <field name="name"/>
             <field name="foo"/>
         </list>
     `;
-    Partner._views["search"] = /* xml */ `
+    Partner._views["search"] = `
         <search>
             <field name="foo" filter_domain="[('name','ilike',self), ('foo','ilike',self)]"/>
             <group expand="0" string="Group By">
@@ -164,7 +164,7 @@ test("SelectCreateDialog use domain, group_by and search default on desktop", as
 test.tags("mobile");
 test("SelectCreateDialog use domain, group_by and search default on mobile", async () => {
     expect.assertions(4);
-    Partner._views["search"] = /* xml */ `
+    Partner._views["search"] = `
         <search>
             <field name="foo" filter_domain="[('name','ilike',self), ('foo','ilike',self)]"/>
             <group expand="0" string="Group By">
@@ -173,7 +173,7 @@ test("SelectCreateDialog use domain, group_by and search default on mobile", asy
         </search>
     `;
     Partner._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="name"/><field name="foo"/></t></templates></kanban>`;
+        `<kanban><templates><t t-name="card"><field name="name"/><field name="foo"/></t></templates></kanban>`;
     let search = 0;
     onRpc("web_read_group", ({ kwargs }) => {
         expect(kwargs.domain).toEqual([
@@ -237,15 +237,15 @@ test("SelectCreateDialog use domain, group_by and search default on mobile", asy
 test("SelectCreateDialog correctly evaluates domains", async () => {
     expect.assertions(1);
 
-    Partner._views["list"] = /* xml */ `
+    Partner._views["list"] = `
         <list string="Partner">
             <field name="name"/>
             <field name="foo"/>
         </list>
     `;
-    Partner._views["search"] = /* xml */ `<search><field name="foo"/></search>`;
+    Partner._views["search"] = `<search><field name="foo"/></search>`;
     Partner._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="name"/><field name="foo"/></t></templates></kanban>`;
+        `<kanban><templates><t t-name="card"><field name="name"/><field name="foo"/></t></templates></kanban>`;
     onRpc("web_search_read", ({ kwargs }) => {
         expect(kwargs.domain).toEqual([["id", "=", 2]], {
             message: "should have correctly evaluated the domain",
@@ -263,7 +263,7 @@ test("SelectCreateDialog correctly evaluates domains", async () => {
 test.tags("desktop");
 test("SelectCreateDialog list view is readonly", async () => {
     Partner._fields.sequence = fields.Integer();
-    Partner._views["list"] = /* xml */ `
+    Partner._views["list"] = `
         <list string="Partner" editable="bottom" multi_edit="1">
             <field name="sequence" widget="handle"/>
             <field name="name"/>
@@ -279,7 +279,6 @@ test("SelectCreateDialog list view is readonly", async () => {
     await animationFrame();
     await contains(".o_list_view tbody tr td:first").click();
     expect(".o_data_row_selected").toHaveCount(1);
-    // click on it to see if the list is editable
     await contains(".o_list_view tbody tr:first .o_list_char").click();
     expect(".o_data_row_selected").toHaveCount(0);
     expect(".o_selected_row").toHaveCount(0);
@@ -295,14 +294,14 @@ test("SelectCreateDialog list view is readonly", async () => {
 
 test.tags("desktop");
 test("SelectCreateDialog list view is readonly (grouped by m2o)", async () => {
-    Partner._views.search = /* xml */ `
+    Partner._views.search = `
         <search>
             <group expand="0" string="Group By">
                 <filter name="groupby_instrument" context="{'group_by' : 'instrument'}"/>
             </group>
         </search>
     `;
-    Partner._views.list = /* xml */ `
+    Partner._views.list = `
         <list string="Partner">
             <field name="name"/>
             <field name="foo"/>
@@ -326,13 +325,13 @@ test.tags("desktop");
 test("SelectCreateDialog cascade x2many in create mode on desktop", async () => {
     expect.assertions(5);
 
-    Partner._views["form"] = /* xml */ `
+    Partner._views["form"] = `
         <form>
             <field name="name"/>
             <field name="instrument" widget="one2many" mode="list"/>
         </form>
     `;
-    Instrument._views["form"] = /* xml */ `
+    Instrument._views["form"] = `
         <form>
             <field name="name"/>
             <field name="badassery">
@@ -342,8 +341,8 @@ test("SelectCreateDialog cascade x2many in create mode on desktop", async () => 
             </field>
         </form>
     `;
-    Badassery._views["list"] = /* xml */ `<list><field name="level"/></list>`;
-    Badassery._views["search"] = /* xml */ `<search><field name="level"/></search>`;
+    Badassery._views["list"] = `<list><field name="level"/></list>`;
+    Badassery._views["search"] = `<search><field name="level"/></search>`;
 
     onRpc(["partner", "instrument"], "get_formview_id", () => false);
     onRpc("instrument", "web_save", ({ args }) => {
@@ -361,7 +360,7 @@ test("SelectCreateDialog cascade x2many in create mode on desktop", async () => 
         type: "form",
         resModel: "product",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="name"/>
                 <field name="partner" widget="one2many" >
@@ -402,13 +401,13 @@ test.tags("mobile");
 test("SelectCreateDialog cascade x2many in create mode on mobile", async () => {
     expect.assertions(5);
 
-    Partner._views["form"] = /* xml */ `
+    Partner._views["form"] = `
         <form>
             <field name="name"/>
             <field name="instrument" widget="one2many" mode="list"/>
         </form>
     `;
-    Instrument._views["form"] = /* xml */ `
+    Instrument._views["form"] = `
         <form>
             <field name="name"/>
             <field name="badassery">
@@ -418,12 +417,12 @@ test("SelectCreateDialog cascade x2many in create mode on mobile", async () => {
             </field>
         </form>
     `;
-    Instrument._views["search"] = /* xml */ `<search/>`;
+    Instrument._views["search"] = `<search/>`;
     Instrument._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
-    Badassery._views["search"] = /* xml */ `<search/>`;
+        `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
+    Badassery._views["search"] = `<search/>`;
     Badassery._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="level"/></t></templates></kanban>`;
+        `<kanban><templates><t t-name="card"><field name="level"/></t></templates></kanban>`;
 
     onRpc(["partner", "instrument"], "get_formview_id", () => false);
     onRpc("instrument", "web_save", ({ args }) => {
@@ -440,7 +439,7 @@ test("SelectCreateDialog cascade x2many in create mode on mobile", async () => {
         type: "form",
         resModel: "product",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="name"/>
                 <field name="partner" widget="one2many" >
@@ -479,9 +478,9 @@ test("SelectCreateDialog cascade x2many in create mode on mobile", async () => {
 test.tags("desktop");
 test("SelectCreateDialog: save current search on desktop", async () => {
     expect.assertions(5);
-    Partner._views["list"] = /* xml */ `<list><field name="name"/> </list>`;
+    Partner._views["list"] = `<list><field name="name"/> </list>`;
     Partner._views["search"] =
-        /* xml */ `<search><filter name="bar" help="Bar" domain="[('bar', '=', True)]"/></search>`;
+        `<search><filter name="bar" help="Bar" domain="[('bar', '=', True)]"/></search>`;
 
     patchWithCleanup(listView.Controller.prototype, {
         setup() {
@@ -504,13 +503,13 @@ test("SelectCreateDialog: save current search on desktop", async () => {
                 message: "should save the correct domain",
             });
             const expectedContext = {
-                group_by: [], // default groupby is an empty list
+                group_by: [],
                 shouldBeInFilterContext: true,
             };
             expect(irFilter.context).toEqual(expectedContext, {
                 message: "should save the correct context",
             });
-            return [7]; // fake serverSideId
+            return [7];
         }
     });
 
@@ -538,9 +537,9 @@ test.tags("mobile");
 test("SelectCreateDialog: save current search on mobile", async () => {
     expect.assertions(5);
     Partner._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
+        `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
     Partner._views["search"] =
-        /* xml */ `<search><filter name="bar" help="Bar" domain="[('bar', '=', True)]"/></search>`;
+        `<search><filter name="bar" help="Bar" domain="[('bar', '=', True)]"/></search>`;
 
     patchWithCleanup(kanbanView.Controller.prototype, {
         setup() {
@@ -563,13 +562,13 @@ test("SelectCreateDialog: save current search on mobile", async () => {
                 message: "should save the correct domain",
             });
             const expectedContext = {
-                group_by: [], // default groupby is an empty list
+                group_by: [],
                 shouldBeInFilterContext: true,
             };
             expect(irFilter.context).toEqual(expectedContext, {
                 message: "should save the correct context",
             });
-            return 7; // fake serverSideId
+            return 7;
         }
     });
 
@@ -601,13 +600,13 @@ test.tags("desktop");
 test("SelectCreateDialog calls on_selected with every record matching the domain", async () => {
     expect.assertions(1);
 
-    Partner._views["list"] = /* xml */ `
+    Partner._views["list"] = `
         <list limit="2" string="Partner">
             <field name="name"/>
             <field name="foo"/>
         </list>
     `;
-    Partner._views["search"] = /* xml */ `<search><field name="foo"/></search>`;
+    Partner._views["search"] = `<search><field name="foo"/></search>`;
 
     await mountWithCleanup(WebClient);
     getService("dialog").add(SelectCreateDialog, {
@@ -624,13 +623,13 @@ test("SelectCreateDialog calls on_selected with every record matching the domain
 test.tags("desktop");
 test("SelectCreateDialog calls on_selected with every record matching without selecting a domain", async () => {
     expect.assertions(1);
-    Partner._views["list"] = /* xml */ `
+    Partner._views["list"] = `
         <list limit="2" string="Partner">
             <field name="name"/>
             <field name="foo"/>
         </list>
     `;
-    Partner._views["search"] = /* xml */ `<search><field name="foo"/></search>`;
+    Partner._views["search"] = `<search><field name="foo"/></search>`;
 
     await mountWithCleanup(WebClient);
 
@@ -647,8 +646,8 @@ test("SelectCreateDialog calls on_selected with every record matching without se
 
 test.tags("desktop");
 test("SelectCreateDialog: multiple clicks on record", async () => {
-    Partner._views["list"] = /* xml */ `<list><field name="name"/></list>`;
-    Partner._views["search"] = /* xml */ `<search><field name="foo"/></search>`;
+    Partner._views["list"] = `<list><field name="name"/></list>`;
+    Partner._views["search"] = `<search><field name="foo"/></search>`;
 
     await mountWithCleanup(WebClient);
     getService("dialog").add(SelectCreateDialog, {
@@ -662,19 +661,18 @@ test("SelectCreateDialog: multiple clicks on record", async () => {
     await click(".modal .o_data_row .o_data_cell");
     await click(".modal .o_data_row .o_data_cell");
     await animationFrame();
-    // should have called onSelected only once
     expect.verifySteps(["select record 1"]);
 });
 
 test.tags("desktop");
 test("SelectCreateDialog: default props, create a record on desktop", async () => {
-    Partner._views["list"] = /* xml */ `<list><field name="name"/></list>`;
-    Partner._views["search"] = /* xml */ `
+    Partner._views["list"] = `<list><field name="name"/></list>`;
+    Partner._views["search"] = `
         <search>
             <filter name="bar" help="Bar" domain="[('bar', '=', True)]"/>
         </search>
     `;
-    Partner._views["form"] = /* xml */ `<form><field name="name"/></form>`;
+    Partner._views["form"] = `<form><field name="name"/></form>`;
     await mountWithCleanup(WebClient);
 
     getService("dialog").add(SelectCreateDialog, {
@@ -705,11 +703,9 @@ test("SelectCreateDialog: default props, create a record on desktop", async () =
 
 test.tags("desktop");
 test("SelectCreateDialog: create a record without onSelected", async () => {
-    // `onSelected` is optional: creating a record through "New" must not
-    // throw when the caller did not provide it.
-    Partner._views["list"] = /* xml */ `<list><field name="name"/></list>`;
-    Partner._views["search"] = /* xml */ `<search/>`;
-    Partner._views["form"] = /* xml */ `<form><field name="name"/></form>`;
+    Partner._views["list"] = `<list><field name="name"/></list>`;
+    Partner._views["search"] = `<search/>`;
+    Partner._views["form"] = `<form><field name="name"/></form>`;
     await mountWithCleanup(WebClient);
 
     getService("dialog").add(SelectCreateDialog, {
@@ -763,14 +759,14 @@ test("SelectCreateDialog: click on row once in selection", async () => {
 
 test.tags("mobile");
 test("SelectCreateDialog: default props, create a record on mobile", async () => {
-    Partner._views["search"] = /* xml */ `
+    Partner._views["search"] = `
         <search>
             <filter name="bar" help="Bar" domain="[('bar', '=', True)]"/>
         </search>
     `;
-    Partner._views["kanban"] = /* xml */ `
+    Partner._views["kanban"] = `
         <kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
-    Partner._views["form"] = /* xml */ `<form><field name="name"/></form>`;
+    Partner._views["form"] = `<form><field name="name"/></form>`;
     await mountWithCleanup(WebClient);
 
     getService("dialog").add(SelectCreateDialog, {
@@ -802,7 +798,7 @@ test("SelectCreateDialog: default props, create a record on mobile", async () =>
 test.tags("desktop");
 test("SelectCreateDialog empty list, default no content helper", async () => {
     Partner._records = [];
-    Partner._views["list"] = /* xml */ `
+    Partner._views["list"] = `
         <list>
             <field name="name"/>
             <field name="foo"/>
@@ -825,8 +821,8 @@ test.tags("mobile");
 test("SelectCreateDialog empty kanban, default no content helper", async () => {
     Partner._records = [];
     Partner._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
-    Partner._views["search"] = /* xml */ `<search/>`;
+        `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
+    Partner._views["search"] = `<search/>`;
     await mountWithCleanup(WebClient);
     getService("dialog").add(SelectCreateDialog, { resModel: "partner" });
     await animationFrame();
@@ -844,7 +840,7 @@ test("SelectCreateDialog empty kanban, default no content helper", async () => {
 test.tags("desktop");
 test("SelectCreateDialog empty list, noContentHelp props", async () => {
     Partner._records = [];
-    Partner._views["list"] = /* xml */ `
+    Partner._views["list"] = `
         <list>
             <field name="name"/>
             <field name="foo"/>
@@ -888,7 +884,7 @@ test("SelectCreateDialog with open action", async () => {
             expect.step(`execute_action: ${name}`, params);
         },
     });
-    Instrument._views["list"] = /* xml */ `
+    Instrument._views["list"] = `
         <list action="test_action" type="object">
             <field name="name"/>
         </list>
@@ -897,7 +893,7 @@ test("SelectCreateDialog with open action", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="instrument"/>
             </form>
@@ -918,8 +914,8 @@ test.tags("mobile");
 test("SelectCreateDialog empty kanban, noContentHelp props", async () => {
     Partner._records = [];
     Partner._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
-    Partner._views["search"] = /* xml */ `<search/>`;
+        `<kanban><templates><t t-name="card"><field name="name"/></t></templates></kanban>`;
+    Partner._views["search"] = `<search/>`;
 
     await mountWithCleanup(WebClient);
     const template = xml`
@@ -944,10 +940,10 @@ test.tags("mobile");
 test("SelectCreateDialog: clear selection on mobile", async () => {
     expect.assertions(3);
     SaleOrderLine._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="id"/></t></templates></kanban>`;
+        `<kanban><templates><t t-name="card"><field name="id"/></t></templates></kanban>`;
     Product._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="id"/><field name="name"/></t></templates></kanban>`;
-    Product._views["search"] = /* xml */ `<search/>`;
+        `<kanban><templates><t t-name="card"><field name="id"/><field name="name"/></t></templates></kanban>`;
+    Product._views["search"] = `<search/>`;
 
     onRpc("web_save", ({ model, args }) => {
         if (model === "sale_order_line") {
@@ -990,7 +986,7 @@ test("SelectCreateDialog: clear selection on mobile", async () => {
 test.tags("mobile");
 test("SelectCreateDialog: selection_mode should be true", async () => {
     expect.assertions(3);
-    Product._views["kanban"] = /* xml */ `
+    Product._views["kanban"] = `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -1005,7 +1001,7 @@ test("SelectCreateDialog: selection_mode should be true", async () => {
                     </t>
                 </templates>
             </kanban>`;
-    Product._views["search"] = /* xml */ `<search/>`;
+    Product._views["search"] = `<search/>`;
 
     onRpc("web_save", ({ model, args }) => {
         if (model === "sale_order_line") {
@@ -1035,10 +1031,10 @@ test("SelectCreateDialog: selection_mode should be true", async () => {
 
 test.tags("mobile");
 test("SelectCreateDialog: default props, create a record", async () => {
-    Product._views["form"] = /* xml */ `<form><field name="name"/></form>`;
+    Product._views["form"] = `<form><field name="name"/></form>`;
     Product._views["kanban"] =
-        /* xml */ `<kanban><templates><t t-name="card"><field name="id"/><field name="name"/></t></templates></kanban>`;
-    Product._views["search"] = /* xml */ `<search/>`;
+        `<kanban><templates><t t-name="card"><field name="id"/><field name="name"/></t></templates></kanban>`;
+    Product._views["search"] = `<search/>`;
 
     await mountView({
         type: "form",

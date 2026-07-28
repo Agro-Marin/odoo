@@ -41,14 +41,11 @@ export class PropertyDefinition extends Component {
         propertyDefinition: { optional: true },
         context: { type: Object },
         isNewlyCreated: { type: Boolean, optional: true },
-        // index and number of properties, to hide the move arrows when needed
         propertyIndex: { type: Number },
         propertiesSize: { type: Number },
-        // events
         onChange: { type: Function, optional: true },
         onDelete: { type: Function, optional: true },
         onPropertyMove: { type: Function, optional: true },
-        // prop needed by the popover service
         close: { type: Function, optional: true },
         record: { type: Object, optional: true },
     };
@@ -63,11 +60,7 @@ export class PropertyDefinition extends Component {
     setup() {
         this.orm = useService("orm");
 
-        // Serialize the matching-records-count RPCs so that two rapid edits
-        // (model/domain change) cannot resolve out of order and leave a stale
-        // count showing.
         this.keepLastCount = new KeepLast();
-        // Same for the comodel description RPC on rapid comodel switches.
         this.keepLastModelDescription = new KeepLast();
 
         this.propertyDefinitionRef = useRef("propertyDefinition");
@@ -103,9 +96,7 @@ export class PropertyDefinition extends Component {
         });
 
         useEffect((event) => {
-            // focus the property label, when we open the property definition
             if (this.labelFocused) {
-                // focus it only once
                 return;
             }
             this.labelFocused = true;
@@ -121,10 +112,6 @@ export class PropertyDefinition extends Component {
             }
         });
     }
-
-    /* --------------------------------------------------------
-     * Public methods / Getters
-     * -------------------------------------------------------- */
 
     /**
      * Return the list of property types with their labels.
@@ -190,10 +177,6 @@ export class PropertyDefinition extends Component {
     getUniqueDomID(suffix) {
         return `property_definition_${this._domInputIdPrefix}_${suffix}`;
     }
-
-    /* --------------------------------------------------------
-     * Event handlers
-     * -------------------------------------------------------- */
 
     /**
      * We changed the string of the property.
@@ -285,7 +268,6 @@ export class PropertyDefinition extends Component {
     async onModelChange(newModel) {
         const { label, technical } = /** @type {any} */ (newModel);
 
-        // if we change the model, we should reset the default value and the domain
         const modelChanged = technical !== this.state.resModel;
 
         this.state.resModel = technical;
@@ -424,10 +406,6 @@ export class PropertyDefinition extends Component {
         this.state.propertyDefinition = propertyDefinition;
     }
 
-    /* --------------------------------------------------------
-     * Private methods
-     * -------------------------------------------------------- */
-
     /**
      * The property value changed (e.g. we discard a form view editing).
      * Re-update the state with the new props.
@@ -443,8 +421,6 @@ export class PropertyDefinition extends Component {
         this.state.resModel = newModel;
 
         if (newModel && newModel !== currentModel) {
-            // retrieve the model id and the model description from it's name
-            // "res.partner" => (5, "Contact")
             try {
                 const result = await this.keepLastModelDescription.add(
                     this.orm.call("ir.model", "display_name_for", [[newModel]]),
@@ -454,7 +430,6 @@ export class PropertyDefinition extends Component {
                 }
                 this.state.resModelDescription = result[0].display_name;
             } catch {
-                // can not read the ir.model
                 this.state.resModelDescription = _t(
                     'You do not have access to the model "%s".',
                     newModel,
@@ -482,8 +457,6 @@ export class PropertyDefinition extends Component {
                     ),
                 );
             } catch {
-                // e.g. an AccessError while the user is still typing the
-                // domain: don't surface it, just hide the count.
                 this.state.matchingRecordsCount = undefined;
             }
         } else {

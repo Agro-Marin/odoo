@@ -198,14 +198,10 @@ export class FormSaveCoordinator extends SignalStore {
         params,
     } = {}) {
         if (checkDirty && !(await this.model.root.isDirty())) {
-            // Nothing to save — the caller's pre-flight returned clean.
             return true;
         }
         this.lastError = null;
         this._transition("begin");
-        // Claim the epoch *after* begin so a concurrent requestSave can
-        // supersede this one (saving → begin → saving is a permitted no-op;
-        // the new save inherits ownership of the outcome).
         const ownerEpoch = ++this._saveEpoch;
         const opts = { reload, ...params };
         if (nextId !== undefined) {
@@ -214,9 +210,6 @@ export class FormSaveCoordinator extends SignalStore {
         try {
             let saved;
             if (saveOverride) {
-                // Embedder-supplied save (``props.saveRecord``) owns its own
-                // error handling — don't inject the coordinator's onError,
-                // the embedder may not expect the dialog/recovery contract.
                 saved = await saveOverride(this.model.root, opts);
             } else {
                 const onError = this._buildOnError(errorMode, ownerEpoch);
@@ -229,29 +222,17 @@ export class FormSaveCoordinator extends SignalStore {
                 this._finishTransition("ok", ownerEpoch);
                 return saved;
             }
-            // ``saved === false`` means validation failed pre-RPC or the
-            // dialog UX chose "stay here" — recoverable, not "error" (which
-            // is reserved for unhandled throws).
             this._finishTransition("recoverable", ownerEpoch);
             return false;
         } catch (e) {
             this._finishTransition("failed", ownerEpoch);
-            // Only the owning save should overwrite lastError — a stale
-            // failure shouldn't poison a successor save's diagnostics.
             if (ownerEpoch === this._saveEpoch) {
                 this.lastError = e;
             }
-            // Rethrow when the caller asked for it, OR when an embedder-supplied
-            // ``saveOverride`` (``props.saveRecord``) threw. The override owns
-            // its own error handling and gets NO coordinator ``onError``, so a
-            // throw that escapes it must NOT be silently folded into
-            // ``return false`` — in dialog mode (the beforeLeave default) that
-            // blocks navigation with zero user feedback. Let it propagate to the
             // global error handler so the failure surfaces.
             if (errorMode === "rethrow" || saveOverride) {
                 throw e;
             }
-            // silent: swallow, controller decides whether to surface.
             return false;
         }
     }
@@ -266,15 +247,6 @@ export class FormSaveCoordinator extends SignalStore {
      */
     async requestUrgentSave() {
         if (this.isSaving) {
-            // A coordinator-routed save is already in flight and owns the
-            // current epoch. ``record.urgentSave()`` defers to it — either
-            // its RPC is on the wire (``_saveInFlight`` skip, resolves true)
-            // or the beacon it fires is consumed by the parked save
-            // (``_urgentBeaconFired``). Claiming the epoch here would settle
-            // "ok" immediately and epoch-drop the real save's later failure
-            // (status stuck "clean", lastError lost — e.g. when the unload
-            // is canceled). Don't transition: the in-flight save's own
-            // terminal settles the status.
             const succeeded = await this.model.root.urgentSave();
             if (!succeeded) {
                 this.hooks.onUrgentSaveFailed?.();
@@ -317,8 +289,6 @@ export class FormSaveCoordinator extends SignalStore {
         const ownerEpoch = ++this._saveEpoch;
         await this.model.root.discard();
         if (ownerEpoch !== this._saveEpoch) {
-            // A newer save (or discard) claimed the epoch while pending —
-            // it owns the settlement.
             return;
         }
         this._transition("discard");
@@ -352,11 +322,6 @@ export class FormSaveCoordinator extends SignalStore {
             return undefined;
         }
         if (errorMode === "rethrow") {
-            // Recovery still runs first: ``rethrow`` means "if the error
-            // survives recovery, bubble it up to the caller instead of
-            // rendering FormErrorDialog". Without this branch, AccessError
-            // with ``suggested_company`` would rethrow instead of
-            // triggering the company-switch retry, breaking multi-company UX.
             return async (error, callbacks) => {
                 if (this.hooks.recoverFromSaveError?.(error, this.model)) {
                     return callbacks.retry();
@@ -364,36 +329,16 @@ export class FormSaveCoordinator extends SignalStore {
                 throw error;
             };
         }
-        // dialog mode (default)
         return async (error, callbacks) => {
             if (this.hooks.recoverFromSaveError?.(error, this.model)) {
-                // Recovery is transparent to the user — don't touch
-                // lastError so a successful retry leaves the coordinator
-                // clean for downstream consumers (``shouldExecuteAction``).
                 return callbacks.retry();
             }
             if (!error?.data) {
-                // ``FormErrorDialog`` requires a server payload
-                // (``props.data``/``message``); non-RPC failures
-                // (``ConnectionLostError``, timeouts) carry none and would
-                // TypeError on ``error.data.message``. Rethrow instead —
-                // ``requestSave``'s catch settles status to "error" and
-                // resolves false.
                 throw error;
             }
-            // Recovery failed → dialog UX runs. Epoch-guarded: a superseded
-            // save (a newer save or discard claimed the epoch while this one
-            // was on the wire) must NOT render a stale FormErrorDialog on top
-            // of the successor's settled state, nor poison its clean
-            // diagnostics via lastError. Resolve false ("stay here") — the
-            // successor owns settlement, and this save's own terminal is
-            // already epoch-dropped by ``_finishTransition``.
             if (ownerEpoch !== this._saveEpoch) {
                 return false;
             }
-            // Record lastError so it survives a "discard" resolution
-            // (``shouldExecuteAction`` blocks menu actions on any
-            // dialog-shown error).
             this.lastError = error;
             return await this.hooks.onSaveError(error, callbacks);
         };

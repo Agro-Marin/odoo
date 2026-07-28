@@ -15,17 +15,9 @@ import { ensureTest } from "../main_runner.js";
  * @property {number} [millisecond] // 0-999
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const { Date, Intl } = globalThis;
 const { now: $now, UTC: $UTC } = Date;
 const { DateTimeFormat, Locale } = Intl;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {Date} baseDate
@@ -33,7 +25,7 @@ const { DateTimeFormat, Locale } = Intl;
 function computeTimeZoneOffset(baseDate) {
     const utcDate = new Date(baseDate.toLocaleString(DEFAULT_LOCALE, { timeZone: "UTC" }));
     const tzDate = new Date(baseDate.toLocaleString(DEFAULT_LOCALE, { timeZone: timeZoneName }));
-    return (utcDate - tzDate) / 60000; // in minutes
+    return (utcDate - tzDate) / 60000;
 }
 
 /**
@@ -84,15 +76,11 @@ function setTimeZone(tz) {
             throw new HootError(`invalid time zone: must be in the format <Country/...Location>`);
         }
 
-        // Set TZ name
         timeZoneName = tz;
-        // Set TZ offset based on name (must be computed for each date)
         timeZoneOffset = computeTimeZoneOffset;
     } else if (typeof tz === "number") {
-        // Only set TZ offset
         timeZoneOffset = tz * -60;
     } else {
-        // Reset both TZ name & offset
         timeZoneName = null;
         timeZoneOffset = null;
     }
@@ -143,10 +131,6 @@ let timeZoneName = null;
 /** @type {number | ((date: Date) => number) | null} */
 let timeZoneOffset = null;
 
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
-
 export function cleanupDate() {
     setDateParams(DEFAULT_DATE);
     locale = null;
@@ -193,7 +177,6 @@ export function mockLocale(newLocale) {
     locale = newLocale;
 
     if (!isNil(locale) && isNil(timeZoneName)) {
-        // Set TZ from locale (if not mocked already)
         const firstAvailableTZ = new Locale(locale).timeZones?.[0];
         if (!isNil(firstAvailableTZ)) {
             setTimeZone(firstAvailableTZ);

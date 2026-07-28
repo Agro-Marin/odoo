@@ -24,9 +24,4 @@ export class SettingHeader extends Setting {
         };
         return classNames;
     }
-
-    // labelString is inherited from Setting: ``props.string`` with a fallback
-    // on the field's own label. A former override here read the nonexistent
-    // ``props.name`` (the compiler passes ``fieldName``), leaving header
-    // settings without an explicit string label-less.
 }

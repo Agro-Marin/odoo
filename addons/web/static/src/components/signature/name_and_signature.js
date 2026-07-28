@@ -14,9 +14,6 @@ import { renderToString } from "@web/core/utils/render";
 import { getDataURLFromFile } from "@web/core/utils/urls";
 let htmlId = 0;
 
-// The font list is a static payload (tens to hundreds of KB): fetch it once
-// per font instead of on every mount. The promise is cached so concurrent
-// mounts share one request; a failed fetch is evicted to allow a retry.
 /** @type {Map<string, Promise<string[]>>} */
 const fontsCache = new Map();
 
@@ -63,8 +60,6 @@ export class NameAndSignature extends Component {
         this.defaultName = this.props.signature.name || "";
         this.currentFont = 0;
         this.drawTimeout = null;
-        // Serializes concurrent printImage() calls (rapid auto-mode keystrokes
-        // / font switches): only the most recent image is ever drawn.
         this.printImageKeepLast = new KeepLast();
 
         this.state = useState({
@@ -94,12 +89,6 @@ export class NameAndSignature extends Component {
         });
 
         onWillStart(async () => {
-            // signature_pad is an external ESM lib resolved through the
-            // import map; the dynamic import() keeps its ~26 KB payload out
-            // of web.assets_web until a signature component first mounts
-            // (same laziness the old ``web.assets_signature_pad_lib``
-            // classic bundle provided, minus the ``window.SignaturePad``
-            // global).
             this.SignaturePad = (await import("signature_pad")).default;
         });
 
@@ -150,7 +139,6 @@ export class NameAndSignature extends Component {
     }
 
     focusName() {
-        // Don't focus on mobile
         if (!isMobileOS() && this.signNameInputRef.el) {
             this.signNameInputRef.el.focus();
         }
@@ -178,15 +166,16 @@ export class NameAndSignature extends Component {
      * @returns {string} cleaned name
      */
     getCleanedName() {
-        // This replaces non-breaking spaces with breaking spaces
         const text = this.props.signature.name.replaceAll("\u00a0", " ");
         if (this.props.signatureType === "initial" && text) {
-            return (
-                text
-                    .split(" ")
-                    .map((w) => w[0])
-                    .join(".") + "."
-            );
+            // Drop empty words: a double or trailing space would otherwise
+            // contribute an undefined initial, rendering as a stray dot
+            // ("John  Doe" -> "J..D." instead of "J.D.").
+            const initials = text
+                .split(" ")
+                .filter(Boolean)
+                .map((w) => w[0]);
+            return initials.length ? initials.join(".") + "." : "";
         }
         return text;
     }
@@ -212,10 +201,6 @@ export class NameAndSignature extends Component {
             color: this.props.fontColor,
         });
 
-        // ``encodeURIComponent`` (not ``encodeURI``) so a ``#`` in the typed
-        // name (e.g. "Apt #3") or in a hex ``fontColor`` (e.g. "#1F2937") is
-        // escaped — an unescaped ``#`` turns the rest of the SVG into a URL
-        // fragment, truncating the data-URI and rendering a blank signature.
         return "data:image/svg+xml," + encodeURIComponent(svg);
     }
 
@@ -239,7 +224,12 @@ export class NameAndSignature extends Component {
      * @return bool|undefined
      */
     async onChangeSignLoadInput(ev) {
-        const file = /** @type {HTMLInputElement} */ (ev.target).files[0];
+        const inputEl = /** @type {HTMLInputElement} */ (ev.target);
+        const file = inputEl.files[0];
+        // Clear the input so picking the SAME file again still fires `change`:
+        // the browser only emits it when the selection differs, so without this
+        // a user who re-picks the file they just cleared gets nothing.
+        inputEl.value = "";
         if (file === undefined) {
             return false;
         }
@@ -299,14 +289,8 @@ export class NameAndSignature extends Component {
         const img = new Image();
         img.src = imgSrc;
         try {
-            // ``img.decode()`` makes the draw awaitable (unlike the old
-            // fire-and-forget ``img.onload``). ``KeepLast`` leaves the promise
-            // of any superseded call pending forever, so only the most recent
-            // call ever reaches the draw below — this is what prevents rapid
-            // successive calls from producing superimposed "ghost" renders.
             await this.printImageKeepLast.add(img.decode());
         } catch {
-            // The (latest) source failed to decode: leave the cleared pad empty.
             this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
             this.props.onSignatureChange(this.state.signMode);
             return;
@@ -323,8 +307,6 @@ export class NameAndSignature extends Component {
             img.width * ratio,
             img.height * ratio,
         );
-        // signature_pad exposes no public setter for its emptiness flag; mark
-        // the pad non-empty so ``isEmpty()`` reflects the manually drawn image.
         this.signaturePad._isEmpty = false;
         this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
         this.props.onSignatureChange(this.state.signMode);
@@ -369,7 +351,6 @@ export class NameAndSignature extends Component {
      */
     setMode(mode, reset) {
         if (reset !== true && mode === this.state.signMode) {
-            // prevent flickering and unnecessary compute
             return;
         }
 

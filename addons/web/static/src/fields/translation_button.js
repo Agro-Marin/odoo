@@ -12,9 +12,6 @@ import { user } from "@web/services/user";
 
 import { TranslationDialog } from "./translation_dialog.js";
 
-// Lazy module-level memo: ``new Intl.Locale`` per render is measurable on
-// list views with many translatable cells; ``user.lang`` is keyed to stay
-// correct across test environments that swap the user.
 const _langCache = { code: undefined, language: "" };
 
 /**
@@ -28,7 +25,6 @@ export function useTranslationDialog() {
     const addDialog = useOwnedDialogs();
 
     async function openTranslationDialog({ record, fieldName }) {
-        // in case of DynamicList list views model.root won't be a RelationalRecord but a DynamicList itself
         const saved =
             record.model.root instanceof RelationalRecord
                 ? await record.model.root.save()
@@ -78,7 +74,6 @@ export class TranslationButton extends Component {
         return localization.multiLang;
     }
     get isClickable() {
-        // a new record still created inside an x2many has no id of its own to translate
         const { record } = this.props;
         return !(
             record.isNew &&

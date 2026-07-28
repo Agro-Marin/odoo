@@ -47,7 +47,7 @@ test("image fields are correctly rendered", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo" widget="image_url" options="{'size': [90, 90]}"/>
             </form>
@@ -83,7 +83,7 @@ test("ImageUrlField in subviews are loaded correctly", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo" widget="image_url" options="{'size': [90, 90]}"/>
                 <field name="timmy" widget="many2many" mode="kanban">
@@ -112,7 +112,6 @@ test("ImageUrlField in subviews are loaded correctly", async () => {
         message: "There should be one record in the many2many",
     });
 
-    // Actual flow: click on an element of the m2m to get its form view
     await click(".o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new)");
     await animationFrame();
     expect(".modal").toHaveCount(1, { message: "The modal should have opened" });
@@ -129,7 +128,7 @@ test("image fields in x2many list are loaded correctly", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="timmy" widget="many2many">
                     <list>
@@ -159,7 +158,7 @@ test("image url fields in kanban don't stop opening record", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -181,7 +180,7 @@ test("image fields with empty value", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo" widget="image_url" options="{'size': [90, 90]}"/>
             </form>
@@ -206,7 +205,7 @@ test("onchange update image fields", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="name"/>
                 <field name="foo" widget="image_url" options="{'size': [90, 90]}"/>

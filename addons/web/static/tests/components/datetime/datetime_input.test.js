@@ -213,7 +213,6 @@ describe("DateTimeInput (date)", () => {
 
         expect(".o_datetime_input").toHaveValue("1997/01/09");
 
-        // Forces an update to assert that the registered format is the correct one
         await contains(".o_datetime_input").click();
 
         expect(".o_datetime_input").toHaveValue("1997/01/09");
@@ -312,19 +311,15 @@ describe("DateTimeInput (datetime)", () => {
 
         await contains(".o_datetime_input").click();
 
-        // Select February 8th
         await contains(".o_datetime_picker .o_next").click();
         await contains(getPickerCell("8")).click();
 
-        // Select 15:45
         await editTime("15:45");
 
         expect(".o_datetime_input").toHaveValue("08/02/1997 15:45:01");
         expect.verifySteps(["1997-02-08 12:30:01", "1997-02-08 15:45:01"]);
     });
 
-    // desktop-only: drives the datetime picker dropdown; mobile renders it as a
-    // BottomSheet with different DOM/interaction.
     test.tags("desktop");
     test("pick a date and time with locale", async () => {
         await changeLang("fr_FR");
@@ -349,7 +344,6 @@ describe("DateTimeInput (datetime)", () => {
         await contains(getPickerCell("sept.")).click();
         await contains(getPickerCell("1")).click();
 
-        // Select 15:45
         await editTime("15:45");
 
         expect(".o_datetime_input").toHaveValue("01 sept., 1997 15:45");
@@ -440,7 +434,6 @@ describe("DateTimeInput (datetime)", () => {
 
         expect(".o_datetime_input").toHaveValue("12:30:01 1997/01/09");
 
-        // Forces an update to assert that the registered format is the correct one
         await contains(".o_datetime_input").click();
 
         expect(".o_datetime_input").toHaveValue("12:30:01 1997/01/09");
@@ -470,7 +463,6 @@ describe("DateTimeInput (datetime)", () => {
 
         expect(".o_datetime_input").toHaveValue("09 apr., 1997");
 
-        // Forces an update to assert that the registered format is the correct one
         await contains(".o_datetime_input").click();
 
         expect(".o_datetime_input").toHaveValue("09 apr., 1997");
@@ -494,7 +486,6 @@ describe("DateTimeInput (datetime)", () => {
 
         expect(".o_datetime_input").toHaveValue("10.03,2023");
 
-        // Forces an update to assert that the registered format is the correct one
         await contains(".o_datetime_input").click();
 
         expect(".o_datetime_input").toHaveValue("10.03,2023");

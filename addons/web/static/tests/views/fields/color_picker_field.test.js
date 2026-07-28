@@ -25,14 +25,14 @@ class Partner extends models.Model {
     ];
 
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <group>
                     <field name="int_field" widget="color_picker"/>
                 </group>
             </form>
         `,
-        list: /* xml */ `
+        list: `
             <list>
                 <field name="int_field" widget="color_picker"/>
                 <field name="display_name" />
@@ -146,9 +146,6 @@ test("column widths: dont overflow color picker in list", async () => {
     const int_field_column_width = queryAll(
         '.o_list_table thead th[data-name="int_field"]',
     )[0].style.width.replace("px", "");
-    // Default widths: date ~92px, integer ~74px. Without `widthInList: '1'` on
-    // the color_picker, int_field would stay narrower than date as the screen
-    // grows; with it, int_field ends up wider.
     expect(parseFloat(date_column_width)).toBeLessThan(
         parseFloat(int_field_column_width),
         {
@@ -158,15 +155,12 @@ test("column widths: dont overflow color picker in list", async () => {
 });
 
 test("kanban_color_picker highlights the active color on a non-'color' field", async () => {
-    // The widget writes to props.name (here int_field) but the active-swatch
-    // highlight must read the same field, not a hardcoded `color`. Studio
-    // generates this widget on arbitrary fields (e.g. x_color).
     Partner._records[0].int_field = 3;
     await mountView({
         type: "form",
         resModel: "res.partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="int_field" widget="kanban_color_picker"/></form>`,
+        arch: `<form><field name="int_field" widget="kanban_color_picker"/></form>`,
     });
     expect(".o_kanban_colorpicker .o_colorlist_item_color_3.active").toHaveCount(1, {
         message: "the swatch for the field's current value must be active",

@@ -13,11 +13,6 @@ describe.current.tags("headless");
 
 describe("bridge source generation", () => {
     test("emits the exact shape of the Python generator (_bridge_shim_source)", () => {
-        // Parity fixture shared with
-        // odoo/addons/test_assetsbundle/tests/test_bundle_hardening.py
-        // (TestBridgeShimLiterals): server-built and client-built bridges
-        // must be interchangeable, so the emitted lines must match the
-        // Python generator field for field.
         const source = buildBridgeModuleSource("@web/core/x", ["alpha"]);
         expect(source).toBe(
             [
@@ -39,7 +34,6 @@ describe("bridge source generation", () => {
         expect(source).toInclude("export const valid_name = _m?.valid_name;");
         expect(source).not.toInclude("invalid-name");
         expect(source).not.toInclude("0invalid");
-        // The default block is emitted exactly once, unconditionally.
         expect(source.match(/export default/g)).toHaveLength(1);
     });
 
@@ -65,13 +59,9 @@ describe("bridge source generation", () => {
 
 describe("makeLazyFacade (bridge-safe lazy exports)", () => {
     test("a snapshot taken before load forwards to the value loaded later", () => {
-        // This is the bridged-consumer scenario: a bridge module snapshots
-        // `export const <name> = _m?.<name>` at evaluation time. With a
-        // mutable `export let` the snapshot would stay null forever; the
-        // facade keeps a stable identity whose reads are live.
         let lib = null;
         const facade = makeLazyFacade(() => lib);
-        const snapshot = facade; // what a bridge's `export const` captures
+        const snapshot = facade;
         expect(snapshot.anything).toBe(undefined);
         lib = { greet: (/** @type {string} */ name) => `hello ${name}` };
         expect(snapshot).toBe(facade);

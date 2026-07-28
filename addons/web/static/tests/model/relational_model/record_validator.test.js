@@ -23,10 +23,6 @@ import {
     setInvalidField,
 } from "@web/model/relational_model/record_validator";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
 function makeCallbacks({ invisible = [], required = [], invalidLists = [] } = {}) {
     return {
         isInvisible: (name) => invisible.includes(name),
@@ -34,10 +30,6 @@ function makeCallbacks({ invisible = [], required = [], invalidLists = [] } = {}
         isChildListValid: (name, list) => !invalidLists.includes(name),
     };
 }
-
-// ---------------------------------------------------------------------------
-// findUnsetRequiredFields — basic scalar types
-// ---------------------------------------------------------------------------
 
 describe("findUnsetRequiredFields — scalar types", () => {
     const fields = {
@@ -159,10 +151,6 @@ describe("findUnsetRequiredFields — scalar types", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// findUnsetRequiredFields — html field
-// ---------------------------------------------------------------------------
-
 describe("findUnsetRequiredFields — html", () => {
     const fields = { body: { type: "html" } };
 
@@ -202,10 +190,6 @@ describe("findUnsetRequiredFields — html", () => {
         expect(result.has("body")).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// findUnsetRequiredFields — x2many fields
-// ---------------------------------------------------------------------------
 
 describe("findUnsetRequiredFields — x2many", () => {
     const fields = {
@@ -262,10 +246,6 @@ describe("findUnsetRequiredFields — x2many", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// findUnsetRequiredFields — json field
-// ---------------------------------------------------------------------------
-
 describe("findUnsetRequiredFields — json", () => {
     const fields = { metadata: { type: "json" } };
 
@@ -317,10 +297,6 @@ describe("findUnsetRequiredFields — json", () => {
         expect(result.has("metadata")).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// findUnsetRequiredFields — properties field
-// ---------------------------------------------------------------------------
 
 describe("findUnsetRequiredFields — properties", () => {
     const fields = { properties: { type: "properties" } };
@@ -402,19 +378,6 @@ describe("findUnsetRequiredFields — properties", () => {
     });
 });
 
-// ===========================================================================
-// Orchestration helpers — added in Phase 2 of the model-layer decomposition
-// (workspaces/workspace-LMMG/brainstorms/2026-05-23-web-model-layer-decomposition.md).
-// Tests target the helpers directly with a hand-rolled mock record exposing
-// only the surface each helper reads (invalidFields Set, unsetRequiredFields
-// Set, model.hooks, multiEdit hooks, etc.). Imports are consolidated at the
-// top of the file per ES-module top-level-import semantics.
-// ===========================================================================
-
-// ---------------------------------------------------------------------------
-// Mock factory for orchestration tests
-// ---------------------------------------------------------------------------
-
 /**
  * Builds the minimum record shape consumed by the orchestration helpers.
  * Defaults exercise the happy path: no invalid/unset-required fields, hooks
@@ -459,8 +422,6 @@ function makeOrchestrationRecord({
         _closeInvalidFieldsNotification: () => {},
         _isInvisible: (name) => invisible.includes(name),
         _isRequired: (name) => required.includes(name),
-        // delegate to the imported helper so the recursive isChildListValid
-        // codepath in checkValidity hits the same module under test
         _checkValidity(options) {
             return checkValidity(this, options);
         },
@@ -468,7 +429,6 @@ function makeOrchestrationRecord({
         switchMode: () => {},
         model: {
             multiEdit,
-            // narrow record-facing interface of DynamicList (see dynamic_list.js)
             root: {
                 _recordToDiscard: null,
                 _isRecordToDiscard(rec) {
@@ -488,10 +448,6 @@ function makeOrchestrationRecord({
     return record;
 }
 
-// ---------------------------------------------------------------------------
-// checkValidity — silent mode
-// ---------------------------------------------------------------------------
-
 describe("checkValidity — silent mode", () => {
     test("returns true when no required fields are unset, without mutating state", () => {
         const rec = makeOrchestrationRecord({
@@ -502,7 +458,6 @@ describe("checkValidity — silent mode", () => {
         });
         const result = checkValidity(rec, { silent: true });
         expect(result).toBe(true);
-        // silent must not touch state
         expect(rec._invalidFields.size).toBe(0);
         expect(rec._unsetRequiredFields.size).toBe(0);
     });
@@ -516,15 +471,10 @@ describe("checkValidity — silent mode", () => {
         });
         const result = checkValidity(rec, { silent: true });
         expect(result).toBe(false);
-        // silent must not push the field into _invalidFields
         expect(rec._invalidFields.size).toBe(0);
         expect(rec._unsetRequiredFields.size).toBe(0);
     });
 });
-
-// ---------------------------------------------------------------------------
-// checkValidity — default mode (replace unsetRequired subset)
-// ---------------------------------------------------------------------------
 
 describe("checkValidity — default mode", () => {
     test("populates _invalidFields and _unsetRequiredFields when a required field is unset", () => {
@@ -541,7 +491,6 @@ describe("checkValidity — default mode", () => {
     });
 
     test("replaces the prior _unsetRequiredFields subset on rescan", () => {
-        // Prior state: "name" was unset
         const rec = makeOrchestrationRecord({
             activeFields: { name: {}, email: {} },
             fields: { name: { type: "char" }, email: { type: "char" } },
@@ -552,34 +501,26 @@ describe("checkValidity — default mode", () => {
         });
         const result = checkValidity(rec);
         expect(result).toBe(false);
-        // "name" should have been pruned from both sets; "email" added
         expect([...rec._invalidFields]).toEqual(["email"]);
         expect([...rec._unsetRequiredFields]).toEqual(["email"]);
     });
 
     test("preserves invalid-input flags (not in unsetRequiredFields) across the rescan", () => {
-        // "name" was flagged as invalid by a field widget (e.g. via setInvalidField),
-        // not because it was unset-required. checkValidity should leave it alone.
         const rec = makeOrchestrationRecord({
             activeFields: { name: {}, email: {} },
             fields: { name: { type: "char" }, email: { type: "char" } },
             data: { name: "set", email: "set" },
             required: [],
-            invalid: ["name"], // invalid-input flag survives
-            unsetRequired: [], // but not in unset-required subset
+            invalid: ["name"],
+            unsetRequired: [],
         });
         checkValidity(rec);
         expect([...rec._invalidFields]).toEqual(["name"]);
     });
 });
 
-// ---------------------------------------------------------------------------
-// checkValidity — removeInvalidOnly mode (prune-only)
-// ---------------------------------------------------------------------------
-
 describe("checkValidity — removeInvalidOnly mode", () => {
     test("removes fields from _unsetRequiredFields that are no longer unset, without adding new ones", () => {
-        // Prior: "name" was unset; now set. "email" is unset but not in the prior subset.
         const rec = makeOrchestrationRecord({
             activeFields: { name: {}, email: {} },
             fields: { name: { type: "char" }, email: { type: "char" } },
@@ -589,15 +530,10 @@ describe("checkValidity — removeInvalidOnly mode", () => {
             unsetRequired: ["name"],
         });
         checkValidity(rec, { removeInvalidOnly: true });
-        // "name" pruned (no longer unset); "email" NOT added (removeInvalidOnly).
         expect([...rec._invalidFields]).toEqual([]);
         expect([...rec._unsetRequiredFields]).toEqual([]);
     });
 });
-
-// ---------------------------------------------------------------------------
-// checkValidity — displayNotification side effect
-// ---------------------------------------------------------------------------
 
 describe("checkValidity — displayNotification", () => {
     test("invokes onDisplayInvalidFields when invalid and displayNotification=true", () => {
@@ -644,10 +580,6 @@ describe("checkValidity — displayNotification", () => {
         expect(rec._closeInvalidFieldsNotification).toBe(closer);
     });
 });
-
-// ---------------------------------------------------------------------------
-// setInvalidField
-// ---------------------------------------------------------------------------
 
 describe("setInvalidField", () => {
     test("adds the field name to _invalidFields", async () => {
@@ -703,16 +635,10 @@ describe("setInvalidField", () => {
             discardCalled = true;
         };
         await setInvalidField(rec, "name");
-        // The field is still flagged, but the multiEdit cascade is suppressed
-        // because this record is the one already being discarded.
         expect(rec._invalidFields.has("name")).toBe(true);
         expect(discardCalled).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// resetFieldValidity + removeInvalidFields
-// ---------------------------------------------------------------------------
 
 describe("resetFieldValidity", () => {
     test("removes the field name from _invalidFields", () => {
@@ -735,8 +661,6 @@ describe("resetFieldValidity", () => {
         });
         resetFieldValidity(rec, "name");
         expect(rec._invalidFields.has("name")).toBe(false);
-        // _unsetRequiredFields is the canonical source for "required not satisfied";
-        // this helper is for invalid-input flag only.
         expect(rec._unsetRequiredFields.has("name")).toBe(true);
     });
 });
@@ -755,10 +679,6 @@ describe("removeInvalidFields (bulk)", () => {
     });
 });
 
-// ---------------------------------------------------------------------------
-// displayInvalidFieldNotification
-// ---------------------------------------------------------------------------
-
 describe("displayInvalidFieldNotification", () => {
     test("returns the close callback produced by the hook", () => {
         const closer = () => "closed";
@@ -769,14 +689,6 @@ describe("displayInvalidFieldNotification", () => {
         expect(result).toBe(closer);
     });
 });
-
-// ===========================================================================
-// Scoped per-commit re-validation (change-scoped-validation perf fix)
-// ===========================================================================
-
-// ---------------------------------------------------------------------------
-// extractFieldNamesFromExpr — free-variable extraction from modifier exprs
-// ---------------------------------------------------------------------------
 
 describe("extractFieldNamesFromExpr", () => {
     test("returns empty set for falsy / boolean-literal modifiers", () => {
@@ -809,27 +721,22 @@ describe("extractFieldNamesFromExpr", () => {
     });
 
     test("returns null (unknown) for an unparseable expression", () => {
-        // Unbalanced parenthesis: py tokenizer/parser throws -> conservative null.
         expect(extractFieldNamesFromExpr("a ==")).toBe(null);
     });
 });
-
-// ---------------------------------------------------------------------------
-// getModifierDependencies / computeRevalidationScope
-// ---------------------------------------------------------------------------
 
 describe("computeRevalidationScope", () => {
     test("scope of a change is the changed field plus its modifier dependents", () => {
         const activeFields = {
             a: {},
-            b: { required: "a == 1" }, // b depends on a
-            c: { required: "d == 2" }, // c depends on d, not a
+            b: { required: "a == 1" },
+            c: { required: "d == 2" },
             d: {},
         };
         const scope = computeRevalidationScope(["a"], activeFields);
-        expect(scope.has("a")).toBe(true); // the changed field itself
-        expect(scope.has("b")).toBe(true); // dependent via required modifier
-        expect(scope.has("c")).toBe(false); // independent of a
+        expect(scope.has("a")).toBe(true);
+        expect(scope.has("b")).toBe(true);
+        expect(scope.has("c")).toBe(false);
     });
 
     test("invisible and readonly modifiers also create dependencies", () => {
@@ -857,7 +764,7 @@ describe("computeRevalidationScope", () => {
     test("fields with an unparseable modifier are always in scope (fallback)", () => {
         const activeFields = {
             a: {},
-            b: { required: "a ==" }, // unparseable -> always revalidate
+            b: { required: "a ==" },
         };
         const scope = computeRevalidationScope(["z_unrelated"], activeFields);
         expect(scope.has("b")).toBe(true);
@@ -867,13 +774,9 @@ describe("computeRevalidationScope", () => {
         const activeFields = { a: {}, b: { required: "a == 1" } };
         const first = getModifierDependencies(activeFields);
         const second = getModifierDependencies(activeFields);
-        expect(first).toBe(second); // same cached object (WeakMap keyed on activeFields)
+        expect(first).toBe(second);
     });
 });
-
-// ---------------------------------------------------------------------------
-// checkValidity — scoped removeInvalidOnly: modifier re-evaluation
-// ---------------------------------------------------------------------------
 
 /**
  * Wrap makeOrchestrationRecord so that _isRequired / _isInvisible evaluate the
@@ -911,14 +814,13 @@ describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () 
     test("(4a) committing A does NOT re-evaluate B's required modifier when B doesn't reference A", () => {
         const activeFields = {
             a: {},
-            b: { required: "c == 1" }, // B references C, not A
+            b: { required: "c == 1" },
         };
         const fields = {
             a: { type: "char" },
             b: { type: "char" },
             c: { type: "char" },
         };
-        // B is currently unset+required (c==1 holds, b is false) -> flagged.
         const data = { a: "set", b: false, c: 1 };
         const { rec, requiredEvalCount } = makeModifierCountingRecord({
             activeFields,
@@ -926,23 +828,18 @@ describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () 
             data,
             unsetRequired: ["b"],
         });
-        // Commit A: scope is {a} (+ its dependents). B depends on C, so B is
-        // out of scope and must NOT be re-evaluated.
         const scopedFields = computeRevalidationScope(["a"], activeFields);
         checkValidity(rec, { removeInvalidOnly: true, scopedFields });
         expect(requiredEvalCount["b"] || 0).toBe(0);
-        // B stays flagged (nothing pruned it).
         expect(rec._unsetRequiredFields.has("b")).toBe(true);
     });
 
     test("(4b) committing A DOES re-evaluate B's required modifier when B references A", () => {
         const activeFields = {
             a: {},
-            b: { required: "a == 1" }, // B references A
+            b: { required: "a == 1" },
         };
         const fields = { a: { type: "char" }, b: { type: "char" } };
-        // Start: a==1 so B required and unset -> flagged. After commit, a is now
-        // 0 so B is no longer required -> B must be re-evaluated and pruned.
         const data = { a: 0, b: false };
         const { rec, requiredEvalCount } = makeModifierCountingRecord({
             activeFields,
@@ -953,15 +850,10 @@ describe("checkValidity — scoped removeInvalidOnly (modifier evaluation)", () 
         const scopedFields = computeRevalidationScope(["a"], activeFields);
         checkValidity(rec, { removeInvalidOnly: true, scopedFields });
         expect(requiredEvalCount["b"] || 0).toBeGreaterThan(0);
-        // a == 1 is false now -> B not required -> pruned.
         expect(rec._unsetRequiredFields.has("b")).toBe(false);
         expect(rec._invalidFields.has("b")).toBe(false);
     });
 });
-
-// ---------------------------------------------------------------------------
-// checkValidity — scoped removeInvalidOnly: x2many child re-validation
-// ---------------------------------------------------------------------------
 
 /** Build a mock child record datapoint with a _checkValidity spy. */
 let nextVirtualId = 1;
@@ -1003,9 +895,6 @@ function makeChildList(children) {
 
 describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
     test("(4c) committing a child row does not re-validate a valid dirty sibling", () => {
-        // Valid sibling FIRST so it is visited before .every() short-circuits on
-        // the invalid row — proving the skip comes from the valid-row shortcut,
-        // not from short-circuit evaluation.
         const validSibling = makeChildRecord({ valid: true });
         const editedRow = makeChildRecord({ valid: false });
         const list = makeChildList([validSibling, editedRow]);
@@ -1013,20 +902,16 @@ describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
             activeFields: { line_ids: {} },
             fields: { line_ids: { type: "one2many" } },
             data: { line_ids: list },
-            // list is flagged because a child is invalid
             unsetRequired: ["line_ids"],
             invalid: ["line_ids"],
         });
         const scopedFields = computeRevalidationScope(["line_ids"], rec.activeFields);
         checkValidity(rec, { removeInvalidOnly: true, scopedFields });
-        // valid sibling skipped (shortcut); the invalid edited row re-checked.
         expect(validSibling._calls).toBe(0);
         expect(editedRow._calls).toBe(1);
     });
 
     test("(4c) save-time full validation re-validates every dirty child row", () => {
-        // Two valid dirty rows: .every() visits both (no short-circuit), and
-        // default mode has NO valid-row shortcut, so both are re-validated.
         const row1 = makeChildRecord({ valid: true });
         const row2 = makeChildRecord({ valid: true });
         const list = makeChildList([row1, row2]);
@@ -1035,7 +920,6 @@ describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
             fields: { line_ids: { type: "one2many" } },
             data: { line_ids: list },
         });
-        // Default (save-time) validation: no removeInvalidOnly, no scope.
         checkValidity(rec, { displayNotification: true });
         expect(row1._calls).toBe(1);
         expect(row2._calls).toBe(1);
@@ -1054,7 +938,6 @@ describe("checkValidity — scoped removeInvalidOnly (x2many children)", () => {
         });
         const scopedFields = computeRevalidationScope(["line_ids"], rec.activeFields);
         checkValidity(rec, { removeInvalidOnly: true, scopedFields });
-        // Both rows valid -> both skipped by the shortcut.
         expect(row1._calls).toBe(0);
         expect(row2._calls).toBe(0);
     });

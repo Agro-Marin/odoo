@@ -35,9 +35,6 @@ export class SelectionLikeField extends Component {
                 let domain = getFieldDomain(props.record, props.name, props.domain);
                 const value = props.record.data[props.name];
                 if (domain.length && value) {
-                    // OR-in the current value so a selected record filtered
-                    // out by the domain still renders among the options
-                    // (same approach as StatusBarField's specialData loader).
                     domain = Domain.or([[["id", "=", value.id]], domain]).toList(
                         props.record.evalContext,
                     );
@@ -56,12 +53,6 @@ export class SelectionLikeField extends Component {
                     ? this.props.record.data[this.props.name].display_name
                     : "";
             case "selection":
-                // Resolve the label from the field's canonical `selection`
-                // metadata rather than a subclass `get options()` accessor: the
-                // base class must not depend on an option-list getter that not
-                // every subclass provides (RadioField exposes `get items()`,
-                // not `options`). Filtering applied by subclasses' option lists
-                // is irrelevant here — we look up the current value's label.
                 return this.props.record.data[this.props.name] !== false
                     ? /** @type {any} */ (
                           this.props.record.fields[this.props.name].selection.find(

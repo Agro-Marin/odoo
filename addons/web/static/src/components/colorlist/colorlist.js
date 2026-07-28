@@ -38,8 +38,6 @@ export class ColorList extends Component {
         this.colorlistRef = useRef("colorlist");
         this.state = useState({ isExpanded: this.props.isExpanded });
         this.onOutsideClick = this.onOutsideClick.bind(this);
-        // Only listen to outside clicks while expanded; the effect cleanup
-        // also removes the listener on unmount.
         useEffect(
             (isExpanded) => {
                 if (isExpanded) {
@@ -56,9 +54,6 @@ export class ColorList extends Component {
             },
             () => [this.state.isExpanded],
         );
-        // Move focus to the first color button *after* the expand render.
-        // Focusing synchronously in onToggle would target the collapsed
-        // toggler, which the render then removes, dropping focus to <body>.
         useEffect(
             (isExpanded) => {
                 if (isExpanded) {
@@ -93,8 +88,6 @@ export class ColorList extends Component {
             ev.preventDefault();
             ev.stopPropagation();
             this.state.isExpanded = !this.state.isExpanded;
-            // Focusing happens in the isExpanded useEffect, once the color
-            // buttons have actually been rendered.
         }
     }
 }

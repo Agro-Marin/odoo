@@ -55,17 +55,6 @@ export const fieldService = {
             if (typeof resModel !== "string" || !resModel) {
                 throw new Error(`Invalid model name: ${resModel}`);
             }
-            // A transient fields_get failure breaks every view for the model until
-            // reload; fields_get is idempotent, so one retry smooths a cold-fetch
-            // failure without masking a persistent outage.
-            // ``immutable``: the cached payload is deep-frozen once and shared, so
-            // warm hits avoid a per-caller DEEP clone. We hand out a SHALLOW copy
-            // of it: several consumers legitimately inject extra top-level field
-            // defs (the mrp_workorder shop-floor action, the spreadsheet pivot,
-            // and a standalone <Record> on a properties model all add/replace
-            // entries) and would otherwise throw on the frozen object. This costs
-            // O(fields) references, not a deep clone. The individual def objects
-            // stay shared and frozen — spread a def before mutating it in place.
             const fields = await orm
                 .cache({ type: "disk", immutable: true })
                 .retry(1)
@@ -94,12 +83,27 @@ export const fieldService = {
 
             let result;
             if (definitionRecordModel === "properties.base.definition") {
-                // Record without parent (eg `res.partner`)
-                result = await orm.call(
-                    "properties.base.definition",
-                    "get_properties_base_definition",
-                    [resModel, name],
-                );
+                // `domain` is deliberately NOT forwarded, and that is correct
+                // rather than an oversight. It exists for the branch below,
+                // where definitions hang off a real parent record and the only
+                // caller (`search_properties_mixin`) narrows to
+                // `["id", "=", active_id]`. Base definitions have no such
+                // parent: the server resolves them by (model, field) alone
+                // (web/models/properties_base_definition.py), and `active_id`
+                // is an id of the ACTION's model, so applying it here would
+                // filter `properties.base.definition` by an unrelated id and
+                // return nothing.
+                //
+                // No `.cache()` on purpose either: property definitions are
+                // edited in-app and this call has no invalidation hook the way
+                // `fields_get` (immutable per registry hash) does.
+                result = await orm
+                    .retry(1)
+                    .call(
+                        "properties.base.definition",
+                        "get_properties_base_definition",
+                        [resModel, name],
+                    );
             } else {
                 // @ts-ignore
                 domain = Domain.and([
@@ -120,9 +124,7 @@ export const fieldService = {
                 for (const definition of record[definitionRecordField]) {
                     definitions[definition.name] = {
                         is_property: true,
-                        // for now, all properties are searchable but their definitions don't contain that info
                         searchable: true,
-                        // differentiate definitions with same name but on different parent
                         record_id: record.id,
                         record_name: record.display_name,
                         ...(definition.comodel ? { relation: definition.comodel } : {}),
@@ -186,19 +188,18 @@ export const fieldService = {
                     relation,
                     await loadFields(relation),
                     remainingNames,
+                    followRelationalProperties,
                 );
             } else if (fieldDef.type === "properties") {
                 subResult = await _loadPath(
                     followRelationalProperties ? resModel : "*",
-                    // resModel can't be null here: a "properties" fieldDef only
-                    // exists on a concrete model (the null/"*" case returned
-                    // above).
                     await _loadPropertyDefinitions(
                         /** @type {string} */ (resModel),
                         fieldDefs,
                         name,
                     ),
                     remainingNames,
+                    followRelationalProperties,
                 );
             }
 
@@ -229,10 +230,10 @@ export const fieldService = {
             path = "*",
             followRelationalProperties = false,
         ) {
-            const fieldDefs = await loadFields(resModel);
             if (typeof path !== "string" || !path) {
                 throw new Error(`Invalid path: ${path}`);
             }
+            const fieldDefs = await loadFields(resModel);
             return _loadPath(
                 resModel,
                 fieldDefs,
@@ -254,17 +255,10 @@ export const fieldService = {
             if (isInvalid) {
                 return { resModel, fieldDef: null };
             }
-            // Non-empty by construction (loadPath returned a valid result), so
-            // index instead of at(-1) to avoid the `undefined` in at()'s type.
             const name = names[names.length - 1];
             const modelInfo = modelsInfo[modelsInfo.length - 1];
             return {
                 resModel: modelInfo.resModel,
-                // A path ending in "*" (e.g. "user_id.*", legal per loadPath's
-                // docstring) resolves to no concrete field def — it's a
-                // load-all-fields marker, not a selectable field. Normalise the
-                // resulting ``undefined`` to the documented ``null`` sentinel
-                // (as the bare "*" branch above already returns).
                 fieldDef: modelInfo.fieldDefs[name] ?? null,
             };
         }
@@ -298,7 +292,6 @@ export const fieldService = {
                 displayNames: /** @type {string[]} */ ([]),
             };
             if (!isInvalid) {
-                // Non-empty by construction (loadPath returned a valid result).
                 const lastName = names[names.length - 1];
                 const lastFieldDef =
                     modelsInfo[modelsInfo.length - 1].fieldDefs[lastName];
@@ -306,13 +299,6 @@ export const fieldService = {
                     !lastFieldDef ||
                     ["properties", "properties_definition"].includes(lastFieldDef.type)
                 ) {
-                    // A trailing "*" (e.g. "user_id.*") passes _loadPath as valid
-                    // but has no concrete field def — it's a load-all-fields
-                    // marker, not a selectable field — so treat it as invalid
-                    // (as the bare "*" guard above already does), and guard the
-                    // undefined lastFieldDef so ``.type`` can't throw. There is
-                    // also no known case where we want to select a 'properties'
-                    // field directly.
                     result.isInvalid = true;
                 }
             }

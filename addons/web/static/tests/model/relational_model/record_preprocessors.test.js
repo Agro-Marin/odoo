@@ -19,8 +19,6 @@ import {
     preprocessX2manyChanges,
 } from "@web/model/relational_model/record_preprocessors";
 
-// Mock factory
-
 /**
  * Builds a minimal record mock. Only includes the properties each tested
  * code path actually accesses — unused paths are left absent.
@@ -59,15 +57,12 @@ function makeRecord({
     };
 }
 
-// completeMany2OneValue — 4 branches
-
 describe("completeMany2OneValue", () => {
     test("returns false when value has no id and no display_name", async () => {
         const rec = makeRecord({
             fields: { partner_id: { type: "many2one", context: {} } },
             activeFields: { partner_id: { context: "{}" } },
         });
-        // {} → resId=undefined (falsy), displayName=undefined (falsy)
         const result = await completeMany2OneValue(
             rec,
             {},
@@ -130,12 +125,9 @@ describe("completeMany2OneValue", () => {
             "partner_id",
             "res.partner",
         );
-        // Both present — no RPC needed, value returned as-is
         expect(result).toBe(value);
     });
 });
-
-// preprocessMany2oneChanges — falsy value, missing activeField, normal path
 
 describe("preprocessMany2oneChanges", () => {
     test("sets falsy many2one change to false", async () => {
@@ -151,12 +143,11 @@ describe("preprocessMany2oneChanges", () => {
     test("keeps value unchanged when field is not in activeFields", async () => {
         const rec = makeRecord({
             fields: { partner_id: { type: "many2one", context: {} } },
-            activeFields: {}, // partner_id absent from activeFields
+            activeFields: {},
         });
         const original = { id: 1, display_name: "kept" };
         const changes = { partner_id: original };
         await preprocessMany2oneChanges(rec, changes);
-        // !record.activeFields["partner_id"] → keeps value unchanged
         expect(changes.partner_id).toBe(original);
     });
 
@@ -169,12 +160,9 @@ describe("preprocessMany2oneChanges", () => {
         });
         const changes = { partner_id: { id: 5, display_name: "Acme" } };
         await preprocessMany2oneChanges(rec, changes);
-        // Both present → completeMany2OneValue returns value unchanged
         expect(changes.partner_id).toEqual({ id: 5, display_name: "Acme" });
     });
 });
-
-// preprocessMany2OneReferenceChanges — falsy and integer branches
 
 describe("preprocessMany2OneReferenceChanges", () => {
     test("sets falsy many2one_reference change to false", async () => {
@@ -199,13 +187,10 @@ describe("preprocessMany2OneReferenceChanges", () => {
         });
         const changes = { ref_id: 42 };
         await preprocessMany2OneReferenceChanges(rec, changes);
-        // Numeric id path: sets { resId: value } without calling orm
         expect(changes.ref_id).toEqual({ resId: 42 });
         expect(ormCalled).toBe(false);
     });
 });
-
-// preprocessReferenceChanges — falsy and object branches
 
 describe("preprocessReferenceChanges", () => {
     test("sets falsy reference change to false", async () => {
@@ -223,7 +208,6 @@ describe("preprocessReferenceChanges", () => {
             fields: { ref_field: { type: "reference", context: {} } },
             activeFields: { ref_field: { context: "{}", related: null } },
         });
-        // Both present → completeMany2OneValue returns the value unchanged, no ORM calls.
         const changes = {
             ref_field: { resId: 5, displayName: "Acme", resModel: "res.partner" },
         };
@@ -235,8 +219,6 @@ describe("preprocessReferenceChanges", () => {
         });
     });
 });
-
-// preprocessX2manyChanges — SET command vs other commands
 
 describe("preprocessX2manyChanges", () => {
     test("SET command calls list._replaceWith with the new ids array", async () => {
@@ -254,7 +236,6 @@ describe("preprocessX2manyChanges", () => {
         const changes = { turtles: [x2ManyCommands.set([1, 2, 3])] };
         await preprocessX2manyChanges(rec, changes);
         expect(replacedWith).toEqual([1, 2, 3]);
-        // After processing, changes[fieldName] is replaced with the list object
         expect(changes.turtles).toBe(list);
     });
 
@@ -273,13 +254,10 @@ describe("preprocessX2manyChanges", () => {
         });
         const changes = { turtles: [deleteCmd] };
         await preprocessX2manyChanges(rec, changes);
-        // Each non-SET command is dispatched individually
         expect(appliedCommands).toEqual([deleteCmd]);
         expect(changes.turtles).toBe(list);
     });
 });
-
-// preprocessPropertiesChanges — properties type and relatedPropertyField
 
 describe("preprocessPropertiesChanges", () => {
     test("properties field calls _processProperties and merges result into changes", () => {
@@ -292,7 +270,6 @@ describe("preprocessPropertiesChanges", () => {
         });
         const changes = { my_props: [{ name: "color", value: "red" }] };
         preprocessPropertiesChanges(rec, changes);
-        // _processProperties result is merged into changes
         expect(changes.extra_key).toBe("computed");
     });
 
@@ -311,7 +288,6 @@ describe("preprocessPropertiesChanges", () => {
         });
         const changes = { "my_props.color": "blue" };
         preprocessPropertiesChanges(rec, changes);
-        // The matching property entry is updated in-place; others are left unchanged
         expect(changes.my_props).toEqual([{ name: "color", value: "blue" }]);
     });
 
@@ -326,7 +302,6 @@ describe("preprocessPropertiesChanges", () => {
                 },
             },
             data: {
-                // "other" array contains a different property name
                 other: [{ name: "size", value: "large" }],
             },
             onDisplayPropertyWarning: () => {
@@ -336,12 +311,9 @@ describe("preprocessPropertiesChanges", () => {
         const changes = { "other.color": "blue" };
         preprocessPropertiesChanges(rec, changes);
         expect(warned).toBe(true);
-        // changes should not have been mutated (function returns early)
         expect(changes["other"]).toBe(undefined);
     });
 });
-
-// preprocessHtmlChanges — markup wrapping vs false passthrough
 
 describe("preprocessHtmlChanges", () => {
     test("wraps html field string value with markup()", () => {
@@ -350,11 +322,8 @@ describe("preprocessHtmlChanges", () => {
         });
         const changes = { description: "<p>hello</p>" };
         preprocessHtmlChanges(rec, changes);
-        // Content must be preserved
         expect(String(changes.description)).toBe("<p>hello</p>");
-        // Must not remain a plain string (markup() wraps it in a Markup object)
         expect(changes.description).not.toBe("<p>hello</p>");
-        // Should match what markup() produces for the same input
         expect(changes.description).toEqual(markup("<p>hello</p>"));
     });
 

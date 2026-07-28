@@ -1,5 +1,3 @@
-// = Main Navbar
-// ============================================================================
 .o_main_navbar {
     @include print-variable(o-navbar-height, $o-navbar-height);
 
@@ -20,16 +18,11 @@
         min-width: min-content;
     }
 
-    // = Reset browsers defaults
-    // --------------------------------------------------------------------------
     > ul {
         padding: 0;
         margin: 0;
         list-style: none;
     }
-
-    // = General components & behaviours
-    // --------------------------------------------------------------------------
 
     .o_menu_toggle {
         --NavBar-entry-padding-left: #{$o-horizontal-padding};
@@ -44,8 +37,6 @@
             transform-origin: 0 50%;
         }
 
-        // Define a local mixin to handle the toggle state
-        // --------------------------------------------------------------------
         @mixin o_main_navbar_toggler_toggled() {
             rect {
                 width: 6px;
@@ -78,8 +69,6 @@
             transform: translateX(25%) rotateY(-180deg);
         }
 
-        // Animate on large screen without 'reduced-motion' only.
-        // --------------------------------------------------------------------
         @include media-breakpoint-up(md) {
             &.hasImage:not(.o_menu_toggle_back) {
                 .o_menu_toggle_icon {
@@ -216,8 +205,6 @@
         }
     }
 
-    // = Navbar Sections & Children
-    // --------------------------------------------------------------------------
     .o_navbar_apps_menu .dropdown-toggle {
         --NavBar-entry-padding-left: #{$o-horizontal-padding};
 
@@ -273,8 +260,6 @@
     }
 }
 
-// = SuperUser Design
-// ============================================================================
 body.o_is_superuser .o_menu_systray {
     border-image: repeating-linear-gradient(
             135deg,

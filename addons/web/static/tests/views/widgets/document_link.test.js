@@ -21,7 +21,7 @@ test("documentation_link: default label and icon", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="bar"/>
             <widget name="documentation_link" path="/this_is_a_test.html"/>
@@ -36,7 +36,7 @@ test("documentationLink: alert-link", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="bar"/>
             <widget name="documentation_link" path="/this_is_a_test.html" alert_link="true"/>
@@ -60,7 +60,7 @@ test("documentation_link: given label", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="bar"/>
             <widget name="documentation_link" path="/this_is_a_test.html" label="docdoc"/>
@@ -74,7 +74,7 @@ test("documentation_link: given icon", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="bar"/>
             <widget name="documentation_link" path="/this_is_a_test.html" icon="fa-question-circle"/>
@@ -88,7 +88,7 @@ test("documentation_link: given label and icon", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="bar"/>
             <widget name="documentation_link" path="/this_is_a_test.html" label="docdoc" icon="fa-question-circle"/>
@@ -102,7 +102,7 @@ test("documentation_link: relative path", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="bar"/>
             <widget name="documentation_link" path="/applications/technical/web/settings/this_is_a_test.html"/>
@@ -118,7 +118,7 @@ test("documentation_link: absolute path (http)", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="bar"/>
                 <widget name="documentation_link" path="http://www.odoo.com/"/>
@@ -131,7 +131,7 @@ test("documentation_link: absolute path (https)", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
         <form>
             <field name="bar"/>
             <widget name="documentation_link" path="https://www.odoo.com/"/>

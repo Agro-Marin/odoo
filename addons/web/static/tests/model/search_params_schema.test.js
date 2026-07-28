@@ -19,9 +19,6 @@ test("valid full payload passes", () => {
 });
 
 test("undefined values for every key (the production no-search-model load) pass", () => {
-    // ``getSearchParams`` always writes the four keys; their values
-    // may be undefined when no SearchModel is mounted (e.g. the
-    // settings form).  Optional schema entries accept undefined.
     expect(
         validateSearchParams({
             context: undefined,
@@ -50,24 +47,19 @@ test("non-object payload is rejected", () => {
 
 test("orderBy missing required 'name' is flagged", () => {
     const issues = validateSearchParams({
-        orderBy: [{ asc: true }], // missing 'name'
+        orderBy: [{ asc: true }],
     });
     expect(issues.length).toBeGreaterThan(0);
-    // OWL phrases the error as "name is missing" or similar — we
-    // only assert "something complained" so the test stays robust
-    // across OWL revisions.
 });
 
 test("groupBy of wrong element type is flagged", () => {
     const issues = validateSearchParams({
-        groupBy: [42, "ok"], // first entry is a number, not a string
+        groupBy: [42, "ok"],
     });
     expect(issues.length).toBeGreaterThan(0);
 });
 
 test("fields outside the SEARCH_KEYS contract are flagged as unknown", () => {
-    // resId reaches Model.load via a different path (controller calls),
-    // so it should surface as "unknown field" at this boundary.
     const issues = validateSearchParams({ resId: 7 });
     expect(issues.length).toBe(1);
     expect(issues[0]).toMatch(/unknown field 'resId'/);
@@ -76,7 +68,7 @@ test("fields outside the SEARCH_KEYS contract are flagged as unknown", () => {
 test("unknown field is flagged with a remediation hint", () => {
     const issues = validateSearchParams({
         domain: [],
-        somethingNew: "value", // not in the schema
+        somethingNew: "value",
     });
     expect(issues.length).toBe(1);
     expect(issues[0]).toMatch(/unknown field 'somethingNew'/);
@@ -89,8 +81,6 @@ test("multiple unknown fields each surface as own issue", () => {
         foo: 1,
         bar: 2,
     });
-    // Two unknown fields → at least two issues (OWL may also raise its
-    // own "extra-fields" error in addition; we only require ≥ 2).
     expect(issues.length).toBeGreaterThanOrEqual(2);
     const text = issues.join("\n");
     expect(text).toMatch(/foo/);
@@ -98,8 +88,6 @@ test("multiple unknown fields each surface as own issue", () => {
 });
 
 test("schema enumerates exactly the SEARCH_KEYS contract", () => {
-    // Pins the same four keys as core/constants.js:SEARCH_KEYS so a
-    // one-sided update to either side gets caught here.
     expect(Object.keys(SEARCH_PARAMS_SCHEMA).toSorted()).toEqual([
         "context",
         "domain",

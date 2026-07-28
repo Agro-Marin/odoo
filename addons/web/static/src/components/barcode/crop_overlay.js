@@ -103,7 +103,6 @@ export class CropOverlay extends Component {
             try {
                 savedPoint = JSON.parse(stringSavedPoint);
             } catch {
-                // A corrupt entry must not crash the scanner UI forever.
                 browser.localStorage.removeItem(this.localStorageKey);
             }
         }
@@ -158,9 +157,6 @@ export class CropOverlay extends Component {
         if (event.target.matches(".o_crop_icon")) {
             this.computeOverlayPosition();
             this.isMoving = true;
-            // Capture the pointer so move/up keep flowing to the overlay even
-            // when released outside it; otherwise isMoving stays true and the
-            // crop sticks to the pointer on its next entry.
             try {
                 event.currentTarget.setPointerCapture(event.pointerId);
             } catch {

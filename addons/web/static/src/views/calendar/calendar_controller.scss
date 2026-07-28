@@ -1,7 +1,5 @@
-// Variables
 $o-cw-filter-avatar-size: 20px;
 
-// Animations
 @keyframes backgroundfade {
     from {
         background-color: rgba($info, 0.5);
@@ -52,14 +50,12 @@ $o-cw-filter-avatar-size: 20px;
             padding-left: 0 !important;
         }
 
-        // sync buttons are only displayed on calendar.event views
         .o_calendar_sync {
             padding-bottom: 0.5em;
         }
     }
 }
 
-//  Print
 @include media-only(print) {
     html:has(.o_action_manager .o_calendar_view.o_view_controller.o_action) {
         @extend %o-html-layout-fill;

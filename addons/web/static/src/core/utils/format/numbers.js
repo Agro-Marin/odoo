@@ -32,9 +32,6 @@ export function range(start, stop, step = 1) {
         throw new Error("range() step argument must not be zero");
     }
     const array = [];
-    // `ceil` (not `floor`) enforces the "stop exclusive" contract for spans that
-    // are not an exact multiple of `step`: e.g. range(0, 5, 2) must yield
-    // [0, 2, 4] since 4 < 5. It is a no-op for exact-multiple/unit spans.
     const nsteps = Math.ceil((stop - start) / step);
     for (let i = 0; i < nsteps; i++) {
         array.push(start + step * i);
@@ -69,7 +66,6 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
     let roundingFactor = precision;
     let normalize = (/** @type {number} */ val) => val / roundingFactor;
     let denormalize = (/** @type {number} */ val) => val * roundingFactor;
-    // inverting small rounding factors reduces rounding errors
     if (roundingFactor < 1) {
         roundingFactor = invertFloat(roundingFactor);
         [normalize, denormalize] = [denormalize, normalize];
@@ -78,18 +74,6 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
     const sign = Math.sign(normalizedValue);
     const epsilonMagnitude = Math.log2(Math.abs(normalizedValue));
     const epsilon = 2 ** (epsilonMagnitude - 50);
-    // For the "nearest" (HALF-*) methods, `epsilon` is nudged toward the .5 tie
-    // boundary only to rescue a value pushed just under a genuine tie by IEEE-754
-    // representation error. Being magnitude-relative (~4 ULP of normalizedValue),
-    // it grows past .5 once normalizedValue is large (its ULP approaches and
-    // exceeds 1), and then spuriously flips a clean value to the next integer:
-    // e.g. formatFloat(1e13) at 2 digits gave "10000000000000.01". Cap it below
-    // the boundary (keeping ~2 ULP of clearance, `0.5 - epsilon / 2`, which stays
-    // >= a few ULP where the ULP is fine and reaches 0 once normalizedValue has no
-    // representable fractional part) so the nudge can only ever rescue values
-    // already within representation error of a tie, never cross a boundary. The
-    // truncating UP/DOWN methods keep the un-capped `epsilon`: there it measures
-    // proximity-to-integer and must track the ULP to leave exact integers intact.
     const halfEpsilon = Math.max(0, Math.min(epsilon, 0.5 - epsilon / 2));
     let roundedValue;
 
@@ -133,17 +117,10 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
  * @returns {string}
  */
 function formatFixedDecimals(value, decimals) {
-    // `Number.prototype.toString` and `toFixed` both switch to exponential
-    // notation at 1e21: return that representation deliberately (as
-    // `humanNumber` does) instead of feeding it to the integer/decimal split
-    // of the callers. Rounding is a no-op at such magnitudes anyway.
     if (Math.abs(value) >= 1e21) {
         return String(value);
     }
     const rounded = roundDecimals(value, decimals);
-    // `rounded` already carries the HALF-UP rounding: `toFixed` only pads or
-    // truncates trailing zeros, and never uses exponential notation for
-    // values below 1e21 (unlike `toString`, which switches below 1e-6 too).
     return rounded.toFixed(decimals);
 }
 
@@ -208,24 +185,15 @@ export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
     const decimals = options.decimals || 0;
     const minDigits = options.minDigits || 1;
     const d2 = 10 ** decimals;
-    const numberMagnitude = +number.toExponential().split("e+")[1];
-    // roundDecimals (HALF-UP, away from zero), not Math.round (ties toward +Inf):
-    // a bare Math.round makes negatives asymmetric with positives and with the
-    // rest of the numeric stack — humanNumber(-1.5) would print "-1" while
-    // humanNumber(1.5) prints "2". roundDecimals matches roundPrecision/formatFloat.
+    // Decimal exponent. Splitting on "e+" alone yields undefined -> NaN for
+    // every |number| < 1 (0.001 renders as "1e-3"), which then only behaved
+    // because `NaN >= 21` is false; read the exponent whatever its sign.
+    const numberMagnitude = Number(number.toExponential().split("e")[1]);
     number = roundDecimals(number, decimals);
-    // the case numberMagnitude >= 21 corresponds to a number
-    // better expressed in the scientific format.
     if (numberMagnitude >= 21) {
-        // we do not use number.toExponential(decimals) because we want to
-        // avoid the possible useless O decimals: 1e.+24 preferred to 1.0e+24
-        // (Math.round, not roundDecimals: the scientific-format branch keeps its
-        // toward-+Inf tie behavior, pinned by the humanReadable test.)
         number = Math.round(number * 10 ** (decimals - numberMagnitude)) / d2;
         return `${number}e+${numberMagnitude}`;
     }
-    // Call toString to manipulate the resulting string, not an object with a
-    // toString method.
     const unitSymbols = _t("kMGTPE").toString();
     const sign = Math.sign(number);
     number = Math.abs(number);
@@ -240,7 +208,6 @@ export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
     }
     const { decimalPoint, grouping, thousandsSep } = l10n;
 
-    // determine if we should keep the decimals (we don't want to display 1,020.02k for 1020020)
     const decimalsToKeep = number >= 1000 ? 0 : decimals;
     number = sign * number;
     const [integerPart, decimalPart] = formatFixedDecimals(
@@ -282,10 +249,7 @@ export function formatFloat(value, options = {}) {
     } else if (options.minDigits) {
         const intDigitsCount =
             value !== 0 ? Math.floor(Math.log10(Math.abs(value))) + 1 : 1;
-        // We estimate the maximum decimal digits we can display without showing rounding errors,
-        // by subtracting the number of integer digits from 15, as floats have 15-16 digits precision.
         const maxDecDigits = Math.max(15 - intDigitsCount, 0);
-        // We display maximum 6 digits or the number of significant digits (if it's lower)
         precision = Math.min(6, maxDecDigits);
     } else {
         precision = 2;
@@ -304,9 +268,6 @@ export function formatFloat(value, options = {}) {
         "decimalPoint" in options ? options.decimalPoint : l10n.decimalPoint;
     const fixed = formatFixedDecimals(value, precision);
     if (fixed.includes("e")) {
-        // exponential notation (|value| >= 1e21): thousands separators and
-        // the decimal point substitution below do not apply (as in
-        // `humanNumber`, the scientific format is kept as is).
         return fixed;
     }
     const formatted = fixed.split(".");

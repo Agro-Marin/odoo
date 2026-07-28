@@ -4,16 +4,16 @@
 /** @module @web/services/currency - Currency lookup, formatting, and exchange rate fetching */
 
 import { reactive } from "@odoo/owl";
+import { UserEvent } from "@web/core/events";
 import { parseDate } from "@web/core/l10n/dates";
 import { rpc } from "@web/core/network/rpc";
 import { formatFloat, humanNumber } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
-import { user } from "@web/services/user";
+import { user, userBus } from "@web/services/user";
 import { session } from "@web/session";
 
 /** @type {Record<number, {symbol: string, position: string, digits: [number, number]}>} */
 export const currencies = session.currencies || {};
-// to make sure code is reading currencies from here
 delete session.currencies;
 
 /**
@@ -28,7 +28,9 @@ export function getCurrency(id) {
 /**
  * Shared reactive rates object handed to every getCurrencyRates() caller, so
  * one refresh updates all consumers instead of only the fetch-triggering one.
- * @type {Record<number, {rate: number, date: string}>}
+ * ``date`` is the PARSED Luxon DateTime, not the server's serialized string —
+ * {@link applyRates} runs every record through ``parseDate``.
+ * @type {Record<number, {rate: number, date: import("@web/core/l10n/dates").NullableDateTime}>}
  */
 const rates = reactive({});
 /**
@@ -39,10 +41,20 @@ const rates = reactive({});
  * @type {Promise<void> | null}
  */
 let ratesPromise = null;
+/**
+ * Bumped on every company switch (listener registered below, once ``rates`` and
+ * ``ratesPromise`` exist). Rates are expressed against the ACTIVE COMPANY's
+ * currency (``to_currency`` in {@link fetchCurrencyRates}), so a switch changes
+ * what the numbers MEAN, and a fetch issued BEFORE the switch must not land
+ * after it: it would write the old company's conversions over the shared object
+ * with no further trigger to correct them.
+ */
+let ratesEpoch = 0;
 
 /**
  * Replace the shared rates in place (removing vanished currencies) so every
- * held reference observes the update.
+ * held reference observes the update. ``records`` carry the server's
+ * serialized date; the stored entry carries the parsed DateTime.
  * @param {Array<{id: number, inverse_rate: number, date: string}>} records
  */
 function applyRates(records) {
@@ -64,6 +76,7 @@ function applyRates(records) {
 }
 
 async function fetchCurrencyRates() {
+    const epoch = ratesEpoch;
     const model = "res.currency";
     const method = "read";
     const url = `/web/dataset/call_kw/${model}/${method}`;
@@ -85,19 +98,33 @@ async function fetchCurrencyRates() {
                 /** @type {{id: number, inverse_rate: number, date: string}[]} */ records,
                 /** @type {boolean} */ hasChanged,
             ) => {
-                if (hasChanged) {
+                if (hasChanged && epoch === ratesEpoch) {
                     applyRates(records);
                 }
             },
         },
-        // Survive one transient blip (proxy hiccup, brief 503): a cold-cache miss
-        // here breaks monetary formatting everywhere. read() is idempotent and the
-        // cache already tolerates staleness, so retry=1 caps the added delay at
-        // one backoff interval (~200ms) without masking a persistent outage.
         retry: 1,
     });
+    if (epoch !== ratesEpoch) {
+        return;
+    }
     applyRates(records);
 }
+
+/**
+ * Deliberately NOT an eager refetch: a real switch changes ``to_currency``,
+ * hence the rpc cache key, so the next consumer call already refetches. Firing
+ * one here bought a shorter staleness window at the cost of an RPC on every
+ * company switch, including on pages that never show a monetary conversion.
+ *
+ * Deliberately NOT a clear either: dropping the entries makes every consumer
+ * reading ``rates[id].rate`` throw until the refetch lands.
+ */
+userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
+    ratesEpoch++;
+    // Nothing may join an in-flight fetch issued for the previous company.
+    ratesPromise = null;
+});
 
 /**
  * Fetch inverse exchange rates for all known currencies relative to the
@@ -105,7 +132,7 @@ async function fetchCurrencyRates() {
  * updated in place when the disk cache detects a change and when a call
  * after a cache invalidation refetches — so long-lived consumers see rate
  * refreshes without refetching themselves.
- * @returns {Promise<Record<number, {rate: number, date: string}>>} currency id → rate info
+ * @returns {Promise<Record<number, {rate: number, date: import("@web/core/l10n/dates").NullableDateTime}>>} currency id → rate info
  */
 export async function getCurrencyRates() {
     if (!ratesPromise) {

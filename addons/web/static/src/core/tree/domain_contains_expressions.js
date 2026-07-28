@@ -47,6 +47,5 @@ export function domainContainsExpressions(domain) {
     } catch {
         return null;
     }
-    // detect expressions in the domain tree, which we know is well-formed
     return treeContainsExpressions(tree);
 }

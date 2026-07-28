@@ -33,8 +33,6 @@ test("range", () => {
     expect(range(4, -4, -1)).toEqual([4, 3, 2, 1, 0, -1, -2, -3]);
     expect(range(1, 4, -1)).toEqual([]);
     expect(range(1, -4, 1)).toEqual([]);
-    // fractional spans (span not an exact multiple of step): the last value
-    // still strictly inside [start, stop) must be kept.
     expect(range(0, 5, 2)).toEqual([0, 2, 4]);
     expect(range(0, 10, 3)).toEqual([0, 3, 6, 9]);
     expect(range(0, -5, -2)).toEqual([0, -2, -4]);
@@ -84,9 +82,6 @@ describe("roundPrecision", () => {
     });
 
     test("DOWN", () => {
-        // We use 2.425 because when normalizing 2.425 with precision=0.001 it gives
-        // us 2424.9999999999995 as value, and if not handle correctly the rounding DOWN
-        // value will be incorrect (should be 2.425 and not 2.424)
         expect(roundPrecision(2.425, 0.001, "DOWN")).toBe(2.425);
         expect(roundPrecision(2.4249, 0.001, "DOWN")).toBe(2.424);
         expect(roundPrecision(-2.425, 0.001, "DOWN")).toBe(-2.425);
@@ -146,9 +141,6 @@ describe("roundPrecision", () => {
     });
 
     test("UP", () => {
-        // We use 8.175 because when normalizing 8.175 with precision=0.001 it gives
-        // us 8175,0000000001234 as value, and if not handle correctly the rounding UP
-        // value will be incorrect (should be 8,175 and not 8,176)
         expect(roundPrecision(8.175, 0.001, "UP")).toBe(8.175);
         expect(roundPrecision(8.1751, 0.001, "UP")).toBe(8.176);
         expect(roundPrecision(-8.175, 0.001, "UP")).toBe(-8.175);
@@ -159,11 +151,6 @@ describe("roundPrecision", () => {
     });
 
     test("large magnitudes (no spurious digits)", () => {
-        // The magnitude-relative epsilon that rescues representation-error ties
-        // must not, once the value is large, grow past the .5 boundary and add a
-        // spurious low-order digit. Before the fix, formatFloat(1e13) at 2 digits
-        // rounded to 10000000000000.01. These clean values must round to
-        // themselves for every "nearest" method (the bug starts above ~5.6e12).
         for (const value of [
             5.6e12, 1e13, 1.23456789e14, 1e15, -1e13, -1.23456789e14,
         ]) {
@@ -172,28 +159,21 @@ describe("roundPrecision", () => {
                 expect(roundPrecision(value, 1, method)).toBe(value);
             }
         }
-        // Default method (HALF-UP) via the digit-based entry points.
         expect(roundPrecision(1e13, 0.01)).toBe(1e13);
         expect(roundDecimals(1e13, 2)).toBe(1e13);
         expect(roundDecimals(-1.23456789e14, 2)).toBe(-1.23456789e14);
-        // Truncating methods keep the un-capped epsilon; on values that are exact
-        // integers at the target precision they must stay put (not step away).
         for (const method of ["UP", "DOWN"]) {
             expect(roundPrecision(1e13, 0.01, method)).toBe(1e13);
             expect(roundPrecision(5.6e12, 0.01, method)).toBe(5.6e12);
             expect(roundPrecision(1e13, 1, method)).toBe(1e13);
             expect(roundPrecision(-1e13, 0.01, method)).toBe(-1e13);
         }
-        // A genuine half at large magnitude must still break the tie per method.
         expect(roundPrecision(1e13 + 0.5, 1, "HALF-UP")).toBe(1e13 + 1);
         expect(roundPrecision(1e13 + 0.5, 1, "HALF-DOWN")).toBe(1e13);
         expect(roundPrecision(-(1e13 + 0.5), 1, "HALF-UP")).toBe(-(1e13 + 1));
     });
 
     test("representation-error rescue is preserved", () => {
-        // The epsilon still tips ties that IEEE-754 stores just below .5 up to
-        // the correct value (its whole reason for existing); the cap only removes
-        // the large-magnitude over-nudge, so these small-value rescues are intact.
         expect(roundPrecision(0.145, 0.01)).toBe(0.15);
         expect(roundPrecision(1.005, 0.01)).toBe(1.01);
         expect(roundPrecision(2.675, 0.01)).toBe(2.68);
@@ -201,7 +181,6 @@ describe("roundPrecision", () => {
         expect(roundPrecision(0.045, 0.01)).toBe(0.05);
         expect(roundPrecision(-0.145, 0.01)).toBe(-0.15);
         expect(roundPrecision(-2.675, 0.01)).toBe(-2.68);
-        // currency-rate precisions (1e-6, 1e-12) keep working
         expect(roundPrecision(1.2345675, 1e-6)).toBe(1.234568);
         expect(roundPrecision(1.234567891234, 1e-12)).toBe(1.234567891234);
     });
@@ -238,9 +217,6 @@ test("humanNumber rounds negatives away from zero (symmetric with positives)", (
         grouping: [3, 0],
         thousandsSep: ",",
     });
-    // Must match roundDecimals (HALF-UP, away from zero), not Math.round (ties
-    // toward +Inf), so negatives are symmetric with positives and consistent
-    // with the rest of the numeric stack.
     expect(humanNumber(1.5, { decimals: 0 })).toBe("2");
     expect(humanNumber(-1.5, { decimals: 0 })).toBe("-2");
     expect(humanNumber(0.5, { decimals: 0 })).toBe("1");
@@ -286,7 +262,6 @@ test("floatIsZero", () => {
     expect(floatIsZero(-0.0099999, 2)).toBe(false);
     expect(floatIsZero(-0.01, 2)).toBe(false);
 
-    // 4 and 5 decimal places are mentioned as special cases in `roundDecimals` method.
     expect(floatIsZero(0.0001, 4)).toBe(false);
     expect(floatIsZero(0.000099999, 4)).toBe(false);
     expect(floatIsZero(0.00005, 4)).toBe(false);
@@ -408,20 +383,15 @@ describe("formatFloat", () => {
             thousandsSep: ",",
         });
 
-        // `toString`/`toFixed` switch to exponential notation at 1e21: keep
-        // the scientific format instead of a plausible-looking "1.00"
         expect(formatFloat(1e21)).not.toBe("1.00");
         expect(formatFloat(1e21)).toBe("1e+21");
         expect(formatFloat(1.5e21)).toBe("1.5e+21");
         expect(formatFloat(-1.5e21)).toBe("-1.5e+21");
         expect(formatFloat(123456789012.34)).toBe("123,456,789,012.34");
 
-        // `toString` also switches to exponential notation below 1e-6:
-        // high-precision digits (e.g. currency rates) must stay padded decimals
         expect(formatFloat(1.2e-7, { digits: [16, 12] })).toBe("0.000000120000");
         expect(formatFloat(1e-7, { digits: [16, 7] })).toBe("0.0000001");
 
-        // the humanReadable path is unaffected
         expect(formatFloat(1e21, { humanReadable: true })).toBe("1e+21");
         expect(formatFloat(1234567, { humanReadable: true, decimals: 2 })).toBe(
             "1.23M",
@@ -490,4 +460,15 @@ describe("formatFloat", () => {
         });
         expect(formatFloat(-0.0000001, options)).toBe("0.00");
     });
+});
+
+test("humanNumber reads a negative decimal exponent", () => {
+    // The magnitude used to be parsed by splitting on "e+", which is absent
+    // from the exponential form of any |x| < 1 ("1e-3") and yielded NaN.
+    expect(humanNumber(0.001, { decimals: 3 })).toBe("0.001");
+    expect(humanNumber(0.5, { decimals: 1 })).toBe("0.5");
+    expect(humanNumber(-0.25, { decimals: 2 })).toBe("-0.25");
+    expect(humanNumber(0, { decimals: 0 })).toBe("0");
+    // and the >= 1e21 scientific branch is unchanged
+    expect(humanNumber(1e22, { decimals: 0 })).toBe("1e+22");
 });

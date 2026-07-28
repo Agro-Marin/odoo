@@ -32,14 +32,6 @@ export class Group extends DataPoint {
         } else {
             List = this.model.Class.DynamicRecordList;
         }
-        // Mark the nested list's config as group-owned. Every group list —
-        // whether seeded by the web_read_group postprocessor or by
-        // ``DynamicGroupList._createGroup`` — is instantiated here, and always
-        // before its first client-side load (page 1 comes from web_read_group
-        // itself), so this is the single authoritative site for the flag.
-        // ``RelationalModel._loadUngroupedList`` relies on it to append the
-        // ``id`` order tiebreak that ``web_read_group`` applies server-side to
-        // a group's ``__records`` (and that a root/ungrouped list must NOT get).
         config.list.isGroupList = true;
         /** @type {any} DynamicRecordList or DynamicGroupList depending on groupBy depth */
         this.list = new List(this.model, config.list, data);
@@ -57,10 +49,6 @@ export class Group extends DataPoint {
         }
     }
 
-    // -------------------------------------------------------------------------
-    // Getters
-    // -------------------------------------------------------------------------
-
     get groupDomain() {
         return this.config.initialDomain;
     }
@@ -73,10 +61,6 @@ export class Group extends DataPoint {
     get records() {
         return this.list.records;
     }
-
-    // -------------------------------------------------------------------------
-    // Public
-    // -------------------------------------------------------------------------
 
     async addExistingRecord(resId, atFirstPosition = false) {
         const record = await this.list.addExistingRecord(resId, atFirstPosition);
@@ -111,24 +95,11 @@ export class Group extends DataPoint {
     }
 
     toggle() {
-        // Serialize on the model mutex like every sibling verb: ``_toggle``
-        // reads ``isFolded``, awaits a load, then patches the flipped flag —
-        // read and patch straddle an await, so an un-serialized double-click on
-        // the header could read a stale ``isFolded`` mid-load and end folded
-        // opposite to the last click (plus a duplicate load).
         return this.model.mutex.exec(() => this._toggle());
     }
 
-    // -------------------------------------------------------------------------
-    // Protected
-    // -------------------------------------------------------------------------
-
     async _toggle() {
         if (this.config.isFolded) {
-            // Call the PROTECTED ``_load`` (not public ``list.load()``, which
-            // re-takes ``model.mutex`` and would deadlock inside this
-            // mutex.exec) with the same defaults ``load()`` derives from an
-            // empty params bag.
             await this.list._load(
                 this.list.offset,
                 this.list.limit,
@@ -143,12 +114,6 @@ export class Group extends DataPoint {
     }
 
     _addRecord(record, index) {
-        // Dedupe by resId: a stale source-list reload racing this add (two rapid
-        // cross-group kanban drags, or a revert after an un-mutexed reload)
-        // rebuilds the list with FRESH datapoints, so a datapoint-id check would
-        // miss the duplicate and the same card would render in two columns. Skip
-        // when a record with this resId is already present. New records carry no
-        // resId (only a virtualId), so they are never deduped.
         if (record.resId && this.list.records.some((r) => r.resId === record.resId)) {
             return;
         }
@@ -157,10 +122,6 @@ export class Group extends DataPoint {
     }
 
     async _deleteRecords(records) {
-        // Only decrement when the delegate actually unlinked: a vetoed unlink
-        // (``DynamicList._deleteRecords`` returns ``false`` before reloading)
-        // must not shrink the group count, which would then never self-correct
-        // (no reload follows a veto).
         const unlinked = await this.list._deleteRecords(records);
         if (unlinked) {
             this.count -= records.length;

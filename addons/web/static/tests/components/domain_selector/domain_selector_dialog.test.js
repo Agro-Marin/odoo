@@ -109,8 +109,6 @@ test("model_field_selector should close on dialog drag", async () => {
     const headerRect = header.getBoundingClientRect();
     await contains(header).dragAndDrop(document.body, {
         position: {
-            // the util function sets the source coordinates at (x; y) + (w/2; h/2)
-            // so we need to move the dialog based on these coordinates.
             x: headerRect.x + headerRect.width / 2 + 20,
             y: headerRect.y + headerRect.height / 2 + 50,
         },

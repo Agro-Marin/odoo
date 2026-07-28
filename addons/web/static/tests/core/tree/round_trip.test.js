@@ -145,14 +145,9 @@ test("expression -> tree -> expression reaches a fixpoint after one round trip",
 });
 
 test("introduce/eliminate virtual operators are inverse transformation chains", () => {
-    // The two applyTransformations call sites run their passes in array
-    // order; each list must stay the exact reverse of the other (ordering
-    // contract in virtual_operators.js).
     const domain = `["&", "&", ("char_field", "=ilike", "a%"), ("integer", ">=", 1), ("integer", "<=", 3)]`;
     const tree = introduceVirtualOperators(constructTreeFromDomain(domain), options);
     expect(domainFromTree(tree)).toBe(domain);
-    // patchability: the two exported chains are reachable via the
-    // virtualOperatorFunctions indirection
     expect(
         virtualOperatorFunctions.introduceVirtualOperators(
             constructTreeFromDomain(domain),

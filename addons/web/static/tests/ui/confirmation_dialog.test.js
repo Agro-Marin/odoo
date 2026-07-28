@@ -2,14 +2,16 @@
 
 import { describe, destroy, expect, test } from "@odoo/hoot";
 import { press } from "@odoo/hoot-dom";
-import { Deferred, tick } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, tick } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import {
     contains,
+    getService,
     makeDialogMockEnv,
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
-import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
+import { MainComponentsContainer } from "@web/components/main_components_container";
+import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 describe.current.tags("desktop");
 
@@ -347,4 +349,56 @@ test("Focus is correctly restored after confirmation", async () => {
     destroy(dialog);
     await Promise.resolve();
     expect(".my-input").toBeFocused();
+});
+
+test("can't click twice on 'Ok' (AlertDialog)", async () => {
+    const env = await makeDialogMockEnv();
+    await mountWithCleanup(AlertDialog, {
+        env,
+        props: {
+            body: "Some content",
+            title: "Alert",
+            close: () => {},
+            confirm: () => {
+                expect.step("Confirm action");
+            },
+        },
+    });
+    expect.verifySteps([]);
+    expect(".modal-footer .btn-primary").not.toHaveAttribute("disabled");
+    await contains(".modal-footer .btn-primary").click();
+    expect(".modal-footer .btn-primary").toHaveAttribute("disabled");
+    expect.verifySteps(["Confirm action"]);
+});
+
+// REGRESSION-BLOCK
+const openConfirmation = async (/** @type {any[]} */ closeParams) => {
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(
+        ConfirmationDialog,
+        { body: "Some content", confirm: () => {} },
+        { onClose: (/** @type {any} */ params) => closeParams.push(params) },
+    );
+    await animationFrame();
+};
+
+test("dismissing reports { dismiss: true } to the dialog service's onClose", async () => {
+    /** @type {any[]} */
+    const closeParams = [];
+    await openConfirmation(closeParams);
+
+    await press("escape");
+    await animationFrame();
+    await tick();
+    expect(closeParams).toEqual([{ dismiss: true }]);
+});
+
+test("confirming reports no close params", async () => {
+    /** @type {any[]} */
+    const closeParams = [];
+    await openConfirmation(closeParams);
+
+    await contains(".modal-footer .btn-primary").click();
+    await tick();
+    expect(closeParams).toEqual([undefined]);
 });

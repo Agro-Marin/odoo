@@ -37,13 +37,8 @@ const errorHandlerRegistry = registry.category("error_handlers");
 const errorDialogRegistry = registry.category("error_dialogs");
 const errorNotificationRegistry = registry.category("error_notifications");
 
-// Error dialogs are OWL Component classes; the error service mounts the
-// matching one for an exception name (see `RPCErrorDialog` and friends).
 errorDialogRegistry.addValidation((entry) => typeof entry === "function");
 
-// Error notifications are toast configs: `title` / `message` / `type` /
-// `sticky` / `buttons` are forwarded to the notification service. All fields
-// are optional because callers compose missing pieces from the error itself.
 errorNotificationRegistry.addValidation({
     title: { type: [String, Object], optional: true },
     message: { type: [String, Object], optional: true },
@@ -52,10 +47,6 @@ errorNotificationRegistry.addValidation({
     buttons: { type: Array, optional: true },
     "*": true,
 });
-
-// -----------------------------------------------------------------------------
-// Superseded tasks (KeepLast rejectSuperseded mode)
-// -----------------------------------------------------------------------------
 
 /**
  * Swallow {@link SupersededError} silently: it is a control-flow signal (a
@@ -76,8 +67,6 @@ errorNotificationRegistry.addValidation({
  */
 export function supersededErrorHandler(env, error, originalError) {
     if (originalError instanceof SupersededError || error instanceof SupersededError) {
-        // Prevent the browser's default report + the error service's traceback
-        // log (shouldLogError() short-circuits once the event is defaultPrevented).
         /** @type {any} */ (error).event?.preventDefault?.();
         return true;
     }
@@ -88,10 +77,6 @@ errorHandlerRegistry.add(
     /** @type {any} */ (supersededErrorHandler),
     { sequence: -1 },
 );
-
-// -----------------------------------------------------------------------------
-// RPC errors
-// -----------------------------------------------------------------------------
 
 /**
  * @param {OdooEnv} env
@@ -104,9 +89,6 @@ export function rpcErrorHandler(env, error, originalError) {
         return false;
     }
     if (originalError instanceof RPCError) {
-        // A server-side error can carry an exceptionName used as a registry
-        // key to pick a dialog component (lets a backend dev map an error to
-        // a specific component). Client-side errors set `component` directly.
         error.unhandledRejectionEvent.preventDefault();
         const exceptionName = originalError.exceptionName;
         let ErrorComponent = /** @type {any} */ (originalError).Component;
@@ -150,15 +132,7 @@ errorHandlerRegistry.add("rpcErrorHandler", /** @type {any} */ (rpcErrorHandler)
     sequence: 97,
 });
 
-// -----------------------------------------------------------------------------
-// Lost connection errors
-// -----------------------------------------------------------------------------
-
 let connectionLostNotifRemove = null;
-// Guards against stacking duplicate SessionExpiredDialog modals: an expired
-// session typically fails several concurrent RPCs at once (bus poll, systray,
-// view load), each surfacing its own InvalidResponseError. Mirrors the
-// connectionLostNotifRemove dedup used by the notification path below.
 let sessionExpiredDialogOpen = false;
 /**
  * @param {OdooEnv} env
@@ -171,34 +145,10 @@ export function lostConnectionHandler(env, error, originalError) {
         return false;
     }
     if (originalError instanceof ConnectionLostError) {
-        // Like rpcErrorHandler: a handler that fully owns an error (sticky
-        // notification + reconnect polling) MUST preventDefault the
-        // unhandled-rejection event. Otherwise error_service's
-        // shouldLogError() (which only checks event.defaultPrevented) still
-        // logs a redundant console.error — duplicating the toast and failing
-        // browser-tour HttpCase tests that treat any console.error as fatal
-        // (see test_main_flows.TestUi.test_01_main_flow_tour racing the
-        // first /mail/data init_messaging RPC on cold boot).
         error.unhandledRejectionEvent.preventDefault();
         if (originalError instanceof InvalidResponseError) {
-            // InvalidResponseError is a *deterministic* subclass of
-            // ConnectionLostError (a non-JSON body: session expired -> POST
-            // redirected to the HTML login page with a 200, a captive portal,
-            // an HTML 404, ...). It is never retryable (rpc.js isRetryable
-            // excludes it), so the reconnect-poll below is always wrong here:
-            // the /web/webclient/version_info probe (auth=none) would succeed
-            // and announce "Connection restored" while every real RPC keeps
-            // failing. Route by HTTP status instead:
-            //   * 200 -- the POST was redirected to the HTML login page (fetch
-            //     follows redirects), i.e. an expired session. Prompt a
-            //     re-authentication via SessionExpiredDialog.
-            //   * non-200 (HTML 404, captive portal, ...) -- reloading /
-            //     re-authenticating can't help and "session expired" would be
-            //     misleading, so surface a generic network error dialog.
             if (originalError.status === 200) {
                 if (sessionExpiredDialogOpen) {
-                    // A modal is already up from a sibling concurrent failure;
-                    // don't stack another identical one.
                     return true;
                 }
                 sessionExpiredDialogOpen = true;
@@ -222,8 +172,6 @@ export function lostConnectionHandler(env, error, originalError) {
             return true;
         }
         if (connectionLostNotifRemove) {
-            // notification already displayed (can occur if there were several
-            // concurrent rpcs when the connection was lost)
             return true;
         }
         connectionLostNotifRemove = env.services.notification.add(
@@ -232,9 +180,6 @@ export function lostConnectionHandler(env, error, originalError) {
         );
         let delay = 2000;
         browser.setTimeout(function checkConnection() {
-            // Silent: the probe fires every 2s→60s during an outage — a
-            // non-silent RPC would flash the loading indicator and feed the
-            // slow-RPC toast on top of the "Connection lost" notification.
             rpc("/web/webclient/version_info", {}, { silent: true })
                 .then(() => {
                     if (connectionLostNotifRemove) {
@@ -249,8 +194,6 @@ export function lostConnectionHandler(env, error, originalError) {
                     );
                 })
                 .catch(() => {
-                    // exponential backoff, with some jitter, capped so the
-                    // retry interval can't grow without bound on a long outage.
                     delay = Math.min(delay * 1.5 + 500 * Math.random(), 60_000);
                     browser.setTimeout(checkConnection, delay);
                 });
@@ -266,10 +209,6 @@ errorHandlerRegistry.add(
     },
 );
 
-// -----------------------------------------------------------------------------
-// Request entity too large errors
-// -----------------------------------------------------------------------------
-
 /**
  * @param {OdooEnv} env
  * @param {UncaughtError} error
@@ -281,6 +220,10 @@ export function requestEntityTooLargeHandler(env, error, originalError) {
         return false;
     }
     if (originalError instanceof RequestEntityTooLargeError) {
+        // Without this the error service still sees a non-defaultPrevented
+        // event and console.errors the traceback for what is a handled,
+        // user-facing condition (see `shouldLogError` in error_service).
+        error.unhandledRejectionEvent.preventDefault();
         env.services.dialog.add(RequestEntityTooLargeErrorDialog);
         return true;
     }
@@ -292,10 +235,6 @@ errorHandlerRegistry.add(
         sequence: 99,
     },
 );
-
-// -----------------------------------------------------------------------------
-// Default handler
-// -----------------------------------------------------------------------------
 
 const defaultDialogs = new Map([
     [UncaughtClientError, ClientErrorDialog],
@@ -314,12 +253,6 @@ const defaultDialogs = new Map([
 export function defaultHandler(env, error) {
     const DialogComponent =
         defaultDialogs.get(/** @type {any} */ (error.constructor)) || ErrorDialog;
-    // ``errorService`` starts in the first wave (no deps) so it can capture
-    // errors during the boot of any other service.  The dialog service starts
-    // later (depends on ``overlay``).  If an error fires in that window we
-    // would crash with "Cannot read properties of undefined (reading 'add')",
-    // turning a single startup glitch into a meta-error that masks the real
-    // failure.  Fall back to ``console.error`` until dialog is available.
     if (!env.services.dialog) {
         console.error(
             "Uncaught error before dialog service started:",
@@ -341,12 +274,4 @@ errorHandlerRegistry.add("defaultHandler", /** @type {any} */ (defaultHandler), 
     sequence: 100,
 });
 
-// Error handlers are bare functions invoked as ``handler(env, uncaughtError,
-// originalError)`` by ``error_service.js`` at line 78. A non-function entry
-// would surface there as ``TypeError: handler is not a function`` AND swallow
-// the original error along the way (the catch around the call returns rather
-// than rethrowing, so a handler bug masks the underlying error). The
-// predicate catches the bad registration at definition time with a precise
-// message. Throws in debug, warns in production (see ``core/registry.js
-// validateSchema``).
 errorHandlerRegistry.addValidation((v) => typeof v === "function");

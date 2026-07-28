@@ -37,7 +37,6 @@ class TestResUsersSettings(TransactionCase):
             "embedded_visibility": True,
         }
 
-        # Invalid case: duplicated ids
         embedded_action_settings_data.update(
             {
                 "embedded_actions_order": "1,2,1",
@@ -52,7 +51,6 @@ class TestResUsersSettings(TransactionCase):
                 embedded_action_settings_data
             )
 
-        # Invalid case: non-integer ids or non-false values
         embedded_action_settings_data.update(
             {
                 "embedded_actions_order": "1,2,true",
@@ -85,7 +83,6 @@ class TestResUsersSettings(TransactionCase):
                     "user_setting_id": self.user_settings.id,
                     "action_id": self.window_action.id,
                     "res_model": "res.users",
-                    # U+00B2 SUPERSCRIPT TWO: isdigit=True, isdecimal=False
                     "embedded_actions_order": "1,\u00b2,3",
                 }
             )
@@ -220,15 +217,13 @@ class TestResUsersSettings(TransactionCase):
         other_settings = self.env["res.users.settings"]._find_or_create_for_user(
             other_user
         )
-        # Create a config row on our own settings, but try to point it at the
-        # other user's settings and set an arbitrary extra column.
         self.user_settings.set_embedded_actions_setting(
             action_id=self.window_action.id,
             res_id=self.user.id,
             vals={
                 "res_model": "res.users",
                 "embedded_visibility": True,
-                "user_setting_id": other_settings.id,  # must be ignored
+                "user_setting_id": other_settings.id,
             },
         )
         config = self.user_settings.embedded_actions_config_ids
@@ -242,13 +237,12 @@ class TestResUsersSettings(TransactionCase):
             other_settings.embedded_actions_config_ids,
             "The victim's settings must not have gained a config row.",
         )
-        # The write path must reject the injected identity key too.
         self.user_settings.set_embedded_actions_setting(
             action_id=self.window_action.id,
             res_id=self.user.id,
             vals={
                 "embedded_visibility": False,
-                "user_setting_id": other_settings.id,  # must be ignored on write
+                "user_setting_id": other_settings.id,
             },
         )
         self.assertEqual(config.user_setting_id, self.user_settings)

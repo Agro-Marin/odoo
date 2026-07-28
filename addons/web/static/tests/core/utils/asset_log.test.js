@@ -69,9 +69,6 @@ describe("enabled()", () => {
     });
 
     test("disabled by default (no localStorage flag, no debug substring)", () => {
-        // odoo.debug can't be reliably scrubbed here, so only assert on namespaces
-        // whose substrings are unlikely to appear in it (rpc, action, model); asset
-        // may already be enabled if the test runner ran with ?debug=assets.
         if (!globalThis.localStorage.getItem("debug.rpc")) {
             expect(rpcLog.enabled()).toBe(false);
         }
@@ -108,8 +105,6 @@ describe("enabled()", () => {
         /** @type {any} */ (globalThis).__ODOO_ASSET_TRACE__ = true;
         try {
             expect(assetLog.enabled()).toBe(true);
-            // Other namespaces don't carry the legacy global flag —
-            // they require their own localStorage key / debug substring.
             withLocalStorage("debug.rpc", "", () => {
                 expect(rpcLog.enabled()).toBe(false);
             });
@@ -126,8 +121,6 @@ describe("enabled()", () => {
 describe("log emission", () => {
     test("short-circuits to no-op when disabled", () => {
         const calls = captureConsoleDebug(() => {
-            // Ensure all four namespaces are quiet; scope each call to clear only
-            // its own key in case the caller's localStorage set others.
             withLocalStorage("debug.rpc", "", () => rpcLog("test", "x"));
             withLocalStorage("debug.action", "", () => actionLog("test", "x"));
             withLocalStorage("debug.model", "", () => modelLog("test", "x"));
@@ -172,7 +165,6 @@ describe("makeXxxLog factory", () => {
     });
 
     test("all four make* factories produce category-bound loggers", () => {
-        // Sanity check that no factory is broken (e.g. typo in prefix).
         const calls = captureConsoleDebug(() => {
             withLocalStorage("debug.assets", "1", () => makeAssetLog("a")("payload"));
             withLocalStorage("debug.rpc", "1", () => makeRpcLog("b")("payload"));

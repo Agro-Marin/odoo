@@ -42,12 +42,6 @@ export class SignatureField extends Component {
         this.state = useState({
             isValid: true,
         });
-        // Reset the validity latch when the record or the underlying value
-        // changes. onLoadFailed() latches isValid=false and getUrl short-circuits
-        // to the placeholder on !isValid; without this reset, paging to another
-        // record (which reuses this component instance) or uploadSignature()
-        // replacing the value would keep rendering the placeholder for a
-        // perfectly valid, freshly drawn signature until a full remount.
         let resId = this.props.record.resId;
         let value = this.value;
         onWillRender(() => {
@@ -75,7 +69,6 @@ export class SignatureField extends Component {
                     unique: this.rawCacheKey,
                 });
             } else {
-                // Use magic-word technique for detecting image type
                 const magic = fileTypeMagicWordMap[this.value[0]] || "png";
                 return `data:image/${magic};base64,${this.props.record.data[this.props.name]}`;
             }
@@ -127,7 +120,6 @@ export class SignatureField extends Component {
                 let signName;
                 const fullNameData = record.data[fullName];
                 if (record.fields[fullName].type === "many2one") {
-                    // If m2o is empty, it will have falsy value in recordData
                     signName = fullNameData?.display_name;
                 } else {
                     signName = fullNameData;

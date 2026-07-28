@@ -98,7 +98,6 @@ export async function preprocessMany2OneReferenceChanges(record, changes) {
             if (!value) {
                 changes[fieldName] = false;
             } else if (typeof value === "number") {
-                // Many2OneReferenceInteger field only manipulates the id
                 changes[fieldName] = { resId: value };
             } else {
                 const relation = record.data[record.fields[fieldName].model_field];
@@ -171,10 +170,6 @@ export async function preprocessX2manyChanges(record, changes) {
             continue;
         }
         const list = record.data[fieldName];
-        // Batch contiguous non-SET commands: _applyCommands coalesces the records
-        // to fetch into one _loadRecords RPC instead of one per command. SET is
-        // handled separately via _replaceWith, so flush the batch before each SET
-        // to preserve the original command order.
         let batch = [];
         for (const command of value) {
             if (command[0] === x2ManyCommands.SET) {
@@ -214,7 +209,6 @@ export function preprocessPropertiesChanges(record, changes) {
             const [propertyFieldName, propertyName] = field.name.split(".");
             const propertiesData = record.data[propertyFieldName] || [];
             if (!propertiesData.find((property) => property.name === propertyName)) {
-                // try to change the value of a properties that has a different parent
                 record.model.hooks.ui.onDisplayPropertyWarning(
                     _t(
                         "This record belongs to a different parent so you can not change this property.",

@@ -13,9 +13,6 @@ _file_cache = {}
 
 @tagged("web_unit", "web_layout")
 class TestBaseDocumentLayoutHelpers(TransactionCase):
-    #
-    #   Public
-    #
     def setUp(self):
         super().setUp()
         self.color_fields = ["primary_color", "secondary_color"]
@@ -36,9 +33,6 @@ class TestBaseDocumentLayoutHelpers(TransactionCase):
             else:
                 self.assertEqual(color1, color2)
 
-    #
-    #   Private
-    #
     def _compare_colors_rgb(self, color1, color2):
         self.assertEqual(bool(color1), bool(color2))
         if not color1:
@@ -126,7 +120,6 @@ class TestBaseDocumentLayoutHelpers(TransactionCase):
 
 @tagged("document_layout", "post_install", "-at_install", "web_unit", "web_layout")
 class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
-    # Logo change Tests
     def test_company_no_color_change_logo(self):
         """When neither a logo nor the colors are set
         The wizard displays the colors of the report layout
@@ -204,7 +197,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             doc_layout.logo = self.company_imgs["odoo"]["img"]
             self.assertColors(doc_layout, self.company_imgs["odoo"]["colors"])
 
-    # Layout change tests
     def test_company_colors_reset_colors(self):
         """Reset the colors when they differ from the ones originally
         computed from the company logo"""
@@ -238,22 +230,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
                 doc_layout.logo = base64_img
             self.assertNotEqual(None, doc_layout.primary_color)
 
-    # /!\ This case is NOT supported, and probably not supportable
-    # res.partner resizes manu-militari the image it is given
-    # so res.company._get_logo differs from res.partner.[default image]
-    # def test_company_no_colors_default_logo_and_layout_change_layout(self):
-    #     """When the default YourCompany logo is set, and no colors are set on company:
-    #     change wizard's color according to template"""
-    #     self.company.write({
-    #         'primary_color': False,
-    #         'secondary_color': False,
-    #         'external_report_layout_id': self.layout_template1.id,
-    #     })
-    #     default_colors = self.default_colors
-    #     with Form(self.env['base.document.layout']) as doc_layout:
-    #         self.assertColors(doc_layout, default_colors)
-    #         doc_layout.report_layout_id = self.report_layout2
-    #         self.assertColors(doc_layout, self.report_layout2)
 
     def test_company_details_blank_lines(self):
         """Test that the company address is generated dynamically using only the fields that are defined,
@@ -263,7 +239,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         )
         self.assertNotIn("\n<br>\n", doc_layout_1.company_details)
 
-        # street2 is optional and blank by default; it must appear once set.
         self.company.write({"street2": "street_2_detail"})
         doc_layout_2 = self.env["base.document.layout"].create(
             {"company_id": self.company.id}
@@ -280,7 +255,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         doc_layout = self.env["base.document.layout"]
         company_data = {"street": "123 Main St", "city": "Springfield", "zip": False}
 
-        # 'zip' is the trailing placeholder here (no \n after it).
         result = doc_layout._clean_address_format(
             "%(street)s\n%(city)s %(zip)s", company_data
         )
@@ -297,7 +271,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         doc_layout = self.env["base.document.layout"]
         company_data = {"city": "Springfield", "state_id": False, "zip": "12345"}
 
-        # 'state_id' is followed by \n — the original code handled this case.
         result = doc_layout._clean_address_format(
             "%(city)s %(state_id)s\n%(zip)s", company_data
         )
@@ -314,7 +287,6 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             layout.extract_image_primary_secondary_colors(memoryview(b"abc")),
             (False, False),
         )
-        # garbage/empty inputs were already handled by the inner try/except
         self.assertEqual(
             layout.extract_image_primary_secondary_colors(b"@@@not-an-image@@@"),
             (False, False),

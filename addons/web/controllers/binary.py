@@ -149,13 +149,6 @@ class Binary(http.Controller):
             if _token_authorized_public(record, field, access_token):
                 stream.public = True
 
-        # ``download`` and ``nocache`` are query-string *booleans*: coerce them
-        # so ``?nocache=false`` is falsy (a bare truthiness test treats "false"
-        # as True). ``unique`` is not a boolean -- it is a cache-busting version
-        # token (an avatar_cache_key sha, a write_date, an asset hash), so
-        # coercing it with str2bool made every real token falsy and dropped
-        # ``immutable`` + max-age from every versioned image URL in the product.
-        # Any non-empty token means "this URL is content-addressed": cache hard.
         send_file_kwargs = {"as_attachment": str2bool(download, False)}
         if unique:
             send_file_kwargs["immutable"] = True
@@ -184,7 +177,7 @@ class Binary(http.Controller):
         generates the bundle on the fly and stores it for future requests.
         Versioned assets are served with immutable, long-lived cache headers.
         """
-        env = request.env  # readonly
+        env = request.env
         assets_params = assets_params or {}
         if not isinstance(assets_params, dict):
             raise request.not_found()
@@ -209,10 +202,9 @@ class Binary(http.Controller):
                 stream = env["ir.binary"]._get_stream_from(attachment, "raw", filename)
         if stream is None:
             if env.cr.readonly:
-                env.cr.rollback()  # reset state to detect newly generated assets
+                env.cr.rollback()
                 cursor_manager = env.registry.cursor(readonly=False)
             else:
-                # if we don't have a replica, the cursor is not readonly, use the same one to avoid a rollback
                 cursor_manager = nullcontext(env.cr)
             with cursor_manager as rw_cr:
                 rw_env = api.Environment(rw_cr, env.user.id, {})
@@ -260,14 +252,6 @@ class Binary(http.Controller):
         if stream is None:
             raise request.not_found()
         if stream.type == "url":
-            # The bundle compiled to nothing (e.g. a JS bundle whose entries are
-            # all OWL templates routed to the ESM pipeline), so its attachment
-            # holds no bytes and `_to_http_stream` resolved to a redirect to the
-            # attachment's own asset URL — this very route, an infinite loop.
-            # Serve the empty body instead. Mutate the existing stream, which
-            # already carries the mimetype/name/public read while its cursor was
-            # open, rather than re-reading the (possibly rw-cursor-bound,
-            # now-closed) attachment.
             stream.type = "data"
             stream.data = b""
             stream.size = 0
@@ -276,14 +260,6 @@ class Binary(http.Controller):
             "as_attachment": False,
             "content_security_policy": None,
         }
-        # ``nocache`` arrives as a raw query-string value, not a Python bool:
-        # a bare truthiness test made ``?nocache=false`` (and ``?nocache=0``)
-        # TRUE, dropping ``max_age`` from every asset bundle response while
-        # leaving ``immutable`` set — emitting the self-contradictory pair
-        # ``Cache-Control: no-cache, immutable``. Coerce with ``str2bool``, as
-        # the sibling ``content_common`` / ``content_image`` routes already do,
-        # and clear ``immutable`` alongside ``max_age`` so the opt-out is
-        # coherent.
         if str2bool(nocache, False):
             send_file_kwargs["max_age"] = None
         elif unique and unique != "debug":
@@ -318,10 +294,6 @@ class Binary(http.Controller):
         through the render path after ``ir.attachment.unlink``'s cache
         clear.
         """
-        # Same row identity the renderers create and _gc_esm_assets sweeps
-        # (see ir_attachment._esm_generated_asset_domain): public, view-owned,
-        # superuser-created. Newest row first — content-addressed
-        # duplicates from concurrent workers are interchangeable.
         attachment = (
             request.env["ir.attachment"]
             .sudo()
@@ -394,14 +366,7 @@ class Binary(http.Controller):
         access_token: str | None = None,
         nocache: str | bool = False,
     ) -> Response:
-        # ``crop`` is consumed below as a bool; query params arrive as raw
-        # strings, so coerce it (``?crop=0`` must be falsy — a bare truthiness
-        # test treats "0"/"false" as True and would crop against the caller's
-        # intent). ``unique``/``nocache`` are coerced at their use site below.
         crop = str2bool(crop, False)
-        # Coerce the query-string dimensions once, safely: they feed both the
-        # try body and the ``except UserError`` placeholder fallback below, and a
-        # ValueError here on this public route would be an unauthenticated 500.
         width = _int_or_zero(width)
         height = _int_or_zero(height)
         try:
@@ -421,15 +386,8 @@ class Binary(http.Controller):
             if _token_authorized_public(record, field, access_token):
                 stream.public = True
         except UserError as exc:
-            # ``download`` is a raw query-string bool: ``?download=false`` is the
-            # truthy string "false", so a bare truthiness test would 404 a broken
-            # image the caller explicitly asked to render inline. Coerce, as the
-            # send_file path below already does.
             if str2bool(download, False):
                 raise request.not_found() from exc
-            # Use the ratio of the requested field_name instead of "raw".
-            # ``width``/``height`` are already ints (``_int_or_zero`` above), so
-            # no re-coercion is needed here.
             if (width, height) == (0, 0):
                 width, height = image_guess_size_from_field_name(field)
             record = request.env.ref("web.image_placeholder").sudo()
@@ -442,13 +400,6 @@ class Binary(http.Controller):
             )
             stream.public = False
 
-        # ``download`` and ``nocache`` are query-string *booleans*: coerce them
-        # so ``?nocache=false`` is falsy (a bare truthiness test treats "false"
-        # as True). ``unique`` is not a boolean -- it is a cache-busting version
-        # token (an avatar_cache_key sha, a write_date, an asset hash), so
-        # coercing it with str2bool made every real token falsy and dropped
-        # ``immutable`` + max-age from every versioned image URL in the product.
-        # Any non-empty token means "this URL is content-addressed": cache hard.
         send_file_kwargs = {"as_attachment": str2bool(download, False)}
         if unique:
             send_file_kwargs["immutable"] = True
@@ -476,9 +427,6 @@ class Binary(http.Controller):
         for uploaded_file in files:
             filename = uploaded_file.filename
             if request.httprequest.user_agent.browser == "safari":
-                # Safari sends filenames NFD-normalized (e.g. é as 'e' + a
-                # combining accent); match that normalization here so later
-                # filename comparisons don't mismatch.
                 filename = unicodedata.normalize("NFD", uploaded_file.filename)
 
             try:
@@ -584,9 +532,6 @@ class Binary(http.Controller):
                     "While retrieving the company logo, using the Odoo logo instead",
                     exc_info=True,
                 )
-                # Do NOT use imgext here: it may have been mutated to ".svg"
-                # above before the exception was raised, causing a second
-                # FileNotFoundError inside this handler.
                 response = http.Stream.from_path(
                     file_path("web/static/img/logo.png")
                 ).get_response()
@@ -608,10 +553,6 @@ class Binary(http.Controller):
         fonts = []
         fonts_dir = Path(file_path("web/static/fonts/sign"))
         if fontname:
-            # ``fontname`` is caller-supplied from the URL path: constrain it to
-            # a bare filename so it cannot walk out of ``fonts/sign`` via
-            # separators or ``..`` (file_open still sandboxes to the addons
-            # root, but the intent here is a single directory).
             if Path(fontname).name != fontname:
                 raise request.not_found()
             with file_open(

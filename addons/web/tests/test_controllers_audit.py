@@ -64,7 +64,7 @@ class TestBarcodeDimensionClamp(BaseCase):
 
     def test_reasonable_value_passes_through(self):
         self.assertEqual(self._clamp(200, 600), 200)
-        self.assertEqual(self._clamp("300", 600), 300)  # query strings arrive as str
+        self.assertEqual(self._clamp("300", 600), 300)
 
     def test_invalid_or_nonpositive_falls_back_to_default(self):
         self.assertEqual(self._clamp("not-a-number", 600), 600)
@@ -79,18 +79,12 @@ class TestBarcodeDimensionClampHttp(HttpCase):
     unbounded image nor 500 — the dimension is clamped before rendering."""
 
     def test_huge_dimensions_do_not_500(self):
-        # Both dims huge: clamped to the per-dim cap, then the model's own
-        # total-pixel guard rejects it as a clean 400 — never a 500 and never a
-        # multi-GB allocation.
         response = self.url_open(
             "/report/barcode/Code128/hello?width=100000&height=100000"
         )
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
 
     def test_clamped_single_dimension_renders(self):
-        # Only the width is absurd: after clamping (100000 -> 10000) the total
-        # pixel budget is within the model's limit, so a valid PNG is returned.
-        # Without the clamp, 100000*100 would exceed the model guard and 400.
         response = self.url_open(
             "/report/barcode/Code128/hello?width=100000&height=100"
         )
@@ -98,15 +92,11 @@ class TestBarcodeDimensionClampHttp(HttpCase):
         self.assertEqual(response.headers.get("Content-Type"), "image/png")
 
     def test_oversized_value_rejected(self):
-        # An overlong value drives reportlab's superlinear pure-Python 1-D
-        # encoders into an unauthenticated CPU-DoS. It must be rejected as a
-        # clean 400 before reaching the encoder, not spend seconds of CPU.
         huge = "A" * 40000
         response = self.url_open(f"/report/barcode/Code128/{huge}")
         self.assertEqual(response.status_code, HTTPStatus.BAD_REQUEST)
 
     def test_normal_value_still_renders(self):
-        # A realistic value stays under the cap and renders normally.
         response = self.url_open("/report/barcode/Code128/HELLO-12345")
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertEqual(response.headers.get("Content-Type"), "image/png")
@@ -117,9 +107,6 @@ class TestImageDimensionGuard(HttpCase):
     """/web/image is public; a non-numeric ?width must not 500 + traceback."""
 
     def test_garbage_width_does_not_500(self):
-        # Unauthenticated ?width=abc previously raised ValueError uncaught by the
-        # route's `except UserError` → 500 + full traceback per request. It must
-        # now degrade to the placeholder (missing binary) instead.
         response = self.url_open("/web/image/99999999?width=abc&height=xyz")
         self.assertEqual(response.status_code, HTTPStatus.OK)
         self.assertEqual(response.headers.get("Content-Type"), "image/png")
@@ -152,8 +139,6 @@ class TestCsvFormulaNeutralization(BaseCase):
     def test_benign_values_are_not_mangled(self):
         from odoo.addons.web.controllers.export import CSVExport
 
-        # A value that merely contains (not starts with) an operator, and a
-        # numeric-looking safe string, must be exported verbatim.
         out = CSVExport().from_data([], ["header"], [["a=b"], ["safe"]]).decode()
         self.assertIn("a=b", out)
         self.assertNotIn("'a=b", out)
@@ -234,8 +219,6 @@ class TestPivotNegativeInputs(HttpCase):
             },
         )
         self.assertEqual(response.status_code, HTTPStatus.OK)
-        # Clamped to 50 indents * 5 chars, so the whole xlsx stays tiny — a
-        # multi-GB string would have blown up long before this assertion.
         self.assertLess(len(response.content), 1_000_000)
 
 
@@ -248,7 +231,6 @@ class TestWebClientOpenRedirect(HttpCase):
         '/\\evil.com' into the protocol-relative '//evil.com'.
         """
         self.authenticate("admin", "admin")
-        # %2F%5C = /\ (URL-encoded)
         response = self.url_open(
             "/odoo?redirect=%2F%5Cevil.com",
             allow_redirects=False,
@@ -301,7 +283,7 @@ class TestDatabaseRestoreLogging(HttpCase):
         After fix: _logger.exception() is called first, leaving a traceback in the log.
         """
         with (
-            patch("odoo.service.db.check_super"),  # bypass password verification
+            patch("odoo.service.db.check_super"),
             patch(
                 "odoo.service.db.restore_db",
                 side_effect=Exception("simulated restore error"),

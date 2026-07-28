@@ -149,31 +149,8 @@ export function handleBeforeUnload(
     }
     const canBeacon = Boolean(record.resId) && !inDialog && useSendBeacon;
     if (!canBeacon) {
-        // Flush typed-but-uncommitted input synchronously so ``record.dirty``
-        // reflects it. ``record.dirty`` is only raised when a change is
-        // *committed* (blur/Tab), but the browser fires ``beforeunload`` on a
-        // raw Ctrl-W with the input still focused. Entering urgent mode and
-        // firing ``WILL_SAVE_URGENTLY`` makes each field re-commit through a
-        // mutex-bypassed ``record.update``, whose ``_markDirty()`` runs in THIS
-        // tick — before the synchronous ``beforeunload`` dispatch returns.
-        // Fire-and-forget: we need only that synchronous portion; no server
-        // write happens (the callback is a no-op), and we must not await a real
-        // save (its ``preventDefault`` would land too late). Without this, work
-        // typed into a new/dialog/inline-row field and never blurred is silently
-        // lost with no prompt.
         // @ts-ignore -- `@ts-ignore`, NOT `@ts-expect-error`: the gate runs with
-        // `strictNullChecks: true` but the committed `tsconfig.json` (and the
-        // `tooling/_jsconfig.json` every editor uses) has it off, so there the
         // error does not occur and `@ts-expect-error` reports TS2578 "Unused
-        // directive" — trading a gate error for an error in every IDE.
-        // `urgentSave` is assigned in `RelationalModel.setup()`,
-        // and TypeScript only credits the constructor for definite assignment, so
-        // it types as `UrgentSaveCoordinator | undefined`. It is unconditionally
-        // constructed there and is never undefined at runtime. The class-field
-        // declaration used for the same problem on OWL components (see Pattern 7)
-        // is NOT usable here: `Model`'s own constructor calls `this.setup(...)`
-        // (`model/model.js`), so a field initialiser would run afterwards and
-        // overwrite the coordinator with `undefined`.
         record.model.urgentSave.run(() => Promise.resolve());
         if (record.dirty) {
             ev.preventDefault();
@@ -236,8 +213,6 @@ export function isNull(value) {
 export function toStringExpression(str) {
     return `\`${(str ?? "").replaceAll("`", "\\`").replaceAll("${", "\\${")}\``;
 }
-
-// Controller utilities — shared logic extracted from form/list/kanban
 
 /**
  * Compute the default model loading options for view controllers.
@@ -462,16 +437,10 @@ export function makeModelUIHooks({ action, dialog, notification }) {
     };
 }
 
-// Register shared utilities for lower layers via registry indirection
 registry
     .category("shared_components")
     .add("computeViewClassName", computeViewClassName);
 
-// shared_components entries are heterogeneous (OWL components like
-// ViewButton, and bare hooks/utilities like useViewButtons) registered here
-// so lower layers (e.g. fields/x2many) resolve them without an upward
-// import. The only contract expressible registry-wide is "must be callable";
-// per-key type contracts remain the consumers' responsibility.
 registry
     .category("shared_components")
     .addValidation((entry) => typeof entry === "function");

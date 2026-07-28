@@ -55,23 +55,29 @@ export const shareTargetService = {
         let sharedFiles = null;
         if (
             browser.navigator.serviceWorker &&
-            new URL(browser.location).searchParams.get("share_target") === "trigger"
+            new URL(browser.location.href).searchParams.get("share_target") ===
+                "trigger"
         ) {
             const app = menu.getApps().find((app) => "expenses" === app.actionPath);
             if (app) {
-                const clientReadyListener = async () => {
-                    sharedFiles = await getShareTargetDataFromServiceWorker();
-                    if (sharedFiles?.length) {
-                        await menu.selectMenu(app);
-                    }
-                    env.bus.removeEventListener(
-                        AppEvent.WEB_CLIENT_READY,
-                        clientReadyListener,
-                    );
-                };
+                // `{ once: true }` rather than a self-removing listener: the
+                // removal used to be the last statement of an async body, so a
+                // rejecting `selectMenu` skipped it AND surfaced as an unhandled
+                // rejection. The event fires once per page either way, so the
+                // leak was benign — the unhandled rejection was not.
                 env.bus.addEventListener(
                     AppEvent.WEB_CLIENT_READY,
-                    clientReadyListener,
+                    async () => {
+                        try {
+                            sharedFiles = await getShareTargetDataFromServiceWorker();
+                            if (sharedFiles?.length) {
+                                await menu.selectMenu(app);
+                            }
+                        } catch (error) {
+                            console.warn("Failed to receive shared files", error);
+                        }
+                    },
+                    { once: true },
                 );
             }
         }

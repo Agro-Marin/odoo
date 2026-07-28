@@ -91,9 +91,6 @@ export function useListAggregates({
             return list.selection.map((r) => r.data);
         }
         if (/** @type {any} */ (list).isGrouped) {
-            // Thread each group's record count along its aggregates: a
-            // correct footer `avg` over per-group aggregates must be
-            // count-weighted (see the avg branch below).
             return /** @type {any} */ (list).groups.map((/** @type {any} */ g) => ({
                 ...g.aggregates,
                 __count: g.count,
@@ -129,9 +126,6 @@ export function useListAggregates({
             const { list } = getProps();
             if (/** @type {any} */ (list).isGrouped && !list.selection.length) {
                 return values.reduce((set, value) => {
-                    // The currency aggregate may be absent/false (empty
-                    // expanded groups, custom read_group overrides) — same
-                    // guard as formatGroupAggregate/getGroupAggregate.
                     if (Array.isArray(value[currencyField])) {
                         value[currencyField].forEach((c) => set.add(c));
                     }
@@ -169,8 +163,6 @@ export function useListAggregates({
                     continue;
                 }
                 const field = fields[fieldName];
-                // Build value/record pairs in a single pass so that per-record
-                // currency information stays aligned with the filtered values.
                 const fieldEntries = [];
                 for (const record of values) {
                     const value = record[fieldName];
@@ -213,12 +205,6 @@ export function useListAggregates({
                             if (currencies.size > 1) {
                                 multiCurrency = true;
                                 currencyId = user.activeCompany?.currency_id;
-                                // A group whose own sum already mixes
-                                // currencies cannot be converted client-side
-                                // (the per-currency breakdown is not
-                                // available): no meaningful footer total
-                                // exists, so render the multi-currency
-                                // indicator without one.
                                 hasMixedCurrencyGroup =
                                     isGroupedAggregation &&
                                     fieldEntries.some(
@@ -258,10 +244,6 @@ export function useListAggregates({
                         /** @type {any} */ (list).isGrouped &&
                         !list.selection.length
                     ) {
-                        // Grouped values are per-group AGGREGATES (computed
-                        // server-side with field.aggregator), not records:
-                        // an unweighted mean of them is wrong for unequal
-                        // group sizes (mean-of-means / mean-of-sums).
                         const aggregator = field.aggregator || "sum";
                         const totalCount = fieldEntries.reduce(
                             (s, e) => s + (e.record.__count || 0),
@@ -373,8 +355,6 @@ export function useListAggregates({
          */
         openMultiCurrencyPopover(ev, value, fieldName) {
             if (value === undefined) {
-                // Indicator without a total (mixed-currency group): there is
-                // no value to convert.
                 return;
             }
             if (!multiCurrencyPopover.isOpen) {

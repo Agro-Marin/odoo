@@ -72,7 +72,6 @@ describe(parseUrl(import.meta.url), () => {
         const runner = makeTestRunner();
         runner.describe("suite", () => {
             for (let i = 1; i <= 10; i++) {
-                // 10
                 runner.test.tags(`Tag-${i}`);
             }
 

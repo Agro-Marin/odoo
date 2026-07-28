@@ -82,7 +82,7 @@ class Partner extends models.Model {
     ];
 
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <sheet>
                     <group>
@@ -327,7 +327,6 @@ test("char field translatable", async () => {
 
 test("translation dialog should close if field is not there anymore", async () => {
     expect.assertions(4);
-    // Simulates the field disappearing from the view (e.g. browser back button).
     Partner._fields.name.translate = true;
 
     serverState.lang = "en_US";
@@ -425,7 +424,6 @@ test("html field translatable", async () => {
         return true;
     });
 
-    // Doesn't affect translate_fields until saved; set here for test consistency.
     await fieldInput("name").edit("<p>first paragraph</p><p>second paragraph</p>");
     await contains(".o_field_char .btn.o_field_translate").click();
     expect(".modal").toHaveCount(1, {
@@ -586,8 +584,6 @@ test("input field: change value before pending onchange returns (2)", async () =
 
 test.tags("desktop");
 test("input field: change value before pending onchange returns (with fieldDebounce)", async () => {
-    // Same as the previous test, but here the onchange resolves *before* the
-    // input's "change" event is validated.
     Partner._onChanges.product_id = (obj) => {
         obj.int_field = obj.product_id ? 7 : false;
     };
@@ -865,15 +861,10 @@ test("placeholder is passed to the widget without mutating the shared arch node"
             </sheet>
         </form>`,
     });
-    // The widget must still receive the placeholder...
     expect(".o_field_widget[name='name'] input").toHaveAttribute(
         "placeholder",
         "Placeholder",
     );
-    // ...but `fieldInfo` is the parsed arch node, shared by every Field instance
-    // for this node (e.g. all rows of a list column). Field.fieldComponentProps
-    // must NOT assign `placeholder` onto it (which would pollute the shared node
-    // across records and risk render loops if it were ever made reactive).
     const field = findComponent(view, (c) => c instanceof Field);
     expect("placeholder" in field.props.fieldInfo).toBe(false);
 });

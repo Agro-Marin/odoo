@@ -22,10 +22,6 @@ class WebCwvMetric(models.Model):
     _name = "web.cwv.metric"
     _description = "Core Web Vitals Metric"
     _order = "recorded_at desc"
-    # _log_access = False: skip create_uid/create_date/write_uid/write_date — RUM
-    # is append-only and high-volume; the four bookkeeping columns add ~32 bytes
-    # per row and one index for nothing useful.  We capture the moment the
-    # beacon was received via the explicit ``recorded_at`` field below.
     _log_access = False
 
     recorded_at = fields.Datetime(
@@ -55,8 +51,6 @@ class WebCwvMetric(models.Model):
         help="User logged in when the beacon fired; null for anonymous "
         "frontend traffic.",
     )
-    # Latency metrics, all in milliseconds.  Float not Integer because the
-    # browser's PerformanceObserver reports sub-millisecond values.
     lcp = fields.Float(
         string="LCP (ms)",
         readonly=True,
@@ -100,8 +94,6 @@ class WebCwvMetric(models.Model):
         string="Pageview ID",
         size=64,
         readonly=True,
-        # No plain ``index=True``: a *partial unique* index is created in
-        # ``init`` instead (covers both lookup and the upsert conflict target).
         help="Client-generated id, stable for one page load. Metrics arrive "
         "across several beacons as INP/CLS keep growing after the first "
         "tab-switch; the controller upserts on this key so a pageview "
@@ -112,12 +104,6 @@ class WebCwvMetric(models.Model):
     _PAGEVIEW_UNIQUE_INDEX = "web_cwv_metric__pageview_id_uniq"
 
     def init(self):
-        # Partial UNIQUE index on non-null pageview_id. It doubles as the
-        # lookup index (replacing the former non-unique one) and, crucially, as
-        # the conflict target for the atomic upsert in ``_record_beacon`` — so
-        # two workers beaconing the same pageview can never race into duplicate
-        # rows the way a search-then-create sequence could. Empty pageview_ids
-        # are stored as NULL and therefore never conflict (each inserts).
         self.env.cr.execute(
             f"""
             CREATE UNIQUE INDEX IF NOT EXISTS {self._PAGEVIEW_UNIQUE_INDEX}
@@ -151,9 +137,6 @@ class WebCwvMetric(models.Model):
             "pageview_id",
         )
         params = {
-            # ``or None`` maps False → SQL NULL for the id/text columns; the
-            # numeric metrics are passed through untouched so a legitimate 0.0
-            # is preserved (it is falsy but a real value).
             "url": values["url"],
             "user_id": values.get("user_id") or None,
             "lcp": values.get("lcp"),
@@ -180,17 +163,6 @@ class WebCwvMetric(models.Model):
             params,
         )
 
-    # ------------------------------------------------------------------ #
-    # Integrity                                                          #
-    # ------------------------------------------------------------------ #
-    # DB-level guards so the table stays sane regardless of the write path.
-    # The controller is the only writer today and clamps values, but a single
-    # point of validation is fragile for an anonymous-writable, high-volume
-    # table.  The upper bounds also reject NaN/Infinity that a ``double
-    # precision`` column would otherwise accept: in PostgreSQL ``NaN`` and
-    # ``Infinity`` are greater than every finite number, so ``x <= cap`` is
-    # FALSE for them and the CHECK fails.  NULLs are allowed (e.g. ``inp`` is
-    # not captured yet), since a NULL comparison is never FALSE.
     _check_latency_range = models.Constraint(
         "CHECK("
         " (lcp  IS NULL OR (lcp  >= 0 AND lcp  <= 3600000))"
@@ -205,9 +177,6 @@ class WebCwvMetric(models.Model):
         "Cumulative Layout Shift must be between 0 and 1000.",
     )
 
-    # ------------------------------------------------------------------ #
-    # Retention                                                          #
-    # ------------------------------------------------------------------ #
 
     @api.model
     def _gc_old_metrics(self):
@@ -242,15 +211,6 @@ class WebCwvMetric(models.Model):
             return
         if days <= 0:
             return
-        # Use raw SQL: model has no audit columns and no automatic write/unlink
-        # hooks worth invoking; the table is append-only by design.  Avoids the
-        # ORM cost of materialising and unlinking potentially-large recordsets.
-        # ``recorded_at`` is a stored Odoo Datetime: naive ``timestamp`` in UTC.
-        # ``now()`` is ``timestamptz``; comparing the two coerces ``recorded_at``
-        # via the *session* TimeZone (which Odoo never sets to UTC), shifting the
-        # cutoff by the server's UTC offset. Anchor the cutoff in UTC — matching
-        # ``cr.now()`` (``now() AT TIME ZONE 'UTC'``) — so the retention window is
-        # exact regardless of the cluster timezone.
         self.env.cr.execute(
             "DELETE FROM web_cwv_metric"
             " WHERE recorded_at < (now() AT TIME ZONE 'UTC') - (%s * interval '1 day')",

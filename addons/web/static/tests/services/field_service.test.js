@@ -362,19 +362,13 @@ test("store loadFields calls in cache in success", async () => {
 });
 
 test("loadFields returns a mutable top-level object per call", async () => {
-    // Contract: the cached payload is frozen and shared, but loadFields hands
-    // out a shallow copy so a consumer may add/replace top-level entries
-    // (property/computed field defs). Two calls must not alias the same object,
-    // and adding a key must not throw on a frozen object.
     await makeMockEnv();
 
     const a = await getService("field").loadFields("tortoise");
     const b = await getService("field").loadFields("tortoise");
-    expect(a).not.toBe(b); // distinct top-level objects
-    // Adding a top-level entry must not throw (the bug this fixes).
+    expect(a).not.toBe(b);
     a["property.custom"] = { type: "char", name: "property.custom" };
     expect(a["property.custom"].name).toBe("property.custom");
-    // The other caller's copy is unaffected.
     expect(b["property.custom"]).toBe(undefined);
 });
 
@@ -396,9 +390,6 @@ test("does not store loadFields calls in cache when failed", async () => {
 });
 
 test("async method loadFields is protected", async () => {
-    // Tests default to ``.mocked`` (an unresolved promise, so post-teardown
-    // RPCs don't crash other tests); swap to ``.original`` to observe the
-    // real rejected "Component is destroyed" promise, or the call below hangs.
     patchWithCleanup(useServiceProtectMethodHandling, {
         fn: useServiceProtectMethodHandling.original,
     });
@@ -457,4 +448,47 @@ test("async method loadFields is protected", async () => {
     }
 
     expect.verifySteps(["loadFields called", "Component is destroyed"]);
+});
+
+test("followRelationalProperties survives a relational hop", async () => {
+    // The flag was dropped when `_loadPath` recursed through a relation, so the
+    // SAME property field resolved fine at depth 0 and became `isInvalid:
+    // "path"` (against resModel "*") one hop later.
+    await makeMockEnv();
+    const field = getService("field");
+
+    const direct = await field.loadPath(
+        "tortoise",
+        "property_field.location_ids.name",
+        true,
+    );
+    expect(direct.isInvalid).toBe(undefined);
+    expect(direct.modelsInfo.map((m) => m.resModel)).toEqual([
+        "tortoise",
+        "tortoise",
+        "location",
+    ]);
+
+    const hopped = await field.loadPath(
+        "tortoise",
+        "location_id.tortoise_ids.property_field.location_ids.name",
+        true,
+    );
+    expect(hopped.isInvalid).toBe(undefined);
+    expect(hopped.modelsInfo.map((m) => m.resModel)).toEqual([
+        "tortoise",
+        "location",
+        "tortoise",
+        "tortoise",
+        "location",
+    ]);
+});
+
+test("loadPath rejects an invalid path before issuing any RPC", async () => {
+    await makeMockEnv();
+    onRpc("tortoise", "fields_get", () => expect.step("fields_get"));
+    await expect(getService("field").loadPath("tortoise", "")).rejects.toThrow(
+        /Invalid path/,
+    );
+    expect.verifySteps([]);
 });

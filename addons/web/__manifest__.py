@@ -63,6 +63,7 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
+            "web/static/src/libs/fontawesome7/css/v4-shims.css",
             "web/static/lib/odoo_ui_icons/*",
             "web/static/src/webclient/navbar/navbar.scss",
             "web/static/src/scss/animation.scss",
@@ -139,6 +140,7 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
+            "web/static/src/libs/fontawesome7/css/v4-shims.css",
             "web/static/lib/odoo_ui_icons/*",
             "web/static/src/webclient/navbar/navbar.scss",
             "web/static/src/scss/animation.scss",
@@ -256,6 +258,7 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
+            "web/static/src/libs/fontawesome7/css/v4-shims.css",
             "web/static/src/scss/rtl_icon_flip.scss",
             "web/static/lib/odoo_ui_icons/*",
             "web/static/fonts/fonts.scss",
@@ -395,10 +398,6 @@ This module provides the core of the Odoo Web Client.
                 "include",
                 "web.assets_backend",
             ),
-            # Early-boot modules exercised by the HOOT suite in
-            # tests/public/ (lazyloader). They live in web.assets_frontend,
-            # not assets_backend, so the unit-test bundle would not otherwise
-            # resolve their imports.
             "web/static/src/public/minimal_dom.js",
             "web/static/src/public/lazyloader.js",
             "web/static/src/public/**/*.js",
@@ -409,7 +408,6 @@ This module provides the core of the Odoo Web Client.
                 "web/static/src/public/database_manager.js",
             ),
             (
-                # Self-boots the public app: must not run inside test bundles.
                 "remove",
                 "web/static/src/public/public_boot_instance.js",
             ),
@@ -429,16 +427,6 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/tests/tours/**/*",
             ),
-            # utils.js is the TOUR-runtime implementation of the
-            # `@web/../tests/utils` API; it ships in web.assets_tests next to
-            # tours/** (and in the tour bundles that list it explicitly).
-            # mail/static/tests/mail_test_helpers_contains.js aliases that same
-            # specifier for the hoot runtime, so leaving both in this bundle
-            # makes the winner depend on bundle order -- i.e. on whether `mail`
-            # happens to be installed -- and a suite silently switches
-            # implementation under itself. Nothing here may import
-            # `@web/../tests/utils`: web's own hoot DSL is `contains` from
-            # @web/../tests/web_test_helpers.
             (
                 "remove",
                 "web/static/tests/utils.js",
@@ -483,13 +471,6 @@ This module provides the core of the Odoo Web Client.
             "web.assets_frontend": [
                 "web.assets_tests",
             ],
-            # Frontend pages using the minimal/lazy split render
-            # web.assets_frontend_lazy FIRST (webclient_templates.xml), and
-            # only the first ESM bundle's import map is honoured per document.
-            # Without this entry, web.assets_tests specifiers (e.g.
-            # "@account/../tests/tours/...") are absent from the served map and
-            # every tour on such a page dies at pre-boot with "Failed to
-            # resolve module specifier".
             "web.assets_frontend_lazy": [
                 "web.assets_tests",
             ],

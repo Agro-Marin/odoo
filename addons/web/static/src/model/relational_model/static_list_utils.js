@@ -3,8 +3,6 @@
 
 /** @module @web/model/relational_model/static_list_utils - Sorting comparators, record duplication, and sort-direction cycling for StaticList */
 
-// Sorting
-
 /**
  * Compare two field values for ordering purposes.
  * For many2one fields, compares by display_name.
@@ -29,7 +27,6 @@ function compareFieldValues(v1, v2, fieldType) {
         v1 = v1 ?? 0;
         v2 = v2 ?? 0;
     } else {
-        // For char, text, date, datetime, selection, etc. — treat falsy as empty string
         v1 = v1 ?? "";
         v2 = v2 ?? "";
     }
@@ -113,8 +110,6 @@ export function computeNextOrderBy(
     return orderBy;
 }
 
-// Record copying
-
 /**
  * Extract copyable data from a record for duplication.
  *
@@ -153,7 +148,6 @@ export function copyRecordData(record, copyFields = []) {
                 data[name] = value && { ...value };
                 break;
             case "one2many":
-                // Not supported => that field is left empty
                 break;
             default:
                 data[name] = value;

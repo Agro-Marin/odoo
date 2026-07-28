@@ -60,8 +60,16 @@ export class Cache {
         if (this.getKey) {
             key = this.getKey(...path);
         } else {
-            // Fail fast on non-primitive segments here (see assertPrimitiveSegment)
-            // instead of letting them silently collide once coerced to object keys.
+            // An empty path produces `key === undefined` and therefore keys on
+            // the STRING "undefined" — silently sharing one slot with a genuine
+            // `read("undefined")`, and skipping the segment check below
+            // entirely. Same class of silent collision `assertPrimitiveSegment`
+            // exists to prevent, so it is rejected the same way.
+            if (!path.length) {
+                throw new TypeError(
+                    "Cache: a lookup path must have at least one segment.",
+                );
+            }
             for (const segment of path) {
                 assertPrimitiveSegment(segment);
             }
@@ -89,6 +97,25 @@ export class Cache {
     }
 
     /**
+     * Store a value for `path` without ever calling `getValue`, for entries the
+     * caller already has in hand (e.g. group memberships shipped in the session,
+     * which must not cost a `has_group` round-trip).
+     *
+     * Seeding by writing to `cache` directly — as `@web/services/user` did —
+     * bypasses {@link _getCacheAndKey}, so it only lands on the key `read` looks
+     * up while `getKey` happens to be the identity of the first path segment.
+     * Any change to `getKey` would silently turn every seeded entry into an
+     * unreachable one, and the misses would look like ordinary cache misses.
+     *
+     * @param {T} value
+     * @param {any[]} path
+     */
+    set(value, ...path) {
+        const { cache, key } = this._getCacheAndKey(...path);
+        cache[key] = value;
+    }
+
+    /**
      * Return the cached value for `path`, computing it via `getValue` if absent.
      *
      * @param {any[]} path
@@ -100,12 +127,6 @@ export class Cache {
             const value = this.getValue(...path);
             cache[key] = value;
             if (value && typeof value.then === "function") {
-                // A cached promise that later rejects would otherwise poison
-                // this slot forever: every subsequent read returns the same
-                // rejected promise and the value is never recomputed. Evict on
-                // rejection so the next read retries. The identity guard leaves
-                // a successful re-read (or invalidate/clear) that already
-                // replaced this slot untouched.
                 Promise.resolve(value).catch(() => {
                     if (cache[key] === value) {
                         delete cache[key];

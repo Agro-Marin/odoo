@@ -38,8 +38,6 @@
             .btn,
             .btn:focus,
             .btn.active {
-                // Boostrap plays around with the z-index of buttons, but this is not needed here
-                // It was causing issues with the hotkey overlay
                 z-index: 0;
                 border-radius: $o-border-radius-sm;
             }
@@ -50,11 +48,8 @@
         }
     }
 
-    // ------------------------------------------------------------------
-    // Print
-    // ------------------------------------------------------------------
     @include media-only(print) {
-        padding: 0 0 map-get($spacers, 2) !important; // The @page margin will be used instead.
+        padding: 0 0 map-get($spacers, 2) !important;
         margin-bottom: 1rem;
 
         &,
@@ -134,7 +129,6 @@
     }
 }
 
-/* Simple button place-holder */
 %-custom-button {
     $-value: map-get($o-btns-bs-override, "secondary");
     @include button-variant(
@@ -183,7 +177,7 @@
         > span {
             @include text-truncate();
             max-width: 100%;
-            margin-left: 0 !important; // Counter BS rule ms-1
+            margin-left: 0 !important;
         }
     }
 }

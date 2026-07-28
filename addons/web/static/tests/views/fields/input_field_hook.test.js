@@ -31,8 +31,6 @@ import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
-// Shared model definitions
-
 class Partner extends models.Model {
     _name = "res.partner";
     _inherit = [];
@@ -45,8 +43,6 @@ class Partner extends models.Model {
 }
 
 defineModels([Partner]);
-
-// Commit via blur (onChange)
 
 describe("blur commits value", () => {
     test("editing a char field and saving sends the new value to web_save", async () => {
@@ -86,8 +82,6 @@ describe("blur commits value", () => {
     });
 });
 
-// Commit via Tab key (onKeydown)
-
 describe("Tab key commits value", () => {
     test("pressing Tab after filling commits the value before explicit save", async () => {
         onRpc("res.partner", "web_save", ({ args }) => {
@@ -102,19 +96,14 @@ describe("Tab key commits value", () => {
             arch: `<form><field name="name"/><field name="foo"/></form>`,
         });
 
-        // edit without confirm leaves the field dirty (no blur/Tab/Enter auto-sent)
         await fieldInput("name").edit("tab saved", { confirm: false });
-        // Tab triggers onKeydown → commitChanges
         await press("Tab");
         await animationFrame();
 
-        // Save without any further interaction; the Tab commit already sent the value
         await clickSave();
         expect.verifySteps(["web_save"]);
     });
 });
-
-// Commit via Enter key (onKeydown)
 
 describe("Enter key commits value", () => {
     test("pressing Enter after filling commits the value in a char input", async () => {
@@ -130,7 +119,6 @@ describe("Enter key commits value", () => {
             arch: `<form><field name="name"/></form>`,
         });
 
-        // edit without confirm leaves the field dirty (no blur/Tab/Enter auto-sent)
         await fieldInput("name").edit("enter saved", { confirm: false });
         await press("Enter");
         await animationFrame();
@@ -139,8 +127,6 @@ describe("Enter key commits value", () => {
         expect.verifySteps(["web_save"]);
     });
 });
-
-// Parse error — invalid value for integer field
 
 describe("parse error handling", () => {
     test("typing a non-numeric value in an integer field marks the field invalid", async () => {
@@ -151,7 +137,6 @@ describe("parse error handling", () => {
             arch: `<form><field name="int_field"/></form>`,
         });
 
-        // edit() fires input + change → onChange → parse throws → field marked invalid
         await fieldInput("int_field").edit("not a number");
 
         expect(".o_field_widget[name=int_field]").toHaveClass("o_field_invalid", {
@@ -174,19 +159,14 @@ describe("parse error handling", () => {
 
         await fieldInput("int_field").edit("abc");
 
-        // The field is invalid: saving the form should surface a validation error,
-        // not call web_save with the bad value.
         await contains(".o_form_button_save").click();
 
         expect(saveCalled).toBe(false, {
             message: "web_save must not be called while a field is invalid",
         });
-        // Field must remain marked invalid (save was blocked)
         expect(".o_field_widget[name=int_field]").toHaveClass("o_field_invalid");
     });
 });
-
-// Blur / Tab commit-decision consistency: no spurious write on parse-equal re-entry
 
 describe("blur/Tab no-write on parse-equal re-entry", () => {
     test("blur: a dirty-but-parse-equal integer re-entry commits nothing", async () => {
@@ -197,11 +177,6 @@ describe("blur/Tab no-write on parse-equal re-entry", () => {
             resId: 1,
             arch: `<form><field name="int_field"/></form>`,
         });
-        // " 10 " is dirty as raw text but parses back to the current value (10);
-        // the blur (onChange) path must decide "unchanged" and commit nothing —
-        // no web_save RPC. (Typing still marks the form dirty per the canonical
-        // "any edit enables save" contract exercised by float_field's formula
-        // test; parse-equality only governs whether a WRITE is sent.)
         await fieldInput("int_field").edit(" 10 ");
         await animationFrame();
         expect(".o_field_widget[name=int_field] input").toHaveValue("10");
@@ -209,8 +184,6 @@ describe("blur/Tab no-write on parse-equal re-entry", () => {
     });
 
     test("blur: a parse-equal re-entry re-emits FIELD_IS_DIRTY(false) and clears the save indicator", async () => {
-        // Spy on the model bus: `record.update` is never called on this path,
-        // so the only dirty signal is the FIELD_IS_DIRTY event itself.
         const dirtyEvents = [];
         class DirtySpy extends Component {
             static template = xml`<span class="o_dirty_spy"/>`;
@@ -240,9 +213,6 @@ describe("blur/Tab no-write on parse-equal re-entry", () => {
             message: "pristine form: save/discard indicator hidden",
         });
 
-        // " 10 " is dirty raw text (onInput emits FIELD_IS_DIRTY:true) but
-        // parses back to the stored 10, so the blur commit takes the
-        // "unchanged" branch: no record.update, input resynced to "10".
         await fieldInput("int_field").edit(" 10 ");
         await animationFrame();
 
@@ -272,23 +242,15 @@ describe("blur/Tab no-write on parse-equal re-entry", () => {
         await fieldInput("int_field").edit(" 10 ", { confirm: false });
         await press("Tab");
         await animationFrame();
-        // commitChanges must reach the SAME decision as onChange via the shared
-        // hasValueChanged() predicate — no spurious write.
         expect.verifySteps([]);
         expect(".o_field_widget[name=int_field] input").toHaveValue("10");
     });
 });
 
-// Update rejection — the FIELD_IS_DIRTY(false) reset must not be skipped
-
 describe("rejected update clears dirty-typing signal", () => {
     test("a rejected onchange still emits FIELD_IS_DIRTY(false) (try/finally guard)", async () => {
         expect.errors(1);
 
-        // Sibling spy widget that records every FIELD_IS_DIRTY payload emitted
-        // on the model bus (the form status indicator can't isolate the signal
-        // because `record.update` marks the root dirty before the onchange even
-        // runs, so it stays "dirty" on rejection regardless of this event).
         const dirtyEvents = [];
         class DirtySpy extends Component {
             static template = xml`<span class="o_dirty_spy"/>`;
@@ -301,7 +263,6 @@ describe("rejected update clears dirty-typing signal", () => {
         }
         registry.category("fields").add("dirty_spy", { component: DirtySpy });
 
-        // A failing onchange makes `record.update` reject inside commitChanges.
         Partner._onChanges = {
             name: () => {
                 throw makeServerError({ type: "ValidationError", message: "boom" });
@@ -315,10 +276,6 @@ describe("rejected update clears dirty-typing signal", () => {
             arch: `<form><field name="name"/><field name="foo" widget="dirty_spy"/></form>`,
         });
 
-        // Commit an edit whose onchange RPC rejects. `onInput` emits
-        // FIELD_IS_DIRTY(true); the FIELD_IS_DIRTY(false) reset lives in
-        // commitChanges' `finally`, so it must fire even on the rejection path.
-        // Without the try/finally the last emitted value stayed `true`.
         await fieldInput("name").edit("boom");
         await animationFrame();
 

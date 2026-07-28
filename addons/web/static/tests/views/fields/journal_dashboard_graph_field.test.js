@@ -84,7 +84,6 @@ class User extends models.Model {
 }
 defineModels([Partner, User]);
 
-// WOWL remove this helper and user the control panel instead
 const reload = async (kanban, params = {}) => {
     kanban.env.searchModel.reload(params);
     kanban.env.searchModel.search();
@@ -96,7 +95,7 @@ test("JournalDashboardGraphField is rendered correctly", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <kanban>
                 <field name="graph_type"/>
                 <templates>
@@ -130,7 +129,7 @@ test("rendering of a JournalDashboardGraphField in an updated grouped kanban vie
     const view = await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <kanban>
                 <field name="graph_type"/>
                 <templates>
@@ -152,5 +151,34 @@ test("rendering of a JournalDashboardGraphField in an updated grouped kanban vie
 
     expect(".o_dashboard_graph canvas").toHaveCount(1, {
         message: "there should be one graph rendered",
+    });
+});
+
+test.tags("desktop");
+test("dashboard_graph survives a malformed payload and a missing graph_type", async () => {
+    // JSON.parse ran unguarded, so a payload that is not valid JSON propagated
+    // out of the effect and took down the whole view instead of blanking this
+    // one tile. And `graphType` was a required prop fed from an optional arch
+    // attribute, so omitting `graph_type` was a prop-validation error in dev
+    // and `new Chart(el, undefined)` in production.
+    Partner._records = [{ id: 99, graph_type: "bar", graph_data: "{not json" }];
+    await mountView({
+        type: "kanban",
+        resModel: "partner",
+        arch: `
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <field name="graph_data" widget="dashboard_graph"/>
+                    </t>
+                </templates>
+            </kanban>`,
+        domain: [["id", "=", 99]],
+    });
+    expect(".o_dashboard_graph").toHaveCount(1, {
+        message: "the tile still renders instead of crashing the view",
+    });
+    expect(".o_dashboard_graph.o_graph_barchart").toHaveCount(1, {
+        message: "graphType falls back to its default",
     });
 });

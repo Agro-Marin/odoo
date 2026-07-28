@@ -108,7 +108,7 @@ test("onchange in form view flow", async () => {
             } else if (obj.int_field === 2) {
                 obj.user_id = false;
             } else {
-                obj.user_id = [1, "Aline"]; // default value
+                obj.user_id = [1, "Aline"];
             }
         },
     });
@@ -373,12 +373,10 @@ test("widget many2one_avatar in kanban view (load more dialog)", async () => {
             </kanban>`,
     });
 
-    // open popover
     await contains(
         ".o_kanban_record:nth-child(4) .o_field_many2one_avatar .o_m2o_avatar > a.o_quick_assign",
     ).click();
 
-    // load more
     await contains(".o-overlay-container .o_m2o_dropdown_option_search_more").click();
     await contains(".o_dialog .o_list_table .o_data_row .o_data_cell").click();
     expect(
@@ -409,13 +407,11 @@ test("widget many2one_avatar in kanban view", async () => {
     expect(
         ".o_kanban_record:nth-child(4) .o_field_many2one_avatar .o_m2o_avatar > .o_quick_assign",
     ).toHaveCount(1);
-    // open popover
     await contains(
         ".o_kanban_record:nth-child(4) .o_field_many2one_avatar .o_m2o_avatar > .o_quick_assign",
     ).click();
     expect(".o-overlay-container input").toBeFocused();
     expect.verifySteps(["web_name_search"]);
-    // select first input
     await contains(".o-overlay-container .o-autocomplete--dropdown-item").click();
     expect.verifySteps(["web_save"]);
     expect(

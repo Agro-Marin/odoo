@@ -73,8 +73,6 @@ describe("_pruneCache", () => {
         list._cache[1] = { id: "dp1" };
         list._cache[2] = { id: "dp2" };
         list._cache[3] = { id: "dp3" };
-        // A dialog savepoint (extendRecord) still references id 2: a later
-        // _discard rebuilds records by mapping it through _cache.
         list._savePoint = markRaw({
             _commands: [],
             _currentIds: [1, 2],
@@ -97,8 +95,6 @@ describe("_pruneCache", () => {
 
         list._pruneCache();
 
-        // dp1 is still cached: its extension state must survive, or the next
-        // dialog open re-runs the first-extension load.
         expect(list._extendedRecords.has("dp1")).toBe(true);
         expect(list._extendedRecords.has("dp2")).toBe(false);
     });
@@ -133,7 +129,6 @@ describe("_abandonRecords", () => {
 
     test("a record absent from _currentIds is skipped, not spliced at -1", () => {
         const list = makeList();
-        // e.g. a dialog-created record not yet validated into the list
         const rec = makeAbandonable("virtual_ghost");
         list.records = [];
         list._currentIds = [7, 8];
@@ -141,7 +136,6 @@ describe("_abandonRecords", () => {
 
         list._abandonRecords([rec], { force: true });
 
-        // splice(-1, 1) would have removed the LAST id (8).
         expect(list._currentIds).toEqual([7, 8]);
         expect(list.count).toBe(2);
     });
@@ -211,8 +205,6 @@ describe("_addNewRecordAtIndex", () => {
         const newRecord = await list._addNewRecordAtIndex(-1);
 
         expect(newRecord.id).toBe("dp_new");
-        // The untouched new row is force-clean (its handle change still ships
-        // with the parent's CREATE command).
         expect(newRecord.dirty).toBe(false);
         expect(list.records[0]).toBe(newRecord);
         expect(list.count).toBe(3);

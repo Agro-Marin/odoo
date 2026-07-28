@@ -45,9 +45,6 @@ function fetchBreadcrumbs(toFetch, breadcrumbCache) {
             key,
             req.then(
                 (res) => {
-                    // Only cache a successful resolution: caching a per-action
-                    // {error} (e.g. transient ACL race) would drop the controller
-                    // for the rest of the session, so evict it instead.
                     if (res[i] && "display_name" in res[i]) {
                         breadcrumbCache.set(key, res[i]);
                     } else {
@@ -93,9 +90,6 @@ export function buildBreadcrumbs(stack, am) {
         .filter((controller) => !isMenuController(controller.action))
         .map((controller) => ({
             jsId: controller.jsId,
-            // Plain slot (not a getter): the items live in a reactive array,
-            // so a later `config.setDisplayName` writes the new name through
-            // it and notifies exactly the subscribers that read this crumb.
             name: controller.displayName,
             get isFormView() {
                 return controller.props?.type === "form";
@@ -119,7 +113,6 @@ export function buildBreadcrumbs(stack, am) {
  */
 async function loadBreadcrumbs(controllers, breadcrumbCache) {
     const toFetch = [];
-    // Track which controllers have associated keys (non-skipped ones)
     const controllerKeys = [];
     for (const controller of controllers) {
         const { action, state, displayName } = controller;
@@ -136,7 +129,6 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
             breadcrumbCache.set(key, { display_name: displayName });
         }
         if (breadcrumbCache.has(key)) {
-            // `get` performs the LRU touch.
             breadcrumbCache.get(key);
             continue;
         }
@@ -186,7 +178,6 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
     for (const controller of controllers) {
         const { action, state } = controller;
         if (!state || isMenuController(action) || action.type === "ir.actions.client") {
-            // Client action names come from the registry, not the server.
             continue;
         }
         const actionInfo = pick(state, "action", "model", "resId");
@@ -228,7 +219,6 @@ export async function controllersFromState(state, am) {
     if (!state?.actionStack?.length) {
         return [];
     }
-    // The last controller will be created by doAction and won't be virtual
     const controllers = state.actionStack
         .slice(0, -1)
         .map((actionState, index) => {
@@ -251,7 +241,6 @@ export async function controllersFromState(state, am) {
                 );
                 if (actionRequestKey && clientAction) {
                     if (state.actionStack[index + 1]?.action === actionState.action) {
-                        // client actions don't have multi-record views, so we can't go further to the next controller
                         return;
                     }
                     controller.action.tag = actionRequestKey;
@@ -284,9 +273,6 @@ export async function controllersFromState(state, am) {
         state.resId &&
         controllers.at(-1)?.action?.id === state.action
     ) {
-        // Loading state on a form view needs the action loaded too, to get the
-        // multi-record view's display name for the breadcrumb. Marking the last
-        // controller lazy lets loadBreadcrumbs sometimes skip that network call.
         const bcControllers = await loadBreadcrumbs(
             controllers.slice(0, -1),
             am.breadcrumbCache,

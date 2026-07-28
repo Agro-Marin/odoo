@@ -23,7 +23,29 @@ import { exprToBoolean } from "@web/core/utils/format/strings";
 import { extractDigits } from "@web/fields/field_utils";
 import { formatCurrency } from "@web/services/currency";
 
-// Helpers
+/**
+ * Shared "nothing to format" guard for every numeric formatter.
+ *
+ * The ORM's no-value sentinel is ``false``, but the formatters are also
+ * reached with ``null``/``undefined`` (a field named by a widget option that
+ * was never added to the record spec) and with non-finite numbers. Each
+ * formatter used to carry its own partial version of this test and they did
+ * not agree, so the same absent value rendered differently per type:
+ *
+ *   formatInteger(undefined) === ""        formatFloat(undefined) === "NaN"
+ *   formatInteger(NaN)       === ""        formatFloat(Infinity)  === "In,fin,ity"
+ *
+ * — the last one being ``insertThousandsSep`` grouping the letters of the word
+ * "Infinity". ``formatInteger`` additionally placed its guard *after* the
+ * ``humanReadable`` branch, so that branch reached ``humanNumber(undefined)``
+ * and threw ``TypeError: … reading 'toExponential'``.
+ *
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function hasNoNumericValue(value) {
+    return typeof value !== "number" || !Number.isFinite(value);
+}
 
 /**
  * @param {number} value
@@ -41,8 +63,6 @@ function humanSize(value) {
     );
 }
 
-// Exports
-
 /**
  * @param {string} [value] base64 representation of the binary
  * @returns {string}
@@ -52,11 +72,8 @@ export function formatBinary(value) {
         return "";
     }
     if (!isBinarySize(value)) {
-        // Computing approximate size out of base64 encoded string
-        // http://en.wikipedia.org/wiki/Base64#MIME
         return humanSize(value.length / 1.37);
     }
-    // already bin_size
     return value;
 }
 
@@ -141,13 +158,9 @@ formatDateTime.extractOptions = (/** @type {any} */ { attrs, options }) => ({
  * @returns {string}
  */
 export function formatFloat(value, options = {}) {
-    if (value === false) {
+    if (hasNoNumericValue(value)) {
         return "";
     }
-    // Derive locally instead of writing the fallbacks back into `options`:
-    // callers may share/cache one options object across fields (e.g.
-    // view_utils' per-column cache), and mutating it would leak the first
-    // field's digits onto every later call.
     const digits = options.digits || options.field?.digits;
     const minDigits = options.minDigits || options.field?.min_display_digits;
     return formatFloatNumber(value, { ...options, digits, minDigits });
@@ -169,11 +182,10 @@ formatFloat.extractOptions = ({ attrs, options }) => ({
  * @returns {string}
  */
 export function formatFloatFactor(value, options = {}) {
-    if (value === false) {
+    if (hasNoNumericValue(value)) {
         return "";
     }
     const factor = options.factor || 1;
-    // Same as formatFloat: never mutate the caller's (possibly shared) options.
     const digits = options.digits || options.field?.digits;
     return formatFloatNumber(value * factor, { ...options, digits });
 }
@@ -193,7 +205,7 @@ formatFloatFactor.extractOptions = ({ attrs, options }) => ({
  * @returns {string}
  */
 export function formatFloatTime(value, options = {}) {
-    if (value === false) {
+    if (hasNoNumericValue(value)) {
         return "";
     }
     const isNegative = value < 0;
@@ -201,7 +213,6 @@ export function formatFloatTime(value, options = {}) {
 
     let hour = Math.floor(value);
     const milliSecLeft = Math.round(value * 3600000) - hour * 3600000;
-    // Avoids float rounding issues while treating 59s as 00:00.
     let min = milliSecLeft / 60000;
     if (options.displaySeconds) {
         min = Math.floor(min);
@@ -223,9 +234,6 @@ export function formatFloatTime(value, options = {}) {
         secValue = Math.floor((milliSecLeft % 60000) / 1000);
         sec = ":" + String(secValue).padStart(2, "0");
     }
-    // Only show the sign if something non-zero survives the rounding: a tiny
-    // negative residue (e.g. -0.004h from an aggregated balance) rounds to
-    // 00:00 and must render "00:00", not a confusing signed zero "-00:00".
     const showSign = isNegative && (hour !== 0 || min !== 0 || secValue !== 0);
     return `${showSign ? "-" : ""}${hourStr}:${minStr}${sec}`;
 }
@@ -242,7 +250,7 @@ formatFloatTime.extractOptions = ({ options }) => ({
  * @returns {string}
  */
 export function formatInteger(value, options = {}) {
-    if (value === false || value === null) {
+    if (hasNoNumericValue(value)) {
         return "";
     }
     if (options.isPassword) {
@@ -254,9 +262,6 @@ export function formatInteger(value, options = {}) {
     const grouping = options.grouping || l10n.grouping;
     const thousandsSep =
         "thousandsSep" in options ? options.thousandsSep : l10n.thousandsSep;
-    if (typeof value !== "number" || !Number.isFinite(value)) {
-        return "";
-    }
     return insertThousandsSep(value.toFixed(0), thousandsSep, grouping);
 }
 formatInteger.extractOptions = ({ attrs, options }) => ({
@@ -322,8 +327,7 @@ export function formatX2many(value) {
  * @returns {string}
  */
 export function formatMonetary(value, options = {}) {
-    // Display nothing when unset; a value of 0 would be misleading here.
-    if (value === false) {
+    if (hasNoNumericValue(value)) {
         return "";
     }
 
@@ -353,16 +357,9 @@ formatMonetary.extractOptions = ({ options }) => ({
  * @returns {string}
  */
 export function formatPercentage(value, options = {}) {
-    if (
-        value === false ||
-        /** @type {any} */ (value) == null ||
-        /** @type {any} */ (value) === ""
-    ) {
-        // `false` (unset) renders empty like formatFloat, not as "0%".
+    if (hasNoNumericValue(value)) {
         return "";
     }
-    // Local copy (never mutate the caller's options) + digits fallback,
-    // consistent with formatFloat.
     options = {
         trailingZeros: false,
         thousandsSep: "",
@@ -481,9 +478,4 @@ registry
     .add("selection", formatSelection)
     .add("text", formatText);
 
-// Every formatter must be a callable (the optional ``.extractOptions``
-// static is duck-typed by callers and not enforced here). Runs against
-// existing entries and any third-party additions; in debug mode a bad
-// registration throws, in production it's a ``console.warn`` so a single
-// mis-shaped entry doesn't crash the page.
 registry.category("formatters").addValidation((v) => typeof v === "function");

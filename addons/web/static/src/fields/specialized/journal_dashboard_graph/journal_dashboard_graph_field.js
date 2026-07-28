@@ -12,9 +12,21 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class JournalDashboardGraphField extends Component {
     static template = "web.JournalDashboardGraphField";
+    static GRAPH_TYPES = ["line", "bar"];
     static props = {
         ...standardFieldProps,
-        graphType: String,
+        graphType: {
+            type: String,
+            optional: true,
+            validate: (t) => JournalDashboardGraphField.GRAPH_TYPES.includes(t),
+        },
+    };
+    static defaultProps = {
+        // `graph_type` is an arch attribute, so it is absent whenever the view
+        // author forgets it — but the prop was required, which only surfaces as
+        // a prop-validation error in dev. In production it left `config`
+        // undefined all the way into `new Chart(el, undefined)`.
+        graphType: "bar",
     };
 
     setup() {
@@ -25,9 +37,6 @@ export class JournalDashboardGraphField extends Component {
             await loadChartJS();
         });
 
-        // Rebuild only when the serialized graph data actually changes — not on
-        // every render. Parsing happens inside renderChart so the chart reflects
-        // the current field value (it was parsed once in setup and went stale).
         useEffect(
             () => {
                 this.renderChart();
@@ -46,16 +55,26 @@ export class JournalDashboardGraphField extends Component {
         if (this.chart) {
             this.chart.destroy();
         }
-        this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
-        if (!this.data.length) {
+        // The payload is server-generated JSON, but a malformed one used to
+        // propagate out of the effect and take down the whole view rather than
+        // just blanking this tile.
+        try {
+            this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
+        } catch (error) {
+            console.error(
+                `[dashboard_graph] "${this.props.name}" does not hold valid JSON; ` +
+                    `rendering no graph:`,
+                error,
+            );
+            this.data = [];
+        }
+        if (!Array.isArray(this.data) || !this.data.length) {
             return;
         }
-        let config;
-        if (this.props.graphType === "line") {
-            config = this.getLineChartConfig();
-        } else if (this.props.graphType === "bar") {
-            config = this.getBarChartConfig();
-        }
+        const config =
+            this.props.graphType === "line"
+                ? this.getLineChartConfig()
+                : this.getBarChartConfig();
         this.chart = new Chart(this.canvasRef.el, config);
     }
     /** @returns {Object} Chart.js configuration object for a line chart */
@@ -116,9 +135,6 @@ export class JournalDashboardGraphField extends Component {
         const labels = [];
         const backgroundColor = [];
 
-        // Read the color scheme fresh per render (not once at module load) so a
-        // light/dark toggle without a hard reload re-themes the grid/labels too,
-        // matching the line chart which already reads the cookie per render.
         const colorScheme = cookie.get("color_scheme");
         const gridColor = getCustomColor(colorScheme, "#d8dadd", "#3C3E4B");
         const labelColor = getCustomColor(colorScheme, "#111827", "#E4E4E4");

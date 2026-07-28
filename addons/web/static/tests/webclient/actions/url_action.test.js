@@ -46,8 +46,6 @@ test("an 'ir.actions.act_url' action without url does nothing", async () => {
         assign: (url) => expect.step(`assign ${url}`),
     });
     await makeMockEnv();
-    // A falsy url must not navigate to the literal "/undefined" page,
-    // whatever the target.
     await getService("action").doAction({ type: "ir.actions.act_url" });
     await getService("action").doAction({ type: "ir.actions.act_url", target: "self" });
     await getService("action").doAction({

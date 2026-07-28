@@ -74,8 +74,6 @@ export class Dropdown extends Component {
         items: {
             optional: true,
             type: Array,
-            // OWL validates array-element shapes under the singular `element` key
-            // (see validateType in owl.js); the plural `elements` is inert.
             element: {
                 type: Object,
                 shape: {
@@ -87,7 +85,7 @@ export class Dropdown extends Component {
             },
         },
 
-        menuRef: { type: Function, optional: true }, // to be used with useChildRef
+        menuRef: { type: Function, optional: true },
         disabled: { type: Boolean, optional: true },
         holdOnHover: { type: Boolean, optional: true },
         focusToggleOnClosed: { type: Boolean, optional: true },
@@ -159,13 +157,9 @@ export class Dropdown extends Component {
                     return [];
                 }
             },
-            // Using deepMerge allows to keep entries of both option.hotkeys
             ...deepMerge(this.nesting.navigationOptions, this.props.navigationOptions),
         });
 
-        // Exposed for navigable children (DropdownItem, AccordionItem, etc.), which
-        // read ``this.env.navigation``; propagates through the portal since the
-        // popover is mounted with the dropdown's ``childEnv``.
         useChildSubEnv({ navigation: this.navigation });
 
         this.uiService = useService("ui");
@@ -176,7 +170,7 @@ export class Dropdown extends Component {
             animation: false,
             arrow: false,
             closeOnClickAway: (target) => this.popoverCloseOnClickAway(target),
-            closeOnEscape: false, // Handled via navigation and prevents closing root of nested dropdown
+            closeOnEscape: false,
             env: /** @type {any} */ (this).__owl__.childEnv,
             holdOnHover: this.props.holdOnHover,
             onClose: () => this.state.close(),
@@ -205,7 +199,6 @@ export class Dropdown extends Component {
         }
         this.popover = usePopover(DropdownPopover, options);
 
-        // Force the popover to re-render since it lives in a separate context.
         onRendered(() =>
             this.popoverRefresher ? this.popoverRefresher.token++ : null,
         );
@@ -245,11 +238,6 @@ export class Dropdown extends Component {
 
     /** @type {HTMLElement|null} */
     get target() {
-        // Returns null when the toggler element is absent (teardown, or a
-        // conditionally-rendered/empty slot). Every consumer already guards for
-        // null (`this.target?.`, `if (!this.target)`, `if (this.target)`); the
-        // previous `throw` made those guards dead code and crashed the close
-        // path (onClosed/updatePopoverPosition) instead of no-op'ing.
         return getFirstElementOfNode(/** @type {any} */ (this).__owl__.bdom);
     }
 
@@ -273,8 +261,6 @@ export class Dropdown extends Component {
         }
 
         if (this.hasParent || this.group.isOpen) {
-            // Don't steal focus from an editable element the user is typing in
-            // (outside this dropdown) on a pure mouse-over.
             const activeElement = /** @type {HTMLElement | null} */ (
                 document.activeElement
             );
@@ -409,13 +395,6 @@ export class Dropdown extends Component {
             items: this.props.items,
             slots: this.props.slots,
         };
-        // Restore-focus anchor: prefer the element captured at the opening gesture
-        // (before the nesting cascade), falling back to activeElement for
-        // programmatic opens. Keep the captured element so closing gives focus
-        // back to where the user was (e.g. a composer input for a message
-        // action dropdown) — UNLESS it belongs to another dropdown (a sibling
-        // closing concurrently may have claimed focus on its own toggler/menu),
-        // in which case anchor on this dropdown's own toggler.
         const captured =
             this._pendingFocusEl !== undefined
                 ? this._pendingFocusEl
@@ -427,9 +406,6 @@ export class Dropdown extends Component {
             Boolean(
                 captured.closest?.(".o-dropdown, .o-dropdown--menu, .dropdown-menu"),
             );
-        // Also never restore into a rich-text editable: re-focusing it resets
-        // its DOM selection, corrupting the edition flow the dropdown acted on
-        // (e.g. the html_editor toolbar's format dropdowns).
         const capturedUsable =
             captured && !capturedInOtherDropdown && !captured.isContentEditable;
         this._focusedElBeforeOpen = capturedUsable ? captured : this.target;
@@ -439,36 +415,19 @@ export class Dropdown extends Component {
     closePopover() {
         const restoreEl = this._focusedElBeforeOpen;
         this._focusedElBeforeOpen = undefined;
-        // Read focus BEFORE unmounting: popover.close() detaches the menu (async).
         const active = document.activeElement;
         this.popover.close();
         if (!this.props.focusToggleOnClosed || !restoreEl) {
             return;
         }
-        // Where does focus live now? "Ours" = inside this dropdown's toggler or
-        // its menu; focus still inside (keyboard close) or lost to <body> should
-        // be restored to the toggler (the menu-button a11y contract).
         const focusOutside =
             active &&
             !this.target?.contains(active) &&
             !this.menuRef.el?.contains(active);
-        // Decide when to LEAVE focus where the user put it instead of restoring:
-        // - In a group (menu bar): whenever focus moved to a real element outside
-        //   this dropdown — typically the sibling menu the user just switched to.
-        //   Restoring would yank focus off that sibling. Focus still inside our
-        //   menu/toggler or lost to <body> is a keyboard close → restore (this is
-        //   what the old `!group.isInGroup` early-out failed to do, dropping focus
-        //   to <body>).
-        // - Standalone: keep restoring to the toggler on close, but never yank
-        //   focus off an editable the user has moved to (typing in a search input
-        //   whose keystroke closed this menu — the following keystrokes would land
-        //   on the toggler). Mirrors the guard handleMouseEnter already applies.
         const leaveFocus = this.group.isInGroup
             ? focusOutside && active !== document.body
             : focusOutside &&
               (["INPUT", "TEXTAREA"].includes(active.nodeName) ||
-                  // Non-HTML elements simply have no isContentEditable
-                  // (undefined -> falsy), so the cast is safe.
                   /** @type {HTMLElement} */ (active).isContentEditable);
         if (!leaveFocus) {
             restoreEl.focus();
@@ -486,14 +445,6 @@ export class Dropdown extends Component {
             this.target.ariaExpanded = "true";
             this.target.classList.add("show");
         }
-        // Observe the menu for DOM mutations (e.g. an accordion item expanding
-        // to reveal sub-items) and re-scan the navigable set. This looks
-        // redundant with useNavigation's own MutationObserver, but it is NOT:
-        // useNavigation attaches its observer in a useEffect keyed on
-        // menuRef.el, and the menu is popover-hosted — menuRef.el is still null
-        // when the Dropdown patches, and a ref assignment does not re-run the
-        // effect, so that observer never attaches here. This imperative one,
-        // set up at open time when menuRef.el is live, is the only effective one.
         this.observer = new MutationObserver(() => this.navigation.update());
         this.observer.observe(this.menuRef.el, {
             childList: true,

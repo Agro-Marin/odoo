@@ -78,9 +78,6 @@ test("JsonCheckBoxesField", async () => {
 });
 
 test("JsonCheckBoxesField (save flushes a pending toggle before its debounce fires)", async () => {
-    // Regression: a toggle whose 100ms debounced commit hasn't fired yet must
-    // still reach the record when the model asks fields for their local changes
-    // (before an onchange/save), otherwise it is silently lost.
     onRpc("web_save", (args) => {
         expect.step("web_save");
         expect(args.args[1].json_checkboxes_field).toEqual({
@@ -100,10 +97,7 @@ test("JsonCheckBoxesField (save flushes a pending toggle before its debounce fir
             </form>`,
     });
 
-    // Toggle the second checkbox but do NOT run the timers: the debounced
-    // commitChanges is still pending.
     await contains("div.o_field_widget div.form-check input:eq(1)").click();
-    // Saving must flush the pending toggle instead of dropping it.
     await clickSave();
     expect.verifySteps(["web_save"]);
     expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
@@ -147,8 +141,6 @@ test("JsonCheckBoxesField (discard restores the original value)", async () => {
     expect("div.o_field_widget div.form-check input:checked").toHaveCount(2);
 
     await contains(".o_form_button_cancel").click();
-    // The observer resync (rAF-batched) + its owl re-render land a frame after
-    // the click's own animationFrame, so wait for them before asserting.
     await animationFrame();
     expect("div.o_field_widget div.form-check input:eq(0)").toBeChecked();
     expect("div.o_field_widget div.form-check input:eq(1)").not.toBeChecked({

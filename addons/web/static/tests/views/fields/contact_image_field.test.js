@@ -9,8 +9,6 @@ import {
     mountView,
 } from "@web/../tests/web_test_helpers";
 
-// A minimal 1x1 PNG, base64 (not a "N unit" bin_size string, so isBinarySize
-// is false → the inline data-URL branch is taken).
 const IMG =
     "iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAAHElEQVQI12P4//8/w38GIAXDIBKE0DHxgljNBAAO9TXL0Y4OHwAAAABJRU5ErkJggg==";
 
@@ -24,7 +22,7 @@ class Partner extends models.Model {
 
 defineModels([Partner]);
 
-const ARCH = /* xml */ `
+const ARCH = `
     <form>
         <field name="image_preview" invisible="1"/>
         <field name="avatar" widget="contact_image" options="{'preview_image': 'image_preview'}"/>
@@ -51,8 +49,6 @@ test("contact_image: empty primary falls back to the base64 preview", async () =
 
 test.tags("desktop");
 test("contact_image: empty primary AND empty preview shows the placeholder, never data:...false", async () => {
-    // The explicit guard in getUrl: with neither field set it must fall through
-    // to the base placeholder, not emit a broken "data:image/png;base64,false".
     const img = await mountContact(1, { avatar: false, image_preview: false });
     const src = img.getAttribute("data-src");
     expect(src).toBe("/web/static/img/placeholder.png");
@@ -62,17 +58,13 @@ test("contact_image: empty primary AND empty preview shows the placeholder, neve
 test.tags("desktop");
 test("contact_image: a present primary image is shown and counts as valid", async () => {
     const img = await mountContact(1, { avatar: IMG, image_preview: false });
-    // Primary present → base getUrl serves the primary data inline…
     expect(img.getAttribute("data-src")).toBe(`data:image/png;base64,${IMG}`);
-    // …and containsValidImage is true, so the img is NOT dimmed.
     expect(img.className).not.toInclude("opacity-25-hover");
 });
 
 test.tags("desktop");
 test("contact_image: a missing image dims the img via the opacity classes", async () => {
     const img = await mountContact(1, { avatar: false, image_preview: false });
-    // imgClass appends the reduced-opacity hover classes when there is no
-    // valid primary image.
     expect(img.className).toInclude("opacity-100");
     expect(img.className).toInclude("opacity-25-hover");
 });

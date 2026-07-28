@@ -77,12 +77,12 @@ test("save filter", async () => {
         expect.step(route);
         const irFilter = args[0];
         expect(irFilter.context).toEqual({ group_by: [], someKey: "foo" });
-        return [7]; // fake serverSideId
+        return [7];
     });
 
     await mountWithSearch(TestComponent, {
         resModel: "foo",
-        context: { someOtherKey: "bar" }, // should not end up in filter's context
+        context: { someOtherKey: "bar" },
         searchViewId: false,
     });
     const clearCacheListener = () => expect.step("CLEAR-CACHES");
@@ -115,7 +115,7 @@ test("save and edit filter", async () => {
         expect.step(route);
         const irFilter = args[0];
         expect(irFilter.context).toEqual({ group_by: [], someKey: "foo" });
-        return [7]; // fake serverSideId
+        return [7];
     });
     mockService("action", {
         doAction(action) {
@@ -134,7 +134,7 @@ test("save and edit filter", async () => {
 
     await mountWithSearch(TestComponent, {
         resModel: "foo",
-        context: { someOtherKey: "bar" }, // should not end up in filter's context
+        context: { someOtherKey: "bar" },
         searchViewId: false,
     });
     const clearCacheListener = () => expect.step("CLEAR-CACHES");
@@ -154,10 +154,6 @@ test("save and edit filter", async () => {
 });
 
 test("filter context overriding a user-context key survives into the saved favorite", async () => {
-    // The search context is seeded with user.context (lang "en", tz "taht",
-    // uid 7 in tests). A filter overriding such a key NAME with a DIFFERENT
-    // value is intentional and must reach the ir.filters record; a filter
-    // seeding the SAME value is redundant and stays stripped.
     onRpc("create_filter", ({ args, route }) => {
         expect.step(route);
         const irFilter = args[0];
@@ -168,7 +164,7 @@ test("filter context overriding a user-context key survives into the saved favor
             message: "same-value user-context key must still be stripped",
         });
         expect("uid" in irFilter.context).toBe(false);
-        return [7]; // fake serverSideId
+        return [7];
     });
 
     await mountWithSearch(SearchBar, {
@@ -199,7 +195,7 @@ test("dynamic filters are saved dynamic", async () => {
         expect(irFilter.domain).toBe(
             `[("date_field", ">=", (context_today() + relativedelta()).strftime("%Y-%m-%d"))]`,
         );
-        return [7]; // fake serverSideId
+        return [7];
     });
 
     await mountWithSearch(SearchBar, {
@@ -228,7 +224,7 @@ test("save filters created via autocompletion works", async () => {
         expect.step(route);
         const irFilter = args[0];
         expect(irFilter.domain).toBe(`[("foo", "ilike", "a")]`);
-        return [7]; // fake serverSideId
+        return [7];
     });
 
     await mountWithSearch(SearchBar, {
@@ -260,7 +256,7 @@ test("undefined name for filter shows notification and not error", async () => {
         },
     });
 
-    onRpc("create_filter", () => [7]); // fake serverSideId
+    onRpc("create_filter", () => [7]);
 
     await mountWithSearch(SearchBarMenu, {
         resModel: "foo",

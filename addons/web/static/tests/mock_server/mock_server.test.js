@@ -1029,13 +1029,13 @@ test("performRPC: formatted_read_group, group by datetime with number granularit
 
 test("performRPC: formatted_read_group day_of_week", async () => {
     Bar._records = [
-        { foo: 11, datetime: "2025-02-17 13:00:00" }, // Monday
-        { foo: 22, datetime: "2025-02-18 13:00:00" }, // Tuesday
-        { foo: 33, datetime: "2025-02-19 13:00:00" }, // Wednesday
-        { foo: 44, datetime: "2025-02-20 13:00:00" }, // Thursday
-        { foo: 55, datetime: "2025-02-21 13:00:00" }, // Friday
-        { foo: 66, datetime: "2025-02-22 13:00:00" }, // Saturday
-        { foo: 77, datetime: "2025-02-23 13:00:00" }, // Sunday
+        { foo: 11, datetime: "2025-02-17 13:00:00" },
+        { foo: 22, datetime: "2025-02-18 13:00:00" },
+        { foo: 33, datetime: "2025-02-19 13:00:00" },
+        { foo: 44, datetime: "2025-02-20 13:00:00" },
+        { foo: 55, datetime: "2025-02-21 13:00:00" },
+        { foo: 66, datetime: "2025-02-22 13:00:00" },
+        { foo: 77, datetime: "2025-02-23 13:00:00" },
     ];
     await makeMockServer();
 
@@ -1604,7 +1604,7 @@ describe("groupby chain of fields", () => {
             { id: 5, foo_id: 5 },
             { id: 6, foo_id: 5 },
         ];
-        mockTimeZone(0); // UTC
+        mockTimeZone(0);
         await makeMockServer();
         const result = await ormRequest({
             model: "test_read_group.related_base",
@@ -1678,7 +1678,7 @@ describe("groupby chain of fields", () => {
             { id: 1, foo_id: 1 },
             { id: 2, foo_id: 2 },
         ];
-        mockTimeZone(0); // UTC
+        mockTimeZone(0);
         await makeMockServer();
         const result = await ormRequest({
             model: "test_read_group.related_base",
@@ -1966,19 +1966,19 @@ test("webRead sub-fields of a many2one field", async () => {
 });
 
 test("List View: invisible on processed Arch", async () => {
-    Bar._views[["list", 10001]] = /* xml */ `
+    Bar._views[["list", 10001]] = `
         <list>
             <field name="bool" column_invisible="1"/>
             <field name="foo"/>
         </list>
     `;
-    Bar._views[["search", 10001]] = /* xml */ `
+    Bar._views[["search", 10001]] = `
         <search></search>
     `;
 
     await makeMockServer();
 
-    const expectedList = /* xml */ `
+    const expectedList = `
         <list>
             <field name="bool" column_invisible="True"/>
             <field name="foo"/>
@@ -2045,18 +2045,18 @@ test("performRPC: trigger onchange for new record", async () => {
 });
 
 test("access rights attributes are present on an editable many2one field", async () => {
-    Bar._views[["form", 10001]] = /* xml */ `
+    Bar._views[["form", 10001]] = `
         <form>
             <field name="partner_id" />
         </form>
     `;
-    Bar._views[["search", 10001]] = /* xml */ `
+    Bar._views[["search", 10001]] = `
         <search></search>
     `;
 
     await makeMockServer();
 
-    const expectedForm = /* xml */ `
+    const expectedForm = `
         <form>
             <field name="partner_id" can_create="true" can_write="true"/>
         </form>
@@ -2074,27 +2074,23 @@ test("access rights attributes are present on an editable many2one field", async
 });
 
 test("access rights attributes are missing on an editable many2one field", async () => {
-    // The access rights attributes should be present,
-    // but are actually missing when a field definition is readonly and readonly=0 is on the view.
-    // @see the commit description for more details.
-
     Bar._fields.partner_id = fields.Many2one({
         string: "Main buddy",
         relation: "res.partner",
         readonly: true,
     });
-    Bar._views[["form", 10001]] = /* xml */ `
+    Bar._views[["form", 10001]] = `
         <form>
             <field name="partner_id" readonly="0" />
         </form>
     `;
-    Bar._views[["search", 10001]] = /* xml */ `
+    Bar._views[["search", 10001]] = `
         <search></search>
     `;
 
     await makeMockServer();
 
-    const expectedForm = /* xml */ `
+    const expectedForm = `
         <form>
             <field name="partner_id" readonly="0"/>
         </form>

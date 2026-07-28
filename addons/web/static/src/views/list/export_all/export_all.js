@@ -19,8 +19,6 @@ export class ExportAll extends Component {
     static components = { DropdownItem };
     static props = {};
 
-    // Protected
-
     /** Trigger a direct XLSX export of all records via the search model event bus. */
     async onDirectExportData() {
         this.env.searchModel.trigger(SearchModelEvent.DIRECT_EXPORT_DATA);

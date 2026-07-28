@@ -148,8 +148,6 @@ test("report actions can close modals and reload views", async () => {
 
 test("send context in case of html report", async () => {
     serverState.userContext = { some_key: 2 };
-    // patch the report client action to override its iframe's url so that
-    // it doesn't trigger an RPC when it is appended to the DOM
     patchWithCleanup(ReportAction.prototype, {
         setup() {
             super.setup(...arguments);
@@ -159,7 +157,7 @@ test("send context in case of html report", async () => {
     });
     patchWithCleanup(download, {
         _download: () => {
-            expect.step("download"); // should not be called
+            expect.step("download");
             return Promise.resolve();
         },
     });
@@ -192,9 +190,6 @@ test("send context in case of html report", async () => {
 });
 
 test("downloadReport resolves with nothing (no wkhtmltopdf-fallback plumbing)", async () => {
-    // After the WeasyPrint migration there is no success/message contract: the
-    // download either resolves (void) or throws. The dead `if (message)` /
-    // `if (!success)` branches in report_executor rely on this collapsed shape.
     patchWithCleanup(download, {
         _download: (options) => {
             expect.step(options.url);
@@ -202,7 +197,6 @@ test("downloadReport resolves with nothing (no wkhtmltopdf-fallback plumbing)", 
         },
     });
     const action = { report_name: "some_report", report_type: "qweb-pdf" };
-    // The leading arg is the retained-for-POS, internally-ignored `rpc` slot.
     const result = await downloadReport(rpc, action, "pdf", {});
     expect(result).toBe(undefined);
     expect.verifySteps(["/report/download"]);
@@ -401,10 +395,9 @@ test("url is valid", async (assert) => {
     });
 
     await mountWithCleanup(WebClient);
-    await getService("action").doAction(12); // 12 is a html report action
+    await getService("action").doAction(12);
     await runAllTimers();
     const urlState = router.current;
-    // used to put report.client_action in the url
     expect(urlState.action === "report.client_action").toBe(false);
     expect(urlState.action).toBe(12);
 });

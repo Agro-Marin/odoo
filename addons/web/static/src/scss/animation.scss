@@ -1,14 +1,12 @@
-/************** DEFINITION of ANIMATIONS **************/
 
-// 'bounce' effect
-@keyframes bounceIn {
+@keyframes o-bounceIn {
     0%,
     20%,
     40%,
     60%,
     80%,
     100% {
-        transition-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+        animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
     }
     0% {
         opacity: 0;
@@ -33,7 +31,7 @@
     }
 }
 
-@keyframes flash {
+@keyframes o-flash {
     from,
     50%,
     to {
@@ -46,8 +44,7 @@
     }
 }
 
-// pulse effect
-@keyframes pulse {
+@keyframes o-pulse {
     from {
         box-shadow: 0 0 0 0 var(--pulse-color-from, #{$primary});
     }
@@ -57,36 +54,12 @@
     }
 }
 
-// Bold & Modern keyframes
-
 @keyframes o-fadeIn {
     from {
         opacity: 0;
     }
     to {
         opacity: 1;
-    }
-}
-
-@keyframes o-fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes o-fadeInDown {
-    from {
-        opacity: 0;
-        transform: translateY(-8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
     }
 }
 
@@ -112,17 +85,6 @@
     }
 }
 
-@keyframes o-slideInLeft {
-    from {
-        opacity: 0;
-        transform: translateX(-16px);
-    }
-    to {
-        opacity: 1;
-        transform: translateX(0);
-    }
-}
-
 @keyframes o-shimmer {
     0% {
         background-position: 200% 0;
@@ -132,18 +94,35 @@
     }
 }
 
-@keyframes o-spin {
-    from {
-        transform: rotate(0deg);
+@keyframes o-catchAttention {
+    0%,
+    20%,
+    40%,
+    60%,
+    80%,
+    100% {
+        animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
     }
-    to {
-        transform: rotate(360deg);
+    0% {
+        transform: translateY(-30%);
+    }
+    20% {
+        transform: translateY(-25%);
+    }
+    40% {
+        transform: translateY(-20%);
+    }
+    60% {
+        transform: translateY(-15%);
+    }
+    80% {
+        transform: translateY(-10%);
+    }
+    100% {
+        transform: translateY(-5%);
     }
 }
 
-// Respect the user's OS "reduce motion" preference EVERYWHERE. This lives in the
-// shared animation bundle (backend AND frontend), so login, portal, public
-// pages and the database manager honor it too — not only the backend webclient.
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,

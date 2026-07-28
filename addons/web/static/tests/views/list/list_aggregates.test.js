@@ -12,9 +12,6 @@ import {
     webModels,
 } from "@web/../tests/web_test_helpers";
 
-// These tests live in a dedicated file (mirroring `list_aggregates.js`) so
-// they don't collide with the concurrently-edited `list_view.test.js`.
-
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
 class Partner extends models.Model {
@@ -44,7 +41,6 @@ class Currency extends models.Model {
         ],
     });
     date = fields.Date();
-    // company-currency amount per foreign unit (see services/currency.js)
     inverse_rate = fields.Float();
 
     _records = [
@@ -57,9 +53,6 @@ defineModels([Partner, Currency, ResCompany, ResPartner, ResUsers]);
 
 test.tags("desktop");
 test("grouped monetary aggregate renders when the currency aggregate is absent", async () => {
-    // Simulate a server (e.g. a custom read_group) that did not send the
-    // currency aggregate alongside the monetary sum. `formatGroupAggregate`
-    // must guard the missing aggregate instead of dereferencing `.length`.
     onRpc("web_read_group", ({ parent }) => {
         const result = parent();
         for (const group of result.groups) {
@@ -72,9 +65,6 @@ test("grouped monetary aggregate renders when the currency aggregate is absent",
     await mountView({
         resModel: "partner",
         type: "list",
-        // No `sum=` on amount: the monetary aggregate still renders in the
-        // group header (the model aggregates monetary fields by default),
-        // while the footer path is not exercised here.
         arch: `
             <list>
                 <field name="name"/>
@@ -83,8 +73,6 @@ test("grouped monetary aggregate renders when the currency aggregate is absent",
         groupBy: ["bar"],
     });
 
-    // Before the fix, rendering the group headers threw
-    // (Cannot read properties of undefined (reading 'length')).
     expect(`.o_group_header`).toHaveCount(2);
     const lastNumber = queryOne(`.o_group_header:last .o_list_number`);
     expect(lastNumber.textContent.trim()).not.toBe("");
@@ -92,9 +80,6 @@ test("grouped monetary aggregate renders when the currency aggregate is absent",
 
 test.tags("desktop");
 test("grouped footer converts single-currency groups to the company currency", async () => {
-    // Groups: bar=true is all-USD (1200 + 500), bar=false is all-EUR (300).
-    // EUR inverse_rate is 0.5 → the footer total is 1700 + 300 × 0.5 = 1850,
-    // flagged with the multi-currency indicator.
     await mountView({
         resModel: "partner",
         type: "list",
@@ -114,11 +99,6 @@ test("grouped footer converts single-currency groups to the company currency", a
 
 test.tags("desktop");
 test("grouped footer renders no total when a group mixes currencies", async () => {
-    // bar=true group holds USD and EUR records: its server-side sum already
-    // mixes currencies and cannot be converted client-side, so the footer
-    // must render the multi-currency indicator WITHOUT a total (previously
-    // the raw mixed sum was presented as company currency and added to the
-    // converted sums of the other groups).
     Partner._records[1].currency_id = 2;
 
     await mountView({
@@ -137,8 +117,6 @@ test("grouped footer renders no total when a group mixes currencies", async () =
     expect(footerCell.textContent.trim()).toBe("?");
     expect(`tfoot td.o_list_number sup`).toHaveCount(1);
 
-    // The indicator has no total to convert: hovering must not open the
-    // multi-currency popover (the explanatory tooltip may still show).
     await contains(`tfoot td.o_list_number sup`).hover();
     expect(`.o_multi_currency_popover`).toHaveCount(0);
 });
@@ -156,7 +134,6 @@ test("selection footer converts mixed-currency records to the company currency",
             </list>`,
     });
 
-    // Select an USD record (1200) and an EUR record (300 × 0.5 = 150).
     await contains(`.o_data_row:eq(0) .o_list_record_selector input`).click();
     await contains(`.o_data_row:eq(2) .o_list_record_selector input`).click();
 

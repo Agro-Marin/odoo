@@ -1,12 +1,6 @@
 // @ts-check
 
 // must run AFTER the view_button imports above. A prior `eslint --fix`
-// hoisted these to the top, reordering them relative to the modules whose
-// registrations they may depend on; restored to their original position.
-// Not verified against the Hoot suite (harness unavailable in this
-// environment) — treat this position as the known-safe one until it is.
-// Side-effect imports: register the remaining shared_components entries and
-// install the registry's validation schema (M2).
 import "@web/views/form/form_utils";
 import "@web/views/view_utils";
 
@@ -38,8 +32,6 @@ async function mountButton(buttonXml) {
     }
     await mountWithCleanup(Parent);
 }
-
-// ── getClassName: Bootstrap rank resolution (view_button.js:getClassName) ──
 
 test("getClassName: oe_highlight legacy class maps to btn-primary", async () => {
     await mountButton(
@@ -78,8 +70,6 @@ test("getClassName: size adds btn-<size>", async () => {
     expect("button").toHaveClass("btn-sm");
 });
 
-// ── iconFromString: FA7 / FA4 / odoo-icon / image parsing (view_button.js) ──
-
 test("iconFromString: FA4 bare name normalizes to fa-solid", async () => {
     await mountButton(
         `<ViewButton icon="'fa-edit'" clickParams="{ type: 'object' }"/>`,
@@ -109,8 +99,6 @@ test("iconFromString: a non-icon string renders an <img>", async () => {
     expect("button img").toHaveAttribute("src", "/web/static/img/x.png");
 });
 
-// ── tooltip (P1): lazy getter, gated by hasBigTooltip ──
-
 test("tooltip (P1): without help/debug there is no tooltip template attribute", async () => {
     await mountButton(`<ViewButton string="'X'" clickParams="{ type: 'object' }"/>`);
     expect("button").not.toHaveAttribute("data-tooltip-template");
@@ -125,8 +113,6 @@ test("tooltip (P1): help text activates the lazy tooltip getter", async () => {
         "views.ViewButtonTooltip",
     );
 });
-
-// ── L1: MultiRecordViewButton must not mutate the shared arch clickParams ──
 
 test("MultiRecordViewButton (L1): does not mutate the shared clickParams object", async () => {
     mockService("action", { doActionButton() {} });
@@ -152,29 +138,22 @@ test("MultiRecordViewButton (L1): does not mutate the shared clickParams object"
     await mountWithCleanup(Parent);
     await contains("button").click();
     await animationFrame();
-    // The buggy implementation grafted `buttonContext` onto the shared arch object.
     expect("buttonContext" in clickParams).toBe(false);
 });
 
 test("prop shape (M1): accepts the union types real call sites pass", async () => {
-    // OWL prop validation throws on mount in test mode, so a clean render proves
-    // the typed shape accepts icon=false, an object context, a numeric id, and a
-    // string tabindex — the shapes seen in list/kanban/x2many/payrun call sites.
     await mountButton(
         `<ViewButton id="42" icon="false" context="{ foo: 1 }" tabindex="'-1'" record="{ resId: 1 }" string="'X'" clickParams="{ type: 'object' }"/>`,
     );
     expect("button").toHaveCount(1);
-    expect("button i").toHaveCount(0); // icon=false -> no icon element rendered
+    expect("button i").toHaveCount(0);
 });
 
 test("shared_components (M2): validation schema installed; every entry is callable", () => {
     const shared = registry.category("shared_components");
-    // The schema is the function predicate installed by view_utils.
     expect(typeof shared.validationSchema).toBe("function");
-    // Contract: callables accepted, non-callables rejected.
     expect(shared.validationSchema(function () {})).toBe(true);
     expect(shared.validationSchema({})).toBe(false);
-    // Every real entry (a Component class + hooks/utilities) satisfies it.
     for (const key of [
         "ViewButton",
         "executeButtonCallback",
@@ -188,14 +167,10 @@ test("shared_components (M2): validation schema installed; every entry is callab
 });
 
 test("R2 probe: an OWL re-render of the button mid-action keeps it disabled", async () => {
-    // Settles the R2 hypothesis ("imperative disabling fights reactive renders"):
-    // executeButtonCallback disables buttons via setAttribute (outside OWL's vdom).
-    // If a routine OWL re-render that patches the button wiped that attribute, the
-    // double-click guard would silently reopen while the action is still running.
     const def = new Deferred();
     mockService("action", {
         doActionButton() {
-            return def; // stay pending so the button stays disabled
+            return def;
         },
     });
 
@@ -215,20 +190,15 @@ test("R2 probe: an OWL re-render of the button mid-action keeps it disabled", as
     }
     await mountWithCleanup(Parent);
 
-    // 1. Click: the action is pending and executeButtonCallback disables the button.
     await contains("button").click();
     expect("button").toHaveAttribute("disabled");
 
-    // 2. Change the button's `string` prop -> OWL re-renders and patches the button
-    //    element (not skipped by child-component memoization) while still pending.
     parent.state.label = "Running";
     await animationFrame();
-    expect("button").toHaveText("Running"); // the element was genuinely patched
+    expect("button").toHaveText("Running");
 
-    // 3. The imperatively-set disabled must survive that patch.
     expect("button").toHaveAttribute("disabled");
 
-    // 4. Completing the action re-enables the button.
     def.resolve();
     await animationFrame();
     expect("button").not.toHaveAttribute("disabled");

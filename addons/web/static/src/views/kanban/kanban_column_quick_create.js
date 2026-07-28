@@ -31,10 +31,7 @@ export class KanbanColumnQuickCreate extends Component {
         useAutofocus();
         this.inputRef = useRef("autofocus");
 
-        // Close on outside click
         useExternalListener(window, "mousedown", (/** @type {Event} */ ev) => {
-            // Track where the click started: a drag that begins inside the
-            // root (e.g. selecting input text) shouldn't count as "outside".
             this.mousedownTarget = ev.target;
         });
         useExternalListener(
@@ -51,7 +48,6 @@ export class KanbanColumnQuickCreate extends Component {
             { capture: true },
         );
 
-        // Key Navigation
         useHotkey("escape", () => this.fold());
         onPatched(() => {
             if (this.state.hasInputFocused && !this.props.folded) {

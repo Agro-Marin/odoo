@@ -6,13 +6,28 @@ Quick reference for running targeted subsets of `core/addons/web/tests/`.
 
 | Tag | Type | Tests | Time |
 |-----|------|-------|------|
-| `web_unit` | TransactionCase (pure Python) | 232 methods | ~30s |
-| `web_http` | HttpCase (url_open, no browser) | 81 methods | ~5 min |
-| `web_tour` | HttpCase (start_tour/browser_js) | 5 methods | ~2 min |
-| `web_js` | Full JS suites (HOOT) | 37 methods | ~1-2 hr |
-| `web_perf` | Query count regression (@warmup) | 26 methods | ~2 min |
-| `web_benchmark` | Statistical timing (run_benchmark) | 8 methods | ~5 min |
-| `click_all` | Click-everywhere (-standard) | 2 methods (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
+| `web_unit` | TransactionCase (pure Python, + 1 stray HttpCase) | 286 tests | ~45s |
+| `web_http` | HttpCase (url_open, no browser) | 87 tests | ~5 min |
+| `web_tour` | HttpCase (start_tour/browser_js) | 5 tests | ~2 min |
+| `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr |
+| `web_perf` | Query count regression (@warmup) | 26 tests | ~2 min |
+| `web_benchmark` | Statistical timing (run_benchmark) | 8 tests | ~5 min |
+| `click_all` | Click-everywhere (-standard) | 2 tests (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
+
+> Counting basis: these are **tests as Odoo's loader collects them**
+> (`odoo.tests.loader.make_suite(['web'], '<tag>')`), which includes methods
+> inherited from untagged base classes. That is deliberately *not* a textual
+> count of `def test_` inside `@tagged` classes — grepping undercounts
+> `web_unit` by 54 and `web_http` by 6, which is how both numbers were wrong
+> for months. To reproduce a *run*: `odoo-bin -d <db> --test-enable
+> --test-tags <tag> --stop-after-init` and read `odoo.tests.result: … of N
+> tests`. Give the HttpCase tags (`web_http`, `web_js`, `click_all`) a real
+> port — under `--no-http` they collect 0.
+>
+> `web_unit` runs 284, not 286, under `--no-http`: `TestJsonExportRoute`
+> (`tests/test_json_export.py`) is an **`HttpCase` tagged `web_unit`** rather
+> than `web_http`, so its 2 tests disappear silently without a port. That tag
+> is inconsistent with this table's own definition of `web_unit`.
 
 > Note: three test files currently carry no `web_*` topic tag — two have
 > no `@tagged` at all (`test_esm_pipeline.py`, `test_res_config_settings.py`),
@@ -102,6 +117,43 @@ to run individual groups instead of the full 1-2 hour suite.
 | `web_typed_services` | test_typed_services_consistency | `@types/registries/services.d.ts` ↔ runtime registry consistency |
 | `assets_bundle` | test_assets | Bundle generation timings and asset cursors (sub-tag alongside `web_assets`) |
 | `web_bundle_size` | test_web_bundle_size | ESM bundle byte-size regression gate; pins upper-bound budgets per bundle (sub-tag alongside `web_perf` and `web_assets`) |
+
+## HOOT suite scoping (`&module_scope=`)
+
+`web.assets_unit_tests_setup` pulls in `web.assets_backend`, so an unscoped
+`/web/tests` page executes the `src` of **every installed addon**. Those side
+effects are global and unconditional (registry entries, `patch()` calls), while
+mock models are opt-in per suite via `defineModels()`. The asymmetry meant one
+addon's `src` routinely reached for a model another addon's suite never
+defined, and the mock server could only answer *"Cannot find a definition for
+model X"* — e.g. `mail`'s chatter patches made `@web/webclient`'s
+`res_user_group_ids_field` suite fail on `mail.thread`, and enterprise `ai`'s
+command provider logged `ai.agent unavailable` throughout `@mail`'s suites.
+
+`_run_hoot` now appends `&module_scope=<addon>`, derived from the `@<addon>`
+prefix its suite names already carry. `ir.asset._get_active_addons_list`
+(`web/models/ir_asset.py`) narrows every bundle on that request to the addon's
+**manifest dependency closure** — for `mail` that is `{mail, web_tour,
+html_editor, bus, web, base}`. What cannot load cannot register.
+
+- **Inert without the param.** No `module_scope` → `_get_asset_params()` is
+  unchanged → the ormcache key, the bundle and today's behaviour are identical.
+  Only honoured on `/web/tests*`, so a stray param cannot fragment the asset
+  cache of ordinary pages.
+- **No URL collision.** A bundle's `unique` is a SHA256 over its asset
+  descriptors (`assetsbundle/bundle.py::get_checksum`) and ESM artifacts are
+  content-addressed, so a scoped bundle mints its own URL and can never
+  overwrite the unscoped attachment. No `_get_asset_bundle_url` override is
+  needed (unlike `website`, whose custom-SCSS URLs *can* collide).
+- **Suites get stricter.** A suite that passed only because a foreign addon's
+  `src` happened to be loaded will now fail. That is the point; treat such a
+  failure as a real missing dependency, not as scoping breakage.
+- `hoot_filters` (an explicit `--test-tags` path) suppresses scoping: the path
+  may select suites from another addon.
+- `im_livechat`'s `/web/tests/livechat` external suite passes no scope and
+  stays unscoped by design — it is deliberately cross-addon.
+
+Covered by `tests/test_ir_asset_scope.py` (tag `asset_scope`).
 
 ## JS Legacy QUnit chain — REMOVED
 

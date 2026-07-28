@@ -17,7 +17,6 @@ class TestWebReadGroup(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        # Two companies and one person — two non-empty is_company groups.
         cls.partners = cls.env["res.partner"].create(
             [
                 {"name": "WRG Test Company 1", "is_company": True},
@@ -117,7 +116,6 @@ class TestWebReadGroup(TransactionCase):
             f"client's group keys {client_keys}; a mismatch zeroes every "
             f"progress bar for non-UTC users",
         )
-        # Every record must land in some bar (2 companies + 1 person).
         total = sum(sum(states.values()) for states in pb.values())
         self.assertEqual(total, len(self.partners))
 
@@ -133,7 +131,6 @@ class TestWebReadGroup(TransactionCase):
         Partner = self.env["res.partner"]
         partners = Partner.create([{"name": f"WRG Count {i}"} for i in range(5)])
         domain = [("id", "in", partners.ids)]
-        # 5 distinct names => 5 groups; a full page of 2 hides 3 more.
         result = Partner.web_read_group(
             domain=domain, groupby=["name"], aggregates=["__count"], limit=2
         )
@@ -184,7 +181,6 @@ class TestWebReadGroup(TransactionCase):
         )
         aggregator = Model._fields[agg_field].aggregator
 
-        # (a) aggregator fallback: not in groupby/aggregates -> sort by aggregate.
         order = Model._get_read_group_order(
             {agg_field: "desc"}, groupby=["country_id"], aggregates=[]
         )
@@ -194,8 +190,6 @@ class TestWebReadGroup(TransactionCase):
             "ordering by an aggregatable field must fall back to its aggregator, not be dropped",
         )
 
-        # (b) no duplicate: a field matching both a groupby and an aggregate
-        # must yield only the groupby term.
         order2 = Model._get_read_group_order(
             {"create_date": "desc"},
             groupby=["create_date:month"],
@@ -243,7 +237,6 @@ class TestWebReadGroupContracts(TransactionCase):
         page1 = [rec["id"] for rec in group["__records"]]
         self.assertEqual(len(page1), 80)
 
-        # Page 2+ exactly as the client sends it: user order + "id" tiebreaker.
         page2 = [
             rec["id"]
             for rec in Partner.web_search_read(
@@ -261,7 +254,6 @@ class TestWebReadGroupContracts(TransactionCase):
             set(partners.ids),
             "no record may be lost between pages",
         )
-        # Both pages are slices of the SAME (function ASC, id ASC) ordering.
         expected = [p.id for p in sorted(partners, key=lambda p: (p.function, p.id))]
         self.assertEqual(page1, expected[:80])
         self.assertEqual(page2, expected[80:])
@@ -352,7 +344,6 @@ class TestWebReadGroupContracts(TransactionCase):
         )
         self.assertEqual(len(group["__records"]), 5)
 
-        # Control: without a progressbar_domain the aggregates stay unfiltered.
         result = Partner.web_read_group(
             domain=domain,
             groupby=["function"],
@@ -384,7 +375,6 @@ class TestWebReadGroupContracts(TransactionCase):
         )
         self.assertEqual(result["groups"], [])
 
-        # Direct formatted_read_group callers (graph/pivot) keep the trap.
         with self.assertRaises(ValueError):
             model.formatted_read_group(
                 domain, ["create_date:month"], ["__count"], limit=80
@@ -405,8 +395,6 @@ class TestSearchOpenedGroupsBatching(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         Partner = cls.env["res.partner"]
-        # Enough groups to cross the SQL chunk boundary, with deliberate ties
-        # on the sort key so tie resolution is actually exercised.
         cls.parents = Partner.create(
             [{"name": f"SOG P{i:03d}", "is_company": True} for i in range(60)]
         )
@@ -471,7 +459,6 @@ class TestSearchOpenedGroupsBatching(TransactionCase):
 
         scenarios = [
             (n, order, limit, offset)
-            # 1 exercises the single-group fast path, 60 crosses the chunk size.
             for n in (1, 2, 7, 55, 60)
             for order in (None, "name desc", "ref asc", "ref desc, name asc")
             for limit in (3, 20)
@@ -496,9 +483,6 @@ class TestSearchOpenedGroupsBatching(TransactionCase):
         before = self.env.cr.sql_log_count
         self._records_per_group(n_groups, None, 5, 0)
         queries = self.env.cr.sql_log_count - before
-        # The per-group form cost >= n_groups queries on its own; batching must
-        # stay far below that. Asserting a generous bound keeps the test about
-        # the algorithmic shape, not an exact query count.
         self.assertLess(
             queries,
             n_groups // 2,

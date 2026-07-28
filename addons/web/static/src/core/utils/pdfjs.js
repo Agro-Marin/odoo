@@ -56,17 +56,11 @@ export function hidePDFJSButtons(rootElement, options = {}) {
             : rootElement.querySelector("iframe")
     );
     if (iframe) {
-        // Remember the latest requested style so a later call with different
-        // options takes effect (the single "load" listener always applies the
-        // most recent request instead of the first call's closure).
         pendingViewerStyles.set(iframe, cssText);
         if (!iframe.dataset.hideButtons) {
             iframe.dataset.hideButtons = "true";
             iframe.addEventListener("load", () => applyViewerStyle(iframe));
         }
-        // The iframe may already have fired "load" (fast cache, re-mount):
-        // apply immediately too. Harmless on a not-yet-navigated document —
-        // the "load" listener re-applies into the real viewer document.
         if (iframe.contentDocument?.readyState === "complete") {
             applyViewerStyle(iframe);
         }
@@ -141,9 +135,6 @@ export async function loadPDFJS() {
             _pdfjsLib = lib;
             return pdfjsLib;
         })().catch((error) => {
-            // Never cache a rejection: a transient fetch failure would
-            // otherwise disable every future PDF preview until a full
-            // page reload.
             loadPromise = null;
             throw error;
         });

@@ -30,8 +30,6 @@ test("selection group with a valid value uses the selection label", () => {
 
 test("selection group with a falsy value falls back to 'None'", () => {
     const info = makeGroupInfo(selectionField, false);
-    // Regression: previously returned ``undefined`` (Object.fromEntries lookup
-    // miss) instead of the falsy label like every other field type.
     expect(info.displayName).toBe("None");
 });
 

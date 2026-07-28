@@ -6,6 +6,7 @@
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { onModelMutation } from "@web/services/orm_service";
 
 /**
  * Methods that remove records from the model's result sets, so cached
@@ -55,49 +56,43 @@ const RESULT_SET_TABLES = ["web_read", "web_search_read", "web_read_group"];
  *
  * No dependencies: ``rpcBus`` is a module-scoped singleton from
  * ``@web/core/network/rpc``.
+ *
+ * Subscribes through {@link onModelMutation} rather than decoding ``rpcBus``
+ * by hand. That decode had drifted: it skipped EVERY failed mutation, whereas
+ * only a ``RPCError`` proves nothing was committed — a ``ConnectionLostError``
+ * or timeout on an ``unlink`` may well have deleted the records server-side,
+ * and dropping the event left the result-set caches serving the deleted rows
+ * for the rest of the session with no other trigger.
  */
 export const resultSetCacheInvalidatorService = {
     /**
      * @param {import("@web/env").OdooEnv} _env
      */
     start(_env) {
-        const onResponse = (event) => {
-            const detail = /** @type {any} */ (event).detail;
-            // A failed unlink/archive removed nothing; its RESPONSE carries
-            // ``error`` with no ``result``. Skip to avoid a needless reload
-            // while the user is retrying.
-            if (detail?.error) {
-                return;
-            }
-            const method = detail?.data?.params?.method;
-            const model = detail?.data?.params?.model;
-            // Language install invalidates virtually everything cached
-            // (selections, labels, formats); nuke the whole RPC cache so the
-            // new language shows up immediately without an extra reload.
-            if (method === "lang_install" && model === "base.language.install") {
-                rpcBus.trigger(RpcEvent.CLEAR_CACHES);
-                return;
-            }
-            if (!RESULT_SET_REMOVING_METHODS.has(method)) {
-                return;
-            }
-            rpcBus.trigger(RpcEvent.CLEAR_CACHES, {
-                tables: RESULT_SET_TABLES,
-                model,
-            });
-        };
+        const disposers = [
+            onModelMutation(
+                () => true,
+                ({ model }) =>
+                    rpcBus.trigger(RpcEvent.CLEAR_CACHES, {
+                        tables: RESULT_SET_TABLES,
+                        model,
+                    }),
+                { methods: RESULT_SET_REMOVING_METHODS },
+            ),
+            // Installing a language re-renders every translated payload, so
+            // nothing model-scoped is salvageable: clear the caches wholesale.
+            onModelMutation(
+                ["base.language.install"],
+                () => rpcBus.trigger(RpcEvent.CLEAR_CACHES),
+                { methods: ["lang_install"] },
+            ),
+        ];
 
-        rpcBus.addEventListener(RpcEvent.RESPONSE, onResponse);
-
-        // ``rpcBus`` is a module-singleton, so the "exactly one listener tied to
-        // this env's lifecycle" invariant in the docstring only holds if the
-        // listener is actually removed on teardown. Without this, every env ever
-        // started leaves a permanent listener and one record removal fires
-        // CLEAR-CACHES once PER env — the exact N-fold amplification this
-        // service exists to prevent. Called by ``env.destroy()``.
         return {
             destroy() {
-                rpcBus.removeEventListener(RpcEvent.RESPONSE, onResponse);
+                for (const dispose of disposers) {
+                    dispose();
+                }
             },
         };
     },

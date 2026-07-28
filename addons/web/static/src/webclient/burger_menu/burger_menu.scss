@@ -1,6 +1,3 @@
-//------------------------------------------------------------------------------
-// Mobile Burger Menu
-//------------------------------------------------------------------------------
 
 .o_burger_menu,
 .o_app_menu_sidebar {
@@ -8,7 +5,6 @@
     z-index: $zindex-tooltip + 10;
     transition: transform 0.2s ease;
 
-    // Menu Toggle-Animations
     transform: translateX(-100%);
 
     &.o-burger-slide-enter,
@@ -18,7 +14,6 @@
         transform: translateX(0);
     }
 
-    // ====== Top-Bar
     .o_sidebar_topbar {
         min-height: $o-navbar-height;
         background-color: $o-burger-topbar-bg;
@@ -32,15 +27,12 @@
         }
     }
 
-    // ====== Menu content container (both App's and User's entries)
     .o_burger_menu_content {
         &.o_burger_menu_app {
             background-color: $o-burger-base-bg;
         }
 
-        // Menu entries size and layout
         ul {
-            // Handle menu text-indentation
             li {
                 padding-left: $o-horizontal-padding;
                 ul > li {
@@ -73,13 +65,8 @@
 }
 
 .o_app_menu_sidebar {
-    // Menu Toggle-Animations
     transform: translateX(100%);
 }
-
-//------------------------------------------------------------------------------
-// Design rules not scoped within the main component
-//------------------------------------------------------------------------------
 
 @include media-breakpoint-down(md) {
     .o_debug_dropdown {

@@ -8,8 +8,6 @@
         border-top: 1px solid var(--o-cw-border-color);
     }
 
-    // Simulate the old UI (FC v4)
-    // the resizer on the bottom of the event styled with a = icon when hovered
     .fc-timegrid-event .fc-event-resizer {
         color: $white;
         text-align: center;
@@ -22,16 +20,6 @@
         line-height: 0;
     }
 
-    // FC v7 collapses the all-day strip to height=0 when it contains no
-    // events because the strip row gets its height from its content
-    // (events) and the ``allDayText`` label is empty in this fork.
-    // Set a minimum height so users (and ``selectAllDayRange`` tests)
-    // can drag-to-create all-day events on an empty calendar. The
-    // strip is the first ``[role="row"]`` directly inside the timegrid
-    // view container; ``.fc-daygrid-row`` is on the inner ``DayGridRow``
-    // wrapper and matches both the all-day strip AND month-view week
-    // rows. Scope to time-grid views so month-view rows keep their
-    // dynamic content-driven height.
     .fc-timeGridDay-view,
     .fc-timeGridWeek-view {
         > [role="rowgroup"] > [role="row"]:first-child .fc-daygrid-row {
@@ -40,8 +28,6 @@
     }
 
     .fc-event {
-        // `web/lib/fullcalendar/core/main.css` gives events with links and draggable events a hand mouse pointer,
-        // but doesn't take into account that events have popovers.
         cursor: pointer;
         --fc-event-text-color: #{$body-color};
         --fc-event-bg-color: #{$o-view-background-color};
@@ -83,7 +69,7 @@
 
         &:not(.o_event_dot):not(.fc-dragging).o_cw_custom_highlight {
             box-shadow: 0px 8px 8px -7px rgba(0, 0, 0, 0.2);
-            z-index: 2; // for the shadow to go over the events below
+            z-index: 2;
         }
 
         .fc-bg {
@@ -128,7 +114,7 @@
                 z-index: 2;
                 display: inline-block;
                 font-family: Fontawesome;
-                content: "\f111"; // fa-circle
+                content: "\f111";
             }
 
             &:hover {
@@ -138,30 +124,24 @@
             &.o_event_hatched:before {
                 --o-event-bg: var(--fc-event-text-color);
 
-                content: "\f1db"; // fa-circle-thin
+                content: "\f1db";
             }
         }
     }
 
-    // Reset all link (A tag) the normal color (to override Bootstrap rule)
-    // And also override WebEditor rules
     div.fc a {
         color: inherit;
     }
 
     .o_calendar_widget {
-        // Remove background today color
         .fc-day-today:not(.o_calendar_disabled) {
             --fc-today-bg-color: none;
         }
 
-        // Remove time indicator arrow
         .fc-timegrid-now-indicator-arrow {
             display: none;
         }
 
-        // ===  Adapt calendar table borders and general layout ===
-        // ========================================================
         --fc-page-bg-color: #{$o-view-background-color};
         --fc-border-color: var(--o-cw-border-color);
 
@@ -228,10 +208,6 @@
             }
         }
 
-        // ======  Specific agenda types ======
-        // ====================================
-
-        // ====== Day only
         .fc-timeGridDay-view {
             .fc-col-header-cell {
                 text-align: left;
@@ -248,8 +224,6 @@
                 }
             }
         }
-
-        // ====== Week only
 
         .fc-timeGridWeek-view {
             .fc-col-header-cell {
@@ -269,7 +243,6 @@
             }
         }
 
-        // ====== Both Day and Week agenda
         .fc-timeGridDay-view,
         .fc-timeGridWeek-view {
             --o-cw-bg: #{$o-calendar-today-background-color};
@@ -299,12 +272,10 @@
                 }
             }
 
-            // Remove dotted borders (half-hours)
             .fc-timegrid-slot-minor {
                 border-top-style: none;
             }
 
-            // Align labels and timelines
             .fc-timegrid-slot {
                 font-size: 0.6rem;
 
@@ -315,7 +286,6 @@
                 &.fc-timegrid-slot-label {
                     border-width: 0;
 
-                    // Center the time label (vertical align to the center of the line)
                     .fc-timegrid-slot-label-cushion {
                         margin-top: -18px;
                         position: relative;
@@ -324,12 +294,10 @@
                 }
             }
 
-            // Add a small gap on top to show the first time label (0:00)
             .fc-scroller.fc-scroller-liquid-absolute {
                 padding-top: 15px;
             }
 
-            // Row containing "all day" events
             .fc-timegrid-divider.fc-cell-shaded {
                 position: relative;
                 padding: 0;
@@ -360,8 +328,6 @@
                 }
             }
 
-            // Create a 'pseudo-border' for the first row. The actual border
-            // is hidden because of border-collapse settings.
             .fc-scrollgrid-section-liquid
                 tr:first-child
                 .fc-timegrid-slot.fc-timegrid-slot-lane:last-child {
@@ -371,7 +337,6 @@
             .fc-event {
                 --o-bg-opacity: 0.25;
 
-                // Prevent events with similar color to visually overlap each other
                 &:not(.o_event_allday):not(.o_homework_event) {
                     box-shadow: 0 0 0 1px $o-view-background-color;
                 }
@@ -399,7 +364,6 @@
                 }
             }
 
-            // Avoid pointer event on the "Now Indicator" (red line)
             .fc-timegrid-now-indicator-line {
                 pointer-events: none;
             }
@@ -411,9 +375,7 @@
             border: none;
         }
 
-        // ====== Week only
         .fc-timeGridWeek-view {
-            // Reset position to keep the "nowIndicator" line visible
             @for $i from 1 through 7 {
                 .fc-timegrid-col:not(.fc-timegrid-axis):nth-child(#{$i + 1})
                     .o_calendar_time_indicator_now {
@@ -428,7 +390,6 @@
                     transform: translateY(-100%);
                 }
 
-                // Add a dot shape at the start of the "Now Indicator" line
                 .fc-timegrid-now-indicator-line::before {
                     content: "";
                     position: absolute;
@@ -442,8 +403,6 @@
             }
         }
 
-        // ====== Both Week and Month agenda
-
         .fc-timeGridWeek-view,
         .fc-dayGridMonth-view {
             .fc-col-header-cell a {
@@ -451,8 +410,6 @@
                 font-size: $o-font-size-base-smaller;
             }
         }
-
-        // ====== Both Month and Months in Year agenda
 
         .fc-dayGridMonth-view {
             .o-fc-week-header {
@@ -501,7 +458,6 @@
                         }
                     }
                     .fc-daygrid-week-number {
-                        // only in Month view
                         @include media-breakpoint-down(lg) {
                             background-color: $gray-100;
                         }
@@ -553,12 +509,11 @@
             }
         }
 
-        // ====== Year only
         .fc-dayGridYear-view {
             --fc-neutral-bg-color: none;
             flex-direction: row;
             .fc-scroller {
-                overflow: hidden !important; // FC set its own rules inline
+                overflow: hidden !important;
             }
 
             table,
@@ -667,7 +622,6 @@
                 }
             }
         }
-        // ====== RTL layout(s)
         &.fc-rtl {
             .fc-timeGrid-view .fc-event {
                 border-width: 0 3px 0 0;
@@ -696,7 +650,6 @@
                 }
             }
         }
-        // To avoid some overlapping we set the FullCalendar More popover to a lower value
         .fc-more-popover {
             z-index: $zindex-modal-backdrop - 1;
         }
@@ -708,12 +661,11 @@
         &.o_cw_custom_highlight,
         &.o_calendar_popover_open {
             box-shadow: 0px 8px 2px -7px rgba(0, 0, 0, 0.5);
-            z-index: 2; // for the shadow to go over the events below
+            z-index: 2;
         }
     }
 }
 
-// ===============  Generate color classes ===============
 @for $i from 1 through length($o-colors-complete) {
     $color: nth($o-colors-complete, $i);
     $color-subtle: tint-color($color, 55%);

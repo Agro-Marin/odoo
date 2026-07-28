@@ -35,7 +35,6 @@ const ensureSearchBarMenu = async () => {
  * @returns {Object} filtered props
  */
 function filterPropsForComponent(Component, props) {
-    // This if, can be removed once all the Components have the props defined
     if (Component.props) {
         let componentKeys = null;
         if (Component.props instanceof Array) {
@@ -57,10 +56,6 @@ function filterPropsForComponent(Component, props) {
         return props;
     }
 }
-
-//-----------------------------------------------------------------------------
-// Search view
-//-----------------------------------------------------------------------------
 
 /**
  * Mounts a component wrapped within a WithSearch.
@@ -110,10 +105,6 @@ export async function mountWithSearch(
         (component) => component instanceof componentConstructor,
     );
 }
-
-//-----------------------------------------------------------------------------
-// Menu (generic)
-//-----------------------------------------------------------------------------
 
 /**
  * @param {string} label
@@ -184,10 +175,6 @@ export function getVisibleButtons() {
     return queryAll`.o_control_panel_breadcrumbs button:visible, .o_control_panel_actions button:visible`;
 }
 
-//-----------------------------------------------------------------------------
-// Filter menu
-//-----------------------------------------------------------------------------
-
 export async function toggleFilterMenu() {
     await ensureSearchBarMenu();
     await contains(`.o_filter_menu button.dropdown-toggle`).click();
@@ -197,10 +184,6 @@ export async function openAddCustomFilterDialog() {
     await ensureSearchBarMenu();
     await contains(`.o_filter_menu .o_menu_item.o_add_custom_filter`).click();
 }
-
-//-----------------------------------------------------------------------------
-// Group by menu
-//-----------------------------------------------------------------------------
 
 export async function toggleGroupByMenu() {
     await ensureSearchBarMenu();
@@ -214,10 +197,6 @@ export async function selectGroup(fieldName) {
     await ensureSearchBarMenu();
     await contains(`.o_add_custom_group_menu`).select(fieldName);
 }
-
-//-----------------------------------------------------------------------------
-// Favorite menu
-//-----------------------------------------------------------------------------
 
 export async function toggleFavoriteMenu() {
     await ensureSearchBarMenu();
@@ -259,10 +238,6 @@ export async function saveAndEditFavorite() {
     await contains(`.o_favorite_menu .o_edit_favorite`).click();
 }
 
-//-----------------------------------------------------------------------------
-// Search bar
-//-----------------------------------------------------------------------------
-
 export function getFacetTexts() {
     return queryAllTexts(`.o_searchview_facet`);
 }
@@ -288,10 +263,6 @@ export async function validateSearch() {
     await contains(`.o_searchview input`).press("Enter");
 }
 
-//-----------------------------------------------------------------------------
-// Switch view
-//-----------------------------------------------------------------------------
-
 /**
  * @param {string} viewType
  */
@@ -303,10 +274,6 @@ export async function switchView(viewType) {
         await contains(`button.o_switch_view.o_${viewType}`).click();
     }
 }
-
-//-----------------------------------------------------------------------------
-// Pager
-//-----------------------------------------------------------------------------
 
 /**
  * @param {HTMLElement} root
@@ -345,20 +312,12 @@ export async function editPager(value) {
     await contains(`.o_pager .o_pager_limit`).edit(value);
 }
 
-//-----------------------------------------------------------------------------
-// Action Menu
-//-----------------------------------------------------------------------------
-
 /**
  * @returns {Promise}
  */
 export async function toggleActionMenu() {
     await contains(".o_cp_action_menus .dropdown-toggle").click();
 }
-
-//-----------------------------------------------------------------------------
-// Search bar menu
-//-----------------------------------------------------------------------------
 
 export async function toggleSearchBarMenu() {
     await ensureSearchView();

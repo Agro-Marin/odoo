@@ -112,7 +112,6 @@ export class ListConfirmationDialog extends Component {
             field.name,
             {
                 ...fieldNode,
-                // force readonly as we force that state on the Field component
                 readonly: true,
             },
         ).empty;

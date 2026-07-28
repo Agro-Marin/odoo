@@ -6,7 +6,7 @@
             <attribute name="className">'o_field_boolean o_boolean_toggle form-switch'</attribute>
         </xpath>
         <xpath expr="//CheckBox" position="inside">
-            &#8203; <!-- Zero width space needed to set height -->
+            &#8203;
         </xpath>
     </t>
 

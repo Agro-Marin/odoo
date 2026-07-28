@@ -139,7 +139,6 @@ export const many2OneField = {
 };
 registerField("many2one", many2OneField);
 
-// Fallback for res_partner_many2one — enhanced by partner_autocomplete when installed
 registerField("res_partner_many2one", {
     ...buildM2OFieldDescription(Many2OneField),
 });

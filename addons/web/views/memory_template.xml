@@ -108,13 +108,11 @@
             </head>
             <body>
                 <div class="container">
-                    <!-- Top row for the full-width line chart -->
                     <div class="top-row">
                         <div class="chart-container">
                             <canvas id="totalMemoryChart" />
                         </div>
                     </div>
-                    <!-- Bottom row for the bar chart and traceback panel -->
                     <div class="bottom-row">
                         <div class="bar-chart-wrapper chart-container" id="memoryChartContainer">
                             <canvas id="memoryChart" />

@@ -16,12 +16,6 @@ import {
 import { registry } from "@web/core/registry";
 import { htmlField as webHtmlFallback } from "@web/fields/basic/html/html_field";
 
-// These tests verify the textarea fallback shipped by ``web`` for ``html``
-// columns. When ``html_editor`` is installed (the default in the unit-test
-// bundle) it overrides the registry entry with its Wysiwyg-backed component,
-// hiding the fallback. Pin web's component for the duration of the file and
-// restore the previous value per test so other suites that rely on the
-// rich editor remain unaffected.
 beforeEach(() => {
     const fieldsRegistry = registry.category("fields");
     const previous = fieldsRegistry.contains("html")
@@ -35,9 +29,9 @@ beforeEach(() => {
     });
 });
 
-const RED_TEXT = /* html */ `<div class="kek" style="color:red">some text</div>`;
-const GREEN_TEXT = /* html */ `<div class="kek" style="color:green">hello</div>`;
-const BLUE_TEXT = /* html */ `<div class="kek" style="color:blue">hello world</div>`;
+const RED_TEXT = `<div class="kek" style="color:red">some text</div>`;
+const GREEN_TEXT = `<div class="kek" style="color:green">hello</div>`;
+const BLUE_TEXT = `<div class="kek" style="color:blue">hello world</div>`;
 
 class Partner extends models.Model {
     txt = fields.Html({ string: "txt", trim: true });
@@ -56,7 +50,7 @@ test("html fields are correctly rendered in form view (readonly)", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="txt" readonly="1" /></form>`,
+        arch: `<form><field name="txt" readonly="1" /></form>`,
     });
 
     expect("div.kek").toHaveCount(1);
@@ -69,7 +63,7 @@ test("html field with required attribute", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="txt" required="1"/></form>`,
+        arch: `<form><field name="txt" required="1"/></form>`,
     });
 
     expect(".o_field_html textarea").toHaveCount(1, {
@@ -90,7 +84,7 @@ test("html fields are correctly rendered (edit)", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="txt" /></form>`,
+        arch: `<form><field name="txt" /></form>`,
     });
 
     expect(".o_field_html textarea").toHaveCount(1, {
@@ -113,7 +107,7 @@ test("html fields are correctly rendered in list view", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list editable="top"><field name="txt"/></list>`,
+        arch: `<list editable="top"><field name="txt"/></list>`,
     });
     expect(".o_data_row [name='txt']").toHaveText("some text");
     expect(".o_data_row [name='txt'] .kek").toHaveStyle({ color: "rgb(255, 0, 0)" });
@@ -132,7 +126,7 @@ test("html field displays an empty string for the value false in list view", asy
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list editable="top"><field name="txt"/></list>`,
+        arch: `<list editable="top"><field name="txt"/></list>`,
     });
 
     expect(".o_data_row [name='txt']").toHaveText("");
@@ -147,7 +141,7 @@ test("html fields are correctly rendered in kanban view", async () => {
     await mountView({
         type: "kanban",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <kanban class="o_kanban_test">
                 <templates>
                     <t t-name="card">
@@ -221,7 +215,7 @@ test("field html translatable", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form string="Partner">
                 <sheet>
                     <group>
@@ -270,7 +264,7 @@ test("field html translatable", async () => {
     await click(frField2);
     await edit("deuxième paragraphe modifié");
 
-    await click(".modal button.btn-primary"); // save
+    await click(".modal button.btn-primary");
     await animationFrame();
 });
 
@@ -279,7 +273,7 @@ test("html fields: spellcheck is disabled on blur", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="txt" /></form>`,
+        arch: `<form><field name="txt" /></form>`,
     });
 
     const textarea = queryFirst(".o_field_html textarea");
@@ -310,7 +304,7 @@ test("Setting an html field to empty string is saved as a false value", async ()
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -344,7 +338,7 @@ test("html field: correct value is used to evaluate the modifiers", async () => 
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo" />
                 <field name="txt" invisible="'' == txt"/>

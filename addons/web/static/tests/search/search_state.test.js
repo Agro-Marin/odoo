@@ -51,7 +51,6 @@ describe("state export/import", () => {
         const exported = {};
         execute(mapToArray, source, exported);
 
-        // Mimic with_search's JSON round-trip through getGlobalState.
         const state = JSON.parse(JSON.stringify(exported));
         const target = {};
         execute(arrayToMap, state, target);
@@ -60,8 +59,6 @@ describe("state export/import", () => {
         const group = section.groups.get("g1");
         expect(group.values.get(10)).toBe(section.values.get(10));
 
-        // The invariant is what makes toggles (filter.values) visible to
-        // computeFilterDomain (group.values) without a refetch.
         section.values.get(10).checked = true;
         expect(group.values.get(10).checked).toBe(true);
     });

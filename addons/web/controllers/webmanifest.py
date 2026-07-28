@@ -167,17 +167,11 @@ class WebManifest(http.Controller):
     )
     def scoped_app_icon_png(self, app_id: str, add_padding: bool = False) -> Response:
         """Return a fixed-size (180x180) PNG app icon, required by Safari for PWA install."""
-        # ``add_padding`` is a query-string bool: ``?add_padding=false`` arrives
-        # as the truthy string "false", which would force the reprocessing
-        # branch and skip the ``redirect`` fast path below. Coerce it; a bare
-        # ``False`` default (no query value) passes through unchanged.
         if isinstance(add_padding, str):
             add_padding = str2bool(add_padding, False)
         app_icon = self._get_scoped_app_icons(app_id)[0]
 
         if app_icon["type"] == "image/svg+xml":
-            # SVG can't be rasterized below; fall back to the module's icon,
-            # or the default Odoo icon if the module has none.
             manifest = modules.Manifest.for_addon(app_id, display_warning=False)
             add_padding = True
             if manifest and manifest["icon"]:
@@ -187,8 +181,6 @@ class WebManifest(http.Controller):
         else:
             icon_src = app_icon["src"]
             if not add_padding:
-                # No padding needed: serve the existing icon directly instead
-                # of reprocessing it.
                 return request.redirect(app_icon["src"])
 
         with file_open(icon_src.removeprefix("/"), "rb") as file:

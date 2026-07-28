@@ -43,11 +43,6 @@ test("run() fires WILL_SAVE_URGENTLY on the bus at entry", async () => {
 });
 
 test("nested run() is re-entrant: joins the active run without throwing", async () => {
-    // Two urgentSave() calls on the SAME model can race on tab close (an edited
-    // row + a running timer datapoint, both inside a Promise.all). A nested
-    // run() must run its fn under the already-active mode rather than throw
-    // InvalidUrgentSaveTransitionError (which would reject the second call, drop
-    // its beacon, and fail the whole Promise.all during unload).
     const events = [];
     const bus = { trigger: (event) => events.push(event) };
     const coord = new UrgentSaveCoordinator(bus);
@@ -61,9 +56,7 @@ test("nested run() is re-entrant: joins the active run without throwing", async 
     });
     expect(result).toBe("outer+inner");
     expect(innerActive).toBe(true);
-    // Mode reset once the outermost entry's finally runs.
     expect(coord.isActive).toBe(false);
-    // WILL_SAVE_URGENTLY fires once (outermost entry only), not per nested call.
     expect(events.filter((e) => e === "WILL_SAVE_URGENTLY").length).toBe(1);
 });
 
@@ -75,10 +68,8 @@ test("awaitUnlessUrgent resolves promise normally when idle", async () => {
 
 test("awaitUnlessUrgent returns undefined when active (does not await)", async () => {
     const coord = new UrgentSaveCoordinator();
-    // Promise that would block forever if awaited
     let resolved = false;
     const slow = new Promise((r) => {
-        // Resolves asynchronously via setTimeout, so we can detect whether it was awaited.
         setTimeout(() => {
             resolved = true;
             r("eventually");
@@ -87,7 +78,7 @@ test("awaitUnlessUrgent returns undefined when active (does not await)", async (
     await coord.run(async () => {
         const result = await coord.awaitUnlessUrgent(slow);
         expect(result).toBe(undefined);
-        expect(resolved).toBe(false); // we did NOT wait for it
+        expect(resolved).toBe(false);
     });
 });
 

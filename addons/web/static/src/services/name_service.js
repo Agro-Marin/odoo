@@ -64,16 +64,10 @@ export const nameService = {
      *   clearCache: Function,
      *   loadDisplayNames: Function,
      *   destroy: () => void,
-     * }} ``destroy`` detaches the module-level ``userBus`` listener — it is part
-     *   of the service's contract (the service registry calls it on env
-     *   teardown), not an internal, so it belongs in the annotation. It was
-     *   added to the returned object without being declared here.
+     * }} ``destroy`` detaches the ``env.bus`` and ``userBus`` cache-clear
+     *   listeners; the service registry calls it on env teardown.
      */
     start(env, { orm }) {
-        // Flat, insertion-ordered LRU: key ``cacheKey(model, id)`` → Deferred.
-        // A Map preserves insertion order, so the first key is always the
-        // coldest; ``cacheGet``/``cacheSet`` re-insert on touch and evict the
-        // cold end past ``NAME_CACHE_LIMIT``.
         /** @type {Map<string, import("@web/core/utils/concurrency").Deferred>} */
         let cache = new Map();
 
@@ -100,7 +94,7 @@ export const nameService = {
          * @param {import("@web/core/utils/concurrency").Deferred} deferred
          */
         function cacheSet(key, deferred) {
-            cache.delete(key); // re-insert so the key moves to the warm end
+            cache.delete(key);
             cache.set(key, deferred);
             if (cache.size > NAME_CACHE_LIMIT) {
                 cache.delete(cache.keys().next().value);
@@ -124,24 +118,6 @@ export const nameService = {
             cache = new Map();
         }
 
-        // INVARIANT — miss-cache correctness depends on EXACTLY these two
-        // clear-cache events. A negative lookup result
-        // (``ERROR_INACCESSIBLE_OR_MISSING``, resolved below) is cached like a
-        // real name to stop a dead id in a saved filter re-fetching on every
-        // facet recomputation. That sentinel is only safe to cache because both
-        // events that can flip a record's *visibility* clear the whole cache:
-        //   1. ACTION_MANAGER:UPDATE — any action/controller change.
-        //   2. ACTIVE_COMPANIES_CHANGED — a company switch can make a
-        //      previously-inaccessible record readable; recoverFromSaveError
-        //      activates a company with reload:false, so NO
-        //      ACTION_MANAGER:UPDATE fires — this listener is load-bearing, not
-        //      redundant.
-        // KNOWN GAP: a visibility change with NO local event — e.g. an admin
-        // granting this user a res.groups membership in ANOTHER tab — leaves the
-        // ERROR sentinel cached until the next action/company switch in THIS
-        // tab. Accepted: the alternative (never caching misses) reintroduces the
-        // per-keystroke RPC storm this trades away. If a third visibility source
-        // is ever introduced, it MUST clearCache() here too.
         env.bus.addEventListener(AppEvent.ACTION_MANAGER_UPDATE, clearCache);
         userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, clearCache);
 
@@ -152,12 +128,6 @@ export const nameService = {
         function addDisplayNames(resModel, displayNames) {
             for (const resId of Object.keys(displayNames)) {
                 const key = cacheKey(resModel, resId);
-                // Settle any in-flight Deferred so concurrent loadDisplayNames
-                // callers get the value (a no-op if it already resolved), then
-                // swap in a freshly-settled entry: resolving a settled promise
-                // is a no-op, so reusing it would silently drop a newer name
-                // (e.g. a record renamed since its first resolution). Plain
-                // ``get`` (no LRU touch) — ``cacheSet`` below does the touch.
                 cache.get(key)?.resolve(displayNames[resId]);
                 const entry = new Deferred();
                 entry.resolve(displayNames[resId]);
@@ -171,10 +141,16 @@ export const nameService = {
          * @returns {Promise<DisplayNames>}
          */
         /**
-         * Evict a non-durable entry (missing record or failed fetch) so a
-         * later lookup re-fetches. Only evict if the current cache still
-         * holds this very Deferred: after a `clearCache` the slot may be
-         * absent or already repopulated by a newer epoch's fetch.
+         * Evict an entry whose fetch FAILED, so a later lookup re-fetches.
+         *
+         * A record the server did not return is NOT evicted: that negative
+         * result is cached deliberately, and stays valid until one of the two
+         * visibility events clears the whole cache (see the service's INVARIANT
+         * — an inaccessible/missing id must not re-fetch on every render).
+         *
+         * Only evict if the current cache still holds this very Deferred: after
+         * a `clearCache` the slot may be absent or already repopulated by a
+         * newer epoch's fetch.
          * @param {string} resModel
          * @param {number} resId
          * @param {import("@web/core/utils/concurrency").Deferred} deferred
@@ -191,9 +167,6 @@ export const nameService = {
             /** @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]} */
             const entriesToFetch = [];
             const uniqueIds = unique(resIds);
-            // Validate BEFORE mutating the shared cache: throwing mid-loop
-            // would leave pending Deferreds nobody ever resolves — every
-            // later load of those valid ids would join an orphan and hang.
             for (const resId of uniqueIds) {
                 if (!isId(resId)) {
                     throw new Error(`Invalid ID: ${resId}`);
@@ -238,15 +211,6 @@ export const nameService = {
                                     if (resId in displayNames) {
                                         deferred.resolve(displayNames[resId]);
                                     } else {
-                                        // Cache the miss (do NOT evict): a dead id in a
-                                        // saved filter used to re-fetch on every facet
-                                        // recomputation (tree_processor rebuilds
-                                        // descriptions per search interaction) — one
-                                        // extra RPC per keystroke, forever. The two
-                                        // visibility-changing events
-                                        // (ACTION_MANAGER:UPDATE, ACTIVE_COMPANIES_CHANGED)
-                                        // clear the cache, so a record that becomes
-                                        // readable is still picked up.
                                         deferred.resolve(ERROR_INACCESSIBLE_OR_MISSING);
                                     }
                                 }
@@ -260,11 +224,8 @@ export const nameService = {
                         });
                 }
             }
-            // proms/names align to unique(resIds); build id→name from that deduped
-            // order then project onto resIds (may contain dups) — zipping names
-            // against raw resIds would truncate/mis-assign on repeated ids.
             const names = await Promise.all(proms);
-            const namesById = Object.fromEntries(zip(unique(resIds), names));
+            const namesById = Object.fromEntries(zip(uniqueIds, names));
             return Object.fromEntries(resIds.map((resId) => [resId, namesById[resId]]));
         }
 
@@ -273,11 +234,7 @@ export const nameService = {
             clearCache,
             loadDisplayNames,
             destroy() {
-                // ``userBus`` is a module-level singleton that outlives this env
-                // (unlike ``env.bus``, which is collected with the env), so its
-                // listener must be removed explicitly or every started env leaks
-                // its whole display-name cache — amplified across test suites
-                // that spin up many envs. Mirrors slow_rpc / result_set_cache.
+                env.bus.removeEventListener(AppEvent.ACTION_MANAGER_UPDATE, clearCache);
                 userBus.removeEventListener(
                     UserEvent.ACTIVE_COMPANIES_CHANGED,
                     clearCache,

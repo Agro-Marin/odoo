@@ -77,11 +77,7 @@ defineActions([
     },
 ]);
 
-defineMenus([
-    { id: 0 }, // prevents auto-loading the first action
-    { id: 1, actionID: 1001 },
-    { id: 2, actionID: 1002 },
-]);
+defineMenus([{ id: 0 }, { id: 1, actionID: 1001 }, { id: 2, actionID: 1002 }]);
 
 class Partner extends models.Model {
     name = fields.Char();
@@ -97,7 +93,7 @@ class Partner extends models.Model {
         { id: 5, name: "Fifth record", foo: "zoup" },
     ];
     _views = {
-        "kanban,1": /* xml */ `
+        "kanban,1": `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -106,12 +102,12 @@ class Partner extends models.Model {
                 </templates>
             </kanban>
         `,
-        "list,2": /* xml */ `
+        "list,2": `
             <list>
                 <field name="foo" />
             </list>
         `,
-        form: /* xml */ `
+        form: `
             <form>
                 <header>
                     <button name="object" string="Call method" type="object"/>
@@ -123,7 +119,7 @@ class Partner extends models.Model {
                 </group>
             </form>
         `,
-        search: /* xml */ `
+        search: `
             <search>
                 <field name="foo" string="Foo" />
             </search>
@@ -274,13 +270,13 @@ test(`actions override previous state`, async () => {
     expect(router.current).toEqual({});
 
     await getService("action").doAction("client_action_pushes");
-    await animationFrame(); // wait for pushState because it's unrealistic to click before it
+    await animationFrame();
     await contains(`.test_client_action`).click();
     await animationFrame();
     expect(browser.location.href).toBe(
         "http://example.com/odoo/client_action_pushes?arbitrary=actionPushed",
     );
-    expect(browser.history.length).toBe(3); // Two history entries
+    expect(browser.history.length).toBe(3);
     expect(router.current.action).toBe("client_action_pushes");
     expect(router.current.arbitrary).toBe("actionPushed");
 
@@ -482,12 +478,11 @@ test(`do not push state when action fails`, async () => {
     });
 
     await contains(`tr.o_data_row:first`).click();
-    // we make sure here that the list view is still in the dom
     expect(`.o_list_view`).toHaveCount(1, {
         message: "there should still be a list view in dom",
     });
 
-    await animationFrame(); // wait for possible debounced pushState
+    await animationFrame();
     expect(browser.location.href).toBe("http://example.com/odoo/action-8");
     expect(browser.history.length).toBe(2);
     expect(router.current).toEqual({
@@ -534,7 +529,7 @@ test(`view_type is in url when not the default one`, async () => {
     });
     expect(router.current).toEqual({
         action: 3,
-        view_type: "kanban", // view_type is on the state when it's not the default one
+        view_type: "kanban",
         actionStack: [
             {
                 action: 3,
@@ -582,7 +577,7 @@ test(`switchView pushes the stat but doesn't add to the breadcrumbs`, async () =
     });
     expect(router.current).toEqual({
         action: 3,
-        view_type: "kanban", // view_type is on the state when it's not the default one
+        view_type: "kanban",
         actionStack: [
             {
                 action: 3,
@@ -613,15 +608,12 @@ test(`properly push globalState`, async () => {
         ],
     });
 
-    // add element on the search Model
     await editSearch("blip");
     await validateSearch();
     expect(queryAllTexts(".o_facet_value")).toEqual(["blip"]);
 
-    //open record
     await contains(".o_kanban_record").click();
 
-    // Add the globalState on the state before leaving the kanban
     expect(router.current).toEqual({
         action: 4,
         actionStack: [
@@ -636,7 +628,6 @@ test(`properly push globalState`, async () => {
         },
     });
 
-    // pushState is defered
     await animationFrame();
     expect(".o_form_view").toHaveCount(1);
     expect(browser.location.href).toBe("http://example.com/odoo/action-4/2");
@@ -658,15 +649,12 @@ test(`properly push globalState`, async () => {
         resId: 2,
     });
 
-    // came back using the browser
-    browser.history.back(); // Click on back button
+    browser.history.back();
     await animationFrame();
 
-    // The search Model should be restored
     expect(queryAllTexts(".o_facet_value")).toEqual(["blip"]);
     expect(browser.location.href).toBe("http://example.com/odoo/action-4");
 
-    // The global state is restored on the state
     expect(router.current).toEqual({
         action: 4,
         actionStack: [

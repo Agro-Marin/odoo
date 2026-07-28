@@ -17,15 +17,10 @@ const random = (min, max) => Math.floor(Math.random() * (max - min) + min);
 /** Renders a single example tab with randomized placeholder records. */
 class KanbanExamplesNotebookTemplate extends Component {
     static template = "web.KanbanExamplesNotebookTemplate";
-    // Receives the whole example descriptor via `props: eg` spread (see
-    // `KanbanColumnExamplesDialog.setup` below); descriptors carry metadata
-    // beyond columns/foldedColumns/bullets, hence the catch-all `"*": true`.
     static props = {
         columns: { type: Array, element: String, optional: true },
         foldedColumns: { type: Array, element: String, optional: true },
         bullets: { type: Array, optional: true },
-        // Read by the XML template (line 5: ``<div t-if="props.description"``),
-        // not by the JS class. Declared so the contract is explicit.
         description: { type: String, optional: true },
         "*": true,
     };
@@ -64,8 +59,6 @@ export class KanbanColumnExamplesDialog extends Component {
     static props = {
         examples: { type: Array, element: Object },
         applyExamples: Function,
-        // Read by the XML template (line 25:
-        // ``<button … t-esc="props.applyExamplesText"/>``), not by JS.
         applyExamplesText: { type: String, optional: true },
         close: Function,
     };

@@ -264,7 +264,7 @@ test(`form rendering with class and style attributes`, async () => {
     await mountView({
         resModel: "partner",
         type: "form",
-        arch: /* xml */ `<form class="myCustomClass" style="border: 1px solid red;"/>`,
+        arch: `<form class="myCustomClass" style="border: 1px solid red;"/>`,
         resId: 2,
     });
     expect(
@@ -352,7 +352,6 @@ test(`button box rendering on big screen`, async () => {
 
     const buttonBox = queryFirst(`.o-form-buttonbox`);
     const buttonBoxRect = buttonBox.getBoundingClientRect();
-    // we asserted that we have 7 buttons + 1 dropdown
     for (const btn of buttonBox.children) {
         expect(btn).toHaveRect({ top: buttonBoxRect.top });
     }
@@ -491,7 +490,7 @@ test(`duplicate fields rendered properly (one2many)`, async () => {
     await contains(
         `.o_field_one2many:eq(0) .o_selected_row .o_field_widget[name=foo] input`,
     ).edit("hello", { confirm: false });
-    await click(`.o_content`); // confirm change by focusing out the input.
+    await click(`.o_content`);
     await animationFrame();
     await animationFrame();
     await animationFrame();
@@ -561,9 +560,6 @@ test(`decoration works on widgets`, async () => {
 });
 
 test(`form with o2m having a many2many fields using the many2many_tags widget along the color_field option`, async () => {
-    // The x2many form view isn't inline, so clicking a record does an independent getView,
-    // which doesn't return all fields (here, the color_field used by the many2many_tags
-    // widget). Ensures the form view can still open in this situation.
     Partner._records[0].type_ids = [12, 14];
     Partner._views = {
         form: `
@@ -606,9 +602,6 @@ test(`form with o2m having a many2many fields using the many2many_tags widget al
 });
 
 test(`form with o2m having a field with fieldDependencies`, async () => {
-    // The x2many form view isn't inline, so clicking a record does an independent getView,
-    // which doesn't return all fields (here, the fieldDependencies of a widget). Ensures the
-    // form view can still open in this situation.
     class MyField extends CharField {}
     fieldsRegistry.add("my_widget", {
         component: MyField,
@@ -885,8 +878,6 @@ test(`group with formLabel`, async () => {
 });
 
 test(`group containing both a field and a group`, async () => {
-    // Checks that classnames from a field widget and those added by the form renderer
-    // (e.g. 'o_group_col_x' on an outer group's children) are correctly combined.
     await mountView({
         resModel: "partner",
         type: "form",
@@ -949,9 +940,6 @@ test(`Form and subview with _view_ref contexts`, async () => {
     Product._records = [{ id: 1, name: "Tromblon", type_ids: [12, 14] }];
     Partner._records[0].product_id = 1;
 
-    // Predates "get_views" auto-inlining x2many subviews. Asserts the js fetches the correct
-    // sub view when not inline (still possible in nested form views) by bypassing the inline
-    // mechanism via widget="one2many".
     Partner._views = {
         form: `
             <form>
@@ -985,13 +973,11 @@ test(`Form and subview with _view_ref contexts`, async () => {
         const { context } = kwargs;
         expect.step("product get_views");
         expect(context.list_view_ref).toBe("some_tree_view");
-        // "The correct _view_ref should have been sent to the server, first time"
     });
     onRpc("partner.type", "get_views", ({ kwargs }) => {
         const { context } = kwargs;
         expect.step("partner.type get_views");
         expect(context.list_view_ref).toBe("some_other_tree_view");
-        // "The correct _view_ref should have been sent to the server for the subview"
     });
     onRpc("get_formview_action", ({ model, kwargs }) => {
         expect.step("get_formview_action");
@@ -1105,7 +1091,6 @@ test(`Form and subsubview with only _view_ref contexts`, async () => {
     });
     expect.verifySteps(["get_views (partner)", "get_views (partner.type)"]);
 
-    // Add a line in the x2many type_ids field
     expectedContexts.clear();
     expectedContexts.set("view:partner.type", {
         ...userContext,
@@ -1122,11 +1107,9 @@ test(`Form and subsubview with only _view_ref contexts`, async () => {
     ).click();
     expect.verifySteps(["get_views (partner.type)"]);
 
-    // Create a new type_ids
     await contains(`.modal .o_create_button`).click();
     expect.verifySteps(["get_views (partner.type)", "onchange (partner.type)"]);
 
-    // Create a new company
     expectedContexts.clear();
     expectedContexts.set("view:res.company", {
         ...userContext,
@@ -1203,9 +1186,6 @@ test(`invisible fields are properly hidden`, async () => {
     await mountView({
         resModel: "partner",
         type: "form",
-        // the arch contains an x2many field without inline view: as it is always invisible,
-        // the view should not be fetched. we don't specify any view in this test, so if it
-        // ever tries to fetch it, it will crash, indicating that this is wrong.
         arch: `
             <form>
                 <sheet>
@@ -1296,7 +1276,6 @@ test(`invisible elements are properly hidden`, async () => {
 });
 
 test(`invisible attrs on fields are re-evaluated on field change`, async () => {
-    // we set the value bar to simulate a falsy boolean value.
     Partner._records[0].bar = false;
 
     await mountView({
@@ -1329,9 +1308,6 @@ test(`invisible attrs on fields are re-evaluated on field change`, async () => {
 });
 
 test(`invisible attrs char fields`, async () => {
-    // For a char/text field, the server can return false or "" (empty string),
-    // depending if the field isn't set in db (NULL) or set to the empty string.
-    // This makes no difference in the UI, but it matters when evaluating modifiers.
     Partner._records[0].name = false;
     Partner._records[0].foo = "";
 
@@ -1536,7 +1512,6 @@ test(`invisible attrs on notebook page which has only one page`, async () => {
     });
     expect(`.o_notebook`).toHaveCount(0);
 
-    // enable checkbox
     await contains(`.o_field_boolean input`).click();
     expect(`.o_notebook .nav .nav-link`).toHaveCount(1);
     expect(`.o_notebook .tab-content .tab-pane`).toHaveCount(1);
@@ -1703,10 +1678,8 @@ test(`reset local state when switching to another view`, async () => {
 
     await contains(`.o_control_panel_main_buttons button.o_list_button_add`).click();
     expect(`.o_form_view`).toHaveCount(1);
-    // sanity check: notebook active page is first page
     expect(`.o_notebook .nav-link:eq(0)`).toHaveClass("active");
 
-    // click on second page tab
     await contains(`.o_notebook .nav-link:eq(1)`).click();
     expect(`.o_notebook .nav-link:eq(1)`).toHaveClass("active");
 
@@ -1715,7 +1688,6 @@ test(`reset local state when switching to another view`, async () => {
 
     await contains(`.o_control_panel_main_buttons button.o_list_button_add`).click();
     expect(`.o_form_view`).toHaveCount(1);
-    // check notebook active page is first page again
     expect(`.o_notebook .nav-link:eq(0)`).toHaveClass("active");
 });
 
@@ -2177,8 +2149,6 @@ test(`label is not rendered when invisible and not at top-level in a group`, asy
 });
 
 test(`input ids for multiple occurrences of fields in form view`, async () => {
-    // A field can occur several times in the view; its id must be unique per occurrence,
-    // otherwise inputs/labels collide on the same "id"/"for" attribute.
     await mountView({
         resModel: "partner",
         type: "form",
@@ -2204,8 +2174,6 @@ test(`input ids for multiple occurrences of fields in form view`, async () => {
 });
 
 test(`input ids for multiple occurrences of fields in sub form view (inline)`, async () => {
-    // A field can occur several times in the view; its id must be unique per occurrence,
-    // otherwise inputs/labels collide on the same "id"/"for" attribute.
     await mountView({
         resModel: "partner",
         type: "form",
@@ -2244,8 +2212,6 @@ test(`input ids for multiple occurrences of fields in sub form view (inline)`, a
 
 test.tags("desktop");
 test(`input ids for multiple occurrences of fields in sub form view (not inline)`, async () => {
-    // A field can occur several times in the view; its id must be unique per occurrence,
-    // otherwise inputs/labels collide on the same "id"/"for" attribute.
     Partner._views = {
         list: `<list><field name="foo"/></list>`,
         form: `
@@ -2461,8 +2427,6 @@ test(`twice same field with different invisible attributes`, async () => {
     await contains(`.o_field_widget[name=bar] input`).click();
     expect(`.o_field_widget[name=foo]`).toHaveCount(1);
 
-    // foo is required, and as it isn't invisible (at least for one occurrence), it shouldn't
-    // allow to save as it is not set
     await contains(`.o_form_button_save`).click();
     expect(".o_field_widget[name=foo]").toHaveClass("o_field_invalid");
     expect.verifySteps(["get_views", "onchange"]);
@@ -2635,8 +2599,6 @@ test(`readonly attrs on lines are re-evaluated on field change 2`, async () => {
     Partner._fields.parent_id = fields.Many2one({
         relation: "partner",
         onChange(record) {
-            // when parent_id changes, push another record in product_ids.
-            // only push a second record once.
             if (!onchangeApplied) {
                 record.product_ids = [[37, 41]];
                 onchangeApplied = true;
@@ -2645,7 +2607,6 @@ test(`readonly attrs on lines are re-evaluated on field change 2`, async () => {
     });
 
     Product._records[0].name = "test";
-    // This one is necessary to have a valid, rendered widget
     Product._fields.int_field = fields.Integer();
 
     await mountView({
@@ -2668,7 +2629,7 @@ test(`readonly attrs on lines are re-evaluated on field change 2`, async () => {
     );
 
     await clear();
-    await click(`.o_content`); // blur input to trigger change
+    await click(`.o_content`);
     await animationFrame();
     expect(`.o_field_one2many[name="product_ids"]`).toHaveClass("o_readonly_modifier");
 
@@ -2679,14 +2640,14 @@ test(`readonly attrs on lines are re-evaluated on field change 2`, async () => {
     );
 
     await clear();
-    await click(`.o_content`); // blur input to trigger change
+    await click(`.o_content`);
     await animationFrame();
     expect(`.o_field_one2many[name="product_ids"]`).toHaveClass("o_readonly_modifier");
 });
 
 test(`empty fields have o_form_empty class in readonly mode`, async () => {
-    Partner._records[1].foo = false; // 1 is record with id=2
-    Partner._records[1].parent_id = false; // 1 is record with id=2
+    Partner._records[1].foo = false;
+    Partner._records[1].parent_id = false;
     Partner._fields.foo = fields.Char({
         onChange(record) {
             if (record.foo === "hello") {
@@ -2726,8 +2687,8 @@ test(`empty fields have o_form_empty class in readonly mode`, async () => {
 
 test(`empty fields' labels still get the empty class after widget rerender`, async () => {
     Partner._fields.foo = fields.Char();
-    Partner._records[1].foo = false; // 1 is record with id=2
-    Partner._records[1].name = false; // 1 is record with id=2
+    Partner._records[1].foo = false;
+    Partner._records[1].name = false;
 
     await mountView({
         resModel: "partner",
@@ -2786,8 +2747,8 @@ test(`label tag added for fields have o_form_empty class in readonly mode if fie
         },
     });
     Partner._fields.int_field = fields.Integer({ readonly: true });
-    Partner._records[1].foo = false; // 1 is record with id=2
-    Partner._records[1].parent_id = false; // 1 is record with id=2
+    Partner._records[1].foo = false;
+    Partner._records[1].parent_id = false;
 
     await mountView({
         resModel: "partner",
@@ -3065,8 +3026,6 @@ test(`form views in dialogs do not have class o_xxl_form_view`, async () => {
     expect(`.o_dialog .o_form_view`).not.toHaveClass("o_xxl_form_view");
 });
 
-// desktop-only: drives the `.o_cp_action_menus` control-panel cog menu; mobile
-// renders toolbar actions differently, so the RPC flow diverges.
 test.tags("desktop");
 test(`form with custom cog action that has a confirmation target="new" action`, async () => {
     PartnerType._views = {
@@ -3127,7 +3086,6 @@ test(`form with custom cog action that has a confirmation target="new" action`, 
     expect(".o_dialog").toHaveCount(0);
     expect(".o_list_view").toHaveCount(1);
 
-    // should not reload the first form view when confirming with Do it
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
@@ -3186,19 +3144,11 @@ test(`buttons in form view`, async () => {
     expect(`.o_form_statusbar button`).toHaveCount(2);
     expect(`button.child_ids[name="post"]:contains(Confirm)`).toHaveCount(1);
 
-    // click on p (will succeed and reload)
     await contains(`.o_form_statusbar button.child_ids`).click();
     expect.verifyErrors([]);
 
-    // click on s (will fail)
     await contains(`.o_form_statusbar button.s`).click();
-    expect.verifySteps([
-        "get_views",
-        "web_read", // initial read
-        "post",
-        "web_read", // reload (successfully clicked on p)
-        "some_method",
-    ]);
+    expect.verifySteps(["get_views", "web_read", "post", "web_read", "some_method"]);
     expect.verifyErrors(["doActionButton error"]);
 });
 
@@ -3347,8 +3297,6 @@ test(`button in form view and long willStart`, async () => {
 
 test.tags("desktop");
 test(`buttons in form view, new record`, async () => {
-    // this test simulates a situation similar to the settings forms.
-
     let resId = null;
     mockService("action", {
         doActionButton(params) {
@@ -3388,9 +3336,6 @@ test(`buttons in form view, new record`, async () => {
 });
 
 test(`buttons in form view, new record, with field id in view`, async () => {
-    // Buttons save a record without reloading it immediately (only the id matters for the
-    // next step). If field "id" is in the view, it used to get registered in the changes,
-    // causing data.id to be set to null.
     let resId = null;
     mockService("action", {
         doActionButton(params) {
@@ -3647,7 +3592,6 @@ test(`onchange only send present fields value`, async () => {
         resId: 1,
     });
 
-    // add a o2m row
     await contains(`.o_field_x2many_list_row_add a`).click();
     await contains(`.o_field_one2many .o_field_widget[name=name] input`).edit(
         "valid line",
@@ -3663,7 +3607,6 @@ test(`onchange only send present fields value`, async () => {
     );
     expect.verifySteps([]);
 
-    // trigger an onchange by modifying foo
     checkOnchange = true;
     await contains(`.o_field_widget[name=foo] input`).edit("tralala");
     expect.verifySteps(["onchange"]);
@@ -3673,7 +3616,6 @@ test(`onchange send relation parent field values (including readonly)`, async ()
     ResUsers._fields.login = fields.Char();
     ResUsers._onChanges = {
         name: (obj) => {
-            // like computed field that depends on "name" field
             obj.login = obj.name.toLowerCase() + "@example.org";
         },
     };
@@ -3717,16 +3659,11 @@ test(`onchange send relation parent field values (including readonly)`, async ()
         resId: 17,
     });
 
-    // trigger an onchange that update a readonly field by modifying user name
     await contains(`.o_field_widget[name=name] input`).edit("Test");
 
-    // add a o2m row
     await contains(`.o_field_x2many_list_row_add a`).click();
     expect.verifySteps([]);
 
-    // trigger an onchange by modifying float_field
-    // confirm with blur s.t. it doesn't create a new line which would call another onchange and
-    // pollute our assertions
     checkOnchange = true;
     await contains(`.o_field_one2many .o_field_widget[name=float_field] input`).edit(
         "12.4",
@@ -3988,9 +3925,9 @@ test(`make default record with non empty one2many`, async () => {
     Partner._fields.child_ids = fields.One2many({
         relation: "partner",
         default: [
-            [6, 0, []], // replace with zero ids
-            [0, 0, { foo: "new foo1", product_id: 41, child_ids: [] }], // create a new value
-            [0, 0, { foo: "new foo2", product_id: 37, child_ids: [] }], // create a new value
+            [6, 0, []],
+            [0, 0, { foo: "new foo1", product_id: 41, child_ids: [] }],
+            [0, 0, { foo: "new foo2", product_id: 37, child_ids: [] }],
         ],
     });
 
@@ -4060,7 +3997,6 @@ test(`form view properly change its title`, async () => {
 });
 
 test(`archive/unarchive a record`, async () => {
-    // add active field on partner model to have archive option
     Partner._fields.active = fields.Boolean();
 
     onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
@@ -4097,7 +4033,6 @@ test(`archive/unarchive a record`, async () => {
 });
 
 test(`apply custom standard action menu (archive)`, async () => {
-    // add active field on partner model to have archive option
     Partner._fields.active = fields.Boolean();
 
     const formView = registry.category("views").get("form");
@@ -4205,16 +4140,12 @@ test(`add custom static action menu`, async () => {
     expect.verifySteps(["Custom Default Available"]);
 });
 
-// desktop-only: archives via the control-panel action menu and pins the desktop
-// RPC ordering (the post-archive form reload lands at a different point on
-// mobile's navigation flow).
 test.tags("desktop");
 test(`archive a record with intermediary action`, async () => {
-    // add active field on partner model to have archive option
     Partner._fields.active = fields.Boolean();
     Partner._fields.archived = fields.Char({ default: "false" });
     Partner._views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <field name="active" />
                 <field name="archived" />
@@ -4222,7 +4153,7 @@ test(`archive a record with intermediary action`, async () => {
             </form>`,
     };
     Product._views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <field name="display_name" />
                 <footer>
@@ -4284,7 +4215,6 @@ test(`archive a record with intermediary action`, async () => {
 });
 
 test(`archive action with active field not in view`, async () => {
-    // add active field on partner model, but do not put it in the view
     Partner._fields.active = fields.Boolean();
 
     await mountView({
@@ -4302,7 +4232,6 @@ test(`archive action with active field not in view`, async () => {
 });
 
 test(`archive action not shown with readonly active field`, async () => {
-    // add active field on partner model in readonly mode to do not have Archive option
     Partner._fields.active = fields.Boolean({ readonly: true });
 
     await mountView({
@@ -4388,7 +4317,6 @@ test(`don't duplicate if save fail`, async () => {
     await toggleMenuItem("Duplicate");
     expect(`.modal .o_error_dialog`).toHaveCount(1);
 
-    // Discard changes don't trigger Duplicate action
     await contains(`.modal .btn-secondary`).click();
     expect.verifySteps(["web_save"]);
 });
@@ -4514,7 +4442,6 @@ test(`clicking on stat buttons save and reload in edit mode on desktop`, async (
     });
 
     onRpc("web_save", ({ args }) => {
-        // simulate an override of the model...
         args[1].name = "GOLDORAK";
     });
 
@@ -4551,7 +4478,6 @@ test(`clicking on stat buttons save and reload in edit mode on mobile`, async ()
     });
 
     onRpc("web_save", ({ args }) => {
-        // simulate an override of the model...
         args[1].name = "GOLDORAK";
     });
 
@@ -4670,7 +4596,7 @@ test(`buttons with attr "special" in dialog close the dialog`, async () => {
         resId: 2,
     });
     await contains(`[name="product_id"] input`).edit("ABC", { confirm: false });
-    await runAllTimers(); // skip debounce
+    await runAllTimers();
     await contains(`.o_m2o_dropdown_option_create_edit`).click();
     expect(`.o_dialog`).toHaveCount(1);
 
@@ -4685,7 +4611,7 @@ test(`buttons with attr "special" in dialog close the dialog`, async () => {
     expect.verifySteps(["partner.web_save"]);
 
     await contains(`[name="product_id"] input`).edit("XYZ", { confirm: false });
-    await runAllTimers(); // skip debounce
+    await runAllTimers();
     await contains(`.o_m2o_dropdown_option_create_edit`).click();
     await contains(`button[special=cancel]`).click();
     expect(`.o_dialog`).toHaveCount(0);
@@ -4695,10 +4621,6 @@ test(`buttons with attr "special" in dialog close the dialog`, async () => {
 
 test.tags("desktop");
 test(`buttons with attr "special=save" in dialog drive the save coordinator`, async () => {
-    // special="save" with an embedder-supplied ``props.saveRecord``
-    // (FormViewDialog) must still dispatch through the coordinator so its
-    // observable surface reflects the dialog's Save: status "saving" while
-    // the RPC is in flight, "clean" once it lands.
     Product._views = {
         form: `
             <form>
@@ -4723,7 +4645,7 @@ test(`buttons with attr "special=save" in dialog drive the save coordinator`, as
     onRpc("web_save", ({ model }) => {
         expect.step(`${model}.web_save`);
         if (model === "product") {
-            return def; // hold the dialog's save RPC in flight
+            return def;
         }
     });
     await mountView({
@@ -4733,14 +4655,13 @@ test(`buttons with attr "special=save" in dialog drive the save coordinator`, as
         resId: 2,
     });
     await contains(`[name="product_id"] input`).edit("ABC", { confirm: false });
-    await runAllTimers(); // skip debounce
+    await runAllTimers();
     await contains(`.o_m2o_dropdown_option_create_edit`).click();
     expect(`.o_dialog`).toHaveCount(1);
     const dialogCoordinator = coordinators.at(-1);
     expect(dialogCoordinator.status).toBe("clean");
 
     await contains(`.o_dialog button[special=save]`).click();
-    // The save RPC is in flight and the dialog's coordinator owns it.
     expect.verifySteps(["product.web_save"]);
     expect(dialogCoordinator.status).toBe("saving");
 
@@ -4781,7 +4702,7 @@ test(`Add custom buttons to default buttons (replace="0")`, async () => {
         resId: 2,
     });
     await contains(`[name="product_id"] input`).edit("ABC", { confirm: false });
-    await runAllTimers(); // skip debounce
+    await runAllTimers();
     await contains(`.o_m2o_dropdown_option_create_edit`).click();
 
     expect(".o_dialog .o_form_button_save").toHaveCount(1);
@@ -4923,8 +4844,6 @@ test(`discard changes on a dirty form view`, async () => {
 });
 
 test(`discard changes on a dirty form view (for date field)`, async () => {
-    // Dates are saved as luxon instances; they were once stringified then re-parsed,
-    // which broke discard/save. Checks the relational model handles date objects properly.
     Partner._fields.date = fields.Date({ default: "2017-01-25" });
 
     await mountView({
@@ -4933,8 +4852,6 @@ test(`discard changes on a dirty form view (for date field)`, async () => {
         arch: `<form><field name="date"></field></form>`,
     });
 
-    // Focus the button before clicking: the datepicker lib needs that focus event to
-    // properly focusout the input, otherwise it crashes later on the re-render 'blur'.
     await contains(`.o_form_button_cancel`).click();
 
     await contains(`.o_form_button_save`).click();
@@ -4970,7 +4887,6 @@ test("discard changes on relational data on existing record", async () => {
     Partner._records[0].bar = false;
     Partner._onChanges = {
         bar(record) {
-            // when bar changes, push another record in product_ids.
             record.product_ids = [[4, 41, false]];
         },
     };
@@ -4992,24 +4908,19 @@ test("discard changes on relational data on existing record", async () => {
     expect(queryAllTexts`.o_data_cell`).toEqual(["xphone"]);
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(0);
 
-    // Click on bar
     await contains(`.o_field_widget[name=bar] input`).click();
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(1);
     expect(queryAllTexts`.o_data_cell`).toEqual(["xphone", "xpad"]);
 
-    // click on discard
     await contains(`.o_form_button_cancel`).click();
     expect(queryAllTexts`.o_data_cell`).toEqual(["xphone"]);
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(0);
 });
 
 test("discard changes on relational data on new record (1)", async () => {
-    // When bar is changed, it pushes a record in product_ids
-    // After discarding, product_ids should be empty
     Partner._onChanges = {
         bar(record) {
             if (record.bar) {
-                // when bar changes, push another record in product_ids.
                 record.product_ids = [[4, 41, false]];
             }
         },
@@ -5031,28 +4942,22 @@ test("discard changes on relational data on new record (1)", async () => {
     expect(queryAllTexts`.o_data_cell`).toEqual([]);
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(0);
 
-    // Click on bar
     await contains(`.o_field_widget[name=bar] input`).click();
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(1);
     expect(queryAllTexts`.o_data_cell`).toEqual(["xpad"]);
 
-    // click on discard
     await contains(`.o_form_button_cancel`).click();
     expect(queryAllTexts`.o_data_cell`).toEqual([]);
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(0);
 });
 
 test("discard changes on relational data on new record (2)", async () => {
-    // An initial onChange push a record in product_ids
-    // When bar is changed, it pushes a second record in product_ids
-    // After discarding, product_ids should contain the inital record pushed by the inital onChange
     Partner._onChanges = {
         product_ids(record) {
             record.product_ids = [[4, 41, false]];
         },
         bar(record) {
             if (record.bar) {
-                // when bar changes, push another record in product_ids.
                 record.product_ids = [[4, 37, false]];
             }
         },
@@ -5074,12 +4979,10 @@ test("discard changes on relational data on new record (2)", async () => {
     expect(queryAllTexts`.o_data_cell`).toEqual(["xpad"]);
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(0);
 
-    // Click on bar
     await contains(`.o_field_widget[name=bar] input`).click();
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(1);
     expect(queryAllTexts`.o_data_cell`).toEqual(["xpad", "xphone"]);
 
-    // click on discard
     await contains(`.o_form_button_cancel`).click();
     expect(queryAllTexts`.o_data_cell`).toEqual(["xpad"]);
     expect(`.o_field_widget[name=bar] input:checked`).toHaveCount(0);
@@ -5187,7 +5090,6 @@ test(`discard has to wait for changes in each field`, async () => {
     await contains(`[name="foo"] input`).edit("test");
     expect(`[name="foo"] input`).toHaveValue("test");
 
-    // should never display 'update value'
     await contains(`.o_form_button_cancel`).click();
     expect(`[name="foo"] input`).toHaveValue("test");
 
@@ -5298,7 +5200,7 @@ test(`discard form with specialdata on desktop`, async () => {
     await contains(`.o_field_widget[name=name] input`).edit("xpad");
     expect(`.o_statusbar_status button:not(.d-none)`).toHaveCount(2);
 
-    await animationFrame(); // @todo remove
+    await animationFrame();
     await contains(`.o_form_button_cancel`).click();
     expect(`.o_statusbar_status button:not(.d-none)`).toHaveCount(1);
     expect(`.o_statusbar_status button:not(.d-none)`).toHaveText("xphone");
@@ -5391,23 +5293,18 @@ test("Save record, no changes but dirty (add and remove tag)", async () => {
 
     expect(`.o_field_widget[name=type_ids] .o_tag`).toHaveCount(0);
 
-    // add a tag
     await contains(`.o_input_dropdown input`).click();
     await contains(`.dropdown-item:contains(gold)`).click();
 
     expect(`.o_field_widget[name=type_ids] .o_tag`).toHaveCount(1);
 
-    // remove tag
     await contains(`.o_field_widget[name=type_ids] .o_tag .o_delete`).click();
     expect(`.o_field_widget[name=type_ids] .o_tag`).toHaveCount(0);
     expect.verifySteps(["web_read", "web_read"]);
 
-    // click on save
     await contains(`.o_form_button_save`).click();
-    // The `web_save` RPC should not be called as there are no changes.
-    // The record must be marked as not dirty.
     expect(`.o_form_status_indicator_buttons.invisible`).toHaveCount(1);
-    expect.verifySteps([]); // avoid doint an extra web_read
+    expect.verifySteps([]);
 });
 
 test.tags("desktop");
@@ -5430,20 +5327,15 @@ test("switching to another record from a dirty record but wo changes (add and re
     expect(`.o_field_widget[name=type_ids] .o_tag`).toHaveCount(0);
     expect(`.o_breadcrumb`).toHaveText("first record");
 
-    // add a tag
     await contains(`.o_input_dropdown input`).click();
     await contains(`.dropdown-item:contains(gold)`).click();
 
     expect(`.o_field_widget[name=type_ids] .o_tag`).toHaveCount(1);
 
-    // remove tag
     await contains(`.o_field_widget[name=type_ids] .o_tag .o_delete`).click();
     expect(`.o_field_widget[name=type_ids] .o_tag`).toHaveCount(0);
     expect.verifySteps(["web_read", "web_read"]);
 
-    // click on the pager to switch to the next record
-    // The `web_save` RPC should not be called as there are no changes.
-    // The next record should be load correctly.
     await contains(`.o_pager_next`).click();
     expect(`.modal`).toHaveCount(0);
     expect(getPagerValue()).toEqual([2]);
@@ -5574,8 +5466,6 @@ test(`keynav: switching to another record from an invalid one on desktop`, async
 });
 
 test(`switching to another record from an invalid one (2)`, async () => {
-    // in this scenario, the record is already invalid in db, so we should be allowed to
-    // leave it
     Partner._records[0].foo = false;
 
     await mountView({
@@ -5597,8 +5487,6 @@ test(`switching to another record from an invalid one (2)`, async () => {
 });
 
 test("open a new record from an invalid one", async () => {
-    // in this scenario, the record is already invalid in db, so we should be allowed to
-    // leave it
     Partner._records[0].foo = false;
 
     await mountView({
@@ -5618,8 +5506,6 @@ test("open a new record from an invalid one", async () => {
 
 test.tags("desktop");
 test(`switching to another record from an invalid one (2) on desktop`, async () => {
-    // in this scenario, the record is already invalid in db, so we should be allowed to
-    // leave it
     Partner._records[0].foo = false;
 
     await mountView({
@@ -5860,9 +5746,7 @@ test(`restore the open notebook page when switching to another view`, async () =
     expect(`.o_notebook:eq(1) .nav-link:eq(1)`).toHaveClass("active");
     expect(`.o_notebook:eq(1) .nav-link:eq(2)`).not.toHaveClass("active");
 
-    // click on second page tab of the first notebook
     await contains(`.o_notebook:eq(0) .nav-link:eq(1)`).click();
-    // click on third page tab of the second notebook
     await contains(`.o_notebook:eq(1) .nav-link:eq(2)`).click();
     expect(`.o_notebook:eq(0) .nav-link:eq(0)`).not.toHaveClass("active");
     expect(`.o_notebook:eq(0) .nav-link:eq(1)`).toHaveClass("active");
@@ -5870,10 +5754,8 @@ test(`restore the open notebook page when switching to another view`, async () =
     expect(`.o_notebook:eq(1) .nav-link:eq(1)`).not.toHaveClass("active");
     expect(`.o_notebook:eq(1) .nav-link:eq(2)`).toHaveClass("active");
 
-    // switch to a list view
     await getService("action").doAction(1);
 
-    // back to the form view
     await contains(`.o_back_button`).click();
     expect(`.o_notebook:eq(0) .nav-link:eq(0)`).not.toHaveClass("active");
     expect(`.o_notebook:eq(0) .nav-link:eq(1)`).toHaveClass("active");
@@ -5932,9 +5814,7 @@ test(`don't restore the open notebook page when we create a new record`, async (
     expect(`.o_notebook:eq(1) .nav-link:eq(1)`).toHaveClass("active");
     expect(`.o_notebook:eq(1) .nav-link:eq(2)`).not.toHaveClass("active");
 
-    // click on second page tab of the first notebook
     await contains(`.o_notebook:eq(0) .nav-link:eq(1)`).click();
-    // click on third page tab of the second notebook
     await contains(`.o_notebook:eq(1) .nav-link:eq(2)`).click();
     expect(`.o_notebook:eq(0) .nav-link:eq(0)`).not.toHaveClass("active");
     expect(`.o_notebook:eq(0) .nav-link:eq(1)`).toHaveClass("active");
@@ -5942,9 +5822,7 @@ test(`don't restore the open notebook page when we create a new record`, async (
     expect(`.o_notebook:eq(1) .nav-link:eq(1)`).not.toHaveClass("active");
     expect(`.o_notebook:eq(1) .nav-link:eq(2)`).toHaveClass("active");
 
-    // back to the list view
     await contains(`.o_back_button`).click();
-    // Create a new record
     await contains(`.o_control_panel_main_buttons button.o_list_button_add`).click();
     expect(`.o_notebook:eq(0) .nav-link:eq(0)`).toHaveClass("active");
     expect(`.o_notebook:eq(0) .nav-link:eq(1)`).not.toHaveClass("active");
@@ -6151,7 +6029,6 @@ test(`deleting a record`, async () => {
     });
     expect(`.o_breadcrumb`).toHaveText("first record");
 
-    // open action menu and delete
     await toggleActionMenu();
     await toggleMenuItem("Delete");
     expect(`.modal`).toHaveCount(1);
@@ -6174,7 +6051,6 @@ test(`deleting a record on desktop`, async () => {
     expect(getPagerValue()).toEqual([1]);
     expect(getPagerLimit()).toBe(3);
 
-    // open action menu and delete
     await toggleActionMenu();
     await toggleMenuItem("Delete");
 
@@ -6286,7 +6162,7 @@ test("empty required fields in an existing record are highlighted", async () => 
     );
     expect(".o_form_status_indicator span.text-danger").toHaveCount(1);
 
-    await contains(".o_control_panel").click(); // blur the input
+    await contains(".o_control_panel").click();
     expect(".o_form_status_indicator_buttons").not.toHaveClass("invisible");
     expect(".o_form_status_indicator_buttons .o_form_button_save").toHaveAttribute(
         "disabled",
@@ -6633,7 +6509,6 @@ test(`properly apply onchange on many2many fields`, async () => {
 });
 
 test(`form with domain widget: opening a many2many form and save should not crash`, async () => {
-    // We just test that there is no crash in this situation
     Partner._records[0].type_ids = [12];
     await mountView({
         resModel: "partner",
@@ -6657,7 +6532,6 @@ test(`form with domain widget: opening a many2many form and save should not cras
         resId: 1,
     });
 
-    // open a form view and save many2many record
     await contains(`.o_data_row .o_data_cell`).click();
     await contains(`.modal-dialog footer .btn-primary`).click();
     expect.verifyErrors([]);
@@ -6735,11 +6609,9 @@ test(`display_name not sent for onchanges if not in view`, async () => {
     });
     expect.verifySteps(["partner.web_read"]);
 
-    // trigger the onchange
     await contains(`.o_field_widget[name=foo] input`).edit("coucou");
     expect.verifySteps(["partner.onchange"]);
 
-    // open a subrecord and trigger an onchange
     await contains(`.o_data_row .o_data_cell`).click();
     expect.verifySteps(["partner.type.web_read"]);
 
@@ -6772,7 +6644,6 @@ test(`onchanges on date(time) fields`, async () => {
     expect(`.o_field_widget[name=date] button`).toHaveValue("01/25/2017");
     expect(`.o_field_widget[name=datetime] button`).toHaveValue("12/12/2016 12:55:05");
 
-    // trigger the onchange
     await contains(`.o_field_widget[name="foo"] input`).edit("coucou");
     expect(`.o_field_widget[name=date] button`).toHaveValue("12/12/2021");
     expect(`.o_field_widget[name=datetime] button`).toHaveValue("12/12/2021 12:55:05");
@@ -6794,17 +6665,13 @@ test(`onchanges are not sent for invalid values`, async () => {
     });
     expect.verifySteps(["get_views", "web_read"]);
 
-    // edit int_field, and check that an onchange has been applied
     await contains(`.o_field_widget[name="int_field"] input`).edit("123");
     expect(`.o_field_widget[name="foo"] input`).toHaveValue("123");
 
-    // enter an invalid value in a float, and check that no onchange has
-    // been applied
     await contains(`.o_field_widget[name="int_field"] input`).edit("123a");
     expect(`.o_field_widget[name="foo"] input`).toHaveValue("123");
     expect.verifySteps(["onchange"]);
 
-    // save, and check that the int_field input is marked as invalid
     await contains(`.o_form_button_save`).click();
     expect(`.o_field_widget[name="int_field"]`).toHaveClass("o_field_invalid");
     expect.verifySteps([]);
@@ -6846,15 +6713,12 @@ test(`rpc complete after destroying parent`, async () => {
     await getService("action").doAction(1);
     expect(`.o_form_view`).toHaveCount(1);
 
-    // should not crash when the call to "update_module" returns, as we should not
-    // try to reload the form view, which will no longer be in the DOM
     await contains(`.o_form_button_update`).click();
 
-    // simulate that we executed another action before update_module returns
     await getService("action").doAction(2);
     expect(`.o_list_view`).toHaveCount(1);
 
-    deferred.resolve(); // call to update_module finally returns
+    deferred.resolve();
     await animationFrame();
     expect(`.o_list_view`).toHaveCount(1);
 });
@@ -6879,14 +6743,12 @@ test(`onchanges that complete after discarding`, async () => {
     });
     expect(`.o_field_widget[name="foo"] input`).toHaveValue("blip");
 
-    // edit a field and discard
     await contains(`.o_field_widget[name=foo] input`).edit("1234");
     await contains(`.o_form_button_cancel`).click();
     expect(`.modal`).toHaveCount(0);
     expect(`.o_field_widget[name="foo"] input`).toHaveValue("1234");
     expect.verifySteps([]);
 
-    // complete the onchange
     deferred.resolve();
     await animationFrame();
     expect(`.o_field_widget[name="foo"] input`).toHaveValue("blip");
@@ -6909,18 +6771,14 @@ test(`discarding before save returns`, async () => {
     expect(`.o_form_view .o_form_editable`).toHaveCount(1);
     await contains(`.o_field_widget[name=foo] input`).edit("1234");
 
-    // save the value and discard directly
     await contains(`.o_form_button_save`).click();
     expect(`.o_form_button_cancel`).not.toBeEnabled();
-    // with form view extensions, it may happen that someone tries to discard
-    // while there is a pending save, so we simulate this here
     form.discard();
     await animationFrame();
     expect(`.o_form_view .o_form_editable`).toHaveCount(1);
     expect(`.o_field_widget[name="foo"] input`).toHaveValue("1234");
     expect(`.modal`).toHaveCount(0);
 
-    // complete the write
     deferred.resolve();
     await animationFrame();
     expect(`.modal`).toHaveCount(0);
@@ -7041,7 +6899,6 @@ test(`args of onchanges in o2m fields are correct (inline edition)`, async () =>
     await contains(`.o_content`).click();
     expect(`.o_data_row td[name=foo]`).toHaveText("[blip] 77");
 
-    // create a new o2m record
     await contains(`.o_field_x2many_list_row_add a`).click();
     expect(`.o_data_row input:eq(0)`).toHaveValue("[blip] 14");
 });
@@ -7083,7 +6940,6 @@ test(`args of onchanges in o2m fields are correct (dialog edition)`, async () =>
     await contains(`.modal-footer .btn-primary`).click();
     expect(`.o_data_row .o_data_cell`).toHaveText("[blip] 77");
 
-    // create a new o2m record
     await contains(`.o_field_x2many_list_row_add a`).click();
     expect(`.modal .modal-title`).toHaveText("Create custom label");
     expect(`.modal .o_field_widget[name=foo] input`).toHaveValue("[blip] 14");
@@ -7120,8 +6976,6 @@ test.tags("desktop");
 test(`clicking on a stat button with a context on desktop`, async () => {
     mockService("action", {
         doActionButton({ buttonContext }) {
-            // button context should have been evaluated and given to the
-            // action, with magic keys but without previous context
             expect(buttonContext).toEqual({ test: 2 });
             expect.step("doActionButton");
         },
@@ -7151,8 +7005,6 @@ test.tags("mobile");
 test(`clicking on a stat button with a context on mobile`, async () => {
     mockService("action", {
         doActionButton({ buttonContext }) {
-            // button context should have been evaluated and given to the
-            // action, with magic keys but without previous context
             expect(buttonContext).toEqual({ test: 2 });
             expect.step("doActionButton");
         },
@@ -7250,8 +7102,6 @@ test.tags("desktop");
 test(`clicking on a stat button with no context on desktop`, async () => {
     mockService("action", {
         doActionButton({ buttonContext }) {
-            // button context should have been evaluated and given to the
-            // action, with magic keys but without previous context
             expect(buttonContext).toEqual({});
             expect.step("doActionButton");
         },
@@ -7282,8 +7132,6 @@ test.tags("mobile");
 test(`clicking on a stat button with no context on mobile`, async () => {
     mockService("action", {
         doActionButton({ buttonContext }) {
-            // button context should have been evaluated and given to the
-            // action, with magic keys but without previous context
             expect(buttonContext).toEqual({});
             expect.step("doActionButton");
         },
@@ -7511,7 +7359,6 @@ test(`many2manys inside one2manys are saved correctly`, async () => {
             </form>
         `,
     });
-    // add a o2m subrecord with a m2m tag
     await contains(`.o_field_x2many_list_row_add a`).click();
     await contains(`.o_input_dropdown input`).click();
     await contains(`.dropdown-item:contains(gold)`).click();
@@ -7551,7 +7398,6 @@ test(`one2manys (list editable) inside one2manys are saved correctly`, async () 
         `,
     });
 
-    // add a o2m subrecord
     await contains(`.o_field_x2many_list_row_add a`).click();
     await contains(`.modal .o_field_x2many_list_row_add a`).click();
     await contains(`.modal .o_field_widget[name=name] input`).edit("xtv");
@@ -7585,21 +7431,13 @@ test(`*_view_ref in context are passed correctly`, async () => {
         resIds: [1, 2],
         context: { some_context: 354 },
     });
-    expect.verifySteps([
-        "undefined", // main get_views
-        "undefined", // x2many get_views
-        "module.list_view_ref", // x2many get_views
-        "354", // read
-    ]);
+    expect.verifySteps(["undefined", "undefined", "module.list_view_ref", "354"]);
 
-    // reload to check that the record's context hasn't been modified
     await contains(`.o_pager_next`).click();
     expect.verifySteps(["354"]);
 });
 
 test(`non inline subview and create=0 in action context`, async () => {
-    // the create=0 should apply on the main view (form), but not on subviews
-    // this works because we pass the "base_model" in the context for the "get_views" call
     Product._views = {
         kanban: `
             <kanban>
@@ -7622,8 +7460,6 @@ test(`non inline subview and create=0 in action context`, async () => {
 });
 
 test(`readonly fields with modifiers may be saved`, async () => {
-    // The readonly property on the field description isn't a DB constraint, only a default
-    // that a view (e.g. via modifiers) may override, so a readonly field may still be edited.
     Partner._fields.foo = fields.Char({ readonly: true });
 
     onRpc("web_save", ({ args }) => {
@@ -7642,8 +7478,6 @@ test(`readonly fields with modifiers may be saved`, async () => {
         resId: 1,
     });
 
-    // bar being set to true, foo shouldn't be readonly and thus its value
-    // could be saved, even if in its field description it is readonly
     expect(`.o_field_widget[name="foo"] input`).toHaveCount(1);
     await contains(`.o_field_widget[name="foo"] input`).edit("New foo value");
     await contains(`.o_form_button_save`).click();
@@ -7656,9 +7490,6 @@ test(`readonly sub fields fields with force_save attribute`, async () => {
     Partner._fields.int_field = fields.Integer({ readonly: true });
 
     onRpc("web_save", ({ args }) => {
-        // foo should be saved because of the "force_save" attribute
-        // float_field should be saved because it isn't readonly
-        // int_field should not be saved as it is readonly
         expect.step("web_save");
         const commands = args[1].child_ids;
         expect(commands).toEqual([
@@ -8035,7 +7866,6 @@ test(`In READ mode, focus the first primary button of the form`, async () => {
     expect(`button.firstButton`).toBeFocused();
 });
 
-// should clearly be a mobile test too
 test.tags("desktop");
 test(`check scroll on small height screens`, async () => {
     Partner._views = {
@@ -8071,7 +7901,6 @@ test(`check scroll on small height screens`, async () => {
         resId: 2,
     });
 
-    // we make the content height very small so we can test scrolling.
     Object.assign(queryFirst(`.o_content`).style, {
         overflow: "auto",
         "max-height": "300px",
@@ -8079,7 +7908,6 @@ test(`check scroll on small height screens`, async () => {
     expect(`.modal-dialog`).toHaveCount(1);
 
     expect(queryFirst(`.o_content`).scrollTop).toBe(0);
-    // simply triggerEvent focus doesn't do the trick (doesn't scroll).
     queryFirst(`[name='parent_id'] input`).focus();
     expect(queryFirst(`.o_content`).scrollTop).not.toBe(0);
 
@@ -8129,14 +7957,11 @@ test(`correct amount of buttons`, async () => {
 
     const assertFormContainsNButtonsWithSizeClass = async function (sizeClass, n) {
         screenSize = sizeClass;
-        formView.render(true); // deep rendering
+        formView.render(true);
         await animationFrame();
         expect(`.o-form-buttonbox button.oe_stat_button`).toHaveCount(n);
     };
 
-    // Budgets are [0, 0, 4, 5, 7, 8] per SIZES — monotonic, so growing the
-    // screen never hides buttons into the "More" dropdown. With 7 buttons:
-    // above budget → budget - 1 visible + "More"; within budget → all 7.
     await assertFormContainsNButtonsWithSizeClass(SIZES.XS, 0);
     await assertFormContainsNButtonsWithSizeClass(SIZES.SM, 0);
     await assertFormContainsNButtonsWithSizeClass(SIZES.MD, 3);
@@ -8254,7 +8079,7 @@ test(`execute ActionMenus actions`, async () => {
     mockService("action", {
         doAction(id, { additionalContext, onClose }) {
             expect.step({ action_id: id, context: additionalContext });
-            onClose(); // simulate closing of target new action's dialog
+            onClose();
         },
     });
 
@@ -8302,7 +8127,7 @@ test(`execute ActionMenus actions (create)`, async () => {
     mockService("action", {
         doAction(id, { additionalContext, onClose }) {
             expect.step({ action_id: id, context: additionalContext });
-            onClose(); // simulate closing of target new action's dialog
+            onClose();
         },
     });
 
@@ -8440,12 +8265,10 @@ test(`do not activate an hidden tab when switching between records`, async () =>
     expect(`.o_notebook .nav-item`).toHaveCount(2);
     expect(`.o_notebook .nav-link:eq(0)`).toHaveClass("active");
 
-    // click on the pager to switch to the next record
     await contains(`.o_pager_next`).click();
     expect(`.o_notebook .nav-item`).toHaveCount(1);
     expect(`.o_notebook .nav-link`).toHaveClass("active");
 
-    // click on the pager to switch back to the previous record
     await contains(`.o_pager_previous`).click();
     expect(`.o_notebook .nav-item`).toHaveCount(2);
     expect(`.o_notebook .nav-link:eq(1)`).toHaveClass("active");
@@ -8489,9 +8312,6 @@ test(`required fields inside notebook`, async () => {
 });
 
 test(`required field inside a nested notebook marks the outer page invalid`, async () => {
-    // FM5: a page whose only invalid field lives in a NESTED notebook must
-    // still mark the OUTER page's tab invalid — the compiler now propagates
-    // nested-notebook fields into the outer page's fieldNames.
     await mountView({
         resModel: "partner",
         type: "form",
@@ -8518,8 +8338,6 @@ test(`required field inside a nested notebook marks the outer page invalid`, asy
     await contains(".o_field_char[name=foo] input").clear();
     await clickSave();
     expect(".o_field_char[name=foo]").toHaveClass("o_field_invalid");
-    // The OUTER "Outer" tab must be flagged even though the invalid field is
-    // one notebook deeper.
     expect(".o_notebook_headers:first .nav-link:first").toHaveClass("o_page_invalid");
 });
 
@@ -8547,8 +8365,6 @@ test(`support anchor tags with action type`, async () => {
 });
 
 test(`do not perform extra RPC to read invisible many2one fields`, async () => {
-    // an invisible manyone should only requests the id, not the display_name
-    // -> invisible: { parent_id: {} }, visible: { parent_id: { fields: { display_name }}}
     Partner._fields.parent_id = fields.Many2one({ relation: "partner", default: 2 });
 
     onRpc("onchange", ({ args }) => {
@@ -8556,7 +8372,7 @@ test(`do not perform extra RPC to read invisible many2one fields`, async () => {
         expect(args[3]).toEqual({
             display_name: {},
             parent_id: {
-                fields: {}, // loads "id" only
+                fields: {},
             },
         });
     });
@@ -8570,9 +8386,9 @@ test(`do not perform extra RPC to read invisible many2one fields`, async () => {
 
 test(`do not perform extra RPC to read invisible x2many fields`, async () => {
     Object.assign(Partner._records[0], {
-        child_ids: [2], // one2many
-        product_ids: [37], // one2many
-        type_ids: [12], // many2many
+        child_ids: [2],
+        product_ids: [37],
+        type_ids: [12],
     });
 
     onRpc("web_read", ({ kwargs }) => {
@@ -8635,7 +8451,6 @@ test(`default_order on x2many embedded view`, async () => {
     await contains(`.modal .o_field_widget[name=foo] input`).edit("zop");
     await contains(`.modal-footer .o_form_button_save`).click();
 
-    // client-side sort
     expect(queryAllTexts`.o_data_row .o_data_cell:nth-child(2)`).toEqual([
         "zop",
         "yop",
@@ -8643,7 +8458,6 @@ test(`default_order on x2many embedded view`, async () => {
         "My little Foo Value",
     ]);
 
-    // server-side sort
     await contains(`.o_form_button_save`).click();
     expect(queryAllTexts`.o_data_row .o_data_cell:nth-child(2)`).toEqual([
         "zop",
@@ -8652,7 +8466,6 @@ test(`default_order on x2many embedded view`, async () => {
         "My little Foo Value",
     ]);
 
-    // no client-side sort after edit
     await contains(`.o_data_row:eq(1) .o_data_cell:eq(0)`).click();
     await contains(`.modal .o_field_widget[name=foo] input`).edit("zzz");
     await contains(`.modal-footer .o_form_button_save`).click();
@@ -8663,7 +8476,6 @@ test(`default_order on x2many embedded view`, async () => {
         "My little Foo Value",
     ]);
 
-    // server-side sort post save
     await contains(`.o_form_button_save`).click();
     expect(queryAllTexts`.o_data_row .o_data_cell:nth-child(2)`).toEqual([
         "zzz",
@@ -8741,19 +8553,16 @@ test(`form rendering with groups with col/colspan`, async () => {
         resId: 1,
     });
 
-    // Verify outergroup/innergroup
     expect(`.parent_group`).toHaveProperty("tagName", "DIV");
     expect(`.group_4`).toHaveProperty("tagName", "DIV");
     expect(`.group_3`).toHaveProperty("tagName", "DIV");
     expect(`.group_1`).toHaveProperty("tagName", "DIV");
     expect(`.field_group`).toHaveProperty("tagName", "DIV");
 
-    // Verify .parent_group content
     expect(`.parent_group > *`).toHaveCount(2);
     expect(`.parent_group > *:eq(0)`).toHaveClass("col-lg-6");
     expect(`.parent_group > *:eq(1)`).toHaveClass("col-lg-8");
 
-    // Verify .group_4 content
     expect(`.group_4 > div.o_cell`).toHaveCount(4);
     expect(`.group_4 > div.o_cell:first-child`).toHaveAttribute(
         "style",
@@ -8768,14 +8577,11 @@ test(`form rendering with groups with col/colspan`, async () => {
         "--o-grid-column-span: 4;",
     );
 
-    // Verify .group_3 content
     expect(`.group_3 > *`).toHaveCount(3);
     expect(`.group_3 > .col-lg-4`).toHaveCount(3);
 
-    // Verify .group_1 content
     expect(`.group_1 > .o_cell`).toHaveCount(3);
 
-    // Verify .field_group content
     expect(`.field_group > .o_cell`).toHaveCount(10);
     expect(`.field_group > .o_cell:first-child`).toHaveClass("o_wrap_label");
     expect(`.field_group > .o_cell:nth-child(2)`).toHaveAttribute(
@@ -8912,7 +8718,6 @@ test(`form group with newline tag inside`, async () => {
         resId: 1,
     });
 
-    // Inner group
     expect(`.main_inner_group .o_cell`).toHaveCount(6);
     expect(`.main_inner_group > .o_cell.o_wrap_label:first-child`).toHaveCount(1);
     expect(`.main_inner_group > .o_cell.o_wrap_input:nth-child(2)`).toHaveCount(1);
@@ -8926,7 +8731,6 @@ test(`form group with newline tag inside`, async () => {
     expect(`.main_inner_group > .o_cell.o_wrap_label:nth-child(4)`).toHaveCount(1);
     expect(`.main_inner_group > .o_cell.o_wrap_input:nth-child(5)`).toHaveCount(1);
 
-    // Outer group
     const bottomGroupRect = queryFirst(`.bottom_group`).getBoundingClientRect();
     const topGroupRect = queryFirst(`.top_group`).getBoundingClientRect();
     expect(bottomGroupRect.top - topGroupRect.top).toBeGreaterThan(200, {
@@ -8966,7 +8770,6 @@ test(`can save without any dirty translatable fields`, async () => {
     });
     expect.verifySteps(["get_views", "web_read"]);
     expect(`.o_form_editable`).toHaveCount(1);
-    // o_field_translate is on the input and on the translate button
     expect(`div[name='name'] .o_field_translate`).toHaveCount(2);
 
     await contains(`.o_form_button_save`, { visible: false }).click();
@@ -9128,7 +8931,6 @@ test(`buttons are disabled until status bar action is resolved`, async () => {
         `,
         resId: 1,
     });
-    // Contains invisible buttons that are only displayed under xl screens
     expect(`.o_control_panel_breadcrumbs button:not(.fa):not(:disabled)`).toHaveCount(
         3,
     );
@@ -9138,7 +8940,6 @@ test(`buttons are disabled until status bar action is resolved`, async () => {
     await contains(`.o_form_statusbar button`).click();
     await animationFrame();
 
-    // The unresolved promise lets us check the state of the buttons
     expect(`.o_control_panel_breadcrumbs button:not(.fa):disabled`).toHaveCount(3);
     expect(`.o_form_statusbar button:disabled`).toHaveCount(2);
     expect(`.o-form-buttonbox button:disabled`).toHaveCount(1);
@@ -9175,7 +8976,6 @@ test(`buttons with "confirm" attribute save before calling the method`, async ()
         `,
     });
 
-    // click on button, and cancel in confirm dialog
     await contains(`.o_statusbar_buttons button`).click();
     expect(`.o_statusbar_buttons button`).not.toBeEnabled();
 
@@ -9184,7 +8984,6 @@ test(`buttons with "confirm" attribute save before calling the method`, async ()
 
     expect.verifySteps(["get_views", "onchange"]);
 
-    // click on button, and click on ok in confirm dialog
     await contains(`.o_statusbar_buttons button`).click();
     expect.verifySteps([]);
     await contains(`.modal-footer button.btn-primary`).click();
@@ -9217,7 +9016,7 @@ test(`buttons with "confirm-title" and "confirm-label" attributes`, async () => 
 test(`buttons with "confirm" attribute: click twice on "Ok"`, async () => {
     mockService("action", {
         doActionButton() {
-            expect.step("execute_action"); // should be called only once
+            expect.step("execute_action");
         },
     });
 
@@ -9258,7 +9057,7 @@ test(`multiple clicks on save should reload only once`, async () => {
     expect.verifySteps(["get_views", "web_read"]);
     await contains(`.o_field_widget[name="foo"] input`).edit("test");
     await contains(`.o_form_button_save`).click();
-    expect(`.o_form_button_save`).not.toBeEnabled(); // Save button is disabled, it can't be clicked
+    expect(`.o_form_button_save`).not.toBeEnabled();
 
     deferred.resolve();
     await animationFrame();
@@ -9287,12 +9086,12 @@ test(`form view is not broken if save operation fails`, async () => {
     await animationFrame();
     expect(`.o_dialog`).toHaveCount(1);
     expect.verifyErrors(["RPC_ERROR: Odoo Server Error"]);
-    expect.verifySteps(["web_save"]); // write on save (it fails, does not trigger a read)
+    expect.verifySteps(["web_save"]);
 
     await contains(`.o_dialog .modal-footer .btn-primary`).click();
     await contains(`.o_field_widget[name=foo] input`).edit("correct value");
     await contains(`.o_form_button_save`).click();
-    expect.verifySteps(["web_save"]); // write on save (it works)
+    expect.verifySteps(["web_save"]);
 });
 
 test(`form view is not broken if save operation fails with redirect warning`, async () => {
@@ -9331,7 +9130,6 @@ test(`form view is not broken if save operation fails with redirect warning`, as
     await animationFrame();
     expect.verifySteps(["web_save"]);
 
-    // Oh snap dialog
     expect(`.o_dialog`).toHaveCount(1);
     expect(`.o_dialog .modal-footer .btn-primary`).toHaveCount(1);
     expect(`.o_dialog .modal-footer .btn-secondary`).toHaveCount(2);
@@ -9339,7 +9137,6 @@ test(`form view is not broken if save operation fails with redirect warning`, as
     await animationFrame();
     expect.verifySteps(["get_views", "onchange"]);
 
-    // RedirectWarning dialog
     expect(`.modal-title`).toHaveText("Sub view");
 });
 
@@ -9436,14 +9233,12 @@ test(`context is correctly passed after save & new in FormViewDialog`, async () 
     await contains(`.o_field_x2many_list_row_add a`).click();
     expect(`.modal`).toHaveCount(1);
 
-    // set a value on the m2o and click save & new
     await contains(`.o_field_many2one[name="partner_type_id"] input`).click();
     expect.verifySteps(["web_name_search"]);
 
     await contains(`.dropdown .dropdown-item:contains(gold)`).click();
     await contains(`.modal-footer .o_form_button_save_new`).click();
 
-    // set a value on the m2o
     await contains(`.o_field_many2one[name="partner_type_id"] input`).click();
     expect.verifySteps(["web_name_search"]);
 
@@ -9452,8 +9247,6 @@ test(`context is correctly passed after save & new in FormViewDialog`, async () 
 });
 
 test(`readonly fields are not sent when saving`, async () => {
-    // define an onchange on name to check that the value of readonly
-    // fields is correctly sent for onchanges
     Partner._onChanges = {
         name() {},
         child_ids() {},
@@ -9464,10 +9257,8 @@ test(`readonly fields are not sent when saving`, async () => {
         if (checkOnchange) {
             expect.step("onchange");
             if (args[2][0] === "name") {
-                // onchange on field name
                 expect(args[1].foo).toBe("foo value");
             } else {
-                // onchange on field p
                 expect(args[1].child_ids).toEqual([
                     [
                         0,
@@ -9539,7 +9330,7 @@ test(`id is False in evalContext for new records`, async () => {
 });
 
 test(`delete a duplicated record`, async () => {
-    const newRecordID = 6; // ids from 1 to 5 are already taken so the new record will have id 6
+    const newRecordID = 6;
     onRpc("unlink", ({ args }) => {
         expect.step("unlink");
         expect(args[0]).toEqual([newRecordID]);
@@ -9634,9 +9425,6 @@ test(`display tooltips for buttons (debug = true)`, async () => {
 });
 
 test(`reload event is handled only once`, async () => {
-    // Nested form controllers, all opened in dialogs. Saving in the last dialog fires a
-    // 'reload' event up to the direct parent; if not stopPropagated by the first controller
-    // catching it, the next handler crashes since it doesn't know the dataPointID to reload.
     Partner._views = {
         form: `<form><field name="name"/><field name="parent_id"/></form>`,
     };
@@ -9654,25 +9442,15 @@ test(`reload event is handled only once`, async () => {
 
     await contains(`.o_external_button`, { visible: false }).click();
     expect(`.o_dialog`).toHaveCount(2);
-    expect.verifySteps([
-        "get_formview_id", // id of first form view opened in a dialog
-        "get_views", // arch of first form view opened in a dialog
-        "web_read", // first dialog
-    ]);
+    expect.verifySteps(["get_formview_id", "get_views", "web_read"]);
 
     await contains(`.o_dialog:eq(1) .o_external_button`, { visible: false }).click();
     expect(`.o_dialog`).toHaveCount(3);
-    expect.verifySteps([
-        "get_formview_id", // id of second form view opened in a dialog
-        "web_read", // second dialog
-    ]);
+    expect.verifySteps(["get_formview_id", "web_read"]);
 
     await contains(`.o_dialog:eq(2) .o_field_widget[name=name] input`).edit("new name");
     await contains(`.o_dialog:eq(2) footer .o_form_button_save`).click();
-    expect.verifySteps([
-        "web_save",
-        "read", // reload the name (first dialog)
-    ]);
+    expect.verifySteps(["web_save", "read"]);
     expect(`.o_dialog:eq(1) .o_field_widget[name="parent_id"] input`).toHaveValue(
         "new name",
     );
@@ -9970,7 +9748,7 @@ test(`basic support for widgets: onchange update`, async () => {
         arch: `<form><field name="foo"/><widget name="test_widget"/></form>`,
     });
     await contains(`.o_field_widget[name="foo"] input`).edit("I am alive");
-    await animationFrame(); // wait for effect
+    await animationFrame();
     expect(`.o_widget`).toHaveText("I am alive!");
 });
 
@@ -10223,10 +10001,6 @@ test(`keep editing after call_button fail`, async () => {
 });
 
 test(`no deadlock when saving with uncommitted changes`, async () => {
-    // Before saving, all field widgets are asked to commit uncommitted changes. Clicking
-    // 'Save' normally avoids this path (blur already notified the model), so this test forces
-    // a widget to commit changes at save time by calling 'saveRecord' directly, reproducing a
-    // fixed deadlock bug.
     onRpc(({ method }) => method !== "lazy_session_info" && expect.step(method));
     await mountView({
         resModel: "partner",
@@ -10264,8 +10038,6 @@ test(`saving with invalid uncommitted changes`, async () => {
 });
 
 test(`save record with onchange on one2many with required field`, async () => {
-    // A one2many has a required field set by an onchange on another field; set that other
-    // field and click Save before the onchange RPC returns and sets the required value.
     Partner._fields.foo = fields.Char();
     Partner._onChanges = {
         name(record) {
@@ -10348,29 +10120,24 @@ test(`leave the form view while saving`, async () => {
     await getService("action").doAction(1);
     await contains(`.o_control_panel_main_buttons button.o_list_button_add`).click();
 
-    // edit foo to trigger a delayed onchange
     onchangeDeferred = new Deferred();
     await contains(`.o_field_widget[name=foo] input`).edit("trigger onchange");
     expect(`.o_field_widget[name=name] input`).toHaveValue("default");
 
-    // save (will wait for the onchange to return), and will be delayed as well
     await contains(`.o_form_button_save`).click();
     expect(`.o_form_editable`).toHaveCount(1);
     expect(`.o_field_widget[name=name] input`).toHaveValue("default");
 
-    // click on the breadcrumbs to leave the form view
     await contains(`.breadcrumb-item.o_back_button a`).click();
     await animationFrame();
     expect(`.o_form_editable`).toHaveCount(1);
     expect(`.o_field_widget[name=name] input`).toHaveValue("default");
 
-    // unlock the onchange
     onchangeDeferred.resolve();
     await animationFrame();
     expect(`.o_form_editable`).toHaveCount(1);
     expect(`.o_field_widget[name=name] input`).toHaveValue("changed");
 
-    // unlock the create
     createDeferred.resolve();
     await animationFrame();
     expect(`.o_list_view`).toHaveCount(1);
@@ -10410,7 +10177,6 @@ test(`leave the form twice (clicking on the breadcrumb) should save only once`, 
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
 
-    // switch to form view
     await contains(`.o_list_table .o_data_row .o_data_cell`).click();
     expect(`.o_form_editable`).toHaveCount(1);
 
@@ -10423,7 +10189,6 @@ test(`leave the form twice (clicking on the breadcrumb) should save only once`, 
     expect(`.modal`).toHaveCount(0);
     expect.verifySteps([]);
 
-    // unlock the create
     writeDeferred.resolve();
     await animationFrame();
     expect.verifySteps(["web_save"]);
@@ -10465,7 +10230,6 @@ test(`discard after a failed save (and close notifications)`, async () => {
     await getService("action").doAction(1);
     await contains(`.o_control_panel_main_buttons button.o-kanban-button-new`).click();
 
-    //cannot save because there is a required field
     await contains(`.o_control_panel .o_form_button_save`).click();
     expect(`.o_notification`).toHaveCount(1);
 
@@ -10595,8 +10359,6 @@ test(`form view with inline list view with optional fields and local storage moc
     expect(`.o-dropdown--menu .dropdown-item`).toHaveCount(1);
 
     await contains(`.o-dropdown--menu input[name="bar"]`).click();
-    // Only a setItem: the toggle refreshes the cached localStorage value, so
-    // the ensuing render does not re-read optional_fields/debug_open_view.
     expect.verifySteps([`setItem optional_fields,${localStorageKey} to bar`]);
 
     expect(`.o_list_table th`).toHaveCount(3);
@@ -10642,8 +10404,6 @@ test(`form view with list_view_ref with optional fields and local storage mock`,
     await mountView({
         resModel: "partner",
         type: "form",
-        // widget= is a hack to prevent inlining: the mock server doesn't fully replicate the
-        // real server's auto-inlining of views without a widget.
         arch: `
             <form>
                 <field name="float_field"/>
@@ -10666,8 +10426,6 @@ test(`form view with list_view_ref with optional fields and local storage mock`,
     expect(`.o-dropdown--menu .dropdown-item`).toHaveCount(1);
 
     await contains(`.o-dropdown--menu input[name="foo"]`).click();
-    // Only a setItem: the toggle refreshes the cached localStorage value, so
-    // the ensuing render does not re-read optional_fields/debug_open_view.
     expect.verifySteps([`setItem optional_fields,${localStorageKey} to foo`]);
 
     expect(`.o_list_table th`).toHaveCount(3);
@@ -10700,7 +10458,6 @@ test(`resequence list lines when discardable lines are present`, async () => {
     expect.verifySteps(["onchange"]);
     expect(`[name="foo"] input`).toHaveValue("0");
 
-    // Add one line
     await contains(`.o_field_x2many_list_row_add a`).click();
     await contains(`.o_field_cell [name="name"] input`).edit("first line");
     expect.verifySteps(["onchange"]);
@@ -10708,8 +10465,6 @@ test(`resequence list lines when discardable lines are present`, async () => {
 
     await contains(`.o_field_x2many_list_row_add a`).click();
     await animationFrame();
-    // Drag and drop second line before first one (with 1 draft and invalid line)
-    // TODO JUM: PRHOOT the events
     const { drop, moveTo } = await contains(
         `tbody.ui-sortable tr:nth-child(1) .o_handle_cell`,
     ).drag();
@@ -10717,7 +10472,6 @@ test(`resequence list lines when discardable lines are present`, async () => {
     await drop(document.body);
     expect(`[name="foo"] input`).toHaveValue("1");
 
-    // Add a second line
     await contains(`.o_field_x2many_list_row_add a`).click();
     await contains(`.o_selected_row input`).edit("second line");
     expect.verifySteps(["onchange"]);
@@ -10769,7 +10523,6 @@ test("resequence list lines when previous resequencing crashed", async () => {
         resId: 1,
     });
 
-    // Add two lines
     await contains(`.o_field_x2many_list_row_add a`).click();
 
     await contains(".o_data_cell [name='name'] input").edit("first line");
@@ -11019,8 +10772,6 @@ test(`field "length" with value 0: readonly fields are not sent when saving`, as
     Partner._fields.length = fields.Float();
     Partner._fields.foo = fields.Char({ default: "foo default" });
 
-    // define an onchange on name to check that the value of readonly
-    // fields is correctly sent for onchanges
     Partner._onChanges = {
         name() {},
         child_ids() {},
@@ -11361,11 +11112,6 @@ test(`onSave/onDiscard props`, async () => {
 });
 
 test(`props.onSave is not called when leaving a clean form`, async () => {
-    // Regression: ``beforeLeave`` used ``requestSave({ checkDirty: true })``,
-    // whose clean short-circuit resolves ``true`` WITHOUT saving — and then
-    // fired ``props.onSave``. Embedders hang "record persisted" side effects
-    // on onSave (e.g. stock_barcode closes its line-edit pane), so a clean
-    // leave must not fire it.
     let controller;
     patchWithCleanup(FormController.prototype, {
         setup() {
@@ -11382,11 +11128,9 @@ test(`props.onSave is not called when leaving a clean form`, async () => {
         onSave: () => expect.step("onSave"),
     });
 
-    // Clean leave: navigation proceeds, but nothing saved → no onSave.
     expect(await controller.beforeLeave()).toBe(true);
     expect.verifySteps([]);
 
-    // Dirty leave: the record is saved and onSave fires.
     await contains(`.o_field_widget input`).edit("dirty now");
     expect(await controller.beforeLeave()).toBe(true);
     expect.verifySteps(["web_save", "onSave"]);
@@ -11484,7 +11228,6 @@ test(`status indicator: dirty state`, async () => {
 });
 
 test(`status indicator: field dirty state`, async () => {
-    // this test check that the indicator don't need the onchange to be displayed
     await mountView({
         resModel: "partner",
         type: "form",
@@ -11498,7 +11241,6 @@ test(`status indicator: field dirty state`, async () => {
 });
 
 test(`status indicator: field dirty state (date)`, async () => {
-    // this test check that the indicator don't need the onchange to be displayed
     await mountView({
         resModel: "partner",
         type: "form",
@@ -11513,7 +11255,6 @@ test(`status indicator: field dirty state (date)`, async () => {
 });
 
 test(`status indicator: field dirty state (datetime)`, async () => {
-    // this test check that the indicator don't need the onchange to be displayed
     await mountView({
         resModel: "partner",
         type: "form",
@@ -11565,7 +11306,7 @@ test(`status indicator: discard dirty state`, async () => {
 
 test(`status indicator: invalid state`, async () => {
     onRpc("web_save", () => {
-        expect.step("save"); // not called
+        expect.step("save");
         throw makeServerError();
     });
     await mountView({
@@ -11574,9 +11315,6 @@ test(`status indicator: invalid state`, async () => {
         arch: `<form><field name="foo" required="1"/></form>`,
         resId: 1,
     });
-    // Assert on the visible danger icon, not the indicator's full text: the hidden
-    // ``aria-live`` span intentionally populates status text in dirty/invalid modes, which
-    // ``toHaveText("")`` would conflate with the "error icon present" condition under test.
     expect(`.o_form_status_indicator .text-danger`).toHaveCount(0);
 
     await contains(`.o_field_widget input`).edit("");
@@ -11658,8 +11396,6 @@ test(`don't exec a valid save with onWillSaveRecord in a form view`, async () =>
 });
 
 test(`Can't use FormRenderer implementation details in arch`, async () => {
-    // using t-esc in form view archs isn't accepted, so it displays a warning
-    // in the console
     patchWithCleanup(console, {
         warn: () => expect.step("warn"),
     });
@@ -11903,8 +11639,6 @@ test(`open form view action in x2many with several virtual record with limit`, a
     expect.verifySteps(["web_save", "ir.actions.act_window:partner(13)"]);
 });
 
-// desktop-only: deletes through the `.o_cp_action_menus` control-panel menu and
-// expects to land back on the desktop list view (mobile navigates differently).
 test.tags("desktop");
 test(`prevent recreating a deleted record`, async () => {
     Partner._records = [{ id: 1, name: "first record" }];
@@ -12021,7 +11755,6 @@ test(`coming to an action with an error from a form view with a dirty x2m`, asyn
     await animationFrame();
     expect.verifyErrors(["Something went wrong"]);
 
-    // Close ErrorDialog
     await contains(`.o_dialog .btn-close`).click();
     expect(`[name="child_ids"] .o_data_row`).toHaveCount(1);
     expect.verifySteps(["web_save", "web_read"]);
@@ -12100,7 +11833,6 @@ test(`coming to an action with an error from a form view with a record in creati
     await animationFrame();
     expect.verifyErrors(["Something went wrong"]);
 
-    // Close ErrorDialog
     await contains(`.o_dialog .btn-primary`).click();
     expect(`[name=foo] input`).toHaveValue("new value");
     expect.verifySteps(["web_save", "web_read"]);
@@ -12703,11 +12435,9 @@ test(`field with special data (with persistent Cache)`, async () => {
     await contains(`[name='int_field'] input`).edit("42");
     expect.verifySteps(["get_special_data 9", "get_special_data 42"]);
 
-    // Go to another model, to remove the model cache
     await getService("action").doAction(2);
     expect(`.o_last_breadcrumb_item`).toHaveText("Christine");
 
-    //Came back to the model with the special data
     def = new Deferred();
     await getService("action").doAction(1);
     expect(`.o_last_breadcrumb_item`).toHaveText("second record");
@@ -12971,7 +12701,6 @@ test(`statusbar buttons are correctly rendered in mobile`, async () => {
     });
 
     expect(".o_statusbar_buttons button:eq(0)").toHaveText("Confirm");
-    // open the dropdown
     await contains(".o_statusbar_buttons button:has(.oi-ellipsis-v)").click();
     await animationFrame();
     expect(".o-dropdown--menu:visible").toHaveCount(1, {
@@ -13004,7 +12733,6 @@ test(`statusbar widgets should appear in the CogMenu dropdown`, async () => {
     });
 
     expect(".o_statusbar_buttons button:eq(0)").toHaveText("Attach document");
-    // Now there should an action dropdown, because there are two visible buttons
     expect(".o_statusbar_buttons button:has(.oi-ellipsis-v)").toHaveCount(1, {
         message: "should have 'More' dropdown",
     });
@@ -13014,7 +12742,6 @@ test(`statusbar widgets should appear in the CogMenu dropdown`, async () => {
         message: "should have 1 button in the dropdown",
     });
 
-    // change display_name to update buttons modifiers and make one button visible
     await contains(".o_field_widget[name=name] input").edit("first record");
     expect(".o_statusbar_buttons button:eq(0)").toHaveText("Attach document");
     expect(".o_statusbar_buttons button:has(.oi-ellipsis-v)").toHaveCount(0, {
@@ -13072,8 +12799,6 @@ test(`CogMenu dropdown's open/close state shouldn't be modified after 'onchange'
 });
 
 test(`cog menu action is executed with up to date context`, async () => {
-    // this test simulates a case where the context of a form view evolves, which can happen with
-    // js customizations (js_class, custom widgets...) and the user then executes a cog menu action.
     mockService("action", {
         doAction(id, { additionalContext }) {
             expect.step(`doAction ${additionalContext.x}`);
@@ -13194,14 +12919,11 @@ test(`preserve current scroll position on form view while closing dialog`, async
     });
     expect(window.scrollX).toBe(0, { message: "Should be 0 px from left as it is" });
 
-    // click on m2o field
     await contains(".o_field_many2one input").click();
-    // assert.strictEqual(window.scrollY, 0, "Should have scrolled to top (0) px");
     expect(".modal.o_modal_full").toHaveCount(1, {
         message: "there should be a many2one modal opened in full screen",
     });
 
-    // click on back button
     await contains(".modal .modal-header .oi-arrow-left").click();
 
     expect(window.scrollY).toBe(265, {
@@ -13284,7 +13006,6 @@ test(`do not perform button action for records with invalid datas`, async () => 
     onRpc("partner", "web_save", () => {
         expect.step("web_save");
     });
-    // The records data are invalid since foo is required
     Partner._records[0].name = "Bob";
     Partner._records[0].foo = "";
     await mountView({
@@ -13298,18 +13019,13 @@ test(`do not perform button action for records with invalid datas`, async () => 
         resId: 1,
     });
     expect.verifySteps([]);
-    // Try to perform the action with invalid datas
     await contains(".btn[name='lovely action']").click();
-    // the action should not be called thanks to the `_checkValidity`
     expect.verifySteps([
         "Check/prepare record datas",
         "Pop Up: Invalid Field: Missing required fields",
     ]);
-    // Edit the required field
     await contains(`.o_input`).edit("Foo Value");
-    // Try to perform the action once more
     await contains(".btn[name='lovely action']").click();
-    // the record should have been saved and the action performed.
     expect.verifySteps(["Check/prepare record datas", "web_save", "Perform Action"]);
 });
 
@@ -13339,17 +13055,14 @@ test(`open x2many with non inline form view, delayed get_views, form destroyed`,
         resId: 1,
     });
 
-    // click on an x2many record to open it in dialog (get_views delayed)
     def = new Deferred();
     await contains(".o_data_row .o_data_cell").click();
     expect(".o_dialog").toHaveCount(0);
 
-    // destroy the form view while get_views is pending
     form.__owl__.destroy();
     def.resolve();
     await animationFrame();
 
-    // everything should have gone smoothly, nothing should have happened as the view is destroyed
     expect.verifySteps(["get_views", "get_views"]);
 });
 
@@ -13412,13 +13125,7 @@ test("executing new action, closes dialog, and avoid reload previous view", asyn
         views: [[false, "kanban"]],
     });
     expect(`.o_kanban_view`).toHaveCount(1);
-    expect.verifySteps([
-        "get_views",
-        //"web_read", We shouldn't be doing a web_read for the view that we are leaving.
-        "get_views",
-        "web_search_read",
-        "has_group",
-    ]);
+    expect.verifySteps(["get_views", "get_views", "web_search_read", "has_group"]);
 });
 
 test.tags("mobile");
@@ -13457,7 +13164,7 @@ test(`cached web_read`, async () => {
             res_model: "partner",
             res_id: 1,
             views: [[false, "form"]],
-            cache: true, // true is the default !
+            cache: true,
         },
         {
             id: 2,
@@ -13469,28 +13176,23 @@ test(`cached web_read`, async () => {
     ]);
 
     await mountWithCleanup(WebClient);
-    // Open and Cache the first action
     await getService("action").doAction(1);
     expect(`.o_field_char input`).toHaveValue("yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("first record");
 
-    // Change the record to the second record
     await getService("action").doAction(2);
     expect(`.o_field_char input`).toHaveValue("blip");
     expect(`.o_last_breadcrumb_item`).toHaveText("second record");
 
     def = new Deferred();
 
-    // Come back to the first action
     getService("action").doAction(1);
     await animationFrame();
-    // The record is shown even if the rpc is not finish (cached values)
     expect(`.o_field_char input`).toHaveValue("yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("first record");
 
     def.resolve([{ id: 1, foo: "new yop", display_name: "new first record" }]);
     await animationFrame();
-    // The record is updated with the new values
     expect(`.o_field_char input`).toHaveValue("new yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("new first record");
     expect.verifySteps(["web_read", "web_read", "web_read"]);
@@ -13514,7 +13216,7 @@ test(`cached web_read: don't cache if action have cache:false`, async () => {
             res_model: "partner",
             res_id: 1,
             views: [[false, "form"]],
-            cache: false, // true is the default !
+            cache: false,
         },
         {
             id: 2,
@@ -13522,33 +13224,28 @@ test(`cached web_read: don't cache if action have cache:false`, async () => {
             res_model: "partner",
             res_id: 2,
             views: [[false, "form"]],
-            cache: false, // true is the default !
+            cache: false,
         },
     ]);
 
     await mountWithCleanup(WebClient);
-    // Open the first action
     await getService("action").doAction(1);
     expect(`.o_field_char input`).toHaveValue("yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("first record");
 
-    // Change the record (the second record)
     await getService("action").doAction(2);
     expect(`.o_field_char input`).toHaveValue("blip");
     expect(`.o_last_breadcrumb_item`).toHaveText("second record");
 
     def = new Deferred();
 
-    // Come back to the first action
     getService("action").doAction(1);
     await animationFrame();
-    // The second record is still shown, waiting to the RPC to be finish
     expect(`.o_field_char input`).toHaveValue("blip");
     expect(`.o_last_breadcrumb_item`).toHaveText("second record");
 
     def.resolve([{ id: 1, foo: "new yop", display_name: "new first record" }]);
     await animationFrame();
-    // Show the new values when the rpc is finish
     expect(`.o_field_char input`).toHaveValue("new yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("new first record");
     expect.verifySteps(["web_read", "web_read", "web_read"]);
@@ -13572,7 +13269,7 @@ test(`cached web_read - don't loose changes`, async () => {
             res_model: "partner",
             res_id: 1,
             views: [[false, "form"]],
-            cache: true, // true is the default !
+            cache: true,
         },
         {
             id: 2,
@@ -13584,41 +13281,32 @@ test(`cached web_read - don't loose changes`, async () => {
     ]);
 
     await mountWithCleanup(WebClient);
-    // Open and Cache the first action
     await getService("action").doAction(1);
     expect(`.o_field_char input`).toHaveValue("yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("first record");
 
-    // Open and Cache the second action
     await getService("action").doAction(2);
     expect(`.o_field_char input`).toHaveValue("blip");
     expect(`.o_last_breadcrumb_item`).toHaveText("second record");
 
     def = new Deferred();
 
-    // Come back to the first action
     getService("action").doAction(1);
     await animationFrame();
-    // The record is shown even if the rpc is not finish (cached values)
     expect(`.o_field_char input`).toHaveValue("yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("first record");
 
-    // Edit the field while the rpc is pending
     await contains(`.o_field_widget[name=foo] input`).edit("This is yop");
 
-    // The rpc returns differnt values.
     def.resolve([{ id: 1, foo: "new yop", display_name: "new first record" }]);
     await animationFrame();
 
-    // The record is updated with the new values and the edition is kept
     expect(`.o_field_char input`).toHaveValue("This is yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("new first record");
     expect.verifySteps(["web_read", "web_read", "web_read"]);
 });
 
 test(`cached web_read - record stays dirty when revalidation lands after an edit`, async () => {
-    // Regression: the keepChanges reload path used to reset the reactive ``dirty`` flag
-    // while preserving ``_changes``, so every isDirty() gate silently discarded the edit.
     let def = null;
     onRpc("web_read", async () => def);
     onRpc("web_save", ({ args }) => {
@@ -13656,22 +13344,15 @@ test(`cached web_read - record stays dirty when revalidation lands after an edit
     await animationFrame();
     expect(`.o_field_char input`).toHaveValue("yop");
 
-    // Edit while the revalidation web_read is pending, then let it land
     await contains(`.o_field_widget[name=foo] input`).edit("This is yop");
     def.resolve([{ id: 1, foo: "new yop", display_name: "new first record" }]);
     await animationFrame();
 
-    // The pending edit must still be flagged: saving must send it
     await clickSave();
     expect.verifySteps([`web_save:${JSON.stringify({ foo: "This is yop" })}`]);
 });
 
 test(`cached web_read - invalid input survives revalidation`, async () => {
-    // Regression: the keepChanges reload path used to derive ``dirty`` from ``_changes``
-    // alone and wipe ``_invalidFields``. A record whose only modification was invalid input
-    // (Invariant 2: dirty=true, ``_changes`` empty) flipped back to pristine when the
-    // revalidation web_read landed, silently dropping the rejected input from every
-    // isDirty() gate even though the DOM still held it.
     let def = null;
     onRpc("web_read", async () => def);
 
@@ -13706,7 +13387,6 @@ test(`cached web_read - invalid input survives revalidation`, async () => {
     await animationFrame();
     expect(`.o_field_widget[name=int_field] input`).toHaveValue("10");
 
-    // Type invalid input while the revalidation web_read is pending
     await contains(`.o_field_widget[name=int_field] input`).edit("abc");
     expect(`.o_field_widget[name=int_field]`).toHaveClass("o_field_invalid");
 
@@ -13715,7 +13395,6 @@ test(`cached web_read - invalid input survives revalidation`, async () => {
     ]);
     await animationFrame();
 
-    // The invalid flag, the rejected text and the dirty indicator must survive
     expect(`.o_field_widget[name=int_field]`).toHaveClass("o_field_invalid");
     expect(`.o_field_widget[name=int_field] input`).toHaveValue("abc");
     expect(`.o_form_status_indicator_buttons`).not.toHaveClass("invisible");
@@ -13725,13 +13404,6 @@ test(`cached web_read - invalid input survives revalidation`, async () => {
 });
 
 test(`cached web_read - savepoint survives revalidation`, async () => {
-    // Regression: the keepChanges reload path used to wipe ``_savePoint`` while preserving
-    // ``_changes``. A savepoint snapshots the pending-edit layer when a sub-flow opens
-    // (``extendRecord``, e.g. an x2many form dialog); if a cache revalidation landed while
-    // the sub-flow was open, Discard fell into the no-savepoint branch and cleared ALL
-    // pending changes, including the pre-sub-flow edits the savepoint should protect. Uses
-    // the production ``_addSavePoint`` API (see record_savepoint.js) since ``extendRecord``
-    // only targets x2many children, which the monorecord revalidation callback never reaches.
     let def = null;
     onRpc("web_read", async () => def);
 
@@ -13766,19 +13438,15 @@ test(`cached web_read - savepoint survives revalidation`, async () => {
     await animationFrame();
     expect(`.o_field_char input`).toHaveValue("yop");
 
-    // Edit, then snapshot the pending-edit layer (as extendRecord would)
     await contains(`.o_field_widget[name=foo] input`).edit("pre dialog");
     const form = findComponent(webClient, (c) => c instanceof FormController);
     form.model.root._addSavePoint();
 
-    // Sub-flow edit, then let the revalidation land while the savepoint is set
     await contains(`.o_field_widget[name=foo] input`).edit("in dialog");
     def.resolve([{ id: 1, foo: "new yop", display_name: "new first record" }]);
     await animationFrame();
     expect(`.o_field_char input`).toHaveValue("in dialog");
 
-    // Discard must restore the savepoint (the pre-sub-flow edit), not clear
-    // all pending changes down to the revalidated server values
     await contains(`.o_form_button_cancel`).click();
     expect(`.o_field_char input`).toHaveValue("pre dialog");
     expect(`.o_form_status_indicator_buttons`).not.toHaveClass("invisible");
@@ -13801,7 +13469,7 @@ test(`cached onchange - don't loose changes`, async () => {
             name: "Partner",
             res_model: "partner",
             views: [[false, "form"]],
-            cache: true, // true is the default !
+            cache: true,
         },
         {
             id: 2,
@@ -13813,29 +13481,23 @@ test(`cached onchange - don't loose changes`, async () => {
     ]);
 
     await mountWithCleanup(WebClient);
-    // Open and Cache the first action
     await getService("action").doAction(1);
     expect(`.o_field_char input`).toHaveValue("My little Foo Value");
     expect(`.o_last_breadcrumb_item`).toHaveText("New");
 
-    // Open and Cache the second action
     await getService("action").doAction(2);
     expect(`.o_field_char input`).toHaveValue("blip");
     expect(`.o_last_breadcrumb_item`).toHaveText("second record");
 
     def = new Deferred();
 
-    // Come back to the first action
     getService("action").doAction(1);
     await animationFrame();
-    // The record is shown even if the rpc is not finish (cached values)
     expect(`.o_field_char input`).toHaveValue("My little Foo Value");
     expect(`.o_last_breadcrumb_item`).toHaveText("New");
 
-    // Edit the field while the rpc is pending
     await contains(`.o_field_widget[name=foo] input`).edit("This is yop");
 
-    // The rpc returns differnt values.
     def.resolve({
         value: {
             foo: "My New little Foo Value",
@@ -13844,7 +13506,6 @@ test(`cached onchange - don't loose changes`, async () => {
     });
     await animationFrame();
 
-    // The record is updated with the new values and the edition is kept
     expect(`.o_field_char input`).toHaveValue("This is yop");
     expect(`.o_last_breadcrumb_item`).toHaveText("New");
     expect.verifySteps(["onchange", "onchange"]);

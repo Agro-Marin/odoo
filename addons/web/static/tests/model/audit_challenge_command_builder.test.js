@@ -45,8 +45,6 @@ describe("UNLINK cancelling a LINK leaves nothing behind", () => {
             [UPDATE, 5],
         ]);
         expect(shouldEmitUnlink(ownCommands)).toBe(false);
-        // Currently 1: the [UPDATE, 5] survives and still serializes, so saving
-        // writes the edit into record 5 after the user removed that row.
         expect(ownCommands.length).toBe(0);
     });
 

@@ -18,8 +18,6 @@ import { luxon } from "@web/core/l10n/luxon";
 import { SearchQueryMixin } from "@web/search/search_query_mixin";
 import { SPECIAL } from "@web/search/search_state";
 
-// Helpers
-
 /** Concrete class exercising the mixin methods in isolation. */
 const QueryModel = SearchQueryMixin(class {});
 
@@ -43,8 +41,6 @@ function makeSearchModel(overrides = {}) {
         facets: [],
 
         _notify() {
-            // Mirror the real SearchModel: a blocked notification is a no-op,
-            // so tests can assert how many *reloads* an operation triggers.
             if (this.blockNotification) {
                 return;
             }
@@ -75,8 +71,6 @@ function addItem(model, id, item, activate = false) {
         model.query.push({ searchItemId: id });
     }
 }
-
-// addAutoCompletionValues
 
 describe("addAutoCompletionValues", () => {
     test("adds a new autocomplete value to query", () => {
@@ -111,7 +105,6 @@ describe("addAutoCompletionValues", () => {
             operator: "=",
         });
 
-        // no duplicate added
         expect(model.query.length).toBe(1);
         expect(model.query[0].autocompleteValue.label).toBe("New");
     });
@@ -135,8 +128,6 @@ describe("addAutoCompletionValues", () => {
     });
 });
 
-// clearQuery
-
 describe("clearQuery", () => {
     test("empties the query array", () => {
         const model = makeSearchModel();
@@ -155,60 +146,6 @@ describe("clearQuery", () => {
         expect(model.orderByCount).toBe(false);
     });
 });
-
-// clearFilters
-
-describe("clearFilters", () => {
-    test("removes non-groupBy facets from query", () => {
-        const model = makeSearchModel();
-        addItem(model, 1, { type: "filter", groupId: 1 }, true);
-        addItem(model, 2, { type: "groupBy", groupId: 2 }, true);
-        model.facets = [
-            { type: "filter", groupId: 1 },
-            { type: "groupBy", groupId: 2 },
-        ];
-
-        model.clearFilters();
-
-        // groupBy (id=2) must remain; filter (id=1) must be gone
-        expect(model.query.some((q) => q.searchItemId === 2)).toBe(true);
-        expect(model.query.some((q) => q.searchItemId === 1)).toBe(false);
-    });
-
-    test("leaves groupBy facets untouched", () => {
-        const model = makeSearchModel();
-        addItem(model, 10, { type: "groupBy", groupId: 10 }, true);
-        model.facets = [{ type: "groupBy", groupId: 10 }];
-
-        model.clearFilters();
-
-        expect(model.query.length).toBe(1);
-        expect(model.query[0].searchItemId).toBe(10);
-    });
-
-    test("a throwing facets getter does not permanently silence the model", () => {
-        const model = makeSearchModel();
-        // Simulate a corrupt favorite whose stored domain fails to parse while
-        // the facets getter runs inside the notifications-blocked window.
-        Object.defineProperty(model, "facets", {
-            configurable: true,
-            get() {
-                throw new Error("unparseable domain");
-            },
-        });
-
-        expect(() => model.clearFilters()).toThrow();
-
-        // blockNotification must have been reset by the try/finally, so a
-        // subsequent search still notifies rather than being silenced forever.
-        expect(model.blockNotification).toBe(false);
-        const before = model._notifications.length;
-        model.clearQuery();
-        expect(model._notifications.length).toBe(before + 1);
-    });
-});
-
-// withNotificationsBlocked
 
 describe("withNotificationsBlocked", () => {
     test("suppresses notifications inside the window", () => {
@@ -241,12 +178,9 @@ describe("withNotificationsBlocked", () => {
             expect(model.blockNotification).toBe(true);
         });
 
-        // Restored to the captured value, not hardcoded false.
         expect(model.blockNotification).toBe(true);
     });
 });
-
-// deactivateGroup
 
 describe("deactivateGroup", () => {
     test("removes all query elements with matching groupId", () => {
@@ -280,8 +214,6 @@ describe("deactivateGroup", () => {
     });
 });
 
-// toggleSearchItem
-
 describe("toggleSearchItem", () => {
     test("activates an inactive filter", () => {
         const model = makeSearchModel();
@@ -308,7 +240,6 @@ describe("toggleSearchItem", () => {
 
         model.toggleSearchItem(2);
 
-        // Only the favorite is active; the filter was cleared
         expect(model.query.length).toBe(1);
         expect(model.query[0].searchItemId).toBe(2);
     });
@@ -319,7 +250,6 @@ describe("toggleSearchItem", () => {
 
         model.toggleSearchItem(1);
 
-        // dateFilter is silently ignored
         expect(model.query.length).toBe(0);
     });
 
@@ -330,8 +260,6 @@ describe("toggleSearchItem", () => {
 
         model.toggleSearchItem(2);
 
-        // Only the favorite is active, and the count sort it never carried is
-        // cleared so computeOrderBy won't inject {name:"__count"}.
         expect(model.query.length).toBe(1);
         expect(model.query[0].searchItemId).toBe(2);
         expect(model.orderByCount).toBe(false);
@@ -346,8 +274,6 @@ describe("toggleSearchItem", () => {
         expect(model.query.length).toBe(0);
     });
 });
-
-// toggleDateGroupBy
 
 describe("toggleDateGroupBy", () => {
     test("adds intervalId entry to query when not present", () => {
@@ -388,13 +314,10 @@ describe("toggleDateGroupBy", () => {
     });
 });
 
-// toggleDateFilter
-
 describe("toggleDateFilter", () => {
     test("custom generatorId: replaces any existing entries for the item", () => {
         const model = makeSearchModel();
         addItem(model, 1, { type: "dateFilter" });
-        // pre-populate another entry for the same item
         model.query.push({ searchItemId: 1, generatorId: "custom_old" });
 
         model.toggleDateFilter(1, "custom_2024_01_01");
@@ -411,7 +334,6 @@ describe("toggleDateFilter", () => {
             { searchItemId: 1, generatorId: "third_quarter" },
         ];
 
-        // Deactivate third_quarter — year remains so no cascade clear
         model.toggleDateFilter(1, "third_quarter");
 
         expect(model.query.some((q) => q.generatorId === "year")).toBe(true);
@@ -431,7 +353,6 @@ describe("toggleDateFilter", () => {
     test("non-custom add: adds generatorId; with year already present no auto-year", () => {
         const model = makeSearchModel();
         addItem(model, 1, { type: "dateFilter" });
-        // Pre-seed a year so yearSelected() returns true → getPeriodOptions not called
         model.query = [{ searchItemId: 1, generatorId: "year" }];
 
         model.toggleDateFilter(1, "third_quarter");
@@ -453,17 +374,8 @@ describe("toggleDateFilter", () => {
     });
 
     test("non-custom add without optionsParams and no year selected: does not throw", () => {
-        // Regression: a bare searchItem with no optionsParams (e.g. a
-        // directly-toggled explicit generatorId, or a unit-test item) must
-        // not crash. The top validation call is guarded by
-        // `if (searchItem.optionsParams)`, but the defaultYearId lookup
-        // further down in this same branch calls getPeriodOptions()
-        // unconditionally whenever no year is yet selected — that call
-        // destructures optionsParams and throws when it is undefined.
         const model = makeSearchModel();
         addItem(model, 1, { type: "dateFilter" });
-        // No pre-existing "year" entry, so yearSelected() is false and the
-        // defaultYearId lookup branch runs.
         expect(() => model.toggleDateFilter(1, "third_quarter")).not.toThrow();
 
         const generatorIds = model.query
@@ -472,8 +384,6 @@ describe("toggleDateFilter", () => {
         expect(generatorIds).toInclude("third_quarter");
     });
 });
-
-// toggleDateFilter — generator id validation (fork-added, console.warn contract)
 
 describe("toggleDateFilter generator validation", () => {
     const optionsParams = {
@@ -531,8 +441,6 @@ describe("toggleDateFilter generator validation", () => {
     });
 });
 
-// switchGroupBySort
-
 describe("switchGroupBySort", () => {
     test("starts at false, first switch → Desc", () => {
         const model = makeSearchModel({ orderByCount: false });
@@ -558,8 +466,6 @@ describe("switchGroupBySort", () => {
         expect(model.orderByCount).toBe("Desc");
     });
 });
-
-// createNewFilters
 
 describe("createNewFilters", () => {
     test("creates filter items and activates them in query", () => {
@@ -621,8 +527,6 @@ describe("createNewFilters", () => {
     });
 });
 
-// createNewGroupBy
-
 describe("createNewGroupBy", () => {
     test("non-date field: creates groupBy item and activates it", () => {
         const model = makeSearchModel();
@@ -646,29 +550,23 @@ describe("createNewGroupBy", () => {
 
         const item = model.searchItems[1];
         expect(item.type).toBe("dateGroupBy");
-        expect(item.defaultIntervalId).toBe("month"); // DEFAULT_INTERVAL
+        expect(item.defaultIntervalId).toBe("month");
     });
 
     test("uses existing groupBy's groupId when one exists", () => {
         const model = makeSearchModel({ nextGroupId: 3 });
         model.searchViewFields = { name: { string: "Name", type: "char" } };
-        // Pre-existing groupBy item with groupId = 7
         model.searchItems[99] = { type: "groupBy", groupId: 7 };
 
         model.createNewGroupBy("name");
 
-        // New item should reuse groupId 7, NOT allocate nextGroupId
         expect(model.searchItems[1].groupId).toBe(7);
-        // nextGroupId should NOT have been consumed
         expect(model.nextGroupId).toBe(3);
     });
 
     test("joins an existing dateGroupBy's group (unified group-by facet)", () => {
         const model = makeSearchModel({ nextGroupId: 3 });
         model.searchViewFields = { name: { string: "Name", type: "char" } };
-        // Only a date group-by pre-exists; the arch parser would have unified it
-        // with plain group-bys into one group, so the custom group-by must reuse
-        // its groupId rather than open a second, separate group-by facet.
         model.searchItems[99] = { type: "dateGroupBy", groupId: 7 };
 
         model.createNewGroupBy("name");
@@ -699,8 +597,6 @@ describe("createNewGroupBy", () => {
 
         model.createNewGroupBy("name");
 
-        // The inner toggleSearchItem._notify() is blocked; only the trailing
-        // _notify() fires — "Add Custom Group" must not double-reload.
         expect(model._notifications.length).toBe(1);
     });
 

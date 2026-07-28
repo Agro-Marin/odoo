@@ -30,7 +30,6 @@ export function getDecoration(rootNode) {
         if (name.startsWith("decoration-")) {
             decorations.push({
                 class: getClassNameFromDecoration(name.replace("decoration-", "")),
-                // `name` comes from getAttributeNames(), so the attribute exists.
                 condition: /** @type {string} */ (rootNode.getAttribute(name)),
             });
         }

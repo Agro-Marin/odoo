@@ -15,9 +15,6 @@ import { session } from "@web/session";
 
 const userMenuRegistry = registry.category("user_menuitems");
 
-// User-menu items are factory functions: (env) => { description, callback,
-// sequence?, show?, ... }. The consumer (`getElements`, below) calls each
-// entry with the env and treats the returned object as the menu item.
 userMenuRegistry.addValidation((entry) => typeof entry === "function");
 
 export class UserMenu extends Component {
@@ -52,16 +49,10 @@ export class UserMenu extends Component {
             .map((element) =>
                 element(/** @type {import("@web/env").OdooEnv} */ (this.env)),
             )
-            // Visibility is decided here only: both `show()` (dynamic) and
-            // `hide` (static flag) — templates render every returned item.
             .filter(
                 (element) => !element.hide && (element.show ? element.show() : true),
             )
-            .sort((x, y) => {
-                const xSeq = x.sequence ? x.sequence : 100;
-                const ySeq = y.sequence ? y.sequence : 100;
-                return xSeq - ySeq;
-            });
+            .sort((x, y) => (x.sequence ?? 100) - (y.sequence ?? 100));
         return sortedItems;
     }
 }

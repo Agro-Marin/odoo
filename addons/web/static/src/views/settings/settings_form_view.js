@@ -24,21 +24,6 @@ class SettingRecord extends formView.Model.Record {
         ) {
             dirty = this.dirty;
             if (this.dirty) {
-                // Settings exemption to the base (dirty, _changes) invariant: a
-                // header-field edit on an already-dirty record runs the
-                // confirm/discard flow and only *then* applies or reverts
-                // ``changes``.
-                //
-                // MUST stay fire-and-forget: ``update()`` awaits ``_update()``
-                // inside ``model.mutex.exec`` (record.js), and the confirm flow
-                // re-enters that same mutex via
-                // ``saveCoordinator.requestDiscard()/requestSave()`` —
-                // returning/awaiting this promise would deadlock it (the "edit
-                // header field" Save/Discard paths hang).
-                //
-                // ``.catch`` logs rejections that were previously unhandled, so
-                // a server-side failure here can't surface as an uncaught
-                // rejection.
                 /** @type {any} */ (
                     async () => {
                         const isDiscard = await /** @type {any} */ (
@@ -48,11 +33,6 @@ class SettingRecord extends formView.Model.Record {
                             await /** @type {any} */ (super._update)(changes);
                             this.dirty = false;
                         } else {
-                            // Apply and then undo changes to force field components
-                            // to re-render and restore previous values (e.g. RadioField).
-                            // ``undoable: true`` is required — ``_applyChanges``
-                            // returns a no-op undo otherwise (the snapshot is only
-                            // built on request; see record.js).
                             const undoChanges = this._applyChanges(
                                 changes,
                                 {},

@@ -1,7 +1,4 @@
-// = Search Bar
-// ============================================================================
 
-// Search container pill shape and focus state
 .o_searchview {
     border-radius: $o-border-radius-full;
     background: $o-gray-100;
@@ -28,8 +25,6 @@
 
     .btn,
     .btn:focus {
-        // Boostrap plays around with the z-index of buttons, but this is not needed here
-        // It was causing issues with the hotkey overlay
         z-index: 0;
     }
 

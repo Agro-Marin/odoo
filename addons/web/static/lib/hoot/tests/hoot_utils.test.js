@@ -120,22 +120,17 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("formatHumanReadable", () => {
-        // Strings
         expect(formatHumanReadable("abc")).toBe(`"abc"`);
         expect(formatHumanReadable("a".repeat(300))).toBe(`"${"a".repeat(80)}…"`);
         expect(formatHumanReadable(`with "double quotes"`)).toBe(`'with "double quotes"'`);
         expect(formatHumanReadable(`with "double quotes" and 'single quote'`)).toBe(
             `\`with "double quotes" and 'single quote'\``
         );
-        // Numbers
         expect(formatHumanReadable(1)).toBe(`1`);
-        // Other primitives
         expect(formatHumanReadable(true)).toBe(`true`);
         expect(formatHumanReadable(null)).toBe(`null`);
-        // Functions & classes
         expect(formatHumanReadable(async function oui() {})).toBe(`async function oui() { … }`);
         expect(formatHumanReadable(class Oui {})).toBe(`class Oui { … }`);
-        // Iterators
         expect(formatHumanReadable([1, 2, 3])).toBe(`[1, 2, 3]`);
         expect(formatHumanReadable(new Set([1, 2, 3]))).toBe(`Set [1, 2, 3]`);
         expect(
@@ -146,7 +141,6 @@ describe(parseUrl(import.meta.url), () => {
                 ])
             )
         ).toBe(`Map [["a", 1], ["b", 2]]`);
-        // Objects
         expect(formatHumanReadable(/ab(c)d/gi)).toBe(`/ab(c)d/gi`);
         expect(formatHumanReadable(new Date("1997-01-09T12:30:00.000Z"))).toBe(
             `1997-01-09T12:30:00.000Z`
@@ -167,7 +161,6 @@ describe(parseUrl(import.meta.url), () => {
             )
         ).toBe(`{ allowed: true }`);
         expect(formatHumanReadable(window)).toBe(`Window {  }`);
-        // Nodes
         expect(formatHumanReadable(document.createElement("div"))).toBe("<div>");
         expect(formatHumanReadable(document.createTextNode("some text"))).toBe("#text");
         expect(formatHumanReadable(document)).toBe("#document");
@@ -225,7 +218,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("isInstanceOf", async () => {
-        await mountForTest(/* xml */ `
+        await mountForTest(  `
             <iframe srcdoc="" />
         `);
 
@@ -307,22 +300,18 @@ describe(parseUrl(import.meta.url), () => {
             "Frodo Sam Merry Pippin",
         ];
 
-        // Error handling
         expect(() => parseQuery()).toThrow();
         expect(() => lookup()).toThrow();
         expect(() => lookup("a", [{ key: "a" }])).toThrow();
         expect(() => lookup(parseQuery("a"))).toThrow();
 
-        // Empty query and/or empty lists
         expectQuery("", []).toEqual([]);
         expectQuery("", ["bababa", "baaab", "cccbccb"]).toEqual(["bababa", "baaab", "cccbccb"]);
         expectQuery("aaa", []).toEqual([]);
 
-        // Regex
         expectQuery(`/.b$/`, ["bababa", "baaab", "cccbccB"]).toEqual(["baaab"]);
         expectQuery(`/.b$/i`, ["bababa", "baaab", "cccbccB"]).toEqual(["baaab", "cccbccB"]);
 
-        // Exact match
         expectQuery(`"aaa"`, ["bababa", "baaab", "cccbccb"]).toEqual(["baaab"]);
         expectQuery(`"sam"`, list).toEqual([]);
         expectQuery(`"Sam"`, list).toEqual(["Sam", "Frodo Sam", "Frodo Sam Merry Pippin"]);
@@ -332,7 +321,6 @@ describe(parseUrl(import.meta.url), () => {
         expectQuery(`"Frodo  Sam"`, list).toEqual([]);
         expectQuery(`"Sam" -"Frodo"`, list).toEqual(["Sam"]);
 
-        // Partial (fuzzy) match
         expectQuery(`aaa`, ["bababa", "baaab", "cccbccb"]).toEqual(["baaab", "bababa"]);
         expectQuery(`aaa -bbb`, ["bababa", "baaab", "cccbccb"]).toEqual(["baaab"]);
         expectQuery(`-aaa`, ["bababa", "baaab", "cccbccb"]).toEqual(["cccbccb"]);
@@ -340,7 +328,6 @@ describe(parseUrl(import.meta.url), () => {
         expectQuery(`-s fro`, list).toEqual(["Frodo"]);
         expectQuery(` FR  SAPI `, list).toEqual(["Frodo Sam Merry Pippin"]);
 
-        // Mixed queries
         expectQuery(`"Sam" fro pip`, list).toEqual(["Frodo Sam Merry Pippin"]);
         expectQuery(`fro"Sam"pip`, list).toEqual(["Frodo Sam Merry Pippin"]);
         expectQuery(`-"Frodo" s`, list).toEqual(["Sam"]);

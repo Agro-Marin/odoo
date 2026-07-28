@@ -372,7 +372,7 @@ function eliminateInRangeOperators(tree, options = {}) {
             const bounds = getBounds(generateSmartDates, fieldType);
             const found = bounds.find(([v]) => v === valueType);
             if (!found) {
-                return; // unknown valueType — leave condition untouched
+                return;
             }
             const [, leftBound, rightBound] = found;
             tree = makeStrictBetween(lastPart, leftBound, rightBound);
@@ -503,21 +503,12 @@ function removeFalseTrueLeaves(tree) {
  * @param {Options} [options={}]
  * @returns {Tree}
  */
-// Patchable indirection layer: ESM namespace objects are non-configurable, so
-// patch() cannot redefine their properties directly. The exported functions
-// below delegate to this object, so patching it affects ALL consumers — even
-// those using direct named imports.
 export const virtualOperatorFunctions = {
     /**
      * @param {Tree} tree
      * @param {Options} [options]
      */
     introduceVirtualOperators(tree, options = {}) {
-        // Ordering contract (applyTransformations runs the array in order):
-        // the introduce* passes must run BEFORE eliminateAnyOperators, which
-        // collapses the between/in-range conditions they create out of `any`
-        // wrappers; in-range detection must also see raw >=/< pairs before
-        // between rewrites them.
         return applyTransformations(
             [
                 introduceInRangeOperators,
@@ -535,9 +526,6 @@ export const virtualOperatorFunctions = {
      * @param {Options} [options]
      */
     eliminateVirtualOperators(tree, options = {}) {
-        // Ordering contract (applyTransformations runs the array in order):
-        // the reverse of introduceVirtualOperators — set operators go last,
-        // mirroring how they were introduced.
         return applyTransformations(
             [
                 eliminateSetOperators,

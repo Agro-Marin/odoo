@@ -16,7 +16,7 @@ import { Dialog } from "@web/ui/dialog/dialog";
 import { WebClient } from "@web/webclient/webclient";
 
 defineMenus([
-    { id: 0 }, // prevents auto-loading the first action
+    { id: 0 },
     { id: 1, name: "Contact", actionID: 1001 },
     {
         id: 2,
@@ -91,7 +91,6 @@ test("opens an app", async () => {
 
     await press("enter");
     await animationFrame();
-    // empty screen for now, wait for actual action to show up
     await animationFrame();
     expect(".o_menu_brand").toHaveText("Contact");
     expect(".test_client_action").toHaveText("ClientAction_Id 1");
@@ -111,7 +110,6 @@ test("opens a menu items", async () => {
 
     await contains("#o_command_2").click();
     await animationFrame();
-    // empty screen for now, wait for actual action to show up
     await animationFrame();
     expect(".o_menu_brand").toHaveText("Sales");
     expect(".test_client_action").toHaveText("ClientAction_Report");

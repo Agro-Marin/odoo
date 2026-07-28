@@ -24,15 +24,12 @@ export class DropdownPopover extends Component {
         <t t-slot="content" />
     `;
     static props = {
-        // Popover service
         close: { type: Function, optional: true },
 
-        // Events & Handlers
         beforeOpen: { type: Function, optional: true },
         onOpened: { type: Function, optional: true },
         onClosed: { type: Function, optional: true },
 
-        // Rendering & Context
         refresher: Object,
         slots: Object,
         items: { type: Array, optional: true },
@@ -40,8 +37,6 @@ export class DropdownPopover extends Component {
 
     setup() {
         onRendered(() => {
-            // Dropdown and DropdownPopover are separate contexts; subscribe to
-            // this reactive so we re-render whenever Dropdown does.
             this.props.refresher.token;
         });
 

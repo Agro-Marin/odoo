@@ -12,11 +12,6 @@ export class MobileSwitchCompanyMenu extends SwitchCompanyMenu {
     setup() {
         super.setup();
         /** @type {any} */ (this.state).isOpen = false;
-        // The desktop switcher discards its draft selection when the dropdown
-        // closes (see SwitchCompanyMenu.handleDropdownChange). The mobile
-        // switcher has no dropdown; it lives inside the burger menu, which
-        // unmounts it on close. Reset the draft on unmount so unconfirmed
-        // toggles can't be applied by a later Confirm after the burger reopens.
         onWillUnmount(() => this.companySelector.reset());
     }
 
@@ -33,9 +28,6 @@ export class MobileSwitchCompanyMenu extends SwitchCompanyMenu {
             const willOpen = !(/** @type {any} */ (this.state).isOpen);
             /** @type {any} */ (this.state).isOpen = willOpen;
             if (!willOpen) {
-                // Collapsing the list is the mobile analog of closing the
-                // desktop dropdown: discard the draft selection so pending
-                // toggles cannot be applied by a later Confirm.
                 this.companySelector.reset();
             }
         }

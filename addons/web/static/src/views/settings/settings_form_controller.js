@@ -36,10 +36,6 @@ export class SettingsFormController extends formView.Controller {
         useEffect(
             () => {
                 if (this.searchState.value) {
-                    // OWL runs effects bottom-up: by the time this controller
-                    // effect runs, SettingsApp and SettingsBlock have already
-                    // applied their d-none classes for the same search value,
-                    // so one selector anchored on non-hidden apps suffices.
                     this.state.displayNoContent = !this.rootRef.el.querySelector(
                         ".app_settings_block:not(.d-none) .o_settings_container:not(.d-none)",
                     );
@@ -87,10 +83,6 @@ export class SettingsFormController extends formView.Controller {
         ) {
             return this._confirmSave();
         } else {
-            // Route through the save coordinator so its observable ``status``
-            // reflects settings saves too. ``rethrow`` preserves the historical
-            // semantics of the bare ``model.root.save()`` this replaces: errors
-            // propagate to ``useViewButtons``' executeButtonCallback.
             return this.saveCoordinator.requestSave({ errorMode: "rethrow" });
         }
     }
@@ -101,9 +93,6 @@ export class SettingsFormController extends formView.Controller {
 
     /** @param {{ forceLeave?: boolean }} [options] */
     async beforeLeave({ forceLeave } = {}) {
-        // Honour ``forceLeave`` like the base FormController: an action that
-        // explicitly forces navigation (doAction(..., { forceLeave: true }))
-        // must not be blocked by the settings confirmation dialog.
         if (forceLeave) {
             return;
         }
@@ -113,11 +102,9 @@ export class SettingsFormController extends formView.Controller {
         }
     }
 
-    // Avoid auto-save on unload.
     /** @param {any} [_ev] */
     async beforeUnload(_ev) {}
 
-    // Avoid auto-save on visibility change.
     /** @returns {Promise<any> | undefined} matches the base FormController signature; body intentionally no-op */
     beforeVisibilityChange() {
         return undefined;
@@ -170,14 +157,6 @@ export class SettingsFormController extends formView.Controller {
             this.dialogService.add(SettingsConfirmationDialog, {
                 body: _t("Would you like to save your changes?"),
                 confirm: async () => {
-                    // The button's action never runs here: on success
-                    // res.config.settings.execute triggers a reload; on failure
-                    // we stay on the form. Either way ``_continue`` is false.
-                    //
-                    // try/finally is essential: SettingsConfirmationDialog closes
-                    // and RETHROWS when this callback throws, so without settling
-                    // in ``finally`` the outer Promise — and every ``beforeLeave``
-                    // awaiting it — would hang forever, blocking navigation.
                     _continue = false;
                     try {
                         await this.save();
@@ -186,11 +165,6 @@ export class SettingsFormController extends formView.Controller {
                     }
                 },
                 cancel: async () => {
-                    // Discard the pending edits, then persist the reverted values
-                    // via the coordinator so the button's action runs against a
-                    // saved record and ``status`` stays accurate. As above, always
-                    // resolve() so a discard-then-save failure can't hang the
-                    // promise; on failure ``_continue`` stays false.
                     _continue = false;
                     try {
                         await this.saveCoordinator.requestDiscard();
@@ -203,6 +177,17 @@ export class SettingsFormController extends formView.Controller {
                     }
                 },
                 stayHere: () => {
+                    _continue = false;
+                    resolve();
+                },
+                // Escape and the header's X route through ConfirmationDialog's
+                // ``_dismiss``, which falls back to ``cancel`` when no
+                // ``dismiss`` is given. That fallback is written for two-button
+                // dialogs, where cancel IS the harmless choice — here ``cancel``
+                // is the Discard button, so dismissing the dialog threw the
+                // user's unsaved settings away and navigated on. Dismissal is
+                // "I did not choose", which is what Stay Here means.
+                dismiss: () => {
                     _continue = false;
                     resolve();
                 },

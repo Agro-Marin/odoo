@@ -22,9 +22,6 @@ const dateTimeCache = new WeakMap();
  * @returns {string|false} the serialized date, or `false` for falsy input
  */
 export function serializeDate(value) {
-    // Guard falsy input like the sibling deserialize/format helpers: a WeakMap
-    // key must be an object, so ``dateCache.set(false, …)`` would throw
-    // "Invalid value used as weak map key".
     if (!value) {
         return false;
     }
@@ -45,7 +42,6 @@ export function serializeDate(value) {
  * @returns {string|false} the serialized datetime, or `false` for falsy input
  */
 export function serializeDateTime(value) {
-    // See serializeDate: falsy input can't be a WeakMap key.
     if (!value) {
         return false;
     }

@@ -67,26 +67,18 @@ describe("LINK on a full page", () => {
         const { list, loadedResIds } = makeList({ resIds: [1, 2, 3], limit: 2 });
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
 
-        // LINK without server data (e.g. linkTo() after an m2m dialog save,
-        // or a server onchange [4, id] command) while the page is full.
         await list._applyCommands([[LINK, 99, false]]);
 
         expect(list._currentIds).toEqual([1, 2, 3, 99]);
         expect(list.count).toBe(4);
-        // The stub was cached but not displayed/loaded (page full).
         expect(list.records.map((r) => r.resId)).toEqual([1, 2]);
         expect(loadedResIds).toEqual([]);
 
-        // Navigate to the second page: the stub must be fetched along with
-        // the never-loaded record 3.
         await list._load({ offset: 2 });
 
         expect(loadedResIds).toEqual([[3, 99]]);
         expect(list.records.map((r) => r.resId)).toEqual([3, 99]);
         expect(list.records[0].data.display_name).toBe("Rec 3");
-        // Without the _loadedFieldNames check this rendered the default
-        // (blank) value: the stub's fieldNames derive from activeFields and
-        // looked "already loaded".
         expect(list.records[1].data.display_name).toBe("Rec 99");
     });
 
@@ -95,7 +87,6 @@ describe("LINK on a full page", () => {
 
         await list._load({ offset: 0 });
 
-        // Both records came fully loaded from the constructor's data.
         expect(loadedResIds).toEqual([]);
         expect(list.records.map((r) => r.data.display_name)).toEqual([
             "Rec 1",

@@ -17,8 +17,6 @@ import {
     patchActiveFields,
 } from "@web/model/relational_model/field_metadata";
 
-// makeActiveField
-
 describe("makeActiveField — defaults", () => {
     test("no args produces default field", () => {
         const f = makeActiveField();
@@ -67,8 +65,6 @@ describe("makeActiveField — optional fields", () => {
         expect(f.isHandle).toBe(true);
     });
 });
-
-// combineModifiers
 
 describe("combineModifiers — AND", () => {
     test("False AND anything = False", () => {
@@ -132,8 +128,6 @@ describe("combineModifiers — invalid operator", () => {
     });
 });
 
-// patchActiveFields
-
 describe("patchActiveFields", () => {
     test("invisible combines with AND", () => {
         const base = makeActiveField({ invisible: "state == 'done'" });
@@ -146,7 +140,6 @@ describe("patchActiveFields", () => {
         const base = makeActiveField({ readonly: "True" });
         const patch = makeActiveField({ readonly: "False" });
         patchActiveFields(base, patch);
-        // True AND False = False
         expect(base.readonly).toBe("False");
     });
 
@@ -196,8 +189,6 @@ describe("patchActiveFields", () => {
     });
 });
 
-// createPropertyActiveField
-
 describe("createPropertyActiveField", () => {
     test("creates basic active field for simple types", () => {
         const f = createPropertyActiveField({ type: "char" });
@@ -219,8 +210,6 @@ describe("createPropertyActiveField", () => {
         expect("related" in f).toBe(true);
     });
 });
-
-// addFieldDependencies
 
 describe("addFieldDependencies", () => {
     test("adds new field to activeFields and fields", () => {
@@ -249,7 +238,6 @@ describe("addFieldDependencies", () => {
         addFieldDependencies(activeFields, fields, [
             { name: "name", type: "char", readonly: false },
         ]);
-        // Should still have exactly one entry
         expect(Object.keys(activeFields).length).toBe(1);
     });
 
@@ -277,8 +265,6 @@ describe("addFieldDependencies", () => {
         addFieldDependencies(activeFields, fields, [
             { name: "state", type: "selection", optional: true },
         ]);
-        // Not fabricated: a hard dependency would enter the read spec and
-        // crash server-side on models lacking the field.
         expect("state" in activeFields).toBe(false);
         expect("state" in fields).toBe(false);
     });

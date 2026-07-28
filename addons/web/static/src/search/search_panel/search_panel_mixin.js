@@ -20,6 +20,14 @@ import {
 /** @typedef {(section: Section) => boolean} SectionPredicate */
 
 /**
+ * @param {any} error
+ * @returns {string}
+ */
+function sectionErrorMessage(error) {
+    return error.data?.message || error.message || String(error);
+}
+
+/**
  * Search panel category/filter section management for SearchModel.
  *
  * Mixed into SearchModel (``class SearchModel extends SearchPanelMixin(EventBus)``)
@@ -64,8 +72,6 @@ export const SearchPanelMixin = (Base) =>
             for (const valueId of valueIds) {
                 const value = filter.values.get(valueId);
                 if (!value) {
-                    // The ids come from the rendered DOM; a refetch resolving between
-                    // render and click can rebuild `values` without this id.
                     continue;
                 }
                 value.checked = forceTo === null ? !value.checked : forceTo;
@@ -162,9 +168,6 @@ export const SearchPanelMixin = (Base) =>
             const searchDomain = this.searchDomain;
             await Promise.all(
                 categories.map(async (category) => {
-                    // Per-section load id: only a newer fetch OF THIS category
-                    // supersedes this one, so fetching a different subset of sections
-                    // never discards this section's in-flight response.
                     const loadId = (this._sectionLoadIds.get(category.id) || 0) + 1;
                     this._sectionLoadIds.set(category.id, loadId);
                     let result;
@@ -203,18 +206,15 @@ export const SearchPanelMixin = (Base) =>
                                 },
                             );
                     } catch (error) {
-                        // A failed fetch only degrades its own section: stamp the same
-                        // errorMsg field used for server-side section errors.
                         if (loadId === this._sectionLoadIds.get(category.id)) {
-                            category.errorMsg =
-                                error.data?.message || error.message || String(error);
-                            this._sections = null;
+                            this._createCategoryTree(category.id, {
+                                error_msg: sectionErrorMessage(error),
+                                values: [],
+                            });
                         }
                         return;
                     }
                     if (loadId !== this._sectionLoadIds.get(category.id)) {
-                        // A newer fetch of this section started meanwhile: drop the
-                        // stale response.
                         return;
                     }
                     this._createCategoryTree(category.id, result);
@@ -236,8 +236,6 @@ export const SearchPanelMixin = (Base) =>
             const searchDomain = this.searchDomain;
             await Promise.all(
                 filters.map(async (filter) => {
-                    // Per-section load id (see _fetchCategories): only a newer fetch of
-                    // THIS filter supersedes this one.
                     const loadId = (this._sectionLoadIds.get(filter.id) || 0) + 1;
                     this._sectionLoadIds.set(filter.id, loadId);
                     let result;
@@ -278,18 +276,15 @@ export const SearchPanelMixin = (Base) =>
                                 },
                             );
                     } catch (error) {
-                        // A failed fetch only degrades its own section: stamp the same
-                        // errorMsg field used for server-side section errors.
                         if (loadId === this._sectionLoadIds.get(filter.id)) {
-                            filter.errorMsg =
-                                error.data?.message || error.message || String(error);
-                            this._sections = null;
+                            this._createFilterTree(filter.id, {
+                                error_msg: sectionErrorMessage(error),
+                                values: [],
+                            });
                         }
                         return;
                     }
                     if (loadId !== this._sectionLoadIds.get(filter.id)) {
-                        // A newer fetch of this section started meanwhile: drop the
-                        // stale response.
                         return;
                     }
                     this._createFilterTree(filter.id, result);
@@ -316,16 +311,7 @@ export const SearchPanelMixin = (Base) =>
          */
         async _reloadSections() {
             return this._reloadMutex.exec(async () => {
-                // try/finally: an exception in the awaited window (e.g. a tree builder
-                // throwing on a malformed result) must not leave the model permanently
-                // muted — every later _notify() would early-return forever.
-                //
-                // The hardcoded `= false` in the finally (rather than a save/restore or
-                // a depth counter) is safe because this method funnels every invocation
-                // through a single Mutex: two reloads can no longer overlap, so this
-                // finally never unmutes a still-pending sibling reload. (A depth counter
-                // would be the alternative, but the fork's unit tests pin
-                // blockNotification as a boolean via a stub model — see A1 note.)
+                const wasBlocked = this.blockNotification;
                 this.blockNotification = true;
                 try {
                     const searchDomain = /** @type {DomainListRepr} */ (
@@ -358,7 +344,7 @@ export const SearchPanelMixin = (Base) =>
                         this.searchPanelInfo.shouldReload = !this.display.searchPanel;
                     }
                 } finally {
-                    this.blockNotification = false;
+                    this.blockNotification = wasBlocked;
                 }
             });
         }
@@ -375,11 +361,9 @@ export const SearchPanelMixin = (Base) =>
             ) {
                 return true;
             }
-            if (!this.searchDomain?.length) {
+            if (!this.searchDomain?.length || !searchDomainChanged) {
                 return false;
             }
-            return [...this.sections.values()].some(
-                (section) => !section.expand && searchDomainChanged,
-            );
+            return [...this.sections.values()].some((section) => !section.expand);
         }
     };

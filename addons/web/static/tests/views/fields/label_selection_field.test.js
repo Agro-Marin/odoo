@@ -41,7 +41,7 @@ test("LabelSelectionField in form view", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <sheet>
                     <group>
@@ -77,7 +77,7 @@ test("LabelSelectionField in editable list view", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list editable="bottom">
                 <field name="foo"/>
                 <field name="selection" widget="label_selection"
@@ -107,7 +107,6 @@ test("LabelSelectionField in editable list view", async () => {
         message: "the success label should read 'Done'",
     });
 
-    // switch to edit mode and check the result
     await click("tbody td:not(.o_list_record_selector)");
     await animationFrame();
 
@@ -133,7 +132,6 @@ test("LabelSelectionField in editable list view", async () => {
         message: "the success label should read 'Done'",
     });
 
-    // save and check the result
     await click(".o_control_panel_main_buttons .o_list_button_save");
     await animationFrame();
     expect(".o_field_widget .badge:not(:empty)").toHaveCount(3, {

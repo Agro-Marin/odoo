@@ -94,8 +94,6 @@ function isValidPath2(ast, options) {
  */
 function _getConditionFromComparator(ast, options) {
     if (["is", "is not"].includes(ast.op)) {
-        // could be smarter: if left is a boolean field and right is a
-        // boolean, build a condition based on "="
         return null;
     }
 
@@ -121,8 +119,6 @@ function _getConditionFromComparator(ast, options) {
         }
     }
 
-    // left is a validated field path (ASTName) by this point; the swap above
-    // loses that refinement for TS, so assert it.
     return condition(/** @type {ASTName} */ (left).value, operator, toValue(right));
 }
 
@@ -135,8 +131,6 @@ function _getConditionFromComparator(ast, options) {
  * @returns {Condition|null} null if the pattern cannot be decomposed
  */
 function _getConditionFromIntersection(ast, options, negate = false) {
-    // left/right are reassigned across heterogeneous AST node kinds below
-    // (swapped, unwrapped from list/tuple), which TS cannot track — hold as any.
     let left = /** @type {any} */ (ast.fn).obj.args[0];
     let right = /** @type {any} */ (ast.args[0]);
 
@@ -144,7 +138,6 @@ function _getConditionFromIntersection(ast, options, negate = false) {
         return condition(negate ? 1 : 0, "=", 1);
     }
 
-    // left/right exchange
     if (!isValidPath2(left, options) && !isValidPath2(right, options)) {
         return null;
     }
@@ -162,7 +155,6 @@ function _getConditionFromIntersection(ast, options, negate = false) {
         return condition(left.value, negate ? "=" : "!=", false);
     }
 
-    // try to extract the ast of an iterable; only simple conversions here
     if (isSet(right)) {
         if (!right.args[0]) {
             right = { type: ASTType.List, value: [] };
@@ -198,9 +190,6 @@ function _leafFromAST(ast, options, negate = false) {
 
     const astValue = toValue(ast);
     if (["boolean", "number", "string"].includes(typeof astValue)) {
-        // Fold the negation into the constant (`not 1` is FALSE_TREE) rather
-        // than passing `negate` through: the (0|1, "=", 1) serialization path
-        // in construct_expression_from_tree cannot render a negated constant.
         return condition((negate ? !astValue : astValue) ? 1 : 0, "=", 1);
     }
 
@@ -226,7 +215,6 @@ function _leafFromAST(ast, options, negate = false) {
         }
     }
 
-    // no conclusive/simple way to transform ast in a condition
     return complexCondition(formatAST(negate ? not(ast) : ast));
 }
 
@@ -245,9 +233,7 @@ function _treeFromAST(ast, options, negate = false) {
     }
 
     if (ast.type === ASTType.BooleanOperator) {
-        const tree = connector(
-            ast.op === "and" ? "&" : "|", // and/or are the only ops that are given type 14 (for now)
-        );
+        const tree = connector(ast.op === "and" ? "&" : "|");
         if (options.distributeNot && negate) {
             tree.value = tree.value === "&" ? "|" : "&";
         } else {

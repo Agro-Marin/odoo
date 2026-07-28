@@ -73,7 +73,6 @@ class TestReports(odoo.tests.HttpCase):
 
         self.patch(self.env.registry["ir.binary"], "_find_record", _find_record)
 
-        # 1. Request the report as admin, who has access to the image
         admin = self.env.ref("base.user_admin")
         admin_device_log_count_before = self.env["res.device.log"].search_count(
             [("user_id", "=", admin.id)]
@@ -84,10 +83,6 @@ class TestReports(odoo.tests.HttpCase):
             report.with_context(force_report_rendering=True)._render_qweb_pdf(
                 report.id, [partner_id]
             )
-        # The PDF fetcher opens a temp session to self-fetch the image; it must
-        # keep _trace_disable set on that session, otherwise the different
-        # user-agent fingerprint would fail to match the existing trace and
-        # insert a phantom res.device.log row on every report render.
         admin_device_log_count_after = self.env["res.device.log"].search_count(
             [("user_id", "=", admin.id)]
         )
@@ -109,12 +104,8 @@ class TestReports(odoo.tests.HttpCase):
             "PDF engine did not fetch the right image content",
         )
 
-        # 2. Request the report as public, who has no access to the image
         self.logout()
         result.clear()
-        # Clear WeasyPrint's shared image cache so the second render
-        # actually fetches the image (instead of reusing the cached copy
-        # from the admin render above).
         _weasy_image_cache.clear()
         public = self.env.ref("base.public_user")
         public_device_log_count_before = self.env["res.device.log"].search_count(
@@ -126,7 +117,6 @@ class TestReports(odoo.tests.HttpCase):
             report.with_context(force_report_rendering=True)._render_qweb_pdf(
                 report.id, [partner_id]
             )
-        # Same phantom-device-log guard as above, for the public (unauthenticated) case.
         public_device_log_count_after = self.env["res.device.log"].search_count(
             [("user_id", "=", public.id)]
         )
@@ -183,8 +173,6 @@ class TestReports(odoo.tests.HttpCase):
         ):
             mock_request.session = self.authenticate(admin.login, admin.login)
 
-            # Fail on render(), not write_pdf(): _render_body separates the two
-            # calls and only wraps render() failures as UserError.
             mock_weasyprint.return_value.render.side_effect = Exception(
                 "rendering failed"
             )
@@ -194,7 +182,6 @@ class TestReports(odoo.tests.HttpCase):
                     report.id
                 )
 
-            # Check that the temporary session has been deleted (not the user's session)
             self.assertEqual(mock_delete.call_count, 1)
             self.assertNotEqual(
                 mock_delete.call_args.args[0].sid, mock_request.session.sid

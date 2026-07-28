@@ -55,13 +55,6 @@ export function makeActiveField({
 export function addFieldDependencies(activeFields, fields, fieldDependencies = []) {
     for (const field of fieldDependencies) {
         if (field.optional && !fields[field.name]) {
-            // Soft dependency: only load the field when this view's model
-            // description already knows it (it appears in the arch). A hard
-            // dependency on a field the host model lacks would be fabricated
-            // below, enter the read spec, and crash the view server-side —
-            // widgets shared across models (e.g. stock's package_m2o on
-            // move lines, packages and quants) declare `optional: true` so
-            // the dependency degrades to a no-op instead.
             continue;
         }
         if (!("readonly" in field)) {
@@ -190,7 +183,6 @@ export function patchActiveFields(activeField, patch) {
     activeField.onChange = activeField.onChange || patch.onChange;
     activeField.forceSave = activeField.forceSave || patch.forceSave;
     activeField.isHandle = activeField.isHandle || patch.isHandle;
-    // x2manys
     if (patch.related) {
         const related = activeField.related;
         for (const fieldName of Object.keys(patch.related.activeFields)) {
@@ -247,8 +239,6 @@ export function extractFieldsFromArchInfo({ fieldNodes, widgetNodes }, fields) {
                     activeField.limit = viewDescr.limit;
                     activeField.defaultOrderBy = viewDescr.defaultOrder;
                     if (fieldNode.views.form) {
-                        // Inline form's fields are known; add them (invisible) to the onchange spec
-                        // so create-command values are available if the user later opens the form.
                         const formArchInfo = extractFieldsFromArchInfo(
                             fieldNode.views.form,
                             fieldNode.views.form.fields,

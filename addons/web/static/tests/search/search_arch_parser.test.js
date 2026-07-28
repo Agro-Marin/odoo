@@ -32,7 +32,6 @@ describe("date filter month window", () => {
         expect.verifySteps(["warn"]);
         expect(item.optionsParams.startMonth).toBe(-1);
         expect(item.optionsParams.endMonth).toBe(2);
-        // Offset 0 is inside the normalized window → current month default.
         expect(item.defaultGeneratorIds).toEqual(["month"]);
     });
 

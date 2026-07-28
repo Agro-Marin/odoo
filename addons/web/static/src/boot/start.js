@@ -14,9 +14,6 @@ import { mountComponent } from "@web/env";
 import { user } from "@web/services/user";
 import { session } from "@web/session";
 
-// Chrome iOS wraps some text nodes (like measures, email...)
-// with a `<chrome_annotation>` tag, which breaks OWL rendering.
-// This meta tag allows to disable this behavior.
 const chromeMetaTag = document.createElement("meta");
 chromeMetaTag.setAttribute("name", "chrome");
 chromeMetaTag.setAttribute("content", "nointentdetection");
@@ -37,8 +34,6 @@ document.head.appendChild(chromeMetaTag);
  */
 export function paintBootFailureOverlay(error) {
     try {
-        // Best-effort telemetry first: even if the DOM write below throws, the
-        // beacon still leaves.
         try {
             const err = /** @type {any} */ (error);
             const blob = new Blob(
@@ -63,7 +58,7 @@ export function paintBootFailureOverlay(error) {
             // failure surface itself raise.
         }
         if (document.querySelector(".o_boot_failure")) {
-            return; // already painted (e.g. a retry loop)
+            return;
         }
         const overlay = document.createElement("div");
         overlay.className = "o_boot_failure";
@@ -121,26 +116,10 @@ export async function startWebClient(Webclient) {
     };
     /** @type {any} */ (odoo).isReady = false;
 
-    // Align the client's date zone with the user's Odoo timezone (res.users.tz),
-    // so datetime fields, domain evaluation, calendars and
-    // PyDate.today()/context_today() all match the SERVER, which presents dates
-    // in the user tz (UTC is only the storage zone). Without this, luxon's
-    // ``Settings.defaultZone`` is unset and the whole client silently falls back
-    // to the BROWSER zone — diverging from the server whenever the browser and
-    // the user's Odoo tz disagree (Odoo's own ``timezone_mismatch`` widget warns
-    // the user about exactly that gap). A falsy tz keeps luxon's "system" default
-    // (the browser zone), the correct fallback. Set at boot only — Hoot unit
-    // tests mount via ``makeMockEnv`` and never run ``startWebClient``, so they
-    // keep full control of the zone through ``mockTimeZone``.
     if (user.tz) {
         Settings.defaultZone = user.tz;
     }
 
-    // Only the DISK layer of the RPC cache needs SubtleCrypto (secure
-    // context) and the per-database secret; RAM caching needs neither.
-    // Construct the cache unconditionally and let it degrade to RAM-only
-    // when the disk prerequisites are absent (plain-HTTP intranet deploys),
-    // instead of silently disabling ALL rpc caching.
     const diskSecret = (window.isSecureContext && session.browser_cache_secret) || null;
     rpc.setCache(new RPCCache("rpc", session.registry_hash, diskSecret));
     assetLog(
@@ -158,12 +137,6 @@ export async function startWebClient(Webclient) {
             name: "Odoo Web Client",
         });
     } catch (error) {
-        // A throwing service.start(), an unresolved template, etc. leaves
-        // nothing mounted and the in-app error_service unreachable (it renders
-        // inside the WebClient that never mounted). Paint a static surface so
-        // the user is not left on a permanent white screen, and beacon the
-        // failure. Swallow afterwards so this does NOT become a second
-        // unhandledrejection beacon on top of the boot_mount_failed one.
         assetLog("boot", "startWebClient:mount_failed", { error });
         paintBootFailureOverlay(error);
         return;
@@ -184,7 +157,6 @@ export async function startWebClient(Webclient) {
     if (hasTouch()) {
         classList.add("o_touch_device");
     }
-    // delete odoo.debug; // FIXME: some legacy code rely on this
     /** @type {any} */ (odoo).isReady = true;
     assetLog("boot", "startWebClient:ready — app mounted, odoo.isReady=true");
 }

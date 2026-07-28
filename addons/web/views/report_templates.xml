@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- Private templates used internally by reports -->
     <template id="report_layout" name="Report layout"> &lt;!DOCTYPE html&gt; <html
             t-att-lang="lang and lang.replace('_', '-')"
             t-att-data-report-margin-top="data_report_margin_top"
@@ -11,9 +10,6 @@
                 <meta name="viewport" content="initial-scale=1" />
                 <title t-out="title or 'Odoo Report'" />
                 <t t-call-assets="web.report_assets_common" t-autoprefix="true" />
-                <!-- Temporary code: only used to maintain CSS for legacy HTML reports (full
-                width...) -->
-                <!-- Should be removed once the reports are fully converted. -->
                 <script type="text/javascript">
                     document.addEventListener('DOMContentLoaded', () =&gt; {
                         if (window.self !== window.top) {
@@ -77,7 +73,6 @@
             </head>
             <body class="o_body_html container-fluid" style="overflow:hidden"
                 t-att-dir="env['res.lang']._get_data(code=lang or env.user.lang).direction or 'ltr'">
-                <!-- display a spinner instead of the iframe content until the stylesheet is loaded -->
                 <div id="wrapwrap" class="d-block d-flex flex-column h-100" style="display:none;">
                     <t t-out="0" />
                 </div>
@@ -248,10 +243,7 @@
     </template>
 
     <template id="minimal_layout">
-        &lt;!DOCTYPE html&gt; <!-- lang enables hyphens:auto,
-        language-correct casing/quotes and the PDF /Lang entry;
-        it is the record's language (context lang), set
-        per article by _prepare_weasyprint_html. BCP 47 wants a hyphen. -->
+        &lt;!DOCTYPE html&gt;
         <html
             t-att-lang="(lang or env.user.lang or 'en_US').replace('_', '-')">
             <head>
@@ -259,15 +251,6 @@
                 <t t-call-assets="web.report_assets_pdf" t-js="false" />
                 <t t-call-assets="web.report_assets_common" t-js="false" />
                 <meta charset="utf-8" />
-                <!-- WeasyPrint maps these into the PDF document metadata:
-                     <title> becomes /Title (the record name, e.g. INV/2026/00001),
-                     description becomes /Subject (the print action's label),
-                     author becomes /Author, generator becomes /Creator and
-                     dcterms.created becomes /CreationDate.
-                     `t-out` sits on <title> itself rather than on a nested
-                     <t>: the nested form leaves this file's indentation as
-                     text nodes inside the element, and WeasyPrint copies that
-                     verbatim, so /Title came out as "\n    INV/2026/00001\n". -->
                 <title t-out="title or 'Odoo Report'" />
                 <meta name="author" t-att-content="res_company.display_name" />
                 <meta name="generator" content="Odoo" />
@@ -284,7 +267,6 @@
         </html>
     </template>
 
-    <!-- External layouts styles -->
     <template id="address_layout">
         <t t-set="colclass"
             t-value="('col-sm-5' if report_type == 'html' else 'col-5') + ' ms-auto'" />
@@ -317,12 +299,7 @@
         <div class="oe_structure" t-else="" />
     </template>
 
-    <!--
-        Shared sub-templates used by all external layout themes.
-        Required context variables: company (res.company), forced_vat (str|False).
-    -->
     <template id="company_address_block">
-        <!-- Company details list: address or custom details, plus optional forced VAT line. -->
         <ul class="list-unstyled" name="company_address_list">
             <li t-if="company.is_company_details_empty">
                 <span t-field="company.partner_id"
@@ -357,14 +334,6 @@
     </template>
 
     <template id="external_layout_footer">
-        <!-- Standard report footer: company footer text left, page counter right.
-             Required context: company, report_type, o, display_name_in_footer, is_html_empty.
-             Set footer_show_tagline=True before calling to show the company tagline in the footer
-             (used by boxed and bold layouts, which omit the tagline from their header).
-
-             PDF uses CSS Grid (.o_report_footer_grid from report_pdf_layout.css)
-             for predictable layout without Bootstrap responsive breakpoints.
-             HTML preview falls back to Bootstrap flex utilities. -->
         <div
             t-attf-class="footer o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'mt-auto' or ''}}"
             name="report_footer">
@@ -558,7 +527,6 @@
             </div>
         </div>
 
-        <!-- BODY -->
         <div
             t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_folder o_table_striped {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}"
             name="report_body"
@@ -575,13 +543,11 @@
             <t t-out="0" />
         </div>
 
-        <!-- Footer -->
         <t t-set="footer_show_tagline" t-value="False" />
         <t t-call="web.external_layout_footer" />
     </template>
 
     <template id="external_layout_wave">
-        <!-- HEADER -->
         <t t-set="header_shape_height" t-value="'230'" />
         <div
             t-attf-class="header o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'h-0' or ''}}"
@@ -608,7 +574,6 @@
             </div>
         </div>
 
-        <!-- BODY -->
         <div
             t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_wave o_table_striped {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}"
             name="report_body"
@@ -621,7 +586,6 @@
             <t t-out="0" />
         </div>
 
-        <!-- Footer -->
         <div
             t-attf-class="footer o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'position-relative mt-auto mx-n5' or ''}}"
             name="report_footer">
@@ -646,7 +610,6 @@
     </template>
 
     <template id="external_layout_bubble">
-        <!-- HEADER -->
         <div
             t-attf-class="header o_company_#{company.id}_layout o_report_layout {{report_type == 'pdf' and 'pt-5' or ''}}"
             name="report_header">
@@ -677,7 +640,6 @@
             </table>
         </div>
 
-        <!-- BODY -->
         <div
             t-attf-class="article o_company_#{company.id}_layout o_report_layout o_report_layout_bubble o_table_boxed-rounded {{company.layout_background != 'Blank' and 'o_report_layout_background' or ''}}"
             name="report_body"
@@ -705,7 +667,6 @@
             <t t-out="0" />
         </div>
 
-        <!-- Footer: keep border-top on t-field div for l10n_ph XPath compatibility -->
         <div
             t-attf-class="footer o_company_#{company.id}_layout o_report_layout {{report_type != 'pdf' and 'position-relative mt-auto mx-n5' or ''}}"
             name="report_footer">
@@ -728,12 +689,10 @@
         </div>
     </template>
 
-    <!-- Public api: layout to t-call from reports -->
     <template id="external_layout">
         <t t-if="not o" t-set="o" t-value="doc" />
 
         <t t-if="not company">
-            <!-- Multicompany -->
             <t t-if="company_id">
                 <t t-set="company" t-value="company_id" />
             </t>
@@ -745,7 +704,6 @@
             </t>
         </t>
 
-        <!-- Compute background URL once here so all themes inherit it via t-call scope. -->
         <t t-set="layout_background_url"
             t-value="f'data:image/png;base64,{company.layout_background_image.decode('utf-8')}' if company.layout_background_image and company.layout_background == 'Custom' else                 '/base/static/img/demo_logo_report.png' if company.layout_background == 'Demo logo' else ''" />
 
@@ -762,7 +720,6 @@
         <t t-if="not o" t-set="o" t-value="doc" />
 
         <t t-if="not company">
-            <!-- Multicompany -->
             <t t-if="company_id">
                 <t t-set="company" t-value="company_id" />
             </t>
@@ -802,8 +759,6 @@
         </t>
     </template>
 
-    <!-- Customize the company form view by adding paperformat field as well as demo reports -->
-    <!-- Demo reports definition -->
     <template id="preview_internalreport">
         <t t-set="company" t-value="env.company" />
         <t t-call="web.html_container">

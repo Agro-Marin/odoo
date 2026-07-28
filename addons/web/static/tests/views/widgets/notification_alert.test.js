@@ -14,7 +14,7 @@ const viewData = {
     type: "form",
     resModel: "partner",
     resId: 1,
-    arch: /* xml */ `<form><widget name="notification_alert"/></form>`,
+    arch: `<form><widget name="notification_alert"/></form>`,
 };
 
 test("notification alert should be displayed when notification denied", async () => {

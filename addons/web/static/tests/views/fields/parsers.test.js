@@ -6,6 +6,7 @@ import { localization } from "@web/core/l10n/localization";
 import { nbsp } from "@web/core/utils/format/strings";
 import { formatFloatTime } from "@web/fields/formatters";
 import {
+    InvalidNumberError,
     parseFloat,
     parseFloatTime,
     parseInteger,
@@ -28,7 +29,6 @@ test("parseFloat", () => {
     patchWithCleanup(localization, { decimalPoint: ",", thousandsSep: "." });
     expect(parseFloat("1.234,567")).toBe(1234.567);
 
-    // Can evaluate expression from locale with decimal point different from ".".
     expect(parseFloat("=1.000,1 + 2.000,2")).toBe(3000.3);
     expect(parseFloat("=1.000,00 + 11.121,00")).toBe(12121);
     expect(parseFloat("=1000,00 + 11122,00")).toBe(12122);
@@ -53,8 +53,6 @@ test("parseFloatTime", () => {
     expect(parseFloatTime("1:")).toBe(1);
     expect(parseFloatTime(":12")).toBe(0.2);
 
-    // hours:minutes:seconds — round-trips the formatFloatTime displaySeconds
-    // output (e.g. "01:30:00", "01:30:30").
     expect(parseFloatTime("1:30:00")).toBe(1.5);
     expect(parseFloatTime("01:30:00")).toBe(1.5);
     expect(parseFloatTime("0:00:30")).toBe(30 / 3600);
@@ -62,13 +60,10 @@ test("parseFloatTime", () => {
 
     expect(() => parseFloatTime("a:1")).toThrow();
     expect(() => parseFloatTime("1:a")).toThrow();
-    // Four components (three colons) remain invalid.
     expect(() => parseFloatTime("1:1:1:1")).toThrow();
-    // Minutes must be in [0, 59]; the sign applies to the whole value, never the minutes part.
     expect(() => parseFloatTime("1:60")).toThrow();
     expect(() => parseFloatTime("1:90")).toThrow();
     expect(() => parseFloatTime("1:-30")).toThrow();
-    // Seconds must be in [0, 59] as well.
     expect(() => parseFloatTime("1:00:60")).toThrow();
     expect(() => parseFloatTime("1:00:90")).toThrow();
 });
@@ -76,7 +71,6 @@ test("parseFloatTime", () => {
 test("formatFloatTime / parseFloatTime round-trips with displaySeconds", () => {
     for (const value of [1.5, 0.25, 2.008333, 11.9836]) {
         const formatted = formatFloatTime(value, { displaySeconds: true });
-        // Formatting rounds to whole seconds, so compare within 1s tolerance.
         expect(Math.abs(parseFloatTime(formatted) - value)).toBeLessThan(
             1 / 3600 + 1e-9,
         );
@@ -96,8 +90,6 @@ test("parseInteger", () => {
     expect(() => parseInteger("1,234.567")).toThrow();
     expect(() => parseInteger("-2,147,483,649")).toThrow();
     expect(() => parseInteger("2,147,483,648")).toThrow();
-    // "=" expressions must satisfy the same integrality rule as plain input:
-    // a non-integer result is rejected, not silently truncated.
     expect(parseInteger("=4*3")).toBe(12);
     expect(parseInteger("=99/3")).toBe(33);
     expect(() => parseInteger("=100/3")).toThrow();
@@ -107,11 +99,7 @@ test("parseInteger", () => {
 
     expect(parseInteger("1.000.000")).toBe(1000000);
     expect(() => parseInteger("1.234,567")).toThrow();
-    // fallback to en localization
     expect(parseInteger("1,000,000")).toBe(1000000);
-    // Regression: "2,5" is a valid-but-non-integer locale parse (2.5). The
-    // en-locale fallback must NOT re-interpret the comma as a thousands
-    // separator (which silently yielded 25); it must be rejected instead.
     expect(() => parseInteger("2,5")).toThrow();
 
     patchWithCleanup(localization, { decimalPoint: ",", thousandsSep: false });
@@ -135,14 +123,10 @@ test("parsePercentage", () => {
 });
 
 test("parsePercentage supports multi-edit operations", () => {
-    // Without allowOperation, an operation string is not a valid percentage.
     expect(() => parsePercentage("+=5")).toThrow();
-    // With allowOperation, an operation is returned with its operand UNSCALED
-    // (PercentageField.parse rescales additive operands by 1/100).
     const op = parsePercentage("+= 5", { allowOperation: true });
     expect(op.operator).toBe("+");
     expect(op.operand).toBe(5);
-    // A plain value still round-trips through the ÷100 conversion.
     expect(parsePercentage("50", { allowOperation: true })).toBe(0.5);
 });
 
@@ -179,20 +163,17 @@ test("parseMonetary", () => {
     expect(() => parseMonetary("1$\u00a01")).toThrow();
     expect(() => parseMonetary("$\u00a012.00\u00a034")).toThrow();
 
-    // nbsp as thousands separator
     patchWithCleanup(localization, { thousandsSep: "\u00a0", decimalPoint: "," });
     expect(parseMonetary("1\u00a0000,06\u00a0€")).toBe(1000.06);
     expect(parseMonetary("$\u00a01\u00a0000,07")).toBe(1000.07);
     expect(parseMonetary("1000000,08")).toBe(1000000.08);
     expect(parseMonetary("$ -1\u00a0000,09")).toBe(-1000.09);
 
-    // symbol not separated from the value
     expect(parseMonetary("1\u00a0000,08€")).toBe(1000.08);
     expect(parseMonetary("€1\u00a0000,09")).toBe(1000.09);
     expect(parseMonetary("$1\u00a0000,10")).toBe(1000.1);
     expect(parseMonetary("$-1\u00a0000,11")).toBe(-1000.11);
 
-    // any symbol
     expect(parseMonetary("1\u00a0000,11EUROS")).toBe(1000.11);
     expect(parseMonetary("EUR1\u00a0000,12")).toBe(1000.12);
     expect(parseMonetary("DOL1\u00a0000,13")).toBe(1000.13);
@@ -200,7 +181,6 @@ test("parseMonetary", () => {
     expect(parseMonetary("DOLLARS+1\u00a0000,15")).toBe(1000.15);
     expect(parseMonetary("EURO-1\u00a0000,16DOGE")).toBe(-1000.16);
 
-    // comma as decimal point and dot as thousands separator
     patchWithCleanup(localization, { thousandsSep: ".", decimalPoint: "," });
     expect(parseMonetary("10,08")).toBe(10.08);
     expect(parseMonetary("")).toBe(0);
@@ -218,9 +198,81 @@ test("parseMonetary", () => {
     expect(parseMonetary("12,34 €")).toBe(12.34);
     expect(parseMonetary("$ 12,34")).toBe(12.34);
 
-    // Can evaluate expression
     expect(parseMonetary("=1.000,1 + 2.000,2")).toBe(3000.3);
     expect(parseMonetary("=1.000,00 + 11.121,00")).toBe(12121);
     expect(parseMonetary("=1000,00 + 11122,00")).toBe(12122);
     expect(parseMonetary("=1000 + 11123")).toBe(12123);
+});
+
+test("parseFloat: expressions with scientific notation", () => {
+    // The `=`-expression tokenizer used to split on every `-`, severing the
+    // sign of an exponent: `1e-5` became ["1e", "-", "5"] and failed, while
+    // `1e5` parsed fine.
+    expect(parseFloat("=1e5")).toBe(100000);
+    expect(parseFloat("=1e-5")).toBe(0.00001);
+    expect(parseFloat("=2E+3")).toBe(2000);
+    expect(parseFloat("=1e-5 + 1")).toBe(1.00001);
+    // Plain subtraction must still split.
+    expect(parseFloat("=1e5-1")).toBe(99999);
+    expect(parseFloat("=10-2")).toBe(8);
+    expect(parseFloat("=1.5-2")).toBe(-0.5);
+});
+
+test("parseFloat: a malformed expression raises InvalidNumberError", () => {
+    // The python evaluator raises its own error type for these; they are still
+    // rejected user input, so the numeric contract must be preserved rather
+    // than leaking an unrelated error class to the input hook.
+    for (const expr of ["=(", "=1+*2", "=)("]) {
+        let caught = null;
+        try {
+            parseFloat(expr);
+        } catch (error) {
+            caught = error;
+        }
+        expect(caught).toBeInstanceOf(InvalidNumberError, {
+            message: `${expr} must raise InvalidNumberError`,
+        });
+    }
+});
+
+test("parseMonetary keeps the sign of accounting negatives", () => {
+    // The lenient extraction strips whatever surrounds the number so that a
+    // pasted "$ 1,234.50 USD" still parses. It used to strip the two standard
+    // negative notations along with the currency decoration, silently turning
+    // -1,234.50 into +1,234.50 - a sign flip on money, from an ordinary paste.
+    expect(parseMonetary("(1,234.50)")).toBe(-1234.5); // IFRS/GAAP, spreadsheets
+    expect(parseMonetary("1,234.50-")).toBe(-1234.5); // SAP / mainframe exports
+    expect(parseMonetary("(99)")).toBe(-99);
+    expect(parseMonetary("USD (99)")).toBe(-99);
+    expect(parseMonetary("$ (1,234.50)")).toBe(-1234.5);
+
+    // Already-working forms must not double-negate.
+    expect(parseMonetary("-1,234.50")).toBe(-1234.5);
+    expect(parseMonetary("$-99")).toBe(-99);
+    expect(parseMonetary("-$99")).toBe(-99);
+    expect(parseMonetary("1,234.50")).toBe(1234.5);
+    expect(parseMonetary("$ 1,234.50 USD")).toBe(1234.5);
+
+    // An =-expression owns its own operators and is left alone.
+    expect(parseMonetary("=100-1")).toBe(99);
+});
+
+test("numeric parsers reject non-decimal literals", () => {
+    // parseNumber ended in a bare Number(), which accepts every JS numeric
+    // literal syntax. A user typing "0x10" into a float field means neither 16
+    // nor a hex literal - it is simply not a number they can have meant.
+    for (const value of ["0x10", "0b11", "0o17", "0xff", "1_000"]) {
+        expect(() => parseFloat(value)).toThrow(InvalidNumberError);
+        expect(() => parseInteger(value)).toThrow(InvalidNumberError);
+    }
+    // Scientific notation IS a decimal literal people legitimately type.
+    expect(parseFloat("1e5")).toBe(100000);
+    expect(parseFloat("1E5")).toBe(100000);
+    expect(parseFloat("1e-5")).toBe(0.00001);
+    expect(parseFloat("-2.5e3")).toBe(-2500);
+    // ...and the ordinary forms keep working.
+    expect(parseFloat(".5")).toBe(0.5);
+    expect(parseFloat("5.")).toBe(5);
+    expect(parseFloat("+5")).toBe(5);
+    expect(parseInteger("1,000")).toBe(1000);
 });

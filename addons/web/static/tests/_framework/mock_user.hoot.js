@@ -1,10 +1,6 @@
 // @ts-check
 
-// ! WARNING: this module cannot depend on modules not ending with ".hoot" (except libs) !
-
 import { onServerStateChange } from "./mock_server_state.hoot.js";
-
-// Exports
 
 /**
  * @param {string} name

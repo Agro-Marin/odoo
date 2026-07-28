@@ -12,20 +12,11 @@ export class CustomGroupByItem extends Component {
         onAddCustomGroup: Function,
     };
 
-    /** @returns {Array<{label: string, value: string}>} */
-    get choices() {
-        return this.props.fields.map((f) => ({
-            label: f.string,
-            value: f.name,
-        }));
-    }
-
     /** @param {Event} ev */
     onSelected(ev) {
         const target = /** @type {HTMLSelectElement} */ (ev.target);
         if (target.value) {
             this.props.onAddCustomGroup(target.value);
-            // reset the placeholder
             target.value = "";
         }
     }

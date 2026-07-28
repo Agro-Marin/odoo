@@ -39,16 +39,12 @@ export class PropertyTags extends Component {
 
     static props = {
         id: { type: String, optional: true },
-        selectedTags: {}, // Tags value visible in the tags list
-        tags: {}, // Tags definition visible in the dropdown
-        // Behavior of the tag delete button: "value" unselects the value,
-        // "tags" removes it from the definition.
+        selectedTags: {},
+        tags: {},
         deleteAction: { type: String },
         readonly: { type: Boolean, optional: true },
         canChangeTags: { type: Boolean, optional: true },
-        // Select a new value
         onValueChange: { type: Function, optional: true },
-        // Change the tags definition (may pass a 2nd arg to also update selection)
         onTagsChange: { type: Function, optional: true },
     };
     setup() {
@@ -60,10 +56,6 @@ export class PropertyTags extends Component {
             delete: (index) => this.deleteTagByIndex(index),
         });
     }
-
-    /* --------------------------------------------------------
-     * Public methods / Getters
-     * -------------------------------------------------------- */
 
     /**
      * Whether to display badges vs. just the tag label.
@@ -84,14 +76,11 @@ export class PropertyTags extends Component {
             return [];
         }
 
-        // Retrieve the tags label and color
-        // ['a', 'b'] =>  [['a', 'A', 5], ['b', 'B', 6]]
         let value = this.props.tags.filter((tag) =>
             this.props.selectedTags.includes(tag[0]),
         );
 
         if (!this.displayBadge) {
-            // in kanban view e.g. to not show tag without color
             value = value.filter((tag) => tag[2]);
         }
 
@@ -149,7 +138,6 @@ export class PropertyTags extends Component {
                                     .includes(request.toLocaleLowerCase())),
                     );
                     if (!tagsFiltered || !tagsFiltered.length) {
-                        // no result, ask the user if he want to create a new tag
                         if (!request || !request.length) {
                             return [
                                 {
@@ -183,10 +171,6 @@ export class PropertyTags extends Component {
         ];
     }
 
-    /* --------------------------------------------------------
-     * Event handlers
-     * -------------------------------------------------------- */
-
     /**
      * Add one value to the current tag list values.
      * @param {string | object} tagValue Either {toCreate: true, value: label} to
@@ -217,17 +201,15 @@ export class PropertyTags extends Component {
             return;
         }
 
-        // cycle through colors
         let tagColor =
             this.props.tags && this.props.tags.length
                 ? (this.props.tags[this.props.tags.length - 1][2] + 1) %
                   ColorList.COLORS.length
                 : Math.floor(Math.random() * ColorList.COLORS.length);
-        tagColor = tagColor || 1; // never select white by default
+        tagColor = tagColor || 1;
 
         const newTag = [newValue, newLabel, tagColor];
         const updatedTags = [...this.availableTags, newTag];
-        // automatically select the newly created tag
         const newValues = [...this.props.selectedTags, newTag[0]];
         this.props.onTagsChange(updatedTags, newValues);
     }
@@ -239,12 +221,10 @@ export class PropertyTags extends Component {
      */
     onTagDelete(deleteTag) {
         if (this.props.deleteAction === "value") {
-            // remove the tag from the value (but keep it in the options list)
             const selectedTags = this.selectedTags;
             const newValue = selectedTags.filter((tag) => tag !== deleteTag);
             this.props.onValueChange(newValue);
         } else {
-            // remove the tag from the options
             const availableTags = this.availableTags;
             this.props.onTagsChange(
                 availableTags.filter((tag) => tag[0] !== deleteTag),

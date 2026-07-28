@@ -37,7 +37,6 @@ const { COLORS } = ColorList;
 
 const formatters = registry.category("formatters");
 
-// These classes determine whether a click on a record should open it.
 export const CANCEL_GLOBAL_CLICK = [
     "a",
     ".dropdown",
@@ -47,8 +46,6 @@ export const CANCEL_GLOBAL_CLICK = [
 
 function getColorIndex(value) {
     if (typeof value === "number") {
-        // Double-modulo: JS `%` keeps the sign, so a negative value would yield
-        // a negative index and produce a class like `o_kanban_color_-5` (L5).
         return ((Math.round(value) % COLORS.length) + COLORS.length) % COLORS.length;
     } else if (typeof value === "string") {
         const codePointSum = [...value].reduce(
@@ -179,7 +176,6 @@ export function getImageSrcFromRecordInfo(record, model, field, idOrIds, placeho
         record.resModel === model && (record.resId === id || (!record.resId && !id));
     const fieldVal = record.data[field];
     if (isCurrentRecord && fieldVal && !isBinSize(fieldVal)) {
-        // Use magic-word technique for detecting image type
         const type = fileTypeMagicWordMap[fieldVal[0]];
         return `data:image/${type};base64,${fieldVal}`;
     } else if (placeholder && (!model || !field || !id || !fieldVal)) {
@@ -260,21 +256,12 @@ export class KanbanRecord extends Component {
                 this.formattedRecord = getFormattedRecord(nextProps.record);
             }
         });
-        // Mount across a microtask boundary (previously an implicit effect
-        // of the removed record-observer hook's async onWillStart): without
-        // it, a card on a fiber about to be superseded would render on the
-        // discarded fiber, wasting work and breaking a render-count assert
-        // pinned by the kanban test suite.
         onWillStart(() => Promise.resolve());
         this.rootRef = useRef("root");
         this.hasTouch = hasTouch();
 
         this.longTouchTimer = null;
         this.touchStartMs = 0;
-        // Cancel any pending long-touch timer if the card is torn down before
-        // touchend/touchcancel reaches it (e.g. a live-update reload unmounts
-        // this record mid-press): otherwise the orphaned timeout fires and
-        // mutates selection state on a record that is no longer displayed.
         onWillDestroy(() => this.resetLongTouchTimer());
     }
 
@@ -296,7 +283,6 @@ export class KanbanRecord extends Component {
     createWidget(props) {
         const { archInfo, groupByField } = props;
         const { activeActions } = archInfo;
-        // Widget
         const deletable =
             activeActions.delete &&
             (!groupByField || groupByField.type !== "many2many") &&

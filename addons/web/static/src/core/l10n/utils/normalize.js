@@ -71,8 +71,6 @@ function findNormalizedMatch(
         let substrIdx = 0;
         for (let j = 0; i + j < normalizedSrc.length; ++j) {
             const current = normalizedSrc[i + j];
-            // Iterate codepoints directly — normalization may expand a single
-            // source character to several normalized characters (e.g. "ß" → "ss").
             let allMatched = true;
             for (const c of current) {
                 if (substrIdx < normalizedSubstr.length) {
@@ -157,12 +155,10 @@ export function normalizedMatches(src, substr) {
     if (!substr) {
         return matches;
     }
-    // Normalize once and resume each search from the previous match's end
-    // (instead of re-normalizing every sliced suffix, which was O(n²)).
     const { srcAsCodepoints, normalizedSrc, flattenSrcLength } = prepareSource(src);
     const normalizedSubstr = Array.from(normalize(substr));
     let fromIndex = 0;
-    let charOffset = 0; // string length of the codepoints before `fromIndex`
+    let charOffset = 0;
     while (fromIndex < srcAsCodepoints.length) {
         const found = findNormalizedMatch(
             normalizedSrc,
@@ -190,11 +186,11 @@ export function normalizedMatches(src, substr) {
 }
 
 const DECOMPOSITION_BY_LIGATURE = new Map([
-    ["Æ", "Ae"], // Danish, Norwegian, Icelandic, French (rare)...
+    ["Æ", "Ae"],
     ["æ", "ae"],
-    ["Œ", "Oe"], // French: "Richard Cœur de Lion"
+    ["Œ", "Oe"],
     ["œ", "oe"],
-    ["Ĳ", "IJ"], // Dutch: "IJzer"
+    ["Ĳ", "IJ"],
     ["ĳ", "ij"],
 ]);
 
@@ -218,15 +214,15 @@ function expandLigatures(str) {
  * labeled as such by Unicode.
  */
 const DIACRITIC_LIKES = new Map([
-    ["Ø", "O"], // notably used in Danish and Norwegian: "Jørgen"
+    ["Ø", "O"],
     ["ø", "o"],
-    ["Ł", "L"], // notably used in Polish: "Paweł"
+    ["Ł", "L"],
     ["ł", "l"],
-    ["Ð", "D"], // Icelandic, "Borgarfjörður"
+    ["Ð", "D"],
     ["ð", "d"],
-    ["Ħ", "H"], // Maltese, "Ħamrun Spartans Football Club"
+    ["Ħ", "H"],
     ["ħ", "h"],
-    ["Ŧ", "T"], // apparently used in Sámi languages, very few speakers
+    ["Ŧ", "T"],
     ["ŧ", "t"],
 ]);
 

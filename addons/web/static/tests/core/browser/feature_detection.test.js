@@ -21,8 +21,6 @@ import {
 
 describe.current.tags("headless");
 
-// Helpers
-
 const UA_CHROME_MAC =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 const UA_FIREFOX_LINUX =
@@ -109,7 +107,6 @@ describe("isBrowserSafari", () => {
 
     test("does not detect Safari for Chrome (has 'Safari' in UA)", () => {
         patchUA(UA_CHROME_MAC);
-        // Chrome's UA contains "Safari" but isBrowserSafari should return false
         expect(isBrowserSafari()).toBe(false);
     });
 
@@ -230,8 +227,6 @@ describe("isOtherMobileOS", () => {
     });
 });
 
-// Odoo mobile apps
-
 describe("isIosApp", () => {
     test("detects Odoo iOS app", () => {
         patchUA(UA_ODOO_IOS);
@@ -256,15 +251,12 @@ describe("isAndroidApp", () => {
     });
 });
 
-// Cache invalidation — critical for test isolation
-
 describe("UA cache", () => {
     test("returns updated result when UA changes between calls", () => {
         patchUA(UA_CHROME_MAC);
         expect(isMacOS()).toBe(true);
         expect(isBrowserChrome()).toBe(true);
 
-        // Simulate UA change (as happens when tests patch browser.navigator)
         patchUA(UA_FIREFOX_LINUX);
         expect(isMacOS()).toBe(false);
         expect(isBrowserChrome()).toBe(false);
@@ -273,7 +265,7 @@ describe("UA cache", () => {
 
     test("cache is consistent across all functions for same UA", () => {
         patchUA(UA_EDGE_WINDOWS);
-        expect(isBrowserChrome()).toBe(true); // Chromium-based
+        expect(isBrowserChrome()).toBe(true);
         expect(isBrowserMicrosoftEdge()).toBe(true);
         expect(isBrowserSafari()).toBe(false);
         expect(isBrowserFirefox()).toBe(false);
@@ -281,8 +273,6 @@ describe("UA cache", () => {
         expect(isAndroid()).toBe(false);
     });
 });
-
-// Touch / non-UA features (not cached — left as-is)
 
 describe("hasTouch", () => {
     test("detects touch via ontouchstart", () => {

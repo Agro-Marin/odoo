@@ -11,7 +11,7 @@ export const BUTTON_CLICK_PARAMS = [
     "name",
     "type",
     "args",
-    "block-ui", // Blocks UI with a spinner until the action is done
+    "block-ui",
     "context",
     "close",
     "cancel-label",
@@ -21,11 +21,7 @@ export const BUTTON_CLICK_PARAMS = [
     "special",
     "effect",
     "help",
-    // WOWL SAD: is adding the support for debounce attribute here justified or should we
-    // just override compileButton in kanban compiler to add the debounce?
     "debounce",
-    // WOWL JPP: is adding the support for not oppening the dialog of confirmation in the settings view
-    // This should be refactor someday
     "noSaveDialog",
 ];
 
@@ -40,8 +36,6 @@ function parseButtonOptions(node) {
     try {
         return JSON.parse(raw);
     } catch (e) {
-        // Surface the offending arch instead of a bare SyntaxError with a
-        // character offset that points into a string the author never sees.
         throw new Error(`Invalid JSON in button "options" attribute: ${raw}`, {
             cause: e,
         });

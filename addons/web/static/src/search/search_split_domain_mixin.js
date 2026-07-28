@@ -80,12 +80,6 @@ export const SearchSplitDomainMixin = (Base) =>
 
             const preFilters = await Promise.all(promises);
 
-            // The block below is synchronous but can throw (createNewFilters /
-            // createNewGroupBy / query splicing). _withNotificationsBlocked
-            // guarantees blockNotification is *restored* (not hardcoded to false)
-            // afterwards, so a throw cannot wedge the search model into a
-            // permanently-silent state and nesting inside another blocked window
-            // stays correct.
             this._withNotificationsBlocked(() => {
                 let queryItemIndex;
                 if (group) {
@@ -128,9 +122,6 @@ export const SearchSplitDomainMixin = (Base) =>
                                     }),
                                 );
                             }
-                            // Move the new groupBys (pushed at the tail) to the front
-                            // by identity — the previous index arithmetic assumed each
-                            // createNewGroupBy pushed exactly one query element.
                             const isNewGroupBy = (queryElem) =>
                                 newGroupByIds.includes(queryElem.searchItemId);
                             this.query = [
@@ -149,8 +140,6 @@ export const SearchSplitDomainMixin = (Base) =>
                 );
 
                 if (queryItemIndex !== undefined) {
-                    // Reinsert the new filters (identified by id, not by slice
-                    // arithmetic) at the position the replaced group occupied.
                     const isNewFilter = (queryElem) =>
                         newFilterIds.includes(queryElem.searchItemId);
                     const newQueryElems = this.query.filter(isNewFilter);

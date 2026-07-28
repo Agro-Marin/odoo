@@ -39,6 +39,37 @@ export function getCompany(cid) {
 }
 
 /**
+ * Allowed-company id set, cached against the array it was built from — same
+ * invalidation story as {@link indexByCompanies}.
+ *
+ * @type {WeakMap<object[], Set<number>>}
+ */
+const allowedIdsByCompanies = new WeakMap();
+
+/**
+ * Whether the user may act on this company.
+ *
+ * The single home for a predicate that existed twice with different costs:
+ * ``CompanySelector`` used ``allowedCompanies.some(...)``, while
+ * ``SwitchCompanyItem`` used ``allowedCompanies.map((c) => c.id).includes(...)``
+ * — an array allocation per call, and its template reads the getter five times
+ * per company row, on every render of a dropdown that only appears once the
+ * user HAS a lot of companies.
+ *
+ * @param {number} companyId
+ * @returns {boolean}
+ */
+export function isCompanyAllowed(companyId) {
+    const companies = user.allowedCompanies;
+    let allowedIds = allowedIdsByCompanies.get(companies);
+    if (!allowedIds) {
+        allowedIds = new Set(companies.map((c) => c.id));
+        allowedIdsByCompanies.set(companies, allowedIds);
+    }
+    return allowedIds.has(companyId);
+}
+
+/**
  * Manages the DRAFT selection state for company switching.
  *
  * Holds the pending set of company ids while the dropdown is open — nothing is
@@ -85,27 +116,19 @@ export class CompanySelector {
                 this.selectedCompaniesIds.splice(0, this.selectedCompaniesIds.length);
             }
             this._selectCompany(companyId, true);
-            this.apply();
+            // Same contract as SwitchCompanyMenu.confirm(): fire-and-forget, but
+            // never silently swallow a failure.
+            Promise.resolve(this.apply()).catch((error) => {
+                console.warn("Failed to apply the company selection", error);
+            });
 
             this.dropdownState.close?.();
         }
     }
 
     async apply() {
-        // Snapshot the selection: closing the dropdown (loginto/confirm close
-        // right after calling apply) runs reset(), which re-seeds
-        // selectedCompaniesIds — this must not change under the await below.
         const newCompanyIds = [...this.selectedCompaniesIds];
 
-        // Decide whether the current record survives the switch BEFORE mutating
-        // any global state, probing access under the NEW companies (passed
-        // explicitly, uncached). The old code switched the cookie/context
-        // FIRST and then awaited this RPC: during that window the live UI still
-        // showed the old records but every new RPC (autosave, onchange, polling)
-        // ran under the new allowed_company_ids — a create/write could land with
-        // the wrong company. Checking first keeps the state consistent until the
-        // atomic mutate+reload below (and a stalled probe now leaves the old
-        // state intact rather than a half-switched one).
         const controller = this.actionService.currentController;
         let dropRecord = false;
         if (controller?.props.resId && controller?.props.resModel) {
@@ -128,17 +151,24 @@ export class CompanySelector {
             }
         }
 
-        // Mutate cookie/context and reload in ONE synchronous block — no await
-        // in between, so there is no window for the still-live UI to issue RPCs
-        // under the new context.
         user.activateCompanies(newCompanyIds, {
             includeChildCompanies: false,
             reload: false,
         });
+        // `activateCompanies` NORMALISES the request — an empty set is refused
+        // and falls back to keeping the first active company — so what was
+        // asked for is not necessarily what is now active. Re-seed the draft
+        // from the authoritative state instead of leaving it showing a
+        // selection that was rejected.
+        //
+        // Nothing else does this reliably: `ACTIVE_COMPANIES_CHANGED` only
+        // fires when the set actually changed, which is exactly NOT the case
+        // when the request was refused, and the dropdown-close reset is a
+        // desktop-only path — the mobile switcher renders inline and never
+        // closes a dropdown, so it was left displaying every company unchecked
+        // while company 1 was still the active one.
+        this.reset();
         const state = {};
-        // sync: the cookie/context are switched, so the reload must fire
-        // immediately — a debounced push could be dropped by a popstate or
-        // cancelPushes, leaving a switched cookie under a stale webclient.
         const options = { reload: true, sync: true };
         if (dropRecord) {
             options.replace = true;
@@ -152,26 +182,18 @@ export class CompanySelector {
     }
 
     toggleSelectAll(companyIds) {
-        // Disallowed companies (e.g. ancestors only shown for the tree
-        // structure) can never be activated: selecting them would render
-        // their checkbox checked and show Confirm for a no-op switch.
-        const allowedCompanyIds = companyIds.filter((id) => this._isCompanyAllowed(id));
+        const allowedCompanyIds = companyIds.filter((id) => isCompanyAllowed(id));
         const anySelected = allowedCompanyIds.some((id) =>
             this.selectedCompaniesIds.includes(id),
         );
 
         if (anySelected) {
-            // If any company is selected, unselect all of them, cascading
-            // to their child companies as the per-item checkboxes do.
             for (const companyId of allowedCompanyIds) {
                 if (this.selectedCompaniesIds.includes(companyId)) {
                     this._deselectCompany(companyId);
                 }
             }
         } else {
-            // Go through _selectCompany so the selection cascades to child
-            // companies (possibly filtered out of view), exactly as the
-            // per-item checkboxes do; it also dedupes already-selected ids.
             for (const companyId of allowedCompanyIds) {
                 this._selectCompany(companyId);
             }
@@ -179,7 +201,7 @@ export class CompanySelector {
     }
 
     _selectCompany(companyId, unshift = false) {
-        if (this._isCompanyAllowed(companyId)) {
+        if (isCompanyAllowed(companyId)) {
             if (!this.selectedCompaniesIds.includes(companyId)) {
                 if (unshift) {
                     this.selectedCompaniesIds.unshift(companyId);
@@ -231,10 +253,6 @@ export class CompanySelector {
         return getCompany(companyId).child_ids || [];
     }
 
-    _isCompanyAllowed(companyId) {
-        return user.allowedCompanies.some((c) => c.id === companyId);
-    }
-
     _isSingleCompanyMode() {
         if (this.selectedCompaniesIds.length === 1) {
             return true;
@@ -249,13 +267,9 @@ export class CompanySelector {
         for (const companyId of this.selectedCompaniesIds) {
             let company = getActiveCompany(companyId);
             if (!company) {
-                // A selected id that is not in the active-companies map (edge
-                // case after a company change): skip rather than deref
-                // ``company.parent_id`` on null.
                 continue;
             }
 
-            // Find the root active parent of the company
             while (getActiveCompany(company.parent_id)) {
                 company = getActiveCompany(company.parent_id);
             }
@@ -267,8 +281,6 @@ export class CompanySelector {
             }
         }
 
-        // If some children or sub-children of the root company
-        // are not active, we are in multi-company mode.
         if (rootCompany?.child_ids) {
             const queue = [...rootCompany.child_ids];
             while (queue.length) {

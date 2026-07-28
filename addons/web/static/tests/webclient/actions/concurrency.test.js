@@ -46,7 +46,7 @@ class Partner extends models.Model {
         { id: 2, display_name: "Second record" },
     ];
     _views = {
-        form: /* xml */ `
+        form: `
             <form>
                 <header>
                     <button name="object" string="Call method" type="object"/>
@@ -56,7 +56,7 @@ class Partner extends models.Model {
                 </group>
             </form>
         `,
-        "kanban,1": /* xml */ `
+        "kanban,1": `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -64,8 +64,8 @@ class Partner extends models.Model {
                     </t>
                 </templates>
             </kanban>`,
-        list: /* xml */ `<list><field name="display_name"/></list>`,
-        calendar: /* xml */ `<calendar date_start="start"/>`,
+        list: `<list><field name="display_name"/></list>`,
+        calendar: `<calendar date_start="start"/>`,
     };
 }
 
@@ -78,8 +78,8 @@ class Pony extends models.Model {
         { id: 9, name: "Fluttershy" },
     ];
     _views = {
-        list: /* xml */ `<list><field name="name"/></list>`,
-        form: /* xml */ `<form><field name="name"/></form>`,
+        list: `<list><field name="name"/></list>`,
+        form: `<form><field name="name"/></form>`,
     };
 }
 
@@ -139,7 +139,6 @@ test("drop previous actions if possible", async () => {
     getService("action").doAction(8);
     def.resolve();
     await animationFrame();
-    // action 4 loads a kanban view first, 6 loads a list view. We want a list
     expect(".o_list_view").toHaveCount(1);
     expect.verifySteps([
         "/web/webclient/translations",
@@ -161,12 +160,8 @@ test("handle switching view and switching back on slow network", async () => {
 
     await mountWithCleanup(WebClient);
     await getService("action").doAction(4);
-    // kanban view is loaded, switch to list view
     await switchView("list");
-    // here, list view is not ready yet, because def is not resolved
-    // switch back to kanban view
     await switchView("kanban");
-    // here, we want the kanban view to reload itself, regardless of list view
     expect.verifySteps([
         "/web/webclient/translations",
         "/web/webclient/load_menus",
@@ -177,7 +172,6 @@ test("handle switching view and switching back on slow network", async () => {
         "web_search_read",
     ]);
 
-    // we resolve def => list view is now ready (but we want to ignore it)
     def.resolve();
     await animationFrame();
     expect(".o_kanban_view").toHaveCount(1, {
@@ -194,18 +188,14 @@ test("clicking quickly on breadcrumbs...", async () => {
     onRpc("web_read", () => def);
 
     await mountWithCleanup(WebClient);
-    // create a situation with 3 breadcrumbs: kanban/form/list
     await getService("action").doAction(4);
     await contains(".o_kanban_record").click();
     await getService("action").doAction(8);
 
-    // block the form view reload's read
     def = new Deferred();
-    // click the form breadcrumb, then the kanban one, before reload completes
     await contains(queryAll(".o_control_panel .breadcrumb-item")[1]).click();
     await contains(".o_control_panel .breadcrumb-item").click();
 
-    // resolve the form view read
     def.resolve();
     await animationFrame();
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
@@ -233,19 +223,17 @@ test("execute a new action while loading a lazy-loaded controller", async () => 
     stepAllNetworkCalls();
 
     await mountWithCleanup(WebClient);
-    await animationFrame(); // blank component
+    await animationFrame();
     expect(".o_form_view").toHaveCount(1, {
         message: "should display the form view of action 4",
     });
 
-    // click to go back to Kanban (this request is blocked)
     def = new Deferred();
     await contains(".o_control_panel .breadcrumb a").click();
     expect(".o_form_view").toHaveCount(1, {
         message: "should still display the form view of action 4",
     });
 
-    // execute another action meanwhile (don't block this request)
     await getService("action").doAction(8, { clearBreadcrumbs: true });
     expect(".o_list_view").toHaveCount(1, { message: "should display action 8" });
     expect(".o_form_view").toHaveCount(0, {
@@ -264,7 +252,6 @@ test("execute a new action while loading a lazy-loaded controller", async () => 
         "has_group",
     ]);
 
-    // unblock the switch to Kanban in action 4
     def.resolve();
     await animationFrame();
     expect(".o_list_view").toHaveCount(1, { message: "should still display action 8" });
@@ -288,20 +275,17 @@ test("execute a new action while handling a call_button", async () => {
     stepAllNetworkCalls();
 
     await mountWithCleanup(WebClient);
-    // execute action 3 and open a record in form view
     await getService("action").doAction(3);
     await contains(".o_list_view .o_data_cell").click();
     expect(".o_form_view").toHaveCount(1, {
         message: "should display the form view of action 3",
     });
 
-    // click on 'Call method' button (this request is blocked)
     await contains('.o_form_view button[name="object"]').click();
     expect(".o_form_view").toHaveCount(1, {
         message: "should still display the form view of action 3",
     });
 
-    // execute another action
     await getService("action").doAction(8, { clearBreadcrumbs: true });
     expect(".o_list_view").toHaveCount(1, {
         message: "should display the list view of action 8",
@@ -323,7 +307,6 @@ test("execute a new action while handling a call_button", async () => {
         "web_search_read",
     ]);
 
-    // unblock the call_button request
     def.resolve();
     await animationFrame();
     expect(".o_list_view").toHaveCount(1, {
@@ -335,10 +318,6 @@ test("execute a new action while handling a call_button", async () => {
 
 test.tags("desktop");
 test("execute a new action while switching to another controller", async () => {
-    // doAction always has priority over a switch controller (clicking a row to
-    // open the form view): the last actionManager operation wins. The form's
-    // 'read' is superfluous but can land anywhere except after the final
-    // action's 'search_read'.
     let def;
     stepAllNetworkCalls();
     onRpc("web_read", () => def);
@@ -349,14 +328,12 @@ test("execute a new action while switching to another controller", async () => {
         message: "should display the list view of action 3",
     });
 
-    // switch to the form view (this request is blocked)
     def = new Deferred();
     await contains(".o_list_view .o_data_cell").click();
     expect(".o_list_view").toHaveCount(1, {
         message: "should still display the list view of action 3",
     });
 
-    // execute another action meanwhile (don't block this request)
     await getService("action").doAction(4, { clearBreadcrumbs: true });
     expect(".o_kanban_view").toHaveCount(1, {
         message: "should display the kanban view of action 8",
@@ -377,7 +354,6 @@ test("execute a new action while switching to another controller", async () => {
         "web_search_read",
     ]);
 
-    // unblock the switch to the form view in action 3
     def.resolve();
     await animationFrame();
     expect(".o_kanban_view").toHaveCount(1, {
@@ -391,17 +367,9 @@ test("execute a new action while switching to another controller", async () => {
 
 test.tags("desktop");
 test("a navigation blocked in clearUncommittedChanges can't mount over a newer one", async () => {
-    // KeepLast guards only the load phase. If an action finishes loading, enters
-    // its executor, and then blocks in clearUncommittedChanges (a save dialog
-    // awaiting the user), a NEWER action can load and mount underneath it in the
-    // meantime. When the save finally resolves, the earlier (now stale) action
-    // must NOT mount on top of the newer one — the executor re-checks the
-    // navigation generation after the await.
     await mountWithCleanup(WebClient);
     const am = getService("action");
 
-    // Arm a one-shot slow clearUncommittedChanges: the first transition to ask
-    // for consent blocks on ``saveDef`` (simulating an open save dialog).
     const saveDef = new Deferred();
     let armed = true;
     am.env.bus.addEventListener(AppEvent.CLEAR_UNCOMMITTED_CHANGES, (ev) => {
@@ -411,19 +379,15 @@ test("a navigation blocked in clearUncommittedChanges can't mount over a newer o
         }
     });
 
-    // A: pony list — loads fully, then blocks in clearUncommittedChanges.
     const navA = am.doAction(8);
     await animationFrame();
     expect(".o_list_view").toHaveCount(0, {
         message: "A is blocked in clearUncommittedChanges, nothing mounted yet",
     });
 
-    // B: partner kanban — newer navigation, its clearUncommittedChanges is
-    // disarmed so it proceeds and mounts.
     await am.doAction(4);
     expect(".o_kanban_view").toHaveCount(1, { message: "newer action B is shown" });
 
-    // Unblock A: it must abort instead of mounting over B.
     saveDef.resolve(true);
     await navA;
     await animationFrame();
@@ -435,14 +399,11 @@ test("a navigation blocked in clearUncommittedChanges can't mount over a newer o
     });
 });
 
+test.tags("desktop");
 test("a switchView blocked in clearUncommittedChanges can't mount over a newer one", async () => {
-    // Same race as the doAction test above, but entered through `switchView`,
-    // which re-checks the navigation generation at its own call site.
     await mountWithCleanup(WebClient);
     const am = getService("action");
 
-    // Mount action 3 (list) first, unarmed, so the initial dispatch doesn't
-    // consume the one-shot block below.
     await am.doAction(3);
     expect(".o_list_view").toHaveCount(1, { message: "action 3 list is shown" });
 
@@ -455,18 +416,15 @@ test("a switchView blocked in clearUncommittedChanges can't mount over a newer o
         }
     });
 
-    // A: switch to calendar — blocks in clearUncommittedChanges.
     const navA = am.switchView("calendar");
     await animationFrame();
     expect(".o_calendar_view").toHaveCount(0, {
         message: "A is blocked in clearUncommittedChanges, calendar not mounted",
     });
 
-    // B: a newer, unblocked navigation mounts underneath it.
     await am.doAction(4);
     expect(".o_kanban_view").toHaveCount(1, { message: "newer action B is shown" });
 
-    // Unblock A: it must abort instead of mounting over B.
     saveDef.resolve(true);
     await navA;
     await animationFrame();
@@ -478,8 +436,8 @@ test("a switchView blocked in clearUncommittedChanges can't mount over a newer o
     });
 });
 
+test.tags("desktop");
 test("a restore blocked in clearUncommittedChanges can't mount over a newer one", async () => {
-    // Same race as above, entered through `restore` (a breadcrumb click).
     await mountWithCleanup(WebClient);
     const am = getService("action");
 
@@ -497,14 +455,12 @@ test("a restore blocked in clearUncommittedChanges can't mount over a newer one"
         }
     });
 
-    // A: breadcrumb back to action 3's list — blocks in clearUncommittedChanges.
     const navA = am.restore(firstJsId);
     await animationFrame();
     expect(".o_list_view").toHaveCount(0, {
         message: "A is blocked in clearUncommittedChanges, list not mounted",
     });
 
-    // B: a newer, unblocked navigation mounts underneath it.
     await am.doAction(4);
     expect(".o_kanban_view").toHaveCount(1, { message: "newer action B is shown" });
 
@@ -519,9 +475,8 @@ test("a restore blocked in clearUncommittedChanges can't mount over a newer one"
     });
 });
 
+test.tags("desktop");
 test("a client action blocked in clearUncommittedChanges can't mount over a newer one", async () => {
-    // Same race as above, entered through the `ir.actions.client` executor,
-    // which re-checks the navigation generation at its own call site.
     class BlockedClientAction extends Component {
         static template = xml`<div class="blocked-client-action">A</div>`;
         static props = ["*"];
@@ -543,14 +498,12 @@ test("a client action blocked in clearUncommittedChanges can't mount over a newe
         }
     });
 
-    // A: client action — blocks in clearUncommittedChanges.
     const navA = am.doAction("blockedClientAction");
     await animationFrame();
     expect(".blocked-client-action").toHaveCount(0, {
         message: "A is blocked in clearUncommittedChanges, nothing mounted yet",
     });
 
-    // B: a newer, unblocked navigation mounts underneath it.
     await am.doAction(4);
     expect(".o_kanban_view").toHaveCount(1, { message: "newer action B is shown" });
 
@@ -566,11 +519,6 @@ test("a client action blocked in clearUncommittedChanges can't mount over a newe
 });
 
 test("a loadState blocked reconstructing breadcrumbs can't commit over a newer one", async () => {
-    // Back/forward race: `_controllersFromState` awaits a `load_breadcrumbs`
-    // round-trip OUTSIDE the KeepLast, so two rapid popstates run concurrently.
-    // Whichever reaches `doAction` LAST would otherwise win — mounting the
-    // intermediate page and letting its pushState-on-mount rewrite the URL back
-    // to the stale state. loadState re-checks its navigation-intent counter.
     await mountWithCleanup(WebClient);
     const am = getService("action");
 
@@ -586,18 +534,15 @@ test("a loadState blocked reconstructing breadcrumbs can't commit over a newer o
         },
     });
 
-    // A: the older popstate (action 3 / list) — blocks reconstructing breadcrumbs.
     const navA = am.loadState({ action: 3 }).catch((error) => error);
     await animationFrame();
     expect(".o_list_view").toHaveCount(0, {
         message: "A is blocked reconstructing breadcrumbs, nothing mounted yet",
     });
 
-    // B: the newer popstate (action 4 / kanban) — commits.
     await am.loadState({ action: 4 });
     expect(".o_kanban_view").toHaveCount(1, { message: "newer state B is shown" });
 
-    // Unblock A: it must bail with SupersededError instead of committing.
     breadcrumbDef.resolve();
     const resultA = await navA;
     await animationFrame();
@@ -616,14 +561,12 @@ test("execute a new action while loading views", async () => {
     onRpc("get_views", () => def);
 
     await mountWithCleanup(WebClient);
-    // execute a first action (its 'get_views' RPC is blocked)
     getService("action").doAction(3);
     await animationFrame();
     expect(".o_list_view").toHaveCount(0, {
         message: "should not display the list view of action 3",
     });
 
-    // execute another action meanwhile (and unlock the RPC)
     getService("action").doAction(4);
     await animationFrame();
     def.resolve();
@@ -656,7 +599,6 @@ test("execute a new action while loading data of default view", async () => {
     onRpc("web_read", () => def);
 
     await mountWithCleanup(WebClient);
-    // execute a first action (its 'web_read' RPC is blocked)
     getService("action").doAction({
         name: "A Partner",
         res_model: "partner",
@@ -669,7 +611,6 @@ test("execute a new action while loading data of default view", async () => {
         message: "should not display the form view",
     });
 
-    // execute another action meanwhile (and unlock the RPC)
     getService("action").doAction(4);
     def.resolve();
     await animationFrame();
@@ -706,18 +647,15 @@ test("open a record while reloading the list view", async () => {
     expect(".o_list_view .o_data_row").toHaveCount(2);
     expect(".o_control_panel .o_list_button_add").toHaveCount(1);
 
-    // reload (the search_read RPC will be blocked)
     def = new Deferred();
     await switchView("calendar");
     expect(".o_list_view .o_data_row").toHaveCount(2);
     expect(".o_control_panel .o_list_button_add").toHaveCount(1);
 
-    // open a record in form view
     await contains(".o_list_view .o_data_cell").click();
     expect(".o_form_view").toHaveCount(1);
     expect(".o_control_panel .o_list_button_add").toHaveCount(0);
 
-    // unblock the search_read RPC
     def.resolve();
     await animationFrame();
     expect(".o_form_view").toHaveCount(1);
@@ -992,7 +930,6 @@ test("local state, global state, and race conditions", async () => {
     await getService("action").doAction({
         res_model: "partner",
         type: "ir.actions.act_window",
-        // list (or something else) must be added to have the view switcher displayed
         views: [
             [false, "toy"],
             [false, "list"],
@@ -1003,7 +940,6 @@ test("local state, global state, and race conditions", async () => {
     await toggleMenuItem("Foo");
     expect(isItemSelected("Foo")).toBe(true);
 
-    // reload twice by clicking on toy view switcher
     def = new Deferred();
     await contains(".o_control_panel .o_switch_view.o_toy").click();
     await contains(".o_control_panel .o_switch_view.o_toy").click();
@@ -1013,31 +949,19 @@ test("local state, global state, and race conditions", async () => {
 
     await toggleSearchBarMenu();
     expect(isItemSelected("Foo")).toBe(true);
-    // Limitation: can't detect getGlobalState placement here, since
-    // currentController.action.globalState always holds the first toy view's
-    // search state regardless.
 
-    expect.verifySteps([
-        "no state", // setup first view instantiated
-        { fromId: 1 }, // setup second view instantiated
-        { fromId: 1 }, // setup third view instantiated
-    ]);
+    expect.verifySteps(["no state", { fromId: 1 }, { fromId: 1 }]);
 });
 
 test.tags("desktop");
 test("doing browser back navigates to the previous action", async () => {
-    // Previously this froze the page with `body.style.pointerEvents = "none"`
-    // and thawed it via a race, to work around the action manager's KeepLast
-    // never settling when the back-navigation load was superseded. That
-    // workaround is gone: supersession now rejects observably (SupersededError,
-    // swallowed by the error service), so the route change is a plain await.
     let def;
     onRpc("partner", "web_search_read", () => def);
     await mountWithCleanup(WebClient);
 
     await getService("action").doAction(4);
     await getService("action").doAction(8);
-    await runAllTimers(); // wait for the update of the router
+    await runAllTimers();
     expect(router.current).toEqual({
         action: 8,
         actionStack: [
@@ -1056,7 +980,6 @@ test("doing browser back navigates to the previous action", async () => {
 
     def = new Deferred();
     browser.history.back();
-    // The page is no longer frozen while the back-navigation load is in flight.
     expect(document.body.style.pointerEvents).not.toBe("none");
     def.resolve();
 
@@ -1068,21 +991,6 @@ test("doing browser back navigates to the previous action", async () => {
 
 test.tags("desktop");
 test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending", async () => {
-    // Regression: while a `clearBreadcrumbs` doAction is parked on `await def`
-    // waiting for its SkeletonView to mount, a newer `clearBreadcrumbs` doAction
-    // fires ACTION_MANAGER:UPDATE and replaces (destroys-before-mount) that
-    // skeleton. Its Deferred is resolved only from the skeleton's onMounted, so
-    // without a supersession guard the superseded doAction promise would hang
-    // forever.
-    //
-    // The newer inline dispatch rejects the parked skeleton's Deferred with
-    // SupersededError, and `_dispatchInline` *contains* that error at its source
-    // (it returns instead of re-throwing — see action_service._dispatchInline).
-    // So the superseded doAction settles by resolving cleanly: no hang, and no
-    // caller-visible rejection that would surface as an unhandled rejection —
-    // which debug=assets (the mode these suites run in) reports as a spurious
-    // error. Supersession stays observable through the UI swap below: the
-    // winning navigation's controller mounts and the parked one never does.
     class ClientActionA extends Component {
         static template = xml`<div class="client-a">A</div>`;
         static props = ["*"];
@@ -1097,9 +1005,6 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     await mountWithCleanup(WebClient);
     const action = getService("action");
 
-    // Client actions have no RPC, so A reaches `await def` in pure microtasks.
-    // Its SkeletonView only mounts on an animation frame — which we deliberately
-    // withhold — so flushing microtasks parks A exactly at the skeleton wait.
     let aSettled = false;
     let aError = null;
     action.doAction("clientA", { clearBreadcrumbs: true }).then(
@@ -1116,21 +1021,13 @@ test("superseded clearBreadcrumbs skeleton wait doesn't leave doAction pending",
     }
     expect(Boolean(action._skeletonDef)).toBe(true);
 
-    // A newer clearBreadcrumbs navigation supersedes the parked skeleton.
     action.doAction("clientB", { clearBreadcrumbs: true });
-    // Bounded wait rather than awaiting A's promise directly: without the guard
-    // defA never settles, so an unbounded await hangs the whole suite and the
-    // runner reports an opaque top-level error instead of naming this test.
-    // Capping it makes the regression surface as the `aSettled` assertion below.
     for (let i = 0; i < 50 && !aSettled; i++) {
         await animationFrame();
     }
-    // Settled gracefully: the superseded dispatch resolves with no
-    // caller-visible error (the SupersededError is contained at its source).
     expect(aSettled).toBe(true);
     expect(aError).toBe(null);
 
-    // The winning navigation still lands normally.
     await animationFrame();
     await animationFrame();
     expect(".client-b").toHaveCount(1);

@@ -11,8 +11,6 @@ import { RainbowMan } from "./rainbow_man.js";
 
 const effectRegistry = registry.category("effects");
 
-// RainbowMan effect
-
 /**
  * Handles effect of type "rainbow_man": returns the RainbowMan component and
  * props to instantiate, or (if effects are disabled) shows a notification.
@@ -50,12 +48,7 @@ function rainbowMan(env, params = {}) {
 }
 effectRegistry.add("rainbow_man", rainbowMan);
 
-// Effects are called as `effect(env, params)`; validating here turns a bad
-// registration into a clear error instead of a downstream `TypeError`.
-// Throws in debug, warns in production (see `registry.js validateSchema`).
 effectRegistry.addValidation((v) => typeof v === "function");
-
-// Effect service
 
 /** Service for triggering visual effects (e.g. rainbow man) via the effects registry. */
 export const effectService = {
@@ -72,9 +65,6 @@ export const effectService = {
         const add = (params = {}) => {
             const type = params.type || "rainbow_man";
             if (!effectRegistry.contains(type)) {
-                // `type` can come from a server effect payload; an unknown type
-                // would make `effectRegistry.get` throw and blow up the caller.
-                // Warn and no-op instead.
                 console.warn(`[effect] unknown effect type "${type}"; ignoring.`);
                 return;
             }

@@ -130,7 +130,6 @@ export class DateTimePickerController {
         this.popoverService = popoverService;
         this.dateTimePickerList = dateTimePickerList;
 
-        // Formerly the closure's shared mutable locals.
         /** @type {boolean[]} */
         this.inputsChanged = [];
         this.destroyed = false;
@@ -145,7 +144,6 @@ export class DateTimePickerController {
         /** @type {OwlRef | null} */
         this.targetRef = null;
 
-        // Formerly the closure-computed helpers (default or caller-provided).
         this.createPopover =
             params.createPopover ||
             /** @type {(...args: any[]) => PopoverHookReturnType} */ (
@@ -205,7 +203,6 @@ export class DateTimePickerController {
      * input with the new value and, when the popover is closed, applies eagerly.
      */
     onPickerPropsUpdated = () => {
-        // Update inputs
         for (const [el, value] of zip(
             this.getInputs(),
             ensureArray(this.pickerProps.value),
@@ -213,12 +210,14 @@ export class DateTimePickerController {
         )) {
             if (el) {
                 this.updateInput(/** @type {HTMLInputElement} */ (el), value);
-                // Apply changes immediately if the popover is already closed.
-                // Otherwise ´apply()´ will be called later on close.
-                if (!this.isOpen()) {
-                    this.apply();
-                }
             }
+        }
+
+        // Applying is a property of the value change, not of any single input:
+        // inside the loop it ran once per input and, when no input is mounted,
+        // never ran at all -- silently dropping the new value.
+        if (!this.isOpen()) {
+            this.apply();
         }
 
         this.shouldFocus = true;
@@ -230,10 +229,6 @@ export class DateTimePickerController {
      */
     onPopoverClose = async () => {
         if (this.destroyed) {
-            // The owner was destroyed (its onWillDestroy ran first and set the
-            // flag). Skip the whole close handler: neither the input sync
-            // (onChange) nor apply (onApply) must run against a gone owner —
-            // same guard usePopover applies via `status()`.
             return;
         }
         this.updateValueFromInputs();
@@ -250,10 +245,6 @@ export class DateTimePickerController {
      */
     apply = async () => {
         if (this.destroyed) {
-            // The owner component has been destroyed. A popover
-            // torn down during that teardown (e.g. by its
-            // target-removal observer, or our own close()) must not
-            // apply against the now-gone component/record.
             return;
         }
         const { value } = this.pickerProps;
@@ -482,14 +473,10 @@ export class DateTimePickerController {
         if (!this.isOpen()) {
             const popoverTarget = this.getPopoverTarget();
             if (!popoverTarget) {
-                // The input left the DOM (e.g. a programmatic open after the
-                // field was removed): nothing to anchor the popover to.
                 return;
             }
             if (this.ensureVisibility()) {
                 const { marginBottom } = popoverTarget.style;
-                // Adds enough space for the popover to be displayed below the target
-                // even on small screens.
                 popoverTarget.style.marginBottom = `100vh`;
                 popoverTarget.scrollIntoView(true);
                 this.restoreTargetMargin = async () => {
@@ -540,7 +527,6 @@ export class DateTimePickerController {
      */
     saveAndClose = () => {
         if (this.isOpen()) {
-            // apply will be done in the "onClose" callback
             this.popover.close();
         } else {
             this.apply();
@@ -598,30 +584,35 @@ export class DateTimePickerController {
             return;
         }
 
-        this.pickerProps.value = value;
-
+        // `value` must be fully normalized BEFORE it reaches the reactive:
+        // assigning it is the only notification that syncs the inputs, and
+        // mutating the (markRaw'd) array afterwards notifies nobody. The
+        // trailing `focusedDateIndex` write cannot be relied on to re-notify
+        // either -- owl's reactive `set` trap skips same-value writes, so
+        // collapsing a range while already focused on index 1 would leave the
+        // start input showing the pre-collapse date. Closing the popover then
+        // parses that stale text back into the value, resurrecting exactly the
+        // inverted range this branch exists to prevent.
+        let nextFocusedDateIndex = this.pickerProps.focusedDateIndex;
         if (this.pickerProps.range && unit !== "time" && source === "picker") {
             if (!value[0]) {
-                this.pickerProps.focusedDateIndex = 0;
+                nextFocusedDateIndex = 0;
             } else if (
                 this.pickerProps.focusedDateIndex === 0 ||
-                (value[0] && value[1] && value[1] < value[0])
+                (value[1] && value[1] < value[0])
             ) {
-                // Selecting the first value, or a second value before the
-                // first: sync the DATE (year/month/day) of all values to
-                // the one just selected.
                 const { year, month, day } = value[this.pickerProps.focusedDateIndex];
                 for (let i = 0; i < value.length; i++) {
                     value[i] = value[i] && value[i].set({ year, month, day });
                 }
-                this.pickerProps.focusedDateIndex = 1;
+                nextFocusedDateIndex = 1;
             } else {
-                // Selecting the second value after the first: toggle
-                // the focus index.
-                this.pickerProps.focusedDateIndex =
-                    this.pickerProps.focusedDateIndex === 1 ? 0 : 1;
+                nextFocusedDateIndex = this.pickerProps.focusedDateIndex === 1 ? 0 : 1;
             }
         }
+
+        this.pickerProps.value = value;
+        this.pickerProps.focusedDateIndex = nextFocusedDateIndex;
 
         this.params.onChange?.(value);
     };
@@ -721,9 +712,6 @@ export const datetimePickerService = {
                 );
 
                 if (params.useOwlHooks) {
-                    // Registered before any onWillDestroy the caller adds, so the
-                    // guard is set when a popover from the same destroy phase runs
-                    // its close handler (OWL runs willDestroy in registration order).
                     onWillDestroy(() => controller.dispose());
 
                     if (typeof params.target === "string") {
@@ -734,8 +722,6 @@ export const datetimePickerService = {
 
                     useEffect(controller.enable, controller.getInputs);
 
-                    // Must be registered after `useEffect`: the effect may change
-                    // input values that this patch callback then selects.
                     onPatched(controller.focusIfNeeded);
                 } else if (typeof params.target === "string") {
                     throw new Error(

@@ -31,9 +31,6 @@ export class CalendarMobileFilterPanel extends Component {
      * @returns {Array} filters sorted by type priority, then alphabetically by label
      */
     getSortedFilters(section) {
-        // Same priority order as the desktop section (the comparator is
-        // shared); the "all" filter type it used to keep last no longer
-        // exists.
         return sortCalendarFilters(section.filters, ["user", "record", "dynamic"]);
     }
 }

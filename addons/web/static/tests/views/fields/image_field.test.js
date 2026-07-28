@@ -95,7 +95,7 @@ test("ImageField is correctly rendered", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'size': [90, 90]}"/>
             </form>
@@ -185,7 +185,7 @@ test("ImageField on a many2one", async () => {
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="parent_id" widget="image" options="{'preview_image': 'document'}"/>
             </form>`,
@@ -202,43 +202,30 @@ test("ImageField on a many2one", async () => {
     );
 });
 
-// desktop-only: changes the m2o value through the inline autocomplete/kanban
-// selector; mobile selects m2o values via a dialog with different DOM.
 test.tags("desktop");
 test("many2one image url is busted with a fresh timestamp when its value changes", async () => {
-    // A many2one image URL targets the RELATED record (partner/<value.id>), so
-    // the parent record's write_date is not a valid cache key for it: when the
-    // linked record changes (or its image is edited via the m2o dialog, which
-    // only refreshes display_name) the parent's write_date has not moved and
-    // the browser would serve a stale image. The field must bust with `now()`.
     Partner._fields.parent_id = fields.Many2one({ relation: "partner" });
     Partner._records[1].parent_id = 1;
-    Partner._records[1].write_date = "2017-02-01 10:00:00"; // 1485943200000
+    Partner._records[1].write_date = "2017-02-01 10:00:00";
 
     mockDate("2017-02-06 10:00:00");
 
-    // parent_id is shown twice: once as the plain m2o selector (to change the
-    // value) and once as the image widget (the field under test).
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="parent_id"/>
                 <field name="parent_id" widget="image" options="{'preview_image': 'document'}"/>
             </form>`,
     });
 
-    // Initial render: parent's write_date is fine because the value hasn't
-    // changed yet.
     expect('.o_field_image[name="parent_id"] img').toHaveAttribute(
         "data-src",
         `${getOrigin()}/web/image/partner/1/document?unique=1485943200000`,
     );
 
-    // Point the m2o at a different record: the value changes but the parent's
-    // write_date does not. The cache key must jump to a fresh `now()`.
     mockDate("2017-02-09 10:00:00");
     await contains(".o_field_many2one[name='parent_id'] input").edit("aaa", {
         confirm: false,
@@ -318,7 +305,7 @@ test("url should not use the record last updated date when the field is related"
 
 test("url should use the record last updated date when the field is related on the same model", async () => {
     Partner._fields.related = fields.Binary({ related: "document" });
-    Partner._records[0].write_date = "2017-02-04 10:00:00"; // 1486202400000
+    Partner._records[0].write_date = "2017-02-04 10:00:00";
     Partner._records[0].document = "3 kb";
 
     await mountView({
@@ -343,7 +330,7 @@ test("ImageField is correctly replaced when given an incorrect value", async () 
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'size': [90, 90]}"/>
             </form>
@@ -358,8 +345,6 @@ test("ImageField is correctly replaced when given an incorrect value", async () 
         },
     );
 
-    // GET requests can't occur in tests, so manually fire an error on the
-    // img element to verify data-src falls back to the placeholder.
     manuallyDispatchProgrammaticEvent(queryFirst('div[name="document"] img'), "error");
     await animationFrame();
 
@@ -402,7 +387,7 @@ test("ImageField preview is updated when an image is uploaded", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'size': [90, 90]}"/>
             </form>
@@ -414,11 +399,8 @@ test("ImageField preview is updated when an image is uploaded", async () => {
         "data:image/png;base64,coucou==",
         { message: "the image should have the initial src" },
     );
-    // Whitebox: swap the event target before the field handles it, since
-    // it reads files from event.target rather than the input element.
     await click(".o_select_file_button");
     await setInputFiles(imageFile);
-    // It can take some time to encode the data as a base64 url
     await waitFor(
         `div[name=document] img[data-src="data:image/png;base64,${MY_IMAGE}"]`,
     );
@@ -429,9 +411,8 @@ test("clicking save manually after uploading new image should change the unique 
 
     const rec = Partner._records.find((rec) => rec.id === 1);
     rec.document = "3 kb";
-    rec.write_date = "2022-08-05 08:37:00"; // 1659688620000
+    rec.write_date = "2022-08-05 08:37:00";
 
-    // 1659692220000, 1659695820000
     const lastUpdates = ["2022-08-05 09:37:00", "2022-08-05 10:37:00"];
     let index = 0;
 
@@ -444,7 +425,7 @@ test("clicking save manually after uploading new image should change the unique 
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo"/>
                 <field name="document" widget="image" />
@@ -477,7 +458,6 @@ test("clicking save manually after uploading new image should change the unique 
     await clickSave();
     expect(getUnique(queryFirst(".o_field_image img"))).toBe("1659692220000");
 
-    // Change the image again. After clicking save, it should have the correct new url.
     await click("input[type=file]", { visible: false });
     await setFiles(
         new File(
@@ -501,9 +481,8 @@ test("save record with image field modified by onchange", async () => {
     };
     const rec = Partner._records.find((rec) => rec.id === 1);
     rec.document = "3 kb";
-    rec.write_date = "2022-08-05 08:37:00"; // 1659688620000
+    rec.write_date = "2022-08-05 08:37:00";
 
-    // 1659692220000
     const lastUpdates = ["2022-08-05 09:37:00"];
     let index = 0;
 
@@ -516,7 +495,7 @@ test("save record with image field modified by onchange", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo"/>
                 <field name="document" widget="image" />
@@ -541,13 +520,12 @@ test("ImageField: option accepted_file_extensions", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'accepted_file_extensions': '.png,.jpeg'}" />
             </form>
         `,
     });
-    // The view must be in edit mode
     expect("input.o_input_file").toHaveAttribute(
         "accept",
         ".png,.jpeg,dummy/allowAndroidCamera",
@@ -562,7 +540,7 @@ test("ImageField: set 0 width/height in the size option", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'size': [0, 0]}" />
                 <field name="document" widget="image" options="{'size': [0, 50]}" />
@@ -620,13 +598,12 @@ test("ImageField: zoom and zoom_delay options (readonly)", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'zoom': true, 'zoom_delay': 600}" readonly="1" />
             </form>
         `,
     });
-    // data-tooltip attribute is used by the tooltip service
     expect(".o_field_image img").toHaveAttribute(
         "data-tooltip-info",
         `{"url":"data:image/png;base64,${MY_IMAGE}"}`,
@@ -645,7 +622,7 @@ test("ImageField: zoom and zoom_delay options (edit)", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'zoom': true, 'zoom_delay': 600}" />
             </form>
@@ -670,7 +647,7 @@ test("ImageField displays the right images with zoom and preview_image options (
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'zoom': true, 'preview_image': 'document_preview', 'zoom_delay': 600}" readonly="1" />
             </form>
@@ -697,7 +674,7 @@ test("ImageField in subviews is loaded correctly", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'size': [90, 90]}" />
                 <field name="timmy" widget="many2many" mode="kanban">
@@ -721,7 +698,6 @@ test("ImageField in subviews is loaded correctly", async () => {
         ".o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new)",
     ).toHaveCount(1);
 
-    // Actual flow: click on an element of the m2m to get its form view
     await click(".o_kanban_record:not(.o_kanban_ghost):not(.o-kanban-button-new)");
     await animationFrame();
     expect(".modal").toHaveCount(1, { message: "The modal should have opened" });
@@ -738,7 +714,7 @@ test("ImageField in x2many list is loaded correctly", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="timmy" widget="many2many">
                     <list>
@@ -764,7 +740,7 @@ test("ImageField with required attribute", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" required="1" />
             </form>
@@ -786,7 +762,7 @@ test("ImageField is reset when changing record", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" options="{'size': [90, 90]}"/>
             </form>
@@ -838,14 +814,14 @@ test("unique in url doesn't change on onchange", async () => {
     onRpc(({ method, args }) => {
         expect.step(method);
         if (method === "web_save") {
-            args[1].write_date = "2022-08-05 09:37:00"; // 1659692220000
+            args[1].write_date = "2022-08-05 09:37:00";
         }
     });
     await mountView({
         resId: 1,
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="foo" />
                 <field name="document" widget="image" required="1" />
@@ -857,21 +833,17 @@ test("unique in url doesn't change on onchange", async () => {
     expect(getUnique(queryFirst(".o_field_image img"))).toBe("1659688620000");
 
     expect.verifySteps([]);
-    // same unique as before
     expect(getUnique(queryFirst(".o_field_image img"))).toBe("1659688620000");
 
     await click(".o_field_widget[name='foo'] input");
     await edit("grrr", { confirm: "enter" });
     await animationFrame();
     expect.verifySteps(["onchange"]);
-    // also same unique
     expect(getUnique(queryFirst(".o_field_image img"))).toBe("1659688620000");
 
     await clickSave();
     expect.verifySteps(["web_save"]);
 
-    // saving without touching the image must not bust its URL: the unique
-    // key follows the image value, not the record's write_date
     expect(getUnique(queryFirst(".o_field_image img"))).toBe("1659688620000");
 });
 
@@ -889,7 +861,7 @@ test("unique in url change on record change", async () => {
         resId: 1,
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" required="1" />
             </form>
@@ -911,7 +883,7 @@ test("unique in url does not change on record change if reload option is set to 
         resId: 1,
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" required="1" options="{'reload': false}" />
                 <field name="write_date" readonly="0"/>
@@ -928,13 +900,11 @@ test("unique in url does not change on record change if reload option is set to 
 
 test("convert image to webp", async () => {
     onRpc("ir.attachment", "create_unique", ({ args }) => {
-        // Called twice: once storing webp, once storing jpeg.
         if (!args[0][0].res_id) {
             expect(args[0][0].datas).not.toBe(imageData);
             expect(args[0][0].mimetype).toBe("image/webp");
             return [1];
         }
-        // Second call: jpeg.
         expect(args[0][0].datas).not.toBe(imageData);
         expect(args[0][0].mimetype).toBe("image/jpeg");
         return true;
@@ -944,7 +914,7 @@ test("convert image to webp", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="document" widget="image" required="1" options="{'convert_to_webp': True}" />
             </form>
@@ -968,7 +938,7 @@ test("ImageField with width attribute in list", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="document" widget="image" width="30"/>
                 <field name="foo"/>

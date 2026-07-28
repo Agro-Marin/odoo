@@ -16,10 +16,6 @@ import { CONFIG_KEYS, CONFIG_SCHEMA, FILTER_KEYS, FILTER_SCHEMA } from "./config
  * @typedef {typeof import("./config").DEFAULT_FILTERS} DEFAULT_FILTERS
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     history,
     location,
@@ -29,10 +25,6 @@ const {
     URL,
     URLSearchParams,
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 const debouncedUpdateUrl = debounce(function updateUrl() {
     const url = createUrl({});
@@ -51,10 +43,6 @@ const debouncedUpdateUrl = debounce(function updateUrl() {
     const path = url.toString();
     history.replaceState({ path }, "", path);
 }, 20);
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * @param {Partial<DEFAULT_CONFIG & DEFAULT_FILTERS>} params
@@ -175,8 +163,6 @@ export const EXCLUDE_PREFIX = "-";
 
 /** @type {Partial<DEFAULT_CONFIG & DEFAULT_FILTERS>} */
 export const urlParams = reactive({});
-
-// Update URL params immediatly
 
 const searchParams = new URLSearchParams(location.search);
 const searchKeys = new Set(searchParams.keys());

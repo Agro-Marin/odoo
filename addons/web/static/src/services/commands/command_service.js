@@ -43,25 +43,18 @@ const commandCategoryRegistry = registry.category("command_categories");
 const commandProviderRegistry = registry.category("command_provider");
 const commandSetupRegistry = registry.category("command_setup");
 
-// Each provider exposes `provide(env, options?)` which returns an array of
-// commands; `namespace` (default "default") routes the provider to a palette.
 commandProviderRegistry.addValidation({
     provide: Function,
     namespace: { type: String, optional: true },
     "*": true,
 });
 
-// Categories group commands inside a palette. Most entries are empty objects
-// used purely as ordering anchors via the registry's `sequence` option.
-// `namespace` opts a category into a non-default palette ("/", "?", "@").
 commandCategoryRegistry.addValidation({
     namespace: { type: String, optional: true },
     name: { type: [String, Object], optional: true },
     "*": true,
 });
 
-// Per-namespace palette configuration (placeholder text, debounce, footer).
-// All fields are optional: a missing entry just falls back to defaults.
 commandSetupRegistry.addValidation({
     debounceDelay: { type: Number, optional: true },
     emptyMessage: { type: [String, Object], optional: true },
@@ -102,7 +95,11 @@ export const commandService = {
         let currentOnClose;
         const bus = new EventBus();
 
-        hotkeyService.add("control+k", openMainPalette, {
+        // NOT `openMainPalette` directly: a hotkey callback is invoked with
+        // `{ area, target }`, which would land in `openMainPalette`'s `config`
+        // parameter and get merged into the palette config — polluting it and
+        // retaining a DOM node for the palette's lifetime.
+        hotkeyService.add("control+k", () => openMainPalette(), {
             bypassEditableProtection: true,
             global: true,
         });
@@ -168,10 +165,6 @@ export const commandService = {
          */
         function openPalette(config, onClose) {
             if (isPaletteOpened) {
-                // Reconfiguring an open palette composes the new caller's
-                // onClose with the previous one — both cleanups (focus
-                // restore, input reset) must run when the palette closes,
-                // whichever caller registered them.
                 if (onClose) {
                     const previousOnClose = currentOnClose;
                     currentOnClose = () => {
@@ -197,9 +190,6 @@ export const commandService = {
                 {
                     onClose: () => {
                         isPaletteOpened = false;
-                        // Snapshot and clear before invoking: a callback that
-                        // reopens a palette must not inherit (or grow) the
-                        // closing palette's onClose chain.
                         const onCloseCallback = currentOnClose;
                         currentOnClose = undefined;
                         onCloseCallback?.();
@@ -259,8 +249,6 @@ export const commandService = {
             const token = nextToken++;
             registeredCommands.set(token, registration);
             if (!(/** @type {any} */ (options).activeElement)) {
-                // Owl mounts elements bottom-to-top, so wait a microtask tick before
-                // setting the subscription's active element.
                 queueMicrotask(() => {
                     registration.activeElement = ui.activeElement;
                 });
@@ -304,10 +292,6 @@ export const commandService = {
                     (command) =>
                         command.activeElement === activeElement || command.global,
                 );
-                // Disambiguate same-name commands carrying distinct
-                // ``identifier``s (e.g. two "Assign to me" fields on one
-                // view) at read time: registrations are never renamed, so
-                // names heal when one of the clashing commands unregisters.
                 const byName = new Map();
                 for (const command of commands) {
                     if (command.identifier) {

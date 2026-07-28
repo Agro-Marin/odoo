@@ -99,15 +99,11 @@ export class X2ManyField extends Component {
             getEvalParams: (props) => ({
                 evalContext: props.record.evalContext,
                 readonly: props.readonly,
-                // Re-derived per-props so a post-mount edition-state change
-                // (dialog switchMode, readonly<->edit) updates the flag.
                 edit: props.record.isInEdition,
             }),
         });
 
         this.addInLine = useAddInlineRecord({
-            // Single params object (not ...args): needed for type-checking
-            // against StaticList.addNewRecord's single-argument signature.
             addNew: (params) => this.list.addNewRecord(params),
         });
 
@@ -128,9 +124,6 @@ export class X2ManyField extends Component {
                 ...params,
                 controls: this.controls,
                 onClose: () => {
-                    // Only restore if the captured node is still in the DOM: the
-                    // list can re-render on save, detaching it — focusing a
-                    // detached node silently drops focus to <body>.
                     if (activeElement?.isConnected) {
                         /** @type {HTMLElement} */ (activeElement).focus();
                     }
@@ -223,10 +216,6 @@ export class X2ManyField extends Component {
                         initialLimit === limit &&
                         initialLimit === this.list.limit + 1
                     ) {
-                        // Unselecting the edited record may have abandoned it. If the page
-                        // size was reached before it was created, the limit was temporarily
-                        // bumped to keep it on the current page; abandoning it reverts the
-                        // limit, so account for that in this offset/limit update.
                         offset -= 1;
                         limit -= 1;
                     }
@@ -266,11 +255,6 @@ export class X2ManyField extends Component {
      * @returns {typeof import("@odoo/owl").Component | undefined}
      */
     get kanbanRenderer() {
-        // ``this.constructor`` is typed ``Function`` by TS (it cannot know the
-        // instance's own class), which hides the static side entirely. Assert
-        // the declaring class rather than ``any``: this keeps ``components``
-        // checked against the static getter declared above, and subclass
-        // overrides still resolve at runtime through the prototype chain.
         const ctor = /** @type {typeof X2ManyField} */ (this.constructor);
         return (
             ctor.components.KanbanRenderer ??
@@ -292,7 +276,6 @@ export class X2ManyField extends Component {
             const recordsDraggable = !this.props.readonly && archInfo.recordsDraggable;
             props.archInfo = { ...archInfo, recordsDraggable };
             props.Compiler = views.get("kanban").Compiler;
-            // TODO: apply same logic in the list case
             props.deleteRecord = (record) => {
                 if (this.isMany2Many) {
                     return this.list.forget(record);
@@ -339,24 +322,16 @@ export class X2ManyField extends Component {
     async switchToForm(record, options) {
         let resId;
         if (record.isNew) {
-            // New records have no resId until saved. Snapshot the create-order
-            // reconciliation data BEFORE the save clears the CREATE commands,
-            // then ask the model (which owns the command log) to map the
-            // virtualId back to the assigned resId.
             const reconciliation = this.list.snapshotCreateReconciliation();
             const saved = await this.props.record.save();
             if (!saved) {
                 return;
             }
-            // Fast path: if the save reconciled this record object in place
-            // (its resId is now populated), trust it directly.
             if (record.resId) {
                 resId = record.resId;
             } else {
                 resId = this.list.resolveCreatedResId(reconciliation, record);
                 if (resId === undefined) {
-                    // Ambiguous mapping (row count mismatch): ask the user to
-                    // save rather than opening the wrong record.
                     return this.notificationService.add(
                         _t("Please save your changes first"),
                         {
@@ -411,12 +386,6 @@ export class X2ManyField extends Component {
             if (editedRecord) {
                 const proms = [];
                 this.list.model.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
-                // Flush in-flight input-field commits collected via
-                // NEED_LOCAL_CHANGES before leaving edit mode. (A former
-                // ``editedRecord._updatePromise`` entry here was dead — that
-                // property exists nowhere, so ``Promise.all`` awaited
-                // ``undefined``; ordering for non-input updates is guaranteed by
-                // ``leaveEditMode`` re-taking ``model.mutex``.)
                 await Promise.all(proms);
                 await this.list.leaveEditMode({ canAbandon: false });
             }

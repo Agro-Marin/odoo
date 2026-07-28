@@ -24,7 +24,6 @@ class Session(http.Controller):
         readonly=True,
     )
     def get_session_info(self) -> dict[str, Any]:
-        # Crappy workaround for unupdatable Odoo Mobile App iOS (Thanks Apple :@)
         request.session.touch()
         return request.env["ir.http"].session_info()
 
@@ -44,8 +43,6 @@ class Session(http.Controller):
 
         with ExitStack() as stack:
             if not request.db or request.db != db:
-                # Build a new env only when no db is set on the request (env wasn't
-                # populated via `_serve_db`) or it differs from the requested db.
                 cr = stack.enter_context(odoo.modules.registry.Registry(db).cursor())
                 env = odoo.api.Environment(cr, None, {})
             else:
@@ -58,8 +55,6 @@ class Session(http.Controller):
             }
             auth_info = request.session.authenticate(env, credential)
             if auth_info["uid"] != request.session.uid:
-                # Crappy workaround for unupdatable Odoo Mobile App iOS (Thanks Apple :@) and Android
-                # Correct behavior should be to raise AccessError("Renewing an expired session for user that has multi-factor-authentication is not supported. Please use /web/login instead.")
                 return {"uid": None}
 
             request.session.db = db
@@ -72,9 +67,6 @@ class Session(http.Controller):
         try:
             return http.dispatch_rpc("db", "list_lang", []) or []
         except Exception:
-            # auth="none": do not echo the raw exception text (which can carry
-            # DB/config internals) back to an unauthenticated caller — log it
-            # server-side and return a generic message.
             _logger.exception("Failed to fetch language list")
             return {
                 "error": _("Could not fetch the language list."),
@@ -83,12 +75,11 @@ class Session(http.Controller):
 
     @http.route("/web/session/modules", type="jsonrpc", auth="user", readonly=True)
     def modules(self) -> list[str]:
-        # The web client de-duplicates, so listing already-loaded modules is harmless.
         return list(request.env.registry._init_modules)
 
     @http.route("/web/session/check", type="jsonrpc", auth="user", readonly=True)
     def check(self) -> None:
-        return  # ir.http._authenticate already validated the session for this auth="user" route
+        return
 
     @http.route("/web/session/account", type="jsonrpc", auth="user", readonly=True)
     def account(self) -> str:

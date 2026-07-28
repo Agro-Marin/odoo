@@ -15,13 +15,11 @@
  * code for discoverability and refactoring safety.
  */
 export const AppEvent = Object.freeze({
-    // ── Lifecycle ───────────────────────────────────────────────────────────
     /** All services loaded and env is ready. Fired once at startup. */
     SERVICES_LOADED: "SERVICES-LOADED",
     /** WebClient component is mounted and ready. Fired once. */
     WEB_CLIENT_READY: "WEB_CLIENT_READY",
 
-    // ── Action Manager ──────────────────────────────────────────────────────
     /** Action manager updated its current controller. */
     ACTION_MANAGER_UPDATE: "ACTION_MANAGER:UPDATE",
     /** Action manager finished UI rendering after an update. */
@@ -31,7 +29,6 @@ export const AppEvent = Object.freeze({
     /** Request all controllers to save/discard unsaved changes. */
     CLEAR_UNCOMMITTED_CHANGES: "CLEAR-UNCOMMITTED-CHANGES",
 
-    // ── Menu ────────────────────────────────────────────────────────────────
     /** Current app changed in the menu service. */
     MENUS_APP_CHANGED: "MENUS:APP-CHANGED",
     /** Home-menu visibility toggled. Emitted by the enterprise
@@ -41,7 +38,6 @@ export const AppEvent = Object.freeze({
      *  without taking a hard dep on enterprise. */
     HOME_MENU_TOGGLED: "HOME-MENU:TOGGLED",
 
-    // ── UI ──────────────────────────────────────────────────────────────────
     /** Block the UI (show loading overlay). */
     BLOCK: "BLOCK",
     /** Unblock the UI. */

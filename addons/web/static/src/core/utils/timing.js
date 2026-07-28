@@ -8,32 +8,54 @@ import { browser } from "@web/core/browser/browser";
 
 /**
  * Creates a batched version of a callback so that all calls to it in the same
- * time frame will only call the original callback once.
- * @param {Function} callback the callback to batch
+ * time frame will only call the original callback once, with the LAST
+ * arguments received.
+ *
+ * Every caller in a batch gets a promise settling with the callback's outcome,
+ * not just the one that happened to open the batch. The naive shape (an
+ * ``async`` wrapper whose body is skipped when a batch is already scheduled)
+ * hands the later callers an already-resolved promise, so ``await batched(fn)()``
+ * returns BEFORE ``fn`` has run — invisible under the default microtask
+ * granularity, plainly wrong under an animation-frame one (``useRecordObserver``).
+ * The callback's own async completion is awaited too, so the promise means
+ * "the batch has run", which is what its type says.
+ *
+ * @template {(...args: any[]) => any} T
+ * @param {T} callback the callback to batch
  * @param {() => Promise<void>} [synchronize] this function decides the granularity of the batch (a microtick by default)
- * @returns {(...args: any[]) => Promise<void>} a batched version of the original callback
+ * @returns {(...args: Parameters<T>) => Promise<Awaited<ReturnType<T>>>} a batched version of the original callback
  */
 export function batched(callback, synchronize = () => Promise.resolve()) {
     let scheduled = false;
+    /** @type {any[]} */
     let lastArgs;
-    return async (...args) => {
+    /** @type {{ resolve: (value: any) => void, reject: (reason?: any) => void }[]} */
+    let awaiters = [];
+    return (/** @type {any[]} */ ...args) => {
         lastArgs = args;
+        const { promise, resolve, reject } = Promise.withResolvers();
+        awaiters.push({ resolve, reject });
         if (!scheduled) {
             scheduled = true;
-            await synchronize();
-            scheduled = false;
-            try {
-                callback(...lastArgs);
-            } catch (error) {
-                // Nearly every caller invokes the batched function
-                // fire-and-forget, so a throwing callback would only surface
-                // as an unhandledrejection whose stack points at the
-                // microtask. Mirror it to the console (with the callback's
-                // real stack) and keep the rejection for callers that await.
-                console.error(error);
-                throw error;
-            }
+            (async () => {
+                await synchronize();
+                scheduled = false;
+                const settlers = awaiters;
+                awaiters = [];
+                try {
+                    const result = await callback(...lastArgs);
+                    for (const settler of settlers) {
+                        settler.resolve(result);
+                    }
+                } catch (error) {
+                    console.error(error);
+                    for (const settler of settlers) {
+                        settler.reject(error);
+                    }
+                }
+            })();
         }
+        return /** @type {any} */ (promise);
     };
 }
 
@@ -77,13 +99,9 @@ export function debounce(func, delay, options) {
 
     /** @type {any} */
     let lastSelf;
-    // Deferreds of calls not run on the leading edge; the trailing execution
-    // settles them all, so a thrown/rejected func propagates to every awaiter
-    // (so `await debounced()` and `.catch()` work) instead of hanging forever.
     /** @type {{ resolve: Function, reject: Function }[]} */
     let pending = [];
 
-    // Run `func`, then settle the given awaiters with its result (or error).
     /**
      * @param {any} self
      * @param {any[]} args
@@ -120,10 +138,8 @@ export function debounce(func, delay, options) {
                 lastSelf = this;
                 return new Promise((resolve, reject) => {
                     if (leading && !handle) {
-                        // Leading edge: run now and settle only this call.
                         execute(this, args, [{ resolve, reject }]);
                     } else {
-                        // Defer to the trailing execution, queued with the others.
                         pending.push({ resolve, reject });
                         lastArgs = args;
                     }
@@ -136,10 +152,6 @@ export function debounce(func, delay, options) {
                             execute(lastSelf, lastArgs, awaiters);
                             lastArgs = null;
                         } else {
-                            // Leading-only mode: calls queued while the timer was
-                            // armed will never run. Settle them with `undefined`
-                            // (same semantics as cancel()) and drop the stale args
-                            // so cancel(true) can't replay them later.
                             const awaiters = pending;
                             pending = [];
                             lastArgs = null;
@@ -155,16 +167,11 @@ export function debounce(func, delay, options) {
             cancel(execNow = false) {
                 browser[clearFnName](handle);
                 handle = null;
-                // Only replay on cancel when a trailing execution was actually
-                // pending. In leading-only mode the trailing edge never runs,
-                // so cancel(true) must NOT resurrect the suppressed call.
                 if (execNow && trailing && lastArgs) {
                     const awaiters = pending;
                     pending = [];
                     execute(lastSelf, lastArgs, awaiters);
                 } else if (pending.length) {
-                    // Release awaiters that will now never run so a caller that
-                    // `await`s the debounced fn (e.g. on willUnmount) doesn't hang.
                     const awaiters = pending;
                     pending = [];
                     for (const { resolve } of awaiters) {
@@ -189,10 +196,6 @@ export function setRecurringAnimationFrame(callback) {
     const handler = (/** @type {number} */ timestamp) => {
         callback(timestamp - lastTimestamp);
         lastTimestamp = timestamp;
-        // `callback` may call `stop()` to terminate the loop (the natural
-        // self-terminating idiom). Re-scheduling unconditionally would cancel
-        // an already-fired handle and keep the loop — and its retained
-        // closure — alive for the page lifetime.
         if (!stopped) {
             handle = browser.requestAnimationFrame(handler);
         }
@@ -225,8 +228,6 @@ export function setRecurringAnimationFrame(callback) {
 export function throttleForAnimation(func) {
     /** @type {any} */
     let handle = null;
-    // Only the last pending call matters — use a single variable instead of
-    // a Set + spread-to-array which allocated on every animation frame tick.
     /** @type {{ args: any[], resolve: (value: any) => any, reject: (reason?: any) => any } | null} */
     let lastCall = null;
     const funcName = func.name
@@ -239,10 +240,6 @@ export function throttleForAnimation(func) {
             handle = browser.requestAnimationFrame(pending);
             const { args, resolve, reject } = lastCall;
             lastCall = null;
-            // Propagate rejections (and synchronous throws) to the awaiter,
-            // mirroring debounce. A bare `.then(resolve)` swallowed the error:
-            // the awaiter hung forever and the rejection surfaced only as an
-            // unhandledrejection.
             try {
                 Promise.resolve(func.apply(self, args)).then(resolve, reject);
             } catch (error) {
@@ -271,9 +268,6 @@ export function throttleForAnimation(func) {
                         }
                     } else {
                         if (lastCall) {
-                            // Settle the superseded call with `undefined` (same
-                            // contract as cancel() and debounce's superseded
-                            // awaiters) — else `await throttled(...)` hangs forever.
                             lastCall.resolve(undefined);
                         }
                         lastCall = { args, resolve, reject };
@@ -285,8 +279,6 @@ export function throttleForAnimation(func) {
             cancel() {
                 browser.cancelAnimationFrame(handle);
                 if (lastCall) {
-                    // Settle the dropped call with `undefined` (same contract as
-                    // debounce().cancel()) so an awaiter doesn't hang forever.
                     lastCall.resolve(undefined);
                     lastCall = null;
                 }
@@ -295,8 +287,6 @@ export function throttleForAnimation(func) {
         },
     );
 }
-
-// ----------------------------------- HOOKS -----------------------------------
 
 /**
  * Hook that returns a debounced version of the given function, and cancels

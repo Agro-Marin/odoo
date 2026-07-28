@@ -10,10 +10,9 @@ import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
 
+import { SWIPE_RIGHT, SwipeTracker } from "../swipe.js";
 import { BurgerUserMenu } from "./burger_user_menu/burger_user_menu.js";
 import { MobileSwitchCompanyMenu } from "./mobile_switch_company_menu/mobile_switch_company_menu.js";
-
-const SWIPE_ACTIVATION_THRESHOLD = 100;
 
 export class BurgerMenu extends Component {
     static template = "web.BurgerMenu";
@@ -29,7 +28,7 @@ export class BurgerMenu extends Component {
         this.state = useState({
             isBurgerOpened: false,
         });
-        this.swipeStartX = null;
+        this.swipe = new SwipeTracker(SWIPE_RIGHT);
         useBus(this.env.bus, AppEvent.HOME_MENU_TOGGLED, () => {
             this._closeBurger();
         });
@@ -52,21 +51,12 @@ export class BurgerMenu extends Component {
         this.state.isBurgerOpened = true;
     }
     _onSwipeStart(ev) {
-        this.swipeStartX = ev.changedTouches[0].clientX;
+        this.swipe.start(ev);
     }
     _onSwipeEnd(ev) {
-        if (!this.swipeStartX) {
-            return;
+        if (this.swipe.end(ev)) {
+            this._closeBurger();
         }
-        const deltaX = ev.changedTouches[0].clientX - this.swipeStartX;
-        // Disarm on every touchend, not just an activating one: a below-
-        // threshold gesture used to leave the start point armed, so a later
-        // touchend with no matching touchstart measured against a stale origin.
-        this.swipeStartX = null;
-        if (deltaX < SWIPE_ACTIVATION_THRESHOLD) {
-            return;
-        }
-        this._closeBurger();
     }
 }
 

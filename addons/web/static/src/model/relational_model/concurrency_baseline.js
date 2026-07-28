@@ -51,21 +51,12 @@ export function buildConcurrencyBaseline(record, fieldNames) {
         if (
             !field?.type ||
             NON_COMPARABLE_TYPES.has(field.type) ||
-            // jsonb-backed columns: the server-side raw read returns a
-            // per-lang / per-company dict, never comparable to the scalar the
-            // client read — the server skips them, so don't send them.
             field.translate ||
             field.company_dependent
         ) {
             continue;
         }
         const value = record._values[fieldName];
-        // A selection with a genuine integer-0 option is ambiguous: the
-        // deserializer maps BOTH server `false` (unset → DB NULL) and server
-        // `0` (the 0-option) to client `0`, and the server coerces NULL to ""
-        // but 0 to "0". Sending `0` as the baseline for an originally-unset
-        // field would raise a spurious conflict on every save. Skip it — the
-        // server fails open (no baseline = no check).
         if (
             field.type === "selection" &&
             value === 0 &&

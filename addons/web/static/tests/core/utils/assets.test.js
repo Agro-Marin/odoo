@@ -47,7 +47,6 @@ test("loadJS: load invalid JS lib", async () => {
         expect(node).toHaveAttribute("type", "text/javascript");
         expect(node).toHaveAttribute("src", "/some/invalid/file.js");
 
-        // Simulates a failed request to an invalid file.
         manuallyDispatchProgrammaticEvent(node, "error");
     });
 
@@ -58,9 +57,6 @@ test("loadJS: load invalid JS lib", async () => {
 });
 
 test("loadJS: inserted scripts opt out of async execution", async () => {
-    // Dynamically-inserted scripts default to async=true (completion-order
-    // execution); multi-file classic bundles rely on insertion order (e.g.
-    // web.ace_lib mode files must execute after ace.js).
     expect.assertions(1);
 
     mockHeadAppendChild((node) => {
@@ -76,7 +72,7 @@ test("loadJS: inserted scripts opt out of async execution", async () => {
 test("loadCSS: load invalid CSS lib", async () => {
     expect.assertions(4 * 4 + 1);
 
-    assets.retries = { count: 3, delay: 1, extraDelay: 1 }; // Fail fast.
+    assets.retries = { count: 3, delay: 1, extraDelay: 1 };
 
     mockHeadAppendChild((node) => {
         expect(node).toBeInstanceOf(HTMLLinkElement);
@@ -84,7 +80,6 @@ test("loadCSS: load invalid CSS lib", async () => {
         expect(node).toHaveAttribute("type", "text/css");
         expect(node).toHaveAttribute("href", "/some/invalid/file.css");
 
-        // Simulates a failed request to an invalid file.
         manuallyDispatchProgrammaticEvent(node, "error");
     });
 
@@ -95,36 +90,24 @@ test("loadCSS: load invalid CSS lib", async () => {
 });
 
 test("loadCSS: concurrent loads of the same url share one link + retry chain", async () => {
-    // Fail every attempt so the chain exhausts its retries; a short delay keeps
-    // the test fast while still exercising the backoff window that used to let
-    // a concurrent caller start an independent parallel load+retry chain.
     patchWithCleanup(assets, {
         retries: { count: 3, delay: 1, extraDelay: 1 },
     });
     let appended = 0;
     mockHeadAppendChild((node) => {
         appended++;
-        // Simulate a failed request on each injected <link>.
         manuallyDispatchProgrammaticEvent(node, "error");
     });
 
     const first = loadCSS("/dedupe/file.css");
-    // The first attempt has already errored and scheduled its retry (the buggy
-    // version deleted the cache entry at this point, so this second call would
-    // miss the cache and fork a second chain).
     const second = loadCSS("/dedupe/file.css");
     expect(second).toBe(first);
 
     await expect(first).rejects.toThrow(/The loading of \/dedupe\/file.css failed/);
-    // A single chain = initial attempt + 3 retries = 4 links, not 8.
     expect(appended).toBe(4);
 });
 
 test("loadCSS: content-addressed bundle URLs fail fast without retries", async () => {
-    // A /web/assets/ stylesheet URL is content-addressed: re-requesting the
-    // same URL after a 404 (attachment GC-swept) can never succeed, so the
-    // retry chain must be skipped — recovery is the loader shim's one-shot
-    // page reload (handleAssetLoadError), which mints fresh URLs.
     patchWithCleanup(assets, {
         retries: { count: 3, delay: 1, extraDelay: 1 },
     });
@@ -245,17 +228,19 @@ test("loadBundle: load same bundle in main document and an iframe", async () => 
         "add document SCRIPT - text/javascript - file2.js",
     ]);
 
-    loadBundle("test.bundle", { targetDoc: iframeDocument });
+    const iframeLoad = loadBundle("test.bundle", { targetDoc: iframeDocument });
     await animationFrame();
     expect.verifySteps([
-        // no fetching as the bundle is cached globally
         "add iframe document LINK - text/css - file1.css",
         "add iframe document LINK - text/css - file2.css",
         "add iframe document SCRIPT - text/javascript - file1.js",
         "add iframe document SCRIPT - text/javascript - file2.js",
     ]);
 
+    // head.appendChild is stubbed, so the load can never complete; destroying
+    // the iframe settles it (see onLoadAndError) instead of hanging forever.
     iframe.remove();
+    await expect(iframeLoad).rejects.toThrow(/was interrupted: the page was hidden/);
 });
 
 test("loadBundle: load same bundles in 2 iframes", async () => {
@@ -298,7 +283,7 @@ test("loadBundle: load same bundles in 2 iframes", async () => {
         },
     });
 
-    loadBundle("test.bundle", { targetDoc: iframeDocumentFirst });
+    const firstLoad = loadBundle("test.bundle", { targetDoc: iframeDocumentFirst });
     await animationFrame();
     expect.verifySteps([
         "fetch bundle: /web/bundle/test.bundle",
@@ -308,7 +293,7 @@ test("loadBundle: load same bundles in 2 iframes", async () => {
         "add iframe document SCRIPT - text/javascript - file2.js",
     ]);
 
-    loadBundle("test.bundle", { targetDoc: iframeDocumentSecond });
+    const secondLoad = loadBundle("test.bundle", { targetDoc: iframeDocumentSecond });
     await animationFrame();
     expect.verifySteps([
         "add iframe document LINK - text/css - file1.css",
@@ -317,8 +302,14 @@ test("loadBundle: load same bundles in 2 iframes", async () => {
         "add iframe document SCRIPT - text/javascript - file2.js",
     ]);
 
+    // head.appendChild is stubbed above, so neither load can ever complete.
+    // Tearing the iframes down must SETTLE them: the interrupt guard watches
+    // the window the asset element lives in, so a destroyed iframe rejects its
+    // pending loads instead of leaving the parent's await hanging forever.
     iframeFirst.remove();
     iframeSecond.remove();
+    await expect(firstLoad).rejects.toThrow(/was interrupted: the page was hidden/);
+    await expect(secondLoad).rejects.toThrow(/was interrupted: the page was hidden/);
 });
 
 test("getBundle: non-ok JSON response rejects and is not cached", async () => {
@@ -326,7 +317,6 @@ test("getBundle: non-ok JSON response rejects and is not cached", async () => {
     mockFetch((route) => {
         expect.step(`fetch bundle: ${route.pathname}`);
         if (failRequests) {
-            // Gateway/proxy error document: non-2xx status with a JSON body.
             return new Response(JSON.stringify({ error: "Bad Gateway" }), {
                 status: 502,
                 headers: { "Content-Type": "application/json" },
@@ -337,8 +327,6 @@ test("getBundle: non-ok JSON response rejects and is not cached", async () => {
 
     await expect(assets.getBundle("test.bundle")).rejects.toThrow(AssetsLoadingError);
 
-    // The failed promise must have been evicted from the cache: the next call
-    // re-fetches (and succeeds) instead of returning a poisoned empty bundle.
     failRequests = false;
     const bundle = await assets.getBundle("test.bundle");
     expect(bundle.cssLibs).toEqual(["file1.css", "file2.css"]);
@@ -360,10 +348,6 @@ test("getBundle: successful response is cached (single fetch for two calls)", as
     expect(second).toBe(first);
     expect.verifySteps(["fetch bundle: /web/bundle/test.bundle"]);
 });
-
-// ---------------------------------------------------------------------------
-// ESM path (loadESMBundle) — same-document and cross-document
-// ---------------------------------------------------------------------------
 
 test("loadESMBundle: same-document imports specifiers and registers them on odoo.loader", async () => {
     const registered = [];
@@ -402,16 +386,16 @@ const getInjectedImports = (captured) => {
 test("loadESMBundle: cross-document builds bridge import map, reusing server bridges", async () => {
     const { iframe, targetWin, captured } = makeCrossDocTarget(
         new Map([
-            ["@web/foo", { bar: 1, default: {} }], // runtime-only → data: bridge
-            ["@web/served", { baz: 2 }], // covered by a server bridge → reuse it
-            ["@web/own", { qux: 3 }], // covered by a server REAL FILE url
-            ["@odoo/owl", { Component: 1 }], // always skipped
+            ["@web/foo", { bar: 1, default: {} }],
+            ["@web/served", { baz: 2 }],
+            ["@web/own", { qux: 3 }],
+            ["@odoo/owl", { Component: 1 }],
         ]),
     );
     const serverMap = {
-        "@web/served": "/web/assets/esm/bridges/abc.js", // bridge URL
-        "@web/own": "/web/own/static/src/own.js", // raw source file
-        "@web/extra": "/web/assets/esm/bridges/def.js", // not loaded at runtime
+        "@web/served": "/web/assets/esm/bridges/abc.js",
+        "@web/own": "/web/own/static/src/own.js",
+        "@web/extra": "/web/assets/esm/bridges/def.js",
     };
 
     const promise = assets.loadESMBundle(["@web/served"], {
@@ -420,8 +404,6 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
     });
     const imports = getInjectedImports(captured);
 
-    // @web/foo: runtime-only → data: bridge for the bare spec AND its file URL
-    // (``specToModuleUrl("@web/foo")`` === "/web/static/src/foo.js").
     expect(imports["@web/foo"].startsWith("data:")).toBe(true);
     expect(imports["/web/static/src/foo.js"]).toBe(imports["@web/foo"]);
     const fooSrc = decodeURIComponent(
@@ -430,24 +412,16 @@ test("loadESMBundle: cross-document builds bridge import map, reusing server bri
     expect(fooSrc.includes('odoo.loader.modules.get("@web/foo")')).toBe(true);
     expect(fooSrc.includes("export const bar = _m?.bar;")).toBe(true);
 
-    // @web/served: server BRIDGE reused; no data: URI generated; file URL → bridge.
     expect(imports["@web/served"]).toBe("/web/assets/esm/bridges/abc.js");
     expect(imports["/web/static/src/served.js"]).toBe("/web/assets/esm/bridges/abc.js");
 
-    // @web/own: server provides a RAW FILE → bare spec resolves to it (server
-    // wins), but the relative-import URL must NOT point at the raw file (that
-    // would re-evaluate); it stays a loader-re-exporting data: bridge.
     expect(imports["@web/own"]).toBe("/web/own/static/src/own.js");
     expect(imports["/web/static/src/own.js"].startsWith("data:")).toBe(true);
 
-    // @odoo/owl is never bridged.
     expect(imports["@odoo/owl"]).toBe(undefined);
 
-    // Server-only entry (not loaded at runtime) is still merged in.
     expect(imports["@web/extra"]).toBe("/web/assets/esm/bridges/def.js");
 
-    // Resolve the pending load by firing the done event the injected script
-    // would have dispatched.
     const scriptNode = captured.find((n) => n.type === "module");
     expect(Boolean(scriptNode)).toBe(true);
     const token = scriptNode.textContent.match(/__odoo_esm_bundle_loaded_(\d+)/)[1];

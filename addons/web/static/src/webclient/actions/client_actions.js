@@ -68,11 +68,6 @@ function reload(env, action) {
         }
     }
 
-    // ``sync: true`` forces the push through synchronously. Without it the
-    // push is debounced into ``pushTimeout`` and a concurrent ``popstate``
-    // (back/forward) clears the timeout, dropping the push AND its
-    // ``reload: true`` flag — so the intended hard reload never fires (the
-    // company switcher defends the same way for ``reload_context``).
     router.pushState(route, { replace: true, reload: true, sync: true });
 }
 
@@ -87,7 +82,7 @@ const HOME_POLL_INITIAL_DELAY = 1000;
  */
 const HOME_POLL_MAX_DELAY = 8000;
 /** Give up waiting after this long and navigate anyway. */
-const HOME_POLL_DEADLINE = 2 * 60 * 1000; // 2 minutes
+const HOME_POLL_DEADLINE = 2 * 60 * 1000;
 
 /**
  * Wait for the server to answer again, backing off exponentially.
@@ -135,10 +130,6 @@ async function home() {
 
 registry.category("actions").add("home", home);
 
-// Refreshing the session context so subsequent HTTP requests carry the right
-// one is exactly what ``reload`` does; the former ``reloadContext`` wrapper
-// only forwarded to it. Registered under both keys so the distinct, meaningful
-// action name (used by ``reload_company_service``) is preserved.
 registry.category("actions").add("reload_context", reload);
 
 /**

@@ -150,7 +150,7 @@ test("in editable list view", async () => {
     expect(cell.parentElement).toHaveClass("o_selected_row");
     expect(cell.querySelector("input")).toHaveValue("example.com");
     await fieldInput("url").edit("test");
-    await contains(getFixture()).click(); // click out
+    await contains(getFixture()).click();
     cell = queryFirst("tbody td:not(.o_list_record_selector)");
     expect(cell.parentElement).not.toHaveClass("o_selected_row");
     expect("tbody td:not(.o_list_record_selector) a").toHaveCount(2);
@@ -255,4 +255,38 @@ test("in form x2many field, click/middleclick on the link should not open the re
     await middleClick(".o_field_widget[name=url] a");
     await animationFrame();
     expect(".modal.o_technical_modal").toHaveCount(0);
+});
+
+test("UrlField honours the field's trim attribute", async () => {
+    // Char.trim defaults to True and the ORM documents the trim as
+    // client-enforced ("The web client trims user input during in write/create
+    // flows in UI" - odoo/orm/fields/textual.py). Nothing strips the value
+    // server-side on write/create, so a widget that skips it writes untrimmed
+    // data for a field declared trimmed, and the same column ends up with
+    // different content depending on which widget edited it. It also produced
+    // href="http://  example.com  ", a dead link, because the http:// prefix
+    // regex does not match a leading space.
+    //
+    // Unlike EmailField (type="email"), UrlField renders type="text", so the
+    // HTML value sanitization algorithm does not strip the whitespace for it
+    // and the widget is the only thing that can. `url` is a plain
+    // fields.Char, so this also pins down the trim=True default.
+    Product._records = [{ id: 1, url: "https://www.example.com" }];
+    onRpc("web_save", ({ args }) => {
+        expect(args[1].url).toBe("example.com");
+        expect.step("web_save");
+    });
+    await mountView({
+        type: "form",
+        resModel: "product",
+        resId: 1,
+        arch: `<form><field name="url" widget="url"/></form>`,
+    });
+    await contains(`.o_field_widget[name="url"] input`).edit("  example.com  ");
+    await contains(`.o_form_button_save`).click();
+    expect.verifySteps(["web_save"]);
+    expect(`.o_field_widget[name="url"] a`).toHaveAttribute(
+        "href",
+        "http://example.com",
+    );
 });

@@ -42,10 +42,6 @@ export class DynamicGroupList extends DynamicList {
         this._selectDomain(this.isDomainSelected);
     }
 
-    // -------------------------------------------------------------------------
-    // Getters
-    // -------------------------------------------------------------------------
-
     get groupBy() {
         return this.config.groupBy;
     }
@@ -81,10 +77,6 @@ export class DynamicGroupList extends DynamicList {
         }
         return this.groups.reduce((acc, group) => acc + group.count, 0);
     }
-
-    // -------------------------------------------------------------------------
-    // Public
-    // -------------------------------------------------------------------------
 
     /**
      * @param {string} groupName
@@ -125,19 +117,14 @@ export class DynamicGroupList extends DynamicList {
         const sourceRecords = sourceGroup.list.records;
         const oldIndex = sourceRecords.findIndex((r) => r.id === dataRecordId);
         const record = sourceRecords[oldIndex];
-        // step 1: move record to correct position
         const refIndex = targetGroup.list.records.findIndex((r) => r.id === refId);
 
         const sourceList = sourceGroup.list;
-        // if the source contains more records than what's loaded, reload it after moving the record
         const mustReloadSourceList =
             sourceList.count > sourceList.offset + sourceList.limit;
 
         sourceGroup._removeRecords([record.id]);
         targetGroup._addRecord(record, refIndex + 1);
-        // step 2: update record value. record.update serializes the save on
-        // its own mutex — do NOT wrap this whole move in mutex.exec, or a
-        // second rapid drag's optimistic splice would queue behind the first.
         let value = targetGroup.value;
         if (targetGroup.groupByField.type === "many2one") {
             value = value
@@ -148,12 +135,6 @@ export class DynamicGroupList extends DynamicList {
         const sourceGroupValue = sourceGroup.value;
         const targetGroupValue = targetGroup.value;
         const revert = () =>
-            // The optimistic splices above deliberately ran outside the mutex
-            // (drag responsiveness), but the revert races whatever mutex job
-            // an earlier drag queued (e.g. the source-list reload below), and
-            // ``record._discard()`` must run under the mutex (Invariant I4) —
-            // so serialize it, resolving the groups by (stable) value at
-            // revert time instead of closing over possibly-rebuilt datapoints.
             this.model.mutex.exec(() => {
                 const currentTargetGroup = this.groups.find(
                     (g) => g.value === targetGroupValue,
@@ -163,10 +144,6 @@ export class DynamicGroupList extends DynamicList {
                 );
                 currentTargetGroup?._removeRecords([record.id]);
                 currentSourceGroup?._addRecord(record, oldIndex);
-                // Also discard the (unsaved) groupby-field change: otherwise
-                // the reverted card renders in its original column but keeps
-                // the target column's dirty value. Mirrors record_save's
-                // onError path.
                 record._discard();
             });
         try {
@@ -176,7 +153,6 @@ export class DynamicGroupList extends DynamicList {
                 return revert();
             }
         } catch (e) {
-            // revert changes
             await revert();
             throw e;
         }
@@ -184,14 +160,6 @@ export class DynamicGroupList extends DynamicList {
         const proms = [];
         if (mustReloadSourceList) {
             const { offset, limit, orderBy, domain } = sourceGroup.list;
-            // Serialize the source reload on the model mutex. Run un-mutexed, its
-            // web_search_read can be served BEFORE a rapidly-following second
-            // drag's web_save commits, so it rebuilds the source list with the
-            // still-un-moved record — leaving that record in BOTH the target
-            // (optimistic splice) and the source (stale reload). Queued on the
-            // mutex, the reload starts only after the pending save has landed, so
-            // the server no longer returns the moved record. (Group._addRecord's
-            // resId dedupe is the belt-and-suspenders for any residual race.)
             proms.push(
                 this.model.mutex.exec(() =>
                     sourceGroup.list._load(offset, limit, orderBy, domain),
@@ -235,21 +203,14 @@ export class DynamicGroupList extends DynamicList {
             return;
         }
         if (this.groups.every((group) => group.isFolded)) {
-            // all groups are folded
             if (this.groupByField.name !== fieldName) {
-                // grouped by another field than fieldName
                 if (!(fieldName in this.groups[0].aggregates)) {
-                    // fieldName has no aggregate values
                     return;
                 }
             }
         }
         return super.sortBy(fieldName);
     }
-
-    // -------------------------------------------------------------------------
-    // Protected
-    // -------------------------------------------------------------------------
 
     /**
      * @param {string} groupName
@@ -272,10 +233,6 @@ export class DynamicGroupList extends DynamicList {
         }
         const lastGroup = this.groups.at(-1);
 
-        // Mirrors postprocessReadGroup's group-config shape; not merged since
-        // that path handles multi-level grouping from web_read_group responses
-        // while this creates one leaf group from a user action — the overlap
-        // is intentional duplication, not worth a shared helper.
         const commonConfig = {
             resModel: this.config.resModel,
             fields: this.config.fields,
@@ -342,9 +299,6 @@ export class DynamicGroupList extends DynamicList {
         } else {
             this.groups.push(group);
         }
-        // this.count is the number of groups (set from data.length in _setData
-        // and decremented by _removeGroup). Keep it symmetric on creation so the
-        // grouped pager total and isRecordCountTrustable stay accurate.
         this.count++;
     }
 
@@ -385,7 +339,14 @@ export class DynamicGroupList extends DynamicList {
             this._nbRecordsMatchingDomain = await this.model.orm.searchCount(
                 this.resModel,
                 this.domain,
-                { limit: this.model.initialCountLimit },
+                // ``context`` is load-bearing, not decoration: ``orm.call``
+                // merges only ``user.context`` when kwargs carries none, so
+                // omitting it dropped every action-level key — notably
+                // ``active_test: False`` (set by ~29 actions/views), which
+                // makes this count disagree with the list the user is looking
+                // at. ``RelationalModel._updateCount`` passes it on the same
+                // call.
+                { limit: this.model.initialCountLimit, context: this.context },
             );
         }
     }
@@ -435,7 +396,6 @@ export class DynamicGroupList extends DynamicList {
 
     async _toggleSelection() {
         if (!this.records.length) {
-            // all groups are folded, so there's no visible records => select all domain
             if (!this.isDomainSelected) {
                 await this._ensureCorrectRecordCount();
                 this._selectDomain(true);

@@ -11,8 +11,6 @@ import { getViewportDimensions, useViewportChange } from "@web/core/utils/dom/dv
 describe.current.tags("desktop");
 
 test("getViewportDimensions: prefers visualViewport when present", () => {
-    // visualViewport reflects virtual-keyboard / pinch-zoom, so it wins over
-    // the window's innerWidth/innerHeight when available.
     patchWithCleanup(browser, {
         visualViewport: /** @type {any} */ ({ width: 812, height: 543 }),
         innerWidth: 1000,
@@ -22,8 +20,6 @@ test("getViewportDimensions: prefers visualViewport when present", () => {
 });
 
 test("getViewportDimensions: falls back to innerWidth/innerHeight without visualViewport", () => {
-    // Older browsers / embedded webviews expose no visualViewport — the ??
-    // fallback must use the window dimensions rather than yield undefined.
     patchWithCleanup(browser, {
         visualViewport: /** @type {any} */ (undefined),
         innerWidth: 1024,
@@ -62,13 +58,67 @@ test("useViewportChange: fires on viewport change while mounted, stops after unm
     await animationFrame();
     expect(calls).toBe(1);
 
-    // Unmount the Child: onWillUnmount must remove the viewport listener.
     parentState.show = false;
     await animationFrame();
     const callsAtUnmount = calls;
 
     await resize({ width: 800, height: 600 });
     await animationFrame();
-    // No further callback after the listener was cleaned up.
     expect(calls).toBe(callsAtUnmount);
+});
+
+test("useViewportChange subscribes lazily and releases with its last consumer", async () => {
+    // The subscription must be made against the `browser` in force when a
+    // consumer appears — not against whatever was installed when this module
+    // was first imported. Patching here and observing that the callback still
+    // fires is what pins that.
+    const added = [];
+    const removed = [];
+    const originalAdd = browser.addEventListener.bind(browser);
+    const originalRemove = browser.removeEventListener.bind(browser);
+    patchWithCleanup(browser, {
+        addEventListener(type, ...rest) {
+            added.push(type);
+            return originalAdd(type, ...rest);
+        },
+        removeEventListener(type, ...rest) {
+            removed.push(type);
+            return originalRemove(type, ...rest);
+        },
+    });
+
+    let calls = 0;
+    class Child extends Component {
+        static template = xml`<div class="child"/>`;
+        static props = ["*"];
+        setup() {
+            useViewportChange(() => calls++);
+        }
+    }
+    /** @type {{ show: boolean }} */
+    let state;
+    class Parent extends Component {
+        static components = { Child };
+        static template = xml`<Child t-if="state.show"/>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState({ show: true });
+            state = this.state;
+        }
+    }
+
+    await mountWithCleanup(Parent);
+    expect(added).toInclude("resize");
+
+    await resize({ width: 640, height: 480 });
+    await animationFrame();
+    expect(calls).toBe(1);
+
+    state.show = false;
+    await animationFrame();
+    expect(removed).toInclude("resize");
+
+    await resize({ width: 900, height: 700 });
+    await animationFrame();
+    expect(calls).toBe(1);
 });

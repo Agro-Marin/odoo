@@ -26,11 +26,9 @@ test("fresh owner is clean: not dirty, empty change set, no invalid fields", () 
 
 test("changes getter exposes the bag by reference; setter replaces it", () => {
     const es = new RecordEditState();
-    // Single-field write lands on the same bag the getter returns.
     es.changes.name = "Alice";
     expect(es.changes).toEqual({ name: "Alice" });
     expect(es.isChangeSetEmpty).toBe(false);
-    // Wholesale replace goes through ChangeSet.replace (markRaw preserved).
     es.changes = { age: 30 };
     expect(es.changes).toEqual({ age: 30 });
     expect("name" in es.changes).toBe(false);
@@ -40,7 +38,6 @@ test("markDirty raises dirty without touching the change set (Invariant 2)", () 
     const es = new RecordEditState();
     es.markDirty();
     expect(es.dirty).toBe(true);
-    // Invalid-input case: dirty coexists with an empty change set.
     expect(es.isChangeSetEmpty).toBe(true);
 });
 
@@ -53,18 +50,61 @@ test("clearChanges empties the bag AND lowers dirty atomically (Invariant 3)", (
 
     es.clearChanges();
 
-    // The illegal (dirty=false, non-empty changes) state is never observable
-    // between these two: clearChanges is the single atomic reset.
     expect(es.dirty).toBe(false);
     expect(es.isChangeSetEmpty).toBe(true);
     expect(es.changes).toEqual({});
 });
 
 test("clearChanges lowers a dirty flag even when the change set was already empty", () => {
-    // The Invariant-1 window (dirty=true, changes empty) collapses to clean.
     const es = new RecordEditState();
     es.markDirty();
     es.clearChanges();
     expect(es.dirty).toBe(false);
     expect(es.isChangeSetEmpty).toBe(true);
+});
+
+/**
+ * Bag semantics ported from the deleted ``change_set.test.js`` when
+ * ``ChangeSet`` was folded into this owner. They pin the plain-object contract
+ * the save flow, ``_getChanges`` and the ``_applyChanges`` undo path all rely
+ * on: ``Object.keys`` / ``in`` / ``delete`` work directly on ``changes``.
+ */
+test("direct writes through the bag accumulate pending edits", () => {
+    const es = new RecordEditState();
+    es.changes.name = "Alice";
+    es.changes.age = 30;
+
+    expect(es.isChangeSetEmpty).toBe(false);
+    expect(es.changes).toEqual({ name: "Alice", age: 30 });
+    expect("name" in es.changes).toBe(true);
+    expect("missing" in es.changes).toBe(false);
+});
+
+test("deleting a key through the bag removes a single field", () => {
+    const es = new RecordEditState();
+    es.changes.name = "Alice";
+    es.changes.age = 30;
+    delete es.changes.name;
+
+    expect("name" in es.changes).toBe(false);
+    expect(es.changes).toEqual({ age: 30 });
+});
+
+test("clear + write cycle does not leak prior entries", () => {
+    const es = new RecordEditState();
+    es.changes.a = 1;
+    es.clearChanges();
+    es.changes.b = 2;
+
+    expect(es.changes).toEqual({ b: 2 });
+});
+
+test("the changes setter aliases its source rather than copying it", () => {
+    const es = new RecordEditState();
+    const captured = { name: "Alice" };
+    es.changes = captured;
+
+    captured.name = "Bob";
+
+    expect(es.changes.name).toBe("Bob");
 });

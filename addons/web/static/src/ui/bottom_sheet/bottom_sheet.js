@@ -18,10 +18,11 @@ import { clamp } from "@web/core/utils/format/numbers";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
+import { useActiveElement } from "@web/ui/block/ui_service";
 
 /**
- * Delay before giving up on the dismiss animation events. Safely above the
- * default slide-out duration (300ms, see bottom_sheet.scss); if neither
+ * Delay before giving up on the dismiss animation events. Safely above
+ * `$o_BottomSheet_slideOut_duration` (bottom_sheet.variables.scss); if neither
  * `animationend` nor `animationcancel` fired by then (detached sheet element,
  * animation removed by a theme), close anyway instead of soft-locking the
  * sheet behind `isDismissing`.
@@ -35,27 +36,71 @@ const DISMISS_ANIMATION_FALLBACK_DELAY = 1000;
  */
 let nextHistoryEntryId = 1;
 
+/**
+ * Synthetic history entries currently on the stack, and sheets currently
+ * holding one. A sheet closed programmatically while another is stacked above
+ * it cannot pop its own entry (it is buried, and browsers cannot remove an
+ * entry from the middle), so it leaves the entry behind and the last sheet to
+ * close pops the whole run at once.
+ */
+let pendingHistoryEntries = 0;
+let openSheetsWithHistory = 0;
+
+/**
+ * Run `callback` once the sheet element finishes (or aborts) an animation of
+ * ITS OWN. `animationend` bubbles, so a descendant ending an animation — a
+ * spinner, a menu entry, anything the hosted component animates — would
+ * otherwise be mistaken for the sheet's slide and cut it short: snapping would
+ * engage before the slide-in landed, and a dismissal would close the sheet
+ * before the slide-out played.
+ *
+ * @param {HTMLElement} sheetEl
+ * @param {() => void} callback
+ * @returns {() => void} disposer, also called automatically once `callback` ran
+ */
+function onSheetAnimationEnd(sheetEl, callback) {
+    const dispose = () => {
+        sheetEl.removeEventListener("animationend", handler);
+        sheetEl.removeEventListener("animationcancel", handler);
+    };
+    const handler = (/** @type {AnimationEvent} */ ev) => {
+        if (ev.target === sheetEl) {
+            dispose();
+            callback();
+        }
+    };
+    sheetEl.addEventListener("animationend", handler);
+    sheetEl.addEventListener("animationcancel", handler);
+    return dispose;
+}
+
 export class BottomSheet extends Component {
     static template = "web.BottomSheet";
 
     static defaultProps = {
         class: "",
+        componentProps: {},
+        setActiveElement: true,
     };
 
     static props = {
-        // Main props
-        component: { type: Function },
+        /**
+         * Optional: the template renders the `default` slot instead when no
+         * component is given. Requiring it made that branch — and with it the
+         * `slots`, `onBack` and `back()` API below — unreachable: prop
+         * validation rejected every slot-only sheet before it could render.
+         */
+        component: { optional: true, type: Function },
         componentProps: { optional: true, type: Object },
         close: { type: Function },
 
         class: { optional: true },
         role: { optional: true, type: String },
 
-        // Behavior props
         onBack: { optional: true, type: Function },
         preventDismissOnContentScroll: { optional: true, type: Boolean },
+        setActiveElement: { optional: true, type: Boolean },
 
-        // Technical props
         ref: { optional: true, type: Function },
         slots: { optional: true, type: Object },
     };
@@ -63,14 +108,25 @@ export class BottomSheet extends Component {
     setup() {
         this.maxHeightPercent = 90;
 
+        /**
+         * Bound once, not per render: these go out as props/slot values, and a
+         * fresh closure on every render would re-render the hosted component
+         * on each scroll frame (`state.progress` ticks continuously).
+         */
+        this.close = this.close.bind(this);
+        this.back = this.back.bind(this);
+
+        if (this.props.setActiveElement) {
+            useActiveElement("ref");
+        }
+
         this.state = useState({
-            isPositionedReady: false, // Sheet is ready for display
+            isPositionedReady: false,
             isSnappingEnabled: false,
-            isDismissing: false, // Sheet is being dismissed
-            progress: 0, // Visual progress (0-1)
+            isDismissing: false,
+            progress: 0,
         });
 
-        // Measurements and configuration
         this.measurements = {
             viewportHeight: 0,
             naturalHeight: 0,
@@ -78,10 +134,8 @@ export class BottomSheet extends Component {
             dismissThreshold: 0,
         };
 
-        // Popover Ref Requirement
         useForwardRefToParent("ref");
 
-        // References
         this.containerRef = useRef("container");
         this.scrollRailRef = useRef("scrollRail");
         this.sheetRef = useRef("sheet");
@@ -89,7 +143,9 @@ export class BottomSheet extends Component {
 
         this.throttledOnScroll = useThrottleForAnimation(this.onScroll.bind(this));
 
-        // Adapt dimensions when mobile virtual-keyboards or browsers bars toggle
+        /** @type {(() => void)[]} */
+        this.animationCleanups = [];
+
         useViewportChange(() => {
             if (this.state.isPositionedReady && !this.state.isDismissing) {
                 this.updateDimensions();
@@ -98,64 +154,34 @@ export class BottomSheet extends Component {
 
         useHotkey("escape", () => this.slideOut());
 
-        // Intercept the mobile "back" gesture/button: push exactly ONE synthetic
-        // history entry when the sheet opens so pressing Back closes the sheet
-        // instead of navigating the page away.
-        //
-        // Tracks whether OUR entry is still on the stack. Two lifetimes consume
-        // it, each exactly once:
-        //  - Back pressed → popstate fires, the browser has already popped our
-        //    entry, so we mark it consumed and dismiss (the old code
-        //    pushed ANOTHER entry here — that was the leak, re-trapping the user
-        //    behind a fresh entry every Back press).
-        //  - Closed by any other means (escape, scroll, close()) → onWillUnmount
-        //    pops our still-present entry via history.back(), so a later Back is
-        //    not wasted on a no-op.
-        //
-        // Sheets can STACK (e.g. a touch submenu opens a second sheet over the
-        // first — see bottom_sheet_service/dropdown), and every open sheet's
-        // popstate listener fires for every pop. Each entry therefore carries a
-        // unique id: a sheet reacts only when its OWN entry was popped, i.e.
-        // when the now-current ``event.state`` is no longer its own. History
-        // entries are LIFO, so after a Back the current state is either a
-        // LOWER sheet's entry (its id ≠ ours ⇒ only the topmost sheet, whose
-        // entry was popped, dismisses) or our own (an entry pushed ABOVE us
-        // was popped ⇒ we stay). One hardware Back thus closes exactly one
-        // sheet, leaving the remaining sheets' entries consumable by further
-        // Back presses.
         this._historyStatePushed = false;
         this._historyEntryId = nextHistoryEntryId++;
         this.handlePopState = (/** @type {PopStateEvent} */ ev) => {
             if (ev.state?.bottomSheetId === this._historyEntryId) {
-                // Our entry is still the current one: the popped entry was
-                // pushed above ours (a stacked sheet, a router entry, ...).
                 return;
             }
-            // The browser has ALREADY popped our synthetic entry, so mark it
-            // consumed unconditionally — even while dismissing. Otherwise a
-            // hardware Back pressed during the close animation would leave the
-            // flag set and onWillUnmount would call history.back() again,
-            // popping a REAL page entry and navigating the user away.
             this._historyStatePushed = false;
+            pendingHistoryEntries = Math.max(0, pendingHistoryEntries - 1);
             if (this.state.isPositionedReady && !this.state.isDismissing) {
                 this.slideOut();
             }
         };
         useExternalListener(window, "popstate", this.handlePopState);
         onWillUnmount(() => {
+            for (const cleanup of this.animationCleanups.splice(0)) {
+                cleanup();
+            }
             if (this._historyStatePushed) {
                 this._historyStatePushed = false;
-                // Remove the synthetic entry we added on open — but only when
-                // it is still the CURRENT entry: if newer entries were pushed
-                // above ours (e.g. a stacked sheet, in an out-of-order close),
-                // history.back() would pop someone else's entry instead.
-                // Triggers a popstate, but handlePopState no-ops for every
-                // sheet (lower sheets see their own entry current again; this
-                // sheet's flag is already cleared and isDismissing is set by
-                // slideOut before unmount).
-                if (browser.history.state?.bottomSheetId === this._historyEntryId) {
-                    browser.history.back();
+                if (openSheetsWithHistory === 1 && pendingHistoryEntries) {
+                    const toPop = pendingHistoryEntries;
+                    pendingHistoryEntries = 0;
+                    browser.history.go(-toPop);
                 }
+            }
+            if (this._countedAsOpen) {
+                this._countedAsOpen = false;
+                openSheetsWithHistory--;
             }
         });
 
@@ -165,6 +191,9 @@ export class BottomSheet extends Component {
                 "",
             );
             this._historyStatePushed = true;
+            this._countedAsOpen = true;
+            pendingHistoryEntries++;
+            openSheetsWithHistory++;
 
             const isReduced =
                 browser.matchMedia(`(prefers-reduced-motion: reduce)`).matches === true;
@@ -187,26 +216,16 @@ export class BottomSheet extends Component {
         this.measureDimensions();
         this.applyDimensions();
         this.positionSheet();
-        // Set up event handlers only after sizing/positioning is complete.
         this.setupEventHandlers();
         this.state.isPositionedReady = true;
 
         if (this.prefersReducedMotion) {
             this.state.isSnappingEnabled = true;
         } else {
-            this.sheetRef.el?.addEventListener(
-                "animationend",
-                () => (this.state.isSnappingEnabled = true),
-                {
-                    once: true,
-                },
-            );
-            this.sheetRef.el?.addEventListener(
-                "animationcancel",
-                () => (this.state.isSnappingEnabled = true),
-                {
-                    once: true,
-                },
+            this.animationCleanups.push(
+                onSheetAnimationEnd(this.sheetRef.el, () => {
+                    this.state.isSnappingEnabled = true;
+                }),
             );
         }
     }
@@ -229,7 +248,6 @@ export class BottomSheet extends Component {
         const viewportHeight = getViewportDimensions().height;
         const maxHeightPx = (this.maxHeightPercent / 100) * viewportHeight;
 
-        // Reset any previously set constraints to measure natural height
         const sheet = this.sheetRef.el;
         sheet.style.removeProperty("min-height");
         sheet.style.removeProperty("height");
@@ -305,8 +323,11 @@ export class BottomSheet extends Component {
      * @param {number} scrollTop - Current scroll position
      */
     updateProgressValue(scrollTop) {
-        const initialPosition = this.measurements.naturalHeight;
-        const progress = clamp(scrollTop / initialPosition, 0, 1);
+        const { naturalHeight } = this.measurements;
+        if (!naturalHeight) {
+            return;
+        }
+        const progress = clamp(scrollTop / naturalHeight, 0, 1);
 
         if (Math.abs(this.state.progress - progress) > 0.01) {
             this.state.progress = progress;
@@ -317,7 +338,6 @@ export class BottomSheet extends Component {
      * Initiates the slide out animation and dismissal
      */
     slideOut() {
-        // Prevent duplicate calls
         if (this.state.isDismissing) {
             return;
         }
@@ -325,9 +345,6 @@ export class BottomSheet extends Component {
         if (this.prefersReducedMotion || !this.sheetRef.el) {
             this.props.close?.();
         } else {
-            const sheetEl = this.sheetRef.el;
-            // Close only once, whichever of the two events (or the fallback
-            // timeout, if the dismiss animation never runs) fires first.
             let closed = false;
             const onAnimationDone = () => {
                 if (closed) {
@@ -335,21 +352,20 @@ export class BottomSheet extends Component {
                 }
                 closed = true;
                 browser.clearTimeout(fallbackTimer);
-                sheetEl.removeEventListener("animationend", onAnimationDone);
-                sheetEl.removeEventListener("animationcancel", onAnimationDone);
+                dispose();
                 this.props.close?.();
             };
-            sheetEl.addEventListener("animationend", onAnimationDone, { once: true });
-            sheetEl.addEventListener("animationcancel", onAnimationDone, {
-                once: true,
-            });
+            const dispose = onSheetAnimationEnd(this.sheetRef.el, onAnimationDone);
             const fallbackTimer = browser.setTimeout(
                 onAnimationDone,
                 DISMISS_ANIMATION_FALLBACK_DELAY,
             );
+            this.animationCleanups.push(() => {
+                browser.clearTimeout(fallbackTimer);
+                dispose();
+            });
         }
 
-        // Update state to trigger animation
         this.state.isDismissing = true;
         this.state.isSnappingEnabled = false;
     }

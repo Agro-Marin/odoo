@@ -93,10 +93,6 @@ export function useActionLinks({ resModel, reload }) {
             if (data.context) {
                 options.additionalContext = evaluateExpr(data.context);
             }
-            // ``action`` is a synthesised ``ir.actions.act_window`` descriptor
-            // built from the anchor's data attributes; the ``ActionRequest``
-            // ambient type doesn't model every legal field combination so we
-            // narrow at the boundary.
             keepLast.add(doAction(/** @type {any} */ (action), options));
         }
     }
@@ -125,8 +121,6 @@ export function useBounceButton(containerRef, shouldBounce) {
                 return;
             }
             const handler = (ev) => {
-                // Cast: TS cannot synthesize a call signature for the
-                // ``Document | HTMLElement`` union's generic querySelector.
                 const activeElement = /** @type {ParentNode} */ (ui.activeElement);
                 const button = activeElement?.querySelector("[data-bounce-button]");
                 if (button && shouldBounce(ev.target)) {
@@ -167,10 +161,6 @@ export function useExportRecords(env, context, getDefaultExportList) {
     const _getExportedFields = async (isCompatible, parentParams) => {
         const root = model.root;
         let domain = parentParams ? [] : root.domain;
-        // Only scope by the current selection for the ROOT model's own fields.
-        // A subfield expansion (parentParams set) queries a *child* model, so
-        // the parent recordset ids must not leak in as its domain — that would
-        // filter the child's fields by a bogus, foreign id set.
         if (!parentParams && !root.isDomainSelected && root.selection.length) {
             const ids = root.selection.map((e) => e.resId);
             domain = [["id", "in", ids]];
@@ -197,11 +187,6 @@ export function useExportRecords(env, context, getDefaultExportList) {
                 label: _t("External ID"),
             });
         }
-        // Propagate the on-screen sort so "Export All" (no selection → the
-        // server searches by domain) returns rows in the displayed order.
-        // `__count` is a virtual sort key of grouped lists, meaningless for a
-        // record-level search order (mirrors _loadUngroupedList). A root
-        // without orderBy (e.g. not a dynamic list) simply omits the key.
         const orderBy = (root.orderBy || []).filter((o) => o.name !== "__count");
         await download({
             data: {

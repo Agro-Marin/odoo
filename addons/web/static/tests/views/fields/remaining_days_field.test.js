@@ -26,20 +26,20 @@ test("RemainingDaysField on a date field in list view", async () => {
     mockDate("2017-10-08 15:35:11");
 
     Partner._records = [
-        { id: 1, date: "2017-10-08" }, // today
-        { id: 2, date: "2017-10-09" }, // tomorrow
-        { id: 3, date: "2017-10-07" }, // yesterday
-        { id: 4, date: "2017-10-10" }, // + 2 days
-        { id: 5, date: "2017-10-05" }, // - 3 days
-        { id: 6, date: "2018-02-08" }, // + 4 months (diff >= 100 days)
-        { id: 7, date: "2017-06-08" }, // - 4 months (diff >= 100 days)
+        { id: 1, date: "2017-10-08" },
+        { id: 2, date: "2017-10-09" },
+        { id: 3, date: "2017-10-07" },
+        { id: 4, date: "2017-10-10" },
+        { id: 5, date: "2017-10-05" },
+        { id: 6, date: "2018-02-08" },
+        { id: 7, date: "2017-06-08" },
         { id: 8, date: false },
     ];
 
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list><field name="date" widget="remaining_days" /></list>`,
+        arch: `<list><field name="date" widget="remaining_days" /></list>`,
     });
 
     const cells = queryAll(".o_data_cell");
@@ -94,15 +94,15 @@ test("RemainingDaysField on a date field in multi edit list view", async () => {
     mockDate("2017-10-08 15:35:11");
 
     Partner._records = [
-        { id: 1, date: "2017-10-08" }, // today
-        { id: 2, date: "2017-10-09" }, // tomorrow
+        { id: 1, date: "2017-10-08" },
+        { id: 2, date: "2017-10-09" },
         { id: 8, date: false },
     ];
 
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list multi_edit="1"><field name="date" widget="remaining_days" /></list>`,
+        arch: `<list multi_edit="1"><field name="date" widget="remaining_days" /></list>`,
     });
 
     expect(queryAllTexts(".o_data_cell").slice(0, 2)).toEqual(["Today", "Tomorrow"]);
@@ -139,15 +139,15 @@ test.tags("desktop");
 test("RemainingDaysField, enter wrong value manually in multi edit list view", async () => {
     mockDate("2017-10-08 15:35:11");
     Partner._records = [
-        { id: 1, date: "2017-10-08" }, // today
-        { id: 2, date: "2017-10-09" }, // tomorrow
+        { id: 1, date: "2017-10-08" },
+        { id: 2, date: "2017-10-09" },
         { id: 8, date: false },
     ];
 
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list multi_edit="1"><field name="date" widget="remaining_days" /></list>`,
+        arch: `<list multi_edit="1"><field name="date" widget="remaining_days" /></list>`,
     });
 
     const cells = queryAll(".o_data_cell");
@@ -176,15 +176,13 @@ test("RemainingDaysField, enter wrong value manually in multi edit list view", a
 
 test("RemainingDaysField on a date field in form view", async () => {
     mockDate("2017-10-08 15:35:11");
-    Partner._records = [
-        { id: 1, date: "2017-10-08" }, // today
-    ];
+    Partner._records = [{ id: 1, date: "2017-10-08" }];
 
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="date" widget="remaining_days" /></form>`,
+        arch: `<form><field name="date" widget="remaining_days" /></form>`,
     });
 
     expect(".o_field_widget button").toHaveValue("10/08/2017");
@@ -223,15 +221,13 @@ test("RemainingDaysField on a date field on a new record in form", async () => {
 
 test("RemainingDaysField in form view (readonly)", async () => {
     mockDate("2017-10-08 15:35:11");
-    Partner._records = [
-        { id: 1, date: "2017-10-08", datetime: "2017-10-08 10:00:00" }, // today
-    ];
+    Partner._records = [{ id: 1, date: "2017-10-08", datetime: "2017-10-08 10:00:00" }];
 
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
                 <form>
                     <field name="date" widget="remaining_days" readonly="1" />
                     <field name="datetime" widget="remaining_days" readonly="1" />
@@ -252,15 +248,13 @@ test("RemainingDaysField in form view (readonly)", async () => {
 
 test("RemainingDaysField on a datetime field in form view", async () => {
     mockDate("2017-10-08 15:35:11");
-    Partner._records = [
-        { id: 1, datetime: "2017-10-08 10:00:00" }, // today
-    ];
+    Partner._records = [{ id: 1, datetime: "2017-10-08 10:00:00" }];
 
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form><field name="datetime" widget="remaining_days" /></form>`,
+        arch: `<form><field name="datetime" widget="remaining_days" /></form>`,
     });
     expect(".o_field_widget button").toHaveValue("10/08/2017 11:00:00");
     expect("div.o_field_widget[name='datetime'] button").toHaveCount(1);
@@ -281,20 +275,20 @@ test("RemainingDaysField on a datetime field in form view", async () => {
 test("RemainingDaysField on a datetime field in list view in UTC", async () => {
     mockDate("2017-10-08 15:35:11", 0);
     Partner._records = [
-        { id: 1, datetime: "2017-10-08 20:00:00" }, // today
-        { id: 2, datetime: "2017-10-09 08:00:00" }, // tomorrow
-        { id: 3, datetime: "2017-10-07 18:00:00" }, // yesterday
-        { id: 4, datetime: "2017-10-10 22:00:00" }, // + 2 days
-        { id: 5, datetime: "2017-10-05 04:00:00" }, // - 3 days
-        { id: 6, datetime: "2018-02-08 04:00:00" }, // + 4 months (diff >= 100 days)
-        { id: 7, datetime: "2017-06-08 04:00:00" }, // - 4 months (diff >= 100 days)
+        { id: 1, datetime: "2017-10-08 20:00:00" },
+        { id: 2, datetime: "2017-10-09 08:00:00" },
+        { id: 3, datetime: "2017-10-07 18:00:00" },
+        { id: 4, datetime: "2017-10-10 22:00:00" },
+        { id: 5, datetime: "2017-10-05 04:00:00" },
+        { id: 6, datetime: "2018-02-08 04:00:00" },
+        { id: 7, datetime: "2017-06-08 04:00:00" },
         { id: 8, datetime: false },
     ];
 
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list><field name="datetime" widget="remaining_days" /></list>`,
+        arch: `<list><field name="datetime" widget="remaining_days" /></list>`,
     });
 
     expect(queryAllTexts(".o_data_cell")).toEqual([
@@ -324,20 +318,20 @@ test("RemainingDaysField on a datetime field in list view in UTC", async () => {
 });
 
 test("RemainingDaysField on a datetime field in list view in UTC+6", async () => {
-    mockDate("2017-10-08 15:35:11", +6); // UTC+6
+    mockDate("2017-10-08 15:35:11", +6);
 
     Partner._records = [
-        { id: 1, datetime: "2017-10-08 20:00:00" }, // tomorrow
-        { id: 2, datetime: "2017-10-09 08:00:00" }, // tomorrow
-        { id: 3, datetime: "2017-10-07 18:30:00" }, // today
-        { id: 4, datetime: "2017-10-07 12:00:00" }, // yesterday
-        { id: 5, datetime: "2017-10-09 20:00:00" }, // + 2 days
+        { id: 1, datetime: "2017-10-08 20:00:00" },
+        { id: 2, datetime: "2017-10-09 08:00:00" },
+        { id: 3, datetime: "2017-10-07 18:30:00" },
+        { id: 4, datetime: "2017-10-07 12:00:00" },
+        { id: 5, datetime: "2017-10-09 20:00:00" },
     ];
 
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list><field name="datetime" widget="remaining_days" /></list>`,
+        arch: `<list><field name="datetime" widget="remaining_days" /></list>`,
     });
 
     expect(queryAllTexts(".o_data_cell")).toEqual([
@@ -354,20 +348,20 @@ test("RemainingDaysField on a datetime field in list view in UTC+6", async () =>
 });
 
 test("RemainingDaysField on a date field in list view in UTC-6", async () => {
-    mockDate("2017-10-08 15:35:11", -6); // UTC-6
+    mockDate("2017-10-08 15:35:11", -6);
 
     Partner._records = [
-        { id: 1, date: "2017-10-08" }, // today
-        { id: 2, date: "2017-10-09" }, // tomorrow
-        { id: 3, date: "2017-10-07" }, // yesterday
-        { id: 4, date: "2017-10-10" }, // + 2 days
-        { id: 5, date: "2017-10-05" }, // - 3 days
+        { id: 1, date: "2017-10-08" },
+        { id: 2, date: "2017-10-09" },
+        { id: 3, date: "2017-10-07" },
+        { id: 4, date: "2017-10-10" },
+        { id: 5, date: "2017-10-05" },
     ];
 
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list><field name="date" widget="remaining_days" /></list>`,
+        arch: `<list><field name="date" widget="remaining_days" /></list>`,
     });
     expect(queryAllTexts(".o_data_cell")).toEqual([
         "Today",
@@ -383,20 +377,20 @@ test("RemainingDaysField on a date field in list view in UTC-6", async () => {
 });
 
 test("RemainingDaysField on a datetime field in list view in UTC-8", async () => {
-    mockDate("2017-10-08 15:35:11", -8); // UTC-8
+    mockDate("2017-10-08 15:35:11", -8);
 
     Partner._records = [
-        { id: 1, datetime: "2017-10-08 20:00:00" }, // today
-        { id: 2, datetime: "2017-10-09 07:00:00" }, // today
-        { id: 3, datetime: "2017-10-09 10:00:00" }, // tomorrow
-        { id: 4, datetime: "2017-10-08 06:00:00" }, // yesterday
-        { id: 5, datetime: "2017-10-07 02:00:00" }, // - 2 days
+        { id: 1, datetime: "2017-10-08 20:00:00" },
+        { id: 2, datetime: "2017-10-09 07:00:00" },
+        { id: 3, datetime: "2017-10-09 10:00:00" },
+        { id: 4, datetime: "2017-10-08 06:00:00" },
+        { id: 5, datetime: "2017-10-07 02:00:00" },
     ];
 
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list><field name="datetime" widget="remaining_days" /></list>`,
+        arch: `<list><field name="datetime" widget="remaining_days" /></list>`,
     });
 
     expect(queryAllTexts(".o_data_cell")).toEqual([
@@ -412,20 +406,20 @@ test("RemainingDaysField with custom decoration classes", async () => {
     mockDate("2017-10-08 15:35:11");
 
     Partner._records = [
-        { id: 1, date: "2017-10-08" }, // today
-        { id: 2, date: "2017-10-09" }, // tomorrow
-        { id: 3, date: "2017-10-07" }, // yesterday
-        { id: 4, date: "2017-10-10" }, // + 2 days
-        { id: 5, date: "2017-10-05" }, // - 3 days
-        { id: 6, date: "2018-02-08" }, // + 4 months (diff >= 100 days)
-        { id: 7, date: "2017-06-08" }, // - 4 months (diff >= 100 days)
+        { id: 1, date: "2017-10-08" },
+        { id: 2, date: "2017-10-09" },
+        { id: 3, date: "2017-10-07" },
+        { id: 4, date: "2017-10-10" },
+        { id: 5, date: "2017-10-05" },
+        { id: 6, date: "2018-02-08" },
+        { id: 7, date: "2017-06-08" },
         { id: 8, date: false },
     ];
 
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
                 <list>
                     <field
                         name="date"

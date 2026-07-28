@@ -70,22 +70,19 @@ class GroupsTreeNode:
     ) -> None:
         self._model = model
         self._export_field_names = (
-            fields  # exported field names (e.g. 'journal_id', 'account_id/name', ...)
+            fields
         )
         self._groupby = groupby
         self._groupby_type = groupby_type
 
-        self.count: int = 0  # Total number of records in the subtree
+        self.count: int = 0
         self.children: dict[Any, GroupsTreeNode] = {}
-        self.data: list[list[Any]] = []  # Only leaf nodes have data
+        self.data: list[list[Any]] = []
 
     def _get_aggregate(
         self, field_name: str, data: Iterator[Any], aggregator: str
     ) -> Any:
         """Compute a single aggregate value for *field_name*."""
-        # One2many fields can export multiple lines per record; the extra
-        # lines' blank cells are empty strings, which must be filtered out
-        # before aggregating with an integer or float.
         data = (value for value in data if value != "")
 
         if aggregator == "avg":
@@ -127,7 +124,6 @@ class GroupsTreeNode:
             if field_name == ".id":
                 field_name = "id"
             if "/" in field_name or field_name not in self._model:
-                # Nested record fields aren't aggregated, e.g. line_ids/analytic_line_ids/amount
                 continue
             field = self._model._fields[field_name]
             if field.aggregator:
@@ -139,7 +135,6 @@ class GroupsTreeNode:
         """Return a mapping of field names to their aggregated values."""
         aggregated_values = {}
 
-        # zip(*matrix) transposes self.data into one iterable per field
         field_values = zip(*self.data, strict=True)
         aggregated_field_names = self._get_aggregated_field_names()
         for field_name in self._export_field_names:
@@ -177,9 +172,7 @@ class GroupsTreeNode:
         leaf_path = [group.get(groupby_field) for groupby_field in self._groupby]
         count = group["__count"]
 
-        # Follow the path from the top level group to the deepest
-        # group which actually contains the records' data.
-        node = self  # root
+        node = self
         node.count += count
         for node_key in leaf_path:
             node = node.child(node_key)
@@ -200,10 +193,6 @@ class ExportXlsxWriter:
         self.fields = fields
         self.columns_headers = columns_headers
         self.output = io.BytesIO()
-        # strings_to_formulas=False: a cell whose text starts with "=" must be
-        # written as a literal string, never interpreted as a formula. Exported
-        # record values are user data, so formula interpretation is a
-        # CSV/spreadsheet-injection vector (e.g. =WEBSERVICE(...)).
         self.workbook = xlsxwriter.Workbook(
             self.output,
             {"in_memory": True, "constant_memory": True, "strings_to_formulas": False},
@@ -216,12 +205,10 @@ class ExportXlsxWriter:
             {"text_wrap": True, "num_format": "yyyy-mm-dd hh:mm:ss"}
         )
         self.base_style = self.workbook.add_format({"text_wrap": True})
-        # FIXME: Should depend on the field's digits
         self.float_style = self.workbook.add_format(
             {"text_wrap": True, "num_format": "#,##0.00"}
         )
 
-        # FIXME: Should depend on each row's currency field (also maybe add the currency symbol)
         decimal_places = request.env["res.currency"]._read_group(
             [], aggregates=["decimal_places:max"]
         )[0][0]
@@ -252,8 +239,6 @@ class ExportXlsxWriter:
         self.worksheet = self.workbook.add_worksheet()
         self.value = False
 
-        # +1: the header occupies row 0, so *row_count* data rows need
-        # ``row_count + 1`` worksheet rows in total.
         if row_count + 1 > self.worksheet.xls_rowmax:
             raise UserError(
                 request.env._(
@@ -291,10 +276,6 @@ class ExportXlsxWriter:
     def write(self, row: int, column: int, cell_value: Any, style: Any = None) -> None:
         error_code = self.worksheet.write(row, column, cell_value, style)
         if error_code == -1:
-            # xlsxwriter silently drops out-of-bounds cells and returns -1.
-            # The realistic overflow is the row limit (e.g. group header rows
-            # are not budgeted by the upfront row-count check), so fail loudly
-            # instead of returning a silently truncated file.
             raise UserError(
                 request.env._(
                     "There are too many rows (limit: %(limit)s) to export as Excel 2007-2013 (.xlsx) format. Consider splitting the export.",
@@ -316,8 +297,6 @@ class ExportXlsxWriter:
 
         if isinstance(cell_value, bytes):
             try:
-                # "raw" export can yield bytes; xlsxwriter only accepts str,
-                # so decode assuming base64/ASCII-safe content.
                 cell_value = cell_value.decode()
             except UnicodeDecodeError:
                 raise UserError(
@@ -399,9 +378,6 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
         aggregates = group.aggregated_values
 
         label = f"{'    ' * group_depth}{label} ({group.count})"
-        # The first column's cell holds the group title, so its aggregate
-        # (which the list view does render as a subtotal) cannot get its own
-        # cell; append it to the title instead of dropping it.
         first_field = self.fields[0]
         first_aggregate = aggregates.get(first_field["name"])
         if first_aggregate is not None:
@@ -413,7 +389,7 @@ class GroupExportXlsxWriter(ExportXlsxWriter):
         self.write(row, column, label, self.header_bold_style)
         for field in self.fields[
             1:
-        ]:  # No aggregates allowed in the first column because of the group title
+        ]:
             column += 1
             aggregated_value = aggregates.get(field["name"])
             header_style = self.header_bold_style

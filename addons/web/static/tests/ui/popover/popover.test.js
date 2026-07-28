@@ -239,7 +239,7 @@ test("popover is rendered nearby target (bottom-fit)", async () => {
 });
 
 test("within iframe", async () => {
-    await mountWithCleanup(/* xml */ `
+    await mountWithCleanup(`
         <iframe class="container" style="height: 200px; display: flex" srcdoc="&lt;div id='target' style='height:400px;'&gt;Within iframe&lt;/div&gt;" />
     `);
 
@@ -262,7 +262,6 @@ test("within iframe", async () => {
     expect(".o_popover").toHaveCount(1);
     expect(":iframe .o_popover").toHaveCount(0);
 
-    // The popover should be rendered in the correct position
     const marginTop = queryRect(".popover-arrow").height;
     const { top: targetTop, left: targetLeft } = popoverTarget.getBoundingClientRect();
     const { top: iframeTop, left: iframeLeft } =
@@ -301,7 +300,7 @@ test("within iframe -- wrong element class", async () => {
         };
     }
 
-    await mountWithCleanup(/* xml */ `
+    await mountWithCleanup(`
         <iframe class="container" style="height: 200px; display: flex" srcdoc="&lt;div id='target' style='height:400px;'&gt;Within iframe&lt;/div&gt;" />
     `);
 
@@ -325,7 +324,7 @@ test("within iframe -- wrong element class", async () => {
 
 test("popover fixed position", async () => {
     await resize({ width: 450, height: 450 });
-    await mountWithCleanup(/* xml */ `
+    await mountWithCleanup(`
         <div class="container w-100 h-100" style="display: flex">
             <div class="popover-target" style="width: 50px; height: 50px;" />
         </div>
@@ -349,7 +348,6 @@ test("popover fixed position", async () => {
     expect(".o_popover").toHaveCount(1);
     expect.verifySteps(["onPositioned"]);
 
-    // force the DOM update
     container.style.alignItems = "flex-end";
     await resize({ height: 125 });
     await animationFrame();
@@ -379,9 +377,9 @@ test("popover with arrow and onPositioned", async () => {
 
     expect.verifySteps([
         "onPositioned (from override)",
-        "onPositioned (from props)", // On mounted
+        "onPositioned (from props)",
         "onPositioned (from override)",
-        "onPositioned (from props)", // arrow repositionning -> triggers resize observer
+        "onPositioned (from props)",
     ]);
     expect(".o_popover").toHaveClass("o_popover popover mw-100 bs-popover-auto");
     expect(".o_popover").toHaveAttribute("data-popper-placement", "bottom");
@@ -389,8 +387,8 @@ test("popover with arrow and onPositioned", async () => {
 });
 
 test("popover closes when navigating", async () => {
-    history.pushState({}, "", "/"); // Need non-null state
-    history.pushState(null, "", "/aaa"); // Head to other page
+    history.pushState({}, "", "/");
+    history.pushState(null, "", "/aaa");
 
     await mountWithCleanup(Popover, {
         props: {
@@ -406,7 +404,7 @@ test("popover closes when navigating", async () => {
 
     expect(".o_popover").toHaveCount(1);
 
-    history.back(); // Head back
+    history.back();
     await animationFrame();
 
     expect.verifySteps(["HTML", "close"]);
@@ -428,7 +426,7 @@ test("popover position is updated when the content dimensions change", async () 
     </div>`;
     }
 
-    await mountWithCleanup(/* xml */ `
+    await mountWithCleanup(`
         <div class="popover-target" style="width: 50px; height: 50px;" />
     `);
 
@@ -446,7 +444,7 @@ test("popover position is updated when the content dimensions change", async () 
 
     expect(".o_popover").toHaveCount(1);
     await runAllTimers();
-    expect.verifySteps(["onPositioned", "onPositioned"]);
+    await expect.waitForSteps(["onPositioned", "onPositioned"]);
     await contains("#popover button").click();
     expect("#popover span").toHaveCount(1);
     await expect.waitForSteps(["onPositioned"]);
@@ -463,7 +461,7 @@ test("arrow follows target and can get sucked", async () => {
             };
         },
     });
-    defineStyle(/* css */ `
+    defineStyle(`
         .my-popover {
             height: 100px;
             width: 100px;
@@ -502,7 +500,6 @@ test("arrow follows target and can get sucked", async () => {
     }
     await openPopover();
 
-    // Initial position of arrow should be at the middle of the target
     let arrowRect = queryRect(".popover-arrow");
     let targetRect = queryRect(".popover-target");
     const initial = {
@@ -512,7 +509,6 @@ test("arrow follows target and can get sucked", async () => {
     expect(".popover-arrow").toHaveRect(initial);
     expect(".popover-arrow").not.toHaveClass("sucked");
 
-    // Move the target to the left of the container, arrow should still be at the middle
     container.el.style.justifyContent = "flex-start";
     await openPopover();
     arrowRect = queryRect(".popover-arrow");
@@ -525,7 +521,6 @@ test("arrow follows target and can get sucked", async () => {
     expect(".popover-arrow").toHaveRect(newPosition);
     expect(".popover-arrow").not.toHaveClass("sucked");
 
-    // Move the target further to the left, arrow should get sucked
     parent.target.el.style.marginLeft = "-100px";
     await openPopover();
     arrowRect = queryRect(".popover-arrow");

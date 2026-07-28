@@ -23,8 +23,6 @@ import { RelationalRecord } from "@web/model/relational_model/record";
 
 describe.current.tags("desktop");
 
-// Shared model definitions
-
 class Partner extends models.Model {
     name = fields.Char();
     turtles = fields.One2many({
@@ -46,7 +44,6 @@ class Turtle extends models.Model {
 
 defineModels([Partner, Turtle]);
 
-// Helper arch — a one2many field without editable so rows open in dialog
 const ARCH = `
     <form>
         <field name="turtles">
@@ -59,8 +56,6 @@ const ARCH = `
             </form>
         </field>
     </form>`;
-
-// Dialog open
 
 describe("dialog open", () => {
     test("clicking Add a line opens the dialog with an empty form", async () => {
@@ -82,13 +77,10 @@ describe("dialog open", () => {
     });
 });
 
-// Dialog save
-
 describe("dialog save", () => {
     test("saving a new record in the dialog adds it to the one2many list", async () => {
         onRpc("partner", "web_save", ({ args }) => {
             const turtleCommands = args[1].turtles;
-            // Existing record (2) stays; new record is created
             const creates = turtleCommands.filter((c) => c[0] === 0);
             expect(creates).toHaveLength(1);
             expect(creates[0][2].name).toBe("michelangelo");
@@ -100,7 +92,6 @@ describe("dialog save", () => {
         await contains(".o_field_x2many_list_row_add a").click();
         await fieldInput("name").edit("michelangelo");
 
-        // Save button inside the dialog
         await contains(".o_dialog .o_form_button_save").click();
         expect(".o_dialog").toHaveCount(0, { message: "dialog closed after save" });
         expect(".o_data_row").toHaveCount(2, { message: "two rows now in the list" });
@@ -110,8 +101,6 @@ describe("dialog save", () => {
     });
 });
 
-// Dialog discard
-
 describe("dialog discard", () => {
     test("discarding the dialog leaves the one2many list unchanged", async () => {
         onRpc("partner", "web_save", () => {
@@ -120,13 +109,11 @@ describe("dialog discard", () => {
 
         await mountView({ type: "form", resModel: "partner", resId: 1, arch: ARCH });
 
-        // One existing row before opening the dialog
         expect(".o_data_row").toHaveCount(1);
 
         await contains(".o_field_x2many_list_row_add a").click();
         await fieldInput("name").edit("michelangelo");
 
-        // Dismiss the dialog via the Close (×) button
         await contains(".o_dialog .btn-close").click();
 
         expect(".o_dialog").toHaveCount(0, { message: "dialog is closed" });
@@ -136,27 +123,18 @@ describe("dialog discard", () => {
     });
 });
 
-// Dialog title
-
 describe("dialog title", () => {
     test("dialog title reads 'Create <relation_string>' for a new record", async () => {
         await mountView({ type: "form", resModel: "partner", resId: 1, arch: ARCH });
 
         await contains(".o_field_x2many_list_row_add a").click();
 
-        // Title includes the one2many field's string ("Turtles")
         expect(".o_dialog .modal-title").toHaveText("Create Turtles");
     });
 });
 
-// Shared archInfo isolation
-
 describe("shared archInfo", () => {
     test("dialog is not permanently readonly after an open on a readonly parent", async () => {
-        // Regression test: the dialog used to flip `edit: false` on the SHARED
-        // cached archInfo of the inline form subview when the parent record
-        // was not in edition, permanently poisoning every later dialog opened
-        // for the same field.
         let forceRootReadonly = false;
         patchWithCleanup(RelationalRecord.prototype, {
             get isInEdition() {
@@ -169,7 +147,6 @@ describe("shared archInfo", () => {
 
         await mountView({ type: "form", resModel: "partner", resId: 1, arch: ARCH });
 
-        // Open the dialog while the parent record is not in edition: readonly
         forceRootReadonly = true;
         await contains(".o_data_row .o_data_cell").click();
         expect(".o_dialog").toHaveCount(1);
@@ -179,7 +156,6 @@ describe("shared archInfo", () => {
         await contains(".o_dialog .btn-close").click();
         expect(".o_dialog").toHaveCount(0);
 
-        // Reopen it while the parent record is in edition: editable again
         forceRootReadonly = false;
         await contains(".o_data_row .o_data_cell").click();
         expect(".o_dialog").toHaveCount(1);
@@ -188,8 +164,6 @@ describe("shared archInfo", () => {
         });
     });
 });
-
-// Delete from dialog
 
 describe("delete from list", () => {
     test("clicking the trash icon in the one2many list generates a DELETE command on parent save", async () => {
@@ -200,7 +174,6 @@ describe("delete from list", () => {
 
         await mountView({ type: "form", resModel: "partner", resId: 1, arch: ARCH });
 
-        // Click the trash icon in the list row (one2many always shows delete per row)
         await contains(".o_list_record_remove").click();
 
         expect(".o_data_row").toHaveCount(0);

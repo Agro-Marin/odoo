@@ -4,9 +4,8 @@
 /** @module @web/views/form/form_status_indicator/form_status_indicator - Save/discard indicator shown when the form record is dirty or invalid */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
-import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
-import { useBus } from "@web/core/utils/hooks";
+import { useFieldIsDirty } from "@web/views/form/field_is_dirty_hook";
 
 /**
  * Save/discard indicator shown when the form record is dirty or invalid.
@@ -28,27 +27,11 @@ export class FormStatusIndicator extends Component {
     };
 
     setup() {
-        this.state = useState({
-            fieldIsDirty: false,
-        });
-        // FormSaveCoordinator is already a reactive proxy (extends SignalStore);
-        // useState re-wraps it so this component re-renders on its changes.
+        this.hasUnsavedEdits = useFieldIsDirty(this.props.model);
         this.coordinator = this.props.coordinator
             ? useState(this.props.coordinator)
             : null;
-        useBus(
-            this.props.model.bus,
-            ModelEvent.FIELD_IS_DIRTY,
-            (ev) => (this.state.fieldIsDirty = ev.detail),
-        );
         this.saveButton = useRef("save");
-        // The save button's `disabled` is managed imperatively, not via
-        // `t-att-disabled`: `executeButtonCallback` (view_button_hook.js)
-        // bulk-disables buttons with setAttribute during an action/save, and
-        // this component also re-renders during saves (it observes
-        // `coordinator.status`), which would reset a template-bound attribute
-        // mid-action. The effect only touches it when `saveButtonDisabled`
-        // actually changes, so it coexists with the bulk-disable.
         useEffect(
             (disabled) => {
                 if (!this.saveButton.el) {
@@ -75,12 +58,7 @@ export class FormStatusIndicator extends Component {
         if (this.coordinator?.isSaving) {
             return "saving";
         }
-        const isDirty =
-            this.props.model.root.dirty ||
-            this.state.fieldIsDirty ||
-            // A save that raised an unhandled error leaves the record dirty;
-            // the coordinator's status is the authoritative signal for it.
-            this.coordinator?.status === "error";
+        const isDirty = this.hasUnsavedEdits() || this.coordinator?.status === "error";
         if (isNew || isDirty) {
             return isValid ? "dirty" : "invalid";
         }
@@ -100,10 +78,7 @@ export class FormStatusIndicator extends Component {
      */
     get saveButtonDisabled() {
         const { isNew, isValid } = this.props.model.root;
-        const isDirty =
-            this.props.model.root.dirty ||
-            this.state.fieldIsDirty ||
-            this.coordinator?.status === "error";
+        const isDirty = this.hasUnsavedEdits() || this.coordinator?.status === "error";
         return !isNew && isDirty && !isValid;
     }
 

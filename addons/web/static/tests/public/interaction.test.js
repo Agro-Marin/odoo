@@ -115,7 +115,7 @@ describe("adding listeners", () => {
         await startInteraction(Test, TemplateTest);
         expect(clicked).toBe(0);
         await dblclick("span");
-        expect(clicked).toBe(3); // event dblclick = click + click + dblclick
+        expect(clicked).toBe(3);
     });
 
     test("can use addListener on HTMLCollection", async () => {
@@ -336,8 +336,6 @@ describe("using selectors", () => {
             dynamicContent = {
                 ".me": {
                     "t-on-click": (ev) => {
-                        // Ping-pong the ".me" marker between the two spans, so each
-                        // refresh removes one node's listener and adds the other's.
                         ev.currentTarget.parentElement
                             .querySelectorAll("span")
                             .forEach((el) => el.classList.toggle("me"));
@@ -361,9 +359,35 @@ describe("using selectors", () => {
                 await click(el);
             }
         }
-        // Departed listeners must be pruned: `cleanups` stays near baseline
-        // instead of growing ~1/refresh (pre-fix append-only behaviour).
         expect(colibri.cleanups.length).toBeLessThan(baseline + 3);
+    });
+
+    test("pruning a departed node keeps its other selectors' listeners removable", async () => {
+        // both selectors match the same button; when it leaves the ".a" set,
+        // only ".a"'s listener may be forgotten — dropping every cleanup
+        // registered for that node left ".b" attached past destroy.
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".a": { "t-on-click": () => expect.step("a") },
+                ".b": { "t-on-click": () => expect.step("b") },
+            };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><button class="a b">go</button></div>`,
+        );
+        await click("button");
+        expect.verifySteps(["a", "b"]);
+
+        queryOne("button").classList.remove("a");
+        core.interactions[0].interaction.updateContent();
+        await click("button");
+        expect.verifySteps(["b"]);
+
+        core.stopInteractions();
+        await click("button");
+        expect.verifySteps([]);
     });
 
     test("does not crash if no modal is found", async () => {
@@ -450,8 +474,6 @@ describe("using selectors", () => {
     });
 
     test("dynamicSelector on form element is applied on form, not on controls", async () => {
-        // <form> and <select> elements are iterable. Make sure that listeners
-        // and dynamic attributes are applied on the element, not its children.
         class Test extends Interaction {
             static selector = ".test";
             dynamicContent = {
@@ -564,7 +586,7 @@ describe("removing listeners", () => {
             };
             setup() {
                 expect.step("setup");
-                this.el.click(); // we check that event handler is not bound yet
+                this.el.click();
                 this.registerCleanup(() => expect.step("a"));
                 this.registerCleanup(() => {
                     expect.step("b");
@@ -573,7 +595,7 @@ describe("removing listeners", () => {
             }
             start() {
                 expect.step("start");
-                this.el.click(); // check that event handler is bound
+                this.el.click();
                 this.registerCleanup(() => {
                     expect.step("c");
                     this.el.click();
@@ -585,7 +607,7 @@ describe("removing listeners", () => {
                 });
             }
             destroy() {
-                this.el.click(); // check that handlers have been cleaned
+                this.el.click();
             }
         }
         const { core } = await startInteraction(Test, TemplateTest);
@@ -609,7 +631,22 @@ describe("handling crashes", () => {
         }
         await startInteraction(Test, TemplateTest);
         await click(".test");
-        // The only expect is in start so that if it isn't called, the test crashes.
+    });
+
+    test("a dynamic selector yielding a non-target names itself in the error", async () => {
+        // a string is iterable, so it used to be fanned out over its characters
+        // and fail deep inside the DOM with "addEventListener is not a function"
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicSelectors = {
+                ...this.dynamicSelectors,
+                _bogus: () => "not-a-node",
+            };
+            dynamicContent = { _bogus: { "t-on-click": () => {} } };
+        }
+        await expect(startInteraction(Test, TemplateTest)).rejects.toThrow(
+            "Cannot listen to 'click' on a value that is not an event target (selector '_bogus' in interaction 'Test')",
+        );
     });
 
     test("this.addListener crashes if interaction is not started", async () => {
@@ -639,7 +676,7 @@ describe("handling crashes", () => {
                     "t-att-a": () => {
                         if (update) {
                             expect(() => interaction.updateContent()).toThrow(
-                                "Updatecontent should not be called while interaction is updating",
+                                "updateContent should not be called while interaction is updating",
                             );
                         }
                         return "a";
@@ -653,7 +690,6 @@ describe("handling crashes", () => {
         await startInteraction(Test, TemplateTest);
         update = true;
         interaction.updateContent();
-        // The only expect is in t-att-a so that if it isn't called, the test crashes.
     });
 
     test("recover from a throwing t-out definition", async () => {
@@ -689,11 +725,8 @@ describe("handling crashes", () => {
         expect(() => interaction.updateContent()).toThrow(
             "An error occured while updating 't-out' content (selector 'span') (in interaction 'Test')",
         );
-        // Other dynamic content was still updated despite the throwing t-out.
         expect(".test").toHaveAttribute("data-count", "5");
 
-        // The interaction is not bricked: event handlers (and the implicit
-        // updateContent wrapped around them) still work.
         boom = false;
         await click(".test");
         expect(".test").toHaveAttribute("data-count", "6");
@@ -729,10 +762,60 @@ describe("handling crashes", () => {
         );
         boom = false;
         expect(core.interactions).toHaveLength(0);
-        // Despite the crash while restoring t-att values, the click listener
-        // was removed.
         await click(".test");
         expect.verifySteps([]);
+    });
+
+    test("a throwing event handler reaches the error channel", async () => {
+        // the DOM discards a listener's return value, so this used to end up as
+        // an unhandled rejection and never reach the service
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-on-click": () => {
+                        throw new Error("boom");
+                    },
+                },
+            };
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        patchWithCleanup(core, {
+            reportError(error) {
+                expect.step(`reported:${error.message}`);
+            },
+        });
+        await click(".test");
+        await animationFrame();
+        expect.verifySteps(["reported:boom"]);
+    });
+
+    test("a throwing t-att during the implicit update reaches the error channel", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-on-click": () => (this.exploded = true),
+                    "t-att-animal": () => {
+                        if (this.exploded) {
+                            throw new Error("boom");
+                        }
+                        return "colibri";
+                    },
+                },
+            };
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        patchWithCleanup(core, {
+            reportError(error) {
+                expect.step(`reported:${error.message}`);
+            },
+        });
+        await click(".test");
+        await animationFrame();
+        expect.verifySteps([
+            "reported:An error occured while updating dynamic attribute 'animal' (in interaction 'Test')",
+        ]);
     });
 
     test("dom is updated after event is dispatched", async () => {
@@ -1018,7 +1101,7 @@ describe("lifecycle", () => {
         core.stopInteractions();
         expect.verifySteps(["destroy"]);
         expect(() => interaction.updateContent()).toThrow(
-            "Cannot update content of an interaction that is not ready or is destroyed",
+            "Cannot update the content of a destroyed interaction",
         );
     });
 
@@ -1070,7 +1153,7 @@ describe("lifecycle", () => {
         await startInteraction(Test, TemplateTest, { waitForStart: false });
         expect.verifySteps(["willStart"]);
         expect(() => interaction.updateContent()).toThrow(
-            "Cannot update content of an interaction that is not ready or is destroyed",
+            "Cannot update the content of an interaction that has not started yet",
         );
 
         await animationFrame();
@@ -1136,6 +1219,53 @@ describe("register cleanup", () => {
         expect.verifySteps([]);
         core.stopInteractions();
         expect.verifySteps(["cleanup2", "cleanup1"]);
+    });
+
+    test("cleanups registered before a throwing setup() still run", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.registerCleanup(() => expect.step("cleanup"));
+                throw new Error("boom");
+            }
+            destroy() {
+                // written against a completed setup: must not be called
+                expect.step("destroy hook");
+            }
+        }
+        const { core } = await startInteraction(Test, TemplateTest, {
+            waitForStart: false,
+        });
+        await expect(core.isReady).rejects.toThrow("boom");
+        expect.verifySteps(["cleanup"]);
+        expect(core.interactions).toHaveLength(0);
+    });
+
+    test("a throwing cleanup does not skip the remaining teardown", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: { "t-on-click": () => expect.step("click") },
+            };
+            start() {
+                this.registerCleanup(() => {
+                    throw new Error("boom");
+                });
+            }
+            destroy() {
+                expect.step("destroy hook");
+            }
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        await click(".test");
+        expect.verifySteps(["click"]);
+
+        expect(() => core.stopInteractions()).toThrow(
+            "Could not destroy some interactions",
+        );
+        expect.verifySteps(["destroy hook"]);
+        await click(".test");
+        expect.verifySteps([]);
     });
 });
 
@@ -1210,6 +1340,39 @@ describe("waitFor...", () => {
             expect.verifySteps([]);
             await click(".test");
             expect.verifySteps(["before", "in catch", "updatecontent"]);
+        });
+
+        test("waitFor does not settle after a destroy, either way", async () => {
+            const resolving = new Deferred();
+            const rejecting = new Deferred();
+            class Test extends Interaction {
+                static selector = ".test";
+                start() {
+                    this.run(resolving, "resolving");
+                    this.run(rejecting, "rejecting");
+                }
+                async run(deferred, label) {
+                    try {
+                        await this.waitFor(deferred);
+                        expect.step(`${label}:then`);
+                    } catch {
+                        // a catch block touches the same destroyed instance a
+                        // then block would, so it must not run either
+                        expect.step(`${label}:catch`);
+                    }
+                }
+            }
+            const { core } = await startInteraction(Test, TemplateTest);
+            patchWithCleanup(core, {
+                reportError(error) {
+                    expect.step(`reported:${error.message}`);
+                },
+            });
+            core.stopInteractions();
+            resolving.resolve("nope");
+            rejecting.reject(new Error("boom"));
+            await animationFrame();
+            expect.verifySteps(["reported:boom"]);
         });
 
         test("waitFor support promise is 'undefined'", async () => {
@@ -1367,6 +1530,40 @@ describe("waitFor...", () => {
         expect.verifySteps(["updateContent"]);
         await animationFrame();
         expect.verifySteps(["protect", "done", "unprotect", "updateContent"]);
+    });
+
+    test("pending timeout and animation frame are cancelled on destroy", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            start() {
+                this.waitForTimeout(() => expect.step("timeout"), 1000);
+                this.waitForAnimationFrame(() => expect.step("frame"));
+            }
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        expect(core.interactions[0].cleanups).toHaveLength(2);
+        core.stopInteractions();
+        await advanceTime(1000);
+        await animationFrame();
+        expect.verifySteps([]);
+    });
+
+    test("a fired timeout does not accumulate in the cleanup list", async () => {
+        let interaction;
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                interaction = this;
+            }
+        }
+        const { core } = await startInteraction(Test, TemplateTest);
+        const colibri = core.interactions[0];
+        for (let i = 0; i < 5; i++) {
+            interaction.waitForTimeout(() => {}, 10);
+        }
+        expect(colibri.cleanups).toHaveLength(5);
+        await advanceTime(10);
+        expect(colibri.cleanups).toHaveLength(0);
     });
 });
 
@@ -1537,7 +1734,6 @@ describe("t-att-class", () => {
         );
         expect("span").toHaveClass(["e", "f"]);
         core.stopInteractions();
-        // "f" was present before the interaction started; only "e" goes away.
         expect("span").not.toHaveClass("e");
         expect("span").toHaveClass("f");
     });
@@ -1548,11 +1744,11 @@ describe("t-att-class", () => {
             dynamicContent = {
                 span: {
                     "t-att-class": () => ({
-                        a: true, // will remain toggled on
-                        b: false, // will remain toggled off
-                        c: this.withClass, // initial = false
-                        d: this.withClass, // initial = true
-                        "e f": this.withClass, // multi class with initial = false
+                        a: true,
+                        b: false,
+                        c: this.withClass,
+                        d: this.withClass,
+                        "e f": this.withClass,
                     }),
                 },
             };
@@ -1863,7 +2059,6 @@ describe("t-att and t-out", () => {
         expect("span").toHaveAttribute("disabled", "disabled");
     });
 
-    // Falsy value
     test("t-att-... with empty string adds an empty string", async () => {
         class Test extends Interaction {
             static selector = "span";
@@ -1875,7 +2070,6 @@ describe("t-att and t-out", () => {
         expect("span").toHaveAttribute("disabled", "");
     });
 
-    // Falsy value
     test("t-att-... with number 0 adds a '0' string", async () => {
         class Test extends Interaction {
             static selector = "span";
@@ -1984,7 +2178,7 @@ describe("t-att and t-out", () => {
         expect("span:first").not.toHaveAttribute("data-animal");
         expect("span:last").not.toHaveAttribute("data-animal");
         const firstSpan = queryOne("span:first");
-        firstSpan.parentElement.appendChild(firstSpan); // swap
+        firstSpan.parentElement.appendChild(firstSpan);
         core.stopInteractions();
         expect("span:last").toHaveAttribute("data-animal", "colibri");
         expect("span:first").toHaveAttribute("data-animal", "owlet");
@@ -2065,7 +2259,6 @@ describe("t-att and t-out", () => {
         expect(core.activeInteractions.map.get(inner).has(newInnerInteraction)).toBe(
             true,
         );
-        // Listeners refreshed
         await click("span");
         expect.verifySteps(["clicked"]);
     });
@@ -2174,8 +2367,6 @@ describe("t-att and t-out", () => {
                     _root: { "t-out": () => this.tOut },
                 };
                 setup() {
-                    // Start with INITIAL_VALUE so the interaction-bearing
-                    // child element survives the first updateContent.
                     this.tOut = Interaction.INITIAL_VALUE;
                 }
                 start() {
@@ -2194,12 +2385,64 @@ describe("t-att and t-out", () => {
         const inner = queryOne(".inner");
         expect(".inner").toHaveAttribute("animal", "colibri");
         expect(core.activeInteractions.map.get(inner).has(innerInteraction)).toBe(true);
-        // The plain-string t-out replaces the container content; the child
-        // interaction must be stopped (not left leaking on detached DOM).
         await advanceTime(1000);
         expect(".test").toHaveText("goodbye");
         expect(".inner").toHaveCount(0);
         expect(core.activeInteractions.map.get(inner)).toBe(undefined);
+    });
+
+    test("t-out stops every child, even one whose cleanup detaches itself", async () => {
+        // `el.children` is live: a cleanup that removes its own element used to
+        // shift the collection under the iterator and skip every other sibling,
+        // leaving those interactions running on detached nodes.
+        class SelfRemoving extends Interaction {
+            static selector = ".child";
+            setup() {
+                this.registerCleanup(() => {
+                    expect.step(`stopped:${this.el.dataset.n}`);
+                    this.el.remove();
+                });
+            }
+        }
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = { _root: { "t-out": () => this.tOut } };
+            setup() {
+                this.tOut = "wiped";
+            }
+        }
+        const kids = [1, 2, 3, 4]
+            .map((n) => `<span class="child" data-n="${n}"></span>`)
+            .join("");
+        const { core } = await startInteraction(
+            [SelfRemoving, Test],
+            `<div class="test">${kids}</div>`,
+        );
+        expect.verifySteps(["stopped:1", "stopped:2", "stopped:3", "stopped:4"]);
+        expect(core.interactions).toHaveLength(1);
+        expect(".test").toHaveText("wiped");
+    });
+
+    test("a markup t-out rescans the subtree once, not once per child", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = { _root: { "t-out": () => this.tOut } };
+            setup() {
+                this.tOut = Interaction.INITIAL_VALUE;
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        patchWithCleanup(core, {
+            startInteractions(el) {
+                expect.step("scan");
+                return super.startInteractions(el);
+            },
+        });
+        const interaction = core.interactions[0].interaction;
+        interaction.tOut = markup(`<i></i><i></i><i></i><i></i>`);
+        interaction.updateContent();
+        expect.verifySteps(["scan"]);
+        expect(".test i").toHaveCount(4);
     });
 });
 
@@ -2222,10 +2465,7 @@ describe("components", () => {
             };
         }
         const { core } = await startInteraction(Test, `<div class="test"></div>`);
-        expect(".test").toHaveOuterHTML(
-            `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"></owl-root></div>`,
-        );
-        await animationFrame();
+        // isReady covers sub-component mounts, so the component is already up
         expect(".test").toHaveOuterHTML(
             `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;">component</owl-root></div>`,
         );
@@ -2256,10 +2496,6 @@ describe("components", () => {
         }
         const { core } = await startInteraction(Test, `<div class="test"></div>`);
         expect(".test").toHaveOuterHTML(
-            `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"></owl-root></div>`,
-        );
-        await animationFrame();
-        expect(".test").toHaveOuterHTML(
             `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"><p>component<span>hello</span></p></owl-root></div>`,
         );
         expect(isCDestroyed).toBe(false);
@@ -2289,10 +2525,6 @@ describe("components", () => {
         }
         const { core } = await startInteraction(Test, `<div class="test"></div>`);
         expect(".test").toHaveOuterHTML(
-            `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"></owl-root></div>`,
-        );
-        await animationFrame();
-        expect(".test").toHaveOuterHTML(
             `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"><p>component<span>test</span></p></owl-root></div>`,
         );
         expect(isCDestroyed).toBe(false);
@@ -2316,7 +2548,7 @@ describe("components", () => {
         }
         await startInteraction(Test, `<div class="test"></div>`);
         expect(".test").toHaveOuterHTML(
-            `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"></owl-root><span></span></div>`,
+            `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;">component</owl-root><span></span></div>`,
         );
     });
 
@@ -2336,12 +2568,11 @@ describe("components", () => {
         }
         await startInteraction(Test, `<div class="test"></div>`);
         expect(".test").toHaveOuterHTML(
-            `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"></owl-root></div>`,
-        );
-        await animationFrame();
-        expect(".test").toHaveOuterHTML(
             `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;">component</owl-root></div>`,
         );
+        destroy();
+        expect(".test").toHaveOuterHTML(`<div class="test"></div>`);
+        // calling it again (or a later stopInteractions) must not destroy twice
         destroy();
         expect(".test").toHaveOuterHTML(`<div class="test"></div>`);
     });
@@ -2362,10 +2593,6 @@ describe("components", () => {
             }
         }
         await startInteraction(Test, `<div class="test"></div>`);
-        expect(".test").toHaveOuterHTML(
-            `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"></owl-root></div>`,
-        );
-        await animationFrame();
         expect(".test").toHaveOuterHTML(
             `<div class="test"><owl-root contenteditable="false" data-oe-protected="true" style="display: contents;"><p>component<span>with prop</span></p></owl-root></div>`,
         );
@@ -2396,16 +2623,16 @@ describe("insert", () => {
         expect(dynNode1).toBe(el1);
         interaction.updateContent();
         const initialValues = interaction.__colibri__.dynamicAttrs[0].initialValues;
-        expect(initialValues.size).toBe(1);
+        // a WeakMap: a node that leaves the DOM must not be kept alive by the
+        // interaction's initial-value bookkeeping for the life of the page
+        expect(initialValues).toBeInstanceOf(WeakMap);
         expect(initialValues.has(el1)).toBe(true);
         el1.remove();
         interaction.insert(el2, interaction.el);
         const dynNode2 = interaction.__colibri__.dynamicNodes.values().next().value[0];
         expect(dynNode2).toBe(el2);
-        expect(initialValues.size).toBe(1);
         expect(initialValues.has(el2)).toBe(false);
         interaction.updateContent();
-        expect(initialValues.size).toBe(2);
         expect(initialValues.has(el2)).toBe(true);
         core.stopInteractions();
     });
@@ -2569,6 +2796,33 @@ describe("removeChildren", () => {
         expect(queryOne(".test span")).toBeInstanceOf(HTMLElement);
         expect(queryFirst(".test button")).toBe(null);
     });
+
+    test("stops every child, even one whose cleanup detaches itself", async () => {
+        class SelfRemoving extends Interaction {
+            static selector = ".child";
+            setup() {
+                this.registerCleanup(() => {
+                    expect.step(`stopped:${this.el.dataset.n}`);
+                    this.el.remove();
+                });
+            }
+        }
+        class Test extends Interaction {
+            static selector = ".test";
+            start() {
+                this.removeChildren(this.el);
+            }
+        }
+        const kids = [1, 2, 3, 4]
+            .map((n) => `<span class="child" data-n="${n}"></span>`)
+            .join("");
+        const { core } = await startInteraction(
+            [SelfRemoving, Test],
+            `<div class="test">${kids}</div>`,
+        );
+        expect.verifySteps(["stopped:1", "stopped:2", "stopped:3", "stopped:4"]);
+        expect(core.interactions).toHaveLength(1);
+    });
 });
 
 describe("renderAt", () => {
@@ -2601,7 +2855,7 @@ describe("renderAt", () => {
         }
 
         const { core } = await startInteraction([Test, Test2], TemplateTest);
-        expect(core.interactions).toHaveLength(3); // 1*Test + 2*Test2
+        expect(core.interactions).toHaveLength(3);
         const subEls = queryAll(".test [data-which][x=x]");
         await click(subEls[1]);
         await click(subEls[0]);
@@ -2934,7 +3188,6 @@ describe("debounced (2)", () => {
         if (now > debounceTimer) {
             console.log("code took too long...");
         }
-        // compute the step to get between now and debouncetimer
         const step = (debounceTimer - now) / 2;
         await advanceTime(step);
         expect.verifySteps([]);
@@ -3257,6 +3510,48 @@ describe("throttled_for_animation (2)", () => {
 });
 
 describe("patching", () => {
+    test("patching keeps 'this' for an entry written as a method reference", async () => {
+        // the framework calls a definition with the interaction as `this`;
+        // wrapping it in a patch must not drop that, or an unbound method
+        // reference silently starts seeing an undefined `this`
+        class Base extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-on-click": this.onClick,
+                    "t-att-animal": this.getAnimal,
+                },
+            };
+            setup() {
+                this.name = "colibri";
+            }
+            onClick() {
+                expect.step(`click:${this?.name}`);
+            }
+            getAnimal() {
+                return this?.name;
+            }
+        }
+        patch(Base.prototype, {
+            setup() {
+                super.setup();
+                patchDynamicContent(this.dynamicContent, {
+                    _root: {
+                        "t-on-click": (ev, oldFn) => {
+                            oldFn(ev);
+                            expect.step("click:patch");
+                        },
+                        "t-att-animal": (el, old) => `${old}!`,
+                    },
+                });
+            },
+        });
+        await startInteraction(Base, TemplateTest);
+        expect(".test").toHaveAttribute("animal", "colibri!");
+        await click(".test");
+        expect.verifySteps(["click:colibri", "click:patch"]);
+    });
+
     test("'this' is kept through patches", async () => {
         class Base extends Interaction {
             static selector = ".test";
@@ -3315,5 +3610,487 @@ describe("patching", () => {
         expect(interaction.value).toBe(250);
         expect("span").toHaveAttribute("value", "7250");
         expect("span").toHaveClass(["base", "big", "bigger"]);
+    });
+});
+
+describe("teardown and error routing", () => {
+    test("a cleanup registered before a mountComponent still runs on destroy", async () => {
+        class Child extends Component {
+            static template = xml`<span class="child"/>`;
+            static props = {};
+        }
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.registerCleanup(() => expect.step("cleanup A"));
+                this.mountComponent(this.el, Child);
+                this.registerCleanup(() => expect.step("cleanup C"));
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        await animationFrame();
+        core.stopInteractions();
+        expect.verifySteps(["cleanup C", "cleanup A"]);
+    });
+
+    test("interactions inside an inserted element are stopped with their host", async () => {
+        class Child extends Interaction {
+            static selector = ".child";
+            destroy() {
+                expect.step("child destroyed");
+            }
+        }
+        class Parent extends Interaction {
+            static selector = ".test";
+            static selectorHas = ".flag";
+            setup() {
+                const el = document.createElement("div");
+                el.className = "child";
+                this.insert(el);
+            }
+        }
+        const { core } = await startInteraction(
+            [Parent, Child],
+            `<div class="test"><span class="flag"></span></div><div class="other"></div>`,
+        );
+        expect(core.interactions).toHaveLength(2);
+        queryOne(".flag").remove();
+        // stops Parent, whose selectorHas no longer matches, but not Child
+        core.stopInteractions(queryOne(".other"));
+        expect.verifySteps(["child destroyed"]);
+        expect(core.interactions).toHaveLength(0);
+    });
+
+    test("an async .noUpdate handler is awaited and its error reported", async () => {
+        const errors = [];
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-on-click.noUpdate": async () => {
+                        expect.step("handler start");
+                        await Promise.resolve();
+                        throw new Error("async boom");
+                    },
+                },
+            };
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        core.reportError = (error) => errors.push(error);
+        await click(".test");
+        await animationFrame();
+        expect.verifySteps(["handler start"]);
+        expect(errors.map((e) => e.message)).toEqual(["async boom"]);
+    });
+
+    test("a locked() handler failure reaches the error channel", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.onClick = this.locked(async () => {
+                    throw new Error("locked boom");
+                });
+            }
+            dynamicContent = {
+                _root: { "t-on-click": (ev) => this.onClick(ev) },
+            };
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        const errors = [];
+        core.reportError = (error) => errors.push(error);
+        await click(".test");
+        await animationFrame();
+        await animationFrame();
+        expect(errors.map((e) => e.message)).toEqual(["locked boom"]);
+    });
+
+    test("a debounced handler failure reaches the error channel", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.onClick = this.debounced(async () => {
+                    throw new Error("debounced boom");
+                }, 0);
+            }
+            dynamicContent = {
+                _root: { "t-on-click": (ev) => this.onClick(ev) },
+            };
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        const errors = [];
+        core.reportError = (error) => errors.push(error);
+        await click(".test");
+        await animationFrame();
+        await animationFrame();
+        await animationFrame();
+        expect(errors.map((e) => e.message)).toEqual(["debounced boom"]);
+    });
+});
+
+describe("dynamic attributes", () => {
+    test("t-att-class keys that appear later are restored on destroy", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-att-class": () => (this.phase === 0 ? { a: true } : { b: true }),
+                },
+            };
+            setup() {
+                this.phase = 0;
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        const el = queryOne(".test");
+        expect(el.className).toBe("test a");
+        core.interactions[0].interaction.phase = 1;
+        core.interactions[0].updateContent();
+        expect(el.className).toBe("test a b");
+        core.stopInteractions();
+        expect(el.className).toBe("test");
+    });
+
+    test("t-att-class tolerates multi-space class keys", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: { "t-att-class": () => ({ "x  y": true }) },
+            };
+        }
+        await startInteraction(Test, `<div class="test"></div>`);
+        expect(queryOne(".test").className).toBe("test x y");
+    });
+
+    test("selector-bound listeners are detached when their node departs, even when addListener forwards only its documented arguments", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".item": { "t-on-click": () => expect.step("clicked") },
+            };
+        }
+        patchWithCleanup(Colibri.prototype, {
+            addListener(nodes, event, fn, options) {
+                return super.addListener(nodes, event, fn, options);
+            },
+        });
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><span class="item"></span></div>`,
+        );
+        await click(".item");
+        expect.verifySteps(["clicked"]);
+        queryOne(".test span").classList.remove("item");
+        core.interactions[0].updateContent();
+        await click(".test span");
+        expect.verifySteps([]);
+    });
+});
+
+describe("lifecycle edge cases", () => {
+    test("_window still resolves when the document has no default view", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _window: { "t-on-resize": () => expect.step("resized") },
+            };
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        const detached = document.implementation.createHTMLDocument();
+        detached.body.innerHTML = `<div class="test"></div>`;
+        expect(detached.defaultView).toBe(null);
+        await core.startInteractions(/** @type {any} */ (detached.body));
+        const started = core.interactions.at(-1);
+        expect(started.interaction.el.ownerDocument).toBe(detached);
+        // the detached interaction must have resolved _window to something
+        // listenable rather than silently binding nothing
+        expect([...started.dynamicNodes.get("_window")]).toHaveLength(1);
+        window.dispatchEvent(new Event("resize"));
+        await animationFrame();
+        // one step per started interaction (fixture + detached)
+        expect.verifySteps(["resized", "resized"]);
+    });
+
+    test("a cleanup that registers another cleanup terminates", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.registerCleanup(() => {
+                    expect.step("outer");
+                    this.registerCleanup(() => expect.step("inner"));
+                });
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        core.stopInteractions();
+        expect.verifySteps(["outer", "inner"]);
+    });
+
+    test("two selectors sharing one handler function detach independently", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            onHit() {
+                expect.step("hit");
+            }
+            dynamicContent = {
+                ".a": { "t-on-click": this.onHit },
+                ".b": { "t-on-click": this.onHit },
+            };
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><span class="a x"></span><span class="b y"></span></div>`,
+        );
+        await click(".x");
+        await click(".y");
+        expect.verifySteps(["hit", "hit"]);
+        // .a departs; .b must keep its listener
+        queryOne(".x").classList.remove("a");
+        core.interactions[0].updateContent();
+        await click(".x");
+        expect.verifySteps([]);
+        await click(".y");
+        expect.verifySteps(["hit"]);
+    });
+
+    test("destroying an inserted host does not stop unrelated interactions", async () => {
+        class Bystander extends Interaction {
+            static selector = ".bystander";
+            destroy() {
+                expect.step("bystander destroyed");
+            }
+        }
+        class Host extends Interaction {
+            static selector = ".test";
+            setup() {
+                const el = document.createElement("div");
+                el.className = "child";
+                this.insert(el);
+            }
+        }
+        const { core } = await startInteraction(
+            [Host, Bystander],
+            `<div class="test"></div><div class="bystander"></div>`,
+        );
+        core.stopInteractions(queryOne(".test"));
+        expect.verifySteps([]);
+        expect(core.interactions).toHaveLength(1);
+        // the bystander is torn down by the fixture cleanup, not by the host
+        core.stopInteractions();
+        expect.verifySteps(["bystander destroyed"]);
+    });
+
+    test("inserting adds no page-wide selectorHas re-evaluation of its own", async () => {
+        // `shouldStop` re-checks selectorHas for every interaction on any stop
+        // pass. Insert()'s teardown now triggers a second pass, so the question is
+        // whether it makes collateral stops possible that a plain stop would not:
+        // run both and compare.
+        const run = async (hostInserts) => {
+            class Fragile extends Interaction {
+                static selector = ".fragile";
+                static selectorHas = ".flag";
+                destroy() {
+                    expect.step("fragile destroyed");
+                }
+            }
+            class Host extends Interaction {
+                static selector = ".test";
+                setup() {
+                    if (hostInserts) {
+                        const el = document.createElement("div");
+                        el.className = "child";
+                        this.insert(el);
+                    }
+                }
+            }
+            const { core } = await startInteraction(
+                [Host, Fragile],
+                `<div class="test"></div><div class="fragile"><i class="flag"></i></div>`,
+            );
+            queryOne(".flag").remove();
+            core.stopInteractions(queryOne(".test"));
+            const stopped = core.interactions.length;
+            core.stopInteractions();
+            return stopped;
+        };
+        expect(await run(false)).toBe(await run(true));
+        expect.verifySteps(["fragile destroyed", "fragile destroyed"]);
+    });
+
+    test("a throwing interaction destroy still marks the colibri destroyed", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            destroy() {
+                throw new Error("destroy boom");
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        const colibri = core.interactions[0];
+        expect(() => core.stopInteractions()).toThrow();
+        expect(colibri.isDestroyed).toBe(true);
+        // a second stop must be a no-op, not a second (throwing) teardown
+        expect(() => colibri.destroy()).not.toThrow();
+    });
+
+    test("t-att-style keys that appear later are restored on destroy", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-att-style": () =>
+                        this.phase === 0 ? { color: "red" } : { "z-index": "5" },
+                },
+            };
+            setup() {
+                this.phase = 0;
+            }
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test" style="color: blue;"></div>`,
+        );
+        const el = queryOne(".test");
+        expect(el.style.color).toBe("red");
+        core.interactions[0].interaction.phase = 1;
+        core.interactions[0].updateContent();
+        expect(el.style.zIndex).toBe("5");
+        core.stopInteractions();
+        expect(el.style.color).toBe("blue");
+        expect(el.style.zIndex).toBe("");
+    });
+});
+
+describe("restoring on destroy", () => {
+    test("a node that left the selector's match set is restored too", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicSelectors = {
+                ...this.dynamicSelectors,
+                _target: () => this.target,
+            };
+            dynamicContent = {
+                _target: { "t-att-class": () => ({ marked: true }) },
+            };
+            setup() {
+                this.target = this.el.querySelector(".a");
+            }
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><span class="a"></span><span class="b"></span></div>`,
+        );
+        expect(".a").toHaveClass("marked");
+        // the selector now points elsewhere; .a has left the match set
+        core.interactions[0].interaction.target = queryOne(".b");
+        core.interactions[0].updateContent();
+        expect(".b").toHaveClass("marked");
+        core.stopInteractions();
+        expect(queryOne(".a").className).toBe("a");
+        expect(queryOne(".b").className).toBe("b");
+    });
+
+    test("a t-out node that left the match set is restored too", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicSelectors = {
+                ...this.dynamicSelectors,
+                _target: () => this.target,
+            };
+            dynamicContent = {
+                _target: { "t-out": () => "replaced" },
+            };
+            setup() {
+                this.target = this.el.querySelector(".a");
+            }
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><span class="a">first</span><span class="b">second</span></div>`,
+        );
+        expect(queryOne(".a").textContent).toBe("replaced");
+        core.interactions[0].interaction.target = queryOne(".b");
+        core.interactions[0].updateContent();
+        core.stopInteractions();
+        expect(queryOne(".a").textContent).toBe("first");
+        expect(queryOne(".b").textContent).toBe("second");
+    });
+
+    test("a failing waitForTimeout callback is reported, not left uncaught", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.waitForTimeout(() => {
+                    throw new Error("timeout boom");
+                }, 10);
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        const errors = [];
+        core.reportError = (error) => errors.push(error);
+        await advanceTime(20);
+        expect(errors.map((e) => e.message)).toEqual(["timeout boom"]);
+    });
+});
+
+describe("once listeners", () => {
+    test("a fired once-listener stops being tracked", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: {
+                    "t-on-click": () => {
+                        // the popup interaction does exactly this: register a
+                        // one-shot listener each time it is (re)activated
+                        this.addListener(this.el, "custom", () => {}, { once: true });
+                    },
+                },
+            };
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        const colibri = core.interactions[0];
+        const el = queryOne(".test");
+        const cycle = async () => {
+            await click(".test");
+            el.dispatchEvent(new Event("custom"));
+        };
+        await cycle();
+        // the interaction's own click listener stays; what must not grow is
+        // the bookkeeping of the one-shot listeners it keeps arming
+        const settled = colibri.cleanups.length;
+        for (let i = 0; i < 5; i++) {
+            await cycle();
+        }
+        await animationFrame();
+        expect(colibri.cleanups).toHaveLength(settled);
+        expect(
+            colibri.listenerRecords.filter((r) => r.event === "custom"),
+        ).toHaveLength(0);
+    });
+});
+
+describe("directive validation", () => {
+    test("a t-att definition that is not callable is rejected where it is declared", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: { "t-att-class": { "some-class": true } },
+            };
+        }
+        await expect(
+            startInteraction(Test, `<div class="test"></div>`),
+        ).rejects.toThrow(
+            "'t-att-class' expects a function, got object (selector '_root' in interaction 'Test')",
+        );
+    });
+
+    test("a t-out definition that is not callable is rejected too", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                _root: { "t-out": "some text" },
+            };
+        }
+        await expect(
+            startInteraction(Test, `<div class="test"></div>`),
+        ).rejects.toThrow("'t-out' expects a function, got string");
     });
 });

@@ -37,8 +37,6 @@ function getNormalizedCondition(condition) {
  */
 function isX2Many(ast, options) {
     if (isValidPath(ast, options)) {
-        // isValidPath only returns true when getFieldDef is defined and returns
-        // non-null (see ast_utils.isValidPath), so the optional call resolves.
         const fieldDef = options.getFieldDef?.(ast.value);
         return (
             !!fieldDef &&
@@ -63,17 +61,12 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
     if (
         tree.type === "connector" &&
         tree.value === "|" &&
-        // A NEGATED "|" must go through the general path below, which emits the
-        // wrapping ``not (...)``; the if/else shortcut drops it (round-trip
-        // corruption, e.g. ``not (b and x) or (not b and y)`` → ``x if b else y``).
         !tree.negate &&
         tree.children.length === 2
     ) {
-        // check if we have an "if else"
         const isSimpleAnd = (/** @type {Tree} */ tree) =>
             tree.type === "connector" &&
             tree.value === "&" &&
-            // A negated "&" child likewise loses its negation in the shortcut.
             !tree.negate &&
             tree.children.length === 2;
         if (tree.children.every((/** @type {Tree} */ c) => isSimpleAnd(c))) {
@@ -92,10 +85,6 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
                             _constructExpressionFromTree(c, options),
                         );
                         const expression = `${strs[0]} if ${str} else ${strs[1]}`;
-                        // A conditional expression has the LOWEST precedence in
-                        // Python: unparenthesized inside a parent connector,
-                        // `A and X if C else Y` re-parses as `(A and X) if C
-                        // else Y` — a different (wrong) expression.
                         return isRoot ? expression : `( ${expression} )`;
                     }
                 }
@@ -122,9 +111,6 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
     }
 
     if (tree.type === "complex_condition") {
-        // A complex condition is spliced verbatim into the parent connector
-        // expression: parenthesize when its root binds looser than `not`
-        // (`a or b` inside an AND would otherwise regroup as `x and a or b`).
         if (!isRoot) {
             const ast = parseExpr(tree.value);
             if (ast.type === ASTType.BooleanOperator || ast.type === ASTType.If) {
@@ -141,18 +127,13 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
         return path.toString();
     }
 
-    const op = operator === "=" ? "==" : operator; // do something about is ?
+    const op = operator === "=" ? "==" : operator;
     if (typeof op !== "string" || !COMPARATORS.includes(op)) {
         throw new Error("Invalid operator");
     }
 
-    // we can assume that negate = false here: comparators have negation defined
-    // and the tree has been normalized
-
     if ([0, 1].includes(path)) {
         if (operator !== "=" || value !== 1) {
-            // Same contract as the other invalid cases above/below: throw,
-            // so callers never receive an Error object as the "expression".
             throw new Error("Invalid condition");
         }
         return formatAST({ type: ASTType.Boolean, value: Boolean(path) });
@@ -167,7 +148,6 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
     }
 
     if (value === false && ["=", "!="].includes(operator)) {
-        // true makes sense for non boolean fields?
         return formatAST(operator === "=" ? not(pathAST) : pathAST);
     }
 
@@ -193,8 +173,6 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
         isX2Many(pathAST, options) &&
         ["in", "not in"].includes(operator)
     ) {
-        // Hand-built `set(path).intersection(value)` call. Cast to AST: the
-        // node omits FunctionCall's `kwargs` (formatAST tolerates its absence).
         const ast = /** @type {AST} */ ({
             type: ASTType.FunctionCall,
             fn: {
@@ -213,8 +191,6 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
         });
         return formatAST(operator === "not in" ? not(ast) : ast);
     }
-
-    // add case true for boolean fields
 
     return formatAST({
         type: ASTType.BinaryOperator,

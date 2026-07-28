@@ -47,11 +47,7 @@ export class DomainField extends Component {
         this.getDefaultLeafDomain = useGetDefaultLeafDomain();
         this.addDialog = useOwnedDialogs();
 
-        // Serialize the record-count RPCs so that two rapid edits (checkProps is
-        // fired un-awaited from the record observer) cannot resolve out of order
-        // and leave a stale count showing.
         this.keepLastCount = new KeepLast();
-        // Same for the facets computation (loadFacets is fired un-awaited too).
         this.keepLastFacets = new KeepLast();
 
         this.state = useState({
@@ -75,18 +71,13 @@ export class DomainField extends Component {
                     nextProps.record.setInvalidField(nextProps.name);
                 }
             } else {
-                this.checkProps(nextProps); // not awaited
+                this.checkProps(nextProps);
             }
             if (nextProps.isFoldable) {
                 this.loadFacets(nextProps);
             }
         });
 
-        // Flush a pending debug-mode domain edit (held only in ``this.debugDomain``
-        // until committed) on BOTH save paths. NEED_LOCAL_CHANGES covers
-        // ``record.save()`` (Ctrl+S); WILL_SAVE_URGENTLY covers tab-close /
-        // sendBeacon — previously unhandled, so a debug edit was lost on tab
-        // close. Every sibling widget that handles one handles both.
         const flushDebugDomain = (ev) => {
             if (!this.debugDomain) {
                 return;
@@ -98,7 +89,7 @@ export class DomainField extends Component {
                 });
                 const isValid = await this.quickValidityCheck(props);
                 if (isValid) {
-                    this.debugDomain = null; // will allow the count to be loaded if needed
+                    this.debugDomain = null;
                 } else {
                     this.state.isValid = false;
                     this.state.recordCount = 0;
@@ -136,9 +127,6 @@ export class DomainField extends Component {
         const evalContext = this.getContext(props);
         if (domainContainsExpressions(domainStringRepr)) {
             const allowExpressions = this.allowExpressions(props);
-            // Notify once per distinct domain (deduped by lastDomainChecked):
-            // informing the user that their domain involves non-literals is
-            // intended feedback on load, not just on an explicit action.
             if (domainStringRepr !== this.lastDomainChecked) {
                 this.lastDomainChecked = domainStringRepr;
                 this.notification.add(
@@ -155,8 +143,6 @@ export class DomainField extends Component {
         }
         try {
             const domain = new Domain(domainStringRepr).toList(evalContext);
-            // Some uncertainty about domain validity remains here; a complete
-            // (async) check happens when loading the record count.
             return domain;
         } catch (error) {
             if (error instanceof InvalidDomainError) {
@@ -183,8 +169,6 @@ export class DomainField extends Component {
     async loadFacets(props = this.props) {
         const resModel = this.getResModel(props);
 
-        // Non-string res models are invalid (this method is fired un-awaited,
-        // so throwing would only surface as an unhandled rejection).
         if (!resModel || typeof resModel !== "string") {
             this.state.facets = [];
             this.state.folded = false;
@@ -214,7 +198,6 @@ export class DomainField extends Component {
                 })(),
             );
         } catch {
-            // Invalid model / domain: display no facets rather than crashing.
             this.state.facets = [];
             this.state.folded = false;
             return;
@@ -230,8 +213,6 @@ export class DomainField extends Component {
         }
 
         if (typeof resModel !== "string") {
-            // Invalid model: flag the field instead of throwing from this
-            // un-awaited async method (unhandled rejection otherwise).
             this.updateState({
                 isValid: false,
                 recordCount: 0,
@@ -265,8 +246,6 @@ export class DomainField extends Component {
                 }),
             );
         } catch {
-            // Includes the invalid-model KeyError: flag the field instead of
-            // rethrowing from this un-awaited async method.
             this.updateState({
                 isValid: false,
                 recordCount: 0,
@@ -282,7 +261,6 @@ export class DomainField extends Component {
     }
 
     onButtonClick() {
-        // resModel, domain, and context are assumed to be valid here.
         const SelectCreateDialog = registry.category("dialogs").get("select_create");
         this.addDialog(
             SelectCreateDialog,
@@ -295,15 +273,12 @@ export class DomainField extends Component {
                 context: this.getContext(),
             },
             {
-                // Reloaded on close because the dialog may modify data that
-                // affects the counter.
                 onClose: () => this.checkProps(),
             },
         );
     }
 
     onEditDialogBtnClick() {
-        // resModel is assumed to be valid here
         this.addDialog(DomainSelectorDialog, {
             resModel: this.getResModel(),
             domain: this.getDomain(),

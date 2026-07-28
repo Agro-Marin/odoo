@@ -54,8 +54,6 @@ test("dialog has aria-modal and aria-labelledby pointing at title", async () => 
     const modal = queryOne(".o_dialog [role=dialog]");
     expect(modal.getAttribute("aria-modal")).toBe("true");
     const labelledById = modal.getAttribute("aria-labelledby");
-    // HOOT has no ``toBeTruthy`` matcher; ``toMatch(/.+/)`` is the idiomatic
-    // "non-empty string" assertion.
     expect(labelledById).toMatch(/.+/);
     const titleEl = queryOne("#" + labelledById);
     expect(titleEl).toHaveClass("modal-title");
@@ -72,12 +70,8 @@ test("dialog without title has no aria-labelledby", async () => {
     await mountWithCleanup(Parent);
     const modal = queryOne(".o_dialog [role=dialog]");
     expect(modal.getAttribute("aria-modal")).toBe("true");
-    // props.title gates the attribute at the template level: default title
-    // makes it present, an explicitly falsy title makes it absent. Cover
-    // both cases.
     const labelledById = modal.getAttribute("aria-labelledby");
     if (labelledById !== null) {
-        // Default Odoo title path — verify the linkage still resolves.
         expect(queryOne("#" + labelledById)).toHaveClass("modal-title");
     }
 });
@@ -107,11 +101,9 @@ test("hotkeys work on dialogs", async () => {
     await mountWithCleanup(Parent);
     expect("header .modal-title").toHaveText("Wow(l) Effect");
     expect("footer button").toHaveText("Ok");
-    // Same effect as clicking on the x button
     await press("escape");
     await animationFrame();
     expect.verifySteps(["dismiss", "close"]);
-    // Same effect as clicking on the Ok button
     await keyDown("control+enter");
     await keyUp("ctrl+enter");
     expect.verifySteps(["clickOk"]);
@@ -371,11 +363,8 @@ test("dialog can't be moved on small screen", async () => {
     const header = queryOne(".modal-header");
     const headerRect = header.getBoundingClientRect();
 
-    // Even if the `dragAndDrop` is called, confirms that there are no effects
     await contains(header).dragAndDrop(".modal-content", {
         position: {
-            // the util function sets the source coordinates at (x; y) + (w/2; h/2)
-            // so we need to move the dialog based on these coordinates.
             x: headerRect.x + headerRect.width / 2 + 20,
             y: headerRect.y + headerRect.height / 2 + 50,
         },
@@ -406,8 +395,6 @@ test("dialog can be moved", async () => {
     const headerRect = header.getBoundingClientRect();
     await contains(header).dragAndDrop(".modal-content", {
         position: {
-            // the util function sets the source coordinates at (x; y) + (w/2; h/2)
-            // so we need to move the dialog based on these coordinates.
             x: headerRect.x + headerRect.width / 2 + 20,
             y: headerRect.y + headerRect.height / 2 + 50,
         },
@@ -437,8 +424,6 @@ test("dialog's position is reset on resize", async () => {
     const headerRect = header.getBoundingClientRect();
     await contains(header).dragAndDrop(".modal-content", {
         position: {
-            // the util function sets the source coordinates at (x; y) + (w/2; h/2)
-            // so we need to move the dialog based on these coordinates.
             x: headerRect.x + headerRect.width / 2 + 20,
             y: headerRect.y + headerRect.height / 2 + 50,
         },
@@ -454,4 +439,50 @@ test("dialog's position is reset on resize", async () => {
         left: "0px",
         top: "0px",
     });
+});
+
+test("control+enter skips disabled footer buttons", async () => {
+    const env = await makeDialogMockEnv();
+    class Custom extends Component {
+        static components = { Dialog };
+        static props = ["*"];
+        static template = xml`
+            <Dialog>
+                body
+                <t t-set-slot="footer">
+                    <button class="btn first" disabled="disabled" t-on-click="() => this.props.onFirst()">First</button>
+                    <button class="btn second" t-on-click="() => this.props.onSecond()">Second</button>
+                </t>
+            </Dialog>`;
+    }
+    await mountWithCleanup(Custom, {
+        env,
+        props: {
+            onFirst: () => expect.step("first (disabled!)"),
+            onSecond: () => expect.step("second"),
+        },
+    });
+
+    await press(["control", "enter"]);
+    await animationFrame();
+    expect.verifySteps(["second"]);
+});
+
+// SCROLL-ORIGIN-BLOCK
+test.tags("mobile");
+test("a dialog on a hand-built dialogData survives teardown", async () => {
+    const env = await makeDialogMockEnv({
+        dialogData: { close: () => {}, isActive: true, scrollToOrigin: undefined },
+    });
+    class Parent extends Component {
+        static components = { Dialog };
+        static props = ["*"];
+        static template = xml`<Dialog><p>content</p></Dialog>`;
+    }
+    const parent = await mountWithCleanup(Parent, { env });
+    expect(".modal").toHaveCount(1);
+
+    destroy(parent);
+    await animationFrame();
+    expect(".modal").toHaveCount(0);
 });

@@ -14,39 +14,91 @@ import { getTemplate } from "@web/core/templates";
 import { makeEnv, startServices } from "@web/env";
 import lazyloader from "@web/public/lazyloader";
 
-// Read the locale outside the boot to not wait for DOM ready (but wait for
-// its use in startPublicApp).
 function getLang() {
     const html = document.documentElement;
     return jsToPyLocale(html.getAttribute("lang")) || "en_US";
 }
-const lang = cookie.get("frontend_lang") || getLang(); // FIXME the cookie value should maybe be in the ctx?
+const lang = cookie.get("frontend_lang") || getLang();
+
+/**
+ * Marks a submit button as busy and returns the undo.
+ *
+ * The undo drops the exact nodes it inserted, rather than the button's first
+ * `<i>` — which is how callers used to clean up after a cancelled submit, and
+ * which removes a legitimate icon (or throws) on a button that has one of its
+ * own.
+ *
+ * @param {HTMLElement} buttonEl
+ * @returns {() => void}
+ */
+function markSubmitting(buttonEl) {
+    const spinnerEl = document.createElement("i");
+    spinnerEl.className = "fa-solid fa-circle-notch fa-spin";
+    const spaceEl = document.createTextNode(" ");
+    buttonEl.prepend(spinnerEl, spaceEl);
+    // an anchor has no `disabled`; assigning one only adds a dead property
+    const isDisableable = "disabled" in buttonEl;
+    const wasDisabled = /** @type {HTMLButtonElement} */ (buttonEl).disabled;
+    if (isDisableable) {
+        /** @type {HTMLButtonElement} */ (buttonEl).disabled = true;
+    }
+    return () => {
+        spinnerEl.remove();
+        spaceEl.remove();
+        if (isDisableable) {
+            /** @type {HTMLButtonElement} */ (buttonEl).disabled = wasDisabled;
+        }
+    };
+}
 
 /**
  * Page-global behaviors historically installed by the legacy PublicRoot
  * widget: they are simple document-level delegations and one-shot DOM
  * decorations, needed on every public page (portal, website, ...).
+ *
+ * @returns {() => void} removes the delegations again; the one-shot decorations
+ *  are not undone. Production never calls it — it exists so a test can install
+ *  these behaviours without leaking listeners into the next one.
  */
-function setupGlobalPageBehaviors() {
-    // Prevent double form submission: spinner + disabled submit buttons.
-    document.body.addEventListener("submit", (ev) => {
+export function setupGlobalPageBehaviors() {
+    /** @type {Array<() => void>} */
+    const cleanups = [];
+    /**
+     * @param {string} type
+     * @param {EventListener} handler
+     */
+    const delegate = (type, handler) => {
+        document.body.addEventListener(type, handler);
+        cleanups.push(() => document.body.removeEventListener(type, handler));
+    };
+
+    delegate("submit", (ev) => {
         const form = /** @type {HTMLElement} */ (ev.target).closest(
             ".js_website_submit_form",
         );
         if (!form) {
             return;
         }
-        const buttons = form.querySelectorAll('button[type="submit"], a.a-submit');
-        for (const btn of buttons) {
-            btn.insertAdjacentHTML(
-                "afterbegin",
-                '<i class="fa-solid fa-circle-notch fa-spin"></i> ',
-            );
-            /** @type {HTMLButtonElement} */ (btn).disabled = true;
+        // a submit that is cancelled navigates nowhere and so has no progress
+        // to show. Handlers bound to the form itself have already run by the
+        // time this delegated one does; one that cancels afterwards is caught
+        // by the wrapper below. Without either, every caller that cancels a
+        // submit had to reach into the button and undo the effect itself.
+        if (ev.defaultPrevented) {
+            return;
         }
+        const undos = [
+            ...form.querySelectorAll('button[type="submit"], a.a-submit'),
+        ].map((btn) => markSubmitting(/** @type {HTMLElement} */ (btn)));
+        const preventDefault = ev.preventDefault.bind(ev);
+        ev.preventDefault = () => {
+            for (const undo of undos) {
+                undo();
+            }
+            preventDefault();
+        };
     });
-    // Disable a button after the first click.
-    document.body.addEventListener("click", (ev) => {
+    delegate("click", (ev) => {
         const el = /** @type {HTMLElement} */ (ev.target).closest(
             ".js_disable_on_click",
         );
@@ -55,7 +107,6 @@ function setupGlobalPageBehaviors() {
         }
     });
 
-    // Display image thumbnails.
     for (const el of document.body.querySelectorAll(
         ".o_image[data-mimetype^='image']",
     )) {
@@ -64,15 +115,25 @@ function setupGlobalPageBehaviors() {
             /gif|jpe|jpg|png|webp/.test(imgEl.dataset.mimetype || "") &&
             imgEl.dataset.src
         ) {
-            imgEl.style.backgroundImage = `url('${imgEl.dataset.src}')`;
+            // interpolated raw, a src holding a quote closed the url() and let
+            // the rest of the attribute through as declarations of its own
+            const src = imgEl.dataset.src.replace(/["\\]/g, "\\$&");
+            imgEl.style.backgroundImage = `url("${src}")`;
         }
     }
 
-    // Auto scroll.
     const scrollTopMatch = window.location.hash.match(/scrollTop=([0-9]+)/);
     if (scrollTopMatch) {
-        document.body.scrollTop = +scrollTopMatch[1];
+        // measured: in standards mode `document.body.scrollTop = n` leaves
+        // window.scrollY at 0 — the viewport scrolls on <html>, not <body>
+        window.scrollTo(0, +scrollTopMatch[1]);
     }
+
+    return () => {
+        for (const cleanup of cleanups) {
+            cleanup();
+        }
+    };
 }
 
 /**
@@ -87,9 +148,12 @@ export async function startPublicApp() {
     const env = makeEnv();
     await startServices(env);
 
-    env.services["public.interactions"].isReady.then(() => {
-        document.body.setAttribute("is-ready", "true");
-    });
+    // `isReady` rejects when an interaction crashed. The failure is already
+    // reported by the service, and the flag must be set either way: the website
+    // builder's iframe wait and every tour gate on it, and would otherwise hang
+    // on a timeout that says nothing about the actual crash.
+    const flagAsReady = () => document.body.setAttribute("is-ready", "true");
+    env.services["public.interactions"].isReady.then(flagAsReady, flagAsReady);
 
     // @ts-expect-error -- OWL Component.env is assigned at startup (legacy pattern)
     Component.env = env;

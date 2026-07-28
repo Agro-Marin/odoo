@@ -42,11 +42,6 @@ class ResUserGroupIdsPrivilegeField extends Component {
      * @returns {Object | false}
      */
     get group() {
-        // Read from record.data (synchronously updated by Selection/BooleanField)
-        // rather than the derived ``env.resUserGroupsInfo.groups[gid].selected``
-        // flag, which the parent only refreshes on ``onWillRender``: a fast
-        // pick-then-click-info (e.g. a tour) can race ahead of that render and
-        // still read stale ``false``.
         const value = this.props.record.data[this.props.name];
         if (!value) {
             return false;
@@ -158,11 +153,6 @@ class ResUserGroupIdsPrivilegeField extends Component {
             this.popover.close();
             return;
         }
-        // Guard against opening with no group context: ``this.group``/``this.impliedGroup``
-        // return ``false`` when absent, so a bare ternary would resolve to ``undefined``
-        // and fail the popover's strict ``groupId`` prop (or crash its ``setup()`` on an
-        // undefined group). CSS hides the button in this state, but tests/edge timings
-        // can still reach the handler, so refuse here instead of crashing downstream.
         const groupId =
             (this.group && this.group.id) ||
             (this.impliedGroup && this.impliedGroup.id);

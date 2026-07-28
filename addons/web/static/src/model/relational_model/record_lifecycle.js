@@ -97,9 +97,6 @@ export async function deleteRecord(record) {
     }
     const resIds = record.resIds.slice();
     const index = resIds.indexOf(/** @type {number} */ (record.resId));
-    // resId may be absent from resIds (standalone Record with caller-supplied
-    // ids, config drift): splice(-1, 1) would silently drop the LAST pager id
-    // and resIds[min(-1, n)] would blank the form despite remaining records.
     if (index >= 0) {
         resIds.splice(index, 1);
     }

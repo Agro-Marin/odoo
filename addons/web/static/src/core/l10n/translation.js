@@ -45,8 +45,6 @@ function translationSprintf(str, substitutions) {
      */
     function formatSubstitution(value) {
         hasMarkup ||= isMarkup(value);
-        // The `!(value instanceof String)` check is to prevent interpreting `Markup` and `TranslatedString`
-        // objects as iterables, since they are both subclasses of `String`.
         if (isIterable(value) && !(value instanceof String)) {
             return formatList(value);
         } else {
@@ -101,13 +99,6 @@ export function _t(source, ...substitutions) {
     return appTranslateFn(source, odoo.translationContext, ...substitutions);
 }
 
-// ── Plural-aware form selector ───────────────────────────────────────────
-// Each form must already be translated (typically via `_t`); `_pl` only picks
-// which form to return for `count` per CLDR plural rules — it does NOT
-// translate. Real gettext msgid_plural support needs extractor work in
-// core/odoo/tools/translate.py (tracked as follow-up); this helper covers the
-// common one/other case and falls back to "other" for unprovided categories.
-
 /** @type {Map<string, Intl.PluralRules>} */
 const _pluralRulesCache = new Map();
 
@@ -134,12 +125,6 @@ const _pluralRulesCache = new Map();
  * @returns {T}
  */
 export function _pl(count, forms) {
-    // ``localization.code`` is the Python-locale form (``en_US``); ``Intl.PluralRules``
-    // requires BCP-47 (``en-US``) and throws ``RangeError`` otherwise, which would fail
-    // every caller (e.g. formatX2many's "x records" aggregate rows) — hence the conversion.
-    // ``pyToJsLocale`` (not a bare ``_``→``-`` replace) also maps the XPG ``@modifier``
-    // form, e.g. ``sr@latin``→``sr-Latn``; the naive replace left ``@latin`` intact and
-    // ``new Intl.PluralRules("sr@latin")`` throws.
     const code = pyToJsLocale(localization.code) || "en";
     let rules = _pluralRulesCache.get(code);
     if (!rules) {
@@ -163,13 +148,7 @@ export function _pl(count, forms) {
  */
 export function appTranslateFn(source, moduleName, ...substitutions) {
     if (translatedTerms[translationLoaded]) {
-        // Fast path once translations are loaded: behaviorally identical to
-        // `new TranslatedString(...).valueOf()` (which is what the slow path
-        // reduces to when not lazy), without allocating and discarding the
-        // TranslatedString wrapper on every call.
         if (!isNotBlank(source)) {
-            // Matches the constructor's `new String(value)` escape hatch,
-            // whose `.valueOf()` returns the coerced primitive.
             return String(source);
         }
         const context = moduleName || DEFAULT_MODULE;
@@ -243,8 +222,6 @@ export class TranslatedString extends String {
     valueOf() {
         const source = super.valueOf();
         if (this.lazy && !translatedTerms[translationLoaded]) {
-            // Evaluate lazy translated string while translations are not loaded
-            // -> error
             throw new Error(
                 `Cannot translate string: translations have not been loaded`,
             );
@@ -260,17 +237,6 @@ export class TranslatedString extends String {
         }
     }
 }
-
-// ── Cross-bundle singleton state ─────────────────────────────────────────
-// Native ESM gives each bundle (e.g. ``web.assets_web`` vs. the
-// ``web.assets_tests`` satellite loaded whenever ``--test-enable`` is on) its
-// own copy of this module's top-level bindings. Without routing through
-// ``globalThis``, the ``localization`` service flips ``translatedTerms`` /
-// resolves ``translationIsReady`` only in the parent bundle's copy, leaving
-// the satellite's copy permanently "not loaded" — so ``_t(...)`` calls in
-// satellite-bundled tour ``steps()`` throw and fail tests that pass on
-// upstream's amd-style loader. ``Symbol.for(...)`` is the matching trick for
-// the lookup key itself: it resolves to the same symbol across realms/bundles.
 
 /** @type {symbol} */
 export const translationLoaded = Symbol.for("@web/core/l10n/translationLoaded");

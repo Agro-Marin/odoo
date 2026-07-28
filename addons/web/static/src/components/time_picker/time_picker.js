@@ -122,10 +122,6 @@ export class TimePicker extends Component {
                 tab: {
                     bypassEditableProtection: true,
                     callback: (navigator) => {
-                        // Only commit a suggestion the user actually navigated
-                        // to: the nearest-value highlight set on open is a
-                        // visual hint and must not rewrite the value when
-                        // tabbing away.
                         if (this.isNavigating && navigator.activeItemIndex >= 0) {
                             this.setValue(this.suggestions[navigator.activeItemIndex]);
                             this.close();
@@ -227,17 +223,10 @@ export class TimePicker extends Component {
      */
     setValue(newValue, cleanValue = true) {
         if (newValue && cleanValue) {
-            // Copy before mutating: onItemSelected / the tab-enter hotkeys pass
-            // `this.suggestions[index]` directly, and those Time objects persist
-            // across opens (onPropsUpdated). Rounding or stamping seconds onto
-            // the shared instance permanently skewed getNearestSuggestionIndex
-            // and leaked hidden seconds into later onChange payloads.
             newValue = newValue.copy();
             if (this.props.minutesRounding > 1) {
                 newValue.roundMinutes(this.props.minutesRounding);
             }
-            // If showSeconds is false, keep the seconds from
-            // the original props.value
             if (!this.props.showSeconds && this.state.value) {
                 newValue.second = this.state.value.second;
             }

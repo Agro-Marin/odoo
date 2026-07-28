@@ -120,7 +120,6 @@ test("filter by a date field using period works", async () => {
     await toggleSearchBarMenu();
     await toggleMenuItem("Date");
 
-    // default filter should be activated with the global default period 'this_month'
     expect(searchBar.env.searchModel.domain).toEqual([
         "&",
         ["date_field", ">=", "2017-03-01"],
@@ -737,7 +736,6 @@ test("Add a custom filter", async () => {
         ["id", "=", 1],
     ]);
 
-    // open again the search menu -> the custom filter should not be displayed
     await toggleSearchBarMenu();
     expect(".o_filter_menu .o_menu_item:not(.o_add_custom_filter)").toHaveCount(1);
 });
@@ -762,9 +760,7 @@ test("Add a custom filter containing an expression", async () => {
     );
     await contains(".modal footer button").click();
     expect(getFacetTexts()).toEqual([`Foo = uid or 1 or "a"`]);
-    expect(searchBar.env.searchModel.domain).toEqual([
-        ["foo", "in", [7, 1, "a"]], // uid = 7
-    ]);
+    expect(searchBar.env.searchModel.domain).toEqual([["foo", "in", [7, 1, "a"]]]);
 });
 
 test("Add a custom filter containing a between operator", async () => {
@@ -1009,17 +1005,14 @@ test("group by properties", async () => {
         hideCustomGroupBy: true,
         searchMenuTypes: ["groupBy"],
     });
-    // definition is fetched only when we open the properties menu
     expect.verifySteps([]);
 
     await contains(".o_searchview_dropdown_toggler").click();
-    // definition is fetched only when we open the properties menu
     expect.verifySteps([]);
     expect(queryAllTexts`.o_menu_item`).toEqual(["Properties"]);
 
     await contains(".o_accordion_toggle").click();
     await animationFrame();
-    // now that we open the properties we fetch the definition
     expect.verifySteps(["definitionFetched"]);
     expect(queryAllTexts`.o_accordion_values .dropdown-item`).toEqual([
         "My Text (First Parent)",
@@ -1028,7 +1021,6 @@ test("group by properties", async () => {
         "My Integer (Second Parent)",
     ]);
 
-    // open the datetime item
     await contains(queryAll`.o_accordion_values .dropdown-item`[2]).click();
     expect(
         queryAllTexts`.o_accordion_values .o_accordion_values .dropdown-item`,

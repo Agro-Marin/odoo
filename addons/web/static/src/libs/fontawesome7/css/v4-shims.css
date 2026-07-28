@@ -1,0 +1,465 @@
+/*
+ * Font Awesome 4 compatibility shims for the vendored Font Awesome 7 drop.
+ *
+ * Font Awesome 7 renamed or dropped every FA4 name, and its `content:
+ * var(--fa)/""` rule renders nothing at all when `--fa` is undefined, so a
+ * stale FA4 class is a silently blank icon rather than a visible fallback.
+ * Upstream's shim ships only with the Pro download, so this file is generated
+ * from the vendored CSS instead: every `--fa` value below is copied from the
+ * `.css` files in this directory, so it cannot drift from the shipped fonts.
+ *
+ * Must be loaded after fontawesome.css/solid.css/regular.css/brands.css: the
+ * `--fa-style` overrides here rely on source order to beat `.fa-solid`.
+ */
+
+.fa-arrow-circle-o-up,
+.fa-bell-o,
+.fa-building-o,
+.fa-calendar-check-o,
+.fa-calendar-o,
+.fa-calendar-plus-o,
+.fa-calendar-times-o,
+.fa-check-circle-o,
+.fa-check-square-o,
+.fa-circle-o-notch,
+.fa-circle-thin,
+.fa-clock-o,
+.fa-comment-o,
+.fa-commenting-o,
+.fa-comments-o,
+.fa-dot-circle-o,
+.fa-envelope-o,
+.fa-file-archive-o,
+.fa-file-audio-o,
+.fa-file-excel-o,
+.fa-file-image-o,
+.fa-file-o,
+.fa-file-pdf-o,
+.fa-file-powerpoint-o,
+.fa-file-text-o,
+.fa-file-video-o,
+.fa-file-word-o,
+.fa-files-o,
+.fa-flag-o,
+.fa-flash,
+.fa-folder-o,
+.fa-folder-open-o,
+.fa-hand-paper-o,
+.fa-handshake-o,
+.fa-hdd-o,
+.fa-heart-o,
+.fa-hourglass-o,
+.fa-id-card-o,
+.fa-life-bouy,
+.fa-lightbulb-o,
+.fa-map-o,
+.fa-money,
+.fa-newspaper-o,
+.fa-paper-plane-o,
+.fa-pencil-square-o,
+.fa-picture-o,
+.fa-question-circle-o,
+.fa-star-half-o,
+.fa-star-o,
+.fa-sun-o,
+.fa-trash-o,
+.fa-user-circle-o,
+.fa-user-o,
+.fa-youtube-play {
+    --_fa-family: var(--fa-family, var(--fa-style-family, "Font Awesome 7 Pro"));
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    display: var(--fa-display, inline-block);
+    font-family: var(--_fa-family);
+    font-style: normal;
+    font-synthesis: none;
+    font-variant: normal;
+    font-weight: var(--fa-style, 900);
+    line-height: 1;
+    text-align: center;
+    text-rendering: auto;
+    width: var(--fa-width, 1.25em);
+}
+
+:is(
+    .fa-arrow-circle-o-up,
+    .fa-bell-o,
+    .fa-building-o,
+    .fa-calendar-check-o,
+    .fa-calendar-o,
+    .fa-calendar-plus-o,
+    .fa-calendar-times-o,
+    .fa-check-circle-o,
+    .fa-check-square-o,
+    .fa-circle-o-notch,
+    .fa-circle-thin,
+    .fa-clock-o,
+    .fa-comment-o,
+    .fa-commenting-o,
+    .fa-comments-o,
+    .fa-dot-circle-o,
+    .fa-envelope-o,
+    .fa-file-archive-o,
+    .fa-file-audio-o,
+    .fa-file-excel-o,
+    .fa-file-image-o,
+    .fa-file-o,
+    .fa-file-pdf-o,
+    .fa-file-powerpoint-o,
+    .fa-file-text-o,
+    .fa-file-video-o,
+    .fa-file-word-o,
+    .fa-files-o,
+    .fa-flag-o,
+    .fa-flash,
+    .fa-folder-o,
+    .fa-folder-open-o,
+    .fa-hand-paper-o,
+    .fa-handshake-o,
+    .fa-hdd-o,
+    .fa-heart-o,
+    .fa-hourglass-o,
+    .fa-id-card-o,
+    .fa-life-bouy,
+    .fa-lightbulb-o,
+    .fa-map-o,
+    .fa-money,
+    .fa-newspaper-o,
+    .fa-paper-plane-o,
+    .fa-pencil-square-o,
+    .fa-picture-o,
+    .fa-question-circle-o,
+    .fa-star-half-o,
+    .fa-star-o,
+    .fa-sun-o,
+    .fa-trash-o,
+    .fa-user-circle-o,
+    .fa-user-o,
+    .fa-youtube-play
+)::before {
+    content: var(--fa) / "";
+}
+
+.fa-arrow-circle-o-up {
+    --fa: "\f0aa";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-bell-o {
+    --fa: "\f0f3";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-building-o {
+    --fa: "\f1ad";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-calendar-check-o {
+    --fa: "\f274";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-calendar-o {
+    --fa: "\f133";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-calendar-plus-o {
+    --fa: "\f271";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-calendar-times-o {
+    --fa: "\f273";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-check-circle-o {
+    --fa: "\f058";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-check-square-o {
+    --fa: "\f14a";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-circle-o-notch {
+    --fa: "\f1ce";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 900;
+}
+
+.fa-circle-thin {
+    --fa: "\f111";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-clock-o {
+    --fa: "\f017";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-comment-o {
+    --fa: "\f075";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-commenting-o {
+    --fa: "\f4ad";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-comments-o {
+    --fa: "\f086";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-dot-circle-o {
+    --fa: "\f192";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-envelope-o {
+    --fa: "\f0e0";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-archive-o {
+    --fa: "\f1c6";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-audio-o {
+    --fa: "\f1c7";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-excel-o {
+    --fa: "\f1c3";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-image-o {
+    --fa: "\f1c5";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-o {
+    --fa: "\f15b";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-pdf-o {
+    --fa: "\f1c1";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-powerpoint-o {
+    --fa: "\f1c4";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-text-o {
+    --fa: "\f15c";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-video-o {
+    --fa: "\f1c8";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-file-word-o {
+    --fa: "\f1c2";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-files-o {
+    --fa: "\f0c5";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-flag-o {
+    --fa: "\f024";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-flash {
+    --fa: "\f0e7";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 900;
+}
+
+.fa-folder-o {
+    --fa: "\f07b";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-folder-open-o {
+    --fa: "\f07c";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-hand-paper-o {
+    --fa: "\f256";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-handshake-o {
+    --fa: "\f2b5";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-hdd-o {
+    --fa: "\f0a0";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-heart-o {
+    --fa: "\f004";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-hourglass-o {
+    --fa: "\f254";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-id-card-o {
+    --fa: "\f2c2";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-life-bouy {
+    --fa: "\f1cd";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 900;
+}
+
+.fa-lightbulb-o {
+    --fa: "\f0eb";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-map-o {
+    --fa: "\f279";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-money {
+    --fa: "\f3d1";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-newspaper-o {
+    --fa: "\f1ea";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-paper-plane-o {
+    --fa: "\f1d8";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-pencil-square-o {
+    --fa: "\f044";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-picture-o {
+    --fa: "\f03e";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-question-circle-o {
+    --fa: "\f059";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-star-half-o {
+    --fa: "\f5c0";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-star-o {
+    --fa: "\f005";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-sun-o {
+    --fa: "\f185";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-trash-o {
+    --fa: "\f2ed";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-user-circle-o {
+    --fa: "\f2bd";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-user-o {
+    --fa: "\f007";
+    --fa-family: var(--fa-family-classic);
+    --fa-style: 400;
+}
+
+.fa-youtube-play {
+    --fa: "\f167";
+    --fa-family: var(--fa-family-brands);
+    --fa-style: 400;
+}

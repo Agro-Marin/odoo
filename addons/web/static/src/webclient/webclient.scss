@@ -11,7 +11,6 @@ body {
     height: 100%;
 }
 
-// Disable default border-style added by _reboot.scss
 tfoot {
     tr,
     td,
@@ -20,21 +19,13 @@ tfoot {
     }
 }
 
-// ------------------------------------------------------------------
-// General
-// ------------------------------------------------------------------
 .o_web_client {
     direction: ltr;
-    position: relative; // normally useless but required by bootstrap-datepicker
+    position: relative;
     background-color: $o-webclient-background-color;
     color-scheme: $o-webclient-color-scheme;
 }
 
-// ------------------------------------------------------------------
-// Misc. widgets
-// ------------------------------------------------------------------
-
-// Buttons
 .o_icon_button {
     background-color: transparent;
     border: 0;
@@ -42,13 +33,11 @@ tfoot {
     outline: none;
 }
 
-// User input typically entered via keyboard
 kbd {
     border: 1px solid $o-gray-200;
     box-shadow: $kbd-box-shadow;
 }
 
-//== Backgound light colors variations (bootstrap extensions)
 @each $-name, $-bg-color in $theme-colors {
     $-safe-text-color: color-contrast(mix($-bg-color, $o-view-background-color));
     @include bg-variant(
@@ -58,7 +47,6 @@ kbd {
     );
 }
 
-//== Badges
 .badge {
     min-width: $o-badge-min-width;
     line-height: 1.1;
@@ -67,12 +55,10 @@ kbd {
     user-select: none;
     font-weight: 500;
     @include o-text-overflow;
-    transition: none; // remove transition to prevent badges from flickering at reload
+    transition: none;
     color: $o-black;
 }
 
-// == Boostrap Dropdown
-// ----------------------------------------------------------------------------
 :not(.dropstart) > .dropdown-item {
     &.active,
     &.selected {
@@ -135,16 +121,12 @@ kbd {
     display: none;
 }
 
-//== Printing improvements
 @media print {
     .table-responsive {
         overflow-x: initial;
     }
 }
 
-//== Action manager
-// ensure special links are styled as pointers even when they don't
-// have an href
 [type="action"],
 [type="toggle"] {
     cursor: pointer !important;
@@ -171,9 +153,6 @@ kbd {
     }
 }
 
-//------------------------------------------------------------------------------
-// Inputs and selects (note: put the o_input class to have the style)
-//------------------------------------------------------------------------------
 [type="text"],
 [type="password"],
 [type="number"],
@@ -184,11 +163,10 @@ select {
     width: 100%;
     display: block;
     outline: none;
-    border-radius: 0; // webkit OSX browsers have a border-radius on select, input and textarea
+    border-radius: 0;
 }
 
 select {
-    // FIXME buggy 'padding-left'
     cursor: pointer;
     min-width: 50px;
 
@@ -201,7 +179,6 @@ select {
         background: $light;
     }
 
-    // This is a hack to remove the outline in FF
     &:-moz-focusring {
         color: transparent;
         text-shadow: 0 0 0 $o-main-text-color;
@@ -212,27 +189,18 @@ select {
 }
 
 @mixin o-placeholder {
-    // Rules below need to be separeted. Otherwise all browsers will discard the whole rule.
     color: $input-placeholder-color;
 }
 ::-webkit-input-placeholder {
-    // WebKit, Blink, Edge
     @include o-placeholder;
 }
 ::-moz-placeholder {
-    // Mozilla Firefox 19+
     @include o-placeholder;
 }
 :-ms-input-placeholder {
-    // Internet Explorer 10-11
     @include o-placeholder;
 }
 
-//------------------------------------------------------------------------------
-// Misc.
-//------------------------------------------------------------------------------
-
-//== Titles
 @include media-breakpoint-down(md) {
     h1 {
         font-size: calc($h1-font-size * 3 / 4);
@@ -246,7 +214,6 @@ select {
     }
 }
 
-//== Alerts
 .alert {
     border-radius: $o-border-radius-lg;
     box-shadow: $o-shadow-xs;
@@ -262,7 +229,6 @@ select {
     }
 }
 
-//== Badges
 .badge {
     border-radius: $o-border-radius-full;
     font-weight: $o-font-weight-medium;
@@ -277,27 +243,18 @@ select {
     }
 }
 
-//== Buttons
-
-// Disable unnecessary box-shadows on mouse hover (except primary which has intentional shadows)
 .btn:not(.btn-primary):focus:hover {
     box-shadow: none;
 }
 
-//== Navbar
 .navbar .navbar-toggle {
     border-color: transparent;
 }
 
-//== Labels
 .label {
     border-radius: 0;
-    font-size: 1em; // Override 75% of .label
+    font-size: 1em;
 }
-
-//------------------------------------------------------------------------------
-// Print Style
-//------------------------------------------------------------------------------
 
 @include media-only(print) {
     html,
@@ -307,22 +264,16 @@ select {
     }
 }
 
-// ------------------------------------------------------------------
-// Bold & Modern design system overrides
-// ------------------------------------------------------------------
-
 .card {
     border-radius: $o-border-radius-lg;
     box-shadow: $o-shadow-sm;
     border-color: $o-gray-200;
 }
 
-// Skeleton loading placeholder
 .o_skeleton {
     @include o-skeleton();
 }
 
-// Thin rounded scrollbars
 ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -339,11 +290,8 @@ select {
     }
 }
 
-// Firefox (scrollbar properties inherit, so html is sufficient)
 html {
     scrollbar-width: thin;
     scrollbar-color: $o-gray-300 transparent;
 }
 
-// (prefers-reduced-motion reset moved to the shared scss/animation.scss so it
-// applies to frontend/login/portal/database-manager pages too.)

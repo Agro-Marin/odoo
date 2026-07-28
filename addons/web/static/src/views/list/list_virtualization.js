@@ -23,10 +23,10 @@
  *     this.virt.refresh();
  */
 
-import { onMounted, onPatched } from "@odoo/owl";
+import { onMounted, onPatched, status, useComponent } from "@odoo/owl";
 import { useVirtualGrid } from "@web/core/utils/virtual_grid";
-const DEFAULT_ROW_HEIGHT = 41; // px — standard Odoo list row
-const DEFAULT_GROUP_ROW_HEIGHT = 37; // px — group header row
+const DEFAULT_ROW_HEIGHT = 41;
+const DEFAULT_GROUP_ROW_HEIGHT = 37;
 const DEFAULT_THRESHOLD = 100;
 const DEFAULT_BUFFER_COEF = 0.5;
 
@@ -68,11 +68,10 @@ export function useListVirtualization({
     threshold = DEFAULT_THRESHOLD,
     bufferCoef = DEFAULT_BUFFER_COEF,
 }) {
-    // Measured row heights (set once from the real DOM on first patched)
+    const component = useComponent();
     let measuredRowHeight = 0;
     let measuredGroupRowHeight = 0;
 
-    // Current state
     let active = false;
     /** @type {FlatRow[]} */
     let visible = [];
@@ -90,33 +89,36 @@ export function useListVirtualization({
 
     /**
      * Measure actual row height from the first rendered data row.
-     * Called once after first mount/patch with data rows in the DOM.
+     *
+     * The geometry produced by {@link refresh} (spacer heights, cumulative
+     * offsets, the visible window) is derived from these two numbers, and the
+     * render that first activates virtualization necessarily ran before any
+     * row existed to measure — so it used the DEFAULT_* constants. Those are
+     * only right at default density; `o-density-compact` / `o-density-condensed`
+     * (and any addon restyling rows) make them wrong by tens of percent, which
+     * shows up as a scrollable extent that does not match the rows.
+     *
+     * Measuring therefore has to feed back into a render: without it the stale
+     * geometry survives until an unrelated render happens to re-enter
+     * `refresh()`. Re-rendering converges in one extra pass — the following
+     * `onPatched` measures the same heights and requests nothing.
      */
     function measureRowHeights() {
         const el = rootRef.el;
         if (!el) {
             return;
         }
-        // The measured heights are only consumed while virtualization is
-        // active. Skip the getBoundingClientRect reads (which force a synchronous
-        // reflow — costly after every inline-edit patch) when it is inactive:
-        // a small x2many list inside a form paid two forced reflows per patch
-        // for numbers it never used, defeating the column-width hook's
-        // reflow-free discipline. On first activation `refresh()` falls back to
-        // the DEFAULT_* constants for one frame, then this measures.
         if (!active) {
             return;
         }
-        // Re-measure on every patch, not just once: density (compact/comfortable)
-        // and browser zoom change row height at runtime, and a stale measurement
-        // desynced the spacer math and ensureRowVisible. Negligible cost next to
-        // the virtualization's own layout reads.
+        let changed = false;
         const dataRow = el.querySelector(".o_data_row");
         if (dataRow) {
             const rowHeight =
                 dataRow.getBoundingClientRect().height || DEFAULT_ROW_HEIGHT;
             if (rowHeight !== measuredRowHeight) {
                 measuredRowHeight = rowHeight;
+                changed = true;
             }
         }
         const groupRow = el.querySelector(".o_group_header");
@@ -125,7 +127,11 @@ export function useListVirtualization({
                 groupRow.getBoundingClientRect().height || DEFAULT_GROUP_ROW_HEIGHT;
             if (groupHeight !== measuredGroupRowHeight) {
                 measuredGroupRowHeight = groupHeight;
+                changed = true;
             }
+        }
+        if (changed && status(component) !== "destroyed") {
+            component.render();
         }
     }
 
@@ -160,7 +166,7 @@ export function useListVirtualization({
             }
             const targetTop = rowIndex > 0 ? cumHeights[rowIndex - 1] : 0;
             const containerHeight = rootRef.el.clientHeight;
-            const scrollTo = Math.max(0, targetTop - containerHeight / 2); // center in viewport
+            const scrollTo = Math.max(0, targetTop - containerHeight / 2);
             rootRef.el.scrollTop = scrollTo;
         },
 
@@ -186,19 +192,6 @@ export function useListVirtualization({
             const rowH = measuredRowHeight || DEFAULT_ROW_HEIGHT;
             const groupH = measuredGroupRowHeight || DEFAULT_GROUP_ROW_HEIGHT;
 
-            // Rebuild the per-row heights, but only push them into the virtual
-            // grid when they actually changed. refresh() runs on EVERY render —
-            // including every throttled scroll frame — and setRowsHeights()
-            // deletes the grid's cached rowsIndexes and recomputes them from
-            // index 0 (prevStartIndex === undefined), discarding the
-            // incremental, prevStartIndex-optimized window the scroll listener
-            // already computed for this same frame. Calling it unconditionally
-            // turned each scroll frame's O(window) index search into an O(n)
-            // rescan from the top plus a redundant O(n) cumHeights rebuild. When
-            // the heights are unchanged we leave the grid's fresh indexes in
-            // place and reuse the cached cumHeights. (`heights` is non-empty iff
-            // setRowsHeights was already called with it, so reading rowsIndexes
-            // and cumHeights below is safe on the unchanged path.)
             const newHeights = new Array(rowCount);
             let heightsChanged = rowCount !== heights.length;
             for (let i = 0; i < rowCount; i++) {
@@ -212,7 +205,6 @@ export function useListVirtualization({
             if (heightsChanged) {
                 heights = newHeights;
                 virtualGrid.setRowsHeights(heights);
-                // Cumulative heights, used for spacer sizing and ensureRowVisible
                 cumHeights = new Array(rowCount);
                 let acc = 0;
                 for (let i = 0; i < rowCount; i++) {
@@ -223,7 +215,6 @@ export function useListVirtualization({
 
             const indexes = virtualGrid.rowsIndexes;
             if (!indexes || /** @type {any} */ (indexes).length === 0) {
-                // All items fit in viewport (shouldn't happen above threshold, but be safe)
                 active = false;
                 visible = [];
                 topHeight = 0;
@@ -242,16 +233,6 @@ export function useListVirtualization({
             bottomHeight =
                 end < rowCount - 1 ? cumHeights[rowCount - 1] - cumHeights[end] : 0;
 
-            // Keep the edited record rendered even when scrolled out of the
-            // window, as an extra "island" row adjacent to the spacer on its
-            // side (NOT by extending the window to include it, which would
-            // materialize every row in between). The rows template keys rows
-            // by record id, so the row component — and with it focus and
-            // pending input — survives island ↔ window transitions. The
-            // island renders at the window edge rather than at its true
-            // offset, but that slot is beyond the buffer, hence off-screen;
-            // the spacer on that side shrinks by the row's height to keep
-            // the total scroll height exact.
             const editedRecord = getEditedRecord();
             if (editedRecord) {
                 const editedRow = gridState.findRowByRecordId(String(editedRecord.id));

@@ -36,7 +36,7 @@
                     <t t-set="inputClass" t-value="'o_select_menu_toggler ' + (!displayInputInDropdown ? 'o_select_menu_input ' : '') + props.togglerClass"/>
                     <div class="w-100 d-flex flex-column">
                         <t t-if="props.multiSelect">
-                            <div t-if="props.value.length" class="d-flex flex-wrap mb-1">
+                            <div t-if="selectedValues.length" class="d-flex flex-wrap mb-1">
                                 <TagsList tags="multiSelectChoices"/>
                             </div>
                         </t>

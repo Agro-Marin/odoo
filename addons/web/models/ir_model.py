@@ -85,28 +85,33 @@ class IrModel(models.Model):
         return self._display_name_for(accessible_models)
 
     def _get_definitions(self, model_names: list[str]) -> dict[str, dict[str, Any]]:
-        # Only expose schema for models the current user may actually read.
-        # This backs the public-facing ``/web/model/get_definitions`` route, a
-        # model-introspection surface; without this gate a non-internal or
-        # unauthorized user could read field/relation metadata of any model.
-        # Uses ``_is_valid_for_schema_introspection`` (internal + read access)
-        # rather than the stricter ``_is_valid_for_model_selector``: schema
-        # introspection legitimately covers transient/abstract models the user
-        # can read, whereas the selector gate additionally hides those because
-        # they can't be picked in a dropdown. The relational/inverse
-        # cross-references below stay confined to this access-filtered set, so
-        # no inaccessible model leaks through a relation.
         model_names = [
             name
             for name in model_names
             if self._is_valid_for_schema_introspection(name)
         ]
+        # Relational fields are pruned below when their target is not part of
+        # the batch. Prune against the requested models *plus* what they point
+        # at, so a model's field set depends only on that model: keying it off
+        # the batch made the mock server's view of, say, ``res.users`` change
+        # with whichever unrelated models a caller happened to ask for at the
+        # same time, dropping ``company_id`` (or a ``_rec_name`` target) and
+        # failing tests that never mentioned the missing model.
+        relation_scope = set(model_names)
+        for model_name in model_names:
+            model = self.env.get(model_name)
+            if model is None:
+                continue
+            relation_scope.update(
+                field.comodel_name
+                for field in model._fields.values()
+                if field.relational
+            )
         model_definitions = {}
         for model_name in model_names:
             model = self.env.get(model_name)
             if model is None:
                 continue
-            # Keep relational fields only when their related model is also in model_names
             fields_data_by_fname = {
                 fname: field_data
                 for fname, field_data in model.fields_get(
@@ -130,7 +135,7 @@ class IrModel(models.Model):
                 ).items()
                 if (
                     not field_data.get("relation")
-                    or field_data["relation"] in model_names
+                    or field_data["relation"] in relation_scope
                 )
             }
             fields_data_by_fname = {

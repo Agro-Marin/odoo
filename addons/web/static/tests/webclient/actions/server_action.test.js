@@ -65,10 +65,7 @@ test("can execute server actions from db ID", async () => {
             views: [[1, "kanban"]],
         },
     ]);
-    onRpc(
-        "/web/action/run",
-        async () => 1, // execute action 1
-    );
+    onRpc("/web/action/run", async () => 1);
     stepAllNetworkCalls();
 
     await mountWithCleanup(WebClient);
@@ -165,8 +162,6 @@ test("cyclic server action chains hit the recursion limit", async () => {
     let runCount = 0;
     onRpc("/web/action/run", async () => {
         runCount++;
-        // The server action returns itself as follow-up: without the depth
-        // guard this would loop doAction -> /web/action/run forever.
         return { type: "ir.actions.server", id: 2 };
     });
 
@@ -174,7 +169,5 @@ test("cyclic server action chains hit the recursion limit", async () => {
     await expect(getService("action").doAction(2)).rejects.toThrow(
         "Action recursion limit exceeded (max 20)",
     );
-    // Executor invocation k runs the RPC then checks depth k: the cap (> 20)
-    // trips on the 21st follow-up, so exactly 21 RPCs went out.
     expect(runCount).toBe(21);
 });

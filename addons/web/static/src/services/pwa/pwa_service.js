@@ -18,24 +18,15 @@ import { InstallPrompt } from "./install_prompt.js";
 
 const serviceRegistry = registry.category("services");
 
-/* The browser can fire `beforeinstallprompt` before the webclient (services, components, etc.) is
- * ready, so this listener is registered at module load instead of by the service. It stores the
- * event here; once started, the service checks this variable or adds its own listener, so
- * `_handleBeforeInstallPrompt` is always called at the right moment with the correct event.
- */
 /** @type {Event | null} */
 let BEFOREINSTALLPROMPT_EVENT;
 /** @type {((ev: Event) => void) | undefined} */
 let REGISTER_BEFOREINSTALLPROMPT_EVENT;
 
 browser.addEventListener("beforeinstallprompt", (ev) => {
-    // This event is only triggered by the browser when the native prompt to install can be shown
-    // This excludes incognito tabs, as well as visiting the website while the app is installed
     if (REGISTER_BEFOREINSTALLPROMPT_EVENT) {
-        // service has been started before the event was triggered, update the service
         return REGISTER_BEFOREINSTALLPROMPT_EVENT(ev);
     } else {
-        // store the event for later use
         BEFOREINSTALLPROMPT_EVENT = ev;
     }
 });
@@ -136,17 +127,16 @@ export const pwaService = {
 
         if (state.isScopedApp) {
             if (browser.location.pathname === "/scoped_app") {
-                // Installation page, use the path parameter in the URL
-                state.startUrl =
-                    "/" + new URL(browser.location.href).searchParams.get("path");
+                // `searchParams.get` returns null when `path` is absent, which
+                // concatenated into the literal scope "/null" — a key that then
+                // got its own persisted installation state.
+                const path = new URL(browser.location.href).searchParams.get("path");
+                state.startUrl = path ? `/${path}` : state.startUrl;
             } else {
                 state.startUrl = browser.location.pathname;
             }
         }
 
-        // The PWA can only be installed if it isn't already launched (display-mode standalone).
-        // Apple devices: supported on any mobile Safari, and on desktop Safari from version 17.
-        // On Safari, display-mode is checked too, and installationState decides whether to show the prompt.
         state.isSupportedOnBrowser =
             browser.BeforeInstallPromptEvent !== undefined ||
             (isBrowserSafari() &&
@@ -157,6 +147,11 @@ export const pwaService = {
                             browser.navigator.userAgent.match(/Version\/(\d+)/)?.[1],
                         ) >= 17)));
 
+        /** @param {Event} ev */
+        const handleRegisteredPrompt = (ev) => {
+            _handleBeforeInstallPrompt(ev, _getInstallationState());
+        };
+
         const installationState = _getInstallationState();
 
         if (state.isSupportedOnBrowser) {
@@ -165,17 +160,10 @@ export const pwaService = {
                     BEFOREINSTALLPROMPT_EVENT,
                     installationState,
                 );
-                BEFOREINSTALLPROMPT_EVENT = null; // clear this variable as it is no longer useful
+                BEFOREINSTALLPROMPT_EVENT = null;
             }
-            // If the user declines, the browser triggers this event again — catch it here.
-            REGISTER_BEFOREINSTALLPROMPT_EVENT = (ev) => {
-                // Re-read the persisted state: the boot-time snapshot predates
-                // a dismissal recorded by show()/decline(), and using it here
-                // would resurrect a prompt the user just dismissed.
-                _handleBeforeInstallPrompt(ev, _getInstallationState());
-            };
+            REGISTER_BEFOREINSTALLPROMPT_EVENT = handleRegisteredPrompt;
             if (isBrowserSafari()) {
-                // since those platforms don't rely on the beforeinstallprompt event, we handle it ourselves
                 state.canPromptToInstall = installationState !== "dismissed";
                 state.isAvailable = true;
             }
@@ -189,10 +177,7 @@ export const pwaService = {
         function _handleBeforeInstallPrompt(ev, installationState) {
             nativePrompt = ev;
             if (installationState === "accepted") {
-                // If this event is triggered with the installationState stored, it means that the app has been
-                // removed since its installation. The prompt can be displayed, and the installation state is reset.
                 if (!isDisplayStandalone()) {
-                    // In Scoped Apps, the event might be triggered if a manifest with a different scope is available
                     _removeInstallationState();
                 }
             }
@@ -210,15 +195,8 @@ export const pwaService = {
                     .querySelector("link[rel=manifest]")
                     ?.getAttribute("href");
                 if (!href) {
-                    // No manifest link on the page: don't fetch ``undefined``
-                    // (which would GET the current page and throw in JSON.parse)
-                    // and don't cache the failure — retry if a link appears.
                     return {};
                 }
-                // rejectHtml: an expired session redirects the fetch to the
-                // login page (200 + HTML); without this it would be handed back
-                // as the manifest body and die in JSON.parse. Route it to the
-                // session-expired flow instead.
                 const manifest = await get(href, "text", { rejectHtml: true });
                 _manifest = JSON.parse(manifest);
             }
@@ -247,11 +225,6 @@ export const pwaService = {
                     onDone(res);
                 }
             } else if (isBrowserSafari()) {
-                // since those platforms don't support a native installation prompt yet, we
-                // show a custom dialog to explain how to pin the app to the application menu.
-                // The callback is a dialog *option* (not a prop): it must fire on every
-                // removal path (ESC, closeAll, ...), not just the explicit close button —
-                // otherwise the dismissal is never persisted and the prompt reappears.
                 dialog.add(
                     InstallPrompt,
                     {},
@@ -272,6 +245,19 @@ export const pwaService = {
             _setInstallationState("dismissed");
             state.canPromptToInstall = false;
         }
+
+        /**
+         * Release the module-level hook back to the "stash the event" path.
+         * `REGISTER_BEFOREINSTALLPROMPT_EVENT` is a module singleton pointing
+         * into this env's closure: left set, it keeps a torn-down env alive and
+         * swallows the event for whichever env starts next, which then never
+         * learns the app is installable.
+         */
+        state.destroy = () => {
+            if (REGISTER_BEFOREINSTALLPROMPT_EVENT === handleRegisteredPrompt) {
+                REGISTER_BEFOREINSTALLPROMPT_EVENT = undefined;
+            }
+        };
 
         return state;
     },

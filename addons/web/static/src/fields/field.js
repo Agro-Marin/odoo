@@ -63,7 +63,7 @@ const supportedInfoEntryShape = {
     availableTypes: { type: Array, element: String, optional: true },
     default: { optional: true },
     help: { type: String, optional: true },
-    choices: /* choices if type == selection */ {
+    choices: {
         type: Array,
         element: {
             type: Object,
@@ -86,8 +86,6 @@ const supportedInfoValidation = {
     optional: true,
     element: [
         { type: Object, shape: supportedInfoEntryShape },
-        // stock_action_field composes supportedOptions via a nested
-        // Object.values(...) (not spread) — tolerate one level of nesting.
         {
             type: Array,
             element: { type: Object, shape: supportedInfoEntryShape },
@@ -108,7 +106,7 @@ fieldRegistry.addValidation({
     },
     extractProps: { type: Function, optional: true },
     isEmpty: { type: Function, optional: true },
-    isValid: { type: Function, optional: true }, // Override the validation for the validation visual feedbacks
+    isValid: { type: Function, optional: true },
     additionalClasses: { type: Array, element: String, optional: true },
     fieldDependencies: {
         type: [
@@ -122,9 +120,6 @@ fieldRegistry.addValidation({
         optional: true,
     },
     relatedFields: {
-        // Function forms (e.g. many2ManyTagsField) are opaque to the schema —
-        // only array literals are shape-checked. ``"*": true`` tolerates extra
-        // description keys; ``name`` is the only universal one.
         type: [
             Function,
             {
@@ -165,7 +160,6 @@ class DefaultField extends Component {
     static props = ["*"];
 }
 
-// Warn once per widget/type miss, not once per component instance.
 const warnedWidgetMisses = new Set();
 
 /**
@@ -265,8 +259,6 @@ export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
 export function getPropertyFieldInfo(propertyField) {
     const { name, relatedPropertyField, string, type, widget } = propertyField;
 
-    // ``field`` is assigned below via ``getFieldFromRegistry``; without the
-    // widen, TS infers a literal type here and complains at the return.
     /** @type {any} */
     const fieldInfo = {
         name,
@@ -343,8 +335,6 @@ export class Field extends Component {
             const fieldType = this.props.record.fields[this.props.name].type;
             this.field = getFieldFromRegistry(fieldType, this.props.type);
         }
-        // The template reads `tooltip` twice: build (and stringify) the
-        // tooltip info at most once per render.
         onWillRender(() => {
             this._tooltip = this.computeTooltip();
         });
@@ -374,8 +364,6 @@ export class Field extends Component {
             }
         }
 
-        // Decoration classNames from arch attrs (e.g. decoration-danger="other_field = 5");
-        // only text-decoration is handled here.
         if (fieldInfo?.decorations) {
             const { decorations } = fieldInfo;
             for (const decoName of Object.keys(decorations)) {
@@ -421,12 +409,6 @@ export class Field extends Component {
                     fieldInfo.attrs.placeholder ||
                     fieldInfo.options.placeholder_field
                 ) {
-                    // ``fieldInfo`` is the parsed arch node, shared across every
-                    // Field instance for this node (e.g. all rows of a list column).
-                    // The placeholder is record-specific, so mutating it in place
-                    // would pollute the shared node (and could trigger render loops
-                    // if the arch node became reactive) — shallow-copy instead, only
-                    // when a placeholder is actually in play.
                     fieldInfo = {
                         ...fieldInfo,
                         placeholder:
@@ -470,6 +452,19 @@ export class Field extends Component {
         delete props.type;
         delete props.readonly;
 
+        // Spread order is load-bearing. The generic `readonly` below also
+        // covers "the record is not being edited", but `propsFromNode` comes
+        // after it, so a widget whose `extractProps` returns
+        // `readonly: dynamicInfo.readonly` deliberately OVERRIDES that term —
+        // `dynamicInfo.readonly` is only the explicit readonly modifier.
+        //
+        // That is how the click-to-act widgets (boolean_toggle,
+        // boolean_favorite, boolean_icon, color, priority, kanban selection)
+        // stay interactive in a non-editable list, where every other field
+        // renders read-only: verified, a `boolean_toggle` there gets an enabled
+        // input and no `o_readonly_modifier`, while a plain char field renders
+        // no input at all. Returning `readonly` from `extractProps` is
+        // therefore an opt-out, not a pass-through — do not "simplify" it away.
         return {
             readonly: readonly || !record.isInEdition || false,
             ...propsFromNode,
@@ -484,8 +479,6 @@ export class Field extends Component {
         }
         const field = this.props.record.fields[this.props.name];
         const fieldInfo = this.props.fieldInfo || {};
-        // Cheap precheck: only build (and stringify) the tooltip info when
-        // it will actually be displayed.
         if (!odoo.debug && !(fieldInfo.help ?? field.help)) {
             return false;
         }
@@ -494,8 +487,6 @@ export class Field extends Component {
 
     /** @returns {string | false} JSON-serialized tooltip data, or false if tooltip is disabled */
     get tooltip() {
-        // _tooltip is always set before render (onWillRender above), which is
-        // the only time the template reads this getter.
         return /** @type {string | false} */ (this._tooltip);
     }
 }

@@ -31,8 +31,6 @@ test("getTabableElements excludes href-less anchors", () => {
 });
 
 test("getTabableElements excludes elements with tabIndex < 0", () => {
-    // `tabindex="-2"` matches the `:not([tabindex=\"-1\"])` attribute guard but
-    // is still non-tabable at the property level: it must be filtered out.
     const fixture = render(`
         <button id="b1">b1</button>
         <button id="b2" tabindex="-1">b2</button>
@@ -61,8 +59,6 @@ test("getNextTabableElement skips a href-less anchor (no dead spot)", () => {
     const first = /** @type {HTMLElement} */ (queryOne("#b1"));
     first.focus();
     expect(document.activeElement).toBe(first);
-    // The href-less anchor must be skipped so navigation lands on a real
-    // focusable element rather than a `.focus()`-noop dead spot.
     expect(getNextTabableElement(fixture)?.id).toBe("b2");
 });
 

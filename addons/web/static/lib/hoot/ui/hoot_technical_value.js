@@ -28,17 +28,9 @@ import {
  * }} TechnicalValueProps
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Object: { keys: $keys },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * Compacted version of {@link owlXml} removing all whitespace between tags.
@@ -54,10 +46,6 @@ function xml(template, ...substitutions) {
 }
 
 const INVARIABLE_OBJECTS = [Promise, RegExp];
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /** @extends {Component<TechnicalValueProps, import("../hoot").Environment>} */
 export class HootTechnicalValue extends Component {

@@ -11,7 +11,38 @@
  * @param {Function} ensureCategoryValue - (category, valueIds) => void
  */
 
-import { sortBy } from "@web/core/utils/collections/arrays";
+/**
+ * Order filter groups by `sequence`, then by name.
+ *
+ * A single `sequence || name` key cannot express this: `sortBy` falls back to
+ * `a > b ? 1 : a < b ? -1 : 0`, and a number compared with a string yields
+ * `false` both ways, i.e. "equal". One group without a sequence would therefore
+ * compare equal to every sequenced group and silently flatten the whole
+ * section's ordering back to server order. `search_panel_select_multi_range`
+ * emits no `group_sequence` today, so this only bites a module that adds one.
+ *
+ * @param {any[]} groupIds
+ * @param {Map<any, {name: string, sequence?: number}>} groups
+ * @returns {any[]}
+ */
+function sortGroupIds(groupIds, groups) {
+    const rank = (id) => {
+        const { sequence, name } = groups.get(id);
+        return [
+            typeof sequence === "number" ? sequence : Number.POSITIVE_INFINITY,
+            String(name ?? ""),
+        ];
+    };
+    return [...groupIds].sort((a, b) => {
+        const [sequenceA, nameA] = rank(a);
+        const [sequenceB, nameB] = rank(b);
+        if (sequenceA !== sequenceB) {
+            return sequenceA - sequenceB;
+        }
+        return nameA.localeCompare(nameB);
+    });
+}
+
 export function createCategoryTree(category, result, ensureCategoryValue) {
     const { error_msg, parent_field: parentField } = result;
     let { values } = result;
@@ -19,18 +50,11 @@ export function createCategoryTree(category, result, ensureCategoryValue) {
         category.errorMsg = error_msg;
         values = [];
     } else {
-        // A successful rebuild self-heals a previously failed fetch: errorMsg
-        // keeps hasValues() true and the error tile rendered until cleared.
         delete category.errorMsg;
     }
     if (category.hierarchize) {
         category.parentField = parentField;
     }
-    // Rebuild the values Map each fetch so values removed server-side don't
-    // linger across domain reloads (they'd otherwise keep counting toward
-    // hasValues and grow the Map unbounded). Preserve only the synthetic `false`
-    // ("All") root, which the server never returns; reset its childrenIds since
-    // they're recomputed below.
     const allRoot = category.values.get(false);
     category.values = new Map();
     if (allRoot) {
@@ -74,8 +98,6 @@ export function createFilterTree(filter, result) {
         filter.errorMsg = error_msg;
         values = [];
     } else {
-        // A successful rebuild self-heals a previously failed fetch: errorMsg
-        // keeps hasValues() true and the error tile rendered until cleared.
         delete filter.errorMsg;
     }
 
@@ -108,10 +130,7 @@ export function createFilterTree(filter, result) {
             groups.get(groupId).values.set(value.id, value);
         }
         filter.groups = groups;
-        filter.sortedGroupIds = sortBy(
-            groupIds,
-            (id) => groups.get(id).sequence || groups.get(id).name,
-        );
+        filter.sortedGroupIds = sortGroupIds(groupIds, groups);
         for (const group of filter.groups.values()) {
             for (const [valueId, value] of group.values) {
                 filter.values.set(valueId, value);

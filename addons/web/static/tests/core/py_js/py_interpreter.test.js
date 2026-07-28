@@ -5,6 +5,12 @@ import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 
 describe.current.tags("headless");
 
+/**
+ * Explicit tolerance for float comparisons. `toBeCloseTo`'s `margin` defaults
+ * to 1, which silently turns a precision assertion into a no-op.
+ */
+const EPS = 1e-9;
+
 describe("basic values", () => {
     test("evaluate simple values", () => {
         expect(evaluateExpr("12")).toBe(12);
@@ -88,16 +94,12 @@ describe("number properties", () => {
         expect(evaluateExpr("6 // 2")).toBe(3);
     });
     test("// on floats floors the true quotient (CPython-verified)", () => {
-        // JS `5 / 0.1` rounds up to exactly 50, so `Math.floor` would give 50;
-        // CPython's `5 // 0.1` is 49 (the true quotient is 49.999…).
         expect(evaluateExpr("5 // 0.1")).toBe(49);
         expect(evaluateExpr("1 // 0.1")).toBe(9);
         expect(evaluateExpr("0.5 // 0.1")).toBe(4);
         expect(evaluateExpr("-5 // 0.1")).toBe(-50);
         expect(evaluateExpr("7 // 0.1")).toBe(69);
-        // plain float division is unaffected
         expect(evaluateExpr("5 / 0.1")).toBe(50);
-        // negative divisor keeps Python's floor-toward-negative-infinity sign
         expect(evaluateExpr("5 // -2")).toBe(-3);
         expect(evaluateExpr("-5 // -2")).toBe(2);
     });
@@ -125,7 +127,6 @@ describe("boolean properties", () => {
     });
 
     test("should be lazy", () => {
-        // second clause should nameerror if evaluated
         expect(() =>
             evaluateExpr("foo == 'foo' and bar == 'bar'", { foo: "foo" }),
         ).toThrow();
@@ -227,8 +228,6 @@ describe("comparisons", () => {
     });
 
     test("lists compare lexicographically, not by string coercion", () => {
-        // `[2] < [10]` is True in Python (2 < 10 element-wise). String
-        // coercion would compare "2" < "10" → false.
         expect(evaluateExpr("[2] < [10]")).toBe(true);
         expect(evaluateExpr("[10] < [2]")).toBe(false);
         expect(evaluateExpr("[1, 2] < [1, 3]")).toBe(true);
@@ -314,9 +313,6 @@ describe("containment", () => {
     });
 
     test("string literals 'not' / 'is' before in/not are not fused into an operator", () => {
-        // The `not in` / `is not` fusion must only combine the *operator*
-        // not/is, never a String literal that happens to spell "not"/"is" --
-        // otherwise these crashed at parse time instead of evaluating.
         expect(evaluateExpr("'not' in ['not', 'a']")).toBe(true);
         expect(evaluateExpr("'not' in ['a']")).toBe(false);
         expect(evaluateExpr("'is' not in ['a']")).toBe(true);
@@ -353,17 +349,12 @@ describe("callables", () => {
         expect(evaluateExpr("min(set([3, 1, 2]))")).toBe(1);
         expect(evaluateExpr("max('abc')")).toBe("c");
         expect(evaluateExpr("max((4, 2))")).toBe(4);
-        // dicts iterate over their keys
         expect(evaluateExpr("max({'a': 1, 'b': 2})")).toBe("b");
         expect(() => evaluateExpr("max(5)")).toThrow(/not iterable/);
         expect(() => evaluateExpr("max([])")).toThrow(/empty sequence/);
         expect(() => evaluateExpr("min('')")).toThrow(/empty sequence/);
     });
     test("min/max reject unsupported keyword arguments loudly", () => {
-        // `key=`/`default=` change WHICH element is returned; silently
-        // dropping them (slicing kwargs off) returned a wrong value, so they
-        // must raise instead. (A `key=<function>` form is separately rejected
-        // earlier by the context-function guard.)
         expect(() => evaluateExpr("max([1, 2], default=0)")).toThrow(/not supported/);
         expect(() => evaluateExpr("min([1, 2], default=0)")).toThrow(/not supported/);
     });
@@ -422,7 +413,6 @@ describe("if expressions", () => {
     });
 
     test("only evaluate proper branch", () => {
-        // will throw if evaluate wrong branch => name error
         expect(evaluateExpr("1 if True else boom")).toBe(1);
         expect(evaluateExpr("boom if False else 222")).toBe(222);
     });
@@ -458,7 +448,7 @@ describe("evaluate to boolean", () => {
 
     test("throw if has missing value", () => {
         expect(() => evaluateBooleanExpr("a", { b: 0 })).toThrow();
-        expect(evaluateBooleanExpr("1 or a")).toBe(true); // do not throw (lazy value)
+        expect(evaluateBooleanExpr("1 or a")).toBe(true);
         expect(() => evaluateBooleanExpr("0 or a")).toThrow();
         expect(() => evaluateBooleanExpr("a or b", { b: true })).toThrow();
         expect(() => evaluateBooleanExpr("a and b", { b: true })).toThrow();
@@ -499,8 +489,8 @@ describe("sets", () => {
         expect(() => evaluateExpr("set(expr)", { expr: undefined })).toThrow();
         expect(() => evaluateExpr("set(expr)", { expr: null })).toThrow();
 
-        expect(() => evaluateExpr("set([], [])")).toThrow(); // valid but not supported by py_js
-        expect(() => evaluateExpr("set({ 'a' })")).toThrow(); // valid but not supported by py_js
+        expect(() => evaluateExpr("set([], [])")).toThrow();
+        expect(() => evaluateExpr("set({ 'a' })")).toThrow();
     });
 
     test("set intersection", () => {
@@ -531,8 +521,8 @@ describe("sets", () => {
             evaluateExpr("set([foo_id]).intersection([2,3])", { foo_id: 2 }),
         ).toEqual(new Set([2]));
 
-        expect(() => evaluateExpr("set([]).intersection([], [])")).toThrow(); // valid but not supported by py_js
-        expect(() => evaluateExpr("set([]).intersection([], [], [])")).toThrow(); // valid but not supported by py_js
+        expect(() => evaluateExpr("set([]).intersection([], [])")).toThrow();
+        expect(() => evaluateExpr("set([]).intersection([], [], [])")).toThrow();
     });
 
     test("set difference", () => {
@@ -561,8 +551,8 @@ describe("sets", () => {
             new Set(),
         );
 
-        expect(() => evaluateExpr("set([]).difference([], [])")).toThrow(); // valid but not supported by py_js
-        expect(() => evaluateExpr("set([]).difference([], [], [])")).toThrow(); // valid but not supported by py_js
+        expect(() => evaluateExpr("set([]).difference([], [])")).toThrow();
+        expect(() => evaluateExpr("set([]).difference([], [], [])")).toThrow();
     });
 
     test("set union", () => {
@@ -593,12 +583,10 @@ describe("sets", () => {
             new Set([2, 3]),
         );
 
-        expect(() => evaluateExpr("set([]).union([], [])")).toThrow(); // valid but not supported by py_js
-        expect(() => evaluateExpr("set([]).union([], [], [])")).toThrow(); // valid but not supported by py_js
+        expect(() => evaluateExpr("set([]).union([], [])")).toThrow();
+        expect(() => evaluateExpr("set([]).union([], [], [])")).toThrow();
     });
 });
-
-// Tests for audit improvements (builtins, security, operators, cache)
 
 describe("builtins — len", () => {
     test("len of list", () => {
@@ -631,7 +619,7 @@ describe("builtins — abs", () => {
         expect(evaluateExpr("abs(0)")).toBe(0);
     });
     test("abs of float", () => {
-        expect(evaluateExpr("abs(-3.14)")).toBeCloseTo(3.14);
+        expect(evaluateExpr("abs(-3.14)")).toBeCloseTo(3.14, { margin: EPS });
     });
     test("abs of negative timedelta", () => {
         const result = evaluateExpr("abs(datetime.timedelta(days=-5))");
@@ -707,7 +695,7 @@ describe("builtins — int", () => {
 
 describe("builtins — float", () => {
     test("float from string", () => {
-        expect(evaluateExpr('float("3.14")')).toBeCloseTo(3.14);
+        expect(evaluateExpr('float("3.14")')).toBeCloseTo(3.14, { margin: EPS });
         expect(evaluateExpr('float("-2.5")')).toBe(-2.5);
     });
     test("float from int", () => {
@@ -742,8 +730,6 @@ describe("builtins — str", () => {
         expect(evaluateExpr("str(None)")).toBe("None");
     });
     test("str of a float-valued integer diverges from Python (documented)", () => {
-        // JS numbers carry no int/float distinction: Python str(1.0) is
-        // "1.0", but py_js cannot tell 1.0 from 1. Pinned so a change shows.
         expect(evaluateExpr("str(1.0)")).toBe("1");
     });
 });
@@ -754,37 +740,32 @@ describe("builtins — round", () => {
         expect(evaluateExpr("round(3.2)")).toBe(3);
     });
     test("round with ndigits", () => {
-        expect(evaluateExpr("round(3.14159, 2)")).toBeCloseTo(3.14);
+        expect(evaluateExpr("round(3.14159, 2)")).toBeCloseTo(3.14, { margin: EPS });
         expect(evaluateExpr("round(1234.5, -2)")).toBe(1200);
     });
     test("round uses banker's rounding (half-to-even)", () => {
-        // Python: round(0.5) → 0, round(1.5) → 2, round(2.5) → 2
         expect(evaluateExpr("round(0.5)")).toBe(0);
         expect(evaluateExpr("round(1.5)")).toBe(2);
         expect(evaluateExpr("round(2.5)")).toBe(2);
         expect(evaluateExpr("round(3.5)")).toBe(4);
     });
     test("round negative half-to-even", () => {
-        // Python: round(-0.5) → 0, round(-1.5) → -2
         expect(evaluateExpr("round(-0.5)")).toBe(0);
         expect(evaluateExpr("round(-1.5)")).toBe(-2);
         expect(evaluateExpr("round(-2.5)")).toBe(-2);
     });
     test("round matches Python IEEE-754 behaviour for ndigits > 0", () => {
-        // These depend on the actual IEEE-754 stored value, NOT the decimal literal.
-        // 2.675 is stored as 2.6749... (below halfway) → rounds DOWN
-        expect(evaluateExpr("round(2.675, 2)")).toBeCloseTo(2.67);
-        // 0.45 is stored as 0.4500...001 (above halfway) → rounds UP
-        expect(evaluateExpr("round(0.45, 1)")).toBeCloseTo(0.5);
-        // 0.35 is stored as 0.3499... (below halfway) → rounds DOWN
-        expect(evaluateExpr("round(0.35, 1)")).toBeCloseTo(0.3);
-        // 0.25 is stored as 0.25 exactly (halfway) → banker's → 0.2 (even)
-        expect(evaluateExpr("round(0.25, 1)")).toBeCloseTo(0.2);
-        // 0.15 is stored as 0.1499... (below halfway) → rounds DOWN
-        expect(evaluateExpr("round(0.15, 1)")).toBeCloseTo(0.1);
+        // An explicit margin is load-bearing here: `toBeCloseTo` DEFAULTS TO
+        // ±1, which for these values accepts every plausible wrong answer —
+        // `round(0.35, 1)` could return 0.4 (or 1.2) and still pass, yet
+        // distinguishing 0.3 from 0.4 is the entire point of the test.
+        expect(evaluateExpr("round(2.675, 2)")).toBeCloseTo(2.67, { margin: EPS });
+        expect(evaluateExpr("round(0.45, 1)")).toBeCloseTo(0.5, { margin: EPS });
+        expect(evaluateExpr("round(0.35, 1)")).toBeCloseTo(0.3, { margin: EPS });
+        expect(evaluateExpr("round(0.25, 1)")).toBeCloseTo(0.2, { margin: EPS });
+        expect(evaluateExpr("round(0.15, 1)")).toBeCloseTo(0.1, { margin: EPS });
     });
     test("round with negative ndigits", () => {
-        // Python: round(150, -2) → 200, round(250, -2) → 200
         expect(evaluateExpr("round(150, -2)")).toBe(200);
         expect(evaluateExpr("round(250, -2)")).toBe(200);
     });
@@ -814,17 +795,12 @@ describe("security — blocked properties", () => {
 
 describe("security — recursion depth limit", () => {
     test("deeply nested expression throws", () => {
-        // Parens are flattened by the parser and ternaries short-circuit on True,
-        // so neither recurses deeply. Chained `and` builds a left-recursive AST
-        // that must evaluate each left subtree first, reaching MAX_EVAL_DEPTH.
         const depth = 250;
         const expr = "True and ".repeat(depth) + "1";
         expect(() => evaluateExpr(expr)).toThrow(/depth/i);
     });
 
     test("long chains within the parser depth limit still evaluate", () => {
-        // MAX_EVAL_DEPTH must not sit below MAX_PARSE_DEPTH (200): a chain the
-        // parser accepts must be evaluable, not rejected as "too deep".
         const expr = "1" + " + 1".repeat(150);
         expect(evaluateExpr(expr)).toBe(151);
     });
@@ -873,7 +849,6 @@ describe("operators — bitwise", () => {
         expect(evaluateExpr("~0")).toBe(-1);
         expect(evaluateExpr("~5")).toBe(-6);
         expect(evaluateExpr("~-1")).toBe(0);
-        // Beyond 32 bits: JS ``~`` would wrap to -705032705; BigInt keeps it exact.
         expect(evaluateExpr("~5000000000")).toBe(-5000000001);
         expect(evaluateExpr("~2147483648")).toBe(-2147483649);
     });
@@ -892,7 +867,6 @@ describe("operators — bitwise", () => {
         expect(() => evaluateExpr("1.5 << 1")).toThrow(/unsupported operand/);
         expect(() => evaluateExpr("None ^ 1")).toThrow(/unsupported operand/);
         expect(() => evaluateExpr("[] >> 1")).toThrow(/unsupported operand/);
-        // booleans are ints
         expect(evaluateExpr("True | 2")).toBe(3);
         expect(evaluateExpr("True << 2")).toBe(4);
     });
@@ -900,7 +874,6 @@ describe("operators — bitwise", () => {
 
 describe("in operator — Object.hasOwn", () => {
     test("'in' checks own properties only (not prototype)", () => {
-        // toString exists on Object.prototype but not as own property
         expect(evaluateExpr('"toString" in a', { a: {} })).toBe(false);
         expect(evaluateExpr('"toString" in a', { a: { toString: 1 } })).toBe(true);
     });
@@ -915,7 +888,6 @@ describe("Python semantics fixes", () => {
         expect(evaluateExpr("[1, 2, 3][-1]")).toBe(3);
         expect(evaluateExpr("[1, 2, 3][-2]")).toBe(2);
         expect(evaluateExpr("[1, 2, 3][-3]")).toBe(1);
-        // positive indexing unaffected
         expect(evaluateExpr("[1, 2, 3][0]")).toBe(1);
         expect(evaluateExpr("[1, 2, 3][2]")).toBe(3);
     });
@@ -932,7 +904,6 @@ describe("Python semantics fixes", () => {
         expect(evaluateExpr("'ab' * 0")).toBe("");
         expect(evaluateExpr("[1] * 3")).toEqual([1, 1, 1]);
         expect(evaluateExpr("3 * [1, 2]")).toEqual([1, 2, 1, 2, 1, 2]);
-        // numeric multiplication unaffected
         expect(evaluateExpr("3 * 4")).toBe(12);
     });
 
@@ -942,25 +913,20 @@ describe("Python semantics fixes", () => {
         expect(evaluateExpr("'%d apples' % 3")).toBe("3 apples");
         expect(evaluateExpr("'%s' % 'x'")).toBe("x");
         expect(evaluateExpr("'%(name)s' % {'name': 'foo'}")).toBe("foo");
-        // numeric modulo unaffected
         expect(evaluateExpr("7 % 3")).toBe(1);
     });
     test("'%' formatting flags, width and precision (CPython-verified)", () => {
-        // zero padding goes AFTER the sign
         expect(evaluateExpr("'%05d' % -3")).toBe("-0003");
         expect(evaluateExpr("'%05d' % 3")).toBe("00003");
         expect(evaluateExpr("'%05.1f' % -3.5")).toBe("-03.5");
-        // the 0 flag is ignored for %s
         expect(evaluateExpr("'%05s' % 3")).toBe("    3");
         expect(evaluateExpr("'%-5d' % 3 + '|'")).toBe("3    |");
         expect(evaluateExpr("'%5d' % -3")).toBe("   -3");
-        // %e: two-digit exponent, default precision 6
         expect(evaluateExpr("'%e' % 123.456")).toBe("1.234560e+02");
         expect(evaluateExpr("'%.2e' % 0.000123")).toBe("1.23e-04");
         expect(evaluateExpr("'%E' % 12")).toBe("1.200000E+01");
         expect(evaluateExpr("'%.0e' % 5")).toBe("5e+00");
         expect(evaluateExpr("'%10.2e' % -3.5")).toBe(" -3.50e+00");
-        // %g: significant digits, fixed/scientific switch, zeros stripped
         expect(evaluateExpr("'%.2g' % 123.456")).toBe("1.2e+02");
         expect(evaluateExpr("'%g' % 1234567.0")).toBe("1.23457e+06");
         expect(evaluateExpr("'%g' % 0.0001")).toBe("0.0001");
@@ -1012,17 +978,10 @@ describe("Python semantics fixes", () => {
     });
 
     test("'%' formatting distinguishes a tuple operand from a list operand", () => {
-        // CPython spreads a TUPLE right operand as the argument list, but
-        // treats a LIST as a single value. py_js evaluates both to plain
-        // arrays, so the tuple case carries a non-enumerable marker (PY_TUPLE)
-        // that only '%' formatting observes.
         expect(evaluateExpr("'%s' % [1, 2]")).toBe("[1, 2]");
         expect(evaluateExpr("'%s and %s' % (1, 2)")).toBe("1 and 2");
-        // A list is one value, so a two-slot format has too few arguments.
         expect(() => evaluateExpr("'%s %s' % [1, 2]")).toThrow(/not enough arguments/);
-        // Nested: the inner list stays a value inside the spread tuple.
         expect(evaluateExpr("'%s|%s' % ([1, 2], 3)")).toBe("[1, 2]|3");
-        // The marker must not leak into the value's observable shape.
         expect(evaluateExpr("(1, 2)")).toEqual([1, 2]);
         expect(evaluateExpr("(1, 2) + [3]")).toEqual([1, 2, 3]);
     });
@@ -1032,10 +991,8 @@ describe("Python semantics fixes", () => {
             /not all arguments converted/,
         );
         expect(() => evaluateExpr("'abc' % 5")).toThrow(/not all arguments converted/);
-        // A mapping operand is exempt: it is addressed by key, not position.
         expect(evaluateExpr("'abc' % {'a': 1}")).toBe("abc");
         expect(evaluateExpr("'%(a)s' % {'a': 1}")).toBe("1");
-        // Exactly-consumed operands still format.
         expect(evaluateExpr("'%s' % (1,)")).toBe("1");
         expect(evaluateExpr("'100%%' % ()")).toBe("100%");
     });
@@ -1043,7 +1000,6 @@ describe("Python semantics fixes", () => {
     test("mismatched '+' raises (Python TypeError)", () => {
         expect(() => evaluateExpr("'a' + 1")).toThrow();
         expect(() => evaluateExpr("1 + 'a'")).toThrow();
-        // valid additions still work
         expect(evaluateExpr("'a' + 'b'")).toBe("ab");
         expect(evaluateExpr("1 + 2")).toBe(3);
         expect(evaluateExpr("True + 1")).toBe(2);
@@ -1063,7 +1019,6 @@ describe("Python semantics fixes", () => {
     });
 
     test("dict with an 'isEqual' data key does not throw", () => {
-        // a context dict whose key happens to be "isEqual" is data, not a method
         expect(evaluateExpr("d == d", { d: { isEqual: 5, a: 1 } })).toBe(true);
     });
 
@@ -1100,16 +1055,13 @@ describe("Python semantics fixes", () => {
     test("'**' raises on zero to a negative power (ZeroDivisionError, not Infinity)", () => {
         expect(() => evaluateExpr("0 ** -1")).toThrow(/ZeroDivisionError/);
         expect(() => evaluateExpr("0 ** -2")).toThrow(/ZeroDivisionError/);
-        // False is an int (0), so it triggers the same guard.
         expect(() => evaluateExpr("False ** -1")).toThrow(/ZeroDivisionError/);
-        // 0 ** 0 == 1 and 0 ** positive == 0 stay valid.
         expect(evaluateExpr("0 ** 0")).toBe(1);
         expect(evaluateExpr("0 ** 2")).toBe(0);
     });
 
     test("'**' raises on a negative base with a fractional exponent (complex, not NaN)", () => {
         expect(() => evaluateExpr("(-8) ** 0.5")).toThrow(/fractional power/);
-        // Integer exponents on a negative base stay valid.
         expect(evaluateExpr("(-2) ** 3")).toBe(-8);
         expect(evaluateExpr("(-2) ** 2")).toBe(4);
     });
@@ -1132,22 +1084,17 @@ describe("python numeric semantics", () => {
     });
 
     test("timedelta division", () => {
-        // td / n → timedelta
         expect(evaluateExpr("str(datetime.timedelta(days=1) / 2)")).toBe("12:00:00");
-        // td // n → timedelta (floored)
         expect(evaluateExpr("str(datetime.timedelta(days=1) // 2)")).toBe("12:00:00");
-        // td / td → float ratio
         expect(
             evaluateExpr("datetime.timedelta(days=1) / datetime.timedelta(hours=8)"),
         ).toBe(3);
-        // td // td → int
         expect(
             evaluateExpr("datetime.timedelta(days=2) // datetime.timedelta(days=1)"),
         ).toBe(2);
         expect(
             evaluateExpr("datetime.timedelta(hours=25) // datetime.timedelta(days=1)"),
         ).toBe(1);
-        // td % td → timedelta
         expect(
             evaluateExpr(
                 "str(datetime.timedelta(hours=25) % datetime.timedelta(days=1))",
@@ -1167,17 +1114,10 @@ describe("python numeric semantics", () => {
 
 describe("duck-typing guards", () => {
     test("truthiness of a plain dict carrying method-named keys", () => {
-        // A data dict with an `isTrue`/`negate` KEY (not a method) must be
-        // treated as a plain non-empty dict, not crash on a call attempt.
         expect(evaluateExpr("bool(d)", { d: { isTrue: 1 } })).toBe(true);
         expect(evaluateExpr("not d", { d: { isTrue: 1 } })).toBe(false);
         expect(evaluateExpr("bool(d)", { d: {} })).toBe(false);
         expect(() => evaluateExpr("-d", { d: { negate: 1 } })).toThrow(/bad operand/);
-        // abs() must not CALL a data value: `d.negate`/`d.total_seconds` are
-        // keys here, not the PyTimeDelta protocol — so it falls through to the
-        // numeric guard and raises a clean TypeError (as CPython does for
-        // `abs(dict)`), instead of crashing on `d.negate()` or silently
-        // returning NaN into a domain.
         expect(evaluateExpr("abs(-3.5)")).toBe(3.5);
         expect(() =>
             evaluateExpr("abs(d)", { d: { negate: 1, total_seconds: 2 } }),
@@ -1191,7 +1131,6 @@ describe("duck-typing guards", () => {
 });
 
 describe("string methods", () => {
-    // Every expected value below is verified against CPython 3.14.
     test("strip", () => {
         expect(evaluateExpr("'  ab  '.strip()")).toBe("ab");
         expect(evaluateExpr("'xxabxx'.strip('x')")).toBe("ab");
@@ -1238,7 +1177,6 @@ describe("string methods", () => {
         expect(evaluateExpr("'{{}}{}'.format(3)")).toBe("{}3");
         expect(() => evaluateExpr("'{}{}'.format(1)")).toThrow(/out of range/);
         expect(() => evaluateExpr("'{y}'.format(x=5)")).toThrow(/KeyError/);
-        // format specs are not implemented: raise, never render wrong output
         expect(() => evaluateExpr("'{x:>8}'.format(x=3)")).toThrow(/unsupported/);
     });
 
@@ -1263,7 +1201,6 @@ describe("date/datetime/time cross-type operations", () => {
         expect(() =>
             evaluateExpr("datetime.date(2020,1,1) <= datetime.time(1,0)"),
         ).toThrow(/not supported between/);
-        // same-kind comparisons still work
         expect(evaluateExpr("datetime.date(2020,1,1) < datetime.date(2020,1,2)")).toBe(
             true,
         );
@@ -1296,7 +1233,6 @@ describe("date/datetime/time cross-type operations", () => {
         expect(() =>
             evaluateExpr("datetime.time(1,0) + datetime.timedelta(days=1)"),
         ).toThrow();
-        // date - date still works
         expect(
             evaluateExpr("(datetime.date(2020,1,2) - datetime.date(2020,1,1)).days"),
         ).toBe(1);
@@ -1307,16 +1243,13 @@ describe("dict .get fallback", () => {
     test(".get works on generic objects but not on lists", () => {
         expect(evaluateExpr("d.get('a')", { d: { a: 1 } })).toBe(1);
         expect(evaluateExpr("d.get('b', 5)", { d: { a: 1 } })).toBe(5);
-        // Python lists have no .get (AttributeError)
         expect(() => evaluateExpr("[1, 2].get(0)")).toThrow();
     });
 });
 
 describe("bitwise/shift arbitrary precision", () => {
     test("shifts and masks beyond 32 bits match Python, not JS 32-bit ops", () => {
-        // JS `1 << 40` wraps to 256; Python gives 1099511627776.
         expect(evaluateExpr("1 << 40")).toBe(1099511627776);
-        // JS `4294967296 | 1` truncates to 1; Python gives 4294967297.
         expect(evaluateExpr("4294967296 | 1")).toBe(4294967297);
         expect(evaluateExpr("4294967296 & 4294967296")).toBe(4294967296);
         expect(evaluateExpr("(1 << 20) >> 10")).toBe(1024);
@@ -1347,7 +1280,6 @@ describe("timedelta multiplication guards", () => {
 
 describe("max/min share the comparison kernel", () => {
     test("max/min over lists compare lexicographically like Python", () => {
-        // JS `>` stringifies: "10" < "2" so plain reduce wrongly returned [2].
         expect(evaluateExpr("max([[2], [10]])")).toEqual([10]);
         expect(evaluateExpr("min([[2], [10]])")).toEqual([2]);
         expect(evaluateExpr("max([[1, 2], [1, 10]])")).toEqual([1, 10]);
@@ -1356,7 +1288,6 @@ describe("max/min share the comparison kernel", () => {
 
 describe("repr string escaping", () => {
     test("str() of a list escapes quotes into parseable repr", () => {
-        // Old `'${value}'` gave the unparseable ['it's'].
         expect(evaluateExpr(`str(["it's"])`)).toBe(`["it's"]`);
         expect(evaluateExpr(`'%r' % "a'b"`)).toBe(`"a'b"`);
         expect(evaluateExpr(`'%r' % 'plain'`)).toBe(`'plain'`);
@@ -1367,7 +1298,6 @@ describe("CPython-alignment regressions", () => {
     test("sequence repetition by a non-int raises (no silent truncation)", () => {
         expect(() => evaluateExpr("'x' * 2.5")).toThrow(/multiply sequence/);
         expect(() => evaluateExpr("[1] * 1.9")).toThrow(/multiply sequence/);
-        // Integer / bool counts still work.
         expect(evaluateExpr("'x' * 3")).toBe("xxx");
         expect(evaluateExpr("[1, 2] * 2")).toEqual([1, 2, 1, 2]);
         expect(evaluateExpr("'x' * True")).toBe("x");
@@ -1379,7 +1309,6 @@ describe("CPython-alignment regressions", () => {
         expect(evaluateExpr("'%#x' % 255")).toBe("0xff");
         expect(evaluateExpr("'%#o' % 8")).toBe("0o10");
         expect(() => evaluateExpr("'%d' % 'x'")).toThrow(/a number is required/);
-        // Plain numeric conversions are unchanged.
         expect(evaluateExpr("'%d' % 5")).toBe("5");
         expect(evaluateExpr("'%05d' % -3")).toBe("-0003");
     });
@@ -1387,7 +1316,6 @@ describe("CPython-alignment regressions", () => {
     test("str.format cannot mix automatic and manual field numbering", () => {
         expect(() => evaluateExpr("'{}{0}'.format('a')")).toThrow(/cannot switch/);
         expect(() => evaluateExpr("'{0}{}'.format('a', 'b')")).toThrow(/cannot switch/);
-        // Pure-auto and pure-manual still work.
         expect(evaluateExpr("'{} {}'.format('a', 'b')")).toBe("a b");
         expect(evaluateExpr("'{0} {1} {0}'.format('a', 'b')")).toBe("a b a");
     });
@@ -1416,14 +1344,12 @@ describe("builtin fidelity", () => {
         );
         expect(() => evaluateExpr("len([1], 2)")).toThrow(/len\(\) takes exactly one/);
         expect(() => evaluateExpr("abs(1, 2)")).toThrow(/abs\(\) takes exactly one/);
-        // one positional still works.
         expect(evaluateExpr("bool(1)")).toBe(true);
         expect(evaluateExpr("len([1, 2])")).toBe(2);
         expect(evaluateExpr("abs(-3)")).toBe(3);
     });
 
     test("bool(relativedelta()) matches dateutil __bool__", () => {
-        // An all-zero relativedelta is falsy (dateutil); a non-empty one truthy.
         expect(evaluateExpr("bool(relativedelta())")).toBe(false);
         expect(evaluateExpr("bool(relativedelta(days=0))")).toBe(false);
         expect(evaluateExpr("bool(relativedelta(days=1))")).toBe(true);
@@ -1432,11 +1358,53 @@ describe("builtin fidelity", () => {
     });
 
     test("calling a non-whitelisted function raises an EvaluationError", () => {
-        // Must be an EvaluationError (not a bare Error) so Domain.toList can
-        // convert it into an InvalidDomainError recovery path. A function in
-        // context that is not on the builtin whitelist trips the guard.
         expect(() => evaluateExpr("foo()", { foo: () => 1 })).toThrow(
             /Invalid Function Call/,
         );
+    });
+});
+
+describe("set algebra operators", () => {
+    // The server's safe_eval evaluates all four; only the client rejected
+    // them, because they fell through to the integer-only bitwise path.
+    test("| & - ^ operate on sets", () => {
+        expect(evaluateExpr("set([1, 2]) | set([2, 3])")).toEqual(new Set([1, 2, 3]));
+        expect(evaluateExpr("set([1, 2]) & set([2, 3])")).toEqual(new Set([2]));
+        expect(evaluateExpr("set([1, 2]) - set([2, 3])")).toEqual(new Set([1]));
+        expect(evaluateExpr("set([1, 2]) ^ set([2, 3])")).toEqual(new Set([1, 3]));
+    });
+
+    test("mixing a set with a non-set still raises", () => {
+        expect(() => evaluateExpr("set([1]) | 1")).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr("1 | set([1])")).toThrow(/unsupported operand/);
+        expect(() => evaluateExpr("set([1]) << set([1])")).toThrow(
+            /unsupported operand/,
+        );
+    });
+
+    test("integer bitwise operators are untouched", () => {
+        expect(evaluateExpr("5 & 3")).toBe(1);
+        expect(evaluateExpr("5 | 3")).toBe(7);
+        expect(evaluateExpr("5 ^ 3")).toBe(6);
+        expect(evaluateExpr("1 << 10")).toBe(1024);
+    });
+});
+
+describe("ordering stays total across types (see pytypeIndex)", () => {
+    // Pins the constraint that makes view-attribute expressions evaluable over
+    // sparse records: an UNSET field arrives as `false`, and a list decoration
+    // like `datetime > '2017-02-27 12:51:35'` is evaluated for every row,
+    // including the rows where `datetime` is unset. Tightening this to Python
+    // 3's TypeError turns those rows into a crashed view.
+    test("an unset field compares against a date string without raising", () => {
+        expect(
+            evaluateExpr("datetime > '2017-02-27 12:51:35'", { datetime: false }),
+        ).toBe(false);
+        expect(
+            evaluateExpr("datetime < '2017-02-27 12:51:35'", { datetime: false }),
+        ).toBe(true);
+        expect(
+            evaluateExpr("birthday > today", { birthday: false, today: "2020-01-01" }),
+        ).toBe(false);
     });
 });

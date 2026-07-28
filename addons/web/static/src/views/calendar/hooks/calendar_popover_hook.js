@@ -36,7 +36,6 @@ export function useCalendarPopover(component) {
         "mousedown",
         (ev) => {
             if (fcPopover) {
-                // do not let fullcalendar popover close when our own popover is open
                 ev.stopPropagation();
             }
         },
@@ -54,10 +53,6 @@ export function useCalendarPopover(component) {
     return {
         close,
         open(target, props, popoverClassToUse) {
-            // Capture the anchor's FC popover BEFORE opening: both branches
-            // synchronously close any previous popover, whose onClose ->
-            // cleanup() nulls `fcPopover` — assigning first would wipe the
-            // value we just captured and disarm the mousedown guard above.
             const targetFcPopover = target.closest(".fc-popover");
             if (owner.env.isSmall) {
                 close();

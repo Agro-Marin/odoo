@@ -277,7 +277,6 @@ test("FavoriteField in kanban view with readonly attribute", async () => {
     expect(`.o_kanban_record .o_field_widget`).toHaveText("");
 
     await contains(`.o_field_widget .o_favorite`).click();
-    // expect nothing to change since its readonly
     expect(
         `.o_kanban_record .o_field_widget .o_favorite > a i.fa-solid.fa-star`,
     ).toHaveCount(1, {

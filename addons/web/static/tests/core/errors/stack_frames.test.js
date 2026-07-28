@@ -13,16 +13,9 @@ describe.current.tags("headless");
 
 beforeEach(() => clearSourceMapCache());
 
-// Real esbuild output for two files (entry.js importing src_a.js), built
-// with --bundle --minify --format=esm --sourcemap:
-//     function o(){throw new Error("boom")}o();
 const FIXTURE_MAP = {
     version: 3,
     sources: ["src_a.js", "entry.js"],
-    // Regenerated 2026-07-08 with the repo's own esbuild (node_modules/.bin)
-    // from the exact sources above: the previous copy of this string had lost
-    // the ``CAC1B`` segment (the closing-brace mapping), which shifted every
-    // following segment and made the pinned expectations below unreachable.
     mappings: "AAAO,SAASA,GAAO,CACnB,MAAM,IAAI,MAAM,MAAM,CAC1B,CCDAC,EAAK",
     names: ["boom", "boom"],
 };
@@ -81,12 +74,8 @@ test("parses Firefox/Safari stack format", () => {
 test("decodes esbuild VLQ mappings", () => {
     const lines = decodeMappings(FIXTURE_MAP.mappings);
     expect(lines).toHaveLength(1);
-    // First segment: generated col 0 -> src_a.js (idx 0) line 0 col 7
-    // ("export function boom" -- the function keyword).
     expect(lines[0][0]).toEqual([0, 0, 0, 7]);
-    // "throw" at generated col 13 -> src_a.js line 1 col 4.
     expect(lines[0][3]).toEqual([13, 0, 1, 4]);
-    // "o();" call at generated col 37 -> entry.js (idx 1) line 1 col 0.
     expect(lines[0].at(-2)).toEqual([37, 1, 1, 0]);
 });
 
@@ -104,14 +93,12 @@ test("maps frames through a linked sourcemap", async () => {
         throw new Error(`unexpected fetch: ${input}`);
     });
     const mapped = await mapFramesToSource([
-        // The throw site: generated line 1 col 14 (1-based).
         {
             functionName: "o",
             fileName: scriptUrl,
             lineNumber: 1,
             columnNumber: 14,
         },
-        // The call site: generated line 1 col 38 (1-based).
         {
             functionName: "<anonymous>",
             fileName: scriptUrl,
@@ -136,12 +123,7 @@ test("maps frames through a linked sourcemap", async () => {
 });
 
 test("maps frames through an inline data: sourcemap longer than 1KB", async () => {
-    // An inline base64 sourcemap puts the WHOLE map on the directive line,
-    // which is then far longer than any fixed-size tail window (the old
-    // implementation only scanned the last 1024 bytes and never found the
-    // directive's start).
     const scriptUrl = "/web/assets/esm/def456/web.assets_web.esm.js";
-    // Pad the map so its base64 form exceeds 1024 characters.
     const paddedMap = { ...FIXTURE_MAP, x_padding: "p".repeat(2000) };
     const dataUri = `data:application/json;base64,${btoa(JSON.stringify(paddedMap))}`;
     expect(dataUri.length).toBeGreaterThan(1024);

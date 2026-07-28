@@ -14,9 +14,6 @@ import { useService } from "@web/core/utils/hooks";
 export class BaseRecordSelector extends Component {
     setup() {
         this.nameService = useService("name");
-        // Route every load through the same KeepLast so a slow (uncached, RPC)
-        // load can't resolve after a newer (cached, microtask) props-driven load
-        // and overwrite state with display names for records no longer selected.
         this.keepLast = new KeepLast();
         onWillStart(() => this.computeDerivedParams());
         onWillUpdateProps((nextProps) => this.computeDerivedParams(nextProps));

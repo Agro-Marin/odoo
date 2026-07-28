@@ -43,31 +43,18 @@ export class FloatField extends NumericInputFieldBase {
      *     an Operation when the input is a multi-edit expression ("+= 5", ...)
      */
     parse(value) {
-        // type=number can yield NaN or ±Infinity ("1e999" is valid input text);
-        // parseNumericInput falls back to the locale parser so invalid input
-        // raises ParseError instead of silently persisting NaN/Infinity (which
-        // JSON-serializes to null). Empty input still resolves to 0 via
-        // Number("") === 0.
         return this.parseNumericInput(value, (v) =>
             parseFloat(v, { allowOperation: true }),
         );
     }
 
-    /**
-     * @returns {string | number | false} ``false`` is returned when the
-     *     ``!this.props.formatNumber`` branch passes through an unset value
-     *     unchanged; consumers (the input element's ``value`` attribute and
-     *     QWeb ``t-out``) already coerce ``false`` to an empty string.
-     */
+    /** @returns {string | number} */
     get formattedValue() {
-        if (this.props.inputType === "number" && !this.props.readonly) {
-            // <input type="number"> can't hold a locale-formatted string (e.g.
-            // "0,00" blanks the field in comma-decimal locales), so emit the
-            // raw number instead. `false` (unset) becomes "", `0` is preserved.
-            return this.value === false ? "" : this.value;
-        }
-        if (!this.props.formatNumber) {
-            return this.value;
+        if (
+            !this.props.formatNumber ||
+            (this.props.inputType === "number" && !this.props.readonly)
+        ) {
+            return this.rawValue;
         }
         const options = {
             digits: this.props.digits,

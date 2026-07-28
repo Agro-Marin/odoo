@@ -38,10 +38,6 @@ export class GraphRenderer extends Component {
 
     setup() {
         useRenderCounter("graph.GraphRenderer");
-        // Subscribe directly to model.notify(): the model prop is stable,
-        // so this renderer only re-rendered (and re-evaluated the chart
-        // effect deps below) through the legacy deep-render listener
-        // before (GraphModel now opts out via ``reactiveRenderers``).
         this.model = useReactiveModel(this.props.model);
 
         this.rootRef = useRef("root");
@@ -57,11 +53,6 @@ export class GraphRenderer extends Component {
             await loadChartJS();
         });
 
-        // Rebuild the (heavyweight) Chart.js instance only when inputs that define
-        // the chart change; without a deps array this re-ran (re-parsing config,
-        // replaying entry animations) on every render. GraphModel reassigns
-        // `data`/`metaData` (and recomputes lineOverlayDataset alongside `data`) on
-        // every load/config change, so these two deps capture every real change.
         useEffect(
             () => this.renderChart(),
             () => [this.model.data, this.model.metaData],
@@ -149,9 +140,6 @@ export class GraphRenderer extends Component {
             Math.floor(window.innerHeight - (viewContentTop + tooltipHeight)) - 2;
         const y = Math.floor(tooltipModel.y);
         if (minTopAllowed <= maxTopAllowed) {
-            // The tooltip fits on screen: position it where Chart.js proposes (y)
-            // if that keeps it uncut and not hiding the legend; otherwise clamp to
-            // the closest allowed value.
             if (y <= maxTopAllowed) {
                 if (y >= minTopAllowed) {
                     top = y;
@@ -162,8 +150,6 @@ export class GraphRenderer extends Component {
                 top = maxTopAllowed;
             }
         } else {
-            // Cannot avoid cutting the tooltip: position it at the minimum and
-            // trim as little as possible.
             top = minTopAllowed;
             const maxTooltipHeight =
                 window.innerHeight - (viewContentTop + chartAreaTop) - 2;
@@ -232,7 +218,6 @@ export class GraphRenderer extends Component {
                 break;
         }
         const options = this.prepareOptions();
-        // Scatter is rendered as a line chart with showLine:false on each dataset
         const type = mode === "scatter" ? "line" : mode;
         const config = { data, options, type };
         if (mode === "line" || mode === "scatter") {
@@ -367,7 +352,6 @@ export class GraphRenderer extends Component {
      */
     onLegendClick(ev, legendItem) {
         this.removeTooltips();
-        // Default 'onClick' fallback. See web/static/lib/Chart/Chart.js#15138
         const index = legendItem.datasetIndex;
         const meta = this.chart.getDatasetMeta(index);
         meta.hidden =
@@ -483,9 +467,6 @@ export class GraphRenderer extends Component {
 
     /** Instantiate or update the Chart.js chart from the current config. */
     renderChart() {
-        // Tooltips are plain DOM cleaned up by the chart's own tooltip
-        // callbacks; once a chart is updated or destroyed they would linger
-        // over the new render until the next hover.
         this.removeTooltips();
         if (!this.canvasRef.el) {
             if (this.chart) {
@@ -496,11 +477,6 @@ export class GraphRenderer extends Component {
         }
         const config = this.getChartConfig();
         if (this.chart && this.chart.config.type === config.type) {
-            // Same chart kind: update the existing instance in place instead
-            // of destroy+recreate, which replayed the full entry animation on
-            // every data/config change (measure toggle, sort, reload...).
-            // The inline plugins are keyed on the type ("line" ⇒ [gridOnTop])
-            // so an equal type implies equal plugins.
             this.chart.data = config.data;
             this.chart.options = config.options;
             this.chart.update();

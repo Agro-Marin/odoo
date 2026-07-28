@@ -7,15 +7,11 @@ import { ASTType } from "./ast_type.js";
 import { PyDate, PyDateTime, PyTime } from "./py_date.js";
 import { bp } from "./py_parser.js";
 
-// Types
-
 /**
  * AST node — a discriminated union keyed on the literal ``type`` tag (see
  * {@link ASTType}); ``.type``/``switch`` checks narrow it to each node shape.
  * @typedef {import("./ast_type.js").AST} AST
  */
-
-// Utils
 
 /**
  * Represent any value as a primitive AST
@@ -37,12 +33,6 @@ export function toPyValue(value) {
             } else if (value === null) {
                 return { type: ASTType.None };
             } else if (value instanceof Date) {
-                // Serialized eagerly so the node is a REAL string AST (it used
-                // to smuggle the Py* instance as `value`, which only worked
-                // because formatAST's JSON.stringify called its toJSON).
-                // NB: convertDate reads LOCAL components, while datetime
-                // domain values are conventionally UTC — callers passing a raw
-                // JS Date get a local-time string (historical behavior, kept).
                 return {
                     type: ASTType.String,
                     value: PyDateTime.convertDate(value).strftime("%Y-%m-%d %H:%M:%S"),
@@ -53,16 +43,20 @@ export function toPyValue(value) {
                     value: value.strftime("%Y-%m-%d %H:%M:%S"),
                 };
             } else if (value instanceof PyTime) {
-                // Before PyDate: PyTime extends PyDate but serializes as a time.
                 return { type: ASTType.String, value: value.strftime("%H:%M:%S") };
             } else if (value instanceof PyDate) {
                 return { type: ASTType.String, value: value.strftime("%Y-%m-%d") };
             } else {
                 /** @type {Record<string, any>} */
                 const content = {};
-                // for...in intentional: evaluation contexts use Object.create(parentScope)
-                // and inherited keys must be flattened into the Python dict.
-                for (const key in value) {
+                // OWN keys only. ``for...in`` also walks the prototype chain,
+                // so a value carrying any enumerable inherited property (a
+                // class instance, an object built on a non-trivial prototype)
+                // emitted phantom dict entries — which reach the server, since
+                // this AST is what ``Domain``/``formatAST`` serialize. Every
+                // sibling here (``formatAST``, the interpreter's Dictionary
+                // case) already reads own keys only.
+                for (const key of Object.keys(value)) {
                     content[key] = toPyValue(value[key]);
                 }
                 return { type: ASTType.Dictionary, value: content };
@@ -104,9 +98,6 @@ export function formatAST(ast, lbp = 0) {
             return JSON.stringify(ast.value);
         case ASTType.Number: {
             const str = String(ast.value);
-            // A negative literal groups like unary minus: `(-2) ** 2` must keep
-            // its parens, else it re-parses as `-(2 ** 2)` (** binds tighter).
-            // Mirrors the UnaryOperator case (abp = 130 for a leading sign).
             return ast.value < 0 && 130 < lbp ? `(${str})` : str;
         }
         case ASTType.Boolean:
@@ -119,17 +110,10 @@ export function formatAST(ast, lbp = 0) {
                 ast.op === "not"
                     ? `not ` + formatAST(ast.right, abp)
                     : ast.op + formatAST(ast.right, abp);
-            // e.g. `(-a) ** b`: without parentheses this would re-parse as
-            // `-(a ** b)` since `**` binds tighter than unary minus.
             return abp < lbp ? `(${str})` : str;
         }
         case ASTType.BinaryOperator: {
             const abp = bp(ast.op);
-            // Associativity: an equal-precedence child on the non-associative
-            // side must be parenthesized, otherwise re-parsing regroups it
-            // (`a - (b - c)` would round-trip to `a - b - c`). `**` is
-            // right-associative; everything else is left-associative;
-            // comparators are non-associative (see COMPARATORS).
             let leftBp = abp;
             let rightBp = abp + 1;
             if (ast.op === "**") {
@@ -145,18 +129,6 @@ export function formatAST(ast, lbp = 0) {
             return abp < lbp ? `(${str})` : str;
         }
         case ASTType.Dictionary: {
-            // KNOWN LIMITATION (Python 3 divergence): the Dictionary AST keys
-            // its entries by a JS object, whose keys are ALWAYS strings, so an
-            // integer literal key is collapsed to a string at parse time
-            // (``py_parser.js``: ``{1: 2}`` → ``value: {"1": ...}``). formatAST
-            // therefore cannot tell ``{1: 2}`` from ``{"1": 2}`` and emits
-            // ``{"1": 2}`` for both — converting int keys to str keys where the
-            // round-trip crosses back to the server, which distinguishes them.
-            // Same root cause as the dict-lookup note in py_interpreter.js. A
-            // proper fix carries the key AST (not a collapsed object key)
-            // through Dictionary nodes; deferred because the AST shape is a
-            // frozen contract asserted verbatim by py_parser's tests. Rare in
-            // practice (domain/context dicts are string-keyed).
             const pairs = [];
             for (const k of Object.keys(ast.value || {})) {
                 pairs.push(`${JSON.stringify(k)}: ${formatAST(ast.value[k])}`);
@@ -165,7 +137,6 @@ export function formatAST(ast, lbp = 0) {
         }
         case ASTType.Tuple: {
             const items = ast.value.map((v) => formatAST(v));
-            // A 1-element tuple needs its trailing comma: `(x)` is just `x`.
             return items.length === 1 ? `(${items[0]},)` : `(${items.join(", ")})`;
         }
         case ASTType.Name:
@@ -176,9 +147,6 @@ export function formatAST(ast, lbp = 0) {
         case ASTType.If: {
             const { ifTrue, condition, ifFalse } = ast;
             const abp = bp("if");
-            // Python grammar: `x if C else y` — x and C are or_test (a nested
-            // ternary there needs parentheses), y is a full conditional
-            // expression (right-associative, no parentheses needed).
             const str = `${formatAST(ifTrue, abp + 1)} if ${formatAST(
                 condition,
                 abp + 1,
@@ -187,8 +155,6 @@ export function formatAST(ast, lbp = 0) {
         }
         case ASTType.BooleanOperator: {
             const abp = bp(ast.op);
-            // `and`/`or` are associative, so equal-precedence children can
-            // stay bare — regrouping does not change the result.
             const str = `${formatAST(ast.left, abp)} ${ast.op} ${formatAST(ast.right, abp)}`;
             return abp < lbp ? `(${str})` : str;
         }

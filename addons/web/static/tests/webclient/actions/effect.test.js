@@ -98,8 +98,6 @@ test("rainbowman integrated to webClient", async () => {
     await animationFrame();
     expect(".o_reward").toHaveCount(1);
     expect(".o_kanban_view").toHaveCount(1);
-    // doAction must not force the rainbow man to close; it dies on its own
-    // animation end or on user click.
     await getService("action").doAction(3);
     expect(".o_reward").toHaveCount(1);
     expect(".o_list_view").toHaveCount(1);

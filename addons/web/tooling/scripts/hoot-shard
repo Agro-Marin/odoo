@@ -96,8 +96,7 @@ DEFAULT_WEB_SUITES = [
     "@web/views/view_utils", "@web/views/module_views",
     "@web/search", "@web/webclient", "@web/public",
     "@web/env", "@web/reactivity", "@web/t_custom_click", "@web/helpers",
-    "@web/interactions", "@web/l10n", "@web/legacy_js", "@web/mock_server",
-    "@web/modules",
+    "@web/interactions", "@web/l10n", "@web/mock_server", "@web/modules",
 ]
 
 # Seed runtimes (seconds), rough, for balancing only. Refined by --calibrate.
@@ -114,8 +113,8 @@ SEED_WEIGHTS = {
     "@web/views/view_utils": 8, "@web/views/module_views": 6,
     "@web/search": 40, "@web/webclient": 90, "@web/public": 20, "@web/env": 5,
     "@web/reactivity": 5, "@web/t_custom_click": 4, "@web/helpers": 6,
-    "@web/interactions": 15, "@web/l10n": 8, "@web/legacy_js": 6,
-    "@web/mock_server": 10, "@web/modules": 8,
+    "@web/interactions": 15, "@web/l10n": 8, "@web/mock_server": 10,
+    "@web/modules": 8,
 }
 DEFAULT_WEIGHT = 30  # unknown suite
 

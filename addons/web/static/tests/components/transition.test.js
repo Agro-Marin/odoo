@@ -25,15 +25,12 @@ test("useTransition hook (default params)", async () => {
         }
     }
 
-    // noMainContainer, because the await for the mount of the main container
-    // will already change the transition
     const parent = await mountWithCleanup(Parent, { noMainContainer: true });
 
     expect(".test.test-enter-active:not(.test-enter)").toHaveCount(1);
     parent.transition.shouldMount = false;
     await animationFrame();
 
-    // Leaving: -leave but not -enter-active
     expect(".test.test-leave:not(.test-enter-active)").toHaveCount(1);
     expect.verifySteps([]);
     await runAllTimers();
@@ -58,19 +55,14 @@ test("useTransition hook (initially visible and immediate=true)", async () => {
         }
     }
 
-    // noMainContainer, because the await for the mount of the main container
-    // will already change the transition
     const parent = await mountWithCleanup(Parent, { noMainContainer: true });
 
-    // Mounted with -enter but not -enter-active
     expect(".test.test-enter:not(.test-enter-active)").toHaveCount(1);
     await animationFrame();
-    // No longer has -enter class but now has -enter-active
     expect(".test.test-enter-active:not(.test-enter)").toHaveCount(1);
     parent.transition.shouldMount = false;
     await animationFrame();
 
-    // Leaving: -leave but not -enter-active
     expect(".test.test-leave:not(.test-enter-active)").toHaveCount(1);
     expect.verifySteps([]);
     await runAllTimers();
@@ -95,18 +87,14 @@ test("useTransition hook (initially not visible)", async () => {
         }
     }
 
-    // noMainContainer, because the await for the mount of the main container
-    // will already change the transition
     const parent = await mountWithCleanup(Parent, { noMainContainer: true });
     expect(".test").toHaveCount(0);
 
     parent.transition.shouldMount = true;
     await animationFrame();
 
-    // Leaving: -leave but not -enter-active
     expect(".test.test-enter:not(.test-enter-active)").toHaveCount(1);
     await animationFrame();
-    // No longer has -enter class but now has -enter-active
     expect(".test.test-enter-active:not(.test-enter)").toHaveCount(1);
     await runAllTimers();
     expect.verifySteps([]);
@@ -129,13 +117,9 @@ test("useTransition hook (initially not visible) does not fire onLeave on init",
         }
     }
 
-    // noMainContainer, because the await for the mount of the main container
-    // will already change the transition
     await mountWithCleanup(Parent, { noMainContainer: true });
     expect(".test").toHaveCount(0);
 
-    // The initial `shouldMount = initialVisibility` (false) assignment must not
-    // have scheduled a spurious leave timer.
     await runAllTimers();
     await animationFrame();
     expect(".test").toHaveCount(0);
@@ -162,19 +146,14 @@ test("Transition HOC", async () => {
         }
     }
 
-    // noMainContainer, because the await for the mount of the main container
-    // will already change the transition
     const parent = await mountWithCleanup(Parent, { noMainContainer: true });
 
-    // Mounted with -enter but not -enter-active
     expect(".test.test-enter:not(.test-enter-active)").toHaveCount(1);
     await animationFrame();
-    // No longer has -enter class but now has -enter-active
     expect(".test.test-enter-active:not(.test-enter)").toHaveCount(1);
     parent.state.show = false;
     await animationFrame();
 
-    // Leaving: -leave but not -enter-active
     expect(".test.test-leave:not(.test-enter-active)").toHaveCount(1);
     expect.verifySteps([]);
     await runAllTimers();

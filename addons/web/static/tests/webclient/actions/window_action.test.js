@@ -69,7 +69,7 @@ class Partner extends models.Model {
         { id: 5, display_name: "Fifth record", foo: "zoup", m2o: 1, o2m: [] },
     ];
     _views = {
-        "form,3": /* xml */ `
+        "form,3": `
             <form>
                 <header>
                     <button name="object" string="Call method" type="object"/>
@@ -81,7 +81,7 @@ class Partner extends models.Model {
                 </group>
             </form>
         `,
-        "form,74": /* xml */ `
+        "form,74": `
             <form>
                 <sheet>
                     <div class="oe_button_box" name="button_box">
@@ -93,7 +93,7 @@ class Partner extends models.Model {
                 </sheet>
             </form>
         `,
-        "kanban,1": /* xml */ `
+        "kanban,1": `
             <kanban>
                 <templates>
                     <t t-name="card">
@@ -102,17 +102,17 @@ class Partner extends models.Model {
                 </templates>
             </kanban>
         `,
-        list: /* xml */ `
+        list: `
             <list>
                 <field name="foo" />
             </list>
         `,
-        search: /* xml */ `
+        search: `
             <search>
                 <field name="foo" string="Foo" />
             </search>
         `,
-        "search,4": /* xml */ `
+        "search,4": `
             <search>
                 <filter name="m2o" help="M2O" domain="[('m2o', '=', 1)]" />
             </search>`,
@@ -147,9 +147,9 @@ class Project extends models.Model {
     ];
 
     _views = {
-        search: /* xml */ `<search/>`,
-        list: /* xml */ `<list><field name="foo"/></list>`,
-        kanban: /* xml */ `<kanban><templates><t t-name="card"><field name="foo" /></t></templates></kanban>`,
+        search: `<search/>`,
+        list: `<list><field name="foo"/></list>`,
+        kanban: `<kanban><templates><t t-name="card"><field name="foo" /></t></templates></kanban>`,
     };
 }
 
@@ -307,7 +307,7 @@ test("sidebar is present in list view", async () => {
 
     await mountWithCleanup(WebClient);
     await getService("action").doAction(3);
-    expect(".o_cp_action_menus .o_dropdown_title").toHaveCount(0); // no action menu
+    expect(".o_cp_action_menus .o_dropdown_title").toHaveCount(0);
 
     await contains("input.form-check-input").click();
     expect('.o_cp_action_menus button.dropdown-toggle:contains("Print")').toBeVisible();
@@ -601,7 +601,7 @@ test("pager is updated when switching between views", async () => {
 
 test.tags("desktop");
 test("Props are updated and kept when switching/restoring views", async () => {
-    Partner._views["form"] = /* xml */ `
+    Partner._views["form"] = `
         <form>
             <group>
                 <field name="display_name" />
@@ -629,7 +629,6 @@ test("Props are updated and kept when switching/restoring views", async () => {
 
     await contains(".o_field_many2one .o_external_button", { visible: false }).click();
 
-    // Click on M2O -> 1 / 1
     expect(".o_field_char input").toHaveValue("Third record");
     expect(getPagerValue()).toEqual([1]);
     expect(getPagerLimit()).toBe(1);
@@ -642,14 +641,12 @@ test("Props are updated and kept when switching/restoring views", async () => {
 
     await pagerNext();
 
-    // Next page -> 2 / 5
     expect(".o_field_char input").toHaveValue("Second record");
     expect(getPagerValue()).toEqual([2]);
     expect(getPagerLimit()).toBe(5);
 
     await contains(".o_field_many2one .o_external_button", { visible: false }).click();
 
-    // Click on M2O -> still 1 / 1
     expect(".o_field_char input").toHaveValue("Third record");
     expect(getPagerValue()).toEqual([1]);
     expect(getPagerLimit()).toBe(1);
@@ -704,7 +701,7 @@ test("A new form view can be reloaded after a failed one", async () => {
     expect(".o_list_view").toHaveCount(1, {
         message: "The list view should be displayed",
     });
-    await runAllTimers(); // wait for the update of the router
+    await runAllTimers();
     expect(router.current).toEqual({
         action: 3,
         actionStack: [
@@ -721,30 +718,21 @@ test("A new form view can be reloaded after a failed one", async () => {
         message: "The form view should be displayed",
     });
     expect(".o_last_breadcrumb_item").toHaveText("First record");
-    await runAllTimers(); // wait for the update of the router
+    await runAllTimers();
     expect(browser.location.pathname).toBe("/odoo/action-3/1");
 
     await contains(".o_cp_action_menus .fa-cog").click();
     await contains(".o_menu_item:contains(Delete)").click();
     expect(".modal").toHaveCount(1, { message: "a confirm modal should be displayed" });
     await contains(".modal-footer button.btn-primary").click();
-    // The form view is automatically switched to the next record
     expect(".o_last_breadcrumb_item").toHaveText("Second record");
-    await runAllTimers(); // wait for the update of the router
+    await runAllTimers();
     expect(browser.location.pathname).toBe("/odoo/action-3/2");
 
-    // Go back to the previous (now deleted) record
     browser.history.back();
     await runAllTimers();
     expect(browser.location.pathname).toBe("/odoo/action-3/1");
-    // As the previous one is deleted, we go back to the list
-    await runAllTimers(); // wait for the update of the router
-    // The deleted-record recovery is async: the failed form load throws
-    // FetchRecordError, and the list is restored via a fresh ACTION_MANAGER
-    // dispatch whose final DOM update lands on the next OWL render frame —
-    // which runAllTimers() does not flush. Await that frame before asserting
-    // the list is displayed (the surrounding contains() calls already poll for
-    // it). Without this the assertion checks one render-frame too early.
+    await runAllTimers();
     await animationFrame();
     expect(".o_list_view").toHaveCount(1, {
         message: "should still display the list view",
@@ -797,7 +785,7 @@ test("there is no flickering when switching between views", async () => {
         message: "should display an empty list view",
     });
     expect(".o_list_view table").toHaveCount(1);
-    expect(".o_list_view table .o_data_row").toHaveCount(5); // Cached values
+    expect(".o_list_view table .o_data_row").toHaveCount(5);
 
     def.resolve();
     await animationFrame();
@@ -837,7 +825,7 @@ test("there is no flickering when switching between views", async () => {
     });
     expect(".o_list_view").toHaveCount(1, { message: "should display an empty list" });
     expect(".o_list_view table").toHaveCount(1);
-    expect(".o_list_view table .o_data_row").toHaveCount(5); // Cached values
+    expect(".o_list_view table .o_data_row").toHaveCount(5);
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Partners",
     ]);
@@ -862,7 +850,6 @@ test("there is no flickering when reloading a view", async () => {
     expect(".o_list_view .o_data_row").toHaveCount(5);
 
     MockServer.env["partner"].create([{ foo: "a new record" }]);
-    // reload the list view
     def = new Deferred();
     await switchView("list");
     expect(".o_list_view .o_data_row").toHaveCount(5);
@@ -871,7 +858,6 @@ test("there is no flickering when reloading a view", async () => {
     await animationFrame();
     expect(".o_list_view .o_data_row").toHaveCount(6);
 
-    // do the same in kanban view
     await switchView("kanban");
     expect(".o_kanban_view").toHaveCount(1);
     expect(".o_kanban_view .o_kanban_record:not(.o_kanban_ghost)").toHaveCount(6);
@@ -1030,7 +1016,6 @@ test("execute_action of type object: disable buttons (2)", async () => {
     ]);
 
     const def = new Deferred();
-    // delay the opening of the dialog
     onRpc("onchange", () => def);
 
     await mountWithCleanup(WebClient);
@@ -1040,7 +1025,6 @@ test("execute_action of type object: disable buttons (2)", async () => {
     await contains(".o_list_view .o_data_cell").click();
     expect(".o_form_view").toHaveCount(1);
 
-    // click on 'Execute action', to execute action 4 in a dialog
     await contains('.o_form_view button[name="40"]').click();
     expect(".o_form_button_create").not.toBeEnabled();
 
@@ -1063,7 +1047,6 @@ test("view button: block ui attribute", async () => {
             </form>`;
 
     const def = new Deferred();
-    // delay the action
     onRpc("onchange", () => def);
 
     await mountWithCleanup(WebClient);
@@ -1074,7 +1057,6 @@ test("view button: block ui attribute", async () => {
     expect(".o_form_view").toHaveCount(1);
     expect(".o-main-components-container .o_blockUI").toHaveCount(0);
 
-    // click on 'Execute action', to execute action 4
     await contains('.o_form_view button[name="4"]').click();
     expect(".o-main-components-container .o_blockUI").toHaveCount(1, {
         message: "interface should be blocked during loading",
@@ -1098,10 +1080,8 @@ test("execute_action of type object raises error: re-enables buttons", async () 
     await getService("action").doAction(3, { viewType: "form" });
     expect(".o_form_view").toHaveCount(1);
 
-    // save to ensure the presence of the create button
     await contains(".o_form_button_save").click();
 
-    // click on 'Execute action', to execute action 4 in a dialog
     await click('.o_form_view button[name="object"]');
     expect(".o_form_button_create").not.toBeEnabled();
     await animationFrame();
@@ -1177,9 +1157,6 @@ test("smart button runs even when the tap lands on the More item wrapper", async
     await animationFrame();
     await animationFrame();
     expect(".o_bottom_sheet").toHaveCount(1);
-    // A tap that resolves to the DropdownItem wrapper (rather than the inner
-    // ViewButton) must still run the stat button's action, not just close the
-    // sheet. Regression for "sheet closes, no action" on mobile/Android.
     await contains(".o_bottom_sheet .o-dropdown-item").click();
     await animationFrame();
     await runAllTimers();
@@ -1232,9 +1209,6 @@ test("execute smart button and fails on desktop", async () => {
     expect(".o_kanban_view").toHaveCount(1);
 
     def.resolve();
-    // The smart-button navigation fails on web_search_read and the previous
-    // form view is restored; wait for that restoration deterministically rather
-    // than after a single frame (the failure travels several async hops).
     await waitFor(".o_form_view");
     expect(".o_form_view").toHaveCount(1);
     expect(".o_form_button_create:not([disabled]):visible").toHaveCount(1);
@@ -1295,7 +1269,7 @@ test("execute smart button and fails on mobile", async () => {
 test.tags("desktop");
 test("requests for execute_action of type object: disable buttons", async () => {
     let def = undefined;
-    onRpc("web_read", () => def); // block the 'read' call
+    onRpc("web_read", () => def);
     onRpc("/web/dataset/call_button/*", () => false);
 
     await mountWithCleanup(WebClient);
@@ -1308,7 +1282,6 @@ test("requests for execute_action of type object: disable buttons", async () => 
 
     expect(".o_form_view button:contains(Call method)").not.toBeEnabled();
 
-    // Release the 'read' call
     def.resolve();
     await animationFrame();
 
@@ -1612,15 +1585,15 @@ test("form views restore the correct id in url when coming back in breadcrumbs",
     await getService("action").doAction(3);
 
     await contains(".o_list_view .o_data_row .o_data_cell").click();
-    await runAllTimers(); // wait for the router to update its state
+    await runAllTimers();
     expect(router.current.resId).toBe(1);
 
     await getService("action").doAction(4);
-    await runAllTimers(); // wait for the router to update its state
+    await runAllTimers();
     expect(router.current).not.toInclude("resId");
 
     await contains(".o_control_panel .breadcrumb a:eq(1)").click();
-    await runAllTimers(); // wait for the router to update its state
+    await runAllTimers();
     expect(router.current.resId).toBe(1);
 });
 
@@ -1712,7 +1685,7 @@ test("execute action with unknown view type", async () => {
             res_model: "partner",
             views: [
                 [false, "list"],
-                [false, "unknown"], // typically, an enterprise-only view on a community db
+                [false, "unknown"],
                 [false, "kanban"],
                 [false, "form"],
             ],
@@ -1755,7 +1728,7 @@ test("save current search", async () => {
             group_by: [],
             shouldBeInFilterContext: true,
         });
-        return [3]; // fake filter id
+        return [3];
     });
 
     await mountWithCleanup(WebClient);
@@ -1909,12 +1882,10 @@ test("current act_window action is stored in session_storage if possible", async
     });
     await mountWithCleanup(WebClient);
 
-    // execute an action that can be stringified -> should be stored
     expectedAction = MockServer.current._findAction(3);
     await getService("action").doAction(3);
     expect(".o_list_view").toHaveCount(1);
 
-    // execute an action that can't be stringified -> should not crash
     expectedAction = {};
     const x = {};
     x.y = x;
@@ -1942,7 +1913,6 @@ test("stored action is restored correctly with domain", async () => {
     expect(".o_list_view").toHaveCount(1);
     expect(".o_data_row").toHaveCount(1);
 
-    // Emulate a Reload
     routerBus.trigger("ROUTE_CHANGE");
     await animationFrame();
 
@@ -1993,7 +1963,7 @@ test("destroy action with lazy loaded controller", async () => {
     redirect("/odoo/action-3/2");
 
     await mountWithCleanup(WebClient);
-    await animationFrame(); // blank component
+    await animationFrame();
     expect(".o_list_view").toHaveCount(0);
     expect(".o_form_view").toHaveCount(1);
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
@@ -2074,7 +2044,7 @@ test("execute a contextual action from a form view", async () => {
         id: 80,
         name: "Favorite Ponies",
         res_model: "pony",
-        context: "{}", // need a context to evaluate
+        context: "{}",
         views: [
             [false, "list"],
             [false, "form"],
@@ -2132,7 +2102,6 @@ test("go back to action with form view as main view, and res_id", async () => {
         "Second record",
     ]);
 
-    // push another action in the breadcrumb
     await contains(".o_field_many2one .o_external_button", { visible: false }).click();
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Second record",
@@ -2169,21 +2138,18 @@ test("action with res_id, load another res_id, do new action, restore previous",
     ]);
     expect(".o_control_panel .o_pager_counter").toHaveText("1 / 2");
 
-    // load another id on current action (through pager)
     await contains(".o_pager_next").click();
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Second record",
     ]);
     expect(".o_control_panel .o_pager_counter").toHaveText("2 / 2");
 
-    // push another action in the breadcrumb
     await contains(".o_field_many2one .o_external_button", { visible: false }).click();
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Second record",
         "Third record",
     ]);
 
-    // restore previous action through breadcrumb
     await contains(".o_control_panel .breadcrumb a").click();
     expect(queryAllTexts(".breadcrumb-item, .o_breadcrumb .active")).toEqual([
         "Second record",
@@ -2262,9 +2228,8 @@ test("onClose should be called only once with right parameters", async () => {
     expect.assertions(4);
 
     await mountWithCleanup(WebClient);
-    await getService("action").doAction(2); // main form view
+    await getService("action").doAction(2);
     await getService("action").doAction(5, {
-        // form view in target new
         onClose(infos) {
             expect.step("onClose");
             expect(infos).toEqual({ cantaloupe: "island" });
@@ -2283,8 +2248,6 @@ test("onClose should be called only once with right parameters", async () => {
 
 test.tags("desktop");
 test("search view should keep focus during do_search", async () => {
-    // Typing + enter must repeatedly add a facet and trigger a search. Verify via
-    // search_read steps rather than input value: native events make that flaky here.
     const searchPromise = new Deferred();
     onRpc("web_search_read", async ({ kwargs }) => {
         expect.step("search_read " + kwargs.domain);
@@ -2299,10 +2262,7 @@ test("search view should keep focus during do_search", async () => {
     await validateSearch();
     expect.verifySteps(["search_read ", "search_read foo,ilike,m"]);
 
-    // Triggering the do_search above will kill the current searchview Input
     await editSearch("o");
-    // Resolving now, mid-typing, must not lose what's already been typed once
-    // the resulting redraw lands.
     searchPromise.resolve();
     await validateSearch();
     expect.verifySteps(["search_read |,foo,ilike,m,foo,ilike,o"]);
@@ -2368,7 +2328,6 @@ test("do not call clearUncommittedChanges() when target=new and dialog is opened
     expect(".o_action_manager .o_form_view .o_form_editable").toHaveCount(1);
 
     await contains(".o_field_widget[name=display_name] input").edit("TEST");
-    // Open dialog without saving should not ask to discard
     await getService("action").doAction(5);
     expect(".o_action_manager .o_form_view .o_form_editable").toHaveCount(1);
     expect(".o_dialog .o_view_controller").toHaveCount(1);
@@ -2396,7 +2355,7 @@ test("do not pushState when target=new and dialog is opened", async () => {
 });
 
 test("do not restore after action button clicked", async () => {
-    Partner._views.form = /* xml */ `
+    Partner._views.form = `
         <form>
             <header>
                 <button name="do_something" string="Call button" type="object"/>
@@ -2457,8 +2416,8 @@ test("reload a view via the view switcher keep state", async () => {
     await switchView("pivot");
     expect(".o_pivot_measure_row").toHaveClass("o_pivot_sort_order_asc");
     expect.verifySteps([
-        "formatted_read_grouping_sets", // initial formatted_read_grouping_sets
-        "formatted_read_grouping_sets", // formatted_read_grouping_sets at reload after switch view
+        "formatted_read_grouping_sets",
+        "formatted_read_grouping_sets",
     ]);
 });
 
@@ -2502,7 +2461,7 @@ test("window action in target new fails (onchange)", async () => {
         throw makeServerError({ type: "ValidationError" });
     });
 
-    Partner._views["form,74"] = /*xml*/ `
+    Partner._views["form,74"] = `
         <form>
             <header>
                 <button name="5" string="Test" type="action"/>
@@ -2536,7 +2495,7 @@ test("Uncaught error in target new is catch only once", async () => {
         throw makeServerError({ type: "ValidationError" });
     });
 
-    Partner._views["form,74"] = /*xml*/ `
+    Partner._views["form,74"] = `
         <form>
             <header>
                 <button name="26" string="Test" type="action"/>
@@ -2580,11 +2539,8 @@ test("action and get_views rpcs are cached", async () => {
 
     await getService("orm").unlink("ir.actions.act_window", [333]);
     await animationFrame();
-    // The act_window mutation also refreshes the current stack's breadcrumb
-    // display names in place (see action_cache_invalidation).
     expect.verifySteps(["unlink", "/web/action/load_breadcrumbs"]);
     await getService("action").doAction(1);
-    // action and get_views caches were cleared => reload both
     expect.verifySteps(["/web/action/load", "get_views", "web_search_read"]);
 });
 
@@ -2623,7 +2579,7 @@ test("get_views rpcs are cached (different context.active_id)", async () => {
 test.tags("desktop");
 test("pushState also changes the title of the tab", async () => {
     await mountWithCleanup(WebClient);
-    await getService("action").doAction(3); // list view
+    await getService("action").doAction(3);
 
     const titleService = getService("title");
     expect(titleService.current).toBe("Partners");
@@ -2636,7 +2592,7 @@ test("pushState also changes the title of the tab", async () => {
 });
 
 test("action group_by of type string", async () => {
-    Partner._views["pivot,3"] = /* xml */ `<pivot />`;
+    Partner._views["pivot,3"] = `<pivot />`;
     await mountWithCleanup(WebClient);
     await getService("action").doAction({
         name: "Partner",
@@ -2780,7 +2736,6 @@ test("click on breadcrumb of a deleted record", async () => {
     expect(queryAllTexts(".breadcrumb-item")).toEqual(["", "First record", "Partners"]);
     expect(".o_breadcrumb .active").toHaveText("Second record");
 
-    // click on "First record" in breadcrumbs, which doesn't exist anymore
     await contains(".breadcrumb-item a").click();
     await animationFrame();
     expect(".o_list_view").toHaveCount(1);

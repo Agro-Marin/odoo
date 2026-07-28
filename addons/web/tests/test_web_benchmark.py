@@ -34,14 +34,12 @@ class TestWebBenchmark(TransactionCase):
         super().setUpClass()
         cls.all_results = []
 
-        # Categories for many2many search panel benchmark
         cls.categories = cls.env["res.partner.category"].create(
             [{"name": f"BenchCat_{i}"} for i in range(5)]
         )
 
         cls.country_be = cls.env.ref("base.be")
 
-        # 500 partners for scaling benchmarks
         cls.partners = cls.env["res.partner"].create(
             [
                 {
@@ -55,7 +53,6 @@ class TestWebBenchmark(TransactionCase):
             ]
         )
 
-        # Parent + 50 children for deep-spec benchmark
         cls.parent_partner = cls.env["res.partner"].create(
             {
                 "name": "BenchParent",
@@ -103,9 +100,6 @@ class TestWebBenchmark(TransactionCase):
         _logger.info("[WEB_BENCHMARK] %s", stats.summary())
         return stats
 
-    # ------------------------------------------------------------------
-    # web_search_read scaling (10 / 100 / 500)
-    # ------------------------------------------------------------------
 
     def test_bench_web_search_read_10(self):
         """Benchmark: web_search_read with limit=10."""
@@ -140,9 +134,6 @@ class TestWebBenchmark(TransactionCase):
             lambda: Partners.web_search_read(domain, spec, limit=500),
         )
 
-    # ------------------------------------------------------------------
-    # web_read with deep nested specification
-    # ------------------------------------------------------------------
 
     def test_bench_web_read_deep_spec(self):
         """Benchmark: web_read with nested many2one + many2many + x2many."""
@@ -158,9 +149,6 @@ class TestWebBenchmark(TransactionCase):
             lambda: partners.web_read(spec),
         )
 
-    # ------------------------------------------------------------------
-    # web_read_group
-    # ------------------------------------------------------------------
 
     def test_bench_web_read_group(self):
         """Benchmark: web_read_group grouped by country_id."""
@@ -176,9 +164,6 @@ class TestWebBenchmark(TransactionCase):
             ),
         )
 
-    # ------------------------------------------------------------------
-    # web_name_search
-    # ------------------------------------------------------------------
 
     def test_bench_web_name_search(self):
         """Benchmark: web_name_search with display_name-only spec (warm)."""
@@ -191,9 +176,6 @@ class TestWebBenchmark(TransactionCase):
             invalidate_cache=False,
         )
 
-    # ------------------------------------------------------------------
-    # search_panel many2many with counters (N+1)
-    # ------------------------------------------------------------------
 
     def test_bench_search_panel_m2m(self):
         """Benchmark: search_panel many2many with counters.
@@ -214,9 +196,6 @@ class TestWebBenchmark(TransactionCase):
             ),
         )
 
-    # ------------------------------------------------------------------
-    # web_save_multi (N+1: per-record write)
-    # ------------------------------------------------------------------
 
     def test_bench_web_save_multi(self):
         """Benchmark: web_save_multi on 20 records.

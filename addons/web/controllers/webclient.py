@@ -21,9 +21,6 @@ class WebClient(http.Controller):
         """Load translations directly from *.po files, before a session exists.
         Used only for the login page and db management chrome, in the browser's
         language."""
-        # Load a single translation for performance: sub-languages (only partially
-        # translated) fall back to the main language PO, which suffices for the
-        # login screen.
         lang = request.env.context["lang"].partition("_")[0]
 
         if mods is None:
@@ -92,12 +89,8 @@ class WebClient(http.Controller):
         }
         if current_hash != hash:
             if "translation_data" in request.env.cr.cache:
-                # ormcache miss: _get_web_translations_hash already computed
-                # and stashed translation_data as a side effect.
                 body.update(request.env.cr.cache.pop("translation_data"))
             else:
-                # ormcache hit: translation_data was not stashed, so fetch
-                # the translations directly.
                 translations_per_module, lang_params = request.env[
                     "ir.http"
                 ]._get_translations_for_webclient(mods, lang)
@@ -112,8 +105,6 @@ class WebClient(http.Controller):
                     }
                 )
 
-        # Route type is declared "http" (not "jsonrpc"): the client fetches it
-        # with a plain GET but still expects a JSON body.
         return request.make_json_response(
             body,
             [
@@ -169,23 +160,10 @@ class WebClient(http.Controller):
                 "src": attrs.get("src") or attrs.get("data-src") or attrs.get("href"),
             }
             for tag, attrs in files
-            # Only stylesheet <link>s are loadable resources for the lazy-load
-            # client. ``<link rel="modulepreload">`` hints (emitted per native
-            # module when esbuild declines, e.g. on a read-only test cursor)
-            # must not be forwarded: the client would inject them as
-            # stylesheets, and the failing .js-as-CSS load rejects the whole
-            # loadBundle() call. The ESM payload below already carries those
-            # modules as import() specifiers.
             if tag != "link" or attrs.get("rel") == "stylesheet"
         ]
 
         if use_esm:
-            # ESM dynamic bundle: return specifiers for import().  The
-            # payload (import map incl. bridge entries for cross-bundle
-            # legacy imports, template attachment URL) is computed once and
-            # ormcached by ir.qweb — previously every runtime loadBundle()
-            # re-ran bridge discovery and the XML template parse here.
-            # Cached values are shared by reference: read-only below.
             payload = request.env["ir.qweb"]._get_esm_bundle_payload(
                 bundle_name,
                 debug_assets=bool(debug) and "assets" in debug,
@@ -201,10 +179,6 @@ class WebClient(http.Controller):
                 "files": data,
                 "template_url": tpl_url,
             }
-            # URL-vs-data-URI breakdown lets ops correlate a lazy
-            # bundle response with any ``[asset.js] loadESMBundle``
-            # logs on the browser side (which now emit fresh/dup/total
-            # counts) without cross-referencing the full JSON payload.
             _n_data_uri = sum(1 for v in import_map.values() if v.startswith("data:"))
             _n_real_url = len(import_map) - _n_data_uri
             log_event(

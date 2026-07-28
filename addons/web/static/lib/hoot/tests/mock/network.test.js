@@ -175,11 +175,10 @@ describe(parseUrl(import.meta.url), () => {
 
         const response = await fetch("/text");
         const responseClone = response.clone();
-        const result = await response.text(); // read once
+        const result = await response.text();
 
         expect(result).toBe("some text");
 
-        // Rejects for every reader after body is used
         await expect(response.arrayBuffer()).rejects.toThrow(TypeError);
         await expect(response.blob()).rejects.toThrow(TypeError);
         await expect(response.bytes()).rejects.toThrow(TypeError);
@@ -187,11 +186,10 @@ describe(parseUrl(import.meta.url), () => {
         await expect(response.json()).rejects.toThrow(TypeError);
         await expect(response.text()).rejects.toThrow(TypeError);
 
-        const cloneResult = await responseClone.text(); // read clone
+        const cloneResult = await responseClone.text();
 
         expect(cloneResult).toBe(result);
 
-        // Clone rejects reader as well
         await expect(responseClone.text()).rejects.toThrow(TypeError);
     });
 });

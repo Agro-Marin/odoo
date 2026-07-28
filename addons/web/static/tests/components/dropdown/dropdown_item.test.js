@@ -60,14 +60,11 @@ test("(with href prop) can be rendered as <a/>", async () => {
 
 test("prevents click default with href", async () => {
     expect.assertions(4);
-    // A DropdownItem should preventDefault a click as it may take the shape
-    // of an <a/> tag with an [href] attribute and e.g. could change the url when clicked.
     patchWithCleanup(DropdownItem.prototype, {
         onClick(ev) {
             expect(!ev.defaultPrevented).toBe(true);
             super.onClick(...arguments);
             const href = ev.target.getAttribute("href");
-            // defaultPrevented only if props.href is defined
             expect(href !== null ? ev.defaultPrevented : !ev.defaultPrevented).toBe(
                 true,
             );
@@ -86,8 +83,6 @@ test("prevents click default with href", async () => {
                 </Dropdown>`;
     }
     await mountWithCleanup(Parent);
-    // ".link" has an href prop so renders as <a href>, so its click must be
-    // defaultPrevented; ".nolink" has none, so its click must not be.
     await click(DROPDOWN_TOGGLE);
     await animationFrame();
     await click(".link");

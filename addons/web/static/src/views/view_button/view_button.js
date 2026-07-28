@@ -39,14 +39,11 @@ function iconFromString(iconString) {
         iconString.startsWith("fa-regular ") ||
         iconString.startsWith("fa-brands ")
     ) {
-        // FA7 full class syntax — use directly
         icon.tag = "i";
         icon.class = `o_button_icon ${iconString}`;
     } else if (iconString.startsWith("fa-")) {
-        // Legacy bare name — apply style based on FA4 outline convention
         icon.tag = "i";
         if (iconString.endsWith("-o")) {
-            // FA4 outline suffix (e.g. "fa-star-o") → FA7 regular style, strip -o
             icon.class = `o_button_icon fa-regular ${iconString.slice(0, -2)}`;
         } else {
             icon.class = `o_button_icon fa-solid ${iconString}`;
@@ -64,10 +61,6 @@ function iconFromString(iconString) {
 /** Renders a button from a view arch (`<button>` or `<a>` tag) with debouncing, tooltips, and Bootstrap class resolution. */
 export class ViewButton extends Component {
     static template = "web.views.ViewButton";
-    // Typed prop shape (types verified against real call sites in list/kanban
-    // renderers, x2many controls, and payrun cards). Notably icon may be the
-    // literal `false` from processButton, and tabindex/id arrive as strings
-    // from the arch — hence the unions.
     static props = {
         id: { type: [String, Number], optional: true },
         tag: { type: String, optional: true },
@@ -126,9 +119,6 @@ export class ViewButton extends Component {
      * @returns {string}
      */
     get tooltip() {
-        // Lazy: the common case (production, no help text) never reads this,
-        // so it must not pay the JSON.stringify cost up front — ViewButton is
-        // instantiated once per button cell per list row.
         return JSON.stringify({
             debug: Boolean(odoo.debug),
             button: {

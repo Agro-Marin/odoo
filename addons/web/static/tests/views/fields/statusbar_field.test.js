@@ -117,7 +117,7 @@ test("static statusbar widget on many2one field", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" />
@@ -125,7 +125,6 @@ test("static statusbar widget on many2one field", async () => {
             </form>
         `,
     });
-    // search_read should only fetch field display_name
     expect.verifySteps(["display_name"]);
     expect(".o_statusbar_status button:not(.dropdown-toggle)").toHaveCount(2);
     expect(".o_statusbar_status button:disabled").toHaveCount(5);
@@ -139,7 +138,7 @@ test("statusbar with an empty statusbar_visible attribute shows all stages", asy
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="color" widget="statusbar" statusbar_visible="" />
@@ -148,7 +147,6 @@ test("statusbar with an empty statusbar_visible attribute shows all stages", asy
         `,
     });
 
-    // An empty attribute means "no restriction", not "current value only".
     expect(".o_statusbar_status button:not(.dropdown-toggle)").toHaveCount(2);
 });
 
@@ -167,7 +165,7 @@ test("folded statusbar widget on selection field has selected value in the toggl
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="color" widget="statusbar" />
@@ -193,7 +191,7 @@ test("static statusbar widget on many2one field with domain", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" domain="[('user_id', '=', uid)]" />
@@ -208,7 +206,7 @@ test("clickable statusbar widget on many2one field", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'clickable': 1}" />
@@ -244,7 +242,7 @@ test("statusbar with no status", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" />
@@ -268,7 +266,7 @@ test("statusbar with tooltip for help text", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" />
@@ -297,7 +295,7 @@ test("statusbar with required modifier", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" required="1"/>
@@ -312,7 +310,6 @@ test("statusbar with required modifier", async () => {
     expect(".o_form_editable").toHaveCount(1, {
         message: "view should still be in edit",
     });
-    // should display an 'invalid fields' notification
     expect.verifySteps(["Show error message"]);
 });
 
@@ -322,7 +319,7 @@ test("statusbar with no value in readonly on desktop", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" />
@@ -341,7 +338,7 @@ test("statusbar with no value in readonly on mobile", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" />
@@ -363,7 +360,7 @@ test("statusbar with domain but no value (create mode)", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" />
@@ -385,7 +382,7 @@ test("clickable statusbar should change m2o fetching domain in edit mode", async
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'clickable': 1}" />
@@ -408,7 +405,7 @@ test("statusbar fold_field option and statusbar_visible attribute on desktop", a
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'fold_field': 'bar'}" />
@@ -436,7 +433,7 @@ test("statusbar fold_field option and statusbar_visible attribute on mobile", as
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'fold_field': 'bar'}" />
@@ -464,7 +461,7 @@ test("statusbar: choose an item from the folded menu on desktop", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'clickable': '1', 'fold_field': 'bar'}" />
@@ -499,7 +496,7 @@ test("statusbar: choose an item from the folded menu on mobile", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'clickable': '1', 'fold_field': 'bar'}" />
@@ -540,7 +537,7 @@ test("statusbar with dynamic domain", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" />
@@ -570,7 +567,7 @@ test(`statusbar edited by the smart action "Move to stage..."`, async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'clickable': '1'}"/>
@@ -599,7 +596,7 @@ test("smart actions are unavailable if readonly", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" readonly="1"/>
@@ -621,7 +618,7 @@ test("hotkeys are unavailable if readonly", async () => {
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" readonly="1"/>
@@ -632,11 +629,11 @@ test("hotkeys are unavailable if readonly", async () => {
     });
 
     expect(".o_field_widget").toHaveCount(1);
-    await press(["alt", "shift", "x"]); // Move to stage...
+    await press(["alt", "shift", "x"]);
     await animationFrame();
     expect(".modal").toHaveCount(0, { message: "command palette should not open" });
 
-    await press(["alt", "x"]); // Move to next
+    await press(["alt", "x"]);
     await animationFrame();
     expect(".modal").toHaveCount(0, { message: "command palette should not open" });
 });
@@ -647,7 +644,7 @@ test("auto save record when field toggled", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'clickable': 1}" />
@@ -732,12 +729,10 @@ test("open form with statusbar, leave and come back to another one with other do
     await mountWithCleanup(WebClient);
     await getService("action").doAction(1);
 
-    // open first record
     await click(".o_data_row .o_data_cell");
     await animationFrame();
     expect.verifySteps(["search_read"]);
 
-    // go back and open second record
     await click(".o_back_button");
     await animationFrame();
     await click(".o_data_row:eq(1) .o_data_cell");
@@ -751,7 +746,7 @@ test("clickable statusbar with readonly modifier set to false is editable on des
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" options="{'clickable': true}" readonly="False"/>
@@ -771,7 +766,7 @@ test("clickable statusbar with readonly modifier set to false is editable on mob
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" options="{'clickable': true}" readonly="False"/>
@@ -794,7 +789,7 @@ test("clickable statusbar with readonly modifier set to true is not editable on 
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" options="{'clickable': true}" readonly="True"/>
@@ -811,7 +806,7 @@ test("clickable statusbar with readonly modifier set to true is not editable on 
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" options="{'clickable': true}" readonly="True"/>
@@ -828,7 +823,7 @@ test("non-clickable statusbar with readonly modifier set to false is not editabl
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" options="{'clickable': false}" readonly="False"/>
@@ -845,7 +840,7 @@ test("non-clickable statusbar with readonly modifier set to false is not editabl
         type: "form",
         resModel: "partner",
         resId: 2,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="product_id" widget="statusbar" options="{'clickable': false}" readonly="False"/>
@@ -885,7 +880,7 @@ test("last status bar button have a border radius (no arrow shape) on the right 
         type: "form",
         resModel: "task",
         resId: 3,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="status" widget="statusbar" options="{'clickable': true, 'fold_field': 'folded'}" />
@@ -947,7 +942,7 @@ test("correctly load statusbar when dynamic domain changes", async () => {
         type: "form",
         resModel: "task",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="status" widget="statusbar" domain="[('project_ids', 'in', project_id)]" />
@@ -990,7 +985,7 @@ test("statusbar is rendered correctly on small devices", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" options="{'clickable': 1}" />
@@ -1030,7 +1025,7 @@ test("statusbar with no status on extra small screens", async () => {
         type: "form",
         resModel: "partner",
         resId: 4,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="trululu" widget="statusbar" />
@@ -1062,7 +1057,7 @@ test("clickable statusbar widget on mobile view", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
                 <form>
                     <header>
                         <field name="trululu" widget="statusbar" options="{'clickable': '1'}" />
@@ -1086,7 +1081,6 @@ test("clickable statusbar widget on mobile view", async () => {
         }),
     ).toHaveCount(1);
 
-    // Open second dropdown
     click(queryFirst(".o_statusbar_status .dropdown-toggle", { visible: true }));
     await animationFrame();
 
@@ -1096,7 +1090,7 @@ test("clickable statusbar widget on mobile view", async () => {
 test('"status" with no stages does not crash command palette', async () => {
     class Stage extends models.Model {
         name = fields.Char();
-        _records = []; // no stages
+        _records = [];
     }
 
     class Task extends models.Model {
@@ -1110,7 +1104,7 @@ test('"status" with no stages does not crash command palette', async () => {
         type: "form",
         resModel: "task",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="status" widget="statusbar" options="{'withCommand': true, 'clickable': true}"/>
@@ -1119,7 +1113,6 @@ test('"status" with no stages does not crash command palette', async () => {
         `,
     });
 
-    // Open the command palette (Ctrl+K)
     await press(["control", "k"]);
     await animationFrame();
 
@@ -1191,7 +1184,6 @@ test("cache: update current status if it changed", async () => {
         ],
     });
 
-    // populate the cache by visiting the 3 records
     await contains(".o_kanban_record").click();
     expect(".o_last_breadcrumb_item").toHaveText("first record");
     await pagerNext();
@@ -1199,7 +1191,6 @@ test("cache: update current status if it changed", async () => {
     await pagerNext();
     expect(".o_last_breadcrumb_item").toHaveText("third record");
 
-    // go back to kanban and drag the first record of stage 2 on top of stage 1 column
     await contains(".o_breadcrumb .o_back_button").click();
     const dragActions = await contains(
         ".o_kanban_record:contains(second record)",
@@ -1212,19 +1203,16 @@ test("cache: update current status if it changed", async () => {
         "third record",
     ]);
 
-    // re-open last record and use to pager to reach the record we just moved
     await contains(".o_kanban_record:contains(third record)").click();
     await pagerPrevious();
     def = new Deferred();
     await pagerPrevious();
-    // retrieved from the cache => former value
     expect(".o_last_breadcrumb_item").toHaveText("second record");
     expect('.o_statusbar_status button[data-value="2"]').toHaveClass(
         "o_arrow_button_current",
     );
     def.resolve();
     await animationFrame();
-    // updated when the rpc returns
     expect(".o_last_breadcrumb_item").toHaveText("second record");
     expect('.o_statusbar_status button[data-value="1"]').toHaveClass(
         "o_arrow_button_current",
@@ -1232,7 +1220,6 @@ test("cache: update current status if it changed", async () => {
 });
 
 test("[adjust] statusbar with a lot of stages, click to change stage", async () => {
-    // force the window width and define long stage names s.t. at most 3 stages can be displayed
     resize({ width: 800 });
     class Stage extends models.Model {
         name = fields.Char();
@@ -1249,7 +1236,7 @@ test("[adjust] statusbar with a lot of stages, click to change stage", async () 
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <header>
                     <field name="stage_id" widget="statusbar" options="{'clickable': 1}" />
@@ -1258,7 +1245,6 @@ test("[adjust] statusbar with a lot of stages, click to change stage", async () 
         `,
     });
 
-    // initial rendering: there should be a dropdown before and a dropdown after
     expect(".o_statusbar_status button:visible.dropdown-toggle").toHaveCount(2);
     expect(
         queryAllTexts(".o_statusbar_status button:visible:not(.dropdown-toggle)"),
@@ -1278,7 +1264,6 @@ test("[adjust] statusbar with a lot of stages, click to change stage", async () 
         "Stage with very long name 6",
     ]);
 
-    // choose the next value: there should still be one dropdown before and one after
     await contains(".o_statusbar_status button[data-value='4']").click();
     expect(".o_statusbar_status button:visible.dropdown-toggle").toHaveCount(2);
     expect(
@@ -1299,7 +1284,6 @@ test("[adjust] statusbar with a lot of stages, click to change stage", async () 
     await contains(".o_statusbar_status .o_first").click();
     expect(queryAllTexts(".o-dropdown-item")).toEqual(["Stage with very long name 6"]);
 
-    // choose the next value: there should only be a dropdown before
     await contains(".o_statusbar_status button[data-value='5']").click();
     expect(".o_statusbar_status button:visible.dropdown-toggle").toHaveCount(1);
     expect(
@@ -1319,7 +1303,6 @@ test("[adjust] statusbar with a lot of stages, click to change stage", async () 
         "Stage with very long name 3",
     ]);
 
-    // select the first item from the dropdown before => there should only be a dropdown after
     await contains(".o-dropdown-item:first").click();
     expect(".o_statusbar_status button:visible.dropdown-toggle").toHaveCount(1);
     expect(

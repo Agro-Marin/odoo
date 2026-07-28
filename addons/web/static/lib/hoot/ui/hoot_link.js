@@ -18,17 +18,9 @@ import { ensureArray, INCLUDE_LEVEL } from "../hoot_utils.js";
  * }} HootLinkProps
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Object: { entries: $entries },
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * Link component which computes its href lazily (i.e. on focus or pointerenter).

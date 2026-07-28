@@ -62,7 +62,7 @@ class User extends models.Model {
 defineModels([Partner, User]);
 
 test("DatetimeField in form view", async () => {
-    mockTimeZone(+2); // UTC+2
+    mockTimeZone(+2);
 
     await mountView({
         type: "form",
@@ -74,7 +74,7 @@ test("DatetimeField in form view", async () => {
         </form>`,
     });
 
-    const expectedDateString = "02/08/2017 12:00:00"; // 10:00:00 without timezone
+    const expectedDateString = "02/08/2017 12:00:00";
     expect(".o_field_datetime button").toHaveValue(expectedDateString, {
         message: "the datetime should be correctly displayed",
     });
@@ -87,14 +87,12 @@ test("DatetimeField in form view", async () => {
         expectedDateString,
     );
 
-    // datepicker should not open on focus
     expect(".o_datetime_picker").toHaveCount(0);
 
     await click(".o_field_datetime button");
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // select 22 April 2018 at 8:25
     await zoomOut();
     await zoomOut();
     await click(getPickerCell("2018"));
@@ -104,7 +102,6 @@ test("DatetimeField in form view", async () => {
     await click(getPickerCell("22"));
     await animationFrame();
     await editTime("8:25");
-    // Close the datepicker
     await click(".o_form_view_container");
     await animationFrame();
 
@@ -123,8 +120,6 @@ test("DatetimeField in form view", async () => {
     });
 });
 
-// desktop-only: picks day/hour/minute in the datetime picker dropdown; the
-// mobile BottomSheet picker fires a different interaction sequence.
 test.tags("desktop");
 test("DatetimeField only triggers fieldChange when a day is picked and when an hour/minute is selected", async () => {
     mockTimeZone(+2);
@@ -137,14 +132,13 @@ test("DatetimeField only triggers fieldChange when a day is picked and when an h
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ '<form><field name="datetime"/></form>',
+        arch: '<form><field name="datetime"/></form>',
     });
 
     await click(".o_field_datetime button");
     await animationFrame();
 
     expect(".o_datetime_picker").toHaveCount(1);
-    // select 22 April 2018 at 8:25
     await zoomOut();
     await zoomOut();
     await click(getPickerCell("2018"));
@@ -160,7 +154,6 @@ test("DatetimeField only triggers fieldChange when a day is picked and when an h
 
     expect.verifySteps([]);
 
-    // Close the datepicker
     await click(document.body);
     await animationFrame();
 
@@ -183,15 +176,13 @@ test("DatetimeField edit hour/minute and click away", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ '<form><field name="datetime"/></form>',
+        arch: '<form><field name="datetime"/></form>',
     });
 
-    // Open the datepicker
     await click(".o_field_datetime button");
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // Manually change the time without { confirm: "enter" }
     await click(`.o_time_picker_input:eq(0)`);
     await animationFrame();
     await edit("8:30");
@@ -200,7 +191,6 @@ test("DatetimeField edit hour/minute and click away", async () => {
         message: "Input value shouldn't be updated yet",
     });
 
-    // Close the datepicker
     await click(document.body);
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(0);
@@ -243,8 +233,6 @@ test("DatetimeField with datetime formatted without second", async () => {
     });
 });
 
-// desktop-only: relies on the inline `.o_field_datetime input` of an editable
-// list cell, which mobile does not render (mobile edits via a dialog/sheet).
 test.tags("desktop");
 test("DatetimeField in editable list view", async () => {
     mockTimeZone(+2);
@@ -253,7 +241,7 @@ test("DatetimeField in editable list view", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list editable="bottom"><field name="datetime"/></list>`,
+        arch: `<list editable="bottom"><field name="datetime"/></list>`,
     });
 
     expect("tr.o_data_row td:not(.o_list_record_selector):first").toHaveText(
@@ -263,7 +251,6 @@ test("DatetimeField in editable list view", async () => {
         },
     );
 
-    // switch to edit mode
     await click(".o_data_row .o_data_cell");
     await animationFrame();
     expect(".o_field_datetime button").toHaveCount(1, {
@@ -285,7 +272,6 @@ test("DatetimeField in editable list view", async () => {
 
     expect(".o_datetime_picker").toHaveCount(1);
 
-    // select 22 April 2018 at 8:25
     await zoomOut();
     await zoomOut();
     await click(getPickerCell("2018"));
@@ -313,7 +299,7 @@ test("DatetimeField input in editable list view keeps its parent's width when em
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `<list editable="bottom"><field name="datetime"/></list>`,
+        arch: `<list editable="bottom"><field name="datetime"/></list>`,
     });
     await contains(".o_data_row:eq(1) .o_data_cell").click();
     expect(".o_data_row:eq(1) .o_data_cell input").toHaveRect(
@@ -333,7 +319,6 @@ test("multi edition of DatetimeField in list view: edit date in input", async ()
         arch: '<list multi_edit="1"><field name="datetime"/></list>',
     });
 
-    // select two records and edit them
     await click(".o_data_row:eq(0) .o_list_record_selector input");
     await animationFrame();
     await click(".o_data_row:eq(1) .o_list_record_selector input");
@@ -371,7 +356,6 @@ test("multi edition of DatetimeField in list view: clear date in input", async (
         arch: '<list multi_edit="1"><field name="datetime"/></list>',
     });
 
-    // select two records and edit them
     await click(".o_data_row:eq(0) .o_list_record_selector input");
     await animationFrame();
     await click(".o_data_row:eq(1) .o_list_record_selector input");
@@ -411,7 +395,7 @@ test("DatetimeField remove value", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ '<form><field name="datetime"/></form>',
+        arch: '<form><field name="datetime"/></form>',
     });
 
     expect(".o_field_datetime button").toHaveValue("02/08/2017 12:00:00", {
@@ -438,7 +422,6 @@ test("DatetimeField remove value", async () => {
 });
 
 test("datetime field: hit enter should update value", async () => {
-    // Value must be correctly computed after enter-to-validate, click-away, and save.
     mockTimeZone(+2);
 
     await mountView({
@@ -448,7 +431,6 @@ test("datetime field: hit enter should update value", async () => {
         resId: 1,
     });
 
-    // Enter a beginning of date and press enter to validate
     await click(".o_field_datetime button");
     await animationFrame();
     await click(".o_field_datetime input");
@@ -459,12 +441,10 @@ test("datetime field: hit enter should update value", async () => {
 
     expect(".o_field_datetime input:first").toHaveValue(datetimeValue);
 
-    // Click outside the field to check that the field is not changed
     await click(document.body);
     await animationFrame();
     expect(".o_field_datetime button").toHaveValue(datetimeValue);
 
-    // Save and check that it's still ok
     await clickSave();
 
     expect(".o_field_datetime button").toHaveValue(datetimeValue);
@@ -475,7 +455,7 @@ test("DateTimeField with label opens datepicker on click", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
                 <form>
                     <label for="datetime" string="When is it" />
                     <field name="datetime" />
@@ -489,17 +469,15 @@ test("DateTimeField with label opens datepicker on click", async () => {
     });
 });
 
-// desktop-only: drives the `[name=datetime] input` picker; mobile uses a
-// BottomSheet with different DOM.
 test.tags("desktop");
 test("datetime field: use picker with arabic numbering system", async () => {
-    defineParams({ lang: "ar_001" }); // Select Arab language
+    defineParams({ lang: "ar_001" });
 
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `<form string="Partners"><field name="datetime" /></form>`,
+        arch: `<form string="Partners"><field name="datetime" /></form>`,
     });
 
     expect("[name=datetime] button").toHaveValue("٠٢/٠٨/٢٠١٧ ١١:٠٠:٠٠");
@@ -517,7 +495,7 @@ test("datetime field in list view with show_seconds option", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="datetime" widget="datetime" string="show_seconds as false"/>
                 <field name="datetime" widget="datetime" options="{'show_seconds': true}" string="show_seconds as true"/>
@@ -536,7 +514,7 @@ test("edit a datetime field in form view with show_seconds option", async () => 
     await mountView({
         type: "form",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime" widget="datetime" string="show_seconds as false"/>
                 <field name="datetime" widget="datetime" options="{'show_seconds': true}"  string="show_seconds as true"/>
@@ -679,15 +657,13 @@ test("placeholder_field shows as placeholder (datetime)", async () => {
 
 test("warn_future does not warn on an earlier time today (datetime)", async () => {
     mockTimeZone(0);
-    // "Now" is noon; the record's datetime is 10:00 the same day: earlier today,
-    // so a DATETIME field must NOT be flagged as being in the future.
     mockDate("2017-02-08 12:00:00", 0);
 
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime" widget="datetime" options="{'warn_future': true}"/>
             </form>`,
@@ -700,15 +676,13 @@ test("warn_future does not warn on an earlier time today (datetime)", async () =
 
 test("warn_future warns on a later time today (datetime)", async () => {
     mockTimeZone(0);
-    // "Now" is 08:00; the record's datetime is 10:00 the same day: later today,
-    // so a DATETIME field must be flagged as being in the future.
     mockDate("2017-02-08 08:00:00", 0);
 
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime" widget="datetime" options="{'warn_future': true}"/>
             </form>`,
@@ -728,7 +702,7 @@ test("list datetime: column widths (show_time=false)", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="datetime" widget="datetime" options="{'show_time': false }" />
                 <field name="display_name" />
@@ -753,7 +727,7 @@ test("list datetime: column widths (numeric format)", async () => {
     await mountView({
         type: "list",
         resModel: "partner",
-        arch: /* xml */ `
+        arch: `
             <list>
                 <field name="datetime" widget="datetime" options="{'numeric': true }" />
                 <field name="display_name" />
@@ -770,24 +744,19 @@ test("list datetime: column widths (numeric format)", async () => {
 });
 
 test("bare-date min_date/max_date on a datetime field bound whole days in the user's timezone", async () => {
-    // UTC-6: deserializing the bare dates as UTC midnight would shift both
-    // bounds to 18:00 of the PREVIOUS local day (min "2017-02-08" -> Feb 7
-    // 18:00, max "2017-02-10" -> Feb 9 18:00), enabling Feb 7 and disabling
-    // Feb 10. The options mean whole local days: exactly Feb 8-10 selectable.
     mockTimeZone(-6);
 
     await mountView({
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="datetime"
                     options="{'min_date': '2017-02-08', 'max_date': '2017-02-10'}"/>
             </form>`,
     });
 
-    // Record value 2017-02-08 10:00:00 UTC -> Feb 8 04:00 local (in range).
     await click(".o_field_datetime button");
     await animationFrame();
     expect(".o_datetime_picker").toHaveCount(1);
@@ -816,34 +785,20 @@ test("clean datetime does not re-emit FIELD_IS_DIRTY on unrelated re-renders", a
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ `
+        arch: `
             <form>
                 <field name="bar"/>
                 <field name="datetime" readonly="not bar"/>
             </form>`,
     });
-    // A clean field emits NOTHING on its first render: ``lastIsDirty`` starts at
-    // ``false`` so ``isDirty (false) !== lastIsDirty (false)`` is false. (It used
-    // to start ``undefined``, so the first render emitted a spurious ``false`` —
-    // harmless on a fresh mount, but a clobber when a DateTimeField is
-    // re-instantiated, e.g. scrolled into a virtualized list, while a sibling
-    // holds uncommitted dirty input.)
     expect(emissions).toEqual([]);
 
-    // Toggling the boolean flips the datetime's readonly modifier, forcing a
-    // re-render with unchanged dirtiness: FIELD_IS_DIRTY is last-writer-wins,
-    // so a clean field must not re-emit and clobber a dirty sibling's state.
     await click(".o_field_boolean input");
     await animationFrame();
     expect(emissions).toEqual([]);
 });
 
 test("empty datetime touched then left must not dirty the record", async () => {
-    // Regression: parseDateTime returns null for empty input while the model's
-    // unset sentinel is false; areDatesEqual must treat both as "no date" so a
-    // field the user typed-into-then-cleared (or opened the picker on and
-    // confirmed empty) returns to a clean state instead of showing phantom
-    // unsaved changes and firing a spurious onchange/web_save.
     Partner._records[0].datetime = false;
     onRpc("onchange", () => expect.step("onchange"));
     onRpc("web_save", () => expect.step("web_save"));
@@ -852,10 +807,9 @@ test("empty datetime touched then left must not dirty the record", async () => {
         type: "form",
         resModel: "partner",
         resId: 1,
-        arch: /* xml */ '<form><field name="datetime"/></form>',
+        arch: '<form><field name="datetime"/></form>',
     });
 
-    // (a) type a value then clear it back to empty
     await click(".o_field_datetime input");
     await animationFrame();
     await edit("01/01/2020 00:00:00", { confirm: false });
@@ -865,7 +819,6 @@ test("empty datetime touched then left must not dirty the record", async () => {
     await click(document.body);
     await animationFrame();
 
-    // (b) open the picker on the (still empty) field and confirm empty
     await click(".o_field_datetime input");
     await animationFrame();
     await edit("", { confirm: "Enter" });

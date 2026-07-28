@@ -9,8 +9,6 @@ import { session } from "@web/session";
 
 const ENDPOINT = "/web/observability/cwv";
 
-// Per-document counter, mixed into the non-secure-context pageview-id fallback
-// so ids stay distinct even for tabs opened in the same millisecond.
 let _pageviewCounter = 0;
 
 /**
@@ -28,19 +26,9 @@ export const webVitalsService = {
     /** Service has no dependencies; runs once at startup, then passively observes. */
     start() {
         if (!browser.PerformanceObserver) {
-            // Old browser without PerformanceObserver (pre-2016).  Nothing to do —
-            // we deliberately do not feature-detect each metric type because the
-            // PerformanceObserver entry types we use have shipped in every
-            // browser-support-matrix browser since 2018.
             return;
         }
 
-        // Sample-rate gate.  Per-session, not per-beacon: roll the dice once
-        // at start, either capture everything or capture nothing.  This keeps
-        // the per-URL distribution clean (a sampled session contributes a
-        // full pageview's worth of metrics or none).  Default 1.0 in dev;
-        // production ratchets via the ``web.cwv.sample_rate`` config param,
-        // which the server exposes via ``_base_session_info``.
         const rawRate = Number(session.cwv_sample_rate);
         const sampleRate = Number.isFinite(rawRate)
             ? Math.max(0, Math.min(1, rawRate))
@@ -52,47 +40,20 @@ export const webVitalsService = {
         /** @type {{ lcp?: number, fcp?: number, cls?: number, ttfb?: number, inp?: number }} */
         const metrics = {};
 
-        // Stable id for this pageview so the server can UPSERT: metrics arrive
-        // across several beacons (see the re-arm below — INP/CLS keep growing
-        // after the first tab-switch), and keying by pageview id lets later,
-        // more-complete beacons replace the earlier partial one instead of
-        // accumulating duplicate rows.
-        // ``crypto.randomUUID`` is secure-context-only, and this fork's
-        // deployments include plain-HTTP intranet setups. The old fallback
-        // (``performance.now()`` resets per document, UA length is constant)
-        // collided trivially across tabs opened together, and the controller
-        // UPSERTs on ``pageview_id`` — one tab's beacon then overwrites
-        // another's row. Use a real random value plus a per-document counter.
         const pageviewId =
             browser.crypto?.randomUUID?.() ??
             `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}-${++_pageviewCounter}`;
 
-        // Pin the URL to the path captured at service start (the initial
-        // document path). The observers run for the whole document lifetime and
-        // pageviewId is constant, but the Odoo backend is an SPA: the router
-        // mutates ``location.pathname`` via history.pushState on soft navigation
-        // with no reload. Reading ``location.pathname`` fresh at flush time would
-        // relabel this pageview — whose load metrics (LCP/FCP/TTFB) are inherently
-        // tied to the first document — onto whatever route happens to be active
-        // when the tab is next hidden, corrupting per-URL aggregation server-side
-        // (the controller upserts on pageview_id and overwrites ``url``).
         const pageviewPath = browser.location.pathname;
 
         /** @type {PerformanceObserver[]} */
         const observers = [];
 
-        // TTFB from Navigation Timing — synchronous, available immediately.
         try {
             const nav = /** @type {any} */ (
                 browser.performance.getEntriesByType("navigation")[0]
             );
             if (nav && nav.responseStart > 0) {
-                // Canonical Core Web Vitals TTFB: ``responseStart`` is already
-                // relative to navigation start (timeOrigin) per Navigation Timing
-                // L2, so it includes redirect + DNS + TCP + TLS setup. Only
-                // ``activationStart`` is subtracted, to zero-base prerendered
-                // pages. Subtracting ``requestStart`` (the old code) dropped all
-                // connection-setup time and under-reported TTFB on cold links.
                 const activationStart = nav.activationStart || 0;
                 metrics.ttfb = Math.max(0, nav.responseStart - activationStart);
             }
@@ -100,7 +61,6 @@ export const webVitalsService = {
             // ignore — browser without nav-timing v2 (very rare)
         }
 
-        // FCP — single-shot: disconnect after first paint entry.
         try {
             const fcpObserver = new browser.PerformanceObserver((entries) => {
                 for (const entry of entries.getEntries()) {
@@ -117,9 +77,6 @@ export const webVitalsService = {
             // ignore — browser without paint timing
         }
 
-        // LCP — keeps observing; latest entry wins because LCP can update as
-        // larger elements paint later.  Per W3C, LCP is finalized at first user
-        // input or page hide; we sample whichever value is current at flush time.
         try {
             const lcpObserver = new browser.PerformanceObserver((entries) => {
                 const list = entries.getEntries();
@@ -137,19 +94,41 @@ export const webVitalsService = {
             // ignore
         }
 
-        // CLS — sum of layout-shift values over the page lifetime, excluding
-        // shifts within 500ms of user input (which are intentional).  This
-        // matches the W3C definition of "session-window CLS"... approximately.
-        // For the canonical session-window calculation, vendor web-vitals.
         try {
+            // CLS is the LARGEST session window, not the lifetime total: a
+            // window is a burst of shifts each within 1s of the previous and
+            // spanning at most 5s. Summing every shift instead (what this did)
+            // is unbounded in a single-page app whose session lasts hours, and
+            // the server-side `_clamp_cls` in `controllers/observability.py`
+            // DROPS anything above 5.0 — so a long session silently stopped
+            // reporting CLS at all, while shorter ones over-reported it.
             let clsValue = 0;
+            let windowValue = 0;
+            let windowFirstMs = 0;
+            let windowLastMs = 0;
             const clsObserver = new browser.PerformanceObserver((entries) => {
                 for (const entry of entries.getEntries()) {
                     const e = /** @type {any} */ (entry);
-                    if (!e.hadRecentInput) {
-                        clsValue += e.value;
+                    if (e.hadRecentInput) {
+                        continue;
                     }
+                    const inSameWindow =
+                        windowValue > 0 &&
+                        e.startTime - windowLastMs < 1000 &&
+                        e.startTime - windowFirstMs < 5000;
+                    if (inSameWindow) {
+                        windowValue += e.value;
+                    } else {
+                        windowValue = e.value;
+                        windowFirstMs = e.startTime;
+                    }
+                    windowLastMs = e.startTime;
+                    clsValue = Math.max(clsValue, windowValue);
                 }
+                // Assigned unconditionally, not only when the max grows: a page
+                // whose every shift was input-triggered must still report
+                // `cls: 0` ("measured, and it was perfect") rather than omit the
+                // key, which reads downstream as "not measured".
                 metrics.cls = clsValue;
             });
             clsObserver.observe({ type: "layout-shift", buffered: true });
@@ -158,17 +137,6 @@ export const webVitalsService = {
             // ignore
         }
 
-        // INP — Track the worst (longest) interaction over the page lifetime.
-        // Entries with ``interactionId === 0`` are non-interactive events
-        // (programmatic, hover) and don't count toward INP.
-        // ``durationThreshold: 40`` skips events shorter than 40ms — these
-        // are below the perceptible-latency floor and would only add noise.
-        //
-        // The P100 (worst-observed) reducer here is a strict upper bound on
-        // the canonical P98 INP, so a scalar running max suffices — the P98
-        // reducer will need the per-interactionId grouping back.  Swap for
-        // the sliding-window reducer when vendoring web-vitals; the wire
-        // schema does not change.
         try {
             const inpObserver = new browser.PerformanceObserver((entries) => {
                 for (const entry of entries.getEntries()) {
@@ -181,10 +149,6 @@ export const webVitalsService = {
                     }
                 }
             });
-            // ``durationThreshold`` is part of the Event Timing spec extension
-            // for ``PerformanceObserverInit`` but is not yet in the standard
-            // TS DOM lib (lands with PerformanceEventTiming). Cast keeps the
-            // observe call type-clean.
             inpObserver.observe(
                 /** @type {any} */ ({
                     type: "event",
@@ -198,21 +162,12 @@ export const webVitalsService = {
             // (lands in 16.4); pre-Chromium-96 lacks the entry type entirely.
         }
 
-        // Flush on every hidden transition, not just the first: a long session
-        // is mostly the time AFTER the first tab-switch, which is exactly where
-        // INP degradations accumulate. Sending once (the old `flushed` latch,
-        // never reset) systematically under-reported INP/CLS and biased the
-        // RUM dashboard toward cold-load numbers. Each beacon carries the same
-        // `pageviewId` so the server upserts (one row per pageview, updated to
-        // the latest values) instead of accumulating duplicates.
         let lastSentSignature = "";
         function flush() {
             const keys = Object.keys(metrics);
             if (!keys.length) {
                 return;
             }
-            // Skip if nothing changed since the last beacon (a hide→show→hide
-            // with no new interaction would otherwise re-send identical data).
             const signature = JSON.stringify(metrics);
             if (signature === lastSentSignature) {
                 return;
@@ -220,11 +175,6 @@ export const webVitalsService = {
             lastSentSignature = signature;
             try {
                 const payload = {
-                    // pathname only — ``location.search`` can carry record ids
-                    // and other PII that Web-Vitals aggregation does not need,
-                    // so it must not even leave the browser (the /web/cwv
-                    // controller additionally strips any query string as
-                    // defense-in-depth for stale cached clients).
                     url: pageviewPath,
                     user_agent: browser.navigator.userAgent.slice(0, 500),
                     pageview_id: pageviewId,
@@ -239,31 +189,37 @@ export const webVitalsService = {
             }
         }
 
-        // pagehide is the modern unload signal (replaces beforeunload, which is
-        // unreliable on mobile and breaks BFCache).  visibilitychange to hidden
-        // also fires when a tab is backgrounded — capture metrics then in case
-        // the user never returns.
-        browser.addEventListener(
-            "pagehide",
-            (/** @type {PageTransitionEvent} */ ev) => {
-                flush();
-                // Only tear observers down when the page is truly being discarded
-                // (``!event.persisted``). On a BFCache freeze (``persisted === true``)
-                // the browser pauses the observers and resumes them on restore, so
-                // disconnecting here would permanently stop measuring while the
-                // restored page keeps beaconing stale metrics on its next hide.
-                if (!ev.persisted) {
-                    for (const observer of observers) {
-                        observer.disconnect();
-                    }
+        const onPagehide = (/** @type {PageTransitionEvent} */ ev) => {
+            flush();
+            if (!ev.persisted) {
+                for (const observer of observers) {
+                    observer.disconnect();
                 }
-            },
-        );
-        browser.addEventListener("visibilitychange", () => {
+            }
+        };
+        const onVisibilityChange = () => {
             if (document.visibilityState === "hidden") {
                 flush();
             }
-        });
+        };
+        browser.addEventListener("pagehide", onPagehide);
+        browser.addEventListener("visibilitychange", onVisibilityChange);
+
+        return {
+            /**
+             * Release the window listeners and the PerformanceObservers. The
+             * page-lived production env is never torn down, but an embedded or
+             * sub-app env is: without this, its observers keep collecting and
+             * its `pagehide` handler keeps beaconing a dead env's metrics.
+             */
+            destroy() {
+                browser.removeEventListener("pagehide", onPagehide);
+                browser.removeEventListener("visibilitychange", onVisibilityChange);
+                for (const observer of observers) {
+                    observer.disconnect();
+                }
+            },
+        };
     },
 };
 

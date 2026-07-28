@@ -66,9 +66,6 @@ DEFAULT_BASELINE_PATH = (
     REPO_ROOT / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
 )
 
-# Authoritative surfaces — broken refs here are most damaging because
-# readers trust these documents.  Mirrors the team's existing tier
-# system (machine_doc_v1 is the single most read-heavy doc surface).
 AUTHORITATIVE_PATHS = (
     "addons/odoo/addons/web/machine_doc_v1/",
     "addons/odoo/.github/workflows/",
@@ -88,7 +85,7 @@ class FileScore:
     total_refs: int
     avg_ease: float
     score: float
-    sample_paths: tuple[str, ...]  # up to 3 example raw_paths
+    sample_paths: tuple[str, ...]
 
     @property
     def is_authoritative(self) -> bool:
@@ -108,38 +105,26 @@ def _ease_for_ref(source_file: str, raw_path: str) -> float:
     files have many easy refs, others have a few hard ones).
     """
     src = Path(source_file)
-    tgt = raw_path.split("#", 1)[0]  # strip anchor
+    tgt = raw_path.split("#", 1)[0]
 
-    # Cross-repo / aspirational refs (config/, ~/, $VAR) — already
-    # filtered as placeholders by the gate, but the bare ``config/``
-    # form slips through.  Hard to fix from this checkout.
     if tgt.startswith(("config/", "/home/", "/Users/")):
         return 0.3
 
-    # Refs that look like nested plan→research patterns where the
-    # cited doc usually doesn't exist (e.g. ``thoughts/tasks/t....md``
-    # in plans/ files, where ``thoughts/`` isn't a real subdirectory).
     if "/thoughts/" in tgt or "/decisions/" in tgt:
         return 0.2
 
-    # Same-directory reference (no slash in the ref) — local rename
-    # or typo, easy to fix.
     if "/" not in tgt:
         return 1.0
 
-    # Sibling-tree: target's first segment exists as a sibling of
-    # source's directory.  Heuristic via shared prefix length.
     src_parts = src.parts
     tgt_first = tgt.split("/", 1)[0]
     if tgt_first in src_parts[:-1]:
-        # Probably a parent-relative ref written without ``../``
         return 0.9
 
-    # In-repo cross-tree.
     if tgt.startswith(("addons/", "knowledge/", "core/")):
         return 0.7
 
-    return 0.5  # unknown
+    return 0.5
 
 
 def score_files(baseline: dict, *, include_knowledge: bool = True) -> list[FileScore]:
@@ -158,7 +143,6 @@ def score_files(baseline: dict, *, include_knowledge: bool = True) -> list[FileS
         total = len(refs)
         avg_ease = sum(e for _, e in refs) / total
         score = total * avg_ease
-        # Sample up to 3 distinct raw paths for orientation.
         seen: set[str] = set()
         samples: list[str] = []
         for rp, _ in refs:
@@ -185,7 +169,7 @@ def _print_table(rows: list[FileScore], limit: int) -> None:
         print("(no candidates — baseline is empty?)")
         return
     name_w = max(len(r.source_file) for r in rows[:limit])
-    name_w = min(name_w, 80)  # cap width for narrow terminals
+    name_w = min(name_w, 80)
     print(f"{'#':>2}  {'score':>6}  {'refs':>4}  {'ease':>4}  source_file")
     print(f"{'─' * 2}  {'─' * 6}  {'─' * 4}  {'─' * 4}  {'─' * name_w}")
     for i, r in enumerate(rows[:limit], 1):

@@ -25,7 +25,6 @@ export class FieldSelectorField extends Component {
 
     filter(fieldDef) {
         if (fieldDef.type === "separator") {
-            // Don't show properties separator
             return false;
         }
         if (!this.props.allowProperties && fieldDef.type === "properties") {
@@ -38,17 +37,12 @@ export class FieldSelectorField extends Component {
         await this.props.record.update({ [this.props.name]: value });
     }
 
-    //---- Getters ----
     get formattedValue() {
         return formatChar(this.props.record.data[this.props.name]);
     }
 
     get resModel() {
         const { record } = this.props;
-        // ``resModel`` prop may be either a field name (holding the target model)
-        // or a literal model name. Only dereference it through ``data`` when it is
-        // actually a field on the record; otherwise treat it as a literal. In both
-        // cases, fall back to the current record's model when the result is empty.
         let resModel = this.props.resModel;
         if (record.fieldNames.includes(resModel)) {
             resModel = record.data[resModel];
@@ -98,8 +92,6 @@ export const fieldSelectorField = {
             followRelations: options.follow_relations ?? true,
             onlySearchable: exprToBoolean(options.only_searchable),
             resModel: options.model,
-            // Without this, `selectorProps.allowEmpty` (= !required) was always
-            // true, so a required="1" field-path could be cleared.
             required: dynamicInfo.required,
         };
     },

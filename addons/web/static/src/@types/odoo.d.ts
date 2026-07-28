@@ -85,8 +85,3 @@ declare const odoo: {
     };
 };
 
-// NOTE: luxon is a real ES module resolved via the import map
-// (``odoo.libs.constants.ODOO_EXTERNAL_LIBS``); consumers import it from
-// ``@web/core/l10n/luxon`` (typed re-export surface).  There is no
-// ``window.luxon`` global any more — the old UMD IIFE + ``declare var
-// luxon`` ambient global were removed with the ESM migration.

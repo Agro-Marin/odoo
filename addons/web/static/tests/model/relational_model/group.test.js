@@ -24,8 +24,6 @@ describe("Group._deleteRecords count integrity", () => {
         const result = await group._deleteRecords([{ resId: 1 }, { resId: 2 }]);
 
         expect(result).toBe(false);
-        // A vetoed unlink triggers no reload, so an eager decrement would leave
-        // the group count permanently wrong.
         expect(group.count).toBe(5);
     });
 
@@ -59,7 +57,6 @@ describe("Group._addRecord resId dedupe", () => {
 
         group._addRecord({ resId: 7 }, 0);
 
-        // No duplicate insertion, count unchanged.
         expect(added.length).toBe(0);
         expect(group.count).toBe(1);
     });

@@ -19,12 +19,6 @@ export class PropertyText extends Component {
         this.textareaRef = useRef("textarea");
         useAutoresize(/** @type {any} */ (this.textareaRef));
 
-        // Flush a typed-but-unblurred value on save: the textarea commits only on
-        // its native ``change`` (blur), but Ctrl+S (NEED_LOCAL_CHANGES) and
-        // tab-close (WILL_SAVE_URGENTLY) don't blur it. Only the FOCUSED textarea
-        // can hold an uncommitted value; commit it via ``updateProperty`` (same
-        // path as ``change``) and let the save await the queued update. Mirrors
-        // the raw-input flush in PropertyValue; ``record`` is optional so guard.
         if (this.props.record) {
             const flush = (ev) => {
                 const el = this.textareaRef.el;

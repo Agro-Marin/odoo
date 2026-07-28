@@ -20,7 +20,7 @@ describe(parseUrl(import.meta.url), () => {
     let testBus;
 
     test("elementFromPoint and elementsFromPoint should be mocked", async () => {
-        await mountForTest(/* xml */ `
+        await mountForTest(  `
             <div class="oui" style="position: absolute; left: 10px; top: 10px; width: 250px; height: 250px;">
                 Oui
             </div>
@@ -45,8 +45,6 @@ describe(parseUrl(import.meta.url), () => {
         expect(document.elementsFromPoint(9, 9)).toEqual([document.body, document.documentElement]);
     });
 
-    // ! WARNING: the following 2 tests need to be run sequentially to work, as they
-    // ! attempt to test the in-between-tests event listeners cleanup.
     test("event listeners are properly removed: setup", async () => {
         const callback = () => expect.step("callback");
 

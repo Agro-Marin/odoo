@@ -22,7 +22,7 @@ class ResConfigInviteUsers extends Component {
         this.notification = useService("notification");
 
         this.state = useState({
-            status: "idle", // idle, inviting
+            status: "idle",
             emails: "",
             invite: null,
         });
@@ -112,9 +112,6 @@ class ResConfigInviteUsers extends Component {
     /** Send invitation for valid and unique email addresses. @private */
     async sendInvite() {
         if (this.state.status === "inviting") {
-            // Re-entrancy guard: a second Enter/click while the RPC is in
-            // flight would re-send the not-yet-refreshed pending_users list,
-            // creating the same invitations twice.
             return;
         }
         try {
@@ -145,8 +142,6 @@ class ResConfigInviteUsers extends Component {
                     { type: "info" },
                 );
             }
-            // Only clear on success: on a server error the user keeps their
-            // typed address list to fix and retry.
             this.state.emails = "";
         } finally {
             this.state.status = "idle";

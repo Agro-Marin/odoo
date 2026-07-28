@@ -75,11 +75,7 @@ function makeList(groups) {
     const list = Object.create(DynamicGroupList.prototype);
     Object.assign(list, {
         groups,
-        // ``resModel`` is a DataPoint getter deriving from ``config`` — set it
-        // through ``_config`` rather than assigning the read-only property.
         _config: { resModel: "task" },
-        // The revert path serializes through the model mutex (it calls
-        // record._discard, Invariant I4).
         model: { mutex: { exec: (fn) => Promise.resolve(fn()) } },
     });
     return list;
@@ -95,8 +91,6 @@ describe("moveRecord cross-group success", () => {
 
         await list.moveRecord("rA", "g1", "none", "g2");
 
-        // Record spliced into target, saved with the target column's value, no
-        // revert / discard.
         expect(rA.updateChanges).toEqual({ stage_id: { id: 2, display_name: "G-g2" } });
         expect(rA.discarded).toBe(false);
         expect(steps).toEqual(["g1:remove", "g2:add", "rA:update", "g2:reseq"]);
@@ -114,8 +108,6 @@ describe("moveRecord failed-move revert", () => {
         await list.moveRecord("rA", "g1", "none", "g2");
 
         expect(rA.discarded).toBe(true);
-        // Move in (g1:remove, g2:add), update fails, then move back
-        // (g2:remove, g1:add) AND discard — no reseq/load on the revert path.
         expect(steps).toEqual([
             "g1:remove",
             "g2:add",

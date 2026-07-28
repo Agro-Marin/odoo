@@ -213,9 +213,6 @@ test("Many2ManyCheckBoxesField: values are updated when domain changes", async (
 });
 
 test("Many2ManyCheckBoxesField with 40+ values", async () => {
-    // many2many_checkboxes fetches data via fetchSpecialData (name_search limit of 100),
-    // not the default x2many limit of 40. Regression test: (un)selecting a checkbox beyond
-    // the first 40 used to crash because BasicModel hadn't processed that field yet.
     expect.assertions(3);
 
     const records = [];
@@ -255,9 +252,6 @@ test("Many2ManyCheckBoxesField with 40+ values", async () => {
 });
 
 test("Many2ManyCheckBoxesField with 100+ values", async () => {
-    // The name_search pool is capped at RECORD_LIMIT (100), but currently
-    // selected records beyond the cutoff must STILL render a checkbox (fetched
-    // via a union query) so they stay manageable — none are silently hidden.
     const records = [];
     for (let id = 1; id < 150; id++) {
         records.push({
@@ -282,8 +276,6 @@ test("Many2ManyCheckBoxesField with 100+ values", async () => {
             </form>`,
     });
 
-    // All 149 selected records render, not just the first 100 name_search page:
-    // the 49 past the cap come back through the union query.
     expect(".o_field_widget[name='timmy'] input[type='checkbox']").toHaveCount(149);
     expect(".o_field_widget[name='timmy'] input[type='checkbox']:checked").toHaveCount(
         149,

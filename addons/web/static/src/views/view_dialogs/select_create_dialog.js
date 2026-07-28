@@ -39,7 +39,7 @@ export class SelectCreateDialog extends Component {
         title: { type: String, optional: true },
         noCreate: { type: Boolean, optional: true },
         onUnselect: { type: Function, optional: true },
-        noContentHelp: { type: String, optional: true }, // Markup
+        noContentHelp: { type: String, optional: true },
     };
     static defaultProps = {
         dynamicFilters: [],
@@ -61,7 +61,7 @@ export class SelectCreateDialog extends Component {
         this.dialogService = useService("dialog");
         this.state = useState({ resIds: [] });
         const noContentHelp = this.props.noContentHelp || getDefaultNoContentHelp();
-        this.busy = false; // ensures onSelected/onUnselect fires at most once
+        this.busy = false;
         this.baseViewProps = {
             display: { searchPanel: false },
             noBreadcrumbs: true,

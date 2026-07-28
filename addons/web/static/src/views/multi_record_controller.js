@@ -40,8 +40,6 @@ export class MultiRecordController extends Component {
     /** @type {any} */
     model;
 
-    // Setup
-
     /** @type {any} */
     actionService;
     /** @type {any} */
@@ -68,7 +66,6 @@ export class MultiRecordController extends Component {
     deleteRecordsWithConfirmation;
 
     setup() {
-        // --- Services ---
         const { action, dialog, notification, orm, uiHooks } = useControllerServices();
         this.actionService = action;
         this.dialogService = dialog;
@@ -76,11 +73,9 @@ export class MultiRecordController extends Component {
         this.orm = orm;
         this._uiHooks = uiHooks;
 
-        // --- Arch / refs ---
         this.archInfo = this.props.archInfo;
         this.rootRef = useRef("root");
 
-        // --- Shared state ---
         this.archiveEnabled = computeArchiveEnabled(this.props.fields);
         this.searchBarToggler = useSearchBarToggler();
         this.firstLoad = true;
@@ -118,8 +113,6 @@ export class MultiRecordController extends Component {
         );
         this.deleteRecordsWithConfirmation = useDeleteRecords(this.model);
     }
-
-    // Getters
 
     get actionMenuItems() {
         return buildActionMenuItems(
@@ -178,8 +171,6 @@ export class MultiRecordController extends Component {
         return {};
     }
 
-    // Action menu
-
     getStaticActionMenuItems() {
         return {
             export: {
@@ -224,8 +215,6 @@ export class MultiRecordController extends Component {
             },
         };
     }
-
-    // Extension points
 
     /**
      * Override to provide view-specific exportable fields.

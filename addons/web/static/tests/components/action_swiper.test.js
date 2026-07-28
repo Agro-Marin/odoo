@@ -5,7 +5,7 @@
 import { beforeEach, expect, test } from "@odoo/hoot";
 import { hover, queryFirst } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, mockTouch } from "@odoo/hoot-mock";
-import { Component, onPatched, xml } from "@odoo/owl";
+import { Component, onPatched, useState, xml } from "@odoo/owl";
 import {
     contains,
     defineParams,
@@ -15,12 +15,10 @@ import {
     swipeRight,
 } from "@web/../tests/web_test_helpers";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
+import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
 
 beforeEach(() => mockTouch(true));
-
-// Tests marked as will fail on browsers that don't support
-// TouchEvent by default. It might be an option to activate on some browser.
 
 test("render only its target if no props is given", async () => {
     class Parent extends Component {
@@ -135,7 +133,6 @@ test("can perform actions by swiping to the right", async () => {
         message: "target has translateX",
     });
 
-    // Touch ends before the half of the distance has been reached
     await dragHelper.moveTo(swiper, {
         position: {
             clientX: swiper.clientWidth / 2 - 1,
@@ -148,9 +145,7 @@ test("can perform actions by swiping to the right", async () => {
         message: "target does not have a translate value",
     });
 
-    // Touch ends once the half of the distance has been crossed
     await swipeRight(".o_actionswiper");
-    // The action is performed AND the component is reset
     expect(targetContainer.style.transform).not.toInclude("translateX", {
         message: "target does not have a translate value",
     });
@@ -205,7 +200,6 @@ test("can perform actions by swiping in both directions", async () => {
     expect(targetContainer.style.transform).toInclude("translateX", {
         message: "target has translateX",
     });
-    // Touch ends before the half of the distance has been reached to the left
     await dragHelper.moveTo(swiper, {
         position: {
             clientX: -swiper.clientWidth / 2 + 1,
@@ -219,10 +213,8 @@ test("can perform actions by swiping in both directions", async () => {
         message: "target does not have a translate value",
     });
 
-    // Touch ends once the half of the distance has been crossed to the left
     await swipeLeft(".o_actionswiper");
     expect.verifySteps(["onLeftSwipe"]);
-    // Touch ends once the half of the distance has been crossed to the right
     await swipeRight(".o_actionswiper");
 
     expect(targetContainer.style.transform).not.toInclude("translateX", {
@@ -266,14 +258,11 @@ test("invert the direction of swipes when language is rtl", async () => {
         }
     }
     await mountWithCleanup(Parent);
-    // Touch ends once the half of the distance has been crossed to the left
     await swipeLeft(".o_actionswiper");
     await advanceTime(500);
-    // In rtl languages, actions are permuted
     expect.verifySteps(["onRightSwipe"]);
     await swipeRight(".o_actionswiper");
     await advanceTime(500);
-    // In rtl languages, actions are permuted
     expect.verifySteps(["onLeftSwipe"]);
 });
 
@@ -326,7 +315,6 @@ test("swiping when the swiper contains scrollable areas", async () => {
             scrollable.getBoundingClientRect().height / 2,
     );
 
-    // The scrollable element is set as scrollable
     scrollable.scrollLeft = 100;
     let dragHelper = await contains(swiper).drag({
         position: {
@@ -369,7 +357,6 @@ test("swiping when the swiper contains scrollable areas", async () => {
             "the swiper has not swiped to the right because the scrollable element was scrollable to the left",
     });
     await dragHelper.drop();
-    // The scrollable element is set at its left limit
     scrollable.scrollLeft = 0;
     await hover(largeText, {
         position: {
@@ -415,7 +402,6 @@ test("swiping when the swiper contains scrollable areas", async () => {
     });
     await dragHelper.drop();
 
-    // The scrollable element is set at its right limit
     scrollable.scrollLeft =
         scrollable.scrollWidth - scrollable.getBoundingClientRect().right;
     await hover(largeText, {
@@ -497,8 +483,6 @@ test("preventing swipe on scrollable areas when language is rtl", async () => {
         scrollable.getBoundingClientRect().top +
             scrollable.getBoundingClientRect().height / 2,
     );
-    // RIGHT => Left trigger
-    // The scrollable element is set as scrollable
     scrollable.scrollLeft = 100;
     let dragHelper = await contains(largeText).drag({
         position: {
@@ -519,7 +503,6 @@ test("preventing swipe on scrollable areas when language is rtl", async () => {
     });
     await dragHelper.drop();
 
-    // The scrollable element is set at its left limit
     scrollable.scrollLeft = 0;
     await hover(largeText, {
         position: {
@@ -545,9 +528,7 @@ test("preventing swipe on scrollable areas when language is rtl", async () => {
     });
     await dragHelper.drop();
     await advanceTime(500);
-    // In rtl languages, actions are permuted
     expect.verifySteps(["onLeftSwipe"]);
-    // LEFT => RIGHT trigger
     await hover(largeText, {
         position: {
             clientX: scrollable.clientWidth,
@@ -571,7 +552,6 @@ test("preventing swipe on scrollable areas when language is rtl", async () => {
             "the swiper has not swiped to the left because the scrollable element was scrollable to the right",
     });
     await dragHelper.drop();
-    // The scrollable element is set at its right limit
     scrollable.scrollLeft =
         scrollable.scrollWidth - scrollable.getBoundingClientRect().right;
     await hover(largeText, {
@@ -599,7 +579,6 @@ test("preventing swipe on scrollable areas when language is rtl", async () => {
     await dragHelper.drop();
     await advanceTime(500);
 
-    // In rtl languages, actions are permuted
     expect.verifySteps(["onRightSwipe"]);
 });
 
@@ -630,7 +609,6 @@ test("swipeInvalid prop prevents swiping", async () => {
     }
     await mountWithCleanup(Parent);
     const targetContainer = queryFirst(".o_actionswiper_target_container");
-    // Touch ends once the half of the distance has been crossed
     await swipeRight(".o_actionswiper");
 
     expect(targetContainer.style.transform).not.toInclude("translateX", {
@@ -659,13 +637,6 @@ test("rapid consecutive swipes only fire the action once", async () => {
         }
     }
     await mountWithCleanup(Parent);
-    // Two threshold-crossing swipes complete within the 500ms bounce window,
-    // before the first scheduled action fires. The action pending from the
-    // first swipe must be cancelled so it runs only once, not twice.
-    // NB: don't use the swipeRight() helper here -- it settles the mocked
-    // clock with advanceTime(1000) after each gesture, which would let the
-    // first action fire before the second swipe even starts. Drive the raw
-    // drag sequence instead so both swipes land inside the same window.
     for (let i = 0; i < 2; i++) {
         const el = queryFirst(".o_actionswiper");
         el.scrollLeft = 0;
@@ -720,4 +691,55 @@ test("action should be done before a new render", async () => {
     await prom;
     await animationFrame();
     expect.verifySteps(["action done", "ActionSwiper patched"]);
+});
+
+test("no timer is scheduled once the swiper is destroyed mid-action", async () => {
+    const scheduledAfterDestroy = [];
+    let destroyed = false;
+    const actionStarted = new Deferred();
+    const releaseAction = new Deferred();
+
+    patchWithCleanup(browser, {
+        setTimeout: (fn, delay) => {
+            if (destroyed) {
+                scheduledAfterDestroy.push(delay);
+            }
+            return globalThis.setTimeout(fn, delay);
+        },
+    });
+
+    let hide;
+    class Parent extends Component {
+        static props = {};
+        static components = { ActionSwiper };
+        static template = xml`
+            <div class="d-flex">
+                <ActionSwiper t-if="state.show" animationType="'forwards'"
+                    onRightSwipe="{ action: () => this.act(), icon: 'fa-circle', bgColor: 'bg-warning' }">
+                    <span>test</span>
+                </ActionSwiper>
+            </div>`;
+        setup() {
+            this.state = useState({ show: true });
+            hide = () => (this.state.show = false);
+        }
+        async act() {
+            actionStarted.resolve();
+            await releaseAction;
+        }
+    }
+    await mountWithCleanup(Parent);
+    await swipeRight(".o_actionswiper");
+    await advanceTime(100);
+    await actionStarted;
+
+    hide();
+    await animationFrame();
+    destroyed = true;
+
+    releaseAction.resolve();
+    await animationFrame();
+    await animationFrame();
+
+    expect(scheduledAfterDestroy).toEqual([]);
 });

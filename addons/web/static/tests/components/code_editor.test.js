@@ -52,14 +52,6 @@ function getFakeAceEditor() {
     };
 }
 
-/*
-FIXME: Ace 1.32.3 quirks require this naive custom keyboard-event dispatcher
-instead of hoot's helpers:
--- Ace relies on KeyboardEvent.keyCode and on the keypress event.
--- The textarea is a hidden input internal to Ace, so hoot's helpers can't focus it.
--- Ace assumes a UA without "Win" means macOS, so we send it metaKey directly
-    instead of patching the useragent.
-*/
 function dispatchKeyboardEvents(el, tupleArray) {
     for (const [evType, eventInit] of tupleArray) {
         el.dispatchEvent(new KeyboardEvent(evType, { ...eventInit, bubbles: true }));
@@ -173,8 +165,6 @@ test("Default value correctly set and updates", async () => {
             this.onChange = debounce(this.onChange.bind(this));
         }
         onChange(value) {
-            // Manual textarea edits fire an Ace "remove" event (empty value) then
-            // an "add" event with the actual value; ignore the remove.
             if (value.length <= 0) {
                 return;
             }
@@ -188,8 +178,6 @@ test("Default value correctly set and updates", async () => {
     const codeEditor = await mountWithCleanup(Parent);
     expect(getDomValue()).toBe(textA);
 
-    // Disable XML end-tag autocompletion, since contains().edit() triggers
-    // as if it were a real user interaction.
     const ace_editor = window.ace.edit(queryOne(".ace_editor"));
     ace_editor.setBehavioursEnabled(false);
 
@@ -310,7 +298,7 @@ test("code editor can take an initial cursor position", async () => {
             3
             4aa
             5
-            `.replace(/^\s*/gm, ""); // simple dedent
+            `.replace(/^\s*/gm, "");
 
             this.initialPosition = { row: 3, column: 2 };
         }

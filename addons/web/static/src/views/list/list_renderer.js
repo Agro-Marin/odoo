@@ -105,7 +105,9 @@ export class ListRenderer extends Component {
 
     /**
      * Memoized tooltip info per column id (class field: definitely assigned,
-     * so tsc doesn't widen it to ``| undefined``). See ``makeTooltip``.
+     * so tsc doesn't widen it to ``| undefined``). Populated by
+     * ``makeTooltip``; invalidated from ``onWillRender``, which is the only
+     * place whose writes reach the component (see the comment there).
      * @type {Record<string, string>}
      */
     tooltipInfoByColumn = {};
@@ -170,15 +172,7 @@ export class ListRenderer extends Component {
 
     setup() {
         useRenderCounter("list.ListRenderer");
-        // Stable reference: template expressions run against a per-render
-        // sub-context, so ``this`` isn't identity-stable across renders —
-        // row skipping requires the ``renderer`` prop to stay stable.
         this._rendererInstance = this;
-        // Bind once so the new-x2many-row ViewButton's ``onClick`` prop keeps a
-        // stable identity across renders — an inline ``.bind(this)`` in the
-        // template minted a fresh function every render, defeating the child's
-        // props-stability skip (and the row-skipping contract this renderer
-        // maintains everywhere else).
         this._displaySaveNotification = this.displaySaveNotification.bind(this);
         this.actionService = useService("action");
         this.uiService = useService("ui");
@@ -232,11 +226,6 @@ export class ListRenderer extends Component {
             onOpenRecord: (record) => this.props.openRecord(record),
             onDeleteRecord: (record) => this.onDeleteRecord(record),
             onEditNextRecord: (record, group) => this.editNextRecord(record, group),
-            // Route arrow-key cell resolution back through the renderer's
-            // (overridable) findFocusFutureCell so subclass overrides
-            // (documents, account_accountant attachment preview, …) participate
-            // in every arrow move again — the hook's internal helpers alone are
-            // a closed call the renderer twin can't intercept.
             findFocusFutureCell: (cell, cellIsInGroupRow, direction) =>
                 this.findFocusFutureCell(cell, cellIsInGroupRow, direction),
             isInlineEditable: (record) => this.isInlineEditable(record),
@@ -255,8 +244,6 @@ export class ListRenderer extends Component {
 
         this.activeRowId = null;
         onMounted(async () => {
-            // Owl mounts elements bottom-to-top, so wait one microtask tick
-            // before reading activeElement.
             await Promise.resolve();
             this.activeElement = this.uiService.activeElement;
         });
@@ -275,13 +262,6 @@ export class ListRenderer extends Component {
                 onSave: () => this.saveOptionalActiveFields(),
             },
         );
-        // The prop is OWNED by the controller (reactive useState there) and
-        // written in place by this renderer (computeOptionalActiveFields,
-        // toggle handlers) — that shared object is what keeps the
-        // controller's getExportableFields in sync. useState re-wraps it on
-        // this component so ListAggregatesRow can subscribe to
-        // property-level mutations (optional column toggle). The fallback
-        // covers embedded x2many usage, where the prop is not passed.
         this.optionalActiveFields = useState(this.props.optionalActiveFields || {});
         /** @type {Column[]} */
         this.allColumns = [];
@@ -294,8 +274,6 @@ export class ListRenderer extends Component {
             getProps: () => this.props,
             getOptionalActiveFields: () => this.optionalActiveFields,
         });
-        // User-Timing instrumentation is dev-only — in production these
-        // marks would run every render and accumulate unbounded (nothing ever clears them).
         const mark = odoo.debug ? (name) => performance.mark(name) : () => {};
         const measure = odoo.debug
             ? (name, start) => performance.measure(name, start)
@@ -304,6 +282,21 @@ export class ListRenderer extends Component {
             this.editedRecord = this.props.list.editedRecord;
             this._readonlyCache = new Map();
             this._renderedRowIds = new Set();
+
+            // Invalidating from `makeTooltip` did not work: the template calls
+            // it as a bare `makeTooltip(column)`, so it runs against OWL's
+            // per-render context and both `this.tooltipInfoDebug = …` and
+            // `this.tooltipInfoByColumn = {}` landed on that throwaway object
+            // (see §4.3.2 of doc/coding_guidelines.rst). The component's flag
+            // therefore never advanced, so after a runtime debug toggle the
+            // reset ran on every call forever, handing each render a fresh
+            // empty context-local cache — every column rebuilt on every
+            // render — while the real cache kept its stale pre-toggle entries.
+            // A lifecycle hook is component-bound, so the write sticks.
+            if (this.tooltipInfoDebug !== this.isDebugMode) {
+                this.tooltipInfoDebug = this.isDebugMode;
+                this.tooltipInfoByColumn = {};
+            }
 
             mark("list:processAllColumns:start");
             this.allColumns = /** @type {Column[]} */ (
@@ -315,14 +308,9 @@ export class ListRenderer extends Component {
                 this.optionalActiveFields,
                 this.computeOptionalActiveFields(),
             );
-            // `this.opt` caches its localStorage-backed state; no per-render
-            // refresh needed (toggle handlers keep it up to date).
             this.debugOpenView = this.opt.debugOpenView;
 
             mark("list:getActiveColumns:start");
-            // Keep the columns array identity-stable when unchanged: it's
-            // passed to each ListRecordRow as a prop, and referential
-            // stability is what lets OWL skip unchanged rows on re-render.
             this.columns = this._toStableColumns(this.getActiveColumns());
             measure("list:getActiveColumns", "list:getActiveColumns:start");
 
@@ -334,7 +322,7 @@ export class ListRenderer extends Component {
                 hasSelectors: this.hasSelectors,
                 hasOpenFormViewColumn: this.hasOpenFormViewColumn,
                 hasActionsColumn: this.hasActionsColumn,
-                showAddLine: Boolean(this.props.editable && this.canCreate),
+                showGroupAddLine: Boolean(this.props.editable && this.canCreate),
             });
             mark("list:gridState.rebuild:start");
             this.gridState.rebuild();
@@ -386,17 +374,11 @@ export class ListRenderer extends Component {
         }));
 
         onPatched(async () => {
-            // Wait one microtask so child Field components finish their own patch cycle.
-            // OWL does not wait for children that trigger a self-patch.
             await Promise.resolve();
             if (status(this) === "destroyed") {
                 return;
             }
             if (this.activeElement !== this.uiService.activeElement) {
-                // Focus is owned by another UI part (e.g. a dialog): drop any
-                // latched virtualized-focus retry, or it would survive this
-                // patch and fire at a much later, unrelated one with stale
-                // grid indexes — stealing focus.
                 /** @type {any} */ (this.nav).clearPendingVirtFocus();
                 return;
             }
@@ -410,8 +392,6 @@ export class ListRenderer extends Component {
                     this.focusCell(column, forward);
                 } else {
                     const column = this.nav.lastEditedCell?.column || this.columns[0];
-                    // Hiding every (optional) column mid-edit leaves no
-                    // column to focus — this.columns[0] is undefined then.
                     if (
                         column &&
                         (column.widget !== "daterange" ||
@@ -434,7 +414,7 @@ export class ListRenderer extends Component {
             hasOpenFormViewColumn: this.hasOpenFormViewColumn,
             hasActionsColumn: this.hasActionsColumn,
             isRTL: this.isRTL,
-            showAddLine: Boolean(this.props.editable && this.canCreate),
+            showGroupAddLine: Boolean(this.props.editable && this.canCreate),
             isCellReadonly: (col, rec) => this.isCellReadonly(col, rec),
         });
 
@@ -506,7 +486,6 @@ export class ListRenderer extends Component {
             this.displayOptionalFields ||
             this.activeActions.onDelete ||
             this.hasOptionalOpenFormViewColumn ||
-            // spare some space to display the cog icon in group headers
             this.props.list.isGrouped
         );
     }
@@ -540,8 +519,6 @@ export class ListRenderer extends Component {
     }
 
     get activeActions() {
-        // The fallback object must be identity-stable: it is passed to each
-        // ListRecordRow as a prop (referential stability drives row skipping).
         return this.props.activeActions || (this._defaultActiveActions ||= {});
     }
 
@@ -576,16 +553,6 @@ export class ListRenderer extends Component {
             recordRowTemplate: /** @type {any} */ (this.constructor).recordRowTemplate,
             columns: this.columns,
             activeActions: this.activeActions,
-            // Narrow invalidation channel: pass only the two booleans a row's
-            // render actually depends on instead of the whole ``editedRecord``
-            // object. Passing the object made EVERY visible row see a changed
-            // prop whenever the edited row switched (A -> B), re-rendering all
-            // of them (~O(rows × cols) cell evals per keypress cycle). With
-            // ``isEdited`` only rows A and B flip; ``hasEditedRecord`` flips for
-            // all rows only on the null <-> some transition, which is exactly
-            // when every row's button ``tabindex`` must actually update. The
-            // row template still reads ``editedRecord`` (delegated to the
-            // renderer) for its concrete value on the renders that do happen.
             isEdited: this.editedRecord === record,
             hasEditedRecord: Boolean(this.editedRecord),
             canResequence: this.canResequenceRows,
@@ -694,7 +661,7 @@ export class ListRenderer extends Component {
 
     createViewKey() {
         let keyParts = {
-            fields: this.props.list.fieldNames, // FIXME: use something else?
+            fields: this.props.list.fieldNames,
             model: this.props.list.resModel,
             viewMode: "list",
             viewId: this.env.config.viewId,
@@ -855,7 +822,6 @@ export class ListRenderer extends Component {
                 ).querySelector(`.o_selected_row td[name='${column.name}']`);
                 if (cell && containsActiveElement(cell)) {
                     this.nav.lastEditedCell = { column, record };
-                    // Cell is already focused.
                     return;
                 }
                 this.focusCell(column);
@@ -863,15 +829,8 @@ export class ListRenderer extends Component {
             } else {
                 const recordId = record.id;
                 await this.resequencePromise;
-                // row might have changed position after resequence — look up by id
                 record =
                     this.props.list.records.find((r) => r.id === recordId) || record;
-                // enterEditMode returns false when the currently-edited row
-                // cannot be left (e.g. it has an invalid required field): the
-                // clicked ``record`` then never entered edit mode, so skip
-                // focusing it and — crucially — skip the boolean auto-toggle,
-                // which would otherwise mutate and dirty a row the user is not
-                // editing while the edit stays pinned to the invalid row.
                 if (await this.props.list.enterEditMode(record)) {
                     this.nav.cellToFocus = { column, record };
                     if (
@@ -951,8 +910,6 @@ export class ListRenderer extends Component {
      * @param {RelationalRecord} _record
      */
     isInlineEditable(_record) {
-        // /!\ the keyboard navigation works under the hypothesis that all or
-        // none records are editable.
         return !!this.props.editable;
     }
 
@@ -988,7 +945,7 @@ export class ListRenderer extends Component {
 
         const handled = this.editedRecord
             ? this.onCellKeydownEditMode(hotkey, closestCell, group, record)
-            : this.onCellKeydownReadOnlyMode(hotkey, closestCell, group, record); // record is supposed to be not null here
+            : this.onCellKeydownReadOnlyMode(hotkey, closestCell, group, record);
 
         if (handled) {
             for (const tbody of /** @type {HTMLElement} */ (
@@ -1015,9 +972,6 @@ export class ListRenderer extends Component {
         }
 
         if (futureRecord) {
-            // Saving below may reload/resort the record set, so re-resolve
-            // the target by id afterward instead of editing a detached
-            // datapoint (same pattern as onCellClicked's post-resequence lookup).
             const futureRecordId = futureRecord.id;
             list.leaveEditMode({ validate: true }).then((canProceed) => {
                 if (canProceed) {
@@ -1128,7 +1082,7 @@ export class ListRenderer extends Component {
      */
     onGlobalClick(ev) {
         if (!(this.editedRecord || this.state.showGroupInput)) {
-            return; // there's no row or group in edition
+            return;
         }
 
         /** @type {HTMLElement} */ (this.tableRef.el)
@@ -1136,8 +1090,6 @@ export class ListRenderer extends Component {
             ?.classList.remove("o_keyboard_navigation");
 
         const target = /** @type {HTMLElement} */ (ev.target);
-        // Close group input when the user clicks anywhere except the input itself.
-        // The input now lives in ListAggregatesRow so we use CSS class instead of ref.
         if (this.state.showGroupInput && !target.closest(".o_list_group_input")) {
             this.state.showGroupInput = false;
         }
@@ -1145,7 +1097,6 @@ export class ListRenderer extends Component {
             /** @type {HTMLElement} */ (this.tableRef.el).contains(target) &&
             target.closest(".o_data_row")
         ) {
-            // Clicks originating from a record row are handled by the renderer.
             return;
         }
         if (this.activeElement !== this.uiService.activeElement) {
@@ -1154,7 +1105,6 @@ export class ListRenderer extends Component {
         if (target.closest(".o_datetime_picker")) {
             return;
         }
-        // Legacy autocomplete
         if (target.closest(".ui-autocomplete")) {
             return;
         }
@@ -1169,13 +1119,6 @@ export class ListRenderer extends Component {
      * @param {Column} column
      */
     makeTooltip(column) {
-        // Memoized per column id: tooltip info is stable for the renderer's
-        // lifetime except for the debug flag (invalidates the cache) and
-        // property columns, whose definitions can change at runtime.
-        if (this.tooltipInfoDebug !== this.isDebugMode) {
-            this.tooltipInfoDebug = this.isDebugMode;
-            this.tooltipInfoByColumn = {};
-        }
         if (!column.relatedPropertyField && this.tooltipInfoByColumn[column.id]) {
             return this.tooltipInfoByColumn[column.id];
         }
@@ -1183,9 +1126,6 @@ export class ListRenderer extends Component {
             viewMode: "list",
             resModel: this.props.list.resModel,
             field: this.fields[column.name],
-            // ``Column`` carries a ``widget`` plus list-specific layout
-            // fields not declared on ``FieldInfo``; the tooltip only reads
-            // the ``FieldInfo``-shaped subset.
             fieldInfo: /** @type {any} */ (column),
         });
         this.tooltipInfoByColumn[column.id] = tooltipInfo;
@@ -1236,18 +1176,6 @@ export class ListRenderer extends Component {
     }
 }
 
-// Apply the cohort mixins onto ``ListRenderer.prototype`` so subclasses'
-// ``super.<method>(...)`` keeps resolving to the canonical implementations
-// (see each mixin module for its own rationale).
-//
-// Descriptor copying (not ``Object.assign``) is required for two reasons:
-// ``Object.assign`` would invoke each getter at install time (where
-// ``this.props`` is undefined) and copy the resulting value rather than the
-// getter itself; and object-literal descriptors default to
-// ``enumerable: true`` while class getters are ``enumerable: false`` — OWL's
-// reactivity-capture path iterates enumerable own properties and would throw
-// reading a getter-only property during capture, so we force
-// ``enumerable: false`` to match class-getter semantics.
 function installListRendererMixin(mixin) {
     const descriptors = Object.getOwnPropertyDescriptors(mixin);
     for (const key of Object.keys(descriptors)) {

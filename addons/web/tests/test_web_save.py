@@ -36,7 +36,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 "parent_id": cls.c1.id,
             }
         )
-        cls.env.flush_all()  # ensure the DB holds these values for raw reads
+        cls.env.flush_all()
 
     def _server_set(self, **col_vals):
         """Simulate another transaction committing a change, at the DB level
@@ -47,7 +47,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 (val, self.partner.id),
             )
 
-    # -- no concurrency args: behaves as an ordinary save --------------------
     def test_no_concurrency_args(self):
         result = self.partner.web_save({"phone": "x"}, specification={"phone": {}})
         self.assertEqual(result[0]["phone"], "x")
@@ -60,7 +59,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual(result[0]["name"], "New")
 
-    # -- field-scoped: the core behaviour ------------------------------------
     def test_disjoint_change_does_not_conflict(self):
         """A concurrent change to a DIFFERENT field must not block the save."""
         self._server_set(function="changed-by-other")
@@ -135,13 +133,12 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual(self.partner.phone, "222")
 
-    # -- jsonb-backed columns (translated / company-dependent) fail open -----
     def test_translated_field_no_false_conflict(self):
         """Editing a translated field must not self-conflict: the raw DB value
         is a per-lang jsonb dict, never equal to the scalar the client read."""
         category = self.env["res.partner.category"].create({"name": "Original"})
         self.env.flush_all()
-        self.assertTrue(category._fields["name"].translate)  # guard the premise
+        self.assertTrue(category._fields["name"].translate)
         category.web_save(
             {"name": "Renamed"},
             specification={"name": {}},
@@ -166,7 +163,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual(category.name, "Renamed")
 
-    # -- legacy row-level fallback still works -------------------------------
     def test_legacy_last_write_date_fallback(self):
         stale = self.partner.write_date - timedelta(seconds=10)
         self._server_set(write_date=self.partner.write_date + timedelta(seconds=5))
@@ -177,7 +173,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 last_write_date=stale.isoformat(),
             )
 
-    # -- multi-record web_save (list view mass-edit) -------------------------
     def test_multirecord_web_save_writes_all(self):
         """web_save on a multi-record set writes every record: the list view
         mass-edit calls web_save with several ids and no concurrency args."""
@@ -197,7 +192,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 last_write_date="2020-01-01T00:00:00.000Z",
             )
 
-    # -- multi-record field-scoped locking (list mass-edit) ------------------
 
     def _server_set_on(self, record, **col_vals):
         """Commit a change to ``record`` at the DB level (concurrent worker)."""
@@ -212,7 +206,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         being written, and each record is checked against its OWN baseline.
         Only c2 conflicts here — c1/c3 baselines match their real state."""
         recs = self.c1 + self.c2 + self.c3
-        # Give the three a known starting phone, then let another user change c2.
         self.c1.phone = self.c2.phone = self.c3.phone = "start"
         self.env.flush_all()
         self._server_set_on(self.c2, phone="999")
@@ -222,11 +215,10 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 specification={"phone": {}},
                 known_values={
                     self.c1.id: {"phone": "start"},
-                    self.c2.id: {"phone": "start"},  # baseline start, server 999
+                    self.c2.id: {"phone": "start"},
                     self.c3.id: {"phone": "start"},
                 },
             )
-        # The check raised before write(): nothing was persisted.
         self.env.cr.execute(
             "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
         )
@@ -251,7 +243,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         edited is ignored (disjoint columns, no lost update)."""
         recs = self.c1 + self.c2
         self._server_set_on(self.c2, function="changed-by-other")
-        # We mass-edit phone; the concurrent change was to function.
         recs.web_save(
             {"phone": "999"},
             specification={"phone": {}},
@@ -267,7 +258,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         concurrent change does not block the batch."""
         recs = self.c1 + self.c2
         self._server_set_on(self.c2, phone="concurrent")
-        # Only c1 has a baseline; c2 is unchecked and must not raise.
         recs.web_save(
             {"phone": "999"},
             specification={"phone": {}},
@@ -285,7 +275,7 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             specification={"phone": {}},
             known_values={
                 self.c1.id: {"phone": self.c1.phone or False},
-                self.c2.id: {"phone": "old"},  # server now "target" == new
+                self.c2.id: {"phone": "old"},
             },
         )
         self.assertEqual([r["phone"] for r in result], ["target", "target"])
@@ -302,9 +292,8 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             self.c1.web_save(
                 {"phone": "new"},
                 specification={"phone": {}},
-                known_values={self.c1.id: {"phone": "start"}},  # server moved to 999
+                known_values={self.c1.id: {"phone": "start"}},
             )
-        # Nothing persisted — the guard raised before write().
         self.env.cr.execute(
             "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
         )
@@ -322,10 +311,6 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         )
         self.assertEqual(result[0]["phone"], "new")
 
-    # -- web_save_multi: per-record vals (relative Field Operation path) ------
-    # Unlike the mass-edit web_save (same vals to every record), web_save_multi
-    # carries a DISTINCT vals per record, so each is checked against its own
-    # vals AND its own baseline.
 
     def test_web_save_multi_writes_all_no_locking(self):
         """Without known_values, web_save_multi writes each record's own vals."""
@@ -357,17 +342,16 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         recs = self.c1 + self.c2
         self.c1.phone = self.c2.phone = "start"
         self.env.flush_all()
-        self._server_set_on(self.c2, phone="999")  # another user moved c2
+        self._server_set_on(self.c2, phone="999")
         with self.assertRaises(UserError):
             recs.web_save_multi(
                 [{"phone": "a1"}, {"phone": "a2"}],
                 specification={"phone": {}},
                 known_values={
                     self.c1.id: {"phone": "start"},
-                    self.c2.id: {"phone": "start"},  # server 999 != start, != a2
+                    self.c2.id: {"phone": "start"},
                 },
             )
-        # The check raised before any write(): nothing was persisted.
         self.env.cr.execute(
             "SELECT phone FROM res_partner WHERE id = %s", (self.c1.id,)
         )
@@ -377,18 +361,17 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
         """No conflict when the concurrent change happens to equal the absolute
         value THIS record is writing (the leniency is per-record vals)."""
         recs = self.c1 + self.c2
-        self._server_set_on(self.c2, phone="a2")  # server == c2's own new value
+        self._server_set_on(self.c2, phone="a2")
         result = recs.web_save_multi(
             [{"phone": "a1"}, {"phone": "a2"}],
             specification={"phone": {}},
             known_values={
                 self.c1.id: {"phone": self.c1.phone or False},
-                self.c2.id: {"phone": "old"},  # baseline old, server a2 == new
+                self.c2.id: {"phone": "old"},
             },
         )
         self.assertEqual([r["phone"] for r in result], ["a1", "a2"])
 
-    # -- vals validation at the web boundary ----------------------------------
 
     def test_stale_field_in_vals_raises_usererror(self):
         """A stale field name in web_save VALS (outdated cached form view)
@@ -400,13 +383,11 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 {"phone": "222", "stale_field_zz": 1},
                 specification={"phone": {}},
             )
-        # Same policy on the create path.
         with self.assertRaises(UserError):
             self.env["res.partner"].web_save(
                 {"name": "New", "stale_field_zz": 1},
                 specification={"name": {}},
             )
-        # Nothing was persisted by the failed write.
         self.env.cr.execute(
             "SELECT phone FROM res_partner WHERE id = %s", (self.partner.id,)
         )
@@ -421,14 +402,11 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
                 {"child_ids": [[1, "virtual_zz", {"name": "x"}]]},
                 specification={"id": {}},
             )
-        # SET command ids are validated too.
         with self.assertRaises(UserError):
             self.partner.web_save(
                 {"category_id": [[6, False, ["virtual_1"]]]},
                 specification={"id": {}},
             )
-        # Control: valid commands are unaffected (CREATE's second element is a
-        # client-side placeholder ref and stays exempt).
         result = self.partner.web_save(
             {"child_ids": [[0, "virtual_ok", {"name": "WS Cmd Child"}]]},
             specification={"child_ids": {"fields": {"name": {}}}},

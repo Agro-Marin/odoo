@@ -44,8 +44,6 @@ class TestReportTheme(TransactionCase):
         css = str(theme._report_css_vars("#111", "#222", "Lato"))
         self.assertNotIn("{", css.replace("&#39;", ""))
         self.assertNotIn("}", css)
-        # Semicolons survive only as the per-token separators the template
-        # emits itself: one per token line.
         self.assertEqual(css.count(";"), 7)
 
     def test_company_stylesheet_carries_tokens(self):
@@ -65,7 +63,6 @@ class TestReportTheme(TransactionCase):
         )
         self.env["res.company"]._set_default_report_theme()
         self.assertEqual(company.report_theme_id, modern)
-        # Never clobbers an explicit choice.
         self.assertEqual(chosen.report_theme_id, ledger)
 
     def test_theme_change_regenerates_company_stylesheet(self):

@@ -27,8 +27,6 @@ class ResUsers(models.Model):
         domain = Domain(domain or Domain.TRUE)
         user_list = super().name_search(name, domain, operator, limit)
         uid = self.env.uid
-        # Index 0 is a valid match but falsy, so check "is not None" explicitly
-        # rather than relying on the walrus value's truthiness.
         if (
             index := next(
                 (i for i, (user_id, _name) in enumerate(user_list) if user_id == uid),
@@ -38,8 +36,6 @@ class ResUsers(models.Model):
             user_tuple = user_list.pop(index)
             user_list.insert(0, user_tuple)
         elif limit is not None and len(user_list) == limit:
-            # The current user may exist beyond the truncated results; search
-            # for it explicitly instead of missing it.
             if user_tuple := super().name_search(
                 name, domain & Domain("id", "=", uid), operator, limit=1
             ):
@@ -76,11 +72,6 @@ class ResUsers(models.Model):
                 )
             )
 
-        # parse_contact_from_email yields "" when it can't extract an address.
-        # Such an entry would flow into create({"login": "", ...}) and abort the
-        # WHOLE batch on the required-field / unique-login constraint, and would
-        # pollute the ("login"/"email_normalized", "in", ...) domains below.
-        # Reject up front with a clear message naming the offending input(s).
         invalid = [
             email
             for email, normalized in zip(emails, emails_normalized, strict=True)
@@ -94,9 +85,6 @@ class ResUsers(models.Model):
                 )
             )
 
-        # active_test=False: also match deactivated users so they get
-        # reactivated below. A search limited to active users would miss
-        # them, and create() would then hit the unique constraint on login.
         all_matching = self.with_context(active_test=False).search(
             [
                 "|",
@@ -112,23 +100,11 @@ class ResUsers(models.Model):
                 user.id,
             )
         if deactivated_users:
-            # Single write for the whole recordset instead of one per user.
             deactivated_users.active = True
-        # Dedup against both normalised emails AND logins: a user matched only by
-        # login above may have an empty or different ``email_normalized``, and
-        # since ``create`` below sets ``login=email_normalized`` we must also skip
-        # any input whose normalised form already exists as a login -- otherwise
-        # the create hits the unique constraint on ``login``.
         done = set(all_matching.mapped("email_normalized")) | set(
             all_matching.mapped("login")
         )
 
-        # Dedupe within the batch too, not only against existing users: two
-        # inputs that normalise to the same address (e.g. "bob@x.com" and
-        # "Bob <bob@x.com>") would otherwise both reach ``create`` with the same
-        # ``login`` and raise the opaque UniqueViolation the ``invalid`` guard
-        # above exists to prevent. Seed a running set with the existing matches
-        # (``done``) and grow it as we accept each new address -- first wins.
         seen = set(done)
         new_emails = []
         for e, n in zip(emails, emails_normalized, strict=True):
@@ -147,11 +123,6 @@ class ResUsers(models.Model):
                 }
             )
         if vals_list:
-            # One batched create instead of N: res.users.create is heavy
-            # (partner creation, group defaults, optional signup mail), so a
-            # multi-vals create collapses N round-trips into one. Failure
-            # semantics are unchanged — the loop had no per-record try/except,
-            # so any invalid row already rolled back the whole call.
             self.with_context(signup_valid=True).create(vals_list)
 
         return True

@@ -1,6 +1,6 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
+import { expect, onError, test } from "@odoo/hoot";
 import { click, hover, leave, waitFor } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { markup } from "@odoo/owl";
@@ -9,6 +9,7 @@ import {
     makeMockEnv,
     mountWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { MainComponentsContainer } from "@web/components/main_components_container";
 import { registry } from "@web/core/registry";
 
 test("can display a basic notification", async () => {
@@ -191,7 +192,6 @@ test("can close sticky notification", async () => {
     expect(".o_notification").toHaveCount(0);
 });
 
-// The timeout have to be done by the one that uses the notification service
 test.skip("can close sticky notification with wait", async () => {
     await makeMockEnv();
     const { Component: NotificationContainer, props } = registry
@@ -227,7 +227,6 @@ test("can close a non-sticky notification", async () => {
     await animationFrame();
     expect(".o_notification").toHaveCount(0);
 
-    // simulate end of timeout, which should try to close the notification as well
     await runAllTimers();
     expect(".o_notification").toHaveCount(0);
 });
@@ -247,11 +246,9 @@ test("can refresh the duration of a non-sticky notification", async () => {
     await advanceTime(3000);
     await hover(".o_notification:first-child");
     await advanceTime(5000);
-    // hovered notification should be visible as long as mouse is over
     expect(".o_notification").toHaveCount(1);
     await leave();
     await advanceTime(3000);
-    // notification should be refreshed in duration (4000 ms)
     expect(".o_notification").toHaveCount(1);
     await advanceTime(2000);
     expect(".o_notification").toHaveCount(0);
@@ -274,7 +271,6 @@ test("close a non-sticky notification while another one remains", async () => {
     await animationFrame();
     expect(".o_notification").toHaveCount(1);
 
-    // simulate end of timeout, which should try to close notification 1 as well
     await runAllTimers();
     expect(".o_notification").toHaveCount(1);
 
@@ -313,4 +309,27 @@ test("notification autocloses after a specified delay", async () => {
     await advanceTime(500);
     await animationFrame();
     expect(".o_notification").toHaveCount(0);
+});
+
+test("a notification that fails to render does not kill later notifications", async () => {
+    expect.errors(1);
+    onError((error) => expect.step(error.reason.message));
+
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+
+    getService("notification").add("faulty", { buttons: "not-a-list" });
+    await animationFrame();
+    await animationFrame();
+    expect.verifySteps([
+        "Invalid props for component 'Notification': 'buttons' is not a list of objects",
+    ]);
+    expect.verifyErrors([
+        "Invalid props for component 'Notification': 'buttons' is not a list of objects",
+    ]);
+
+    getService("notification").add("I still work");
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+    expect(".o_notification_content").toHaveText("I still work");
 });

@@ -62,8 +62,6 @@ commandProviderRegistry.add("command", {
         const commands = env.services.command
             .getCommands(options.activeElement)
             .map((/** @type {Record<string, any>} */ cmd) => ({
-                // Copy — mutating cmd.category in place would rewrite the
-                // registered command object.
                 ...cmd,
                 category: commandCategoryRegistry.contains(cmd.category)
                     ? cmd.category
@@ -73,7 +71,6 @@ commandProviderRegistry.add("command", {
                 (/** @type {Record<string, any>} */ command) =>
                     command.isAvailable === undefined || command.isAvailable(),
             );
-        // Filter out same category dupplicate commands
         const uniqueCommands = commands.filter(
             (/** @type {Record<string, any>} */ obj, /** @type {number} */ index) =>
                 index ===
@@ -101,10 +98,6 @@ commandProviderRegistry.add("data-hotkeys", {
         const overlayModifier = /** @type {any} */ (
             registry.category("services").get("hotkey")
         ).overlayModifier;
-        // The hotkey service only replaces [accesskey] attrs by [data-hotkey]
-        // on an overlay-modifier keypress: convert pending ones now so their
-        // commands appear without requiring a prior ALT press. Scoped to the
-        // UI active element, like the hotkey service's own takeover.
         for (const el of (options.activeElement ?? document).querySelectorAll(
             "[accesskey]",
         )) {
@@ -127,7 +120,7 @@ commandProviderRegistry.add("data-hotkeys", {
 
             const description =
                 el.title ||
-                el.dataset.bsOriginalTitle || // LEGACY: bootstrap moves title to data-bs-original-title
+                el.dataset.bsOriginalTitle ||
                 el.dataset.tooltip ||
                 /** @type {HTMLInputElement} */ (el).placeholder ||
                 (el.innerText &&
@@ -137,7 +130,6 @@ commandProviderRegistry.add("data-hotkeys", {
             commands.push({
                 Component: HotkeyCommandItem,
                 action: () => {
-                    // AAB: not sure it is enough, we might need to trigger all events that occur when you actually click
                     el.focus();
                     el.click();
                 },

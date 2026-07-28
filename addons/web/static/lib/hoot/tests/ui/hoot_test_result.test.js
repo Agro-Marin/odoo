@@ -69,13 +69,11 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(".hoot-result-detail").toHaveCount(1);
 
-        // First assertion: pass
         expect(`.hoot-result-detail > .${CLS_PASS}`).toHaveText(
             /received value is strictly equal to true/,
             { inline: true }
         );
 
-        // Second assertion: fail
         expect(`.hoot-result-detail > .${CLS_FAIL}`).toHaveText(
             /expected values to be strictly equal/,
             { inline: true }
@@ -91,13 +89,11 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(".hoot-result-detail").toHaveCount(1);
 
-        // First assertion: pass
         expect(`.hoot-result-detail > .${CLS_PASS}`).toHaveText(
             /received value is deeply equal to \[1, 2, { a: true }\]/,
             { inline: true }
         );
 
-        // Second assertion: fail
         expect(`.hoot-result-detail > .${CLS_FAIL}`).toHaveText(
             /expected values to be deeply equal/,
             { inline: true }
@@ -107,7 +103,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("test results: toHaveCount", async () => {
-        await mountForTest(/* xml */ `
+        await mountForTest(  `
             <span class="text" >abc</span>
             <span class="text" >bcd</span>
         `);
@@ -118,13 +114,11 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(".hoot-result-detail").toHaveCount(1);
 
-        // First assertion: pass
         expect(`.hoot-result-detail > .${CLS_PASS}`).toHaveText(
             /found 2 elements matching ".text"/,
             { inline: true }
         );
 
-        // Second assertion: fail
         expect(`.hoot-result-detail > .${CLS_FAIL}`).toHaveText(
             /found 2 elements matching ".text"/,
             { inline: true }
@@ -134,7 +128,7 @@ describe(parseUrl(import.meta.url), () => {
     });
 
     test("multiple test results: toHaveText", async () => {
-        await mountForTest(/* xml */ `
+        await mountForTest(  `
             <span class="text" >abc</span>
             <span class="text" >bcd</span>
         `);
@@ -146,13 +140,11 @@ describe(parseUrl(import.meta.url), () => {
 
         expect(".hoot-result-detail").toHaveCount(1);
 
-        // First assertion: pass
         expect(`.hoot-result-detail > .${CLS_PASS}`).toHaveText(
             /1 element matching ".text:first" has text "abc"/,
             { inline: true }
         );
 
-        // Second assertion: fail
         expect(`.hoot-result-detail > .${CLS_FAIL}:eq(0)`).toHaveText(
             /expected 2 elements matching ".text" to have the given text/,
             { inline: true }
@@ -163,7 +155,6 @@ describe(parseUrl(import.meta.url), () => {
         expect(`.hoot-info:eq(0) .${CLS_PASS}:contains(Expected)`).toHaveCount(1);
         expect(`.hoot-info:eq(0) .${CLS_FAIL}:contains(Received)`).toHaveCount(1);
 
-        // Third assertion: fail
         expect(`.hoot-result-detail > .${CLS_FAIL}:eq(1)`).toHaveText(
             /expected 2 elements matching ".text" not to have the given text/,
             { inline: true }

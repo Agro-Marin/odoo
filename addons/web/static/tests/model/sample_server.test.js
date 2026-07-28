@@ -5,15 +5,15 @@ import { SampleServer } from "@web/model/sample_server";
 
 const {
     MAIN_RECORDSET_SIZE,
-    SEARCH_READ_LIMIT, // Limits
+    SEARCH_READ_LIMIT,
     SAMPLE_COUNTRIES,
     SAMPLE_PEOPLE,
-    SAMPLE_TEXTS, // Text values
+    SAMPLE_TEXTS,
     MAX_COLOR_INT,
     MAX_FLOAT,
     MAX_INTEGER,
-    MAX_MONETARY, // Number values
-    SUB_RECORDSET_SIZE, // Records sise
+    MAX_MONETARY,
+    SUB_RECORDSET_SIZE,
 } = SampleServer;
 
 /**
@@ -126,7 +126,6 @@ describe("Sample data", () => {
             specification,
         });
         const rec = records[0];
-        // Basic fields
         expect(SAMPLE_PEOPLE).toInclude(rec.display_name);
         expect(SAMPLE_PEOPLE).toInclude(rec.name);
         expect(rec.email).toBe(
@@ -144,14 +143,10 @@ describe("Sample data", () => {
         expect(rec.color).toBeWithin(0, MAX_COLOR_INT - 1);
         expect(rec.age).toBeWithin(0, MAX_INTEGER - 1);
         expect(rec.salary).toBeWithin(0, MAX_MONETARY - 1);
-        // check float field have 2 decimal rounding
         expect(rec.height).toBe(parseFloat(parseFloat(rec.height).toFixed(2)));
         const selectionValues = fields["res.users"].type.selection.map((sel) => sel[0]);
         expect(selectionValues).toInclude(rec.type);
-        // Relational fields
         expect(rec.currency.id).toBe(1);
-        // The currency name being a latin string isn't important — we mostly
-        // need the ID. This assertion can be removed if needed.
         expect(SAMPLE_TEXTS).toInclude(rec.currency.display_name);
         expect(rec.manager_id.id).toBeOfType("number");
         expect(SAMPLE_PEOPLE).toInclude(rec.manager_id.display_name);
@@ -262,8 +257,8 @@ describe("RPC calls", () => {
     test("'web_read_group': 2 groups", async () => {
         const server = new DeterministicSampleServer("hobbit", fields.hobbit);
         const existingGroups = [
-            { profession: "gardener", count: 0, __records: [] }, // fake group
-            { profession: "adventurer", count: 0, __records: [] }, // fake group
+            { profession: "gardener", count: 0, __records: [] },
+            { profession: "adventurer", count: 0, __records: [] },
         ];
         server.setExistingGroups(existingGroups);
         const result = await server.mockRpc({
@@ -289,9 +284,9 @@ describe("RPC calls", () => {
     test("'web_read_group': all groups", async () => {
         const server = new DeterministicSampleServer("hobbit", fields.hobbit);
         const existingGroups = [
-            { profession: "gardener", count: 0, __records: [] }, // fake group
-            { profession: "brewer", count: 0, __records: [] }, // fake group
-            { profession: "adventurer", count: 0, __records: [] }, // fake group
+            { profession: "gardener", count: 0, __records: [] },
+            { profession: "brewer", count: 0, __records: [] },
+            { profession: "adventurer", count: 0, __records: [] },
         ];
         server.setExistingGroups(existingGroups);
         const result = await server.mockRpc({
@@ -319,10 +314,9 @@ describe("RPC calls", () => {
         const server = new DeterministicSampleServer("res.users", fields["res.users"]);
         const existingGroups = [
             { cover_image_id: [1, "cover.png"], count: 0, __records: [] },
-            { cover_image_id: false, count: 0, __records: [] }, // users with no cover image
+            { cover_image_id: false, count: 0, __records: [] },
         ];
         server.setExistingGroups(existingGroups);
-        // Must not throw "TypeError: false[0]" for the falsy m2o group.
         const result = await server.mockRpc({
             method: "web_read_group",
             model: "res.users",
@@ -345,8 +339,6 @@ describe("RPC calls", () => {
             groupBy: ["name"],
             aggregates: ["age:max", "height:min"],
         });
-        // Just checks it doesn't crash; the aggregate values are non-deterministic
-        // (max/min aren't even implemented — they behave as sum).
         expect(result.length).toEqual(5);
     });
 
@@ -479,9 +471,6 @@ describe("read_progress_bar", () => {
             model: "task",
             domain: [],
             group_by: "flag",
-            // colors intentionally cover NO real state value: every generated
-            // bucket would `undefined += count` -> NaN (and a stray key) without
-            // the guard. With it, only the seeded color keys (value 0) remain.
             progress_bar: {
                 field: "state",
                 colors: { none1: "success", none2: "warning" },

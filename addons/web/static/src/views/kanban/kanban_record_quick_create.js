@@ -23,8 +23,7 @@ import { getDefaultConfig } from "@web/views/view";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
 const DEFAULT_QUICK_CREATE_VIEW = {
-    // the required modifier is written in the format returned by the server
-    arch: /* xml */ `
+    arch: `
         <form>
             <field name="display_name" placeholder="Title" required="True" />
         </form>`,
@@ -102,10 +101,7 @@ export class KanbanQuickCreateController extends Component {
         onMounted(() => {
             this.uiActiveElement = this.uiService.activeElement;
         });
-        // Close on outside click
         useExternalListener(window, "mousedown", (/** @type {Event} */ ev) => {
-            // Kept to prevent closing when a click starts inside the quickcreate
-            // root (e.g. text selection in an input) but ends outside it.
             this.mousedownTarget = ev.target;
         });
         useExternalListener(
@@ -113,13 +109,11 @@ export class KanbanQuickCreateController extends Component {
             "click",
             (/** @type {Event} */ ev) => {
                 if (this.uiActiveElement !== this.uiService.activeElement) {
-                    // this component isn't in the current active element -> do nothing
                     return;
                 }
                 const target = /** @type {HTMLElement} */ (
                     this.mousedownTarget || ev.target
                 );
-                // accounts for clicking on datetime picker and legacy autocomplete
                 const gotClickedInside =
                     target.closest(".o_datetime_picker") ||
                     target.closest(".ui-autocomplete") ||
@@ -140,7 +134,6 @@ export class KanbanQuickCreateController extends Component {
             { capture: true },
         );
 
-        // Key Navigation
         useHotkey("enter", () => this.validate("add"), {
             bypassEditableProtection: true,
         });
@@ -161,7 +154,7 @@ export class KanbanQuickCreateController extends Component {
         try {
             const keys = Object.keys(this.model.root.activeFields);
             if (keys.length === 1 && keys[0] === "display_name") {
-                const isValid = await this.model.root.checkValidity(); // needed to put the class o_field_invalid in the field
+                const isValid = await this.model.root.checkValidity();
                 if (isValid) {
                     try {
                         [resId] = await this.model.orm.call(
@@ -189,22 +182,13 @@ export class KanbanQuickCreateController extends Component {
             }
 
             if (resId) {
-                // onValidate (group.addExistingRecord) is intentionally NOT
-                // awaited here: the form reset below runs in parallel with the
-                // card insertion, and this ordering is pinned by ~14 quick-
-                // create RPC-sequence tests. A rejection still reaches the
                 // global error service; awaiting would only relocate where it
-                // is caught, not restore the (server-created) card.
                 this.props.onValidate(resId, mode);
                 if (mode === "add") {
                     await this.model.load({ resId: false });
                 }
             }
         } finally {
-            // Exception-safe reset: an error escaping save (e.g. ConnectionLostError
-            // rethrown by showFormDialogInError) must not leave `disabled` latched,
-            // since cancel()/Escape/outside-click all gate on it. On "edit" success
-            // it stays set intentionally — the card is about to close via onValidate.
             if (!resId || mode === "add") {
                 this.state.disabled = false;
             }
@@ -229,7 +213,6 @@ export class KanbanQuickCreateController extends Component {
      * @param {Error} e - The error from the failed save attempt.
      */
     showFormDialogInError(e) {
-        // TODO: filter RPC errors more specifically (eg, for access denied, there is no point in opening a dialog)
         if (!(e instanceof RPCError)) {
             throw e;
         }
@@ -285,8 +268,6 @@ export class KanbanRecordQuickCreate extends Component {
                     this.state.isLoaded = true;
                 })
                 .catch((error) => {
-                    // don't leave the quick create stuck in its loading state;
-                    // rethrow so the error service still reports the failure
                     this.props.onCancel();
                     throw error;
                 });

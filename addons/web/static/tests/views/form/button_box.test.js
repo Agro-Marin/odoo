@@ -66,8 +66,6 @@ async function mountFormWithStatButtons() {
 }
 
 describe("visible-button budget per ui.size", () => {
-    // With 9 visible stat buttons (always above every budget), the box shows
-    // budget - 1 buttons plus the "More" dropdown.
     const EXPECTED = [
         ["XS", SIZES.XS, 0],
         ["SM", SIZES.SM, 0],

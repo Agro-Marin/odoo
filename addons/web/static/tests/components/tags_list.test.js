@@ -142,7 +142,6 @@ test("Limiting the visible tags displays a counter", async () => {
     }
 
     const parent = await mountWithCleanup(Parent);
-    // visibleItemsLimit = 3 -> displays 2 tags + 1 counter (4 tags left)
     expect(".o_tag").toHaveCount(2);
     expect(".rounded").toHaveText("+4", {
         message: "the counter displays 4 more items",
@@ -161,13 +160,11 @@ test("Limiting the visible tags displays a counter", async () => {
 
     parent.state.visibleItemsLimit = 5;
     await animationFrame();
-    // visibleItemsLimit = 5 -> displays 4 tags + 1 counter (2 tags left)
     expect(".o_tag").toHaveCount(4);
     expect(".rounded").toHaveText("+2");
 
     parent.state.visibleItemsLimit = 6;
     await animationFrame();
-    // visibleItemsLimit = 6 -> displays 6 tags + 0 counter (0 tag left)
     expect(".o_tag").toHaveCount(6);
     expect(".rounded").toHaveCount(0);
 });

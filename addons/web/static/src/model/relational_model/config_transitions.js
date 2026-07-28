@@ -57,9 +57,6 @@ export function computeNextConfig(currentConfig, params, deps) {
     const config = { ...currentConfig };
 
     config.context = "context" in params ? params.context : config.context;
-    // Always re-spread so subsequent mutations don't leak into the
-    // previous config (RelationalModel holds the previous via
-    // ``this.config`` until the load lands).
     config.context = { ...config.context };
 
     if (currentConfig.isMonoRecord) {
@@ -69,8 +66,6 @@ export function computeNextConfig(currentConfig, params, deps) {
             config.resIds = config.resId ? [config.resId] : [];
         }
         if (!config.resId && config.mode !== "edit") {
-            // No resId means the form is creating a new record; force
-            // edit mode so the user can immediately start typing.
             config.mode = "edit";
         }
     } else {
@@ -80,9 +75,6 @@ export function computeNextConfig(currentConfig, params, deps) {
         if (maxGroupByDepth) {
             config.groupBy = config.groupBy.slice(0, maxGroupByDepth);
         }
-        // Apply month granularity if none explicitly given.
-        // TODO: accept only explicit granularity (historical TODO preserved
-        // from the source method so it doesn't go missing in the move).
         config.groupBy = config.groupBy.map((g) => {
             if (
                 g in config.fields &&
@@ -101,32 +93,16 @@ export function computeNextConfig(currentConfig, params, deps) {
             config.orderBy = defaultOrderBy;
         }
 
-        // Keep the cached ``groups`` dict only when the groupBy axis
-        // is unchanged. A different groupBy invalidates every cached
-        // sub-config — dropping the dict forces the postprocessor to
-        // rebuild from scratch.
         if (!shallowEqual(config.groupBy || [], currentGroupBy || [])) {
             delete config.groups;
         } else if (config.groups) {
-            // Candidate isolation: without the clone, this candidate's
-            // group entries are the COMMITTED config's entries, so a
-            // superseded load's ``postprocessReadGroup`` (which mutates
-            // group domains/context/fold/offset in place after its RPC
-            // resolves) or the offset reset below would rewrite state the
-            // winning load just committed — the next fold/pager fetch
-            // would then use a stale domain.
             config.groups = cloneGroupTree(config.groups);
         }
         if (!config.groupBy.length) {
-            // ``__count`` is a synthetic order-by introduced when grouping
-            // by record count; meaningless on an ungrouped list.
             config.orderBy = config.orderBy.filter((order) => order.name !== "__count");
         }
     }
     if (!config.isMonoRecord && params.domain) {
-        // Always reset the offset to 0 when reloading with a new
-        // domain — otherwise the user lands on page N of a result
-        // set whose total is smaller than N*limit.
         const resetOffset = (cfg) => {
             cfg.offset = 0;
             for (const group of Object.values(cfg.groups || {})) {
@@ -137,9 +113,6 @@ export function computeNextConfig(currentConfig, params, deps) {
             resetOffset(config);
         }
         if (!!config.groupBy.length !== !!currentGroupBy?.length) {
-            // From grouped to ungrouped or vice versa — force a limit
-            // reset so the caller-supplied default kicks in (group
-            // limit vs record limit are very different defaults).
             delete config.limit;
         }
     }

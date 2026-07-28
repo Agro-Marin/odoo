@@ -22,8 +22,6 @@ export class Dropzone extends Component {
             isDraggingInside: false,
         });
         useEffect(() => this.updatePosition());
-        // The overlay is positioned once from the target's bounding rect;
-        // follow the target when the page scrolls or resizes mid-drag.
         const throttledUpdatePosition = useThrottleForAnimation(() =>
             this.updatePosition(),
         );
@@ -34,8 +32,6 @@ export class Dropzone extends Component {
     }
 
     updatePosition() {
-        // The target may have unmounted (e.g. the host removed the overlay);
-        // guard against null elements so we don't throw while tearing down.
         if (!this.props.ref.el || !this.root.el) {
             return;
         }

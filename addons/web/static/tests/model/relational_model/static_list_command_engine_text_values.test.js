@@ -28,8 +28,6 @@ import {
 class Order extends models.Model {
     name = fields.Char();
     line_ids = fields.One2many({ relation: "order.line" });
-    // Marks `name` with the onChange flag; the actual response is mocked via
-    // onRpc("onchange") in the test (test-local, no mock-server change).
     _onChanges = {
         name() {},
     };
@@ -46,8 +44,6 @@ class OrderLine extends models.Model {
 defineModels([Order, OrderLine]);
 
 test(`onchange UPDATE clearing a char keeps false (not "") in the row eval context`, async () => {
-    // The parent onchange rewrites a loaded o2m line, clearing its `func`
-    // char — this is applied through the command engine's UPDATE case.
     onRpc("onchange", () => ({
         value: { line_ids: [[1, 1, { func: false }]] },
     }));
@@ -67,15 +63,11 @@ test(`onchange UPDATE clearing a char keeps false (not "") in the row eval conte
             </form>`,
     });
 
-    // Control: func is set, so the modifier on the sibling cell is inactive.
     expect(".o_data_row .o_data_cell[name=note]").not.toHaveClass(
         "o_readonly_modifier",
     );
 
     await contains(".o_field_widget[name=name] input").edit("trigger");
 
-    // The server set func to false: the sibling cell's `func == False`
-    // modifier must now evaluate true. With "" in _textValues it stayed
-    // inactive until reload.
     expect(".o_data_row .o_data_cell[name=note]").toHaveClass("o_readonly_modifier");
 });

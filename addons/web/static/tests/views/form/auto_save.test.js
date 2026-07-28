@@ -68,7 +68,6 @@ test("save on hiding tab (not dirty)", async () => {
         resId: 1,
     });
     await hideTab();
-    // should not have saved
     expect.verifySteps([]);
 });
 
@@ -82,7 +81,6 @@ test("save on hiding tab (invalid field)", async () => {
         arch: `<form><field name="name" required="1"/></form>`,
     });
     await hideTab();
-    // should not save because of invalid field
     expect.verifySteps([]);
 });
 
@@ -101,7 +99,6 @@ test("save only once when hiding tab several times quickly", async () => {
     await hideTab();
     await hideTab();
     await hideTab();
-    // should have saved, but only once
     expect.verifySteps(["save"]);
 });
 
@@ -342,8 +339,6 @@ test("save on closing tab/browser", async () => {
     expect.verifySteps(["sendBeacon"]);
     expect(event.defaultPrevented).toBe(false);
 
-    // Save/discard buttons should now be invisible; an urgent save can still be triggered
-    // without leaving the page, e.g. opening a VoIP client (see opw 4308954).
     await animationFrame();
     expect(`.o_form_status_indicator_buttons:not(.invisible)`).toHaveCount(0);
 });
@@ -427,11 +422,6 @@ test("save on closing tab/browser (not dirty)", async () => {
 });
 
 test("save on closing tab/browser (dirty NEW record blocks unload)", async () => {
-    // A new/creation record cannot be persisted via sendBeacon (it can't return
-    // the server-assigned id) and awaiting a real web_save would run
-    // ev.preventDefault() a macrotask too late — so the user's work used to be
-    // silently lost. The unload must instead be blocked SYNCHRONOUSLY so the
-    // browser shows its native "unsaved changes" prompt.
     mockSendBeacon(() => expect.step("sendBeacon"));
     onRpc("partner", "web_save", () => expect.step("save"));
 
@@ -445,14 +435,11 @@ test("save on closing tab/browser (dirty NEW record blocks unload)", async () =>
                 </group>
             </form>
         `,
-        // no resId -> creation / new record
     });
     await contains(`.o_field_widget[name="name"] input`).edit("test");
 
     const [event] = await unload();
     await animationFrame();
-    // No sendBeacon (can't) and no fire-and-forget web_save (would be aborted by
-    // the navigation) — just a synchronous block.
     expect.verifySteps([]);
     expect(event.defaultPrevented).toBe(true);
 });
@@ -668,7 +655,6 @@ test("save on closing tab/browser (pending change)", async () => {
     });
     expect.verifySteps(["get_views", "web_read"]);
 
-    // edit without focusout -> model unaware of the change until 'beforeunload' triggers it
     await contains(`.o_field_widget[name="expertise"] input`).edit("test", {
         confirm: false,
     });
@@ -724,23 +710,19 @@ test("save on closing tab/browser (onchanges + pending change)", async () => {
     });
     expect.verifySteps(["get_views", "web_read"]);
 
-    // edit 'unformatted_name' and simulate a focusout (trigger the 'change' event)
     await contains(`.o_field_widget[name="unformatted_name"] input`).edit("John Doe ", {
         confirm: "blur",
     });
     expect.verifySteps(["onchange"]);
 
-    // edit 'name' and simulate a focusout (trigger the 'change' event)
     await contains(`.o_field_widget[name="name"] input`).edit("john doe", {
         confirm: "blur",
     });
 
-    // edit without focusout -> model unaware of the change until 'beforeunload' triggers it
     await contains(`.o_field_widget[name="expertise"] input`).edit("test", {
         confirm: false,
     });
 
-    // trigger the 'beforeunload' event -> notifies the model directly and saves
     await unload();
     await animationFrame();
     await sendBeaconDeferred;
@@ -761,7 +743,6 @@ test("save on closing tab/browser (invalid pending change)", async () => {
     });
     expect.verifySteps(["get_views", "web_read"]);
 
-    // edit without focusout -> model unaware of the change until 'beforeunload' triggers it
     await contains(`.o_field_widget[name="age"] input`).edit("invalid value", {
         confirm: false,
     });
@@ -948,7 +929,6 @@ test(`doesn't autosave when a many2one search more is open (visibility change)`,
 
     class Product extends models.Model {
         name = fields.Char();
-        // more records than the search limit, so "Search more..." shows up
         _records = [
             { id: 37, name: "xphone" },
             { id: 41, name: "xpad" },
@@ -1038,7 +1018,7 @@ test(`doesn't autosave when a x2many is in openned (visibility change)`, async (
     await hideTab();
     await animationFrame();
     expect(`.o_form_status_indicator_buttons:not(.invisible)`).toHaveCount(1);
-    expect.verifySteps([]); // should not call web_save
+    expect.verifySteps([]);
     await contains(`.o_form_button_save`).click();
     expect.verifySteps(["web_save"]);
 });
@@ -1084,9 +1064,9 @@ test(`doesn't autosave when a x2many is in openned (visibility change) 2`, async
     await hideTab();
     await animationFrame();
     expect(`.o_form_status_indicator_buttons:not(.invisible)`).toHaveCount(1);
-    expect.verifySteps([]); // should not call web_save
+    expect.verifySteps([]);
     await contains(`.o_dialog .o_form_button_cancel`).click();
-    expect.verifySteps([]); // should not call web_save
+    expect.verifySteps([]);
 
     await hideTab();
     await animationFrame();
@@ -1094,13 +1074,8 @@ test(`doesn't autosave when a x2many is in openned (visibility change) 2`, async
     expect.verifySteps(["web_save"]);
 });
 
-// desktop-only: types into the `.o-autocomplete--input` of an inline m2o;
-// mobile selects m2o values via a dialog, so that input is absent.
 test.tags("desktop");
 test(`doesn't autosave while a form dialog is still loading (visibility change)`, async () => {
-    // The dialog form registers on the form_dialog_stack in setup(), BEFORE
-    // its willStart (loadViews / loadSubViews / initial onchange). A tab-hide
-    // during that loading window must not auto-save the parent form.
     Partner._fields.product_id = fields.Many2one({ relation: "product" });
 
     class Product extends models.Model {
@@ -1113,7 +1088,6 @@ test(`doesn't autosave while a form dialog is still loading (visibility change)`
     const def = new Deferred();
     onRpc("onchange", ({ model }) => {
         if (model === "product") {
-            // Block the dialog form's initial load (new-record onchange).
             return def;
         }
     });
@@ -1129,20 +1103,17 @@ test(`doesn't autosave while a form dialog is still loading (visibility change)`
     await contains(`.o_field_many2one_selection .o-autocomplete--input`).edit("ABC", {
         confirm: false,
     });
-    await runAllTimers(); // skip the m2o search debounce
+    await runAllTimers();
     await contains(`.o_m2o_dropdown_option_create_edit`).click();
-    // The dialog form is stuck in willStart: nothing mounted yet.
     expect(`.o_dialog`).toHaveCount(0);
 
     await hideTab();
-    expect.verifySteps([]); // parent must NOT web_save during the load window
+    expect.verifySteps([]);
 
     def.resolve();
     await animationFrame();
     expect(`.o_dialog .o_form_view`).toHaveCount(1);
 
-    // Once the dialog is discarded, tab-hide auto-save resumes (the counter
-    // was popped exactly once).
     await contains(`.o_dialog .o_form_button_cancel`).click();
     expect(`.o_dialog`).toHaveCount(0);
     await hideTab();
@@ -1150,10 +1121,6 @@ test(`doesn't autosave while a form dialog is still loading (visibility change)`
 });
 
 test(`form-in-dialog destroyed before mount doesn't leak the dialog-stack counter`, async () => {
-    // A dialog form closed while still loading (willStart pending) is
-    // destroyed without ever mounting. The stack pop must run on destroy —
-    // an unmount-based pop would leak the counter and permanently disable
-    // tab-hide auto-save for every later form view on the page.
     const def = new Deferred();
 
     class BlockedDialogForm extends Component {
@@ -1180,26 +1147,20 @@ test(`form-in-dialog destroyed before mount doesn't leak the dialog-stack counte
 
     parent.state.show = true;
     await animationFrame();
-    // setup() ran (push), willStart still pending: the form never mounts.
     expect(stack.count).toBe(1);
     expect(`.blocked_dialog_form`).toHaveCount(0);
 
     parent.state.show = false;
     await animationFrame();
-    expect(stack.count).toBe(0); // destroyed-before-mount still popped
+    expect(stack.count).toBe(0);
 
-    def.resolve(); // a late willStart resolution must not resurrect anything
+    def.resolve();
     await animationFrame();
     expect(stack.count).toBe(0);
     expect(`.blocked_dialog_form`).toHaveCount(0);
 });
 
 test("save on closing tab/browser (uncommitted typed input on NEW record blocks unload)", async () => {
-    // Regression: the value is typed but NOT committed (no blur/focusout), so it
-    // lives only in the DOM input and the FIELD_IS_DIRTY bus event, not yet in
-    // record._changes. A new/creation record can't be beaconed, so beforeUnload
-    // must first flush the pending input synchronously and then block the unload
-    // (native prompt) rather than let the work be silently lost.
     mockSendBeacon(() => expect.step("sendBeacon"));
     onRpc("partner", "web_save", () => expect.step("save"));
 
@@ -1207,7 +1168,6 @@ test("save on closing tab/browser (uncommitted typed input on NEW record blocks 
         resModel: "partner",
         type: "form",
         arch: `<form><group><field name="name"/></group></form>`,
-        // no resId -> creation / new record
     });
     await contains(`.o_field_widget[name="name"] input`).edit("test", {
         confirm: false,
@@ -1215,7 +1175,6 @@ test("save on closing tab/browser (uncommitted typed input on NEW record blocks 
 
     const [event] = await unload();
     await animationFrame();
-    // No sendBeacon (can't) and no fire-and-forget web_save — just a sync block.
     expect.verifySteps([]);
     expect(event.defaultPrevented).toBe(true);
 });

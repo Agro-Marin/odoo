@@ -86,7 +86,6 @@ export const useNestedSortable = /** @type {any} */ (
                 inertSelectors: [".o_navbar", ".o_action_manager"],
             },
 
-            // Set the parameters.
             onComputeParams(
                 /** @type {{ ctx: Record<string, any>, params: Record<string, any> }} */ {
                     ctx,
@@ -100,20 +99,14 @@ export const useNestedSortable = /** @type {any} */ (
                 ctx.connectGroups = params.connectGroups;
                 ctx.nest = params.nest;
                 ctx.listTagName = params.listTagName;
-                // Horizontal distance to trigger a parent change on horizontal move.
                 ctx.nestInterval = params.nestInterval;
                 ctx.isRTL = localization.direction === "rtl";
                 ctx.maxLevels = params.maxLevels || 0;
                 ctx.isAllowed = params.isAllowed ?? (() => true);
                 ctx.useElementSize = params.useElementSize;
-                // Zones made inert during the drag. Kept as a param so this
-                // core util does not hardcode a dependency on the webclient
-                // layout (see the `inertSelectors` typedef).
                 ctx.inertSelectors = params.inertSelectors ?? [];
             },
 
-            // Set the current group and create the placeholder row that will take the
-            // place of the moving row.
             onWillStartDrag(
                 /** @type {{ ctx: Record<string, any>, addCleanup: Function }} */ {
                     ctx,
@@ -148,32 +141,20 @@ export const useNestedSortable = /** @type {any} */ (
                 addCleanup(() => ctx.current.placeHolder.remove());
             },
 
-            // Move the placeholder into place and style elements to give feedback
-            // that a drag sequence is ongoing.
             onDragStart(
                 /** @type {{ ctx: Record<string, any>, addStyle: Function }} */ {
                     ctx,
                     addStyle,
                 },
             ) {
-                // Detect row changes using only vertical position: nested rows start
-                // at different horizontal offsets but all end at the same one, so
-                // track the (edge - 1) of the current element as the fixed x reference.
                 ctx.selectorX = ctx.isRTL
                     ? ctx.current.elementRect.left + 1
                     : ctx.current.elementRect.right - 1;
 
-                // Placeholder is initially added right after the current element.
                 ctx.current.element.after(ctx.current.placeHolder);
                 addStyle(ctx.current.element, { opacity: 0.5 });
 
-                // Remove the pointer-events style added by draggable_hook_builder and
-                // set it on the view elements instead, so ctx.cursor shows across the
-                // whole screen rather than just over the ref el.
                 addStyle(document.body, { "pointer-events": "auto" });
-                // Make the caller-provided inert zones non-interactive. Configurable
-                // (default: webclient chrome) so core stays layout-agnostic; unmatched
-                // selectors are simply skipped (addStyle is a no-op on null).
                 for (const selector of ctx.inertSelectors) {
                     addStyle(document.querySelector(selector), {
                         "pointer-events": "none",
@@ -181,7 +162,6 @@ export const useNestedSortable = /** @type {any} */ (
                 }
                 addStyle(ctx.current.container, { "pointer-events": "auto" });
 
-                // Calls "onDragStart" handler
                 return {
                     element: ctx.current.element,
                     group: ctx.currentGroup,
@@ -220,8 +200,6 @@ export const useNestedSortable = /** @type {any} */ (
                     ctx.isAllowed(ctx.current, ctx.elementSelector)
                 );
             },
-            // Check if the cursor moved enough to trigger a move. If it did, move the
-            // placeholder accordingly.
             onDrag(
                 /** @type {{ ctx: Record<string, any>, callHandler: Function }} */ {
                     ctx,
@@ -233,8 +211,6 @@ export const useNestedSortable = /** @type {any} */ (
                         ctx.current.placeHolder.classList.add("d-none");
                         return;
                     } else if (this._hasReachMaxAllowedLevel(ctx)) {
-                        // If the placeholder has reached its max allowed level, it is
-                        // moved back to its previous position.
                         const previousSiblingEl = ctx.current.placeHolder
                             .closest(ctx.listTagName)
                             .closest(ctx.elementSelector);
@@ -266,8 +242,6 @@ export const useNestedSortable = /** @type {any} */ (
                  * @return {HTMLElement} list
                  */
                 const getChildList = (/** @type {Element} */ el) => {
-                    // Split create/lookup paths so neither return reassigns through
-                    // `Element | null`, which would defeat flow-narrowing below.
                     const existing = el.querySelector(ctx.listTagName);
                     if (existing) {
                         return /** @type {HTMLElement} */ (existing);
@@ -320,9 +294,6 @@ export const useNestedSortable = /** @type {any} */ (
                 if (ctx.nest) {
                     const xInterval = ctx.prevNestX - ctx.pointer.x;
                     if (ctx.nestInterval - (-1) ** ctx.isRTL * xInterval < 1) {
-                        // Place placeholder after its parent in its parent's list only
-                        // if the placeholder is the last child of its parent
-                        // (ignoring the current element which is in the dom)
                         let nextElement = position.next;
                         if (nextElement === ctx.current.element) {
                             nextElement = nextElement.nextElementSibling;
@@ -334,12 +305,9 @@ export const useNestedSortable = /** @type {any} */ (
                                 onMove(position);
                             }
                         }
-                        // Recenter the pointer coordinates to this step
                         ctx.prevNestX = ctx.pointer.x;
                         return;
                     } else if (ctx.nestInterval + (-1) ** ctx.isRTL * xInterval < 1) {
-                        // Place placeholder as the last child of its previous sibling,
-                        // (ignoring the current element which is in the dom)
                         let parent = position.previous;
                         if (parent === ctx.current.element) {
                             parent = parent.previousElementSibling;
@@ -348,7 +316,6 @@ export const useNestedSortable = /** @type {any} */ (
                             getChildList(parent).appendChild(ctx.current.placeHolder);
                             onMove(position);
                         }
-                        // Recenter the pointer coordinates to this step
                         ctx.prevNestX = ctx.pointer.x;
                         return;
                     }
@@ -356,18 +323,14 @@ export const useNestedSortable = /** @type {any} */ (
                 const currentTop = ctx.pointer.y - ctx.current.offset.y;
                 const closestEl = document.elementFromPoint(ctx.selectorX, currentTop);
                 if (!closestEl) {
-                    // Cursor outside of viewport
                     return;
                 }
                 const element = closestEl.closest(ctx.elementSelector);
-                // Vertical moves should move the placeholder element up or down.
                 if (element && element !== ctx.current.placeHolder) {
                     const elementPosition = getPosition(element);
                     const eRect = element.getBoundingClientRect();
                     const pos =
                         ctx.current.placeHolder.compareDocumentPosition(element);
-                    // Place placeholder before the hovered element if the cursor is in
-                    // its upper part and the placeholder is currently after/inside it.
                     if (currentTop - eRect.y < 10) {
                         if (
                             pos & Node.DOCUMENT_POSITION_PRECEDING &&
@@ -375,17 +338,12 @@ export const useNestedSortable = /** @type {any} */ (
                         ) {
                             element.before(ctx.current.placeHolder);
                             onMove(position);
-                            // Recenter the pointer coordinates to this step
                             ctx.prevNestX = ctx.pointer.x;
                         }
                     } else if (
                         currentTop - eRect.y > 15 &&
                         pos === Node.DOCUMENT_POSITION_FOLLOWING
                     ) {
-                        // Place placeholder after the hovered element if the cursor is
-                        // below its upper part and the placeholder is currently before
-                        // it. If nesting is allowed and the element already has a
-                        // child, place the placeholder above that first child instead.
                         if (ctx.nest) {
                             const elementChildList = getChildList(element);
                             if (elementChildList.querySelector(ctx.elementSelector)) {
@@ -395,7 +353,6 @@ export const useNestedSortable = /** @type {any} */ (
                                 element.after(ctx.current.placeHolder);
                                 onMove(position);
                             }
-                            // Recenter the pointer coordinates to this step
                             ctx.prevNestX = ctx.pointer.x;
                         } else if (elementPosition.parent === position.parent) {
                             element.after(ctx.current.placeHolder);
@@ -422,7 +379,6 @@ export const useNestedSortable = /** @type {any} */ (
                             getChildList(group).appendChild(ctx.current.placeHolder);
                             onMove(position);
                         }
-                        // Recenter the pointer coordinates to this step
                         ctx.prevNestX = ctx.pointer.x;
                         callHandler("onGroupEnter", {
                             group,
@@ -435,8 +391,6 @@ export const useNestedSortable = /** @type {any} */ (
                     }
                 }
             },
-            // If the drop position is different from the starting position, run the
-            // onDrop handler from the parameters.
             onDrop(/** @type {{ ctx: Record<string, any> }} */ { ctx }) {
                 if (!this._isAllowedNodeMove(ctx)) {
                     return;
@@ -459,7 +413,6 @@ export const useNestedSortable = /** @type {any} */ (
                     };
                 }
             },
-            // Run the onDragEnd handler from the parameters.
             onDragEnd(/** @type {{ ctx: Record<string, any> }} */ { ctx }) {
                 return {
                     element: ctx.current.element,

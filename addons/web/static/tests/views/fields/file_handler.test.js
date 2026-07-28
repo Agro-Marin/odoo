@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { queryOne, setInputFiles } from "@odoo/hoot-dom";
+import { queryOne, setInputFiles, waitUntil } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
 import {
@@ -46,21 +46,18 @@ test("FileUploader accepts only an exact allowed MIME and rejects empty type", a
         },
     });
 
-    // Exact match: accepted.
     await contains(".o_test_toggler").click();
     await setInputFiles([new File(["%PDF-"], "ok.pdf", { type: "application/pdf" })]);
     await animationFrame();
     expect(uploaded).toEqual(["ok.pdf"]);
     expect(notifications).toHaveLength(0);
 
-    // Substring of the allowed type ("pdf" ⊂ "application/pdf"): rejected.
     await contains(".o_test_toggler").click();
     await setInputFiles([new File(["x"], "sub.pdf", { type: "pdf" })]);
     await animationFrame();
     expect(uploaded).toEqual(["ok.pdf"]);
     expect(notifications).toHaveLength(1);
 
-    // Empty MIME type (was previously accepted by `includes("")`): rejected.
     await contains(".o_test_toggler").click();
     await setInputFiles([new File(["x"], "unknown.bin", { type: "" })]);
     await animationFrame();
@@ -82,14 +79,14 @@ test("FileUploader multi-upload continues past a too-large file and resets input
 
     await contains(".o_test_toggler").click();
     await setInputFiles([
-        new File(["ab"], "small_1.txt", { type: "text/plain" }), // 2 bytes: ok
-        new File(["way-too-big"], "big.txt", { type: "text/plain" }), // >3 bytes: skipped
-        new File(["cd"], "small_2.txt", { type: "text/plain" }), // 2 bytes: ok
+        new File(["ab"], "small_1.txt", { type: "text/plain" }),
+        new File(["way-too-big"], "big.txt", { type: "text/plain" }),
+        new File(["cd"], "small_2.txt", { type: "text/plain" }),
     ]);
-    await animationFrame();
+    // Each file is read asynchronously and in sequence; wait for the uploads
+    // themselves rather than for a fixed number of frames.
+    await waitUntil(() => uploaded.length === 2);
 
-    // The oversized file is skipped but the remaining files still upload.
     expect(uploaded).toEqual(["small_1.txt", "small_2.txt"]);
-    // Input is cleared so re-selecting the same file fires "change" again.
     expect(queryOne(".o_input_file").value).toBe("");
 });

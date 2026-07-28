@@ -58,9 +58,6 @@ export class CustomColorPicker extends Component {
         this.pickerFlag = false;
         this.sliderFlag = false;
         this.opacitySliderFlag = false;
-        // Derive display values from props without mutating them (OWL props are
-        // read-only); reusing retained props would otherwise double-scale
-        // defaultOpacity and duplicate the opacity hex.
         this.defaultOpacity =
             this.props.defaultOpacity > 0 && this.props.defaultOpacity <= 1
                 ? this.props.defaultOpacity * 100
@@ -93,13 +90,6 @@ export class CustomColorPicker extends Component {
         this.opacitySliderRef = useRef("opacitySlider");
         this.opacitySliderPointerRef = useRef("opacitySliderPointer");
 
-        // Bind on every document (including iframes) so drag/move tracking survives
-        // moving the pointer off the colorpicker. Guard the WHOLE computation:
-        // when Odoo itself is embedded in a cross-origin iframe, reading
-        // `window.top.document` (and `window.top.frames`) throws SecurityError
-        // per spec — the per-frame try/catch didn't cover the top document, so
-        // every "Custom" color-picker tab crashed inside such embeds. Fall back
-        // to this component's own document.
         let documents;
         try {
             documents = [
@@ -109,7 +99,6 @@ export class CustomColorPicker extends Component {
                         const document = frame.document;
                         return !!document;
                     } catch {
-                        // We cannot access the document (cross origin).
                         return false;
                     }
                 }),
@@ -133,7 +122,6 @@ export class CustomColorPicker extends Component {
                 { capture: true },
             );
         }
-        // Apply the previewed custom color when the popover is closed.
         this.props.setOnCloseCallback?.(() => {
             if (this.shouldSetSelectedColor) {
                 this._colorSelected();
@@ -148,9 +136,6 @@ export class CustomColorPicker extends Component {
             onApplyCallback: () => {
                 this.shouldSetSelectedColor = false;
             },
-            // Reapply the current custom color preview after reverting a preview.
-            // Typical usecase: 1) modify the custom color, 2) hover one of the
-            // black-white tints, 3) hover out.
             onPreviewRevertCallback: () => {
                 if (this.previewActive && this.shouldSetSelectedColor) {
                     this.props.onColorPreview(this.colorComponents);
@@ -258,18 +243,12 @@ export class CustomColorPicker extends Component {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Private
-    //--------------------------------------------------------------------------
-
     /**
      * Updates input values, color preview, picker and slider pointer positions.
      *
      * @private
      */
     _updateUI() {
-        // Read all DOM geometry first, then perform all writes, to avoid
-        // interleaved reads/writes forcing several reflows per drag frame.
         const colorPickerArea = this.colorPickerAreaRef.el;
         const pickerHeight = colorPickerArea.clientHeight;
         const pickerWidth = colorPickerArea.clientWidth;
@@ -279,13 +258,14 @@ export class CustomColorPicker extends Component {
             : this.opacitySliderRef.el;
         const opacitySliderHeight = opacitySlider ? opacitySlider.clientHeight : 0;
 
-        // Update the hex input (the only input in the template)
-        if (this.hexInputRef.el) {
+        // Never overwrite the hex field while the user is typing in it: `hex`
+        // is now canonical (alpha-inclusive), so echoing it back mid-entry
+        // would rewrite a just-typed 6-digit value and move the caret.
+        if (this.hexInputRef.el && this.hexInputRef.el !== document.activeElement) {
             /** @type {HTMLInputElement} */ (this.hexInputRef.el).value =
                 this.colorComponents.hex;
         }
 
-        // Update picker area and picker pointer position
         colorPickerArea.style.backgroundColor = `hsl(${this.colorComponents.hue}, 100%, 50%)`;
         const top = ((100 - this.colorComponents.lightness) * pickerHeight) / 100;
         const left = (this.colorComponents.saturation * pickerWidth) / 100;
@@ -301,7 +281,6 @@ export class CustomColorPicker extends Component {
             }),
         );
 
-        // Update color slider position
         const y = (this.colorComponents.hue * sliderHeight) / 360;
         this.colorSliderPointerRef.el.style.bottom = `${Math.round(y - 4)}px`;
         this.colorSliderPointerRef.el.setAttribute(
@@ -310,7 +289,6 @@ export class CustomColorPicker extends Component {
         );
 
         if (opacitySlider) {
-            // Update opacity slider position
             const z = opacitySliderHeight * (1 - this.colorComponents.opacity / 100.0);
             this.opacitySliderPointerRef.el.style.top = `${Math.round(z - 2)}px`;
             this.opacitySliderPointerRef.el.setAttribute(
@@ -318,7 +296,6 @@ export class CustomColorPicker extends Component {
                 this.colorComponents.opacity.toFixed(2),
             );
 
-            // Add gradient color on opacity slider
             const sliderColor = this.colorComponents.hex.slice(0, 7);
             opacitySlider.style.background = `linear-gradient(${sliderColor} 0%, transparent 100%)`;
         }
@@ -334,18 +311,26 @@ export class CustomColorPicker extends Component {
         if (!rgb) {
             return;
         }
-        // convertCSSColorToRgba fills opacity:100 for a 6-digit (alpha-less) hex,
-        // which would wrongly reset a user-set opacity — only honor the parsed
-        // opacity for an 8-digit (alpha-carrying) hex.
         const rgbToApply = { ...rgb };
         if (hex.replace("#", "").length !== 8) {
             delete rgbToApply.opacity;
         }
         Object.assign(
             this.colorComponents,
-            { hex: hex },
             rgbToApply,
             convertRgbToHsl(rgb.red, rgb.green, rgb.blue),
+        );
+        // Re-derive `hex` from the resulting rgba rather than storing the typed
+        // string: consumers read `colorComponents.hex` as the canonical colour
+        // (see ColorPicker.onColorPreview), and a 6-digit entry typed while the
+        // opacity slider is below 100% would otherwise silently drop the alpha
+        // channel, disagreeing with `cssColor`. Every other `_update*` already
+        // keeps `hex` alpha-inclusive.
+        this.colorComponents.hex = convertRgbaToCSSColor(
+            this.colorComponents.red,
+            this.colorComponents.green,
+            this.colorComponents.blue,
+            this.colorComponents.opacity,
         );
         this._updateCssColor();
     }
@@ -359,7 +344,6 @@ export class CustomColorPicker extends Component {
      * @param {number} [a]
      */
     _updateRgba(r, g, b, a) {
-        // Remove full transparency in case some lightness is added
         const opacity = a || this.colorComponents.opacity;
         if (opacity < 0.1 && (r > 0.1 || g > 0.1 || b > 0.1)) {
             a = this.defaultOpacity;
@@ -387,7 +371,6 @@ export class CustomColorPicker extends Component {
      * @param {number} l
      */
     _updateHsl(h, s, l) {
-        // Remove full darkness/brightness and non-saturation in case hue is changed
         if (0.1 < Math.abs(h - this.colorComponents.hue)) {
             if (l < 0.1 || 99.9 < l) {
                 l = 50;
@@ -396,7 +379,6 @@ export class CustomColorPicker extends Component {
                 s = 100;
             }
         }
-        // Remove full transparency in case some lightness is added
         let a = this.colorComponents.opacity;
         if (a < 0.1 && l > 0.1) {
             a = this.defaultOpacity;
@@ -406,7 +388,6 @@ export class CustomColorPicker extends Component {
         if (!rgb) {
             return;
         }
-        // We receive an hexa as we ignore the opacity
         const hex = convertRgbaToCSSColor(rgb.red, rgb.green, rgb.blue, a);
         Object.assign(
             this.colorComponents,
@@ -458,10 +439,6 @@ export class CustomColorPicker extends Component {
         }
     }
 
-    //--------------------------------------------------------------------------
-    // Handlers
-    //--------------------------------------------------------------------------
-
     /**
      * @private
      * @param {KeyboardEvent} ev
@@ -482,7 +459,6 @@ export class CustomColorPicker extends Component {
         if (this.props.stopClickPropagation) {
             ev.stopPropagation();
         }
-        //TODO: we should remove it with legacy web_editor
         /** @type {any} */ (ev).__isColorpickerClick = true;
         const target = /** @type {HTMLInputElement} */ (ev.target);
         if (target.dataset.colorMethod === "hex" && !this.selectedHexValue) {
@@ -711,7 +687,6 @@ export class CustomColorPicker extends Component {
     onChangeInputs(ev) {
         const target = /** @type {HTMLInputElement} */ (ev.target);
         if (target.dataset.colorMethod === "hex") {
-            // Handled by the "input" event (see "onHexColorInput").
             return;
         }
         this._updateUI();

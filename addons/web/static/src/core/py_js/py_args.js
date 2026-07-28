@@ -30,17 +30,12 @@ export function bindArgs(args, spec) {
     const last = args.at(-1);
     const hasKwargs = typeof last === "object" && last !== null;
     if (hasKwargs && Array.isArray(last) && globalThis.odoo?.debug) {
-        // A trailing Array is never a valid kwargs dict (the interpreter always
-        // appends a plain object). Reaching here means a direct caller forgot
-        // the trailing kwargs object and their last positional is being spread.
         console.warn(
             "bindArgs: trailing argument is an Array, treated as kwargs — a " +
                 "direct caller likely omitted the trailing kwargs object.",
         );
     }
     const unnamedArgs = hasKwargs ? args.slice(0, -1) : args;
-    // Copy rather than write through: the positional names below were being
-    // assigned onto the caller's own kwargs object.
     const kwargs = hasKwargs ? { ...last } : {};
     for (const [index, val] of unnamedArgs.entries()) {
         kwargs[spec[index]] = val;

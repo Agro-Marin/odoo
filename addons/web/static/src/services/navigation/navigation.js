@@ -123,17 +123,10 @@ export class Navigator {
      */
     constructor(options, hotkeyService) {
         this._hotkeyService = hotkeyService;
-        // Per-instance (not module-level): stacked navigators (e.g. nested
-        // overlays) must not cancel each other's pending focus.
         /**@private*/
         this._throttledFocus = throttleForAnimation((/** @type {HTMLElement} */ el) =>
             el?.focus(),
         );
-        // Reactive state lets OWL consumers (via useNavigatorActive) bind the
-        // focus class declaratively (`t-att-class`), fixing races where a
-        // parent re-render wipes the imperative `classList` write below.
-        // Imperative writes stay for backward compat with non-OWL/CSS-only
-        // consumers; both are kept in lockstep through the setters.
         this.state = reactive({
             /**@type {number}*/
             activeItemIndex: -1,
@@ -198,12 +191,6 @@ export class Navigator {
         }
     }
 
-    // ---- Reactive-backed accessors ----
-    //
-    // These preserve the public API (`navigator.activeItem`,
-    // `navigator.activeItemIndex`) while persisting the values inside the
-    // reactive `state` object so OWL subscribers see every change.
-
     /**@type {number}*/
     get activeItemIndex() {
         return this.state.activeItemIndex;
@@ -217,12 +204,15 @@ export class Navigator {
         const idx = this.state.activeItemIndex;
         return idx >= 0 ? (this.items[idx] ?? null) : null;
     }
+    /**
+     * Keeps both halves of the reactive active-item state in step. The setter
+     * used to write only `activeItemEl` while the getter reads `activeItemIndex`,
+     * so `nav.activeItem = item` did not survive a read back — it happened to
+     * work only because `_setActiveItem` assigned the index separately first.
+     */
     set activeItem(item) {
-        // Store the element rather than the NavigationItem wrapper so
-        // consumers can match against a known DOM reference without
-        // depending on the internal NavigationItem identity (which gets
-        // rebuilt on every `update()`).
         this.state.activeItemEl = item?.el ?? null;
+        this.state.activeItemIndex = item ? this.items.indexOf(item) : -1;
     }
 
     /**
@@ -263,15 +253,6 @@ export class Navigator {
     update() {
         const oldItems = new Map(this.items.map((item) => [item.el, item]));
         const oldActiveItem = this.activeItem;
-        // Whether the reconcile below may follow the active item with real DOM
-        // focus. Reconciling after a DOM mutation (e.g. a hover-activated item
-        // was removed) must NOT pull focus into the menu when the user's focus
-        // is legitimately elsewhere (a search input, a form field). It is
-        // allowed both when focus is already inside the menu AND when focus has
-        // been lost entirely (activeElement is <body>/null — typically because
-        // the previously focused item was just removed from the DOM, e.g. the
-        // Confirm/Reset buttons collapsing): there is no external element to
-        // preserve, so the active item should regain focus.
         const activeElement = document.activeElement;
         const focusWasInMenu =
             this.isFocused || !activeElement || activeElement === document.body;
@@ -318,7 +299,6 @@ export class Navigator {
                 const closest = Math.min(this.activeItemIndex, elements.length - 1);
                 this._updateActiveItemIndex(closest, focusWasInMenu);
             } else if (focusedElementIndex >= 0) {
-                // Focus is already on this item — focusing is a no-op, so allow.
                 this._updateActiveItemIndex(focusedElementIndex, true);
             } else {
                 this._updateActiveItemIndex(-1, focusWasInMenu);
@@ -329,10 +309,6 @@ export class Navigator {
             if (this._options.shouldFocusFirstItem) {
                 this.items[0]?.setActive();
             }
-            // Wake subscribers deriving from the items list (e.g.
-            // useNavigatorActive) via a monotonic counter, since reactive
-            // primitives only notify on reassignment and reassigning
-            // `this.items` would force unnecessary re-renders.
             this.state.itemsRevision++;
         }
     }
@@ -439,9 +415,6 @@ export class Navigator {
                 !this.items.some((item) => item.target === document.activeElement);
             this.items[index].setActive(shouldFocus);
         } else {
-            // Route through _setActiveItem for a consistent transition
-            // (setInactive + single index-change path). Direct mutation of
-            // ``activeItemIndex`` here previously caused a "stuck on item 1" bug.
             this._setActiveItem(-1);
         }
     }
@@ -529,9 +502,6 @@ export function useNavigation(containerRef, options = {}) {
     const navigator = new Navigator(newOptions, hotkeyService);
     const observer = new MutationObserver(() => navigator.update());
 
-    // Scoped to the container's lifetime (dropdown open), like the hotkey
-    // registrations: list/kanban pages mount one Navigator per card menu, so
-    // a closed dropdown must not leave a capture listener on every focus event.
     const onFocus = (/** @type {FocusEvent} */ { target }) =>
         navigator._checkFocus(/** @type {any} */ (target));
     useEffect(
@@ -551,9 +521,6 @@ export function useNavigation(containerRef, options = {}) {
         },
         () => [/** @type {any} */ (containerRef).el],
     );
-    // onWillDestroy (not onWillUnmount): unmount hooks don't fire for
-    // components destroyed before mount, which would leak the hotkey
-    // registrations and item listeners.
     onWillDestroy(() => navigator._destroy());
 
     return navigator;
@@ -588,23 +555,13 @@ export function useNavigation(containerRef, options = {}) {
  */
 export function useNavigatorActive(navigator, elGetter) {
     if (!navigator) {
-        // No navigator (e.g. component used outside a navigable container)
-        // — return a stable, non-reactive stub so callers can still bind
-        // safely.  Avoids forcing every consumer to add a null check.
         return { isActive: false };
     }
     const state = useState(navigator.state);
     return {
         get isActive() {
-            // Read both ``activeItemEl`` (changes each transition) and
-            // ``itemsRevision`` (changes when items[] rebuilds, e.g. same
-            // element removed/re-added) to register with OWL's reactive proxy.
             void state.itemsRevision;
             const activeEl = state.activeItemEl;
-            // Short-circuit when no item is active — otherwise the first
-            // render (before any selection) would compute ``null === null``
-            // as true for every consumer, applying focus to all items and
-            // desyncing the OWL diff from the true active item.
             if (activeEl === null || activeEl === undefined) {
                 return false;
             }

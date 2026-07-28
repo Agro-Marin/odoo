@@ -111,12 +111,8 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         reload = true;
     }
     if (!record.model.urgentSave.isActive) {
-        // Not on the urgent (tab-close) path: that one must reach sendBeacon
-        // without awaiting, and serializeCommands has a deferred-commands
-        // fallback that keeps the payload correct on a best-effort basis.
         await waitForPendingCommands(record);
     }
-    // before saving, abandon new invalid, untouched records in x2manys
     for (const fieldName of Object.keys(record.activeFields)) {
         const field = record.fields[fieldName];
         if (isX2Many(field) && !field.relatedPropertyField) {
@@ -127,36 +123,14 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         return false;
     }
     const changes = record._getChanges();
-    delete changes.id; // id never changes, and should not be written
-    // ``_urgentBeaconFired`` only ever signals a beacon that fires AFTER this
-    // snapshot (while the save is parked at ``onWillSaveRecord`` below). Reset it
-    // here so a beacon that fired BEFORE the snapshot cannot leak the flag past
-    // this save: such a beacon already cleared ``_changes``, so it is reflected
-    // in the (empty) snapshot and the no-changes early return below handles it —
-    // leaving the flag set would make the NEXT genuinely-dirty save read a stale
-    // ``beaconFiredWhileParked`` and no-op, silently dropping the user's edits.
+    delete changes.id;
     record._urgentBeaconFired = false;
-    // Field-scoped optimistic locking: capture the originally-loaded (baseline)
-    // value of each field being written, so the server rejects only a genuine
-    // per-field conflict and ignores concurrent writes to OTHER fields (e.g.
-    // background stored-compute recomputations). The exclusion rules live in
-    // one shared helper (also used by the list mass-edit path) so the two can't
-    // drift; the server skips any field it has no baseline for (fails open).
     const concurrencyBaseline = buildConcurrencyBaseline(record, Object.keys(changes));
     if (!creation && !Object.keys(changes).length) {
         if (nextId) {
-            // No changes — caller wants to navigate to ``nextId``. Run the
-            // load to completion before returning so the save-flow's
-            // ``Promise<boolean>`` contract holds (the load result is
-            // ``Promise<void>`` which TS can't fold into ``boolean``).
             await record.model.load({ resId: nextId });
             return true;
         }
-        // ``_changes`` may hold x2many lists whose commands all serialized to
-        // nothing (e.g. readonly-only child edits): clear them like the
-        // reload:false branch below does — otherwise the parent reports clean
-        // while the lists keep the staged commands, and the NEXT save
-        // re-serializes them.
         for (const fieldName of Object.keys(record.activeFields)) {
             const field = record.fields[fieldName];
             if (isX2Many(field) && !field.relatedPropertyField) {
@@ -165,14 +139,6 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         }
         record._clearChanges();
         record.data = { ...record._values };
-        // ``_changes`` may have held entries that serialize to nothing
-        // (readonly-field edits, x2many lists without commands): ``data`` is
-        // visibly reverted above, so the char/text/html false-vs-"" tracking
-        // and the eval contexts must follow — or ``_setEvalContext`` (→
-        // ``computeDataContext`` reads ``_textValues``) keeps evaluating
-        // modifiers against the discarded value (mirror
-        // ``record_savepoint.discard``'s no-savepoint branch, which reverts
-        // both before re-running the context).
         record._textValues = markRaw({ ...record._initialTextValues });
         record._setEvalContext();
         return true;
@@ -181,19 +147,9 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         record.model.urgentSave.isActive &&
         record.model.useSendBeaconToSaveUrgently &&
         !record.model.env.inDialog &&
-        record.resId // sendBeacon cannot return the new ID for creation
+        record.resId
     ) {
-        // The page is closing: a classic RPC can be cancelled (payload too
-        // heavy, network too slow, tab closing too fast), so use sendBeacon
-        // instead — not cancellable, but payload-limited (~64k). If it fails,
-        // block the unload instead so the user's work isn't lost.
         const route = `/web/dataset/call_kw/${record.resModel}/web_save`;
-        // Field-scoped optimistic locking: mirror the normal-save path so the
-        // server can reject a genuine concurrent edit even when the save was
-        // initiated by sendBeacon on tab close. This branch only runs for an
-        // existing record (resId truthy), so the baseline is meaningful; an
-        // empty baseline (e.g. only x2many changed) simply skips the check —
-        // the right call on tab close, where we must never drop the user's work.
         const urgentKwargs = {
             context: record.context,
             specification: {},
@@ -211,17 +167,8 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         });
         const succeeded = navigator.sendBeacon(route, blob);
         if (succeeded) {
-            // A normal save may be parked at its onWillSaveRecord hook right
-            // now: tell it this change set is already persisted (see the
-            // ``beaconFiredWhileParked`` check below).
             record._urgentBeaconFired = true;
             record._values = markRaw({ ...record._values, ...record._changes });
-            // Mirror the reload:false branch: clear each x2many list's staged
-            // CREATE/LINK/UPDATE commands now that the beacon persisted them.
-            // Without this, if the page survives (e.g. bfcache Back after the
-            // tab-close beacon), the stale commands remain on the lists and the
-            // next save re-serializes them, creating duplicate child rows. Must
-            // run before ``_clearChanges()`` empties ``_changes``.
             for (const fieldName of Object.keys(record.activeFields)) {
                 const field = record.fields[fieldName];
                 if (isX2Many(field) && !field.relatedPropertyField) {
@@ -229,12 +176,6 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
                 }
             }
             record._clearChanges();
-            // Mirror the reload:false branch below: rebuild ``data`` from the
-            // just-persisted ``_values`` and re-run the eval context / text-value
-            // baselines. Without this, a page that SURVIVES the beacon (bfcache
-            // Back after the tab-close beacon) keeps ``data`` merged from the now
-            // discarded ``_changes`` and modifier expressions / a later Discard
-            // evaluate against stale pre-save values.
             record.data = { ...record._values };
             record._setEvalContext();
             record._initialTextValues = markRaw({ ...record._textValues });
@@ -253,14 +194,6 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
     }
     /** @type {Record<string, any>[]} */
     let records;
-    // The onWillSaveRecord hook can park the save for seconds (enterprise
-    // controllers await dialogs/RPCs in it). This window must stay OUTSIDE
-    // the ``_saveInFlight`` beacon-skip marker: a parked webSave cannot land
-    // after a real unload, so skipping the beacon there would silently lose
-    // the user's work. If the beacon fires while we are parked, it persists
-    // the same change set and raises ``_urgentBeaconFired`` — the resumed
-    // save then returns without re-sending the (non-idempotent) x2many
-    // commands.
     const canProceed = await record.model.hooks.lifecycle.onWillSaveRecord(
         record,
         changes,
@@ -271,26 +204,13 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         return false;
     }
     if (beaconFiredWhileParked) {
-        // The tab-close beacon already persisted this change set (and the
-        // page survived, e.g. the unload was canceled): the change bag and
-        // x2many commands are cleared — a webSave now would double-write.
         return true;
     }
-    // In-flight marker for urgentSave(): held from just before the webSave
-    // RPC until the change bag is cleared, so a tab close in that window
-    // skips the beacon instead of re-sending the same (non-idempotent)
-    // x2many commands: the beacon plus the in-flight webSave used to
-    // double-write duplicate child rows. Awaits BEFORE the ``changes``
-    // snapshot need no marker — a beacon firing there clears ``_changes``,
-    // so the snapshot comes out empty.
     record._saveInFlight = true;
     try {
-        // keep x2many orderBy if we stay on the same record
         /** @type {Record<string, any>} */
         const orderBys = {};
         if (!nextId) {
-            // Hoist the ``fieldNames`` getter (reactive Object.keys + filter)
-            // once for the loop instead of re-deriving it (finding 12).
             const fieldNames = record.fieldNames;
             for (const fieldName of fieldNames) {
                 if (isX2Many(record.fields[fieldName])) {
@@ -312,10 +232,6 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             specification: fieldSpec,
             next_id: nextId,
         };
-        // Field-scoped optimistic locking: send the baseline values of the
-        // fields being written so the server rejects only genuine per-field
-        // conflicts and ignores concurrent writes to other fields. (Empty
-        // baseline => no check.)
         if (record.resId) {
             kwargs.known_values = concurrencyBaseline;
         }
@@ -350,13 +266,6 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         }
         await record.model.hooks.lifecycle.onRecordSaved(record, changes);
         if (record.config.isRoot) {
-            // Invalidate any stale-while-revalidate read still in flight from the
-            // model's initial load: a cache-hit render kicks off a background
-            // web_read whose response may reflect PRE-save data. Bumping the
-            // root ``loadId`` here makes that response fail the
-            // ``loadId !== this.root.config.loadId`` guard in ``_getCacheParams``'
-            // callback, so it can no longer ``_setData`` the saved values back to
-            // their pre-save state (silent revert with no error).
             record.model._patchConfig(record.config, { loadId: getId("load") });
         }
         if (reload) {
@@ -383,14 +292,6 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             }
             record._clearChanges();
             record.data = { ...record._values };
-            // Save-in-place (no server reload): refresh the eval context and the
-            // char/text/html empty-vs-NULL baseline from the just-persisted state.
-            // Mirrors the sendBeacon-success branch above — without it, if the
-            // record survives (e.g. a dialog-hosted or beforeLeave save on a page
-            // that stays open) ``_initialTextValues`` keeps the stale pre-save
-            // snapshot, so a later no-savepoint Discard (record_savepoint) reverts
-            // ``_textValues`` to a false-vs-"" state that contradicts the saved
-            // value and modifier expressions evaluate against it.
             record._setEvalContext();
             record._initialTextValues = markRaw({ ...record._textValues });
         }

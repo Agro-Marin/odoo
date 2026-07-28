@@ -3,13 +3,11 @@
 
 /** @module @web/model/sample_data - Sample data constants and text arrays for fake record generation */
 
-// ─── Recordset sizes ────────────────────────────────────────────────────────
 export const MAIN_RECORDSET_SIZE = 16;
 export const SUB_RECORDSET_SIZE = 5;
 export const SEARCH_READ_LIMIT = 10;
 export const MAX_NUMBER_OPENED_GROUPS = 10;
 
-// ─── Numeric limits ─────────────────────────────────────────────────────────
 export const MAX_FLOAT = 100;
 export const MAX_INTEGER = 50;
 export const MAX_COLOR_INT = 7;
@@ -18,7 +16,6 @@ export const MAX_MONETARY = 100000;
 export const DATE_DELTA = 24 * 60;
 export const FLOAT_PRECISION = 2;
 
-// ─── Date formats ───────────────────────────────────────────────────────────
 /** @type {Record<string, string>} */
 export const FORMATS = {
     day: "yyyy-MM-dd",
@@ -37,7 +34,6 @@ export const INTERVALS = {
 };
 export const DISPLAY_FORMATS = { ...FORMATS, day: "dd MMM yyyy" };
 
-// ─── Sample text arrays ─────────────────────────────────────────────────────
 /** @type {string[]} */
 export const SAMPLE_COUNTRIES = [
     "Belgium",
@@ -71,7 +67,6 @@ export const PEOPLE_MODELS = [
     "mailing.contact",
 ];
 
-// ─── Field name regex patterns ──────────────────────────────────────────────
 /**
  * Returns a regex matching a term as a word boundary in a field name.
  * `fieldNameRegex('abc')` matches "abc", "field_abc__def" but not "aabc".
@@ -94,7 +89,6 @@ export const EMAIL_REGEX = fieldNameRegex("email");
 export const PHONE_REGEX = fieldNameRegex("phone");
 export const URL_REGEX = fieldNameRegex("url");
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
 /**
  * Returns the sample value corresponding to a record ID (cyclic).
  * @param {number} id

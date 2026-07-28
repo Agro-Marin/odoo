@@ -32,7 +32,6 @@ _lt = LazyTranslate(__name__)
 _logger = logging.getLogger(__name__)
 
 
-# Shared parameters for all login/signup flows
 SIGN_UP_REQUEST_PARAMS = {
     "db",
     "login",
@@ -74,7 +73,6 @@ class Home(http.Controller):
     def _web_client_readonly(self, rule: Any, args: Any) -> bool:
         return False
 
-    # ideally, this route should be `auth="user"` but that doesn't work in non-monodb mode.
     @http.route(
         ["/web", "/odoo", "/odoo/<path:subpath>", "/scoped_app/<path:subpath>"],
         type="http",
@@ -102,23 +100,17 @@ class Home(http.Controller):
         if not is_user_internal(request.session.uid):
             return request.redirect("/web/login_successful", 303)
 
-        # Return value unused; kept for the side effect of extending the session lifetime.
         request.session.touch()
 
-        # auth="none" doesn't populate the env user; restore it now that we know the uid.
         request.update_env(user=request.session.uid)
         try:
             if request.env.user:
                 request.env.user._on_webclient_bootstrap()
             context = request.env["ir.http"].webclient_rendering_context()
 
-            # Computed here rather than in session_info() so it's only ever sent on this
-            # page, which is Cache-Control: no-store (see below).
-            # Reuses the session-token fields so the secret rotates whenever a security
-            # event (password/2FA change) invalidates the session token too.
             hmac_payload = (
                 request.env.user._session_token_get_values()
-            )  # order is stable, needed for a reproducible hmac
+            )
             session_info = context.get("session_info")
             session_info["browser_cache_secret"] = hmac(
                 request.env(su=True), "browser_cache_key", hmac_payload
@@ -169,8 +161,6 @@ class Home(http.Controller):
             request.update_context(lang=lang)
 
         menus = request.env["ir.ui.menu"].load_web_menus(request.session.debug)
-        # Serialize with the same helper as make_json_response() so the
-        # hashed bytes are exactly the bytes sent on the wire.
         body = json_dumps(menus, default=orjson_default)
         current_hash = hashlib.sha256(body.encode()).hexdigest()
         headers = [
@@ -200,14 +190,10 @@ class Home(http.Controller):
                 redirect = "/odoo"
             return request.redirect(redirect)
 
-        # simulate hybrid auth=user/auth=public, despite using auth=none to be able
-        # to redirect users when no db is selected - cfr ensure_db()
         if request.env.uid is None:
             if request.session.uid is None:
-                # no user -> auth=public with specific website public user
                 request.env["ir.http"]._auth_method_public()
             else:
-                # behave as authenticated user
                 request.update_env(user=request.session.uid)
 
         values = {
@@ -267,17 +253,11 @@ class Home(http.Controller):
         valid_values = {k: v for k, v in kwargs.items() if k in LOGIN_SUCCESSFUL_PARAMS}
         return request.render("web.login_successful", valid_values)
 
-    # readonly=False: this route mutates — it clears the registry cache (queued
-    # to the DB signaling sequence at commit) and rewrites the session token.
-    # Declaring it readonly routed it to a read replica, forcing the
-    # dispatcher's RO→RW retry (or failing on a strict replica) for a route
-    # that is inherently a write.
     @http.route("/web/become", type="http", auth="user", sitemap=False, readonly=False)
     def switch_to_admin(self) -> Response:
         uid = request.env.user.id
         if request.env.user._is_system():
             uid = request.session.uid = odoo.SUPERUSER_ID
-            # invalidate session token cache as we've changed the uid
             request.env.registry.clear_cache()
             request.session.session_token = security.compute_session_token(
                 request.session, request.env

@@ -29,7 +29,7 @@ TOOLING_DIR="$(cd -- "$(dirname "$0")" &>/dev/null && pwd)"
 # jsconfig `@web/*` mapping is relative to this same root.)
 ROOT="$(cd -- "$TOOLING_DIR/../../.." &>/dev/null && pwd)"
 ALLOWLIST="$TOOLING_DIR/typecheck-allowlist.txt"
-OWL_LOCAL="addons/web/static/lib/owl/owl.js"
+OWL_LOCAL="addons/web/static/lib/owl/owl.es.js"
 
 # --- locate tsc ---------------------------------------------------------------
 if [[ -x "$ROOT/node_modules/.bin/tsc" ]]; then

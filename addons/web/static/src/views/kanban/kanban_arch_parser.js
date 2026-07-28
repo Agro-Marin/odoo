@@ -112,7 +112,6 @@ export class KanbanArchParser {
         let headerButtons = [];
         const controls = [];
         let button_id = 0;
-        // Root level of the template
         visitXML(xmlDoc, (node) => {
             if (node.hasAttribute("t-name")) {
                 templateDocs[node.getAttribute("t-name")] = node;
@@ -159,7 +158,6 @@ export class KanbanArchParser {
                         `Kanban arch parsing error: <field name="${fieldName}"/> does not exist on model "${modelName}"`,
                     );
                 }
-                // In kanban, we display many2many fields as tags by default
                 const widget = node.getAttribute("widget");
                 if (!widget && field.type === "many2many") {
                     node.setAttribute("widget", "many2many_tags");
@@ -192,7 +190,6 @@ export class KanbanArchParser {
                 node.setAttribute("widget_id", widgetId);
             }
 
-            // Track last update so images reload when they may have changed.
             if (node.tagName === "img") {
                 const attSrc = node.getAttribute("t-att-src");
                 if (
@@ -208,7 +205,6 @@ export class KanbanArchParser {
             }
         });
 
-        // Progressbar
         /** @type {any} */
         let progressAttributes = false;
         const progressBar = xmlDoc.querySelector("progressbar");
@@ -216,7 +212,6 @@ export class KanbanArchParser {
             progressAttributes = this.parseProgressBar(progressBar, fields);
         }
 
-        // Concrete kanban box elements in the template
         const cardDoc = templateDocs[KANBAN_CARD_ATTRIBUTE];
         if (!cardDoc) {
             throw new Error(`Missing '${KANBAN_CARD_ATTRIBUTE}' template.`);

@@ -55,7 +55,6 @@ export function useDynamicPlaceholder(elementRef) {
             start -= 1;
         }
         element.setRangeText(dynamicPlaceholder, start, rangeIndex, "end");
-        // Synthetic events so useInputField marks the field dirty.
         element.dispatchEvent(new InputEvent("input"));
         element.dispatchEvent(new KeyboardEvent("keydown"));
     };
@@ -70,15 +69,11 @@ export function useDynamicPlaceholder(elementRef) {
             10,
         );
         element.removeAttribute("data-oe-dynamic-placeholder-range-index");
-        // When the user cancel/close the popover, the path is empty.
         if (path) {
             insert(path, defaultValue, { rangeIndex, removeTriggerKey: true });
         }
     };
     const onDynamicPlaceholderClose = function () {
-        // Guard `.el` too: the popover's onClose can fire after the input has
-        // detached (e.g. an edit->readonly modifier flip auto-closes the
-        // popover via its MutationObserver while el is null).
         elementRef?.el?.focus();
     };
 
@@ -112,7 +107,6 @@ export function useDynamicPlaceholder(elementRef) {
         const element = elementRef?.el;
         if (ev.target === element && ev.key === TRIGGER_KEY) {
             const currentRangeIndex = element.selectionStart;
-            // +1 to take the trigger key char into account
             element.setAttribute(
                 "data-oe-dynamic-placeholder-range-index",
                 currentRangeIndex + 1,

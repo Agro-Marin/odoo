@@ -63,14 +63,16 @@ export class ConfirmationDialog extends Component {
     }
 
     async _dismiss() {
-        return this.execButton(this.props.dismiss || this.props.cancel);
+        return this.execButton(this.props.dismiss || this.props.cancel, {
+            dismiss: true,
+        });
     }
 
     /** @param {boolean} disabled - whether to disable all footer buttons */
     setButtonsDisabled(disabled) {
         this.isProcess = disabled;
         if (!this.modalRef.el) {
-            return; // safety belt for stable versions
+            return;
         }
         for (const button of [
             ...this.modalRef.el.querySelectorAll(".modal-footer button"),
@@ -81,9 +83,17 @@ export class ConfirmationDialog extends Component {
 
     /**
      * Execute a button callback; close dialog unless callback returns `false`.
+     *
+     * `closeParams` must carry `{ dismiss: true }` on the dismissal path: this
+     * close runs first and, being the one that owns the removal, is the only
+     * one whose params reach `onClose`. `Dialog.dismiss` still calls
+     * `close({ dismiss: true })` afterwards, but the overlay service ignores
+     * that second call, so dropping the flag here loses it for good.
+     *
      * @param {Function} [callback]
+     * @param {any} [closeParams]
      */
-    async execButton(callback) {
+    async execButton(callback, closeParams) {
         if (this.isProcess) {
             return;
         }
@@ -93,7 +103,7 @@ export class ConfirmationDialog extends Component {
             try {
                 shouldClose = await callback();
             } catch (e) {
-                this.props.close();
+                this.props.close(closeParams);
                 throw e;
             }
             if (shouldClose === false) {
@@ -101,7 +111,7 @@ export class ConfirmationDialog extends Component {
                 return;
             }
         }
-        this.props.close();
+        this.props.close(closeParams);
     }
 }
 

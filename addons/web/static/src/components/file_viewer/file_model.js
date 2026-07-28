@@ -37,16 +37,7 @@ export const FileModelMixin = (T) =>
                 return `/web/static/lib/pdfjs/web/viewer.html?file=${encodedRoute}#pagemode=none`;
             }
             if (this.isUrlYoutube) {
-                const urlArr = this.url.split("/");
-                let token = urlArr.at(-1);
-                if (token.includes("watch")) {
-                    token = token.split("v=")[1];
-                    const amp = token.indexOf("&");
-                    if (amp !== -1) {
-                        token = token.slice(0, amp);
-                    }
-                }
-                return `https://www.youtube.com/embed/${token}`;
+                return `https://www.youtube.com/embed/${this.youtubeVideoId}`;
             }
             return route;
         }
@@ -73,8 +64,6 @@ export const FileModelMixin = (T) =>
         }
 
         get isPdf() {
-            // ``mimetype`` may be ``false`` (unset on the server), not only a
-            // string or undefined: optional chaining alone is not enough.
             return Boolean(
                 this.mimetype && this.mimetype.startsWith?.("application/pdf"),
             );
@@ -96,7 +85,42 @@ export const FileModelMixin = (T) =>
         }
 
         get isUrlYoutube() {
-            return typeof this.url === "string" && this.url.includes("youtu");
+            return Boolean(this.youtubeVideoId);
+        }
+
+        /**
+         * Video id when `url` really points at YouTube, `null` otherwise.
+         *
+         * Matching on the parsed hostname rather than on a `"youtu"` substring:
+         * any URL merely containing those letters (`example.com/youtube-clone`)
+         * used to be classified as a video and rewritten into an embed of
+         * whatever its last path segment happened to be, replacing a working
+         * link with a broken player.
+         *
+         * @returns {string|null}
+         */
+        get youtubeVideoId() {
+            if (typeof this.url !== "string") {
+                return null;
+            }
+            let parsed;
+            try {
+                parsed = new URL(this.url);
+            } catch {
+                return null;
+            }
+            const host = parsed.hostname.replace(/^www\./, "");
+            const [prefix, id] = parsed.pathname.split("/").filter(Boolean);
+            if (host === "youtu.be") {
+                return prefix || null;
+            }
+            if (host !== "youtube.com" && host !== "youtube-nocookie.com") {
+                return null;
+            }
+            if (parsed.pathname === "/watch") {
+                return parsed.searchParams.get("v");
+            }
+            return ["embed", "shorts", "v"].includes(prefix) ? id || null : null;
         }
 
         get isVideo() {

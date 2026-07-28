@@ -30,7 +30,7 @@ export async function clickKanbanRecord(options) {
 
 export async function createKanbanRecord() {
     await contains(".o_control_panel_main_buttons button.o-kanban-button-new").click();
-    return animationFrame(); // the kanban quick create is rendered in a second animation frame
+    return animationFrame();
 }
 
 export function discardKanbanRecord() {
@@ -130,7 +130,7 @@ export async function quickCreateKanbanRecord(columnIndex = 0) {
     await contains(".o_kanban_quick_add", {
         root: getKanbanColumn(columnIndex),
     }).click();
-    return animationFrame(); // the kanban quick create is rendered in a second animation frame
+    return animationFrame();
 }
 
 /**

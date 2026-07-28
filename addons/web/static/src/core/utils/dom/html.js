@@ -5,9 +5,6 @@
 
 import { htmlEscape as _htmlEscape, markup } from "@odoo/owl";
 
-// owl's htmlEscape signature is `(s: string) => string` but at runtime it
-// also accepts Markup (a String subclass) and any String-coercible value.
-// Wrap it so callers can pass `string | Markup` without casting at every site.
 /** @type {(value: any) => string} */
 const htmlEscape = _htmlEscape;
 import { formatList, normalizedMatches } from "@web/core/l10n/utils";
@@ -73,8 +70,6 @@ export function highlightText(query, text, classes) {
             /** @type {string} */ (result),
             /** @type {string} */ (query),
         ).map((m) =>
-            // normalizedMatch will remove Markup and return string matches
-            // so it is necessary to restore the removed Markup when needed
             isQueryMarkup ? markup(m.match.toLowerCase()) : m.match.toLowerCase(),
         ),
     );
@@ -110,8 +105,6 @@ export function highlightText(query, text, classes) {
  * @returns {Markup}
  */
 export function htmlFormatList(values, options) {
-    // markup: args are escaped (or markup), and list separators are limited to
-    // `Intl.ListFormat` strings.
     return markup(
         formatList(/** @type {any} */ (Array.from(values, htmlEscape)), options),
     );
@@ -125,7 +118,6 @@ export function htmlFormatList(values, options) {
  * @returns {Markup}
  */
 export function htmlJoin(list, separator = "") {
-    // markup: args and separator are escaped (or markup), join is considered safe
     return markup(
         /** @type {any[]} */ (Array.from(list, htmlEscape)).join(
             /** @type {string} */ (htmlEscape(separator)),
@@ -155,7 +147,6 @@ export function htmlReplace(content, search, replacer) {
     const safeReplacement = isReplacerFn
         ? (/** @type {any[]} */ ...args) => htmlEscape(replacer(...args))
         : htmlEscape(replacer);
-    // markup: content and replacer are escaped (or markup), replace is considered safe
     return markup(content.replace(search, safeReplacement));
 }
 
@@ -181,7 +172,6 @@ export function htmlReplaceAll(content, search, replacer) {
     const safeReplacement = isReplacerFn
         ? (/** @type {any[]} */ ...args) => htmlEscape(replacer(...args))
         : htmlEscape(replacer);
-    // markup: content and replacer are escaped (or markup), replaceAll is considered safe
     return markup(content.replaceAll(search, safeReplacement));
 }
 
@@ -209,7 +199,6 @@ export function htmlSprintf(str, ...substitutions) {
  */
 export function htmlTrim(content) {
     content = htmlEscape(content);
-    // markup: content is escaped (or markup), trim is considered safe
     return markup(content.trim());
 }
 
@@ -253,23 +242,18 @@ export function odoomark(text) {
      * reuse these marked-up replacers for injection.
      */
     const replacers = [
-        // Line break
         ["\n", markup`<br>`],
-        // Larger spacing
         ["\t", markup`<span style="margin-left: 2em"></span>`],
-        // Bold
         [
             /\*\*(.+?)\*\*/g,
             (/** @type {string} */ _, /** @type {string} */ content) =>
                 markup(`<b>${content}</b>`),
         ],
-        // Muted
         [
             /--(.+?)--/g,
             (/** @type {string} */ _, /** @type {string} */ content) =>
                 markup(`<span class="text-muted">${content}</span>`),
         ],
-        // Badge
         [
             /&#x60;(.+?)&#x60;/g,
             (/** @type {string} */ _, /** @type {string} */ content) =>
@@ -293,7 +277,6 @@ export function odoomark(text) {
  */
 export function setElementContent(element, content) {
     if (isMarkup(content)) {
-        // innerHTML: content is markup
         element.innerHTML = /** @type {string} */ (content);
     } else {
         element.textContent = /** @type {string} */ (content);

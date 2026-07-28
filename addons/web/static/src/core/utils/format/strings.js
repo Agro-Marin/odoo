@@ -71,12 +71,6 @@ export function capitalize(str) {
  * @returns {string}
  */
 export function escape(value) {
-    // Coerce first, THEN escape. A String subclass (e.g. a lazy translated
-    // string from ``_t`` hoisted to module scope, or an OWL Markup object) is
-    // ``typeof === "object"``, so a bare ``typeof value !== "string"`` guard
-    // returned it stringified but UNESCAPED — a silent XSS footgun for a
-    // primitive literally named ``escape``. Coercing to a plain string and
-    // always running the replace closes that hole.
     const str = typeof value === "string" ? value : String(value ?? "");
     return str.replace(_HTML_ESCAPE_RE, (ch) => _HTML_ESCAPE_MAP[ch]);
 }
@@ -124,8 +118,6 @@ export function hashCode(...strings) {
         hash |= 0;
     }
 
-    // Convert the possibly negative number hash code into an 8 character
-    // hexadecimal string
     return (hash + _HEX_8).toString(16).slice(-8);
 }
 const _HEX_8 = 16 ** 8;
@@ -148,14 +140,10 @@ export function intersperse(str, indices, separator) {
     for (let i = 0; i < indices.length; ++i) {
         let section = indices[i];
         if (section === -1 || last <= 0) {
-            // Done with string, or -1 (stops formatting string)
             break;
         } else if (section === 0 && i === 0) {
-            // repeats previous section, which there is none => stop
             break;
         } else if (section === 0) {
-            // repeat previous section forever
-            //noinspection AssignmentToForLoopParameterJS
             section = indices[--i];
         }
         const start = Math.max(0, last - section);
@@ -242,25 +230,20 @@ export function mapSubstitutions(substitutions, mapFn) {
  */
 export function sprintf(str, ...substitutions) {
     if (!substitutions.length) {
-        // No substitutions => leave the string as is
         return str;
     }
     if (hasSubstitutionDict(substitutions)) {
-        // Keyed (%(key)s) substitutions
         const dict = /** @type {Record<string, any>} */ (substitutions[0]);
         return str.replaceAll(R_KEYED_SUBSTITUTION, (_match, key) => dict[key] ?? "");
     } else {
-        // Generic (%s) substitutions
         const raw = [""];
         for (let i = 0; i < str.length; i++) {
             if (str[i] === "%") {
                 if (str[i + 1] === "%") {
-                    // Escaped "%" character: => single "%"
                     raw[raw.length - 1] += str[++i];
                     continue;
                 }
                 if (str[i + 1] === "s") {
-                    // Substitution (ignore "%s" in final string)
                     i++;
                     raw.push("");
                     continue;
@@ -268,8 +251,6 @@ export function sprintf(str, ...substitutions) {
             }
             raw[raw.length - 1] += str[i];
         }
-        // Pad substitutions to match the number of %s placeholders so that
-        // excess %s tokens produce empty strings instead of literal "undefined".
         const padded =
             substitutions.length >= raw.length - 1
                 ? substitutions

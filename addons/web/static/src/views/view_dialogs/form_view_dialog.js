@@ -83,8 +83,6 @@ export class FormViewDialog extends Component {
                 if (this.props.onRecordSave) {
                     saved = await this.props.onRecordSave(record);
                     if (saved) {
-                        // Keep currentResId in sync (e.g. false->N on create) so
-                        // onExpand targets the persisted record, mirroring the else branch.
                         this.currentResId = record.resId;
                     }
                 } else {

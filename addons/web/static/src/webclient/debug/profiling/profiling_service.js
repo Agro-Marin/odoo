@@ -24,11 +24,6 @@ export const profilingService = {
             return;
         }
 
-        // Declared before `notify`, which closes over it: `notify` is the
-        // reactive callback of `state` below, so any state mutation reaches
-        // `bus.trigger`. Constructing the bus after that wiring only worked
-        // while nothing mutated state synchronously in between -- a TDZ
-        // ReferenceError waiting for the next edit.
         const bus = new EventBus();
 
         function notify() {
@@ -61,11 +56,6 @@ export const profilingService = {
             notify,
         );
 
-        // Monotonic generation bumped on every user-driven state change
-        // (setProfiling). Lazy-session values captured at boot are only applied
-        // if the generation is unchanged: a slow lazy fetch must never overwrite
-        // a fresh toggle the user made in the meantime (e.g. a late
-        // ``profile_session`` string clobbering a just-turned-off ``false``).
         let stateGeneration = 0;
 
         /**
@@ -83,8 +73,6 @@ export const profilingService = {
                 try {
                     const value = await lazy_session.getValue(sessionKey);
                     if (value && stateGeneration === bootGeneration) {
-                        // Assign through the reactive proxy so ``notify`` re-runs
-                        // and the systray updates for a session active on load.
                         state[stateKey] = value;
                     }
                     return;
@@ -93,7 +81,6 @@ export const profilingService = {
                 }
             }
         }
-        // Populate from the lazy session once it arrives.
         loadLazyState("profile_session", "session");
         loadLazyState("profile_collectors", "collectors");
         loadLazyState("profile_params", "params");
@@ -101,8 +88,6 @@ export const profilingService = {
         notify();
 
         async function setProfiling(params) {
-            // User-driven change: bump the generation so any still-in-flight
-            // boot-time lazy value is discarded instead of overwriting this.
             stateGeneration++;
             const kwargs = Object.assign(
                 {
@@ -114,14 +99,8 @@ export const profilingService = {
             );
             const resp = await orm.call("ir.profile", "set_profiling", [], kwargs);
             if (resp.type) {
-                // most likely an "ir.actions.act_window"
-                // Fire-and-forget: a superseded or failing action must not
-                // surface as an unhandled rejection.
                 Promise.resolve(env.services.action.doAction(resp)).catch(console.warn);
             } else {
-                // Three writes through the reactive proxy => three `notify`
-                // runs. Not batched: `Object.assign` would still perform three
-                // property sets, and OWL coalesces the resulting renders anyway.
                 state.session = resp.session;
                 state.collectors = resp.collectors;
                 state.params = resp.params;

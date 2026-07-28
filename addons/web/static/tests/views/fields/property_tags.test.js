@@ -19,8 +19,6 @@ test("property tag id replaces every space, not just the first", async () => {
         },
     });
 
-    // A multi-word label must not leave embedded spaces in the generated id
-    // (which flows into DOM selectors and stored values).
     await component.onTagCreate("New York City");
     const [id, label] = definitionTags.at(-1);
     expect(id).toBe("new_york_city");

@@ -35,9 +35,6 @@ beforeEach(() => {
         decimalPoint: ".",
         thousandsSep: ",",
         grouping: [3, 0],
-        // ``code`` is required by any plural-aware formatter (formatX2many ->
-        // _pl -> Intl.PluralRules(localization.code)); the localization Proxy
-        // throws on an unset key, so an incomplete fixture crashed those tests.
         code: "en_US",
     });
 });
@@ -49,9 +46,6 @@ test("formatFloat", () => {
 });
 
 test("formatFloat does not mutate a shared options object across fields", () => {
-    // Callers (e.g. view_utils' per-column cache) may reuse one options
-    // object for cells of different fields: the digits derived from the
-    // first field must not stick to the object and contaminate the next.
     const options = {};
 
     options.field = { digits: [16, 4] };
@@ -66,7 +60,6 @@ test("formatFloat does not mutate a shared options object across fields", () => 
         message: "formatFloat must not write minDigits back into its options argument",
     });
 
-    // Same guarantee for the factor variant.
     const factorOptions = { factor: 2, field: { digits: [16, 3] } };
     expect(formatFloatFactor(1.5, factorOptions)).toBe("3.000");
     factorOptions.field = { digits: [16, 1] };
@@ -105,12 +98,9 @@ test("formatFloatTime", () => {
     );
     expect(formatFloatTime(56 / 3600, { displaySeconds: true })).toBe("00:00:56");
     expect(formatFloatTime(-0.5)).toBe("-00:30");
-    // A sub-minute negative residue rounds to zero and must NOT keep the sign
-    // (no confusing signed zero "-00:00").
     expect(formatFloatTime(-0.004)).toBe("00:00");
     expect(formatFloatTime(-1e-15)).toBe("00:00");
     expect(formatFloatTime(-1e-15, { displaySeconds: true })).toBe("00:00:00");
-    // A negative that still has a non-zero second keeps its sign.
     expect(formatFloatTime(-0.004, { displaySeconds: true })).toBe("-00:00:14");
 
     const options = { noLeadingZeroHour: true };
@@ -178,7 +168,6 @@ test("formatText", () => {
 });
 
 test("formatX2many", () => {
-    // Results are cast as strings since they're lazy translated.
     expect(String(formatX2many({ currentIds: [] }))).toBe("No records");
     expect(String(formatX2many({ currentIds: [1] }))).toBe("1 record");
     expect(String(formatX2many({ currentIds: [1, 3] }))).toBe("2 records");
@@ -230,7 +219,6 @@ test("formatMonetary", () => {
 });
 
 test("formatPercentage", () => {
-    // `false` (unset) renders empty like formatFloat, not as "0%".
     expect(formatPercentage(false)).toBe("");
     expect(formatPercentage(0)).toBe("0%");
     expect(formatPercentage(0.5)).toBe("50%");
@@ -302,4 +290,45 @@ test("formatDateTime", () => {
             DateTime.fromObject({ day: 22, month: 1, hour: 10, minute: 30 }),
         ),
     ).toBe("Jan 22, 10:30 AM");
+});
+
+test("numeric formatters agree on absent and non-finite values", () => {
+    // Every numeric formatter shares one "nothing to format" guard. Before it,
+    // each carried its own partial version and they disagreed: formatFloat
+    // rendered "NaN" for undefined/null and "In,fin,ity" for Infinity (the
+    // thousands separator grouping the letters of the word), while
+    // formatInteger already returned "" for the same inputs.
+    for (const format of [
+        formatFloat,
+        formatFloatFactor,
+        formatFloatTime,
+        formatInteger,
+        formatMonetary,
+        formatPercentage,
+    ]) {
+        for (const value of [false, null, undefined, "", NaN, Infinity, -Infinity]) {
+            expect(format(value)).toBe("", {
+                message: `${format.name}(${String(value)}) should render as empty`,
+            });
+        }
+    }
+});
+
+test("humanReadable numeric formatting is guarded too", () => {
+    // The guard used to sit AFTER the humanReadable branch in formatInteger, so
+    // that branch reached humanNumber(undefined) and threw
+    // "TypeError: ... reading 'toExponential'". formatFloat routes to the same
+    // humanNumber and had no guard at all. Reachable from any caller that
+    // formats a field absent from the record spec - e.g. the gauge widget's
+    // tooltip when its `max_field` names a field the arch does not declare.
+    for (const format of [formatFloat, formatInteger]) {
+        for (const value of [undefined, null, NaN, Infinity]) {
+            expect(format(value, { humanReadable: true })).toBe("", {
+                message: `${format.name}(${String(value)}, {humanReadable}) should not throw`,
+            });
+        }
+    }
+    // Real numbers still format normally.
+    expect(formatInteger(1500, { humanReadable: true })).toBe("2k");
+    expect(formatFloat(1500, { humanReadable: true, decimals: 1 })).toBe("1.5k");
 });

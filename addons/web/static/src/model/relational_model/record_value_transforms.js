@@ -79,7 +79,6 @@ registry
                     (property.type === "date" || property.type === "datetime") &&
                     typeof property[key] === "string"
                 ) {
-                    // TO REMOVE: need refactoring PropertyField to use the same format as the server
                     val = property[key];
                 } else if (property[key] !== undefined) {
                     val = formatServerValue(property.type, property[key]);
@@ -259,16 +258,12 @@ export function parseServerValues(
                     currentValues?.[fieldName]
                 );
             const listValue = /** @type {any[]} */ (value);
-            // value can be a list of records or a list of commands (new record)
             const valueIsCommandList = listValue.length && Array.isArray(listValue[0]);
             if (!staticList) {
                 let data = valueIsCommandList ? [] : listValue;
                 if (data.length && typeof data[0] === "number") {
                     data = data.map((resId) => ({ id: resId }));
                 }
-                // ``data`` is either plain ids (mapped to ``{id}``), an
-                // empty array (command-list path), or pre-shaped server
-                // records — all valid shapes for the constructor.
                 staticList = record._createStaticListDatapoint(
                     /** @type {Array<{id: number, [key: string]: any}>} */ (data),
                     fieldName,
@@ -278,21 +273,12 @@ export function parseServerValues(
                     staticList._applyInitialCommands(listValue);
                 }
             } else if (valueIsCommandList) {
-                // This call chain is synchronous (record._setData →
-                // parseServerValues) — the possibly-async result is tracked
-                // on the list so save/discard flows can sequence after it
-                // and rejections are surfaced instead of floating.
                 staticList._trackCommandsPromise(staticList._applyCommands(listValue));
             }
             parsedValues[fieldName] = staticList;
         } else {
             parsedValues[fieldName] = parseServerValue(field, value);
             if (field.type === "properties") {
-                // ``definition_record`` names the parent field (m2o on the
-                // record that defines the property set). The value at that
-                // key is the parsed m2o value — ``{id, display_name}`` or
-                // ``false`` if unset — see ``_processProperties`` which
-                // reads ``parent?.id`` and ``parent?.display_name``.
                 const parent =
                     /** @type {{ id?: number; display_name?: string } | false | undefined} */ (
                         serverValues[field.definition_record]

@@ -58,11 +58,6 @@ export class BadgeSelectionField extends SelectionLikeField {
         switch (this.type) {
             case "many2one":
                 if (value === this.value) {
-                    // Re-clicking the already-active badge is a no-op — avoid a
-                    // redundant record.update that re-triggers onchange/dirty.
-                    // (The template/onKeydown only ever pass an option id, so
-                    // the ``value === false`` case below is dead but kept as a
-                    // defensive fallback.)
                     return;
                 }
                 if (value === false) {
@@ -79,10 +74,6 @@ export class BadgeSelectionField extends SelectionLikeField {
                 break;
             case "selection":
                 if (value === this.value) {
-                    // Deselect-on-reclick must respect BOTH model-level required
-                    // and the arch/dynamic `required="..."` modifier — otherwise
-                    // clicking the active badge clears a field the view marks
-                    // required, surfacing the violation late.
                     const { required } = this.props.record.fields[this.props.name];
                     if (!required && !this.props.required) {
                         this.props.record.update({ [this.props.name]: false });

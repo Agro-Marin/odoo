@@ -59,7 +59,6 @@ class ExportDataItem extends Component {
         });
         onWillStart(() => {
             if (this.props.isExpanded) {
-                // Auto-expand: subfields already loaded, filtered to match the search string
                 return this.toggleItem(this.props.field.id, false);
             }
         });
@@ -127,12 +126,7 @@ export class ExportDataDialog extends Component {
         this.availableFormats = [];
         this.templates = [];
         this.isCompatible = false;
-        // Guards the export-template namelist fetch: rapid template switches
-        // must not leave state.exportList out of sync with state.templateId.
         this.exportListKeepLast = new KeepLast();
-        // Guards the compat-toggle field reload: only the latest fetchFields run
-        // may repopulate the default export list / template, so overlapping
-        // toggles can't apply stale post-load steps.
         this.fetchFieldsKeepLast = new KeepLast();
 
         this.state = useState({
@@ -153,9 +147,6 @@ export class ExportDataDialog extends Component {
         useSortable({
             ref: this.draggableRef,
             elements: ".o_export_field",
-            // Thunk, not a bare boolean: the dnd builder calls ctx.enable()
-            // per drag, so a static boolean captured at setup would never
-            // reflect a later isSmall change (M10).
             enable: () => !this.state.isSmall,
             cursor: "grabbing",
             onDrop: async ({ element, previous, next }) => {
@@ -177,8 +168,6 @@ export class ExportDataDialog extends Component {
         });
 
         onWillStart(async () => {
-            // The three fetches are independent (state.templateId is still null
-            // here, so fetchFields doesn't depend on the templates list)
             const [availableFormats, templates] = await Promise.all([
                 rpc("/web/export/formats"),
                 this.orm.searchRead(
@@ -275,8 +264,6 @@ export class ExportDataDialog extends Component {
     async fetchFields() {
         this.knownFields = {};
         this.expandedFields = {};
-        // Only the latest overlapping run resolves past this await, so a
-        // superseded toggle never runs the post-load steps below.
         await this.fetchFieldsKeepLast.add(this.loadFields());
         await this.setDefaultExportList();
         this.state.search = [];
@@ -318,7 +305,6 @@ export class ExportDataDialog extends Component {
                 export_id: Number(value),
             }),
         );
-        // Don't save the result in this.knownFields: it's only partial
         this.state.exportList = fields;
     }
 
@@ -332,7 +318,6 @@ export class ExportDataDialog extends Component {
         let parentField, parentParams;
         if (id) {
             if (this.expandedFields[id]) {
-                // we don't make a new RPC if the value is already known
                 return this.expandedFields[id].fields;
             }
             parentField = this.knownFields[id];
@@ -347,15 +332,9 @@ export class ExportDataDialog extends Component {
         if (preventLoad) {
             return;
         }
-        // Capture the compat mode this request is for: a rapid toggle of the
-        // "import-compatible" checkbox can flip this.isCompatible while the RPC
-        // is in flight. The two modes return different field sets, so a stale
-        // response must not be merged into the shared knownFields/expandedFields
-        // caches of the (now current) opposite mode — that would mix them.
         const isCompatible = this.isCompatible;
         const fields = await this.props.getExportedFields(isCompatible, parentParams);
         if (isCompatible !== this.isCompatible) {
-            // Superseded by a later toggle: drop the result without caching it.
             return fields;
         }
         for (const field of fields) {
@@ -459,8 +438,6 @@ export class ExportDataDialog extends Component {
                 this.availableFormats[this.state.selectedFormat].tag,
             );
         } finally {
-            // Re-enable the button even if the download rejects, otherwise a
-            // single failed export would leave it permanently disabled.
             this.state.disabled = false;
         }
     }
@@ -474,10 +451,13 @@ export class ExportDataDialog extends Component {
                 await this.orm.unlink("ir.exports", [id], {
                     context: this.props.context,
                 });
-                this.templates.splice(
-                    this.templates.findIndex((i) => i.id === id),
-                    1,
-                );
+                // Guarded: a miss makes findIndex answer -1, and splice reads
+                // that as "one from the end" — silently dropping whichever
+                // template happens to be last instead of the deleted one.
+                const index = this.templates.findIndex((i) => i.id === id);
+                if (index !== -1) {
+                    this.templates.splice(index, 1);
+                }
                 this.state.templateId = null;
                 this.setDefaultExportList();
             },
@@ -497,8 +477,6 @@ export class ExportDataDialog extends Component {
         let lookupResult = fuzzyLookup(
             value,
             Object.values(this.knownFields),
-            // fuzzyLookup gives a higher score if the string starts with the pattern,
-            // reversing the string makes the search more reliable in this context
             (field) => field.string.split("/").reverse().join("/"),
         );
         if (this.isDebug) {

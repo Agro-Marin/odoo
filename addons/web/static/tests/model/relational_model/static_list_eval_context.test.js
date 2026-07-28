@@ -98,8 +98,6 @@ test(`editing an unrelated parent field does not recompute sub-record eval conte
 
     await root.update({ name: "o2" });
 
-    // The parent recomputes; the three child lines must NOT (name is not part of
-    // the line_ids field context). Before the fix this was 3+.
     expect(calls["order.line"] || 0).toBe(0);
     expect(calls["order"] || 0).toBeGreaterThan(0);
 });
@@ -126,7 +124,5 @@ test(`editing a parent field the x2many context depends on still recomputes sub-
 
     await root.update({ name: "o2" });
 
-    // The field context references `name`, so it changes and the sub-records must
-    // be recomputed (guard must not over-skip).
     expect(calls["order.line"] || 0).toBeGreaterThan(0);
 });

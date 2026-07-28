@@ -15,19 +15,11 @@ import { HootError, levenshtein, normalize, stringify, stringToNumber } from "..
  * }} TagDefinition
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const {
     Math: { ceil: $ceil, max: $max },
     Object: { create: $create, keys: $keys },
     Set,
 } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * Checks for similarity with other existing tag names.
@@ -60,25 +52,21 @@ function checkTagSimilarity(tagKey, tagName) {
 const R_UNIQUE_TAG = /\d/;
 const SIMILARITY_PERCENTAGE = 0.1;
 const TAG_COLORS = [
-    ["#f97316", "#ffedd5"], // orange
-    ["#eab308", "#fef9c3"], // yellow
-    ["#84cc16", "#ecfccb"], // lime
-    ["#10b981", "#d1fae5"], // emerald
-    ["#06b6d4", "#cffafe"], // cyan
-    ["#3b82f6", "#dbeafe"], // blue
-    ["#6366f1", "#e0e7ff"], // indigo
-    ["#d946ef", "#fae8ff"], // fuschia
-    ["#f43f5e", "#ffe4e6"], // rose
+    ["#f97316", "#ffedd5"],
+    ["#eab308", "#fef9c3"],
+    ["#84cc16", "#ecfccb"],
+    ["#10b981", "#d1fae5"],
+    ["#06b6d4", "#cffafe"],
+    ["#3b82f6", "#dbeafe"],
+    ["#6366f1", "#e0e7ff"],
+    ["#d946ef", "#fae8ff"],
+    ["#f43f5e", "#ffe4e6"],
 ];
 
 /** @type {Record<string, Tag>} */
 const existingTags = $create(null);
 /** @type {[string, string][]} */
 const similarities = [];
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
 
 /**
  * @param {Job} job

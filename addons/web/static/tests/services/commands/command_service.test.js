@@ -53,7 +53,6 @@ beforeEach(async () => {
     });
     await makeMockEnv();
     const commandCategoryRegistry = registry.category("command_categories");
-    // Adding default last. The order of insertion of categories matters
     commandCategoryRegistry.remove("default");
     commandCategoryRegistry
         .add("custom-nolabel", {})
@@ -86,13 +85,11 @@ test("'command' provider does not mutate the registered command's category", asy
         global: true,
         category: "invalid-category",
     });
-    // getCommands() returns the live registration objects.
     const registeredBefore = command
         .getCommands(ui.activeElement)
         .find((c) => c.name === "Do a thing");
     expect(registeredBefore.category).toBe("invalid-category");
 
-    // The provider normalizes the unknown category in its OUTPUT only, without rewriting the registration.
     const provider = commandProviderRegistry.get("command");
     provider.provide(getMockEnv(), { activeElement: ui.activeElement });
 
@@ -117,7 +114,6 @@ test("same-name commands with distinct identifiers are disambiguated at read tim
         "Assign to (Salesperson)",
         "Assign to (Technician)",
     ]);
-    // Registrations are not renamed in place: the name heals once the clashing command unregisters.
     remove2();
     expect(command.getCommands(ui.activeElement).map((c) => c.name)).toEqual([
         "Assign to",
@@ -445,7 +441,6 @@ test("data-hotkey added to command palette", async () => {
     expect(".o_command_palette").toHaveCount(0);
     expect("input[title='Bran Stark']").toBeFocused();
 
-    // only step should come from the first command execution
     expect.verifySteps(["Hodor"]);
 });
 
@@ -1083,7 +1078,6 @@ test("reconfiguring an open palette composes onClose callbacks", async () => {
     await animationFrame();
     expect(".o_command_palette").toHaveCount(1);
 
-    // Reconfigure while open: the first opener's cleanup must still run.
     command.openMainPalette({}, () => {
         expect.step("onClose 2");
     });
@@ -1169,11 +1163,9 @@ test("ensure that calling openPalette multiple times successfully loads the last
     expect(".o_command_palette").toHaveCount(0);
     providePromise1.resolve();
     await animationFrame();
-    // First config should not be loaded since a second config was sent.
     expect(".o_command_palette").toHaveCount(0);
     providePromise2.resolve();
     await animationFrame();
-    // Second config should be loaded properly.
     expect(".o_command").toHaveCount(1);
     expect(queryAllTexts(".o_command .o_command_name")).toEqual(["Command2"]);
     expect(".o_command_palette_search input").toHaveValue("Command");

@@ -8,7 +8,7 @@ import {
     sections,
     symmetricalDifference,
 } from "@web/core/utils/collections/arrays";
-import { KeepLast, Mutex, Race } from "@web/core/utils/concurrency";
+import { InFlight, KeepLast, Mutex } from "@web/core/utils/concurrency";
 import { addPropertyFieldDefs, Model } from "@web/model/model";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
 import {
@@ -331,8 +331,6 @@ import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
 const SUPERSEDED = Symbol("superseded");
 
 export class PivotModel extends Model {
-    // The renderer subscribes to notify() itself via useReactiveModel;
-    // the legacy deep-render bus listener is not needed (model.js).
     static reactiveRenderers = true;
 
     /**
@@ -355,38 +353,21 @@ export class PivotModel extends Model {
      * @param {Object} [params.data] previously exported data
      */
     setup(params) {
-        // Concurrency policy
-        // ------------------
-        // Two interaction classes, two behaviours:
-        //
-        // - LOADS (load, expandAll, toggleMeasure) rebuild the whole table.
-        //   They go through `this.race` + `this.keepLast`: last one wins, an
-        //   in-flight load is silently superseded.
-        // - STRUCTURE MUTATIONS (expandGroup, addGroupBy, closeGroup) refine
-        //   the current table. They QUEUE on `this.expandMutex` so
-        //   back-to-back clicks are never lost and never interleave (a close
-        //   running mid-expansion would pull tree nodes from under
-        //   _prepareData).
-        //
-        // Across classes: every entry point DROPS the interaction while a
-        // load is in flight (`race.getCurrentProm()`), because it targets a
-        // table about to be replaced ("sort rows while loading a filter" &
-        // co. pin this); queued mutations re-check that guard when they
-        // dequeue, so they never clobber a load that started while they
-        // waited. Conversely a load fired while a mutation's RPC is pending
-        // supersedes it: the mutexed callback then settles with SUPERSEDED
-        // and discards its result (see _keepLastAdd) instead of hanging the
-        // mutex queue forever, as a bare KeepLast.add would.
-        // sortRows is synchronous and only race-guarded (no RPC).
         this.keepLast = new KeepLast();
-        this.race = new Race();
         this.expandMutex = new Mutex();
         /** @type {((value: typeof SUPERSEDED) => void)[]} */
         this._supersessionWatchers = [];
+        this.loads = new InFlight();
         /** @type {(...args: any[]) => any} */
         const _loadData = this._loadData.bind(this);
-        /** @type {any} */
-        this._loadData = (...args) => this.race.add(_loadData(...args));
+        /**
+         * Was a shared ``Race``, which broke both jobs it was doing here — see
+         * {@link InFlight}: callers got whichever load finished first instead of
+         * their own result, and the "a load is running" guard went idle while
+         * later loads were still pending.
+         * @type {any}
+         */
+        this._loadData = (...args) => this.loads.track(_loadData(...args));
 
         let sortedColumn = params.metaData.sortedColumn || null;
         if (!sortedColumn && params.metaData.defaultOrder) {
@@ -421,14 +402,10 @@ export class PivotModel extends Model {
         };
         this.metaData = this._buildMetaData(metaData);
 
-        this.reload = false; // used to discriminate between the first load and subsequent reloads
-        this.lastPivotMeasuresKey = undefined; // last consumed context.pivot_measures (JSON), for change detection
-        this.nextActiveMeasures = null; // allows to toggle several measures consecutively
+        this.reload = false;
+        this.lastPivotMeasuresKey = undefined;
+        this.nextActiveMeasures = null;
     }
-
-    //--------------------------------------------------------------------------
-    // Public
-    //--------------------------------------------------------------------------
 
     /**
      * Add a groupBy to rowGroupBys or colGroupBys according to provided type.
@@ -441,15 +418,15 @@ export class PivotModel extends Model {
      * @param {string} [params.interval]
      */
     async addGroupBy(params) {
-        if (this.race.getCurrentProm()) {
-            return; // we are currently reloading the table
+        if (this.loads.isBusy) {
+            return;
         }
 
         const { groupId, fieldName, type, custom } = params;
         let { interval } = params;
         await this.expandMutex.exec(async () => {
-            if (this.race.getCurrentProm()) {
-                return; // a reload started while queued: it replaces the table
+            if (this.loads.isBusy) {
+                return;
             }
             const metaData = this._buildMetaData();
             if (custom && !metaData.customGroupBys.has(fieldName)) {
@@ -474,23 +451,13 @@ export class PivotModel extends Model {
             }
             const config = { metaData, data: this.data };
             if (!(await this._expandGroup(groupId, type, config))) {
-                return; // superseded by a reload: the table was replaced
+                return;
             }
-            // Merge only THIS mutation's delta (customGroupBys + expanded
-            // groupBys) into the CURRENT metaData: while the expansion RPC was
-            // in flight, an interleaved toggleMeasure (remove path) may have
-            // replaced this.metaData and an interleaved sortRows may have
-            // mutated its sortedColumn — both run outside the expandMutex.
-            // Assigning the pre-RPC snapshot wholesale here used to resurrect
-            // the removed measure / the stale sort indicator.
             const mergedMetaData = this._buildMetaData();
             mergedMetaData.customGroupBys = metaData.customGroupBys;
             mergedMetaData.expandedRowGroupBys = metaData.expandedRowGroupBys;
             mergedMetaData.expandedColGroupBys = metaData.expandedColGroupBys;
             if (mergedMetaData.sortedColumn) {
-                // aggregateSubdivisions re-sorted the tree with the SNAPSHOT's
-                // sortedColumn; re-apply the current one so the row order
-                // matches the indicator (idempotent when they are the same).
                 this._sortRows(mergedMetaData.sortedColumn, {
                     metaData: mergedMetaData,
                     data: this.data,
@@ -507,13 +474,13 @@ export class PivotModel extends Model {
      * @param {'row'|'col'} type
      */
     async closeGroup(groupId, type) {
-        if (this.race.getCurrentProm()) {
-            return; // we are currently reloading the table
+        if (this.loads.isBusy) {
+            return;
         }
 
         await this.expandMutex.exec(() => {
-            if (this.race.getCurrentProm()) {
-                return; // a reload started while queued: it replaces the table
+            if (this.loads.isBusy) {
+                return;
             }
             let groupBys;
             let expandedGroupBys;
@@ -534,14 +501,11 @@ export class PivotModel extends Model {
                 keyPart = 1;
             }
             if (!group) {
-                return; // a queued mutation already removed this group
+                return;
             }
 
             const groupIdPart = groupId[keyPart];
             const range = groupIdPart.map((_, index) => index);
-            // The four cell maps share the same key set (see
-            // aggregateSubdivisions): parse and evaluate each key once
-            // instead of once per map.
             const keepByKey = new Map();
             function keep(key) {
                 let kept = keepByKey.get(key);
@@ -584,12 +548,13 @@ export class PivotModel extends Model {
      * Reload the view with the current rowGroupBys and colGroupBys.
      */
     async expandAll() {
-        if (this.race.getCurrentProm()) {
-            return; // a load is already in flight (matches expandGroup/sortRows/addGroupBy)
+        if (this.loads.isBusy) {
+            return;
         }
         const config = { metaData: this.metaData, data: this.data };
-        await this._loadData(config, false);
-        this.notify();
+        if (await this._loadData(config, false)) {
+            this.notify();
+        }
     }
     /**
      * Expand a group by using groupBy to split it and trigger a re-rendering.
@@ -598,13 +563,13 @@ export class PivotModel extends Model {
      * @param {'row'|'col'} type
      */
     async expandGroup(groupId, type) {
-        if (this.race.getCurrentProm()) {
-            return; // we are currently reloading the table
+        if (this.loads.isBusy) {
+            return;
         }
 
         await this.expandMutex.exec(async () => {
-            if (this.race.getCurrentProm()) {
-                return; // a reload started while queued: it replaces the table
+            if (this.loads.isBusy) {
+                return;
             }
             const config = { metaData: this.metaData, data: this.data };
             if (await this._expandGroup(/** @type {any} */ (groupId), type, config)) {
@@ -625,32 +590,16 @@ export class PivotModel extends Model {
      * Swap the pivot columns and the rows.
      */
     async flip() {
-        // Wait for any in-flight LOAD, then transpose the resulting table
-        // (unlike closeGroup, flip stays meaningful across a load, so it
-        // defers rather than drops — pinned by "flip axis while loading").
-        await this.race.getCurrentProm();
-        // ...but also serialize with STRUCTURE MUTATIONS on the expandMutex:
-        // expandGroup/addGroupBy run their RPCs under expandMutex (untracked
-        // by `this.race`), so an expansion landing mid-flip would write
-        // UNTWISTED [rowValues, colValues] keys into the already-swapped trees,
-        // corrupting cells until the next full load.
+        await this.loads.whenIdle();
         await this.expandMutex.exec(async () => {
-            // A load may have started while we were queued on the mutex; wait
-            // it out too so we transpose the freshest table, not a stale one.
-            await this.race.getCurrentProm();
-            // swap the data: the main column and the main row
+            await this.loads.whenIdle();
             let temp = this.data.rowGroupTree;
             this.data.rowGroupTree = this.data.colGroupTree;
             this.data.colGroupTree = temp;
 
-            // The transposed trees carry sortedKeys computed against their
-            // pre-flip axis; the sort no longer applies (sortedColumn is reset
-            // below), and leaving them stale would make a later expand render
-            // no children (sortedKeys iterated instead of the fresh Map keys).
             stripSortedKeys(this.data.rowGroupTree);
             stripSortedKeys(this.data.colGroupTree);
 
-            // we need to update the record metaData: (expanded) row and col groupBys
             temp = this.metaData.rowGroupBys;
             this.metaData.rowGroupBys = this.metaData.colGroupBys;
             this.metaData.colGroupBys = temp;
@@ -675,10 +624,6 @@ export class PivotModel extends Model {
             this.data.counts = twist(this.data.counts);
             this.data.groupDomains = twist(this.data.groupDomains);
 
-            // The sorted column's groupId is expressed in PRE-flip coordinates:
-            // after the swap it denotes a row, so any later load/expand would
-            // re-sort the rows against a stale or foreign column. Resetting is
-            // the safe option (transposing is only valid for the Total column).
             this.metaData.sortedColumn = null;
 
             this.notify();
@@ -740,12 +685,6 @@ export class PivotModel extends Model {
      */
     async load(searchParams) {
         this.searchParams = searchParams;
-        // pivot_measures from the favorite/action context seeds the active
-        // measures when the favorite is (de)activated — i.e. when its value
-        // changes — but must NOT keep re-overriding a measure toggled through
-        // the UI on every later reload while the same favorite stays active.
-        // We therefore consume it only when the context value actually changes
-        // (compared by value: the search model may rebuild the array each load).
         const rawPivotMeasures = searchParams.context.pivot_measures;
         const pivotMeasuresKey = JSON.stringify(rawPivotMeasures ?? null);
         let processedMeasures = null;
@@ -755,13 +694,6 @@ export class PivotModel extends Model {
         }
         const activeMeasures = processedMeasures || this.metaData.activeMeasures;
         const metaData = this._buildMetaData({ activeMeasures });
-        // Copy every source array into metaData: ``closeGroup`` splices
-        // ``metaData.rowGroupBys``/``colGroupBys`` in place, so metaData must
-        // OWN them. ``searchParams.context.pivot_{row,column}_groupby`` is the
-        // action's context array returned by reference (unlike the groupBy
-        // getter, which already deep-copies for exactly this reason), so without
-        // the copy a collapsed group permanently truncates the action's declared
-        // grouping for the rest of its lifetime.
         if (!this.reload) {
             metaData.rowGroupBys = [
                 ...(searchParams.context.pivot_row_groupby ||
@@ -804,10 +736,6 @@ export class PivotModel extends Model {
             metaData.fieldAttrs,
             [...allActivesMeasures],
         );
-        // A stale favorite/context measure (removed or renamed field) has no
-        // entry in `measures`; keep it in activeMeasures and the renderer's
-        // `measures[measure].type` dereference crashes the whole view. Drop it
-        // instead, falling back to __count so the pivot stays usable.
         metaData.activeMeasures = dropUnknownMeasures(
             metaData.activeMeasures,
             metaData.measures,
@@ -828,8 +756,8 @@ export class PivotModel extends Model {
      * @param {Object} sortedColumn
      */
     sortRows(sortedColumn) {
-        if (this.race.getCurrentProm()) {
-            return; // we are currently reloading the table
+        if (this.loads.isBusy) {
+            return;
         }
 
         const config = { metaData: this.metaData, data: this.data };
@@ -852,14 +780,8 @@ export class PivotModel extends Model {
         const index = activeMeasures.indexOf(fieldName);
         if (index !== -1) {
             activeMeasures.splice(index, 1);
-            // Removing a measure needs no reload, but a load may be in
-            // flight (or start while we wait): wait the table out, then
-            // rebuild from the CURRENT metaData so the landed load's
-            // groupBys/data stay paired. Assigning a pre-await snapshot
-            // here used to revert metaData under the fresh data and crash
-            // the renderer.
-            while (this.race.getCurrentProm()) {
-                await this.race.getCurrentProm();
+            while (this.loads.isBusy) {
+                await this.loads.whenIdle();
             }
             const metaData = this._buildMetaData();
             metaData.activeMeasures = activeMeasures;
@@ -869,16 +791,14 @@ export class PivotModel extends Model {
             const metaData = this._buildMetaData();
             metaData.activeMeasures = activeMeasures;
             const config = { metaData, data: this.data };
-            await this._loadData(config);
+            if (!(await this._loadData(config))) {
+                return;
+            }
             this.useSampleModel = false;
         }
         this.nextActiveMeasures = null;
         this.notify();
     }
-
-    //--------------------------------------------------------------------------
-    // Protected
-    //--------------------------------------------------------------------------
 
     /**
      * Return a copy of this.metaData, extended with optional params.
@@ -993,6 +913,13 @@ export class PivotModel extends Model {
      * @protected
      * @param {Config} config
      * @param {boolean} prune
+     * @returns {Promise<boolean>} false when the fetch was superseded by a newer
+     *   request and this load's result discarded — same contract as
+     *   ``_subdivideGroup`` / ``_expandGroup``, so callers skip their follow-up
+     *   (notify, flag updates) instead of acting on data that never landed.
+     *   This used to return a promise that never settled, which left the
+     *   awaiting caller — and any mutation queued behind it — pending forever
+     *   whenever the shared ``race`` did not happen to settle it first.
      */
     async _loadData(config, prune = true) {
         config.data = /** @type {any} */ ({});
@@ -1019,15 +946,9 @@ export class PivotModel extends Model {
         const divisors = cartesian(leftDivisors, rightDivisors);
 
         if (!(await this._subdivideGroup(group, divisors, config))) {
-            // Superseded by a newer load: leave the state to it and never
-            // settle (KeepLast semantics). The shared race must stay pending
-            // until the superseding load finishes, so the race-guards on
-            // mutations keep dropping clicks meanwhile; callers only ever
-            // await the race promise, which the newer load resolves.
-            return new Promise(() => {});
+            return false;
         }
 
-        // keep folded groups folded after the reload if the structure of the table is the same
         if (prune && hasData(data) && hasData(this.data)) {
             if (
                 symmetricalDifference(metaData.rowGroupBys, this.metaData.rowGroupBys)
@@ -1045,6 +966,7 @@ export class PivotModel extends Model {
 
         this.data = config.data;
         this.metaData = config.metaData;
+        return true;
     }
     /**
      * Extract the information in the read_group results and develop
@@ -1074,9 +996,6 @@ export class PivotModel extends Model {
         const { data } = config;
         const key = JSON.stringify([group.rowValues, group.colValues]);
 
-        // A group KNOWN to be empty (count 0) needs no fetch; an unknown
-        // count (key absent) must fetch. (`!counts[key] || counts[key] > 0`
-        // was a tautology — count 0 still fetched.)
         if (!(key in data.counts) || data.counts[key] > 0) {
             const subGroup = {
                 rowValues: group.rowValues,

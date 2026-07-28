@@ -46,8 +46,6 @@ function makeSearchModel(overrides = {}) {
         clearQuery() {
             this.query = [];
         },
-        // Provided by SearchQueryMixin in the real SearchModel stack; stubbed
-        // here since this suite exercises SearchFavoritesMixin in isolation.
         _withNotificationsBlocked(fn) {
             const wasBlocked = this.blockNotification;
             this.blockNotification = true;
@@ -57,9 +55,7 @@ function makeSearchModel(overrides = {}) {
                 this.blockNotification = wasBlocked;
             }
         },
-        // Stub: returns a serverSideId without a real ORM call.
         _createIrFilters: async () => 42,
-        // Stub: always returns a private-user preFavorite.
         _getIrFilterDescription: () => ({
             preFavorite: { userIds: [1], domain: "[]", context: {}, orderedBy: [] },
             irFilter: { name: "My Fav", domain: "[]", context: {} },
@@ -69,8 +65,6 @@ function makeSearchModel(overrides = {}) {
     });
     return model;
 }
-
-// createNewFavorite
 
 describe("createNewFavorite", () => {
     test("creates a favorite item and returns serverSideId", async () => {
@@ -84,7 +78,7 @@ describe("createNewFavorite", () => {
     });
 
     test("private favorite gets FAVORITE_PRIVATE_GROUP number", async () => {
-        const model = makeSearchModel(); // mock returns userIds: [1]
+        const model = makeSearchModel();
 
         await model.createNewFavorite({});
 
@@ -111,11 +105,10 @@ describe("createNewFavorite", () => {
 
     test("clears existing query before activating the favorite", async () => {
         const model = makeSearchModel();
-        model.query = [{ searchItemId: 99 }]; // pre-existing active filter
+        model.query = [{ searchItemId: 99 }];
 
         await model.createNewFavorite({});
 
-        // After clearQuery + push favorite: only the new favorite is in query
         expect(model.query.length).toBe(1);
         expect(model.query[0].searchItemId).toBe(1);
     });

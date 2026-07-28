@@ -32,7 +32,7 @@ defineModels([Currency]);
 describe.current.tags("headless");
 
 beforeEach(async () => {
-    await makeMockEnv(); // To start the localization service
+    await makeMockEnv();
 });
 
 test("formatCurrency", async () => {
@@ -87,7 +87,6 @@ test("getCurrencyRates hands every caller the same updated object", async () => 
         ];
     });
 
-    // Concurrent callers share one in-flight RPC and one reactive object.
     const [rates1, rates2] = await Promise.all([
         getCurrencyRates(),
         getCurrencyRates(),
@@ -96,8 +95,6 @@ test("getCurrencyRates hands every caller the same updated object", async () => 
     expect(rates1[2].rate).toBe(0.5);
     expect.verifySteps(["read rates"]);
 
-    // After a cache invalidation, the refetch updates the SAME object, so
-    // earlier consumers holding rates1 observe the refreshed rate.
     inverseRate = 0.75;
     rpcBus.dispatchEvent(
         new CustomEvent(RpcEvent.CLEAR_CACHES, {

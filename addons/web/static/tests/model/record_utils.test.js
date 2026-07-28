@@ -293,15 +293,7 @@ describe("computeChangeset", () => {
         expect(result.tag_ids).toEqual([]);
     });
 
-    // Defensive normalization for the urgent (tab-close) save path, where the
-    // 6 async preprocessors have NOT run, so `_changes` can still hold raw,
-    // un-preprocessed values. computeChangeset must degrade gracefully instead
-    // of emitting an `undefined` (silently dropped by JSON.stringify) or
-    // throwing a TypeError that aborts the whole sendBeacon save.
-
     test("drops a many2one still awaiting name_create (truthy value, no id)", () => {
-        // An m2o quick-create not yet resolved: `{display_name}` with no id.
-        // formatServerValue → undefined; the key must be dropped, not emitted.
         const result = computeChangeset({
             changes: {
                 name: "kept",
@@ -315,14 +307,10 @@ describe("computeChangeset", () => {
             getCommands: noopGetCommands,
         });
         expect("partner_id" in result).toBe(false);
-        // Every OTHER (serializable) field still survives the save.
         expect(result.name).toBe("kept");
     });
 
     test("treats a raw x2many command array (non-StaticList) as no commands", () => {
-        // Un-preprocessed x2many: the raw command array the field dispatched,
-        // NOT the StaticList _applyCommands would have installed. It has no
-        // _getCommands — calling it used to throw and abort the whole save.
         const rawCommandArray = [[0, 0, { name: "child" }]];
         let getCommandsCalled = false;
         const result = computeChangeset({
@@ -332,7 +320,6 @@ describe("computeChangeset", () => {
             fields,
             activeFields,
             evalContext: {},
-            // Must never be reached for the raw array (would TypeError on it).
             getCommands: () => {
                 getCommandsCalled = true;
                 return rawCommandArray;
@@ -359,8 +346,6 @@ describe("computeChangeset", () => {
     });
 
     test("skips fields not in activeFields for readonly check", () => {
-        // A field may exist in `fields` but not in `activeFields` (e.g., computed
-        // fields fetched by default but not in the view). These should pass through.
         const result = computeChangeset({
             changes: { name: "test" },
             values: {},

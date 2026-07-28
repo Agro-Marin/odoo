@@ -36,9 +36,6 @@ export class Setting extends Component {
     setup() {
         if (this.props.fieldName) {
             this.fieldType = this.props.record.fields[this.props.fieldName].type;
-            // exprToBoolean: accept "1" / "true" / "True" like every other
-            // boolean-ish arch attribute. Matching only the exact "True"
-            // spelling silently mis-styled the label for the "1"/"true" forms.
             if (exprToBoolean(this.props.fieldInfo.readonly)) {
                 this.notMuttedLabel = true;
             }

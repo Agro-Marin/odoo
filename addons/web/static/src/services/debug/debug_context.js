@@ -8,11 +8,6 @@ import { Registry, registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 const debugRegistry = registry.category("debug");
 
-// ``debug`` is a parent-only registry: entries are lazily-created sub-Registry
-// instances (``debugRegistry.category(name)``), and items are added to those
-// sub-registries, never directly to the parent. This validation catches a
-// caller mistakenly calling ``debugRegistry.add(...)``, which would silently
-// shadow a sub-registry and break ``getItems()`` below.
 debugRegistry.addValidation((entry) => entry instanceof Registry);
 
 /**

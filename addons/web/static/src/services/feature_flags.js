@@ -25,15 +25,21 @@ import { session } from "@web/session";
  *      ``models/ir_http.py``). Deployment-wide rollout knob.
  *   4. ``options.default`` (``false`` if omitted).
  *
- * Pure function, no service: flags are read on hot paths (boot,
- * per-render, per-RPC) where routing through ``useService`` would force
- * every call site into a component. URL and localStorage are read
- * eagerly and cached for the session (O(1) lookups thereafter); the
- * server dict is captured at module load and never refetched — reload
- * is the upgrade path. Flag names are free-form (``snake_case``
- * convention, no ``.``/``:``/``,`` — reserved for the URL parser). The
- * cache is keyed by ``name`` alone — encode any sub-dimension into the
- * name itself (``web.perf_marks.boot``) rather than threading params.
+ * Pure function, no service: it must be callable from module scope and
+ * from non-component code, where routing through ``useService`` would
+ * force every call site into a component.
+ *
+ * COST — only the URL param is parsed once and cached. Each call still
+ * does a synchronous ``localStorage.getItem`` and a ``session`` lookup,
+ * so resolution is NOT free. Callers on a render/RPC path must hoist the
+ * result to a module-level ``const`` (as ``@web/model/model`` does)
+ * rather than re-resolving per invocation. The server dict is captured
+ * at module load and never refetched — reload is the upgrade path.
+ *
+ * Flag names are free-form (``snake_case`` convention, no ``.``/``:``/
+ * ``,`` — reserved for the URL parser). Resolution is keyed by ``name``
+ * alone — encode any sub-dimension into the name itself
+ * (``web.perf_marks.boot``) rather than threading params.
  */
 
 /** @typedef {boolean | number | string | null} FeatureFlagValue */
@@ -62,26 +68,64 @@ const URL_PARAM_NAME = "features";
  * @returns {FeatureFlagValue}
  */
 function _parseValue(raw) {
-    if (raw === "true") {
+    // Trim FIRST: the literals used to be compared against the untrimmed
+    // string, so `?features=x: false` yielded the string " false" — truthy,
+    // silently ENABLING a flag the URL was disabling.
+    const trimmed = raw.trim();
+    if (trimmed === "true") {
         return true;
     }
-    if (raw === "false") {
+    if (trimmed === "false") {
         return false;
     }
-    if (raw === "null") {
+    if (trimmed === "null") {
         return null;
     }
-    const trimmed = raw.trim();
     if (trimmed === "") {
-        // Empty string after a colon (``name:``) — treat as boolean true so
-        // a flag toggle still works when the operator forgets the value.
         return true;
     }
     const n = Number(trimmed);
     if (Number.isFinite(n) && /^-?(\d+\.?\d*|\.\d+)$/.test(trimmed)) {
         return n;
     }
-    return raw;
+    // A double-quoted token is the escape hatch {@link _serializeValue} uses for
+    // strings whose bare form the branches above would claim ("true", "42", "").
+    if (trimmed.length >= 2 && trimmed.startsWith(`"`) && trimmed.endsWith(`"`)) {
+        try {
+            const unquoted = JSON.parse(trimmed);
+            if (typeof unquoted === "string") {
+                return unquoted;
+            }
+        } catch {
+            // Not valid JSON — fall through and keep the raw token.
+        }
+    }
+    return trimmed;
+}
+
+/**
+ * Inverse of {@link _parseValue}, so a value written by
+ * {@link setFeatureFlag} reads back as itself.
+ *
+ * ``String(value)`` was not an inverse: the parser reserves ``"true"``,
+ * ``"false"``, ``"null"``, ``""`` and anything numeric-looking, so a
+ * legitimate STRING flag with one of those shapes came back as the
+ * corresponding literal — ``setFeatureFlag("x", "true")`` resolved to the
+ * boolean ``true``, and ``setFeatureFlag("x", "")`` to ``true`` as well
+ * (the empty token is the bare-name "enabled" form). Strings that would
+ * be misread are quoted; the parser strips the quotes on the way back.
+ *
+ * @param {FeatureFlagValue} value
+ * @returns {string}
+ */
+function _serializeValue(value) {
+    if (typeof value !== "string") {
+        return String(value);
+    }
+    if (value !== value.trim() || _parseValue(value) !== value) {
+        return JSON.stringify(value);
+    }
+    return value;
 }
 
 /**
@@ -213,7 +257,9 @@ export function featureFlag(name, options = {}) {
     if (fromServer !== undefined) {
         return fromServer;
     }
-    return options.default ?? false;
+    // `??` would swallow an explicit `default: null` — a legal
+    // FeatureFlagValue, and the only way to express "unset" as a value.
+    return options.default === undefined ? false : options.default;
 }
 
 /**
@@ -226,7 +272,7 @@ export function featureFlag(name, options = {}) {
  */
 export function setFeatureFlag(name, value) {
     try {
-        browser.localStorage?.setItem(LS_PREFIX + name, String(value));
+        browser.localStorage?.setItem(LS_PREFIX + name, _serializeValue(value));
     } catch {
         // ignore — private mode, quota, sandbox, etc.
     }

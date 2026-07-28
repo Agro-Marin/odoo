@@ -28,15 +28,14 @@ test("fuzzyLookup", () => {
         { name: "Jérémy Red" },
         { name: "Jane Yellow" },
     ]);
-    expect(fuzzyLookup("", data, (d) => d.name)).toEqual([]);
+    // An empty pattern constrains nothing, so it matches everything in order.
+    expect(fuzzyLookup("", data, (d) => d.name)).toEqual(data);
     expect(fuzzyLookup("สมศ", data, (d) => d.name)).toEqual([{ name: "สมศรี จู่โจม" }]);
 });
 
 test("fuzzyLevenshteinLookup", () => {
     const words = ["apple", "apply", "ape", "maple", "application", "banana"];
 
-    // Exact substrings (score 0) first, then fuzzy matches by edit distance.
-    // Equal-length candidates like "ape" (1 edit: p→e) are not excluded.
     expect(fuzzyLevenshteinLookup("app", words)).toEqual([
         "apple",
         "apply",
@@ -44,36 +43,21 @@ test("fuzzyLevenshteinLookup", () => {
         "ape",
     ]);
 
-    // "maple" contains "aple" as substring (score 0), "apple" and "ape" are
-    // 1 edit away (score 1).  Best matches first.
     expect(fuzzyLevenshteinLookup("aple", words)).toEqual(["maple", "apple", "ape"]);
 
-    // No match within error ratio
     expect(fuzzyLevenshteinLookup("xyz", words)).toEqual([]);
 
-    // Empty pattern — every candidate contains "" as substring
     expect(fuzzyLevenshteinLookup("", words)).toEqual(words);
 
-    // Single character — maxNbrCorrection = round(1/3) = 0: only exact substrings
     expect(fuzzyLevenshteinLookup("b", words)).toEqual(["banana"]);
 
-    // errorRatio=5 → maxNbrCorrection = round(4/5) = 1: same as default for "aple"
     expect(fuzzyLevenshteinLookup("aple", words, 5)).toEqual(["maple", "apple", "ape"]);
-    // errorRatio=100 → maxNbrCorrection = round(4/100) = 0: only exact substrings
     expect(fuzzyLevenshteinLookup("aple", words, 100)).toEqual(["maple"]);
 });
 
 test("fuzzyLookup: very long consecutive matches keep a finite, ordered score", () => {
-    // The consecutive-run bonus doubles per matched character; uncapped it
-    // overflows to Infinity after ~1000 characters, making every long match
-    // compare as equal and degenerating the ranking.
     const long = "a".repeat(5000);
-    const data = [
-        // Matches the pattern, but with a break in the middle: must rank
-        // BELOW the fully-consecutive candidate.
-        { name: `${"a".repeat(2500)}-${"a".repeat(2500)}` },
-        { name: long },
-    ];
+    const data = [{ name: `${"a".repeat(2500)}-${"a".repeat(2500)}` }, { name: long }];
     const results = fuzzyLookup(long, data, (d) => d.name);
     expect(results[0]).toEqual({ name: long });
     expect(results.length).toBe(2);

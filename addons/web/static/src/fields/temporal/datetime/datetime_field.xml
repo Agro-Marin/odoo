@@ -3,7 +3,6 @@
     <t t-name="web.DateTimeField">
         <t t-set="showSeparator" t-value="shouldShowSeparator()" />
         <div class="d-flex gap-2 align-items-center" t-ref="root">
-            <!-- Start date -->
             <t t-if="props.readonly">
                 <span t-if="!isEmpty(startDateField)" class="text-truncate" t-esc="getFormattedValue(0)" t-att-data-tooltip="getFormattedValue(0, true)"/>
             </t>
@@ -36,12 +35,10 @@
                 </t>
             </t>
 
-            <!-- Separator -->
             <t t-if="showSeparator">
                 <i class="fa-solid fa-arrow-right-long" aria-label="Arrow icon" title="Arrow" />
             </t>
 
-            <!-- End date -->
             <t t-if="endDateField">
                 <t t-if="props.readonly">
                     <span class="text-truncate" t-esc="getFormattedValue(1)" t-att-data-tooltip="getFormattedValue(1, true)"/>

@@ -6,6 +6,7 @@
 import { Component, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { user } from "@web/services/user";
+import { isCompanyAllowed } from "@web/webclient/switch_company_menu/company_selector";
 
 export class SwitchCompanyItem extends Component {
     static template = "web.SwitchCompanyItem";
@@ -26,7 +27,7 @@ export class SwitchCompanyItem extends Component {
 
     /** @returns {boolean} Whether the user is allowed to access this company. */
     get isCompanyAllowed() {
-        return user.allowedCompanies.map((c) => c.id).includes(this.props.company.id);
+        return isCompanyAllowed(this.props.company.id);
     }
 
     /** @returns {boolean} Whether this company is the currently active one. */

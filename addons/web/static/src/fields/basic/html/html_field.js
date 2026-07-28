@@ -3,7 +3,7 @@
 
 /** @module @web/fields/basic/html/html_field - Simple HTML field widget extending TextField for Html columns */
 
-import { registry } from "@web/core/registry";
+import { registerFallbackField } from "@web/fields/_registry";
 import { TextField, textField } from "@web/fields/basic/text/text_field";
 
 /**
@@ -23,7 +23,4 @@ export const htmlField = {
     component: HtmlField,
 };
 
-const fieldsRegistry = registry.category("fields");
-if (!fieldsRegistry.contains("html")) {
-    fieldsRegistry.add("html", htmlField);
-}
+registerFallbackField("html", htmlField);

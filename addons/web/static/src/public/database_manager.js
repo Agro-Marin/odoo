@@ -3,16 +3,9 @@
 
 /** @module @web/public/database_manager - DOM event handlers for the database manager page (eye toggle, modals, master password) */
 
-// The DB manager page's own import map (``database_manager.qweb.html``)
-// exposes only ``bootstrap``/``@popperjs/core``, not the full
-// ``@web/libs/bootstrap`` wrapper (which would pull in the whole
-// ``web.assets_web`` bundle). Importing the wrapper here previously caused
-// an unresolved module specifier that silently dropped every click handler
-// on the page (Backup/Duplicate/Delete/Restore/Create all dead).
 // @ts-ignore — bootstrap is exposed at runtime by the asset bundle, but its types are not part of this fork's npm tree
 import { Modal } from "bootstrap";
 
-// Keep theme in sync if the user changes OS preference while the page is open
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
     document.documentElement.setAttribute(
         "data-bs-theme",
@@ -21,25 +14,29 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e)
 });
 
 document.addEventListener("DOMContentLoaded", function () {
-    // Little eye — use closest() so clicks on the nested <i> icon are also caught
-    document.body.addEventListener("mousedown", function (ev) {
+    // "click" and not "mousedown": the toggle is a button, and a keyboard user
+    // activating it with Enter or Space never produces a mousedown
+    document.body.addEventListener("click", function (ev) {
         const target = /** @type {HTMLElement} */ (ev.target);
         const eyeToggle = target.closest(".o_little_eye");
-        if (eyeToggle) {
-            const closestInputGroup = eyeToggle.closest(".input-group");
-            if (closestInputGroup) {
-                const formControl = /** @type {HTMLInputElement | null} */ (
-                    closestInputGroup.querySelector(".form-control")
-                );
-                if (formControl) {
-                    formControl.type =
-                        formControl.type === "text" ? "password" : "text";
-                }
-            }
+        if (!eyeToggle) {
+            return;
         }
+        const formControl = /** @type {HTMLInputElement | null} */ (
+            eyeToggle.closest(".input-group")?.querySelector(".form-control")
+        );
+        if (!formControl) {
+            return;
+        }
+        const isShown = formControl.type === "password";
+        formControl.type = isShown ? "text" : "password";
+        eyeToggle.setAttribute("aria-pressed", String(isShown));
+        eyeToggle.setAttribute(
+            "aria-label",
+            isShown ? "Hide password" : "Show password",
+        );
     });
 
-    // db modal
     document.body.addEventListener("click", function (ev) {
         const target = /** @type {HTMLElement} */ (ev.target);
         const action = target.closest(".o_database_action");
@@ -47,23 +44,20 @@ document.addEventListener("DOMContentLoaded", function () {
             ev.preventDefault();
             const db = action.getAttribute("data-db");
             const bsTarget = action.getAttribute("data-bs-target");
-            // Guard: a missing/typo'd data-bs-target makes querySelector return
-            // null, and Modal.getOrCreateInstance(null) throws — killing this
-            // click handler for every database action on the page.
             const modalEl = bsTarget && document.querySelector(bsTarget);
             if (!modalEl) {
                 return;
             }
-            const modal = Modal.getOrCreateInstance(modalEl);
-            const inputName = modal._element.querySelector("input[name=name]");
-            if (inputName) {
+            const inputName = /** @type {HTMLInputElement | null} */ (
+                modalEl.querySelector("input[name=name]")
+            );
+            if (inputName && db) {
                 inputName.value = db;
             }
-            modal.show();
+            Modal.getOrCreateInstance(modalEl).show();
         }
     });
 
-    // Delete modal: reset confirm field on open and validate on each keystroke
     const deleteModal = document.querySelector(".o_database_delete");
     if (deleteModal) {
         deleteModal.addEventListener("show.bs.modal", function () {
@@ -105,7 +99,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     });
 
-    // close modal on submit
     const modals = document.querySelectorAll(".modal");
     for (const modalEl of modals) {
         modalEl.addEventListener("submit", function (ev) {
@@ -123,15 +116,12 @@ document.addEventListener("DOMContentLoaded", function () {
                         alert.className = "alert alert-info alert-backup-long";
                         alert.textContent =
                             "The backup is on its way; if your database has a lot of data, you may want to go grab a coffee...";
-                        listGroup.parentNode.insertBefore(alert, listGroup);
+                        listGroup.before(alert);
                     }
                 }
             }
         });
     }
-    // Generate a cryptographically random master password suggestion.
-    // Charset: 32 chars (l/o/0/1 removed to avoid confusion).
-    // Uint8Array values are 0-255; 256 / 32 = 8 exactly → zero modulo bias.
     const charset = "abcdefghijkmnpqrstuvwxyz23456789";
     const bytes = crypto.getRandomValues(new Uint8Array(12));
     let password = "";

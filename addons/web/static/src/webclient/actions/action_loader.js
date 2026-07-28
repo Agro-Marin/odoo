@@ -31,10 +31,10 @@ const actionRegistry = registry.category("actions");
  *  when nothing matches — destructurable either way
  */
 export function resolveClientAction(key) {
-    if (actionRegistry.contains(key)) {
-        return [/** @type {string} */ (key), actionRegistry.get(key)];
+    const registryKey = String(key);
+    if (actionRegistry.contains(registryKey)) {
+        return [registryKey, actionRegistry.get(registryKey)];
     }
-    // No index: the registry is small and this runs once per URL restore.
     return actionRegistry.getEntries().find((entry) => entry[1].path === key) ?? [];
 }
 
@@ -64,7 +64,6 @@ export function resolveClientAction(key) {
  */
 export async function loadAction(actionRequest, context = {}) {
     if (typeof actionRequest === "string" && actionRegistry.contains(actionRequest)) {
-        // actionRequest is a key in the actionRegistry
         return {
             target: "current",
             tag: actionRequest,
@@ -73,7 +72,6 @@ export async function loadAction(actionRequest, context = {}) {
     }
 
     if (typeof actionRequest === "string" || typeof actionRequest === "number") {
-        // actionRequest is an id or an xmlid
         const ctx = makeContext([user.context, context]);
         delete ctx.params;
         const action = await rpc(
@@ -90,9 +88,6 @@ export async function loadAction(actionRequest, context = {}) {
         return { ...action };
     }
 
-    // actionRequest is an object describing the action. The caller is
-    // trusted to pass a well-formed action descriptor here (server-loaded
-    // or hand-built); narrow the `object` param to the Action union.
     return /** @type {Action} */ (actionRequest);
 }
 
@@ -132,7 +127,7 @@ export function makeController(params, am) {
  * @returns {Action} the normalized action (a fresh copy)
  */
 export function preprocessAction(action, context, am) {
-    action = { ...action }; // manipulate a copy to keep cached action unmodified
+    action = { ...action };
     try {
         delete action._originalAction;
         action._originalAction = JSON.stringify(action);
@@ -158,11 +153,9 @@ export function preprocessAction(action, context, am) {
         action.target = action.target || "current";
     }
     if (action.type === "ir.actions.act_window") {
-        // The inner [id, type] literal is a tuple, not a loose array; the
-        // cast keeps the [number|false, string][] element type through .map.
         action.views = action.views.map(
             (v) => /** @type {[number | false, string]} */ ([v[0], v[1]]),
-        ); // copy
+        );
         action.controllers = {};
         if (action.views.every((v) => ["form", "search"].includes(v[1]))) {
             action.views = action.views.filter((v) => v[1] === "form");

@@ -3,6 +3,7 @@
 import { expect, getFixture, test } from "@odoo/hoot";
 import { hover, press, queryAllTexts, queryOne } from "@odoo/hoot-dom";
 import { animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
+import { Component, xml } from "@odoo/owl";
 import {
     clickFieldDropdown,
     clickFieldDropdownItem,
@@ -19,6 +20,7 @@ import {
     onRpc,
     selectFieldDropdownItem,
 } from "@web/../tests/web_test_helpers";
+import { registry } from "@web/core/registry";
 
 class Partner extends models.Model {
     _name = "partner";
@@ -261,18 +263,15 @@ test("Many2ManyTagsField with color: rendering and edition on desktop", async ()
     expect(".o_field_many2many_tags .badge .o_tag_badge_text:eq(2)").toHaveText("red");
     expect(".badge:eq(2)").toHaveClass("o_tag_color_8");
 
-    // remove tag silver
     await contains(".o_field_many2many_tags .o_delete:eq(1)").click();
     expect(".o_field_many2many_tags .badge").toHaveCount(2);
     const textContent = queryAllTexts(
         ".o_field_many2many_tags  .dropdown-toggle .badge",
     );
     expect(textContent).not.toInclude("silver");
-    // save the record (should do the write RPC with the correct commands)
     await clickSave();
 
-    // checkbox 'Hide in Kanban'
-    const badgeElement = queryOne(".o_field_many2many_tags .badge:eq(1)"); // selects 'red' tag
+    const badgeElement = queryOne(".o_field_many2many_tags .badge:eq(1)");
     await contains(badgeElement).click();
     expect(".o_tag_popover .form-check input").toHaveCount(1);
 
@@ -314,7 +313,6 @@ test("Many2ManyTagsField in list view on desktop", async () => {
         message: "the tags should not be dropdowns",
     });
 
-    // click on the tag: should do nothing and open the form view
     await contains(".o_field_many2many_tags .badge :nth-child(1)").click();
     expect.verifySteps(["selectRecord"]);
     await animationFrame();
@@ -352,7 +350,6 @@ test("Many2ManyTagsField in list view -- multi edit on desktop", async () => {
         message: "the tags should not be dropdowns",
     });
 
-    // click on the tag: should do nothing and open the form view
     await contains(".o_field_many2many_tags .badge :nth-child(1)").click();
     expect.verifySteps(["selectRecord"]);
     await animationFrame();
@@ -537,12 +534,10 @@ test("Domain: allow python code domain in fieldInfo on desktop", async () => {
         resId: 1,
     });
 
-    // foo set => only silver (id=5) selectable
     await clickFieldDropdown("timmy");
     expect(".o-autocomplete--dropdown-menu li").toHaveCount(1);
     expect(".o-autocomplete--dropdown-menu li a:eq(0)").toHaveText("silver");
 
-    // set foo = "" => only gold (id=2) selectable
     await contains("[name=foo] input").clear();
     await clickFieldDropdown("timmy");
     expect(".o-autocomplete--dropdown-menu li").toHaveCount(1);
@@ -575,7 +570,6 @@ test("Many2ManyTagsField in a new record on desktop", async () => {
     expect(".o_field_many2many_tags .badge").toHaveCount(1);
     expect(queryAllTexts(".o_field_many2many_tags .badge")).toEqual(["gold"]);
 
-    // save the record (should do the write RPC with the correct commands)
     await clickSave();
 });
 
@@ -605,7 +599,6 @@ test("Many2ManyTagsField in a new record on mobile", async () => {
     expect(".o_field_many2many_tags .badge").toHaveCount(1);
     expect(queryAllTexts(".o_field_many2many_tags .badge")).toEqual(["gold"]);
 
-    // save the record (should do the write RPC with the correct commands)
     await clickSave();
 });
 
@@ -626,51 +619,19 @@ test("Many2ManyTagsField: update color", async () => {
         resId: 1,
     });
 
-    // default color 0 is rendered as color 0
     const badgeNode = queryOne(".o_tag.badge");
     expect(badgeNode).toHaveAttribute("data-color", "0");
 
-    // Update the color in readonly => write automatically
     await contains(badgeNode).click();
     await contains('.o_colorlist button[data-color="1"]').click();
     expect(badgeNode).toHaveAttribute("data-color", "1");
 
-    // Update the color in edit => write on save with rest of the record
     await contains(badgeNode).click();
     await contains('.o_colorlist button[data-color="6"]').click();
     await animationFrame();
     expect(badgeNode).toHaveAttribute("data-color", "6");
 
-    // TODO POST WOWL GES: commented code below is to make the m2mtags more.
-    // consistent. No color change if edit => discard.
-    // await clickSave();
-
-    expect.verifySteps([
-        { color: 1 },
-        { color: 6 },
-        // { timmy: [[1, 12, { color: 6 }]] },
-    ]);
-
-    /*
-    badgeNode = queryOne(".o_tag.badge"); // need to refresh the reference
-
-    // Update the color in edit without save => we don't go through RPC
-    // so it's not saved and it is lost on discard.
-    await clickEdit();
-    await contains(badgeNode).click();
-    await contains('.o_colorlist button[data-color="8"]').click();
-    await animationFrame();
-    expect(badgeNode).toHaveAttribute("data-color",
-        "8"
-    );
-
-    await clickDiscard();
-
-    expect(badgeNode).toHaveAttribute("data-color",
-        "6"
-    );
-
-    */
+    expect.verifySteps([{ color: 1 }, { color: 6 }]);
 });
 
 test("Many2ManyTagsField with no_edit_color option", async () => {
@@ -686,7 +647,6 @@ test("Many2ManyTagsField with no_edit_color option", async () => {
         resId: 1,
     });
 
-    // Click to try to open colorpicker
     await contains(".o_tag.badge").click();
     expect(".o_colorlist").toHaveCount(0);
 });
@@ -765,8 +725,6 @@ test("Many2ManyTagsField keeps focus when being edited", async () => {
 
     expect(".o_field_many2many_tags .badge").toHaveCount(1);
 
-    // update foo, which will trigger an onchange and update timmy
-    // -> m2mtags input should not have taken the focus
     await contains("[name=foo] input").edit("trigger onchange");
     expect(".o_field_many2many_tags .badge").toHaveCount(0);
     expect("[name=foo] input").toBeFocused();
@@ -861,7 +819,6 @@ test("Many2ManyTagsField: toggle colorpicker multiple times", async () => {
 
     expect(".o_colorlist").toHaveCount(1);
 
-    // click on the colorpicker, but not on a color
     await contains(".o_colorlist").click();
 
     expect(".o_field_many2many_tags .badge").toHaveAttribute("data-color", "0");
@@ -935,16 +892,13 @@ test("input and remove text without selecting any tag or option on desktop", asy
     await contains(".o_field_many2many_tags input").edit("go", { confirm: false });
     await runAllTimers();
 
-    // ensure no selection
     await hover(".o-autocomplete--dropdown-item:eq(0)");
     await hover(".o_form_renderer");
     await press("Tab");
 
-    // ensure we're not adding any value
     expect(".modal").toHaveCount(0);
     expect(".o_field_many2many_tags .badge").toHaveCount(0);
 
-    // remove the added text to test behaviour with falsy value
     await contains(".o_field_many2many_tags input").clear({ confirm: false });
     await runAllTimers();
 
@@ -1047,12 +1001,11 @@ test("Many2ManyTagsField: select multiple records on desktop", async () => {
     await selectFieldDropdownItem("timmy", "Search more...");
 
     expect(".o_dialog").toHaveCount(1);
-    // + 1 for the select all
     expect(".o_dialog .o_list_renderer .o_list_record_selector input").toHaveCount(
         MockServer.env["partner.type"].length + 1,
     );
     await contains(".o_dialog .o_list_renderer .o_list_record_selector input").click();
-    await animationFrame(); // necessary for the button to be switched to enabled.
+    await animationFrame();
     expect(".o_dialog .o_select_button").toBeEnabled();
 
     await contains(".o_dialog .o_select_button").click();
@@ -1090,7 +1043,7 @@ test("Many2ManyTagsField: select multiple records doesn't show already added tag
     );
 
     await contains(".o_dialog .o_list_renderer .o_list_record_selector input").click();
-    await animationFrame(); // necessary for the button to be switched to enabled.
+    await animationFrame();
     await contains(".o_dialog .o_select_button").click();
     expect('[name="timmy"] .badge').toHaveCount(MockServer.env["partner.type"].length);
 });
@@ -1121,16 +1074,13 @@ test("Many2ManyTagsField: save&new in edit mode doesn't close edit window on des
     await contains(`div[name="timmy"] input`).edit("Ralts", { confirm: false });
     await runAllTimers();
     await clickFieldDropdownItem("timmy", "Create and edit...");
-    //await testUtils.fields.many2one.createAndEdit("timmy", "Ralts");
     expect(".modal .o_form_view").toHaveCount(1);
 
-    // Create multiple records with save & new
     await contains(".modal input").edit("Ralts");
     await contains(".modal .btn-primary:nth-child(2)").click();
     expect(".modal .o_form_view").toHaveCount(1);
     expect(".modal input:first").toHaveValue("");
 
-    // Create another record and click save & close
     await contains(".modal input").edit("Pikachu");
 
     await contains(".modal .modal-footer .btn-primary:first").click();
@@ -1158,7 +1108,6 @@ test("Many2ManyTagsField: make tag name input field blank on Save&New on desktop
 
     expect(".modal .o_form_view input").toHaveValue("hello");
 
-    // Create record with save & new
     await contains(".modal .btn-primary:nth-child(2)").click();
     expect(".modal .o_form_view input").toHaveValue("");
 
@@ -1202,7 +1151,6 @@ test("Many2ManyTagsField: Save&New in many2many_tags with default_ keys in conte
     expect(".modal .o_field_widget[name=name] input").toHaveValue("hello");
     expect(".modal .o_field_widget[name=color] input").toHaveValue("3");
 
-    // Create record with save & new
     await contains(".modal .btn-primary:nth-child(2)").click();
     expect(".modal .o_field_widget[name=name] input").toHaveValue("");
     expect(".modal .o_field_widget[name=color] input").toHaveValue("3");
@@ -1249,7 +1197,6 @@ test("Many2ManyTagsField: conditional create/delete actions on desktop", async (
         resId: 1,
     });
 
-    // turtle_bar is true -> create and delete actions are available
     expect(".o_field_many2many_tags.o_field_widget .badge .o_delete").toHaveCount(1);
 
     await clickFieldDropdown("partner_ids");
@@ -1261,7 +1208,6 @@ test("Many2ManyTagsField: conditional create/delete actions on desktop", async (
 
     await contains(".modal .modal-footer .o_form_button_cancel").click();
 
-    // type something that doesn't exist
     await contains(".o_field_many2many_tags input").edit(
         "Something that does not exist",
         {
@@ -1275,17 +1221,14 @@ test("Many2ManyTagsField: conditional create/delete actions on desktop", async (
         "Create and edit...",
     ]);
 
-    // set turtle_bar false -> create and delete actions are no longer available
     await contains('.o_field_widget[name="turtle_bar"] input:eq(0)').click();
     await animationFrame();
 
-    // remove icon should still be there as it doesn't delete records but rather remove links
     expect(".o_field_many2many_tags.o_field_widget .badge .o_delete").toHaveCount(1);
 
     await clickFieldDropdown("partner_ids");
     await runAllTimers();
 
-    // only Search more option should be available
     expect(".o-autocomplete.dropdown li.o_m2o_dropdown_option").toHaveCount(1);
     expect(
         ".o-autocomplete.dropdown li.o_m2o_dropdown_option a:contains(Search more...)",
@@ -1297,11 +1240,9 @@ test("Many2ManyTagsField: conditional create/delete actions on desktop", async (
 
     await contains(".modal .modal-footer .o_form_button_cancel").click();
 
-    // type something that does exist in multiple occurrences
     await contains(".o_field_many2many_tags input").edit("Pa", { confirm: false });
     await runAllTimers();
 
-    // only Search more option should be available
     expect(".o-autocomplete.dropdown li.o_m2o_dropdown_option").toHaveCount(1);
     expect(
         ".o-autocomplete.dropdown li.o_m2o_dropdown_option a:contains(Search more)",
@@ -1336,14 +1277,12 @@ test("failing many2one quick create in a Many2ManyTagsField on desktop", async (
 
     expect(".o_field_many2many_tags .badge").toHaveCount(0);
 
-    // try to quick create a record
     await contains(".o_field_many2many_tags input").edit("new partner", {
         confirm: false,
     });
     await runAllTimers();
     await clickFieldDropdownItem("timmy", `Create "new partner"`);
 
-    // as the quick create failed, a dialog should be open to 'slow create' the record
     expect(".modal .o_form_view").toHaveCount(1);
     expect(".modal .o_field_widget[name=name] input").toHaveValue("new partner");
 
@@ -1355,7 +1294,6 @@ test("failing many2one quick create in a Many2ManyTagsField on desktop", async (
 
 test.tags("desktop");
 test("navigation in tags (mode 'readonly') on desktop", async () => {
-    // keep a single line with 2 badges
     Partner._records = Partner._records.slice(0, 1);
     Partner._records[0].timmy = [12, 14];
     Turtle._records[1].partner_ids = [];
@@ -1382,7 +1320,6 @@ test("navigation in tags (mode 'readonly') on desktop", async () => {
 
 test.tags("desktop");
 test("navigation in tags (mode 'edit') on desktop", async () => {
-    // keep a single line with 2 badges
     Partner._records = Partner._records.slice(0, 1);
     Partner._records[0].timmy = [12, 14];
     Turtle._records[1].partner_ids = [];
@@ -1403,21 +1340,17 @@ test("navigation in tags (mode 'edit') on desktop", async () => {
 
     expect("tr.o_data_row:eq(0) [name=timmy] .o-autocomplete--input").toBeFocused();
 
-    // press left to focus the rightmost facet
     await press("ArrowLeft");
 
     expect("tr.o_data_row:eq(0) [name=timmy] .badge:nth-child(2)").toBeFocused();
 
-    // press left to focus the leftmost facet
     await press("ArrowLeft");
 
     expect("tr.o_data_row:eq(0) [name=timmy] .badge:nth-child(1)").toBeFocused();
 
-    // press left to focus the input
     await press("ArrowLeft");
 
     expect("tr.o_data_row:eq(0) [name=timmy] .o-autocomplete--input").toBeFocused();
-    // press left to focus the leftmost facet
     await press("ArrowRight");
 
     expect("tr.o_data_row:eq(0) [name=timmy] .badge:nth-child(1)").toBeFocused();
@@ -1762,7 +1695,6 @@ test.tags("desktop");
 test("Many2ManyTagsField doesn't use virtualId for 'web_name_search' on desktop", async () => {
     onRpc("web_name_search", ({ kwargs }) => {
         expect.step("web_name_search");
-        // no virtualId in domain
         expect(kwargs.domain).toEqual([]);
     });
     await mountView({
@@ -1798,7 +1730,6 @@ test.tags("mobile");
 test("Many2ManyTagsField doesn't use virtualId for 'web_name_search' on mobile", async () => {
     onRpc("web_search_read", ({ args }) => {
         expect.step("web_search_read");
-        // no virtualId in domain
         expect(args).toEqual([]);
     });
     await mountView({
@@ -1841,25 +1772,20 @@ test("Many2ManyTagsField selected records still pickable and not duplicable on d
             </list>
         `,
     });
-    // Check that records are correctly displayed in the dropdown
     await contains("div[name='turtles']").click();
     await contains("input[id=turtles_0]").click();
     expect(`${"a.dropdown-item"}:eq(0)`).toHaveText("leonardo");
 
-    // Check that selecting a record adds the corresponding tag
     await contains(`${"a.dropdown-item"}:eq(0)`).click();
     expect(".o_tag").toHaveCount(1);
     expect(".o_tag:eq(0)").toHaveText("leonardo");
 
-    // Check that a selected record is still shown in the dropdown
     await contains("input[id=turtles_0]").click();
     expect(`${"a.dropdown-item"}:eq(0)`).toHaveText("leonardo");
 
-    // Check that selecting an already selected record doesn't duplicate it
     await contains(`${"a.dropdown-item"}:eq(0)`).click();
     expect(".o_tag").toHaveCount(1);
 
-    // Check that deleting a record which was selected twice doens't leave one occurence
     await contains("a.o_delete").click();
     expect(".o_tag").toHaveCount(0);
 });
@@ -1875,25 +1801,20 @@ test("Many2ManyTagsField selected records still pickable and not duplicable on m
             </list>
         `,
     });
-    // Check that records are correctly displayed in the dropdown
     await contains("div[name='turtles']").click();
     await contains("input[id=turtles_0]").click();
     expect(`${".o_kanban_record"}:eq(0)`).toHaveText("leonardo");
 
-    // Check that selecting a record adds the corresponding tag
     await contains(`${".o_kanban_record"}:eq(0)`).click();
     expect(".o_tag").toHaveCount(1);
     expect(".o_tag:eq(0)").toHaveText("leonardo");
 
-    // Check that a selected record is still shown in the dropdown
     await contains("input[id=turtles_0]").click();
     expect(`${".o_kanban_record"}:eq(0)`).toHaveText("leonardo");
 
-    // Check that selecting an already selected record doesn't duplicate it
     await contains(`${".o_kanban_record"}:eq(0)`).click();
     expect(".o_tag").toHaveCount(1);
 
-    // Check that deleting a record which was selected twice doens't leave one occurence
     await contains("a.o_delete").click();
     expect(".o_tag").toHaveCount(0);
 });
@@ -1926,7 +1847,6 @@ test("Many2ManyTagsField with edit_tags option", async () => {
         resId: 1,
     });
 
-    // Click to try to open form view dialog
     expect(".o_dialog").toHaveCount(0);
     await contains(".o_tag.badge").click();
     expect(".o_dialog").toHaveCount(1);
@@ -1969,7 +1889,6 @@ test("Many2ManyTagsField with edit_tags option overrides color edition", async (
         "silver",
     ]);
 
-    // Click to try to open form view dialog
     expect(".o_dialog").toHaveCount(0);
     await contains(".o_tag.badge").click();
     expect(".o_dialog").toHaveCount(1);
@@ -2080,4 +1999,60 @@ test("Many2ManyTagsField: press backspace multiple times to remove tag", async (
     await animationFrame();
     expect(".o_field_many2many_tags .badge").toHaveCount(1);
     expect.verifySteps(["onchange [[3,14,false]]"]);
+});
+
+test.tags("desktop");
+test("tag colour is applied to the clicked record even if the list reloads", async () => {
+    // The colour popover used to hand its tag's *datapoint id* back to the
+    // field, which re-resolved the record by id at pick time. Reloading the
+    // x2many in between replaces those datapoints, so the lookup missed and
+    // dereferencing the result threw. The popover now carries no identity at
+    // all — the field closes over the record when it opens it.
+    Partner._records[0].timmy = [12, 14];
+    /** @type {any} */
+    let model = null;
+    class Grab extends Component {
+        static template = xml`<span class="grab"/>`;
+        static props = ["*"];
+        setup() {
+            model = this.props.record.model;
+        }
+    }
+    registry.category("fields").add("grab_model", { component: Grab });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="timmy" widget="many2many_tags" options="{'color_field': 'color'}"/>
+                <field name="foo" widget="grab_model"/>
+            </form>`,
+    });
+
+    const goldBefore = queryOne("[name=timmy] .o_tag:eq(0)");
+    const idsBefore = model.root.data.timmy.records.map((r) => r.id);
+    await contains(goldBefore).click();
+    expect(".o_colorlist").toHaveCount(1);
+
+    // Reload the record: the x2many datapoints are rebuilt with fresh ids,
+    // so any id captured when the popover opened is now stale.
+    await model.root.load();
+    await animationFrame();
+    const idsAfter = model.root.data.timmy.records.map((r) => r.id);
+    expect(idsAfter).not.toEqual(idsBefore, {
+        message: "the reload must actually invalidate the datapoint ids",
+    });
+
+    // The popover must survive the reload, otherwise there is nothing to pick.
+    expect(".o_colorlist").toHaveCount(1);
+
+    // Pick a colour: it must land on the record the popover was opened for.
+    await contains(".o_colorlist .o_colorlist_item_color_6").click();
+    await animationFrame();
+    expect(MockServer.env["partner.type"].browse(12)[0].color).toBe(6);
+    expect(MockServer.env["partner.type"].browse(14)[0].color).toBe(5, {
+        message: "the other tag must be untouched",
+    });
 });

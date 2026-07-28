@@ -22,8 +22,6 @@ export class ButtonBox extends Component {
     setup() {
         const ui = useService("ui");
         onWillRender(() => {
-            // Per-breakpoint budget, indexed by SIZES (XS SM MD LG XL XXL).
-            // Monotonic: growing the screen never hides buttons into "More".
             const maxVisibleButtons = [0, 0, 4, 5, 7, 8][ui.size] ?? 8;
             const allVisibleButtons = Object.entries(this.props.slots)
                 .filter(([_, slot]) => this.isSlotVisible(slot))
@@ -33,7 +31,6 @@ export class ButtonBox extends Component {
                 this.additionalButtons = [];
                 this.isFull = allVisibleButtons.length === maxVisibleButtons;
             } else {
-                // -1 for "More" dropdown
                 const splitIndex = Math.max(maxVisibleButtons - 1, 0);
                 this.visibleButtons = allVisibleButtons.slice(0, splitIndex);
                 this.additionalButtons = allVisibleButtons.slice(splitIndex);

@@ -49,8 +49,6 @@ class Page {
         const name = this.selectedName;
 
         if (this.readProperty && this.selectedField && this.selectedField.is_property) {
-            // JSON.stringify: property names are user-created and may contain
-            // quotes; double-quoted JSON strings are valid Python literals.
             if (this.selectedField.relation) {
                 return `${previousPath}.get(${JSON.stringify(name)}, env['${this.selectedField.relation}'])`;
             }
@@ -157,10 +155,6 @@ export class ModelFieldSelectorPopover extends Component {
         this.fieldService = useService("field");
         this.state = useState({ page: null });
         this.keepLast = new KeepLast();
-        // useDebounced auto-cancels on unmount: a keystroke followed within
-        // 250ms by a field selection (which closes/destroys the popover) used
-        // to leave a live timer that fired searchFields against a destroyed
-        // component (state mutation + wasted fuzzyLookup, retained closure).
         this.debouncedSearchFields = useDebounced(this.searchFields, 250);
 
         onWillStart(async () => {
@@ -171,15 +165,21 @@ export class ModelFieldSelectorPopover extends Component {
         });
 
         const rootRef = useRef("root");
-        useEffect(() => {
-            const focusedElement = rootRef.el.querySelector(
-                ".o_model_field_selector_popover_item.active",
-            );
-            if (focusedElement) {
-                // current page can be empty (e.g. after a search)
-                focusedElement.scrollIntoView({ block: "center" });
-            }
-        });
+        // Keyed on the focused field (and its page): a dependency-less effect
+        // re-runs after EVERY patch -- owl defaults the deps to `[NaN]`, which
+        // never compares equal -- so this queried the DOM and scrolled on every
+        // keystroke, not just when the focus actually moved.
+        useEffect(
+            () => {
+                const focusedElement = rootRef.el?.querySelector(
+                    ".o_model_field_selector_popover_item.active",
+                );
+                if (focusedElement) {
+                    focusedElement.scrollIntoView({ block: "center" });
+                }
+            },
+            () => [this.state.page, this.state.page?.focusedFieldName],
+        );
         useEffect(
             () => {
                 if (this.props.showSearchInput) {
@@ -370,18 +370,15 @@ export class ModelFieldSelectorPopover extends Component {
      * @param {KeyboardEvent} ev
      * @returns {Promise<void>}
      */
-    // @TODO should rework/improve this and maybe use hotkeys
     async onInputKeydown(ev) {
         const { page } = this.state;
         const target = /** @type {HTMLInputElement} */ (ev.target);
-        // Escape always closes the popover, whichever inner element has focus.
         if (ev.key === "Escape") {
             ev.preventDefault();
             ev.stopPropagation();
             this.props.close();
             return;
         }
-        // Everything below is search-input-only virtual-focus navigation.
         if (!target.closest(".o_model_field_selector_popover_search")) {
             return;
         }
@@ -393,8 +390,6 @@ export class ModelFieldSelectorPopover extends Component {
                 break;
             }
             case "ArrowDown": {
-                // Compare against the live input value, not page.query, which
-                // lags behind by the 250ms search debounce.
                 if (target.selectionStart === target.value.length) {
                     page.focus("next");
                 }
@@ -419,8 +414,6 @@ export class ModelFieldSelectorPopover extends Component {
                 break;
             }
             case "Enter": {
-                // Always neutralize the native Enter (form submit / bubbling to
-                // outer listeners) so selecting a field can't double-fire.
                 ev.preventDefault();
                 ev.stopPropagation();
                 const focusedFieldName = this.state.page.focusedFieldName;

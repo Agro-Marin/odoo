@@ -21,15 +21,7 @@ import { getViewPortHeight, getViewPortWidth } from "../mock/window.js";
  * }} TestRootProps
  */
 
-//-----------------------------------------------------------------------------
-// Global
-//-----------------------------------------------------------------------------
-
 const { customElements, document, getSelection, HTMLElement, Promise, WeakSet } = globalThis;
-
-//-----------------------------------------------------------------------------
-// Internal
-//-----------------------------------------------------------------------------
 
 /**
  * @param {HTMLIFrameElement} iframe
@@ -42,11 +34,7 @@ const destroyed = new WeakSet();
 let allowFixture = false;
 /** @type {HootFixtureElement | null} */
 let currentFixture = null;
-let shouldPrepareNextFixture = true; // Prepare setup for first test
-
-//-----------------------------------------------------------------------------
-// Exports
-//-----------------------------------------------------------------------------
+let shouldPrepareNextFixture = true;
 
 /**
  * @param {App | import("@odoo/owl").Component} target
@@ -76,22 +64,9 @@ export function makeFixtureManager(runner) {
 
     function getFixture() {
         if (!allowFixture) {
-            // Auto-initialize instead of throwing.  In large test runs
-            // with many test files loaded into the same page, a file's
-            // top-level ``beforeEach`` may fire before Hoot's runner has
-            // flipped ``allowFixture = true`` for the current test
-            // (runner hooks are registered lazily during ``_prepareRunner``
-            // which can run AFTER user files have queued their hooks).
-            // Throwing cascades into thousands of "cannot access fixture
-            // outside of a test" errors that drown the real failures.
-            // Auto-initializing is safe: the fixture element lives in
-            // document.body; the runner's ``cleanup`` removes it at the
-            // end of whichever test eventually runs, or at next
-            // beforeEach — no leaks, no side effects.
             allowFixture = true;
         }
         if (!currentFixture) {
-            // Prepare fixture once to not force layouts/reflows
             currentFixture = document.createElement(HootFixtureElement.TAG_NAME);
             if (runner.debug || runner.headless) {
                 currentFixture.show();
@@ -116,10 +91,8 @@ export function makeFixtureManager(runner) {
         if (shouldPrepareNextFixture) {
             shouldPrepareNextFixture = false;
 
-            // Reset focus & selection
             getActiveElement().blur();
             getSelection().removeAllRanges();
-            // Wait for selectionchange events to expire before any actual testing.
             await animationFrame();
         }
     }
@@ -144,7 +117,7 @@ export class HootFixtureElement extends HTMLElement {
         customElements.define(this.TAG_NAME, this);
 
         this.styleElement.id = "hoot-fixture-style";
-        this.styleElement.textContent = /* css */ `
+        this.styleElement.textContent =   `
             ${this.TAG_NAME} {
                 position: fixed !important;
                 height: 100vh;

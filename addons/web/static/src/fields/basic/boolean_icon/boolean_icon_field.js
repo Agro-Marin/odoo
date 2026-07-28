@@ -44,10 +44,6 @@ export const booleanIconField = {
     extractProps: ({ options, string }, dynamicInfo) => ({
         icon: options.icon,
         label: string,
-        // Extract the evaluated readonly (like boolean_favorite): otherwise
-        // field.js defaults it to `readonly || !record.isInEdition`, so the
-        // toggle silently no-ops on kanban cards and readonly lists even though
-        // update() is meant to be clickable there.
         readonly: dynamicInfo.readonly,
     }),
 };

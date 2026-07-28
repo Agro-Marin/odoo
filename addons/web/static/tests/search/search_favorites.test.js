@@ -59,10 +59,26 @@ describe("irFilterToFavorite", () => {
         expect(favorite.orderBy).toEqual([{ asc: false, name: "foo" }]);
     });
 
+    test("drops blank sort entries instead of emitting a nameless order term", () => {
+        const favorite = irFilterToFavorite(
+            makeIrFilter({ sort: '["name", "", "   ", "-bar"]' }),
+        );
+
+        expect(favorite.orderBy).toEqual([
+            { asc: true, name: "name" },
+            { asc: false, name: "bar" },
+        ]);
+        expect(favorite.isInvalid).toBe(true);
+    });
+
+    test("a lone minus sign is a blank field name, not a descending sort", () => {
+        const favorite = irFilterToFavorite(makeIrFilter({ sort: '["-"]' }));
+
+        expect(favorite.orderBy).toEqual([]);
+        expect(favorite.isInvalid).toBe(true);
+    });
+
     test("parses SQL direction case-insensitively and tolerates extra spaces", () => {
-        // Regression: an ir.filters ``sort`` written server-side or by another
-        // client can use uppercase / padded directions ("name ASC", "bar  DESC").
-        // A case-sensitive ``=== "asc"`` check parsed "name ASC" as descending.
         const favorite = irFilterToFavorite(
             makeIrFilter({ sort: '["name ASC", "bar  DESC", "baz"]' }),
         );
@@ -97,7 +113,6 @@ describe("irFilterToFavorite", () => {
     });
 
     test("quarantines a non-array sort blob instead of crashing", () => {
-        // JSON.parse(false) → false without throwing; sort.map would TypeError.
         const favorite = irFilterToFavorite(makeIrFilter({ sort: "false" }));
 
         expect(favorite.isInvalid).toBe(true);
@@ -105,9 +120,6 @@ describe("irFilterToFavorite", () => {
     });
 
     test("quarantines a sort array with non-string elements instead of crashing", () => {
-        // JSON.parse("[null]") → [null], an array (passes Array.isArray); then
-        // order.trim() would TypeError inside load() and take down the whole
-        // search view for every user of a shared/default filter.
         for (const sort of ["[null]", "[123]", '["ok", null]']) {
             const favorite = irFilterToFavorite(makeIrFilter({ sort }));
             expect(favorite.isInvalid).toBe(true);
@@ -124,9 +136,6 @@ describe("irFilterToFavorite", () => {
     });
 
     test("screens out group_by entries naming unknown fields (with warning)", () => {
-        // A shared default favorite grouping by a since-removed field 500s
-        // web_read_group for everyone — unknown fields must be dropped at
-        // import when field metadata is available.
         const fields = {
             name: { type: "char" },
             date_field: { type: "date" },
@@ -151,8 +160,6 @@ describe("irFilterToFavorite", () => {
         expect(warnings[0]).toInclude("ghost_field");
         expect(warnings[1]).toInclude("gone.subkey");
 
-        // Valid plain field, granularity, and properties sub-key group-bys
-        // survive; unknown field and unknown properties parent are dropped.
         expect(favorite.groupBys).toEqual(["name", "date_field:month", "props.subkey"]);
         expect(favorite.isInvalid).toBe(false);
     });
@@ -200,18 +207,13 @@ describe("buildIrFilterDescription", () => {
     });
 
     test("keeps intentional overrides of user-context keys, strips seeded values", () => {
-        // The composed search context is seeded with the whole user context;
-        // those seeded entries must not be persisted. But a filter that
-        // deliberately overrides a user-context key NAME with a DIFFERENT
-        // value (e.g. context="{'lang': ...}") is a real part of the favorite
-        // and used to be silently dropped on name collision alone.
         const userCtx = user.context;
         const overriddenLang = userCtx.lang === "fr_FR" ? "nl_NL" : "fr_FR";
         const { irFilter, preFavorite } = buildIrFilterDescription(
             makeParams({
                 getContext: () => ({
-                    ...userCtx, // seeded: same values → stripped
-                    lang: overriddenLang, // intentional override → kept
+                    ...userCtx,
+                    lang: overriddenLang,
                     custom_key: 1,
                 }),
             }),
@@ -227,7 +229,6 @@ describe("buildIrFilterDescription", () => {
     test("round-trips through irFilterToFavorite", () => {
         const { irFilter } = buildIrFilterDescription(makeParams());
 
-        // get_filters serializes the context back to a string.
         const favorite = irFilterToFavorite({
             ...irFilter,
             id: 1,
@@ -272,17 +273,11 @@ describe("reconciliateFavorites", () => {
         expect(searchItems[3].id).toBe(3);
         expect(searchItems[3].groupId).toBe(9);
         expect(searchItems[3].description).toBe("New name");
-        // A merge would have kept the stale isDefault: true.
         expect("isDefault" in searchItems[3]).toBe(false);
         expect(query).toEqual([{ searchItemId: 3 }]);
     });
 
     test("deactivates an active favorite that reloads as invalid", () => {
-        // F is active in the query; server-side it was edited to an unparseable
-        // domain before this reload. `toggleSearchItem` refuses to activate an
-        // invalid favorite, so an already-active one is the only way an invalid
-        // favorite reaches domain build — where `new Domain(badString)` throws
-        // and poisons the search model. Reconcile must drop it from the query.
         const searchItems = {
             3: { id: 3, groupId: 9, type: "favorite", serverSideId: 7 },
         };
@@ -291,7 +286,7 @@ describe("reconciliateFavorites", () => {
         reconciliateFavorites(
             searchItems,
             query,
-            [makeIrFilter({ domain: "[('foo', '=', " })], // unparseable
+            [makeIrFilter({ domain: "[('foo', '=', " })],
             irFilterToFavorite,
             () => {},
         );

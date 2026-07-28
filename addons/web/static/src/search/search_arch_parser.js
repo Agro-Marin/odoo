@@ -30,10 +30,8 @@ function _normalizeIconClass(iconClass) {
         iconClass.startsWith("fa-regular") ||
         iconClass.startsWith("fa-brands")
     ) {
-        return iconClass; // Already FA7 — no-op
+        return iconClass;
     }
-    // "fa-folder" → "fa-solid fa-folder"; legacy "fa fa-folder" →
-    // "fa-solid fa-folder" (strip base class)
     const name = iconClass.startsWith("fa fa-") ? iconClass.slice(3) : iconClass;
     return `fa-solid ${name}`;
 }
@@ -189,8 +187,6 @@ export class SearchArchParser {
         if (node.hasAttribute("name")) {
             const name = node.getAttribute("name");
             if (!this.fields[name]) {
-                // Field not available (group-restricted or removed by a
-                // module override): skip gracefully instead of crashing.
                 return;
             }
             const fieldType = this.fields[name].type;
@@ -206,8 +202,6 @@ export class SearchArchParser {
                     if (node.hasAttribute("widget")) {
                         type = node.getAttribute("widget");
                     }
-                    // many2one as a default filter has a numeric value
-                    // instead of a string, so we want "=" not "ilike".
                     if (
                         ["char", "html", "many2many", "one2many", "text"].includes(type)
                     ) {
@@ -228,16 +222,8 @@ export class SearchArchParser {
                     if (option) {
                         preField.defaultAutocompleteValue.label = option[1];
                     }
-                    // No matching option (e.g. stale value in the action
-                    // context): keep the raw value as label instead of
-                    // crashing the entire search view.
                 } else if (fieldType === "many2one") {
                     this.labels.push(async (orm) => {
-                        // The record may no longer exist or be inaccessible
-                        // (stale id in the action context): `read` REJECTS with
-                        // MissingError/AccessError (not []), so the fallback
-                        // must catch — otherwise SearchModel.load() rejects and
-                        // crashes the entire search view.
                         let results;
                         try {
                             results = await orm.silent.call(
@@ -260,7 +246,6 @@ export class SearchArchParser {
                     preField.defaultAutocompleteValue.operator = "in";
                     preField.defaultAutocompleteValue.value = val;
                     this.labels.push(async (orm) => {
-                        // Same stale-id hardening as the many2one branch.
                         let results;
                         try {
                             results = await orm.silent.call(
@@ -279,7 +264,6 @@ export class SearchArchParser {
                 }
             }
         } else {
-            // Normally caught earlier by server-side view arch validation.
             throw new Error(
                 "Invalid search view arch: a <field> node has no 'name' attribute.",
             );
@@ -327,7 +311,6 @@ export class SearchArchParser {
                 const fieldName = node.getAttribute("date");
                 const dateField = this.fields[fieldName];
                 if (!dateField) {
-                    // Field not available (e.g. group-restricted) — skip this filter.
                     return;
                 }
                 preSearchItem.type = "dateFilter";
@@ -341,9 +324,6 @@ export class SearchArchParser {
                     customOptions: [],
                 };
                 if (optionsParams.endMonth < optionsParams.startMonth) {
-                    // Unvalidated arch input: an inverted month window makes
-                    // getMonthPeriodOptions throw (invalid array length),
-                    // crashing the whole search view — normalize it instead.
                     console.warn(
                         `[search] <filter date="${fieldName}">: end_month (${optionsParams.endMonth}) ` +
                             `is lower than start_month (${optionsParams.startMonth}); swapping them.`,
@@ -353,9 +333,6 @@ export class SearchArchParser {
                         optionsParams.startMonth,
                     ];
                 }
-                // Current month (offset 0) clamped into the window — clamp's
-                // signature is (num, min, max); the previous arg order always
-                // yielded endMonth for any non-default window.
                 const defaultOffset = clamp(
                     0,
                     optionsParams.startMonth,
@@ -380,8 +357,6 @@ export class SearchArchParser {
             preSearchItem.invisible = node.getAttribute("invisible");
             const fieldName = preSearchItem.fieldName;
             if (fieldName && !this.fields[fieldName]) {
-                // A field limited to specific groups may still appear in the
-                // view (in 'invisible' state); discard the related filter.
                 return;
             }
         }
@@ -549,7 +524,7 @@ export class SearchArchParser {
             );
         }
 
-        return false; // stop the parser from visiting children
+        return false;
     }
 
     /** Process a `<separator/>` node: flush the current group. */

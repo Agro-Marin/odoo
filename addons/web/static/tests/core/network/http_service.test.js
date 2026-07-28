@@ -25,8 +25,6 @@ test("method is correctly set", async () => {
 test("check status 502", async () => {
     mockFetch(() => new Response("{}", { status: 502 }));
 
-    // Classified as ConnectionLostError (rpc.js hierarchy) with the status
-    // in the message, so callers and error handlers can branch on it.
     const promise = get("/custom_route");
     await expect(promise).rejects.toThrow(ConnectionLostError);
     await promise.catch((e) => expect(e.message).toMatch(/HTTP 502/));
@@ -39,10 +37,6 @@ test("check status 413", async () => {
 });
 
 test("a 200 HTML body (session-expired login redirect) is an InvalidResponseError", async () => {
-    // fetch follows redirects, so a session-expired request lands on the
-    // HTML login page with a 200. Pre-classification, response.json() died
-    // on it with a raw SyntaxError (ClientErrorDialog); InvalidResponseError
-    // routes it to the session-expired flow, like rpc.js.
     mockFetch(
         () =>
             new Response("<!DOCTYPE html><html><body>login</body></html>", {
@@ -56,8 +50,6 @@ test("a 200 HTML body (session-expired login redirect) is an InvalidResponseErro
 });
 
 test("an explicit non-json readMethod still reads HTML bodies", async () => {
-    // The HTML sniff only applies when the caller asked for JSON: fetching
-    // an HTML page as text is a legitimate use.
     mockFetch(
         () =>
             new Response("<html>ok</html>", {
@@ -83,7 +75,6 @@ test("FormData is built by post", async () => {
         expect(body.get("s")).toBe("1");
         expect(body.get("a")).toBe("1");
         expect(body.getAll("a")).toEqual(["1", "2", "3"]);
-        // An empty array appends nothing (it used to serialize to "").
         expect(body.has("empty")).toBe(false);
     });
 

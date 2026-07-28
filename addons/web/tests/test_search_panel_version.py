@@ -32,8 +32,6 @@ class TestSearchPanelVersion(TransactionCase):
 
     def setUp(self):
         super().setUp()
-        # Two partners with parent-child so the panel call returns
-        # something non-empty and exercises the values-list path.
         self.parent = self.env["res.partner"].create(
             {
                 "name": "Plan-C Parent",
@@ -58,7 +56,6 @@ class TestSearchPanelVersion(TransactionCase):
     def test_select_range_returns_version(self):
         result = self._call_select_range()
         self.assertIn("__version", result)
-        # sha256 hex digest is 64 chars
         self.assertEqual(len(result["__version"]), 64)
         self.assertTrue(all(c in "0123456789abcdef" for c in result["__version"]))
 
@@ -71,7 +68,6 @@ class TestSearchPanelVersion(TransactionCase):
 
     def test_select_range_record_change_changes_version(self):
         v1 = self._call_select_range()["__version"]
-        # Rename a record so the panel's `display_name` changes.
         self.parent.name = "Plan-C Parent (renamed)"
         v2 = self._call_select_range()["__version"]
         self.assertNotEqual(
@@ -87,13 +83,7 @@ class TestSearchPanelVersion(TransactionCase):
         self.assertEqual(len(result["__version"]), 64)
 
     def test_version_field_does_not_collide_with_response_keys(self):
-        # The decorator skips already-stamped dicts so a future endpoint
-        # that legitimately uses ``__version`` for application data can opt
-        # out by setting it before returning.
         result = self._call_select_range()
-        # Real response shape includes 'parent_field' and 'values' (or
-        # 'error_msg' on failure).  Asserting on those documents that
-        # ``__version`` rides alongside, not in place of, the payload.
         self.assertTrue("values" in result or "error_msg" in result)
 
 
@@ -105,13 +95,11 @@ class TestSearchPanelStaleSelection(TransactionCase):
     def test_select_range_on_removed_selection_value(self):
         partner = self.env["res.partner"].create({"name": "Stale Sel"})
         self.env.flush_all()
-        # Force a value that is not part of res.partner.type's selection.
         self.env.cr.execute(
             "UPDATE res_partner SET type = 'obsolete_value' WHERE id = %s",
             [partner.id],
         )
         partner.invalidate_recordset(["type"])
-        # Must not raise (KeyError) — the missing option falls back to the raw value.
         result = self.env["res.partner"].search_panel_select_range("type")
         labels = {v.get("display_name") for v in result["values"]}
         self.assertIn("obsolete_value", labels)
@@ -144,7 +132,6 @@ class TestWebSearchReadVersion(TransactionCase):
         result = self._call()
         self.assertIn("__version", result)
         self.assertEqual(len(result["__version"]), 64)
-        # Sanity: real response shape preserved alongside __version.
         self.assertEqual(result["length"], 2)
         self.assertEqual(len(result["records"]), 2)
 
@@ -173,7 +160,6 @@ class TestSearchPanelUnknownField(TransactionCase):
             self.env["res.partner"].search_panel_select_multi_range("no_such_field_xyz")
 
     def test_known_field_still_works(self):
-        # A valid field must not be affected by the guard.
         result = self.env["res.partner"].search_panel_select_range("parent_id")
         self.assertIn("values", result)
 
@@ -223,8 +209,6 @@ class TestWebReadEnvelopeVersion(HttpCase):
         envelope = self._call_web_read()
         self.assertIn("version", envelope, "envelope must carry version sibling")
         self.assertEqual(len(envelope["version"]), 64)
-        # Verify result is a list (not a dict) — confirming the envelope path
-        # is the right vehicle, vs the in-payload @versioned decorator.
         self.assertIsInstance(envelope["result"], list)
 
     def test_same_query_same_version(self):
@@ -267,7 +251,6 @@ class TestWebReadGroupVersion(TransactionCase):
         result = self._call()
         self.assertIn("__version", result)
         self.assertEqual(len(result["__version"]), 64)
-        # Real shape preserved (web_read_group returns {groups, length}).
         self.assertIn("groups", result)
         self.assertIn("length", result)
 
@@ -276,7 +259,6 @@ class TestWebReadGroupVersion(TransactionCase):
 
     def test_group_change_changes_version(self):
         v1 = self._call()["__version"]
-        # Add a new record so a count flips.
         self.env["res.partner"].create(
             {
                 "name": "Plan-C RG A3",
