@@ -3,7 +3,7 @@
 
 /** @module @web/ui/notification/notification_container - Renders all active notifications with fade-out transitions */
 
-import { Component, useState, xml } from "@odoo/owl";
+import { Component, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
 import { ErrorHandler } from "@web/core/utils/components";
 
@@ -13,16 +13,12 @@ export class NotificationContainer extends Component {
         notifications: Object,
     };
 
-    static template = xml`
-        <div class="o_notification_manager">
-            <t t-foreach="notifications" t-as="notification" t-key="notification">
-                <ErrorHandler onError="(error) => this.handleError(notification, error)">
-                    <Transition leaveDuration="0" immediate="true" name="'o_notification_fade'" t-slot-scope="transition">
-                        <Notification t-props="notification_value.props" className="(notification_value.props.className || '') + ' ' + transition.className"/>
-                    </Transition>
-                </ErrorHandler>
-            </t>
-        </div>`;
+    /**
+     * A named template, not an inline `xml` one: every other component in this
+     * folder is overridable through `t-inherit`, and an inline template is the
+     * one shape an addon cannot reach.
+     */
+    static template = "web.NotificationContainer";
     static components = { ErrorHandler, Notification, Transition };
 
     /** Make the notifications map reactive so the container re-renders on changes. */
