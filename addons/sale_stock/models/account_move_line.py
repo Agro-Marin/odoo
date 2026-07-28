@@ -68,7 +68,7 @@ class AccountMoveLine(models.Model):
             self.move_id.move_type == "out_refund"
             and not self.move_id.reversed_entry_id
         ):
-            original_lines += self.sale_line_ids.invoice_lines.move_id.filtered(
+            original_lines += self.sale_line_ids.invoice_line_ids.move_id.filtered(
                 lambda m: m.move_type == "out_invoice"
             ).line_ids.filtered(
                 lambda line: (

@@ -341,7 +341,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
 
         # Even if some components are received completely,
         # no KitParent should be received
-        self.assertEqual(order_line.qty_received, 0)
+        self.assertEqual(order_line.qty_transferred, 0)
 
         # Process just enough components to make 1 kit_parent
         qty_to_process = {
@@ -354,7 +354,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         Form.from_action(self.env, backorder_1.button_validate()).save().process()
 
         # Only 1 kit_parent should be received at this point
-        self.assertEqual(order_line.qty_received, 1)
+        self.assertEqual(order_line.qty_transferred, 1)
 
         # Check that the second backorder is created
         self.assertEqual(len(po.picking_ids), 3)
@@ -392,7 +392,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         Form.from_action(self.env, backorder_2.button_validate()).save().process()
 
         # Check that x3 kit_parents are indeed received
-        self.assertEqual(order_line.qty_received, 3)
+        self.assertEqual(order_line.qty_transferred, 3)
 
         # Check that the third backorder is created
         self.assertEqual(len(po.picking_ids), 4)
@@ -416,7 +416,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         # Validating the last backorder now it's complete.
         # All kits should be received
         backorder_3.button_validate()
-        self.assertEqual(order_line.qty_received, 7.0)
+        self.assertEqual(order_line.qty_transferred, 7.0)
 
         # Return all components processed by backorder_3
         stock_return_picking_form = Form(self.env['stock.return.picking']
@@ -435,7 +435,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         return_pick.button_validate()
 
         # Now quantity received should be 3 again
-        self.assertEqual(order_line.qty_received, 3)
+        self.assertEqual(order_line.qty_transferred, 3)
 
         stock_return_picking_form = Form(self.env['stock.return.picking']
             .with_context(active_ids=return_pick.ids, active_id=return_pick.ids[0],
@@ -456,7 +456,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         Form.from_action(self.env, return_of_return_pick.button_validate()).save().process()
 
         # As one of each component is missing, only 6 kit_parents should be received
-        self.assertEqual(order_line.qty_received, 6)
+        self.assertEqual(order_line.qty_transferred, 6)
 
         # Check that the 4th backorder is created.
         self.assertEqual(len(po.picking_ids), 7)
@@ -936,7 +936,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         # Recieve half the quantity 25 component == 30 kit_prod
         picking.move_line_ids.quantity = 25
         picking.with_context(skip_backorder=True).button_validate()
-        self.assertEqual(po.line_ids.qty_received, 25 / 5 * 6)
+        self.assertEqual(po.line_ids.qty_transferred, 25 / 5 * 6)
 
         # Return 10 components
         stock_return_picking_form = Form(self.env['stock.return.picking']
@@ -953,7 +953,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
 
         # Process all components and validate the return
         return_pick.button_validate()
-        self.assertEqual(po.line_ids.qty_received, 15 / 5 * 6)
+        self.assertEqual(po.line_ids.qty_transferred, 15 / 5 * 6)
 
     def test_bom_report_vendor_quantities(self):
         """ Test bom overview with different vendor minimum quantities, see if it picks the right ones.
@@ -1310,14 +1310,14 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         po.action_confirm()
 
         self.assertTrue(po.picking_ids)
-        self.assertEqual(po.line_ids.qty_received, 0)
+        self.assertEqual(po.line_ids.qty_transferred, 0)
 
         picking = po.picking_ids
         for move in picking.move_ids:
             move.write({'quantity': move.product_uom_qty, 'picked': True})
         picking.button_validate()
 
-        self.assertEqual(po.line_ids.qty_received, 1)
+        self.assertEqual(po.line_ids.qty_transferred, 1)
 
     def test_purchase_kit_bill_before_reception_component_cost_exactly_aligns_with_kit_product_cost(self):
         """ When a kit product is invoiced prior to delivery, we want to make sure to reconcile all
@@ -1331,7 +1331,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         })
         kit_product = self.env['product.product'].create({
             'name': 'kit prod',
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
             'is_storable': True,
             'standard_price': 10,
             'list_price': 20,
@@ -1340,7 +1340,7 @@ class TestPurchaseMrpFlow(AccountTestInvoicingCommon):
         components = self.env['product.product'].create([{
             'name': f'comp {i}',
             'is_storable': True,
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
             'standard_price': 5,
             'list_price': 5,
             'categ_id': avco_category.id,

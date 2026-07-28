@@ -203,7 +203,7 @@ class TestStockLandedCosts(TestStockLandedCostsCommon):
             receipt = po.picking_ids
             receipt.move_ids.quantity = 1
             receipt.button_validate()
-            po.line_ids[1].qty_received = 1
+            po.line_ids[1].qty_transferred = 1
 
             po.action_create_invoice()
             bill = po.invoice_ids

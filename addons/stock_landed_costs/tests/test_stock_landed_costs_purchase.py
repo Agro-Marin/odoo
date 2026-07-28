@@ -439,7 +439,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
             'categ_id': self.stock_account_product_categ.id,
         })
         products = self.product1 | product2
-        products.purchase_method = 'purchase'
+        products.bill_policy = 'ordered'
         products.categ_id.write({
             'property_stock_account_input_categ_id': self.company_data['default_account_stock_in'].id,
             'property_stock_account_output_categ_id': self.company_data['default_account_stock_out'].id,
@@ -528,7 +528,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         receipt = po.picking_ids
         receipt.move_ids.quantity = 1
         receipt.button_validate()
-        po.line_ids[1].qty_received = 1
+        po.line_ids[1].qty_transferred = 1
 
         po.action_create_invoice()
         bill = po.invoice_ids
@@ -569,7 +569,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         from which the move was derived.
         """
         self.env.company.anglo_saxon_accounting = True
-        self.product1.purchase_method = 'purchase'
+        self.product1.bill_policy = 'ordered'
         self.product1.categ_id.write({
             'property_stock_account_input_categ_id': self.company_data['default_account_stock_in'].id,
             'property_stock_account_output_categ_id': self.company_data['default_account_stock_out'].id,
@@ -631,7 +631,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         """
 
         self.env.company.anglo_saxon_accounting = True
-        self.product1.purchase_method = 'purchase'
+        self.product1.bill_policy = 'ordered'
         self.product1.categ_id.write({
             'property_stock_account_input_categ_id': self.company_data['default_account_stock_in'].id,
             'property_stock_account_output_categ_id': self.company_data['default_account_stock_out'].id,
@@ -683,7 +683,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         product = self.env['product.product'].create({
             'name': 'product',
             'is_storable': True,
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
             'categ_id': self.stock_account_product_categ.id,
         })
         product.categ_id.write({
@@ -698,7 +698,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
             'landed_cost_ok': True,
             'categ_id': product.categ_id.id,
             'type': 'service',
-            'purchase_method': 'purchase',
+            'bill_policy': 'ordered',
         })
         po = self.env['purchase.order'].create({
             'partner_id': self.supplier_id,
@@ -758,7 +758,7 @@ class TestLandedCostsWithPurchaseAndInv(TestStockValuationLCCommon):
         decimal_product_uom.digits = 5
 
         self.env.company.anglo_saxon_accounting = True
-        self.product1.purchase_method = 'purchase'
+        self.product1.bill_policy = 'ordered'
         self.product1.categ_id.write({
             'property_stock_account_input_categ_id': self.company_data['default_account_stock_in'].id,
             'property_stock_account_output_categ_id': self.company_data['default_account_stock_out'].id,

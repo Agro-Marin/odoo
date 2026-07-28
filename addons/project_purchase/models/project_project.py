@@ -152,7 +152,7 @@ class ProjectProject(models.Model):
             )
             if purchase_lines:
                 amount_invoiced = amount_to_invoice = 0.0
-                purchase_order_line_invoice_line_ids.extend(purchase_lines.invoice_lines.ids)
+                purchase_order_line_invoice_line_ids.extend(purchase_lines.invoice_line_ids.ids)
                 for purchase_line in purchase_lines:
                     price_subtotal = purchase_line.currency_id._convert(purchase_line.price_subtotal, self.currency_id, self.company_id)
                     # an analytic account can appear several time in an analytic distribution with different repartition percentage
