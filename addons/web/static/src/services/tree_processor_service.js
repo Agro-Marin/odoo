@@ -106,11 +106,17 @@ function getPathsInTree(tree, lookInSubTrees = false) {
  * its near-opposite (De Morgan turns the OR into an AND). A negated child is
  * therefore passed through untouched.
  *
- * A child only merges when its candidates are ENUMERABLE here. `in` carries a
- * list ({@link normalizeListOperatorValue} guarantees it for every tree built
- * from a domain) except when it names an {@link Expression} — `a in ids` cannot
- * be flattened into the merged list without resolving `ids`, which is a server
- * value. Such a child is passed through like a negated one.
+ * A child only merges when its candidates are ENUMERABLE here, which an `in`
+ * value is only when it is an actual list. Nothing guarantees that: a domain
+ * may name a single candidate without its brackets (`("state", "in", "draft")`,
+ * which the server rejects but which still reaches the client from stored
+ * `ir.filters`, hand-written action domains and the tree editor mid-edit), an
+ * {@link Expression} (`a in ids` — the members are a server value), or
+ * geoengine's `"{ACTIVE_IDS}"` placeholder. Spreading those merged the STRING's
+ * characters in as candidates — `("state", "in", "draft")` OR'd with
+ * `("state", "=", "done")` rendered as "State = d or r or a or f or ..." — and
+ * threw outright on a number. Such a child is passed through like a negated one,
+ * so it renders as its own condition instead.
  * @param {any} tree
  * @returns {any}
  */

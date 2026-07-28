@@ -7,13 +7,7 @@ import { Domain } from "@web/core/domain";
 import { formatAST } from "@web/core/py_js/py";
 
 import { ASTType } from "../py_js/ast_type.js";
-import {
-    addChild,
-    connector,
-    Expression,
-    normalizeListOperatorValue,
-    toValue,
-} from "./condition_tree.js";
+import { addChild, connector, Expression, toValue } from "./condition_tree.js";
 /** @import { AST } from "@web/core/py_js/py_parser" */
 /** @import { DomainRepr } from "@web/core/domain" */
 /** @import { Tree } from "./condition_tree.js" */
@@ -69,7 +63,7 @@ function _constructTree(ASTs, distributeNot = false) {
         tree.path = toValue(pathAST);
         tree.negate = negate;
         tree.operator = toValue(operatorAST);
-        tree.value = normalizeListOperatorValue(tree.operator, toValue(valueAST));
+        tree.value = toValue(valueAST);
         tree.isProperty = false;
         if (["any", "not any"].includes(tree.operator)) {
             try {

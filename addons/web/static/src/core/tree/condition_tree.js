@@ -102,50 +102,6 @@ export function complexCondition(value) {
     return { type: "complex_condition", value };
 }
 
-/** Operators whose value denotes a SET of candidates rather than a single one. */
-const LIST_OPERATORS = new Set(["in", "not in"]);
-
-/**
- * Give a list-operator condition the list shape its operator implies.
- *
- * A domain may spell a single candidate without its brackets — Odoo's own
- * ``expression`` rejects ``("state", "in", "draft")`` server-side, but that
- * domain still reaches the client from stored ``ir.filters``, hand-written
- * action ``domain`` attributes and the tree editor mid-edit, and the client
- * renders it long before any server round-trip. Consumers were then free to
- * treat the value as a list: spreading the string ``"draft"`` yields the five
- * candidates ``d, r, a, f, t``, and spreading a number throws outright.
- * Establishing the invariant HERE, at the only boundary where domain text
- * becomes a tree, is what lets every consumer downstream simply trust it.
- *
- * An {@link Expression} is left alone: ``("id", "in", allowed_ids)`` names a
- * list the client cannot enumerate, and wrapping it would turn the domain into
- * ``id in [allowed_ids]`` — a different, wrong query.
- *
- * Deliberately NOT applied by {@link condition}. That constructor takes a value
- * its caller chose, and rewriting it there is a silent behaviour change rather
- * than a repair: ``geoengine`` builds ``condition(path, "in", "{ACTIVE_IDS}")``
- * with a scalar placeholder on purpose, and wrapping it emitted
- * ``("geo_point", "in", ["{ACTIVE_IDS}"])`` — a domain the substitution step no
- * longer recognises. Untrusted domain TEXT is the boundary that needs the
- * repair; a programmatic caller gets what it asked for. Consumers that cannot
- * handle a scalar (see ``simplifyTree``) test for it instead.
- *
- * @param {Value} operator
- * @param {Value|Tree} value
- * @returns {Value|Tree}
- */
-export function normalizeListOperatorValue(operator, value) {
-    if (
-        !LIST_OPERATORS.has(/** @type {any} */ (operator)) ||
-        Array.isArray(value) ||
-        value instanceof Expression
-    ) {
-        return value;
-    }
-    return [/** @type {any} */ (value)];
-}
-
 /**
  * @param {Value} path
  * @param {Value} operator
