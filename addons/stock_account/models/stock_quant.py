@@ -62,25 +62,51 @@ class StockQuant(models.Model):
             ]
         )
         self.value = 0
-        for quant in self:
-            if (
-                not quant.location_id
-                or not quant.product_id
-                or not quant.location_id._should_be_valued()
-                or quant._should_exclude_for_valuation()
-                or quant.product_id.uom_id.is_zero(quant.quantity)
-            ):
-                continue
-            if quant.product_id.lot_valuated:
-                quantity = quant.lot_id.with_company(quant.company_id).product_qty
-                value = quant.lot_id.with_company(quant.company_id).total_value
-            else:
-                quantity = (
-                    quant.product_id.with_company(quant.company_id)
-                    ._with_valuation_context()
-                    .qty_available
+        valued_quants = self.filtered(
+            lambda quant: (
+                quant.location_id
+                and quant.product_id
+                and quant.location_id._should_be_valued()
+                and not quant._should_exclude_for_valuation()
+                and not quant.product_id.uom_id.is_zero(quant.quantity)
+            )
+        )
+        # A quant is worth its share of the value its product (or lot) holds in its
+        # company, so resolve that share once per (company, product, lot) rather than
+        # once per quant -- and resolve a whole company at a time, because
+        # `_with_valuation_context()` runs a location search that depends only on the
+        # company, and `total_value` values every product of its prefetch set in one
+        # pass.
+        totals_by_key = {}
+        for company, company_quants in valued_quants.grouped("company_id").items():
+            # A lot-valuated product can still hold a quant with no lot (the guard on
+            # enabling the flag only covers the stock present at the time), and that
+            # quant is valued against the product, exactly as below.
+            lot_quants = company_quants.filtered(
+                lambda quant: quant.product_id.lot_valuated and quant.lot_id
+            )
+            for lot in lot_quants.lot_id.with_company(company):
+                totals_by_key[company, lot.product_id.id, lot.id] = (
+                    lot.product_qty,
+                    lot.total_value,
                 )
-                value = quant.product_id.with_company(quant.company_id).total_value
+
+            products = (company_quants - lot_quants).product_id.with_company(company)
+            qty_by_product_id = {
+                product.id: product.qty_available
+                for product in products._with_valuation_context()
+            }
+            for product in products:
+                totals_by_key[company, product.id, False] = (
+                    qty_by_product_id[product.id],
+                    product.total_value,
+                )
+
+        for quant in valued_quants:
+            lot = quant.lot_id if quant.product_id.lot_valuated else False
+            quantity, value = totals_by_key[
+                quant.company_id, quant.product_id.id, lot.id if lot else False
+            ]
             if quant.product_id.uom_id.is_zero(quantity):
                 continue
             quant.value = quant.quantity * value / quantity
