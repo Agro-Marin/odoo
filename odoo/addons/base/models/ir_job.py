@@ -56,21 +56,19 @@ from odoo.exceptions import (
     UserError,
     ValidationError,
 )
-from odoo.libs.constants import GC_UNLINK_LIMIT
+from odoo.libs.constants import GC_UNLINK_LIMIT, JOB_QUEUE_CHANNEL
 from odoo.modules.registry import Registry
 from odoo.tools import SQL
 
 from .ir_cron import (
-    ODOO_NOTIFY_FUNCTION,
     BadModuleStateError,
     BadVersionError,
     IrCron,
+    notify_channel,
     worker_real_time_budget,
 )
 
 _logger = logging.getLogger(__name__)
-
-JOB_QUEUE_CHANNEL = "job_queue"
 
 NOTIFY_PENDING_KEY = "ir.job.notify"
 """``cr.postcommit.data`` key coalescing a transaction's worker wake-ups."""
@@ -730,16 +728,7 @@ class IrJob(models.Model):
     @staticmethod
     def _notify_workers(db_name: str) -> None:
         """NOTIFY the job workers of ``db_name`` (they LISTEN on 'postgres')."""
-        with db.db_connect("postgres").cursor() as cr:
-            cr.execute(
-                SQL(
-                    "SELECT %s(%s, %s)",
-                    SQL.identifier(ODOO_NOTIFY_FUNCTION),
-                    JOB_QUEUE_CHANNEL,
-                    db_name,
-                )
-            )
-        _logger.debug("job workers notified (%s)", db_name)
+        notify_channel(JOB_QUEUE_CHANNEL, db_name)
 
     @staticmethod
     def _process_jobs(db_name: str) -> None:
