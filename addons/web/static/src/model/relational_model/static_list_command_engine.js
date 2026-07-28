@@ -372,6 +372,26 @@ export function applyCommands(
 
     // Filter out removed records and ids from list.records and list._currentIds
     if (Object.keys(removedIds).length) {
+        // Rows removed from BEFORE the page start slide the whole membership
+        // out from under the window. ``records`` still holds the right rows —
+        // the filter below only drops the removed ones — but they now sit at a
+        // lower index in ``_currentIds``, so the untouched ``offset`` stops
+        // describing what is on screen: the pager counted one page while
+        // another rendered, and the next ``_load`` teleported the user.
+        // ``_clampOffset`` cannot catch this — the offset is still in range.
+        // Shifting it back by the number of rows removed ahead of it keeps the
+        // user on exactly the rows they were looking at.
+        let removedBeforeOffset = 0;
+        for (const id of list._currentIds.slice(0, list.offset)) {
+            if (removedIds[id]) {
+                removedBeforeOffset++;
+            }
+        }
+        if (removedBeforeOffset) {
+            list.model._patchConfig(list.config, {
+                offset: Math.max(0, list.offset - removedBeforeOffset),
+            });
+        }
         let removeCommandsByIdsCopy = { ...removedIds };
         list.records = list.records.filter((r) => {
             const id = /** @type {string | number} */ (r.resId || r._virtualId);
