@@ -706,8 +706,13 @@ class TestTimesheet(TestCommonTimesheet):
             self.task1.project_id = False
 
     def test_percentage_of_allocated_hours(self):
-        """ Test the percentage of allocated hours on a task. """
-        self.task1.allocated_hours = 11/60
+        """ Test the progress of a task against its estimate.
+
+        progress is effective_hours / planned_hours: under this fork's PMI
+        split planned_hours is the estimate, while allocated_hours is the
+        commitment aggregated from resource reservations.
+        """
+        self.task1.planned_hours = 11/60
         self.assertEqual(self.task1.effective_hours, 0, 'No timesheet should be created yet.')
         self.assertEqual(self.task1.progress, 0, 'No timesheet should be created yet.')
         self.env['account.analytic.line'].create([
