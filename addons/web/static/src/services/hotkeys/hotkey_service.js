@@ -462,7 +462,14 @@ export const hotkeyService = {
              *   window) every time the iframe is re-created.
              */
             registerIframe(iframe) {
-                return addListeners(iframe.contentWindow);
+                // A cross-origin or not-yet-loaded iframe exposes no
+                // contentWindow; `addListeners(null)` throws a bare TypeError
+                // out of the caller's mount path.
+                const iframeWindow = iframe?.contentWindow;
+                if (!iframeWindow) {
+                    return () => {};
+                }
+                return addListeners(iframeWindow);
             },
             /**
              * Detach the four ``window`` listeners on env teardown. Without it
