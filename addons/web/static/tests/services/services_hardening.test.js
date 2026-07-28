@@ -39,10 +39,22 @@ class Host extends Component {
 }
 
 describe("list-operator values", () => {
-    test("a bracket-less `in` candidate becomes a one-element list", () => {
+    test("a bracket-less `in` candidate survives the domain round trip", () => {
+        // Deliberately NOT repaired into `["draft"]`: geoengine stores
+        // `("geo_point", "in", "{ACTIVE_IDS}")` and matches the placeholder by
+        // strict equality, so rewriting the value here silently stripped its
+        // virtual operator.
         const tree = constructTreeFromDomain([["state", "in", "draft"]]);
-        expect(tree.value).toEqual(["draft"]);
-        expect(constructDomainFromTree(tree)).toBe(`[("state", "in", ["draft"])]`);
+        expect(tree.value).toBe("draft");
+        expect(constructDomainFromTree(tree)).toBe(`[("state", "in", "draft")]`);
+    });
+
+    test("a geo placeholder domain round-trips through the tree untouched", () => {
+        const tree = constructTreeFromDomain([["geo_point", "in", "{ACTIVE_IDS}"]]);
+        expect(tree.value).toBe("{ACTIVE_IDS}");
+        expect(constructDomainFromTree(tree)).toBe(
+            `[("geo_point", "in", "{ACTIVE_IDS}")]`,
+        );
     });
 
     test("merging an OR of `=`/`in` no longer explodes a string into characters", async () => {
@@ -53,8 +65,10 @@ describe("list-operator values", () => {
             ["state", "in", "draft"],
             ["state", "=", "done"],
         ]);
+        // Unmergeable, so each condition renders on its own instead of the
+        // string being spread into `d or r or a or f or t`.
         expect(await treeProcessor.getDomainTreeDescription("hardening", tree)).toBe(
-            "State = draft or done",
+            "State = draft or State = done",
         );
     });
 
@@ -67,7 +81,7 @@ describe("list-operator values", () => {
             ["qty", "=", 1],
         ]);
         expect(await treeProcessor.getDomainTreeDescription("hardening", tree)).toBe(
-            "Qty = 5 or 1",
+            "Qty = 5 or Qty = 1",
         );
     });
 
