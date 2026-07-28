@@ -152,12 +152,16 @@ export function useBounceButton(containerRef, shouldBounce) {
  * Listens for `direct-export-data` on the searchModel bus and opens the
  * ExportDataDialog when the returned callback is invoked.
  *
+ * Every path here reads the context off ``model.root``, which is the live one
+ * the search model has already folded its facets into. An ``action`` context
+ * parameter used to be threaded in from the controller and never read — it
+ * could only have disagreed with the root's.
+ *
  * @param {Object} env - OWL component environment (must have `model` and `searchModel`)
- * @param {Object} context - action context
  * @param {() => Object[]} getDefaultExportList - returns default fields for export
  * @returns {() => void} callback that opens the export dialog
  */
-export function useExportRecords(env, context, getDefaultExportList) {
+export function useExportRecords(env, getDefaultExportList) {
     const { model, searchModel } = env;
     const dialog = useService("dialog");
     useBus(searchModel, SearchModelEvent.DIRECT_EXPORT_DATA, () =>
