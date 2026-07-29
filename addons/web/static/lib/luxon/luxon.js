@@ -8132,7 +8132,7 @@ const VERSION = "3.7.2";
 export { DateTime, Duration, FixedOffsetZone, IANAZone, Info, Interval, InvalidZone, Settings, SystemZone, VERSION, Zone };
 //# sourceMappingURL=luxon.mjs.map
 
-// Odoo/AgroMarin patch: restore Symbol.toStringTag for the OWL reactivity
+// AgroMarin: restore Symbol.toStringTag for the OWL reactivity
 // system. OWL's canBeMadeReactive() uses Object.prototype.toString to detect
 // supported types. Without toStringTag, Luxon objects appear as plain
 // "Object" and get wrapped in Proxies, breaking reference equality.

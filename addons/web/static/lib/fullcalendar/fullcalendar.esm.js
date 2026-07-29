@@ -8697,7 +8697,7 @@ var FullCalendar = (function (exports) {
   }
 
   function getAppendableRoot(el) {
-      // Fork-local: opt-in portal host so popovers and drag mirrors stay
+      // AgroMarin: opt-in portal host so popovers and drag mirrors stay
       // inside the embedder's DOM subtree (Hoot test fixtures scope query
       // roots to the embedder; portaling to <body> hides the popover from
       // ``expect('.fc-popover')``). The host must be marked with
@@ -9444,7 +9444,7 @@ var FullCalendar = (function (exports) {
           isBlock && generateClassName(options.blockEventClass, renderProps), props.display === 'row' && generateClassName(options.rowEventClass, renderProps), props.display === 'column' && generateClassName(options.columnEventClass, renderProps), props.display === 'list-item' && generateClassName(options.listItemEventClass, renderProps), eventUi.className, props.className, props.display === 'column'
               ? classNames.flexCol
               : classNames.flexRow, (eventRange.def.url || isDraggable) && classNames.cursorPointer, classNames.internalEvent, props.isMirror && classNames.internalEventMirror,
-          // AGROMARIN FORK PATCH (FC v7.0.0): re-inject the v6
+          // AgroMarin: (FC v7.0.0) re-inject the v6
           // ``fc-event-mirror`` class so downstream selectors
           // (`.fc-event-mirror`, etc.) keep working alongside FC v7's
           // hashed ``classNames.internalEventMirror`` (= ``fc-uc``).
@@ -9473,7 +9473,7 @@ var FullCalendar = (function (exports) {
                               : classNames.cursorResizeS, 
                           // these classnames required for dnd
                           classNames.internalEventResizer, classNames.internalEventResizerStart,
-                          // AGROMARIN FORK PATCH (FC v7.0.0): re-inject
+                          // AgroMarin: (FC v7.0.0) re-inject
                           // the v6 ``fc-event-resizer`` / ``-start`` classes
                           // so test helpers (``resizeEventToTime``) and
                           // downstream CSS still find the resizer handles.
@@ -9482,7 +9482,8 @@ var FullCalendar = (function (exports) {
                               : classNames.cursorResizeE, 
                           // these classnames required for dnd
                           classNames.internalEventResizer, classNames.internalEventResizerEnd,
-                          // Same fork patch as resizer-start above.
+                          // AgroMarin: (FC v7.0.0) same v6 class
+                          // re-injection as resizer-start above.
                           'fc-event-resizer', 'fc-event-resizer-end')), children: [afterContent && (u$1(ContentContainer, { tag: 'div', style: { display: 'contents' }, attrs: { 'aria-hidden': true }, renderProps: renderProps, generatorName: undefined, customGenerator: afterContent })), Boolean(renderProps.isEndResizable && renderProps.isSelected) && (u$1("div", { className: classNames.hit }))] }))] })) }));
       }
       componentDidUpdate(prevProps) {
@@ -12296,7 +12297,7 @@ var FullCalendar = (function (exports) {
   function computeSlatHeight(expandRows, slatCnt, explicitSlatMinHeight = 0, slatInnerHeight, // from the "inner" i think
   scrollerHeight) {
       if (!slatInnerHeight || !scrollerHeight) {
-          // AGROMARIN FORK PATCH (FC v7.0.0): fall back to the caller-
+          // AgroMarin: (FC v7.0.0) fall back to the caller-
           // supplied ``slotMinHeight`` when measurement isn't ready (e.g.
           // HOOT mounts into a flex/grid ancestor whose layout settles
           // after FC's first paint, or the ResizeObserver-delivered
@@ -15190,7 +15191,7 @@ var FullCalendar = (function (exports) {
                   let slicedSubjectRect = intersectRects(subjectRect, initialHit.rect);
                   if (slicedSubjectRect) {
                       adjustedPoint = getRectCenter(slicedSubjectRect);
-                      // AGROMARIN FORK PATCH (FC v7.0.0): re-query the
+                      // AgroMarin: (FC v7.0.0) re-query the
                       // initial hit at the center-adjusted point so it uses
                       // the same convention as ``handleMove`` (which always
                       // applies ``coordAdjust`` before querying).  Without
@@ -17530,7 +17531,7 @@ var FullCalendar = (function (exports) {
 })({});
 
 // ──────────────────────────────────────────────────────────────────────
-// AGROMARIN native-ESM exports.
+// AgroMarin: native-ESM exports.
 //
 // The fork-patched FullCalendar v7 vanilla bundle above is an IIFE assigned
 // to `var FullCalendar`. Loaded as a *classic script* that `var` leaked to
@@ -17539,8 +17540,8 @@ var FullCalendar = (function (exports) {
 // turns the library into a first-class member of the esbuild module graph —
 // resolved via the `@fullcalendar/core` import-map entry / esbuild alias —
 // so consumers `import * as FullCalendar from "@fullcalendar/core"` instead
-// of reaching for a global. All AGROMARIN FORK PATCHes in the bundle above
-// are preserved verbatim.
+// of reaching for a global. Every fork divergence in the bundle above is
+// preserved verbatim.
 // ──────────────────────────────────────────────────────────────────────
 export default FullCalendar;
 export const {
