@@ -695,7 +695,7 @@ const defaultOptions = {
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE
   },
   enableScripting: {
-    // Odoo: don't support scripting (#115302)
+    // AgroMarin: don't support scripting (#115302)
     value: false,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE
   },
@@ -716,7 +716,7 @@ const defaultOptions = {
     kind: OptionKind.VIEWER
   },
   externalLinkTarget: {
-    // Odoo: open links in new tabs to keep odoo document (#84594)
+    // AgroMarin: open links in new tabs to keep the Odoo document (#84594)
     value: 2,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE
   },
@@ -793,7 +793,7 @@ const defaultOptions = {
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE
   },
   viewerCssTheme: {
-    // Odoo
+    // AgroMarin: follow Odoo's colour-scheme cookie, not the OS setting
     value: document.cookie.includes("color_scheme=dark") ? 2 : 1,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE
   },
@@ -7518,7 +7518,10 @@ class PDFFindBar {
     this.#mainContainer = mainContainer;
     const checkedInputs = new Map([[this.highlightAll, "highlightallchange"], [this.caseSensitive, "casesensitivitychange"], [this.entireWord, "entirewordchange"], [this.matchDiacritics, "diacriticmatchingchange"]]);
     this.toggleButton.addEventListener("click", () => {
-    // ODOO PATCH PRINT PREVIEW MOBILE
+    // AgroMarin: mobile print preview -- clears the print-completion resolver.
+    // Inert as written: `this` is the find bar, which owns no print state, and
+    // every reader of hasFinishPrint is the print service. Mis-anchored hunk,
+    // tracked in t24503; left in place until that task settles its real home.
     this.hasFinishPrint = null;
       this.toggle();
     });
@@ -9125,7 +9128,11 @@ class PDFPrintService {
   }
   performPrint() {
     this.throwIfInactive();
-    // ODOO PATCH PRINT PREVIEW MOBILE
+    // AgroMarin: mobile print preview -- upstream resolves 20 ms after calling
+    // print(), but on mobile print() returns while the dialog is still open, so
+    // the print service was torn down mid-dialog and the preview came out
+    // blank. Resolve on the real afterprint event instead (see t24503 for the
+    // missing guard when the browser has no afterprint).
     const hasFinishPrintPromise = new Promise((resolve) => {
       if ("afterprint" in window) {
         this.hasFinishPrint = resolve;
@@ -9135,13 +9142,15 @@ class PDFPrintService {
     });
     setTimeout(() => {
       if (!this.active) {
-        // ODOO PATCH PRINT PREVIEW MOBILE
+        // AgroMarin: mobile print preview -- release the waiter when the
+        // service went inactive before the dialog opened.
         this.hasFinishPrint();
         return;
       }
       print.call(window);
     }, 0);
-    // ODOO PATCH PRINT PREVIEW MOBILE
+    // AgroMarin: mobile print preview -- hand back the afterprint promise
+    // rather than upstream's fixed timeout.
     return hasFinishPrintPromise;
   }
   get active() {
@@ -9174,10 +9183,13 @@ window.print = function () {
       });
     } else {
       const activeServiceOnEntry = activeService;
-      // ODOO: FIX MOBILE PRINT PREVIEW
+      // AgroMarin: mobile print preview -- hold the teardown for the render's
+      // own duration plus 1 s, so a slow mobile dialog is not aborted before it
+      // appears.
       const timeBeforeRendering = new Date().getTime();
       activeService.renderPages().then(() => 
-        // ODOO: FIX MOBILE PRINT PREVIEW
+        // AgroMarin: mobile print preview -- wait on both the dialog and the
+        // minimum delay above.
         Promise.all([
           activeServiceOnEntry.performPrint(),
           new Promise(resolve => setTimeout(resolve, 1000 + new Date().getTime() - timeBeforeRendering))
@@ -9223,7 +9235,8 @@ window.addEventListener("keydown", function (event) {
 }, true);
 if ("onbeforeprint" in window) {
   const stopPropagationIfNeeded = function (event) {
-    // ODOO PATCH PRINT PREVIEW MOBILE
+    // AgroMarin: mobile print preview -- afterprint is what resolves the
+    // waiter, so let it through instead of stopping propagation.
     if (activeService?.hasFinishPrint && event.type === "afterprint") {
       activeService.hasFinishPrint();
       return;
@@ -18764,9 +18777,9 @@ const PDFViewerApplication = {
     const params = parseQueryString(queryString);
     file = params.get("file") ?? AppOptions.get("defaultUrl");
     try {
-      // Odoo: (t24482) resolve relative routes against the viewer document so
-      // their query string survives. encodeURIComponent restores only "/", so
-      // "?download=0" stays "%3Fdownload%3D0": a literal path segment that 404s.
+      // AgroMarin: (t24482) resolve relative routes against the viewer document
+      // so their query string survives. encodeURIComponent restores only "/",
+      // so "?download=0" stays "%3Fdownload%3D0": a path segment that 404s.
       file = new URL(file, window.location).href;
     } catch {
       file = encodeURIComponent(file).replaceAll("%2F", "/");
@@ -19285,7 +19298,7 @@ const PDFViewerApplication = {
     });
     pagesPromise.then(() => {
       this._unblockDocumentLoadEvent();
-      // Odoo: don't support scripting (#115302)
+      // AgroMarin: don't support scripting (#115302)
       // this._initializeAutoPrint(pdfDocument, openActionPromise);
     }, reason => {
       this._documentError("pdfjs-loading-error", {

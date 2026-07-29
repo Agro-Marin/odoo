@@ -1,4 +1,4 @@
-// AGROMARIN: native-ESM locale bundle. Imports the live `Shared` registry
+// AgroMarin: native-ESM locale bundle. Imports the live `Shared` registry
 // from the FullCalendar module and pushes the bundled locales into it,
 // replacing the old classic-script reliance on `globalThis.FullCalendar`.
 import { Shared } from "./fullcalendar.esm.js";

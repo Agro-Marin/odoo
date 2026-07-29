@@ -72,7 +72,7 @@
         "file": "fullcalendar.esm.js",
         "pattern": "FullCalendar \\(Vanilla JS\\) v{version}"
       },
-      "notes": "Upstream all/global.js with patches/agromarin-fork.patch applied, plus a hand-written ESM export footer. skeleton.css MUST be replaced in the same commit: v7 regenerates its fc-* class hashes on every build and recycles some onto unrelated roles. Resolve those names through fcInternalClassName(), never by literal."
+      "notes": "Upstream all/global.js carrying 7 AgroMarin: markers, the last of which is a hand-written ESM export footer. skeleton.css MUST be replaced in the same commit: v7 regenerates its fc-* class hashes on every build and recycles some onto unrelated roles. Resolve those names through fcInternalClassName(), never by literal."
     },
     "hoot": {
       "version": "internal",
@@ -115,7 +115,7 @@
       "license": "Apache-2.0",
       "source": "https://mozilla.github.io/pdf.js/",
       "probe": { "file": "build/pdf.js", "pattern": "pdfjsVersion = {version}" },
-      "notes": "Largest vendored library by far. Sourced from the GitHub prebuilt release zip (the npm package ships no full viewer), then run through patches/mechanise.sh and patches/agromarin-fork.patch. Lazily loaded via @web/core/utils/pdfjs. Since v6 the codecs are separate .wasm files under web/wasm/ — getDocument needs PDFJS_WASM_URL, which the facade defaults."
+      "notes": "Largest vendored library by far. Sourced from the GitHub prebuilt release zip (the npm package ships no full viewer), then run through addons/web/tooling/scripts/mechanise_pdfjs.sh, after which the 12 AgroMarin: markers in web/viewer.js are re-applied. Lazily loaded via @web/core/utils/pdfjs. Since v6 the codecs are separate .wasm files under web/wasm/ — getDocument needs PDFJS_WASM_URL, which the facade defaults."
     },
     "popper_compat": {
       "version": "generated",

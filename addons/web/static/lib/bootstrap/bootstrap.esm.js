@@ -2035,8 +2035,8 @@ class Dropdown extends BaseComponent {
  * Data API implementation
  */
 
-// Fork modification — the two delegated keydown handlers below are
-// disabled. Bootstrap's ``dataApiKeydownHandler`` calls
+// AgroMarin: the two delegated keydown handlers below are disabled.
+// Bootstrap's ``dataApiKeydownHandler`` calls
 // ``event.stopPropagation()`` on ArrowUp/ArrowDown for any descendant
 // of ``.dropdown-menu`` (and on the toggle itself for the data-toggle
 // variant), then tries to drive Bootstrap's own keyboard menu

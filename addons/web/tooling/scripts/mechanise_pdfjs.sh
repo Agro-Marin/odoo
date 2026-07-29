@@ -1,11 +1,17 @@
 #!/bin/bash
 # Reshape an upstream pdf.js prebuilt release ("pdfjs-<v>-dist.zip" from the
 # GitHub releases page -- the npm package ships no full viewer) into the layout
-# vendored here. Run this BEFORE applying agromarin-fork.patch.
+# vendored here. Run this on the fresh release, then re-apply the fork's
+# divergences, each of which is marked `AgroMarin:` in the file it lives in
+# (see addons/web/static/lib/README.md).
 #
-#   ./mechanise.sh <unzipped-release-dir>
+#   ./mechanise_pdfjs.sh <unzipped-release-dir>
 #
-#  - ESM files carry .js, not .mjs, and every intra-tree reference follows.
+#  - ESM files carry .js, not .mjs, and every intra-tree reference follows --
+#    except webpack's build-provenance comments (";// ./node_modules/..."),
+#    which name the SOURCE module rather than a shipped file. Rewriting those
+#    misreports where the code came from, and the old patch file spent 4 of its
+#    12 hunks undoing exactly that.
 #  - Source maps are not shipped, so their references are stripped rather than
 #    rewritten: a rewritten-but-absent .map 404s in devtools.
 #  - The scripting sandbox (pdf.sandbox.*) and its QuickJS engine
@@ -24,4 +30,4 @@ rm -f "$d"/web/compressed.tracemonkey-pldi-09.pdf
 rm -rf "$d"/web/standard_fonts
 find "$d" -name "*.mjs" | while read -r f; do mv "$f" "${f%.mjs}.js"; done
 find "$d" \( -name "*.js" -o -name "*.html" \) -print0 |
-  xargs -0 sed -i -E 's/\.mjs\b/.js/g; /^\/\/# sourceMappingURL=/d'
+  xargs -0 sed -i -E '/^;\/\//! s/\.mjs\b/.js/g; /^\/\/# sourceMappingURL=/d'
