@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="ir_cron_web_js_error_gc" model="ir.cron">
+        <field name="name">Web: JS Error Retention</field>
+        <field name="model_id" ref="model_web_js_error" />
+        <field name="state">code</field>
+        <field name="code">model._gc_old_errors()</field>
+        <field name="interval_number">1</field>
+        <field name="interval_type">days</field>
+        <field name="priority">8</field>
+        <field name="active" eval="True" />
+    </record>
+
+</odoo>

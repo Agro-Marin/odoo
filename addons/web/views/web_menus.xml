@@ -17,4 +17,12 @@
         sequence="70"
         groups="base.group_system" />
 
+    <menuitem
+        id="menu_web_js_error"
+        name="JS Errors"
+        parent="base.menu_administration"
+        action="action_web_js_error"
+        sequence="71"
+        groups="base.group_system" />
+
 </odoo>

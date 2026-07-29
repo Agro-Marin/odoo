@@ -223,10 +223,12 @@ class Observability(Controller):
         ``reloaded`` (``asset_load_error`` only — whether the loader's
         self-heal reload fired or the once-a-minute guard suppressed it).
 
-        Logs each beacon as ``[js_error]`` at WARNING.  Persistence
-        (``web.js.error`` model + queryable dashboard) is intentionally
-        deferred to a follow-up phase; the log is enough for operators to
-        spot post-deploy regressions via the existing log pipeline.
+        Logs each beacon as ``[js_error]`` at WARNING and persists it to
+        ``web.js.error`` (list/form under Settings → Technical → JS Errors).
+        The log line stays because it needs no DB query to inspect and
+        survives even when the write fails; the model is what makes a
+        post-deploy regression greppable by kind, phase and cause instead of
+        by log scraping.
 
         ``csrf=False`` because ``navigator.sendBeacon`` cannot carry a CSRF
         token; the endpoint is purely write-only. The first-party client
@@ -311,5 +313,28 @@ class Observability(Controller):
             url,
             user_agent,
             stack,
+        )
+        # sudo(): beacons arrive from anonymous frontend visitors too, and the
+        # model is deliberately unreachable to everyone but base.group_system.
+        # The per-client rate limit above is what bounds the insert volume.
+        request.env["web.js.error"].sudo()._record_beacon(
+            {
+                "user_id": uid,
+                "phase": phase,
+                "kind": kind,
+                "message": message,
+                "cause": cause,
+                "stack": stack,
+                "filename": filename,
+                "line": line,
+                "col": col,
+                "url": url,
+                "user_agent": user_agent,
+                "reloaded": (
+                    None
+                    if reloaded is None
+                    else ("reloaded" if reloaded else "suppressed")
+                ),
+            }
         )
         return Response("", status=204)

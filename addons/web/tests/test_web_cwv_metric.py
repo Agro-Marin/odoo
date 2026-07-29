@@ -255,6 +255,106 @@ class TestWebCwvBeacon(HttpCase):
             "an absent reloaded must log as None, not False",
         )
 
+    def test_js_error_persists_a_row(self):
+        self.url_open(
+            "/web/observability/js_error",
+            data=json.dumps(
+                {
+                    "message": "persisted probe",
+                    "kind": "service_start",
+                    "phase": "pre_boot",
+                    "cause": "Caused by: TypeError: boom",
+                    "stack": "at svc (svc.js:1:1)",
+                    "url": "http://localhost/web/login",
+                }
+            ),
+            headers={"Content-Type": "application/json"},
+        )
+        row = self.env["web.js.error"].search(
+            [("message", "=", "persisted probe")], limit=1
+        )
+        self.assertTrue(row, "the beacon must land in web.js.error")
+        self.assertEqual(row.kind, "service_start")
+        self.assertEqual(row.phase, "pre_boot")
+        self.assertEqual(row.cause, "Caused by: TypeError: boom")
+        self.assertFalse(row.reloaded, "no reloaded was sent, so it stays unset")
+
+    def test_js_error_reloaded_maps_to_selection(self):
+        """The wire sends a bool; the model stores a tristate so that 'not
+        applicable' stays distinguishable from 'the reload was suppressed'."""
+        for sent, expected in ((True, "reloaded"), (False, "suppressed")):
+            message = f"reload probe {sent}"
+            self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps(
+                    {
+                        "message": message,
+                        "kind": "asset_load_error",
+                        "reloaded": sent,
+                    }
+                ),
+                headers={"Content-Type": "application/json"},
+            )
+            row = self.env["web.js.error"].search([("message", "=", message)], limit=1)
+            self.assertEqual(row.reloaded, expected)
+
+    def test_js_error_rate_limited_beacon_persists_nothing(self):
+        """A 429 must not leave a row behind, or the rate limit would cap the
+        log while the table grew unbounded."""
+        from odoo.addons.web.controllers import observability
+
+        # _rate_state is process-global: clear it on both sides or this test
+        # poisons the budget for whatever runs next in the same worker.
+        observability._rate_state.clear()
+        self.addCleanup(observability._rate_state.clear)
+
+        Model = self.env["web.js.error"]
+        before = Model.search_count([])
+        with patch.object(observability, "_RATE_LIMIT_MAX", 2):
+            statuses = [
+                self.url_open(
+                    "/web/observability/js_error",
+                    data=json.dumps({"message": f"rl probe {i}"}),
+                    headers={"Content-Type": "application/json"},
+                ).status_code
+                for i in range(4)
+            ]
+
+        self.assertEqual(statuses, [204, 204, 429, 429])
+        self.assertEqual(
+            Model.search_count([]) - before,
+            2,
+            "only the accepted beacons may persist",
+        )
+
+    def test_js_error_empty_message_persists_nothing(self):
+        before = self.env["web.js.error"].search_count([])
+        status = self.url_open(
+            "/web/observability/js_error",
+            data=json.dumps({"message": ""}),
+            headers={"Content-Type": "application/json"},
+        ).status_code
+        self.assertEqual(status, 204)
+        self.assertEqual(self.env["web.js.error"].search_count([]), before)
+
+    def test_js_error_gc_respects_retention_days(self):
+        Model = self.env["web.js.error"]
+        Model._record_beacon({"message": "old row", "kind": "error"})
+        self.env.cr.execute(
+            "UPDATE web_js_error SET recorded_at = (now() AT TIME ZONE 'UTC')"
+            " - interval '90 days' WHERE message = 'old row'"
+        )
+        param = self.env["ir.config_parameter"].sudo()
+
+        # 0 disables retention entirely — the transit-buffer case.
+        param.set_param("web.js_error.retention_days", "0")
+        Model._gc_old_errors()
+        self.assertTrue(Model.search([("message", "=", "old row")]))
+
+        param.set_param("web.js_error.retention_days", "30")
+        Model._gc_old_errors()
+        self.assertFalse(Model.search([("message", "=", "old row")]))
+
     def test_js_error_unknown_kind_falls_back_to_error(self):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
