@@ -1,5 +1,35 @@
-
 $enable-deprecation-messages: false !default;
+
+// These two live with `web._assets_helpers`, not with the backend helpers,
+// because their callers travel in bundles that do not carry
+// `web._assets_backend_helpers`: `bootstrap_review_backend.scss` rides
+// `web._assets_bootstrap_backend`, the components calling `o-text-color()` ride
+// `web._assets_core`, and account_reports, account_followup, frontdesk and
+// hr_attendance pull those without the backend helpers. Sass then fails the
+// whole bundle on the first call it cannot resolve.
+@mixin o-button-variant-from($-spec) {
+    @include button-variant(
+        map-get($-spec, background),
+        map-get($-spec, border),
+        map-get($-spec, color),
+        map-get($-spec, hover-background),
+        map-get($-spec, hover-border),
+        map-get($-spec, hover-color),
+        map-get($-spec, active-background),
+        map-get($-spec, active-border),
+        map-get($-spec, active-color)
+    );
+}
+
+@function o-text-color($key) {
+    $-all-text-colors: map-merge($theme-colors, $o-theme-text-colors);
+
+    @if map-has-key($-all-text-colors, $key) {
+        @return map-get($-all-text-colors, $key);
+    }
+
+    @return false;
+}
 
 @function color-contrast(
     $background,

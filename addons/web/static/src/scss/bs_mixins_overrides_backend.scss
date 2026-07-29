@@ -1,27 +1,3 @@
-@mixin o-button-variant-from($-spec) {
-    @include button-variant(
-        map-get($-spec, background),
-        map-get($-spec, border),
-        map-get($-spec, color),
-        map-get($-spec, hover-background),
-        map-get($-spec, hover-border),
-        map-get($-spec, hover-color),
-        map-get($-spec, active-background),
-        map-get($-spec, active-border),
-        map-get($-spec, active-color)
-    );
-}
-
-@function o-text-color($key) {
-    $-all-text-colors: map-merge($theme-colors, $o-theme-text-colors);
-
-    @if map-has-key($-all-text-colors, $key) {
-        @return map-get($-all-text-colors, $key);
-    }
-
-    @return false;
-}
-
 // Deliberately shadows the definition in `mixins_forwardport.scss`, which the
 // frontend keeps: this one routes through `o-print-color()` so `.text-*` survives
 // print colour-adjust, and covers `:active`/`.active` and `button` as well. The
