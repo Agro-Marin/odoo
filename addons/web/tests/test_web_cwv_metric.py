@@ -198,6 +198,63 @@ class TestWebCwvBeacon(HttpCase):
             "service_start must be logged verbatim, not coerced to error",
         )
 
+    def test_js_error_asset_load_error_kind_logged_verbatim(self):
+        with self.assertLogs(
+            "odoo.addons.web.controllers.observability", level="WARNING"
+        ) as capture:
+            status = self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps(
+                    {"message": "bundle gone", "kind": "asset_load_error"}
+                ),
+                headers={"Content-Type": "application/json"},
+            ).status_code
+
+        self.assertEqual(status, 204)
+        self.assertTrue(
+            any("kind=asset_load_error" in line for line in capture.output),
+            "the loader has always sent this kind; it must stop being coerced",
+        )
+
+    def test_js_error_reloaded_flag_is_logged(self):
+        """``reloaded`` separates a page that self-healed from one that stayed
+        broken, so both values must reach the log distinctly."""
+        for sent, expected in ((True, "reloaded=True"), (False, "reloaded=False")):
+            with self.assertLogs(
+                "odoo.addons.web.controllers.observability", level="WARNING"
+            ) as capture:
+                self.url_open(
+                    "/web/observability/js_error",
+                    data=json.dumps(
+                        {
+                            "message": "bundle gone",
+                            "kind": "asset_load_error",
+                            "reloaded": sent,
+                        }
+                    ),
+                    headers={"Content-Type": "application/json"},
+                )
+            self.assertTrue(
+                any(expected in line for line in capture.output),
+                f"expected {expected} in the log line",
+            )
+
+    def test_js_error_absent_reloaded_logs_none(self):
+        """Every other kind omits the field; it must not read as False, which
+        would claim a reload was suppressed when none was ever attempted."""
+        with self.assertLogs(
+            "odoo.addons.web.controllers.observability", level="WARNING"
+        ) as capture:
+            self.url_open(
+                "/web/observability/js_error",
+                data=json.dumps({"message": "plain error"}),
+                headers={"Content-Type": "application/json"},
+            )
+        self.assertTrue(
+            any("reloaded=None" in line for line in capture.output),
+            "an absent reloaded must log as None, not False",
+        )
+
     def test_js_error_unknown_kind_falls_back_to_error(self):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"

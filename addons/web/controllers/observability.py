@@ -217,9 +217,11 @@ class Observability(Controller):
 
         Payload fields (all optional, all clamped to per-field length caps):
         ``phase`` (``"pre_boot"`` | ``"post_boot"``), ``kind`` (``"error"`` |
-        ``"unhandledrejection"`` | ``"module_rebind"`` | ``"service_start"``),
-        ``message``, ``cause``, ``filename``, ``line``, ``col``, ``stack``,
-        ``url``, ``user_agent``.
+        ``"unhandledrejection"`` | ``"module_rebind"`` | ``"service_start"`` |
+        ``"asset_load_error"``), ``message``, ``cause``, ``filename``,
+        ``line``, ``col``, ``stack``, ``url``, ``user_agent``, and
+        ``reloaded`` (``asset_load_error`` only — whether the loader's
+        self-heal reload fired or the once-a-minute guard suppressed it).
 
         Logs each beacon as ``[js_error]`` at WARNING.  Persistence
         (``web.js.error`` model + queryable dashboard) is intentionally
@@ -261,7 +263,13 @@ class Observability(Controller):
         kind = (
             payload.get("kind")
             if payload.get("kind")
-            in ("error", "unhandledrejection", "module_rebind", "service_start")
+            in (
+                "error",
+                "unhandledrejection",
+                "module_rebind",
+                "service_start",
+                "asset_load_error",
+            )
             else "error"
         )
         phase = (
@@ -276,6 +284,11 @@ class Observability(Controller):
         cause = _str_field(payload.get("cause"), _MAX_ERROR_CAUSE_LEN)
         line = _int_field(payload.get("line"))
         col = _int_field(payload.get("col"))
+        # Only asset_load_error carries this: it says whether the loader's
+        # one-per-minute self-heal reload actually fired or was suppressed by
+        # the guard, which is the difference between a page that recovered and
+        # one that stayed broken.
+        reloaded = bool(payload.get("reloaded")) if "reloaded" in payload else None
 
         uid = request.session.uid or False
         in_test = bool(modules.module.current_test) or config["test_enable"]
@@ -284,11 +297,12 @@ class Observability(Controller):
         )
         _logger.log(
             level,
-            "[js_error] uid=%s phase=%s kind=%s msg=%r cause=%r"
+            "[js_error] uid=%s phase=%s kind=%s reloaded=%s msg=%r cause=%r"
             " at %r:%d:%d url=%r ua=%r stack=%r",
             uid or "anon",
             phase,
             kind,
+            reloaded,
             message,
             cause,
             filename,
