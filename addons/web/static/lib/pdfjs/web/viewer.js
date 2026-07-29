@@ -18764,7 +18764,10 @@ const PDFViewerApplication = {
     const params = parseQueryString(queryString);
     file = params.get("file") ?? AppOptions.get("defaultUrl");
     try {
-      file = new URL(file).href;
+      // Odoo: (t24482) resolve relative routes against the viewer document so
+      // their query string survives. encodeURIComponent restores only "/", so
+      // "?download=0" stays "%3Fdownload%3D0": a literal path segment that 404s.
+      file = new URL(file, window.location).href;
     } catch {
       file = encodeURIComponent(file).replaceAll("%2F", "/");
     }
