@@ -1,9 +1,25 @@
 # Vendored libraries
 
-Third-party libraries shipped inside the `web` module. **Do not edit these files.**
-Replace a directory wholesale when updating; where the fork genuinely needs a change,
-keep it in a `patches/` file next to the library rather than editing the bundle in place
-(see `fullcalendar/patches/`).
+Third-party libraries shipped inside the `web` module. Replace a directory wholesale
+when updating rather than editing it incrementally.
+
+Where the fork genuinely needs a change, **make it in the file and mark it with an
+`AgroMarin:` comment** saying what diverged and why:
+
+```js
+// AgroMarin: don't support scripting (#115302)
+value: false,
+```
+
+That marker is the record. It cannot drift from the code, because it *is* the code, and
+`grep -rn "AgroMarin:" <lib>/` is the complete inventory of what a bump must re-apply.
+Counting it in CI is a follow-up (t24489); today the gates below check versions and
+advisories only, so the marker is a convention kept by hand — a divergence left
+unmarked is one the next bump silently discards.
+
+Do not keep a parallel `.patch` file alongside a library: a copy of a diff can disagree
+with the file it describes, and nothing reads it at build time. Keep reshaping tooling
+in `web/tooling/scripts/`, not inside the vendored tree.
 
 `versions.json` in this directory is the **single source of truth** for what is vendored
 and at which version. It is machine-checked — see [Verification](#verification) — so the
@@ -20,13 +36,13 @@ commit as the files it describes.
 | `chartjs-adapter-luxon/` | 1.3.1 | `chartjs-adapter-luxon` | Side-effect import that registers luxon on Chart's date adapter. |
 | `diff_match_patch/` | forked | — | Trimmed fork of google/diff-match-patch (diff functions only); see its header. |
 | `dompurify/` | 3.4.12 | `dompurify` | Upstream `dist/purify.es.mjs` verbatim. **Security-critical** — see below. |
-| `fullcalendar/` | 7.0.2 | `fullcalendar` | Patched `all/global.js` + ESM footer. **Fork-patched** — see below. |
+| `fullcalendar/` | 7.0.2 | `fullcalendar` | Upstream `all/global.js` + ESM footer, 7 `AgroMarin:` markers. **Fork-modified** — see below. |
 | `hoot/` | internal | — | Odoo HOOT test framework, developed in-tree. |
 | `hoot-dom/` | internal | — | Odoo HOOT DOM helpers, developed in-tree. |
 | `luxon/` | 3.7.2 | `luxon` | Reached only through the `@web/core/l10n/luxon` facade. |
 | `odoo_ui_icons/` | 1.2 | — | IcoMoon build over Carbon + Material; see `Read Me.txt`. |
 | `owl/` | 2.8.3 | `@odoo/owl` | Upstream `dist/owl.es.js` verbatim — a published release, **not** an in-tree fork. |
-| `pdfjs/` | 6.1.200 | `pdfjs-dist` | Largest vendored library. Lazy (`@web/core/utils/pdfjs`). |
+| `pdfjs/` | 6.1.200 | `pdfjs-dist` | Largest vendored library. 12 `AgroMarin:` markers, all in `web/viewer.js`. **Fork-modified** — see below. Lazy (`@web/core/utils/pdfjs`). |
 | `popper_compat/` | generated | — | **Not a third-party library.** Self-contained build of `@web/libs/popper_compat`, which replaced Popper. See below. |
 | `prismjs/` | 1.30.0 | `prismjs` | Custom download with a fixed language set; keep the set when bumping. |
 | `signature_pad/` | 5.1.3 | `signature_pad` | |
@@ -41,12 +57,13 @@ advisories target, several of them specific to `IN_PLACE` and to cross-realm use
 any advisory reported against this library as release-blocking, and re-run the
 `@html_editor` suite after every bump.
 
-**`fullcalendar/`** is not a pristine upstream file. It is upstream's `all/global.js`
-with `patches/agromarin-fork.patch` (6 hunks) applied, followed by a hand-written ESM
-export footer. To bump it:
+**`fullcalendar/`** is not a pristine upstream file. `fullcalendar.esm.js` is upstream's
+`all/global.js` carrying 6 marked divergences, followed by a hand-written ESM export
+footer (itself the 7th). To bump it:
 
 1. `npm pack fullcalendar@<version>` and unpack it.
-2. `patch -p0 package/all/global.js < fullcalendar/patches/agromarin-fork.patch`.
+2. Re-apply each `AgroMarin:` divergence — `grep -n "AgroMarin:" fullcalendar.esm.js`
+   on the outgoing file lists them, and each comment states what it re-injects and why.
 3. Append the existing ESM footer (everything from the `// ─────` rule onward).
 4. Regenerate `locales-all.esm.js` from the release's `locales-all/global.js`, replacing
    the trailing `})(FullCalendar.Shared);` with `})(Shared);` and prepending the import
@@ -58,6 +75,17 @@ bump both reshuffles nearly all of them and recycles a few onto unrelated roles 
 stale stylesheet or a hard-coded hash matches the *wrong* element instead of simply
 missing. Never write an `fc-<hash>` literal; resolve names through
 `fcInternalClassName()` in `@web/views/calendar/hooks/full_calendar_hook`.
+
+**`pdfjs/`** ships the full viewer, which the npm package does not carry, so a bump
+starts from the `pdfjs-<v>-dist.zip` on the GitHub releases page. That archive does not
+match the vendored layout: `web/tooling/scripts/mechanise_pdfjs.sh <unzipped-dir>`
+reshapes it (`.mjs` to `.js`, source-map references stripped, scripting sandbox and
+sample assets dropped), and its header explains each choice. Run it first, then
+re-apply the 12 `AgroMarin:` markers in `web/viewer.js`.
+
+The reshape is deliberately blind to webpack's build-provenance comments
+(`;// ./node_modules/...`), which name the source module rather than a shipped file.
+Rewriting those would misreport where the code came from.
 
 **`popper_compat/`** is generated, not vendored. Popper was removed: Bootstrap was
 its only importer and used a single entry point, `createPopper`, which
@@ -109,8 +137,10 @@ a clean bill of health.
 1. **Confirm the upgrade is needed.** Pin it to a real reason — a security advisory, a
    required feature, a license change. Do not chase versions for their own sake; every
    update churns the diff and risks a bundle-size regression.
-2. **Replace the directory wholesale**, then re-apply any `patches/` on top. Never edit
-   a vendored file in place.
+2. **Replace the directory wholesale.** Before deleting anything, run
+   `grep -rn "AgroMarin:" <lib>/` and keep the output: that is the complete list of
+   fork divergences you must re-apply to the new release, each with its own rationale.
+   Re-apply them in the file and keep the marker.
 3. **Update `versions.json`** in the same commit, and this table with it.
 4. **Run both gates** (`--drift`, `--audit`).
 5. **Re-run `--test-tags=web_assets -u web`** to confirm bundle generation still works.
