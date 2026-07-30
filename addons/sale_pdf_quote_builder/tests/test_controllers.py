@@ -22,7 +22,11 @@ class TestUpload(HttpCase):
         self.assertEqual(
             resp.headers["Content-Type"], "application/json; charset=utf-8"
         )
+        # Compare parsed JSON: the fork's orjson serializer emits compact
+        # separators, so a raw-text comparison is serializer-fragile.
         self.assertEqual(
-            resp.text,
-            R"""{"error": "It seems that we're not able to process this pdf inside a quotation. It is either encrypted, or encoded in a format we do not support."}""",
+            resp.json()["error"],
+            "It seems that we're not able to process this pdf inside a "
+            "quotation. It is either encrypted, or encoded in a format we "
+            "do not support.",
         )
