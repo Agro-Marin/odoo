@@ -1104,7 +1104,7 @@ class PurchaseOrderLine(models.Model):
             sign = inv_line.move_id.direction_sign
             date = inv_line.invoice_date or fields.Date.today()
 
-            qty += sign * inv_line.product_uom_id._compute_quantity(
+            qty += sign * inv_line.product_uom_id._compute_quantity_reconcile(
                 inv_line.quantity,
                 self.product_uom_id,
             )

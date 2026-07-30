@@ -552,20 +552,28 @@ class SaleOrderLine(models.Model):
 
             valid_values = line.product_id.product_tmpl_id.valid_product_template_attribute_line_ids.product_template_value_ids
 
-            # Remove custom values that don't belong to this template
+            # Remove custom values that don't belong to this template.
+            # Collect first, subtract once: mutating the recordset while
+            # iterating it skips elements, leaving invalid values behind.
             if has_custom:
+                invalid_custom = line.product_custom_attribute_value_ids.browse()
                 for pacv in line.product_custom_attribute_value_ids:
                     if (
                         pacv.custom_product_template_attribute_value_id
                         not in valid_values
                     ):
-                        line.product_custom_attribute_value_ids -= pacv
+                        invalid_custom |= pacv
+                line.product_custom_attribute_value_ids -= invalid_custom
 
             # Remove no_variant attributes that don't belong to this template
             if has_no_variant:
+                invalid_no_variant = (
+                    line.product_no_variant_attribute_value_ids.browse()
+                )
                 for ptav in line.product_no_variant_attribute_value_ids:
                     if ptav._origin not in valid_values:
-                        line.product_no_variant_attribute_value_ids -= ptav
+                        invalid_no_variant |= ptav
+                line.product_no_variant_attribute_value_ids -= invalid_no_variant
 
     @api.depends("product_id")
     def _compute_product_name_translated(self):
@@ -904,9 +912,11 @@ class SaleOrderLine(models.Model):
                 direction_sign = -invoice_line.move_id.direction_sign
 
                 # Quantity tracking
-                qty_invoiced_unsigned = invoice_line.product_uom_id._compute_quantity(
-                    invoice_line.quantity,
-                    line.product_uom_id,
+                qty_invoiced_unsigned = (
+                    invoice_line.product_uom_id._compute_quantity_reconcile(
+                        invoice_line.quantity,
+                        line.product_uom_id,
+                    )
                 )
                 qty_invoiced += qty_invoiced_unsigned * direction_sign
 

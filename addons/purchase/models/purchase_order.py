@@ -806,15 +806,15 @@ class PurchaseOrder(models.Model):
                 pending_section = line
                 continue
             if pending_section:
-                line_vals = pending_section._prepare_aml_vals()
+                for line_vals in pending_section._prepare_aml_vals_list():
+                    line_vals.update({"sequence": sequence})
+                    commands.append(Command.create(line_vals))
+                    sequence += 1
+                pending_section = None
+            for line_vals in line._prepare_aml_vals_list():
                 line_vals.update({"sequence": sequence})
                 commands.append(Command.create(line_vals))
                 sequence += 1
-                pending_section = None
-            line_vals = line._prepare_aml_vals()
-            line_vals.update({"sequence": sequence})
-            commands.append(Command.create(line_vals))
-            sequence += 1
         return commands, sequence
 
     def _get_invoice_grouping_keys(self):

@@ -333,6 +333,10 @@ class AccountMove(models.Model):
         if not purchase_order_lines:
             return
         self.ensure_one()
+        # This path sizes the new lines from `qty_to_invoice` without going
+        # through `_prepare_aml_vals_list`, so the boundary guard is invoked
+        # here explicitly.
+        purchase_order_lines._assert_invoiced_uom_convertible()
         new_line_ids = self.env["account.move.line"]
 
         for po_line in purchase_order_lines:

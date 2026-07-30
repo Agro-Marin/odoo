@@ -14,3 +14,4 @@ from . import test_purchase_product_catalog
 from . import test_purchase_performance
 from . import test_purchase_order_write_validation
 from . import test_purchase_fixes
+from . import test_invoiced_uom_guard

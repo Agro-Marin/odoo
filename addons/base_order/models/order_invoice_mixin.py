@@ -819,6 +819,42 @@ class OrderLineInvoiceMixin(models.AbstractModel):
 
     # ─── Invoice Line Preparation ──────────────────────────────────
 
+    def _assert_invoiced_uom_convertible(self):
+        """Posting-boundary guard for the leniently-computed invoiced qty.
+
+        Checks the conversions ``_compute_invoice_amounts`` performs without
+        running it: that compute writes six stored fields, and a validation
+        must not have side effects on the values it is about to protect.
+
+        :raises UserError: when an invoice-line UoM cannot be converted into
+            the order-line UoM.
+        """
+        # No `_invoiced_on_transferred()` filter: this conversion runs for
+        # every invoiced line, whatever its invoicing policy.  Empty UoM and
+        # zero quantity are skipped because `_compute_quantity` returns early
+        # on both, so raising here would be stricter than the compute.
+        for line in self.filtered(lambda l: not l.display_type):
+            target_uom = line.product_uom_id
+            if not target_uom:
+                continue
+            for inv_line in line._get_posted_invoice_lines():
+                source_uom = inv_line.product_uom_id
+                if not source_uom or not inv_line.quantity:
+                    continue
+                if not source_uom._has_common_reference(target_uom):
+                    raise UserError(
+                        _(
+                            "Cannot invoice “%(line)s”: its already-invoiced "
+                            "quantity is recorded in %(source)s, which cannot "
+                            "be converted into %(target)s. Align the units of "
+                            "measure on the order line and its invoice lines, "
+                            "then try again.",
+                            line=line.display_name,
+                            source=source_uom.display_name,
+                            target=target_uom.display_name,
+                        )
+                    )
+
     def _prepare_aml_vals_list(self, **optional_values):
         """Prepare the list of values to create invoice lines.
 
@@ -829,6 +865,7 @@ class OrderLineInvoiceMixin(models.AbstractModel):
         :rtype: list[dict]
         """
         self._assert_transferred_uom_convertible()
+        self._assert_invoiced_uom_convertible()
         return [self._prepare_aml_vals(**optional_values)]
 
     def _prepare_aml_vals(self, **optional_values):
