@@ -280,6 +280,48 @@ high-volume; `recorded_at` captures beacon arrival).
 **Key Methods:**
 - `_gc_old_metrics()` (`@api.model`) — Daily cron retention sweep. Reads `web.cwv.retention_days` (default `"30"`). `0` disables (cron no-op). Issues a single raw `DELETE FROM web_cwv_metric WHERE recorded_at < now() - INTERVAL ...` (no ORM iteration; table is append-only by design). Registered via `data/web_cwv_metric_data.xml`.
 
+### models/web_js_error.py — WebJsError (`_name = 'web.js.error'`)
+
+Storage for client-side JS error beacons. Records are written by
+`controllers/observability.py:js_error()` via `sudo()` (beacons arrive from
+anonymous frontend visitors too) and pruned on a daily cron (`_gc_old_errors`).
+
+`_log_access = False`, same rationale as `web.cwv.metric`: append-only and
+high-volume, with `recorded_at` capturing beacon arrival.
+
+Producers of the beacons this stores:
+
+- `static/src/module_loader.js` — the pre-ESM shim's `error` /
+  `unhandledrejection` / asset-load listeners (`kind` `error`,
+  `unhandledrejection`, `asset_load_error`, `module_rebind`).
+- `static/src/core/errors/error_beacon.js` — the canonical ESM beacon.
+- `static/src/env.js` — services that never started (`kind` `service_start`).
+
+Fields worth knowing:
+
+- `cause` (Text) — flattened `error.cause` chain, one `Caused by:` segment per
+  level, depth-capped at 8 and cycle-guarded. This is the field an OWL lifecycle
+  error points at: its own message says to read `cause`, and without it the
+  report names a failure without saying why.
+- `reloaded` (Selection `reloaded`/`suppressed`, nullable) — set only for
+  `asset_load_error`: whether the loader's one-per-minute self-heal reload fired
+  or the guard suppressed it. **Null means not applicable**, not "suppressed" — a
+  Boolean here would claim a reload was withheld when none was attempted.
+- `message` is `Char(size=4096)`; `cause` and `stack` are `Text` with explicit
+  `CHECK(char_length(...) <= 4096)` constraints, since Text carries no length.
+
+- `_record_beacon(values)` (`@api.model`) — single raw parameterized INSERT. No
+  upsert key, unlike `web.cwv.metric`: two identical errors from two sessions are
+  two facts, not one row to update.
+- `_gc_old_errors()` (`@api.model`) — daily cron retention sweep. Reads
+  `web.js_error.retention_days` (default `"30"`); `0` disables. Matters more than
+  the CWV sweep: the endpoint is `auth="public"`, so a caller bounded only by the
+  120/60s rate limit could add ~172k rows a day. Registered via
+  `data/web_js_error_data.xml`.
+
+Read access is `base.group_system` only (`security/ir.model.access.csv`), with
+`write`/`create` denied — the controller writes through `sudo()`.
+
 ## Model Index
 
 Quick lookup — file → model → primary role:

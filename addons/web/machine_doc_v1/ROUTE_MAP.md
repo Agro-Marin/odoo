@@ -216,7 +216,7 @@ These are the primary backend APIs consumed by the JS ORM service (`core/network
 | Method | Route | Auth | Handler | Purpose |
 |--------|-------|------|---------|---------|
 | HTTP POST | `/web/observability/cwv` | public (csrf=False, sitemap=False) | `cwv()` | Core Web Vitals beacon (LCP/FCP/CLS/TTFB/INP — INP as worst-observed P100 interaction duration) sent via `navigator.sendBeacon` from `web_vitals_service.js` on `pagehide`. Validates and clamps payload, persists to `web.cwv.metric`, emits `[cwv]`-tagged INFO log. |
-| HTTP POST | `/web/observability/js_error` | public (csrf=False, sitemap=False) | `js_error()` | JS error beacon sent via `navigator.sendBeacon` from the inline `module_loader.js` shim's pre-bundle error handler. Throttled JS-side to one beacon per `(message,line,col)` per page lifetime. Clamps payload fields to length caps, emits a `[js_error]` WARNING log. No model persistence in Phase 1 — operators triage from the log. |
+| HTTP POST | `/web/observability/js_error` | public (csrf=False, sitemap=False) | `js_error()` | JS error beacon sent via `navigator.sendBeacon` from the inline `module_loader.js` shim's pre-bundle error handler. Throttled JS-side to one beacon per `(message,line,col,hash(stack+cause))` per page lifetime — the stack and cause discriminate because OWL reports every lifecycle failure with one generic message at `0:0`. Clamps payload fields to length caps, emits a `[js_error]` WARNING log, and persists to `web.js.error` (see `MODEL_MAP.md`). |
 
 ## Route Count Summary
 

@@ -75,9 +75,9 @@ _MAX_LATENCY_MS = 60_000
 _MAX_CLS = 5.0
 _MAX_URL_LEN = 500
 _MAX_UA_LEN = 500
-# Matches _MAX_ERROR_STACK_LEN: a serialized `cause` chain with several
-# "Caused by:" segments exceeds 1000 easily, and truncating it defeats the
-# purpose of sending it.
+# Matches _MAX_ERROR_STACK_LEN. 1000 truncated real client messages: an
+# aggregate assertion dump or a stringified payload runs long, and the tail is
+# where the specifics are. The `cause` chain has its own cap below.
 _MAX_ERROR_MSG_LEN = 4_096
 _MAX_ERROR_STACK_LEN = 4_096
 _MAX_ERROR_CAUSE_LEN = 4_096
@@ -232,8 +232,9 @@ class Observability(Controller):
 
         ``csrf=False`` because ``navigator.sendBeacon`` cannot carry a CSRF
         token; the endpoint is purely write-only. The first-party client
-        rate-limits itself (one beacon per ``(message,line,col)`` per page
-        lifetime), but a hostile caller ignores that, so the server also
+        rate-limits itself (one beacon per
+        ``(message,line,col,hash(stack+cause))`` per page lifetime), but a
+        hostile caller ignores that, so the server also
         applies the same per-client fixed-window cap as ``cwv`` — each beacon
         emits a WARNING log line and must not be amplifiable without bound.
         The client key prefers ``session.uid`` (see ``cwv``) so users sharing an

@@ -102,10 +102,9 @@ class WebJsError(models.Model):
         "claim a reload was withheld when none was ever attempted.",
     )
 
-    _check_message_len = models.Constraint(
-        "CHECK(char_length(message) <= 4096)",
-        "A JS error message cannot exceed 4096 characters.",
-    )
+    # No CHECK for `message`: Char(size=4096) already emits varchar(4096), so
+    # the DB rejects an over-long value before a constraint could fire. `cause`
+    # and `stack` are Text, which carries no length of its own — hence theirs.
     _check_cause_len = models.Constraint(
         "CHECK(cause IS NULL OR char_length(cause) <= 4096)",
         "A JS error cause chain cannot exceed 4096 characters.",
