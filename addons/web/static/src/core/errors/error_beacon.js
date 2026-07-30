@@ -21,7 +21,13 @@ const MAX_CAUSE_DEPTH = 8;
 // Kinds the server accepts (web/controllers/observability.py::js_error).
 // Anything else is normalized to "error" there too; normalizing here as well
 // keeps a caller typo from being logged as a category that does not exist.
-const KINDS = new Set(["error", "unhandledrejection", "module_rebind", "service_start"]);
+const KINDS = new Set([
+    "error",
+    "unhandledrejection",
+    "module_rebind",
+    "service_start",
+    "asset_load_error",
+]);
 
 /**
  * Java ``String.hashCode`` over one string, as 8 hex chars.
@@ -123,7 +129,8 @@ function serializeCause(cause) {
 /**
  * @param {{
  *   message: string,
- *   kind?: "error" | "unhandledrejection" | "module_rebind" | "service_start",
+ *   kind?: "error" | "unhandledrejection" | "module_rebind" | "service_start"
+ *     | "asset_load_error",
  *   filename?: string,
  *   line?: number,
  *   col?: number,
