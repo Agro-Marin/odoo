@@ -42,8 +42,8 @@ sibling `knowledge` repository).** It is the **single authoritative
 source** for AgroMarin coding standards — built on Odoo 19.0 + OCA conventions,
 and authoritative where it speaks; where it is silent, follow upstream Odoo 19 /
 OCA. It supersedes any `coding_guidelines` file inside a code repo — including
-this repo's `doc/coding_guidelines.rst`, a frozen v4.1 mirror slated for
-deletion — and is canonical for **all** AgroMarin repos in the workspace (`odoo`,
+this repo's `doc/coding_guidelines.rst`, now a deprecation stub that points
+here — and is canonical for **all** AgroMarin repos in the workspace (`odoo`,
 `enterprise`, `agromarin`, `design-themes`, `knowledge`), which defer to it. Each rule carries
 an enforcement marker — 🔧 (linted by `ruff`) or 👁 (review-only).
 
@@ -62,4 +62,4 @@ Related:
   (see the linter-enforced items in §9 and §2.9.7).
 - Changes to the guidelines are made in the canonical (knowledge repo), through
   its *Change protocol* — never by editing `doc/coding_guidelines.rst`, which is
-  a frozen mirror
+  a deprecation stub

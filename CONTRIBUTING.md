@@ -9,8 +9,8 @@ Coding Guidelines
 See `knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md` (in
 the sibling `knowledge` repository) for the full coding standards (Python, XML,
 JavaScript, CSS/SCSS, Git). [doc/coding_guidelines.rst](doc/coding_guidelines.rst)
-is a frozen v4.1 mirror kept only so in-repo `coding_guidelines §N` citations
-resolve — do not treat it as canonical.
+is a deprecation stub that points there — its previous v4.1 copy was removed, so
+do not treat it as canonical.
 
 TL;DR
 
