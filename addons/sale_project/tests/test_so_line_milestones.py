@@ -294,7 +294,9 @@ class TestSoLineMilestones(TestSaleCommon):
             'project_id': sale_order.project_id.id,
             'sale_line_id': self.sol1.id
         })
-        tasks = sale_order.project_id.task_ids
+        # Exclude the task just created: it belongs to the same project, so
+        # task_ids contains it and tasks[0] would be the task itself.
+        tasks = sale_order.project_id.task_ids - parent_task
         tasks[0].parent_id = parent_task.id
         with Form(tasks[0]) as task_form:
             task_form.sale_line_id = self.env['sale.order.line']
