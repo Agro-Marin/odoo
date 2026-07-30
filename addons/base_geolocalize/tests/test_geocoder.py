@@ -64,3 +64,63 @@ class TestGeocoder(TransactionCase):
         """The reverse lookup refuses to call OSM in test mode (guard)."""
         with self.assertRaises(UserError):
             self.Geocoder._call_openstreetmap_reverse(19.43, -99.13)
+
+
+@tagged("post_install", "-at_install")
+class TestGeocoderEdges(TransactionCase):
+    """Provider-specific query building, error paths and localisation."""
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.Geocoder = cls.env["base.geocoder"]
+
+    def test_googlemap_query_reorders_comma_of_countries(self):
+        """'X, Republic of'-style countries are flipped for Google queries."""
+        query = self.Geocoder._geo_query_address_googlemap(
+            city="Kinshasa", country="Congo, Democratic Republic of the"
+        )
+        self.assertIn("Democratic Republic of the Congo", query)
+        self.assertNotIn("Congo,", query)
+
+    def test_network_error_raises_query_error(self):
+        """A requests failure surfaces as a UserError, never a raw exception."""
+        with (
+            patch("requests.get", side_effect=OSError("network down")),
+            self.assertRaises(UserError),
+        ):
+            self.Geocoder._call_openstreetmap("Some address 123")
+
+    def test_reverse_without_coordinates_returns_none(self):
+        """Missing latitude/longitude short-circuits to None."""
+        self.assertIsNone(self.Geocoder._call_openstreetmap_reverse(0, 0))
+
+    def test_get_localisation_from_geoip(self):
+        """A resolvable geoip fills 'city, country' without any HTTP call."""
+        mexico = self.env.ref("base.mx")
+        fake_request = MagicMock()
+        fake_request.geoip.city.name = "Culiacán"
+        fake_request.geoip.country_code = "MX"
+        with patch(
+            "odoo.addons.base_geolocalize.models.base_geocoder.request", fake_request
+        ):
+            result = self.Geocoder._get_localisation(24.8, -107.4)
+        self.assertEqual(result, f"Culiacán, {mexico.name}")
+
+
+@tagged("post_install", "-at_install")
+class TestPartnerCoordinatesReset(TransactionCase):
+    """Address edits invalidate stale partner coordinates."""
+
+    def test_address_change_resets_coordinates(self):
+        partner = self.env["res.partner"].create(
+            {
+                "name": "Geo partner",
+                "city": "Culiacán",
+                "partner_latitude": 24.8,
+                "partner_longitude": -107.4,
+            },
+        )
+        partner.write({"city": "Mazatlán"})
+        self.assertEqual(partner.partner_latitude, 0.0)
+        self.assertEqual(partner.partner_longitude, 0.0)
