@@ -45,7 +45,7 @@ class TestPerishableQtyAtDate(TestStockCommon, HttpCase):
                 'price_unit': 100,
             }) for i in range(2)],
         })
-        self.assertEqual(sale_order.line_ids[0].virtual_available_at_date, 200)
-        self.assertEqual(sale_order.line_ids[1].virtual_available_at_date, 100)
+        self.assertEqual(sale_order.line_ids[0].qty_available_virtual_at_date, 200)
+        self.assertEqual(sale_order.line_ids[1].qty_available_virtual_at_date, 100)
         url = f"odoo/sales/{sale_order.id}"
         self.start_tour(url, 'test_forecast_widget_perishable_qty_at_date', login='admin')
