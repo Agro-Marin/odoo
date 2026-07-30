@@ -9,7 +9,18 @@ from odoo.tools import mute_logger
 
 @tagged("-at_install", "post_install", "web_http", "web_js_error")
 class TestWebJsErrorBeacon(HttpCase):
-    """Behaviour of the /web/observability/js_error controller."""
+    """End-to-end behaviour of the /web/observability/js_error controller.
+
+    Split out of ``test_web_cwv_metric`` once these outgrew being a guest in a
+    file named for a different model.
+    """
+
+    def _beacon(self, payload):
+        return self.url_open(
+            "/web/observability/js_error",
+            data=json.dumps(payload),
+            headers={"Content-Type": "application/json"},
+        )
 
     def test_js_error_beacon_is_rate_limited(self):
         from odoo.addons.web.controllers import observability
@@ -22,11 +33,7 @@ class TestWebJsErrorBeacon(HttpCase):
             mute_logger("odoo.addons.web.controllers.observability"),
         ):
             statuses = [
-                self.url_open(
-                    "/web/observability/js_error",
-                    data=json.dumps({"message": f"boom {i}", "kind": "error"}),
-                    headers={"Content-Type": "application/json"},
-                ).status_code
+                self._beacon({"message": f"boom {i}", "kind": "error"}).status_code
                 for i in range(6)
             ]
 
@@ -42,11 +49,7 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self.url_open(
-                "/web/observability/js_error",
-                data=json.dumps({"message": "boot ok", "kind": "service_start"}),
-                headers={"Content-Type": "application/json"},
-            ).status_code
+            status = self._beacon({"message": "boot ok", "kind": "service_start"}).status_code
 
         self.assertEqual(status, 204)
         self.assertTrue(
@@ -58,13 +61,7 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self.url_open(
-                "/web/observability/js_error",
-                data=json.dumps(
-                    {"message": "bundle gone", "kind": "asset_load_error"}
-                ),
-                headers={"Content-Type": "application/json"},
-            ).status_code
+            status = self._beacon({"message": "bundle gone", "kind": "asset_load_error"}).status_code
 
         self.assertEqual(status, 204)
         self.assertTrue(
@@ -79,17 +76,11 @@ class TestWebJsErrorBeacon(HttpCase):
             with self.assertLogs(
                 "odoo.addons.web.controllers.observability", level="WARNING"
             ) as capture:
-                self.url_open(
-                    "/web/observability/js_error",
-                    data=json.dumps(
-                        {
+                self._beacon({
                             "message": "bundle gone",
                             "kind": "asset_load_error",
                             "reloaded": sent,
-                        }
-                    ),
-                    headers={"Content-Type": "application/json"},
-                )
+                        })
             self.assertTrue(
                 any(expected in line for line in capture.output),
                 f"expected {expected} in the log line",
@@ -101,31 +92,21 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            self.url_open(
-                "/web/observability/js_error",
-                data=json.dumps({"message": "plain error"}),
-                headers={"Content-Type": "application/json"},
-            )
+            self._beacon({"message": "plain error"})
         self.assertTrue(
             any("reloaded=None" in line for line in capture.output),
             "an absent reloaded must log as None, not False",
         )
 
     def test_js_error_persists_a_row(self):
-        self.url_open(
-            "/web/observability/js_error",
-            data=json.dumps(
-                {
+        self._beacon({
                     "message": "persisted probe",
                     "kind": "service_start",
                     "phase": "pre_boot",
                     "cause": "Caused by: TypeError: boom",
                     "stack": "at svc (svc.js:1:1)",
                     "url": "http://localhost/web/login",
-                }
-            ),
-            headers={"Content-Type": "application/json"},
-        )
+                })
         row = self.env["web.js.error"].search(
             [("message", "=", "persisted probe")], limit=1
         )
@@ -140,17 +121,11 @@ class TestWebJsErrorBeacon(HttpCase):
         applicable' stays distinguishable from 'the reload was suppressed'."""
         for sent, expected in ((True, "reloaded"), (False, "suppressed")):
             message = f"reload probe {sent}"
-            self.url_open(
-                "/web/observability/js_error",
-                data=json.dumps(
-                    {
+            self._beacon({
                         "message": message,
                         "kind": "asset_load_error",
                         "reloaded": sent,
-                    }
-                ),
-                headers={"Content-Type": "application/json"},
-            )
+                    })
             row = self.env["web.js.error"].search([("message", "=", message)], limit=1)
             self.assertEqual(row.reloaded, expected)
 
@@ -168,11 +143,7 @@ class TestWebJsErrorBeacon(HttpCase):
         before = Model.search_count([])
         with patch.object(observability, "_RATE_LIMIT_MAX", 2):
             statuses = [
-                self.url_open(
-                    "/web/observability/js_error",
-                    data=json.dumps({"message": f"rl probe {i}"}),
-                    headers={"Content-Type": "application/json"},
-                ).status_code
+                self._beacon({"message": f"rl probe {i}"}).status_code
                 for i in range(4)
             ]
 
@@ -185,11 +156,7 @@ class TestWebJsErrorBeacon(HttpCase):
 
     def test_js_error_empty_message_persists_nothing(self):
         before = self.env["web.js.error"].search_count([])
-        status = self.url_open(
-            "/web/observability/js_error",
-            data=json.dumps({"message": ""}),
-            headers={"Content-Type": "application/json"},
-        ).status_code
+        status = self._beacon({"message": ""}).status_code
         self.assertEqual(status, 204)
         self.assertEqual(self.env["web.js.error"].search_count([]), before)
 
@@ -215,11 +182,7 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self.url_open(
-                "/web/observability/js_error",
-                data=json.dumps({"message": "boom", "kind": "nonsense"}),
-                headers={"Content-Type": "application/json"},
-            ).status_code
+            status = self._beacon({"message": "boom", "kind": "nonsense"}).status_code
 
         self.assertEqual(status, 204)
         self.assertTrue(
@@ -236,11 +199,7 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self.url_open(
-                "/web/observability/js_error",
-                data=json.dumps({"message": long_message, "kind": "error"}),
-                headers={"Content-Type": "application/json"},
-            ).status_code
+            status = self._beacon({"message": long_message, "kind": "error"}).status_code
 
         self.assertEqual(status, 204)
         logged = "\n".join(capture.output)
@@ -252,13 +211,7 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self.url_open(
-                "/web/observability/js_error",
-                data=json.dumps(
-                    {"message": "top-level failure", "kind": "error", "cause": cause}
-                ),
-                headers={"Content-Type": "application/json"},
-            ).status_code
+            status = self._beacon({"message": "top-level failure", "kind": "error", "cause": cause}).status_code
 
         self.assertEqual(status, 204)
         logged = "\n".join(capture.output)
@@ -268,13 +221,7 @@ class TestWebJsErrorBeacon(HttpCase):
 
     def test_js_error_non_string_cause_does_not_500(self):
         for bad_cause in (12345, {"nested": {"deeply": {"cause": "boom"}}}):
-            status = self.url_open(
-                "/web/observability/js_error",
-                data=json.dumps(
-                    {"message": "boom", "kind": "error", "cause": bad_cause}
-                ),
-                headers={"Content-Type": "application/json"},
-            ).status_code
+            status = self._beacon({"message": "boom", "kind": "error", "cause": bad_cause}).status_code
             self.assertIn(
                 status,
                 (204, 400),
