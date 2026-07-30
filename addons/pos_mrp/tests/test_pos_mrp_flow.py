@@ -497,3 +497,70 @@ class TestPosMrp(CommonPosMrpTest):
                 {"product_id": product_1.id, "total_cost": 10},
             ],
         )
+
+
+@odoo.tests.tagged("post_install", "-at_install")
+class TestPosMrpAngloSaxonPriceUnit(CommonPosMrpTest):
+    """The anglo-saxon cost of a kit is the sum of its components' costs."""
+
+    def _make_delivered_order(self, product):
+        # Anglo-saxon costing reads valuation layers: without a real-time
+        # FIFO category the price unit is always 0.
+        (
+            self.product_product_kit_one | self.product_product_comp_one
+        ).categ_id = self.category_fifo_realtime
+        order, _dummy = self.create_backend_pos_order(
+            {
+                "order_data": {
+                    "to_invoice": True,
+                    "partner_id": self.partner_moda.id,
+                },
+                "line_data": [{"product_id": product.id}],
+                "payment_data": [{"payment_method_id": self.cash_payment_method.id}],
+            }
+        )
+        self.pos_config_usd.current_session_id.action_pos_session_closing_control()
+        return order
+
+    def test_kit_price_unit_sums_its_components(self):
+        """A one-component kit costs exactly what that component costs."""
+        order = self._make_delivered_order(self.product_product_kit_one)
+
+        price_unit = order._get_pos_anglo_saxon_price_unit(
+            self.product_product_kit_one, self.partner_moda.id, 1
+        )
+
+        self.assertEqual(price_unit, self.product_product_comp_one.standard_price)
+
+    def test_non_kit_product_delegates_to_super(self):
+        """A product without a phantom BoM keeps the standard behaviour."""
+        order = self._make_delivered_order(self.product_product_comp_one)
+
+        price_unit = order._get_pos_anglo_saxon_price_unit(
+            self.product_product_comp_one, self.partner_moda.id, 1
+        )
+
+        self.assertEqual(price_unit, self.product_product_comp_one.standard_price)
+
+    def test_kit_price_unit_unknown_without_real_time_category(self):
+        """A kit left on a non real-time category returns the 0.0 unknown sentinel."""
+        (
+            self.product_product_kit_one | self.product_product_comp_one
+        ).categ_id = self.category_average
+        order, _dummy = self.create_backend_pos_order(
+            {
+                "order_data": {
+                    "to_invoice": True,
+                    "partner_id": self.partner_moda.id,
+                },
+                "line_data": [{"product_id": self.product_product_kit_one.id}],
+                "payment_data": [{"payment_method_id": self.cash_payment_method.id}],
+            }
+        )
+        self.pos_config_usd.current_session_id.action_pos_session_closing_control()
+
+        price_unit = order._get_pos_anglo_saxon_price_unit(
+            self.product_product_kit_one, self.partner_moda.id, 1
+        )
+
+        self.assertEqual(price_unit, 0.0)
