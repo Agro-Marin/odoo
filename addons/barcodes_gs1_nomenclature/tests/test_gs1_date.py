@@ -2,6 +2,8 @@
 
 import datetime
 
+from freezegun import freeze_time
+
 from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
@@ -28,14 +30,16 @@ class TestGs1Date(TransactionCase):
             self.nomenclature.gs1_date_to_date("260200"), datetime.date(2026, 2, 28)
         )
 
+    @freeze_time("2026-06-15")
     def test_century_rollover_for_far_future(self):
-        """A year far in the future crosses into the previous century rule."""
-        # For "99" the GS1 century rule keeps it in the recent past/near range,
-        # never the naive 2099 — assert the decade digits round-trip.
-        decoded = self.nomenclature.gs1_date_to_date("991231")
-        self.assertEqual(decoded.month, 12)
-        self.assertEqual(decoded.day, 31)
-        self.assertEqual(decoded.year % 100, 99)
+        """A two-digit 99 decodes to the previous century, not the naive 2099."""
+        # GS1 7.12: 99 - 26 = 73, inside the 51..99 window, so the century is
+        # the current one minus 1. The date is frozen because the rule reads
+        # today's year — asserting year % 100 would also pass on 2099, which is
+        # the reading this test exists to rule out.
+        self.assertEqual(
+            self.nomenclature.gs1_date_to_date("991231"), datetime.date(1999, 12, 31)
+        )
 
     def test_invalid_date_raises(self):
         """An impossible calendar date raises a ValidationError (negative)."""

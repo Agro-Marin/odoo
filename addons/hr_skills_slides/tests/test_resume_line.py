@@ -34,7 +34,7 @@ class TestResumeLine(TransactionCase):
         self.assertEqual(line.channel_id, self.channel)
 
     def test_elearning_line_gets_course_color(self):
-        """eLearning lines are tinted with the course color."""
+        """eLearning lines get the fixed eLearning tint (#00a5b7)."""
         line = self._line("elearning", channel=self.channel)
         line.invalidate_recordset(["color"])
         self.assertEqual(line.color, "#00a5b7")
