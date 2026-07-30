@@ -50,3 +50,56 @@ class TestPhoneFormatTools(TransactionCase):
         """Unparseable input yields the empty region payload (boundary)."""
         data = phone_get_region_data_for_number("garbage")
         self.assertEqual(data, {"code": "", "national_number": "", "phone_code": ""})
+
+
+@tagged("post_install", "-at_install")
+class TestPhoneParseRecoveryBranches(TransactionCase):
+    """TOO_LONG recovery ladder and invalid-prefix taxonomy of phone_parse."""
+
+    def test_unparseable_plus_number_rejected(self):
+        """A '+' number with an impossible country code fails at parse."""
+        with self.assertRaises(UserError) as cm:
+            phone_format("+9991234567890", "FR", 33)
+        self.assertIn("Unable to parse", str(cm.exception))
+
+    def test_no_plus_prefix_recovered(self):
+        """'33612345678' (missing '+') is retried as '+33612345678'."""
+        self.assertEqual(
+            phone_format("33612345678", "FR", 33, force_format="E164"),
+            "+33612345678",
+        )
+
+    def test_genuinely_too_long_rejected(self):
+        """A number too long even after recovery names the right error."""
+        with self.assertRaises(UserError) as cm:
+            phone_format("0033612345678901234", "FR", 33)
+        self.assertIn("too many digits", str(cm.exception))
+
+    def test_patched_region_metadata_formats(self):
+        """Regions carrying local metadata patches still format cleanly."""
+        for number, country, code, expected in [
+            ("11961234567", "BR", 55, "+5511961234567"),
+            ("6017654321", "CO", 57, "+576017654321"),
+            ("650123456", "MA", 212, "+212650123456"),
+        ]:
+            self.assertEqual(
+                phone_format(number, country, code, force_format="E164"),
+                expected,
+            )
+
+
+@tagged("post_install", "-at_install")
+class TestPhoneBlacklistRemoveWizard(TransactionCase):
+    """The unblacklist wizard delegates to phone.blacklist._remove."""
+
+    def test_wizard_unblacklists_number_with_reason(self):
+        Blacklist = self.env["phone.blacklist"]
+        Blacklist._add(["+33612345678"])
+        self.assertTrue(Blacklist.search([("number", "=", "+33612345678")]).active)
+
+        wizard = self.env["phone.blacklist.remove"].create(
+            {"phone": "+33612345678", "reason": "customer request"}
+        )
+        wizard.action_unblacklist_apply()
+
+        self.assertFalse(Blacklist.search([("number", "=", "+33612345678")]).active)
