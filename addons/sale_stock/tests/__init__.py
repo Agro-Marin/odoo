@@ -15,3 +15,4 @@ from . import test_transferred_uom_guard
 from . import test_sale_stock_access_rights
 from . import test_create_perf
 from . import test_packaging_tours
+from . import test_customer_on_time_rate
