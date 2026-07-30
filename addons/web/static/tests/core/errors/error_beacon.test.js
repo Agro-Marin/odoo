@@ -228,3 +228,18 @@ test("reportJsError: an exact repeat including the stack is still throttled", ()
     expect(reportJsError({ ...info })).toBe(false);
     expect(calls).toHaveLength(1);
 });
+
+test("reportJsError: same message and stack but a different cause is distinct", () => {
+    const { calls } = spyBeacon();
+    // The real OWL shape: the wrapper is built inside handleError, so its stack
+    // is the scheduler frames — identical for two unrelated component crashes
+    // flushed in the same tick. Only the cause tells them apart.
+    const shared = {
+        message: "An error occured in the owl lifecycle",
+        stack: "at handleError\n at Fiber.complete\n at Scheduler.flush",
+    };
+    expect(reportJsError({ ...shared, cause: new TypeError("component A") })).toBe(true);
+    expect(reportJsError({ ...shared, cause: new TypeError("component B") })).toBe(true);
+    expect(reportJsError({ ...shared, cause: new TypeError("component A") })).toBe(false);
+    expect(calls).toHaveLength(2);
+});

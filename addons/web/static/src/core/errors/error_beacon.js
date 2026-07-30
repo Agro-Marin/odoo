@@ -118,10 +118,15 @@ export function reportJsError(info) {
     const line = (info.line ?? 0) | 0;
     const col = (info.col ?? 0) | 0;
     const stack = info.stack ? String(info.stack).slice(0, MAX_STACK) : "";
-    // The stack discriminates: OWL reports every lifecycle failure with one
-    // generic message at 0:0, so a (message,line,col) key collapsed unrelated
-    // crashes into a single beacon and dropped all but the first.
-    const key = `${message}|${line}|${col}|${hashCode(stack)}`;
+    const cause = serializeCause(info.cause);
+    // Stack AND cause discriminate. OWL reports every lifecycle failure with
+    // one generic message at 0:0, so a (message,line,col) key collapsed
+    // unrelated crashes into one beacon. The stack alone does not fix it: OWL
+    // builds that wrapper inside its own handleError (owl.es.js:1661), so the
+    // wrapper's stack is the scheduler frames — identical for two component
+    // crashes flushed in the same tick. The component frames are on the cause,
+    // which is why it belongs in the key.
+    const key = `${message}|${line}|${col}|${hashCode(stack + cause)}`;
     if (seen.has(key)) {
         return false;
     }
@@ -137,7 +142,7 @@ export function reportJsError(info) {
                 : "pre_boot",
             kind: KINDS.has(/** @type {string} */ (info.kind)) ? info.kind : "error",
             message: message.slice(0, MAX_MESSAGE),
-            cause: serializeCause(info.cause),
+            cause,
             filename: String(info.filename ?? ""),
             line,
             col,

@@ -168,11 +168,12 @@
 
     const seenErrors = new Set();
     function reportError(payload) {
-        // Keyed on the stack too: OWL reports every lifecycle failure with one
-        // generic message at 0:0, so a (message,line,col) key collapsed
-        // unrelated crashes into a single beacon.
+        // Stack AND cause discriminate. OWL builds its generic lifecycle
+        // wrapper inside handleError (owl.es.js:1661), so the wrapper's stack is
+        // the scheduler frames — identical for two component crashes flushed in
+        // the same tick. The component frames are on the cause.
         const key = `${payload.message}|${payload.line}|${payload.col}|${hashCode(
-            payload.stack || "",
+            (payload.stack || "") + (payload.cause || ""),
         )}`;
         if (seenErrors.has(key)) {
             return;
