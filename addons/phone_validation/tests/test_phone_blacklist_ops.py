@@ -1,5 +1,7 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from odoo import Command
+from odoo.exceptions import AccessDenied, UserError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -51,3 +53,61 @@ class TestPhoneBlacklistOps(TransactionCase):
         entry = self.Blacklist.add(self.NUMBER)
         action = entry.phone_action_blacklist_remove()
         self.assertEqual(action["res_model"], "phone.blacklist.remove")
+
+    def test_create_invalid_number_raises(self):
+        """Creating a blacklist entry with an unparseable number is rejected."""
+        with self.assertRaises(UserError):
+            self.Blacklist.create([{"number": "12"}])
+
+        self.assertFalse(self.Blacklist.search([("number", "=", "12")]))
+
+
+@tagged("post_install", "-at_install")
+class TestPortalUserBlacklistOnDeactivate(TransactionCase):
+    """Deactivating a portal user optionally blacklists their phone."""
+
+    def test_deactivation_with_request_blacklists_phone(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "Blacklist victim",
+                "login": "blacklist.victim@test.example.com",
+                "phone": "+33699887766",
+                "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
+            },
+        )
+        user._deactivate_portal_user(request_blacklist=True)
+
+        entry = self.env["phone.blacklist"].search([("number", "=", "+33699887766")])
+        self.assertTrue(entry.active)
+
+    def test_deactivation_without_request_keeps_phone_clean(self):
+        user = self.env["res.users"].create(
+            {
+                "name": "Clean victim",
+                "login": "clean.victim@test.example.com",
+                "phone": "+33688776655",
+                "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
+            },
+        )
+        user._deactivate_portal_user()
+
+        self.assertFalse(
+            self.env["phone.blacklist"].search([("number", "=", "+33688776655")])
+        )
+
+    def test_deactivation_of_internal_user_denied(self):
+        """Self-service deactivation of a non-portal user is denied."""
+        user = self.env["res.users"].create(
+            {
+                "name": "Internal user",
+                "login": "internal.deactivate@test.example.com",
+                "phone": "+33611223344",
+            },
+        )
+
+        with self.assertRaises(AccessDenied):
+            user._deactivate_portal_user(request_blacklist=True)
+
+        self.assertFalse(
+            self.env["phone.blacklist"].search([("number", "=", "+33611223344")])
+        )
