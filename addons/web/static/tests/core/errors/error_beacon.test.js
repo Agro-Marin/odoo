@@ -243,3 +243,11 @@ test("reportJsError: same message and stack but a different cause is distinct", 
     expect(reportJsError({ ...shared, cause: new TypeError("component A") })).toBe(false);
     expect(calls).toHaveLength(2);
 });
+
+test("reportJsError: a nested object cause is elided, not walked", async () => {
+    const { calls } = spyBeacon();
+    const deep = { level: 1, child: { level: 2, child: { level: 3 } } };
+    reportJsError({ message: "beacon-cause-elide", cause: deep });
+    const payload = await payloadOf(calls[0].blob);
+    expect(payload.cause).toBe('Caused by: {"level":1,"child":"[object]"}');
+});

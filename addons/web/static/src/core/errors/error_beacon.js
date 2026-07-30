@@ -48,6 +48,24 @@ function hashCode(str) {
 }
 
 /**
+ * ``JSON.stringify`` replacer that keeps the root's own scalars and elides any
+ * nested object, so serializing an unknown cause is bounded by its own key
+ * count rather than by the size of whatever graph it points into.
+ *
+ * ``module_loader.js`` has a byte-identical copy; keep both in step.
+ *
+ * @param {string} key
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+function elideNested(key, value) {
+    if (key === "") {
+        return value;
+    }
+    return value && typeof value === "object" ? "[object]" : value;
+}
+
+/**
  * Flatten an error's ``cause`` chain into one string.
  *
  * OWL reports a lifecycle failure as "An error occured in the owl lifecycle
@@ -82,7 +100,11 @@ function serializeCause(cause) {
             if (current instanceof Error) {
                 text = `${current.name}: ${current.message}`;
             } else if (typeof current === "object") {
-                text = JSON.stringify(current) ?? String(current);
+                // Elide nested objects instead of walking them: an OWL node or
+                // a store slice as a cause would otherwise be stringified whole
+                // — megabytes, synchronously, inside a handler for a page that
+                // is already failing — only to be discarded by the slice below.
+                text = JSON.stringify(current, elideNested);
             } else {
                 text = String(current);
             }

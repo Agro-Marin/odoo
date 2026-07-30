@@ -125,6 +125,25 @@
     }
 
     /**
+     * ``JSON.stringify`` replacer that keeps the root's own scalars and elides
+     * any nested object, bounding serialization of an unknown cause by its own
+     * key count instead of the graph it points into.
+     *
+     * Byte-identical copy of the helper in
+     * ``@web/core/errors/error_beacon``; keep both in step.
+     *
+     * @param {string} key
+     * @param {unknown} value
+     * @returns {unknown}
+     */
+    function elideNested(key, value) {
+        if (key === "") {
+            return value;
+        }
+        return value && typeof value === "object" ? "[object]" : value;
+    }
+
+    /**
      * Flatten an error's ``cause`` chain into one string.
      *
      * Byte-identical copy of the helper in
@@ -152,7 +171,7 @@
                 if (current instanceof Error) {
                     text = `${current.name}: ${current.message}`;
                 } else if (typeof current === "object") {
-                    text = JSON.stringify(current) ?? String(current);
+                    text = JSON.stringify(current, elideNested);
                 } else {
                     text = String(current);
                 }
