@@ -9,10 +9,8 @@ from odoo.tools import mute_logger
 
 @tagged("-at_install", "post_install", "web_http", "web_js_error")
 class TestWebJsErrorBeacon(HttpCase):
-    """End-to-end behaviour of the /web/observability/js_error controller.
-
-    Split out of ``test_web_cwv_metric`` once these outgrew being a guest in a
-    file named for a different model.
+    """Behaviour of the /web/observability/js_error controller, plus
+    ``web.js.error``'s retention sweep, which is exercised through the model.
     """
 
     def _beacon(self, payload):
@@ -49,7 +47,9 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self._beacon({"message": "boot ok", "kind": "service_start"}).status_code
+            status = self._beacon(
+                {"message": "boot ok", "kind": "service_start"}
+            ).status_code
 
         self.assertEqual(status, 204)
         self.assertTrue(
@@ -61,7 +61,9 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self._beacon({"message": "bundle gone", "kind": "asset_load_error"}).status_code
+            status = self._beacon(
+                {"message": "bundle gone", "kind": "asset_load_error"}
+            ).status_code
 
         self.assertEqual(status, 204)
         self.assertTrue(
@@ -199,7 +201,9 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self._beacon({"message": long_message, "kind": "error"}).status_code
+            status = self._beacon(
+                {"message": long_message, "kind": "error"}
+            ).status_code
 
         self.assertEqual(status, 204)
         logged = "\n".join(capture.output)
@@ -211,7 +215,9 @@ class TestWebJsErrorBeacon(HttpCase):
         with self.assertLogs(
             "odoo.addons.web.controllers.observability", level="WARNING"
         ) as capture:
-            status = self._beacon({"message": "top-level failure", "kind": "error", "cause": cause}).status_code
+            status = self._beacon(
+                {"message": "top-level failure", "kind": "error", "cause": cause}
+            ).status_code
 
         self.assertEqual(status, 204)
         logged = "\n".join(capture.output)
@@ -221,7 +227,9 @@ class TestWebJsErrorBeacon(HttpCase):
 
     def test_js_error_non_string_cause_does_not_500(self):
         for bad_cause in (12345, {"nested": {"deeply": {"cause": "boom"}}}):
-            status = self._beacon({"message": "boom", "kind": "error", "cause": bad_cause}).status_code
+            status = self._beacon(
+                {"message": "boom", "kind": "error", "cause": bad_cause}
+            ).status_code
             self.assertIn(
                 status,
                 (204, 400),

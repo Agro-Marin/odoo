@@ -81,7 +81,8 @@ function elideNested(key, value) {
  * string, a plain object, or undefined) and never throws, because a reporter
  * that raises while reporting loses the original error too.
  *
- * ``module_loader.js`` has a byte-identical copy; keep both in step.
+ * ``module_loader.js`` has a logic-identical copy — same code, comments
+ * wrapped differently; keep both in step.
  *
  * @param {unknown} cause first ``.cause`` of the reported error
  * @returns {string} ``"Caused by: ..."`` segments, or ``""`` when there is none

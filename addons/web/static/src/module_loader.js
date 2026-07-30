@@ -146,9 +146,9 @@
     /**
      * Flatten an error's ``cause`` chain into one string.
      *
-     * Byte-identical copy of the helper in
-     * ``@web/core/errors/error_beacon``; see that module for the rationale.
-     * Keep both in step.
+     * Logic-identical copy of the helper in
+     * ``@web/core/errors/error_beacon`` (the comments are wrapped
+     * differently); see that module for the rationale. Keep both in step.
      *
      * @param {unknown} cause first ``.cause`` of the reported error
      * @returns {string} ``"Caused by: ..."`` segments, or ``""`` when there is none

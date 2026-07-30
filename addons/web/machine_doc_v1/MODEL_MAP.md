@@ -297,7 +297,7 @@ Producers of the beacons this stores:
 - `static/src/core/errors/error_beacon.js` — the canonical ESM beacon.
 - `static/src/env.js` — services that never started (`kind` `service_start`).
 
-Fields worth knowing:
+**Fields:**
 
 - `cause` (Text) — flattened `error.cause` chain, one `Caused by:` segment per
   level, depth-capped at 8 and cycle-guarded. This is the field an OWL lifecycle
@@ -310,6 +310,8 @@ Fields worth knowing:
 - `message` is `Char(size=4096)`; `cause` and `stack` are `Text` with explicit
   `CHECK(char_length(...) <= 4096)` constraints, since Text carries no length.
 
+**Key Methods:**
+
 - `_record_beacon(values)` (`@api.model`) — single raw parameterized INSERT. No
   upsert key, unlike `web.cwv.metric`: two identical errors from two sessions are
   two facts, not one row to update.
@@ -319,8 +321,9 @@ Fields worth knowing:
   120/60s rate limit could add ~172k rows a day. Registered via
   `data/web_js_error_data.xml`.
 
-Read access is `base.group_system` only (`security/ir.model.access.csv`), with
-`write`/`create` denied — the controller writes through `sudo()`.
+The ACL is `1,0,0,1` for `base.group_system` (`security/ir.model.access.csv`):
+read and `unlink` granted, `write`/`create` denied — the controller writes
+through `sudo()`.
 
 ## Model Index
 
@@ -351,3 +354,4 @@ Quick lookup — file → model → primary role:
 | `res_config_settings.py` | res.config.settings | web_app_name config |
 | `res_partner.py` | res.partner | vCard export |
 | `web_cwv_metric.py` | web.cwv.metric | Core Web Vitals beacon storage + retention |
+| `web_js_error.py` | web.js.error | JS error beacon storage + retention |

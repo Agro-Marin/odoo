@@ -224,7 +224,8 @@ class Observability(Controller):
         self-heal reload fired or the once-a-minute guard suppressed it).
 
         Logs each beacon as ``[js_error]`` at WARNING and persists it to
-        ``web.js.error`` (list/form under Settings → Technical → JS Errors).
+        ``web.js.error`` (list/form under Settings → Technical → Real User
+        Monitoring → JS Errors).
         The log line stays because it needs no DB query to inspect and
         survives even when the write fails; the model is what makes a
         post-deploy regression greppable by kind, phase and cause instead of
