@@ -34,7 +34,7 @@ class TestDeliveryCost(common.TransactionCase):
             'line_ids': [(0, 0, {
                 'name': 'PC Assamble + 2GB RAM',
                 'product_id': self.product_4.id,
-                'product_uom_qty': 2,
+                'product_qty': 2,
                 'price_unit': 120.00,
             })],
         })
