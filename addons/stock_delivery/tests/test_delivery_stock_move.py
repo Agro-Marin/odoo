@@ -51,7 +51,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             'line_ids': [(0, 0, {
                 'name': 'Cable Management Box',
                 'product_id': self.product_cable_management_box.id,
-                'product_uom_qty': 2,
+                'product_qty': 2,
                 'price_unit': 750.00,
             })],
         })
@@ -86,7 +86,7 @@ class TestStockMoveInvoice(TestSaleCommon):
 
         # Check the SO after paying the invoice
         self.assertNotEqual(self.sale_prepaid.invoice_count, 0, 'order not invoiced')
-        self.assertTrue(self.sale_prepaid.invoice_state == 'invoiced', 'order is not invoiced')
+        self.assertEqual(self.sale_prepaid.invoice_state, 'done', 'order is not fully invoiced')
         self.assertEqual(len(self.sale_prepaid.picking_ids), 1, 'pickings not generated')
 
         # Check the stock moves
@@ -117,7 +117,7 @@ class TestStockMoveInvoice(TestSaleCommon):
             'line_ids': [(0, 0, {
                 'name': 'Cable Management Box',
                 'product_id': self.product_cable_management_box.id,
-                'product_uom_qty': 2,
+                'product_qty': 2,
                 'price_unit': 750.00,
             })],
         })
@@ -154,8 +154,8 @@ class TestStockMoveInvoice(TestSaleCommon):
             'partner_id': self.partner_a.id,
             'partner_invoice_id': self.partner_a.id,
             'line_ids': [
-                (0, 0, {'name': super_product.name, 'product_id': super_product.id, 'product_uom_qty': 1, 'price_unit': 1,}),
-                (0, 0, {'name': great_product.name, 'product_id': great_product.id, 'product_uom_qty': 1, 'price_unit': 1,}),
+                (0, 0, {'name': super_product.name, 'product_id': super_product.id, 'product_qty': 1, 'price_unit': 1,}),
+                (0, 0, {'name': great_product.name, 'product_id': great_product.id, 'product_qty': 1, 'price_unit': 1,}),
             ]
         })
         # Confirm the SO
@@ -172,7 +172,10 @@ class TestStockMoveInvoice(TestSaleCommon):
         # Invoice the delivered product
         invoice = so._create_invoices()
         invoice.action_post()
-        self.assertEqual(so.invoice_state, 'no')
+        # Fork semantics: invoice_state reports how much HAS been invoiced
+        # ('partial': one of the two lines), where the upstream field reported
+        # what was still pending ('no': nothing left to invoice right now).
+        self.assertEqual(so.invoice_state, 'partial')
 
         # Add delivery fee
         delivery_wizard = Form(self.env['choose.delivery.carrier'].with_context({
@@ -182,7 +185,11 @@ class TestStockMoveInvoice(TestSaleCommon):
         choose_delivery_carrier = delivery_wizard.save()
         choose_delivery_carrier.button_confirm()
 
-        self.assertEqual(so.invoice_state, 'no', 'The status should still be "Nothing To Invoice"')
+        # NOTE: adding the delivery fee moves the state BACK to 'no' even
+        # though one line is already invoiced. Left asserting the observed
+        # behaviour (unchanged from upstream); the partial -> no transition
+        # is flagged for human review, not pinned as an intended contract.
+        self.assertEqual(so.invoice_state, 'no')
 
     def test_delivery_carrier_from_confirmed_so(self):
         """Test if adding shipping method in sale order after confirmation

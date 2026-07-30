@@ -189,7 +189,7 @@ class TestPacking(TestPackingCommon):
             'name': 'Sale order',
             'partner_id': self.env['res.partner'].create({'name': 'Rando le clodo'}).id,
             'line_ids': [
-                (0, 0, {'name': self.product_aw.name, 'product_id': self.product_aw.id, 'product_uom_qty': 1, 'price_unit': 1})
+                (0, 0, {'name': self.product_aw.name, 'product_id': self.product_aw.id, 'product_qty': 1, 'price_unit': 1})
             ]
         })
         delivery_wizard = Form(self.env['choose.delivery.carrier'].with_context({
