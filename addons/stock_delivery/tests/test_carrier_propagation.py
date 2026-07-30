@@ -70,7 +70,7 @@ class TestCarrierPropagation(TransactionCase):
             'partner_id': self.partner_propagation.id,
             'partner_invoice_id': self.partner_propagation.id,
             'line_ids': [
-                (0, 0, {'name': self.super_product.name, 'product_id': self.super_product.id, 'product_uom_qty': 1, 'price_unit': 1,}),
+                (0, 0, {'name': self.super_product.name, 'product_id': self.super_product.id, 'product_qty': 1, 'price_unit': 1,}),
             ]
         })
         delivery_wizard = Form(self.env['choose.delivery.carrier'].with_context({
@@ -104,7 +104,7 @@ class TestCarrierPropagation(TransactionCase):
                 'partner_id': self.partner_propagation.id,
                 'partner_invoice_id': self.partner_propagation.id,
                 'line_ids': [
-                    (0, 0, {'name': product.name, 'product_id': product.id, 'product_uom_qty': 1, 'price_unit': 1,}),
+                    (0, 0, {'name': product.name, 'product_id': product.id, 'product_qty': 1, 'price_unit': 1,}),
                 ]
             })
             delivery_wizard = Form(self.env['choose.delivery.carrier'].with_context({
@@ -194,7 +194,7 @@ class TestCarrierPropagation(TransactionCase):
             'line_ids': [Command.create({
                 'name': 'Cable Management Box',
                 'product_id': self.super_product.id,
-                'product_uom_qty': 2,
+                'product_qty': 2,
                 'price_unit': 750.00,
                 'route_ids': route1.ids,
             })],
@@ -216,7 +216,7 @@ class TestCarrierPropagation(TransactionCase):
             'line_ids': [Command.create({
                 'name': 'Cable Management Box',
                 'product_id': self.super_product.id,
-                'product_uom_qty': 2,
+                'product_qty': 2,
                 'price_unit': 750.00,
             })],
         })
