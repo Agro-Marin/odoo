@@ -7,7 +7,22 @@ AgroMarin Coding Guidelines
 :Version: 4.1
 :Date: 2026-06-23
 :Language: English
+:Status: **LEGACY MIRROR — NOT CANONICAL**
 :Base: `Odoo 19.0 Coding Guidelines <https://www.odoo.com/documentation/19.0/contributing/development/coding_guidelines.html>`_ + `OCA CONTRIBUTING.rst <https://github.com/OCA/odoo-community.org/blob/master/website/Contribution/CONTRIBUTING.rst>`_
+
+.. warning::
+
+   **This file is a frozen v4.1 mirror, slated for deletion. Do not edit it and
+   do not cite it as canonical.**
+
+   The canonical source is
+   ``knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md``
+   (v4.2+), which consolidated this content on 2026-07-01. Anything below may
+   already be stale — where the two disagree, the canonical wins. Section
+   numbers still match, so existing ``coding_guidelines §N`` citations in code
+   comments remain valid; resolve them against the canonical.
+
+   Rule changes go through the canonical's *Change protocol*, never here.
 
 This is AgroMarin's single coding standard for the fork. For Odoo 19 API
 changes, see ``odoo-19-development-context.md`` in the knowledge repository
@@ -106,9 +121,10 @@ Odoo 19 / OCA guidelines linked above (see *Precedence*).
 Scope and Authority
 -------------------
 
-This document is the **single canonical source** for AgroMarin coding guidelines.
-It supersedes earlier drafts and any ``coding_guidelines`` file living inside a
-code repository.
+The **single canonical source** for AgroMarin coding guidelines is
+``knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md``. This
+file is a legacy mirror of its v4.1 revision, kept only so that in-repo
+``coding_guidelines §N`` citations still resolve; it has no authority of its own.
 
 Precedence
 ^^^^^^^^^^
@@ -116,7 +132,7 @@ Precedence
 When rules disagree, apply in this order (first wins):
 
 
-#. **This file** — ``core/doc/coding_guidelines.rst``
+#. **The canonical** — ``knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md``
 #. **Odoo 19 official guidelines** — linked per section above each rule
 #. **OCA CONTRIBUTING.rst** — for community-aligned conventions not covered by Odoo
 

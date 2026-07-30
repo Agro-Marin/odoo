@@ -6,8 +6,11 @@ Contributing to Odoo
 Coding Guidelines
 -----------------
 
-See [doc/coding_guidelines.rst](doc/coding_guidelines.rst) for the full coding
-standards (Python, XML, JavaScript, CSS/SCSS, Git).
+See `knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md` (in
+the sibling `knowledge` repository) for the full coding standards (Python, XML,
+JavaScript, CSS/SCSS, Git). [doc/coding_guidelines.rst](doc/coding_guidelines.rst)
+is a frozen v4.1 mirror kept only so in-repo `coding_guidelines §N` citations
+resolve — do not treat it as canonical.
 
 TL;DR
 

@@ -37,12 +37,14 @@ exploration and provides immediate context.
 ## Coding Guidelines
 
 **Before writing or modifying any code in this repo, read and follow
-`doc/coding_guidelines.rst` (repo root).** It is the **single authoritative
+`knowledge/agromarin-knowledge/reference/odoo/agromarin-guidelines.md` (in the
+sibling `knowledge` repository).** It is the **single authoritative
 source** for AgroMarin coding standards — built on Odoo 19.0 + OCA conventions,
 and authoritative where it speaks; where it is silent, follow upstream Odoo 19 /
-OCA. It supersedes any other `coding_guidelines` file inside a code repo and is
-canonical for **all** AgroMarin repos in the workspace (`odoo`, `enterprise`,
-`agromarin`, `design-themes`, `knowledge`), which defer to it. Each rule carries
+OCA. It supersedes any `coding_guidelines` file inside a code repo — including
+this repo's `doc/coding_guidelines.rst`, a frozen v4.1 mirror slated for
+deletion — and is canonical for **all** AgroMarin repos in the workspace (`odoo`,
+`enterprise`, `agromarin`, `design-themes`, `knowledge`), which defer to it. Each rule carries
 an enforcement marker — 🔧 (linted by `ruff`) or 👁 (review-only).
 
 The guide is comprehensive — consult the relevant section for the work at hand:
@@ -58,5 +60,6 @@ Related:
 - `ruff.toml` (repo root) — linter and formatter config, aligned with the
   guidelines (§2.6 and §2.9). New/changed Python must pass `ruff check`
   (see the linter-enforced items in §9 and §2.9.7).
-- Changes to the guidelines are made by editing `doc/coding_guidelines.rst`
-  directly
+- Changes to the guidelines are made in the canonical (knowledge repo), through
+  its *Change protocol* — never by editing `doc/coding_guidelines.rst`, which is
+  a frozen mirror
