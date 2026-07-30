@@ -208,7 +208,7 @@ class UomUom(models.Model):
                 return qty
             amount = qty * self.factor
             if to_unit:
-                amount = amount / to_unit.factor
+                amount /= to_unit.factor
 
         if to_unit and round:
             amount = float_round(
@@ -229,15 +229,17 @@ class UomUom(models.Model):
     #   that guides but does not size a record.
     # - _compute_quantity_reconcile: a stored reconciliation compute
     #   (qty_transferred/qty_invoiced family) matching moves or invoice
-    #   lines back to order lines. Degrades while an order is browsed, but
-    #   escalates to strict under the `uom_reconcile_strict` context so the
-    #   delivered/received quantity it feeds is never posted (invoice/bill
-    #   line, accrual amount) unconverted — the posting boundary re-runs the
-    #   compute under that context, see
-    #   `order.line.fields.mixin._assert_transferred_uom_convertible`.
-    # Anything that creates or sizes a real record (moves, MOs, order or
-    # invoice lines, valuation/COGS) stays on the strict base method. The
-    # opt-out is forced: a caller-passed `raise_if_failure` is discarded.
+    #   lines back to order lines. These are stored, so the ORM replays them
+    #   over every row when a column is created or a dependency changes:
+    #   raising there lets one legacy row abort an unrelated flush. The
+    #   fail-closed requirement therefore lives at the invoicing boundary,
+    #   not in the compute — `_assert_transferred_uom_convertible` (re-runs
+    #   the compute under the `uom_reconcile_strict` context) and
+    #   `_assert_invoiced_uom_convertible` (checks the conversions without
+    #   recomputing), both in `base_order`.
+    # Anything that creates or sizes a real record (moves, MOs, order lines,
+    # valuation/COGS) stays on the strict base method. The opt-out is forced:
+    # a caller-passed `raise_if_failure` is discarded.
 
     def _compute_quantity_lenient(self, qty: float, to_unit: Self, **kwargs) -> float:
         """Shared body of the degrade wrappers; call those, not this."""
