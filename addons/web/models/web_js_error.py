@@ -87,7 +87,10 @@ class WebJsError(models.Model):
     filename = fields.Char(string="File", size=500, readonly=True)
     line = fields.Integer(string="Line", readonly=True)
     col = fields.Integer(string="Column", readonly=True)
-    url = fields.Char(string="URL", size=500, index="btree", readonly=True)
+    # No index: the search view reaches url through a `<field>` (ilike, which a
+    # btree cannot serve) and group_by, so an index would only add a tuple write
+    # per INSERT on a high-volume write-only table.
+    url = fields.Char(string="URL", size=500, readonly=True)
     user_agent = fields.Char(string="User Agent", size=500, readonly=True)
     reloaded = fields.Selection(
         [("reloaded", "Reloaded"), ("suppressed", "Suppressed")],
