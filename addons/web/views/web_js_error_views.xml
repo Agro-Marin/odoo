@@ -10,34 +10,65 @@
                 <field name="cause" />
                 <field name="url" />
                 <field name="user_id" />
-                <filter name="last_hour" string="Last Hour"
+                <filter
+                    name="last_hour"
+                    string="Last Hour"
                     domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(hours=1)).strftime('%Y-%m-%d %H:%M:%S'))]" />
-                <filter name="last_day" string="Last 24h"
+                <filter
+                    name="last_day"
+                    string="Last 24h"
                     domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S'))]" />
-                <filter name="last_week" string="Last 7 Days"
+                <filter
+                    name="last_week"
+                    string="Last 7 Days"
                     domain="[('recorded_at', '&gt;=', (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S'))]" />
                 <separator />
-                <filter name="pre_boot" string="Pre-boot (loader down)"
+                <filter
+                    name="pre_boot"
+                    string="Pre-boot (loader down)"
                     domain="[('phase', '=', 'pre_boot')]" />
-                <filter name="service_start" string="Service Failed to Start"
+                <filter
+                    name="service_start"
+                    string="Service Failed to Start"
                     domain="[('kind', '=', 'service_start')]" />
-                <filter name="asset_load_error" string="Bundle Asset Failed"
+                <filter
+                    name="asset_load_error"
+                    string="Bundle Asset Failed"
                     domain="[('kind', '=', 'asset_load_error')]" />
                 <separator />
-                <filter name="has_cause" string="Has Cause Chain"
+                <filter
+                    name="has_cause"
+                    string="Has Cause Chain"
                     domain="[('cause', '!=', False)]" />
-                <filter name="anonymous" string="Anonymous Traffic"
+                <filter
+                    name="anonymous"
+                    string="Anonymous Traffic"
                     domain="[('user_id', '=', False)]" />
                 <group>
-                    <filter name="group_by_kind" string="Kind" domain="[]"
+                    <filter
+                        name="group_by_kind"
+                        string="Kind"
+                        domain="[]"
                         context="{'group_by': 'kind'}" />
-                    <filter name="group_by_phase" string="Boot Phase" domain="[]"
+                    <filter
+                        name="group_by_phase"
+                        string="Boot Phase"
+                        domain="[]"
                         context="{'group_by': 'phase'}" />
-                    <filter name="group_by_url" string="URL" domain="[]"
+                    <filter
+                        name="group_by_url"
+                        string="URL"
+                        domain="[]"
                         context="{'group_by': 'url'}" />
-                    <filter name="group_by_user" string="User" domain="[]"
+                    <filter
+                        name="group_by_user"
+                        string="User"
+                        domain="[]"
                         context="{'group_by': 'user_id'}" />
-                    <filter name="group_by_day" string="Day" domain="[]"
+                    <filter
+                        name="group_by_day"
+                        string="Day"
+                        domain="[]"
                         context="{'group_by': 'recorded_at:day'}" />
                 </group>
             </search>
@@ -50,8 +81,13 @@
         <field name="arch" type="xml">
             <list string="JS Errors" create="false" delete="false" edit="false">
                 <field name="recorded_at" />
-                <field name="kind" decoration-danger="kind in ['service_start', 'asset_load_error']" />
-                <field name="phase" decoration-warning="phase == 'pre_boot'" optional="show" />
+                <field
+                    name="kind"
+                    decoration-danger="kind in ['service_start', 'asset_load_error']" />
+                <field
+                    name="phase"
+                    decoration-warning="phase == 'pre_boot'"
+                    optional="show" />
                 <field name="message" />
                 <field name="cause" optional="show" />
                 <field name="url" optional="hide" />
