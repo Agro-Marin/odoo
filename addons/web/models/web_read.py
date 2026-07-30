@@ -301,6 +301,17 @@ class Base(models.AbstractModel):
         """
         try:
             field = self._fields[name]
+            if field.type == "many2one" and server_raw:
+                # A form spec asks for subfields, and web_read blanks the value
+                # then, so the client baseline is False while the column holds a
+                # real id — a PERMANENT conflict no reload clears. Skipping is
+                # deliberately broader than that blanking: when the target is
+                # unreadable, a lost update on it beats blocking every save.
+                co_record = self.env[field.comodel_name].browse(server_raw)
+                if not co_record.with_context(active_test=False)._filtered_access(
+                    "read"
+                ):
+                    return False
             current = self._coerce_concurrency_value(field, server_raw)
             baseline = self._coerce_concurrency_value(field, baseline_raw)
             new = self._coerce_concurrency_value(field, new_raw)

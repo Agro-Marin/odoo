@@ -9,6 +9,7 @@ records) touch disjoint columns and must NOT block the save.
 from datetime import timedelta
 
 from odoo.exceptions import UserError
+from odoo.fields import Command
 from odoo.tests import common
 
 
@@ -107,6 +108,52 @@ class TestWebSaveOptimisticLocking(common.TransactionCase):
             {"parent_id": self.c3.id},
             specification={"parent_id": {}},
             known_values={"parent_id": {"id": self.c1.id, "display_name": "Company 1"}},
+        )
+        self.assertEqual(self.partner.parent_id, self.c3)
+
+    def test_many2one_hidden_by_record_rule_fails_open(self):
+        """A many2one whose target a record rule hides must never conflict."""
+        # web_read blanks such a value, so the client's baseline is False while
+        # the column still holds the real id: checking it would raise a
+        # PERMANENT conflict the user cannot clear by reloading.
+        company_a, company_b = self.env["res.company"].create(
+            [{"name": "Concurrency A"}, {"name": "Concurrency B"}]
+        )
+        hidden = self.env["res.partner"].create(
+            {
+                "name": "Hidden Parent",
+                "is_company": True,
+                "company_id": company_a.id,
+            }
+        )
+        user = self.env["res.users"].create(
+            {
+                "name": "Concurrency User",
+                "login": "concurrency_user",
+                "company_id": company_b.id,
+                "company_ids": [Command.set(company_b.ids)],
+                # group_partner_manager: the point of the test is the
+                # concurrency guard, so the write itself must be allowed —
+                # group_user alone cannot write res.partner.
+                "group_ids": [
+                    Command.link(self.env.ref("base.group_user").id),
+                    Command.link(self.env.ref("base.group_partner_manager").id),
+                ],
+            }
+        )
+        self.partner.parent_id = hidden
+        self.env.flush_all()
+        partner = self.partner.with_user(user)
+        read_values = partner.web_read({"parent_id": {"fields": {"display_name": {}}}})
+        self.assertFalse(
+            read_values[0]["parent_id"],
+            "the rule-hidden parent must be blanked on read, else the test "
+            "no longer reproduces the baseline the client actually receives",
+        )
+        partner.web_save(
+            {"parent_id": self.c3.id},
+            specification={"parent_id": {}},
+            known_values={"parent_id": False},
         )
         self.assertEqual(self.partner.parent_id, self.c3)
 
