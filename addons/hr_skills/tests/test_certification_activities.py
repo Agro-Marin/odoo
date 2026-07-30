@@ -11,7 +11,9 @@ class TestCertificationActivities(TransactionCase):
     def setUpClass(cls):
         super().setUpClass()
         cls.today = date.today()
-        cls.demo_data_activities = cls.env["hr.employee"]._add_certification_activity_to_employees()
+        cls.demo_data_activities = cls.env[
+            "hr.employee"
+        ]._add_certification_activity_to_employees()
 
         cls.t_job = cls.env["hr.job"].create({"name": "Test Job"})
         cls.t_user_1, cls.t_user_2 = cls.env["res.users"].create(
@@ -28,11 +30,21 @@ class TestCertificationActivities(TransactionCase):
                 },
             ],
         )
-        cls.t_cert_type = cls.env["hr.skill.type"].create({"name": "Certification for tests", "is_certification": True})
+        cls.t_cert_type = cls.env["hr.skill.type"].create(
+            {"name": "Certification for tests", "is_certification": True}
+        )
         cls.t_cert_level_1, cls.t_cert_level_2 = cls.env["hr.skill.level"].create(
             [
-                {"name": "Half Certified", "skill_type_id": cls.t_cert_type.id, "level_progress": 50},
-                {"name": "Fully Certified", "skill_type_id": cls.t_cert_type.id, "level_progress": 100},
+                {
+                    "name": "Half Certified",
+                    "skill_type_id": cls.t_cert_type.id,
+                    "level_progress": 50,
+                },
+                {
+                    "name": "Fully Certified",
+                    "skill_type_id": cls.t_cert_type.id,
+                    "level_progress": 100,
+                },
             ],
         )
         cls.t_cert_1, cls.t_cert_2 = cls.env["hr.skill"].create(
@@ -64,15 +76,36 @@ class TestCertificationActivities(TransactionCase):
 
         cls.t_employee_1 = cls.env["hr.employee"].create(
             [
-                {"name": "test employee 1", "job_id": cls.t_job.id, "user_id": cls.t_user_1.id},
+                {
+                    "name": "test employee 1",
+                    "job_id": cls.t_job.id,
+                    "user_id": cls.t_user_1.id,
+                },
             ],
         )
 
+    def _own_activities(self, *extra_employees):
+        """Run the cron method and scope its result to this class's employees.
+
+        The class runs at_install, on the hr_skills load snapshot: demo data
+        from later modules has not landed yet, so demo employees can
+        legitimately gain activities at that point in the load. Absolute
+        counts must therefore only consider the employees this test created.
+        """
+        own = self.t_employee_1
+        for employee in extra_employees:
+            own |= employee
+        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        return activities.filtered(lambda act: act.res_id in own.ids)
+
     def test_employee_with_no_certifications_gets_activity(self):
         """Employee missing all job certifications gets one activity per missing certification."""
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities()
         self.assertEqual(len(activities), 2)
-        self.assertEqual(self.t_job.job_skill_ids.mapped("display_name"), activities.mapped("summary"))
+        self.assertEqual(
+            self.t_job.job_skill_ids.mapped("display_name"),
+            activities.mapped("summary"),
+        )
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_correct_certifications_gets_no_activity(self):
@@ -97,7 +130,7 @@ class TestCertificationActivities(TransactionCase):
                 },
             ],
         )
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities()
         self.assertFalse(activities)
 
     def test_employee_with_wrong_certifications_gets_activity(self):
@@ -112,9 +145,12 @@ class TestCertificationActivities(TransactionCase):
                 "valid_to": False,
             },
         )
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities()
         self.assertEqual(len(activities), 2)
-        self.assertEqual(self.t_job.job_skill_ids.mapped("display_name"), activities.mapped("summary"))
+        self.assertEqual(
+            self.t_job.job_skill_ids.mapped("display_name"),
+            activities.mapped("summary"),
+        )
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_one_correct_certification_gets_one_activity(self):
@@ -129,9 +165,11 @@ class TestCertificationActivities(TransactionCase):
                 "valid_to": False,
             },
         )
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities()
         self.assertEqual(len(activities), 1)
-        self.assertEqual(self.t_job_cert_2.mapped("display_name"), activities.mapped("summary"))
+        self.assertEqual(
+            self.t_job_cert_2.mapped("display_name"), activities.mapped("summary")
+        )
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_correct_but_expired_certifications_gets_activity(self):
@@ -156,9 +194,12 @@ class TestCertificationActivities(TransactionCase):
                 },
             ],
         )
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities()
         self.assertEqual(len(activities), 2)
-        self.assertEqual(self.t_job.job_skill_ids.mapped("display_name"), activities.mapped("summary"))
+        self.assertEqual(
+            self.t_job.job_skill_ids.mapped("display_name"),
+            activities.mapped("summary"),
+        )
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_employee_with_correct_but_expiring_in_3_months_certifications_gets_activity(self):
@@ -183,35 +224,54 @@ class TestCertificationActivities(TransactionCase):
                 },
             ],
         )
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities()
         self.assertEqual(len(activities), 1)
-        self.assertEqual(self.t_job_cert_1.mapped("display_name"), activities.mapped("summary"))
+        self.assertEqual(
+            self.t_job_cert_1.mapped("display_name"), activities.mapped("summary")
+        )
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
     def test_activities_are_only_created_once(self):
         """An activity is created only once for an employee missing skills."""
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities()
         self.assertEqual(len(activities), 2)
-        self.assertEqual(self.t_job.job_skill_ids.mapped("display_name"), activities.mapped("summary"))
+        self.assertEqual(
+            self.t_job.job_skill_ids.mapped("display_name"),
+            activities.mapped("summary"),
+        )
         self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids))
 
-        new_activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        new_activities = self._own_activities()
         self.assertFalse(new_activities)
 
     def test_activities_are_created_for_multiple_employees_with_no_certification(self):
         """Activities are created for multiple employees with no certifications."""
         employee_2 = self.env["hr.employee"].create(
-            {"name": "test employee 2", "job_id": self.t_job.id, "user_id": self.t_user_2.id},
+            {
+                "name": "test employee 2",
+                "job_id": self.t_job.id,
+                "user_id": self.t_user_2.id,
+            },
         )
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities(employee_2)
         self.assertEqual(len(activities), 4)
-        self.assertEqual(set(self.t_job.job_skill_ids.mapped("display_name")), set(activities.mapped("summary")))
-        self.assertEqual(set(activities.mapped("res_id")), set(self.t_employee_1.ids) | set(employee_2.ids))
+        self.assertEqual(
+            set(self.t_job.job_skill_ids.mapped("display_name")),
+            set(activities.mapped("summary")),
+        )
+        self.assertEqual(
+            set(activities.mapped("res_id")),
+            set(self.t_employee_1.ids) | set(employee_2.ids),
+        )
 
     def test_no_activities_are_created_for_multiple_employees_with_certification(self):
         """No activities are created for multiple employees with the correct certifications."""
         employee_2 = self.env["hr.employee"].create(
-            {"name": "test employee 2", "job_id": self.t_job.id, "user_id": self.t_user_2.id},
+            {
+                "name": "test employee 2",
+                "job_id": self.t_job.id,
+                "user_id": self.t_user_2.id,
+            },
         )
         self.env["hr.employee.skill"].create(
             [
@@ -249,5 +309,5 @@ class TestCertificationActivities(TransactionCase):
                 },
             ],
         )
-        activities = self.env["hr.employee"]._add_certification_activity_to_employees()
+        activities = self._own_activities(employee_2)
         self.assertFalse(activities)
