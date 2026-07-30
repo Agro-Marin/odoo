@@ -42,7 +42,7 @@ class TestEventSale(TestEventSaleCommon):
 
         cls.sale_order = cls.env['sale.order'].create({
             'partner_id': cls.env['res.partner'].create({'name': 'Test Partner'}).id,
-            'note': 'Invoice after delivery',
+            'notes': 'Invoice after delivery',
             'payment_term_id': cls.env.ref('account.account_payment_term_end_following_month').id
         })
 
