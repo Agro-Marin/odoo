@@ -66,3 +66,29 @@ class TestProfileValidation(TransactionCase):
         """Users without an email address cannot be sent a validation mail."""
         self.user.email = False
         self.assertFalse(self.user._send_profile_validation_email())
+
+    def test_validation_email_is_sent_with_token_url(self):
+        """A user with an email receives a mail carrying the token URL."""
+        Mail = self.env["mail.mail"].sudo()
+        last_id = Mail.search([], order="id desc", limit=1).id or 0
+
+        self.assertTrue(self.user._send_profile_validation_email())
+
+        mails = Mail.search([("id", ">", last_id)], order="id desc")
+        self.assertTrue(mails)
+        body = mails[0].body_html or ""
+        self.assertIn("/profile/validate_email", body)
+        self.assertIn(
+            self.user._generate_profile_token(self.user.id, self.user.email), body
+        )
+
+    def test_validation_email_forwards_extra_params(self):
+        """Extra kwargs land in the token URL query string."""
+        Mail = self.env["mail.mail"].sudo()
+        last_id = Mail.search([], order="id desc", limit=1).id or 0
+
+        self.user._send_profile_validation_email(forum_id=42)
+
+        mails = Mail.search([("id", ">", last_id)], order="id desc")
+        self.assertTrue(mails)
+        self.assertIn("forum_id=42", mails[0].body_html or "")
