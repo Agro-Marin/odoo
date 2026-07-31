@@ -243,6 +243,15 @@ desktop suite at 375x667. Combined serial runtime went from ~1 992 s to
 1b. The server boots with `--dev=assets`, so it watches its own asset sources
    over inotify and drops the assets cache when one changes. The runner does
    nothing per-run. See "Why `--dev=assets`" below.
+1c. On a boot (never on a reuse), `warm_bundles` fetches `/web/tests` once per
+   `&module_scope=` the run will use and pulls every asset URL the page links,
+   so the bundle build finishes before the first suite is timed. A port that
+   answers is not a server ready to run tests: the build otherwise lands inside
+   the first page load, and under `-j 4` four of them land at once. A cold
+   desktop run reported 24 failures — every one in the *first* suite of its
+   shard (datetime_field, list_view selection, load_state, domain_selector) —
+   where the same plan on the same servers, warm, gave 0 failed / 14352 passed.
+   Warming costs ~13 s per boot and made the cold run green.
 2. `run_suites` authenticates over HTTP (admin/admin) to get a `session_id`,
    then instantiates `odoo.tests.common.ChromeBrowser` through a tiny shim
    (it only needs `_logger`, `browser_size`, `touch_enabled`, `fetch_proxy`),

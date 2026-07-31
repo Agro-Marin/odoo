@@ -371,10 +371,17 @@ def main() -> int:
 
     t0 = time.time()
     state, booted = H.ensure_server(db, modules, verbose=args.verbose)
+    isolated = args.isolate and len(suites) > 1
     if booted:
+        scopes = (
+            [H.module_scope_param([s]) for s in suites]
+            if isolated
+            else [H.module_scope_param(suites)]
+        )
+        warmed = H.warm_bundles(state["port"], state["db"], scopes)
         print(_color(
             f"Warm server booted (port={state['port']} db={state['db']}) "
-            f"in {time.time() - t0:.1f}s", C_DIM))
+            f"in {time.time() - t0:.1f}s (bundles: {warmed:.1f}s)", C_DIM))
     else:
         print(_color(
             f"Reusing warm server (port={state['port']} db={state['db']})",
@@ -383,9 +390,7 @@ def main() -> int:
     if args.watch:
         return _watch(suites, state, args)
 
-    result = (_run_isolated if args.isolate and len(suites) > 1 else _run_once)(
-        suites, state, args
-    )
+    result = (_run_isolated if isolated else _run_once)(suites, state, args)
     _report(result)
     if result.failed:
         # Real failures are a failure whether or not the run was truncated.
