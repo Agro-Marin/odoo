@@ -44,7 +44,7 @@ describe("home action: bounded server-wait loop", () => {
         const realSetTimeout = browser.setTimeout;
         patchWithCleanup(browser, {
             setTimeout(fn, delay) {
-                if ([1000, 2000, 4000, 8000].includes(delay)) {
+                if (delay !== undefined && [1000, 2000, 4000, 8000].includes(delay)) {
                     delays.push(delay);
                 }
                 return realSetTimeout.call(this, fn, delay);

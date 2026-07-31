@@ -1,15 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_container - Thin OWL wrapper rendering the current action's component inside the action manager div */
+/** @module @web/webclient/actions/action_container */
 
 import { Component, onWillDestroy, xml } from "@odoo/owl";
 import { AppEvent } from "@web/core/events";
 
-/**
- * Thin OWL wrapper that listens for ACTION_MANAGER:UPDATE events on `env.bus`
- * and renders the current action's component inside the `.o_action_manager` div.
- */
 export class ActionContainer extends Component {
     static props = {};
     static template = xml`

@@ -31,6 +31,7 @@ import { loadState } from "@web/webclient/actions/load_state";
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
+    /** @type {Record<string, any[]>} */
     const calls = { doAction: [], controllersFromState: [], busEvents: [] };
     const am = {
         router: { current: { action: 7, actionStack: [{ action: 7 }] } },

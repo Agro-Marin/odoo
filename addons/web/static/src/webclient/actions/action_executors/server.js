@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_executors/server - Executor for ir.actions.server */
+/** @module @web/webclient/actions/action_executors/server */
 
 import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
@@ -14,14 +14,6 @@ import { nextActionDepth } from "../action_constants.js";
 /** @import { ServerAction } from "@web/webclient/actions/action_service" */
 
 /**
- * Execute an ``ir.actions.server`` action via ``/web/action/run``, gated by
- * ``am.keepLast`` so only the latest click wins. Defaults a null response to
- * ``act_window_close``, and forwards ``action.path`` for URL stability.
- *
- * The follow-up ``doAction`` is guarded by the same shared ``nextActionDepth``
- * limit as the client executor: a cyclic ``ir.actions.server`` chain would
- * otherwise loop ``doAction`` → ``/web/action/run`` unboundedly.
- *
  * @param {ServerAction} action
  * @param {{ _actionDepth?: number } & object} options
  * @param {ActionManager} am

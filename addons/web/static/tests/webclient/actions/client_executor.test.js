@@ -20,6 +20,7 @@ import { executeClientAction } from "@web/webclient/actions/action_executors/cli
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
+    /** @type {Record<string, any[]>} */
     const calls = { updateUI: [], doAction: [], confirmLeave: [], actionInfo: [] };
     const am = {
         env: { isSmall: false, marker: "the-env" },

@@ -96,7 +96,7 @@ test("server-provided help is turned into markup", async () => {
         help: "<p>Nothing yet</p>",
     }));
     const action = await loadAction(3);
-    expect(action.help.toString()).toBe("<p>Nothing yet</p>");
+    expect(action.help?.toString()).toBe("<p>Nothing yet</p>");
     expect(typeof action.help).not.toBe("string");
 });
 
@@ -150,9 +150,11 @@ test("_originalAction is the pre-normalisation snapshot, and never nests", async
         {},
         am,
     );
-    expect(JSON.parse(once._originalAction).id).toBe(5);
+    expect(JSON.parse(/** @type {string} */ (once._originalAction)).id).toBe(5);
     const twice = preprocessAction(once, {}, am);
-    expect("_originalAction" in JSON.parse(twice._originalAction)).toBe(false);
+    expect(
+        "_originalAction" in JSON.parse(/** @type {string} */ (twice._originalAction)),
+    ).toBe(false);
 });
 
 test("a non-serializable action leaves _originalAction unset rather than throwing", async () => {
@@ -202,7 +204,7 @@ test("visually empty help is dropped, real help is kept", async () => {
         {},
         am,
     );
-    expect(real.help.toString()).toBe("<p>Try this</p>");
+    expect(real.help?.toString()).toBe("<p>Try this</p>");
 });
 
 test("window and client actions default to target current; others do not", async () => {
@@ -273,8 +275,8 @@ test("no_breadcrumbs is lifted out of the context onto the action", async () => 
         am,
     );
     expect(action._noBreadcrumbs).toBe(true);
-    expect("no_breadcrumbs" in action.context).toBe(false);
-    expect(action.context.keep).toBe(1);
+    expect("no_breadcrumbs" in (action.context ?? {})).toBe(false);
+    expect(action.context?.keep).toBe(1);
 });
 
 test("every processed action gets a distinct jsId and a controllers map", async () => {
@@ -294,18 +296,22 @@ test("the caller context is merged in, but the user context only EVALUATES it", 
         { fromCaller: 2 },
         am,
     );
-    expect(action.context.fromAction).toBe(1);
-    expect(action.context.fromCaller).toBe(2);
-    expect("uid" in action.context).toBe(false);
+    expect(action.context?.fromAction).toBe(1);
+    expect(action.context?.fromCaller).toBe(2);
+    expect("uid" in (action.context ?? {})).toBe(false);
 });
 
 test("a context expression is evaluated against the user context", async () => {
     const am = makeFakeAm();
     const action = preprocessAction(
-        { type: "ir.actions.act_window", views: [], context: "{'owner': uid}" },
+        /** @type {any} */ ({
+            type: "ir.actions.act_window",
+            views: [],
+            context: "{'owner': uid}",
+        }),
         {},
         am,
     );
-    expect(action.context.owner).toBe(user.context.uid);
-    expect("uid" in action.context).toBe(false);
+    expect(action.context?.owner).toBe(user.context.uid);
+    expect("uid" in (action.context ?? {})).toBe(false);
 });

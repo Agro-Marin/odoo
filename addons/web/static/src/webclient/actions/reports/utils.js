@@ -1,18 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/reports/utils - Report URL generation and download helper for ir.actions.report */
-
-/**
- * Generates the report url given a report action.
- *
- * @param {Object} action the report action
- * @param {string} type the type of the report
- * @param {Object} userContext the user context
- * @returns {string}
- */
+/** @module @web/webclient/actions/reports/utils */
 
 import { download } from "@web/core/network/download";
+
+/** @import { Context, ReportAction } from "../action_service.js" */
+
+/**
+ * @param {ReportAction} action
+ * @param {string} type
+ * @param {Context} [userContext] only read for the "html" type
+ * @returns {string}
+ */
 export function getReportUrl(action, type, userContext) {
     let url = `/report/${type}/${action.report_name}`;
     const actionContext = action.context || {};
@@ -33,23 +33,12 @@ export function getReportUrl(action, type, userContext) {
 }
 
 /**
- * Launches download action of the report. With the WeasyPrint migration there
- * is no wkhtmltopdf fallback — download either succeeds or throws.
- *
- * @param {unknown} _rpc unused. A leftover of the wkhtmltopdf fallback, which
- *  needed an RPC to probe for the binary; the download is a plain form POST
- *  now. Kept as a positional placeholder because ``point_of_sale``'s
- *  ``report_service`` still passes it — it is NOT read, and callers may pass
- *  ``undefined``. Underscore-prefixed so a reader does not go looking for the
- *  use.
- * @param {Object} action the report action
- * @param {"pdf"|"text"} type the type of the report to download
- * @param {Object} userContext the user context, sent alongside the download —
- *  deliberately not forwarded to {@link getReportUrl}, which only consults a
- *  user context for ``html`` reports and never sees one here.
+ * @param {ReportAction} action
+ * @param {"pdf"|"text"} type
+ * @param {Context} userContext
  * @returns {Promise<void>}
  */
-export async function downloadReport(_rpc, action, type, userContext) {
+export async function downloadReport(action, type, userContext) {
     const url = getReportUrl(action, type);
     await download({
         url: "/report/download",

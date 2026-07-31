@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_loader - Load, normalize, and wrap action descriptions and controllers for the action service */
+/** @module @web/webclient/actions/action_loader */
 
 import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
@@ -13,21 +13,11 @@ import { user } from "@web/services/user";
 
 const actionRegistry = registry.category("actions");
 
-/** @import { ActionManager } from "./action_service.js" */
-/** @import { Action } from "@web/webclient/actions/action_service" */
+/** @import { Action, ActionDescription, ActionManager, ActionRequest, Context, Controller } from "./action_service.js" */
 
 /**
- * Resolve a client action from the ``actions`` registry by registry key or by
- * its declared ``path``.
- *
- * The URL can name a client action either way, so both `action_state`
- * (rebuilding an action request from the URL) and `breadcrumb_manager`
- * (rebuilding virtual controllers from the URL) need this same two-step
- * lookup.
- *
- * @param {string | number} key registry key or ``path`` of a client action
- * @returns {[string, Object] | []} ``[registryKey, clientAction]``, or ``[]``
- *  when nothing matches — destructurable either way
+ * @param {string | number} key
+ * @returns {[string, import("registries").ActionsRegistryItemShape] | []}
  */
 export function resolveClientAction(key) {
     const registryKey = String(key);
@@ -38,27 +28,8 @@ export function resolveClientAction(key) {
 }
 
 /**
- * Given an id, xmlid, tag (key of the client action registry), or directly
- * an object describing an action, return the action description.
- *
- * Fetched via `/web/action/load` with disk-cache and one retry: actions are
- * read-only (cache invalidated explicitly on write/unlink) and cold-cache
- * failures break navigation page-wide, so retry is safe.
- *
- * DEFERRED — stale-while-revalidate (``update: "always"`` + an ``onRevalidate``
- * callback refreshing the on-screen controller) would close the cross-session
- * staleness gap (an admin editing an action's domain/context currently leaves
- * every OTHER user on the IndexedDB-cached descriptor across reloads until they
- * themselves write ``ir.actions``). It was implemented and reverted here: with
- * ``update: "always"`` every warm read fires a background ``/web/action/load``,
- * which the action test-suite's ~50 exact-RPC-sequence and Deferred-mocked
- * ``/web/action/load`` tests pin against — the change cascaded into a suite-wide
- * hang. A viable version needs a server-side freshness signal (action etag /
- * ``registry_hash``-style version) so revalidation is conditional rather than
- * unconditional-per-navigation; tracked as a separate task.
- *
- * @param {number | string | object} actionRequest
- * @param {object} [context]
+ * @param {ActionRequest} actionRequest
+ * @param {Context} [context]
  * @returns {Promise<Action>}
  */
 export async function loadAction(actionRequest, context = {}) {
@@ -91,48 +62,30 @@ export async function loadAction(actionRequest, context = {}) {
 }
 
 /**
- * Wrap a parameter bag into a Controller record with a unique `jsId`.
- *
- * @param {object} params
+ * @param {Partial<Controller> & Record<string, any>} params
  * @param {ActionManager} am
- * @returns {object} the new controller
+ * @returns {Controller & Record<string, any>}
  */
 export function makeController(params, am) {
-    return {
+    return /** @type {Controller & Record<string, any>} */ ({
         ...params,
         jsId: `controller_${am._nextId()}`,
         isMounted: false,
-    };
+    });
 }
 
 /**
- * Normalize an action description into the canonical form expected by the
- * rest of the action service:
- *
- *   - serialize the original action into `_originalAction` (for restore-from-URL)
- *   - merge contexts (caller + action.context + user.context)
- *   - evaluate the domain expression if it's a string
- *   - drop `help` when its HTML is empty
- *   - stamp a unique `jsId` (`action_<n>`)
- *   - default `target` to "current" for window / client actions
- *   - for `ir.actions.act_window`: split form-vs-search views, prepare a
- *     `controllers` map, and extract `no_breadcrumbs` from context
- *
- * Returns a fresh object so the cached action descriptor remains unmodified.
- *
- * @param {Action} action - mutable action descriptor
- * @param {object} context - additional caller context to merge
+ * @param {ActionDescription} action
+ * @param {Context} context
  * @param {ActionManager} am
- * @returns {Action} the normalized action (a fresh copy)
+ * @returns {Action}
  */
 export function preprocessAction(action, context, am) {
-    action = { ...action };
+    action = /** @type {Action} */ ({ ...action });
     try {
         delete action._originalAction;
         action._originalAction = JSON.stringify(action);
-    } catch {
-        // do nothing, the action might not be serializable
-    }
+    } catch {}
     action.context = makeContext([context, action.context], user.context);
     const domain = action.domain || [];
     action.domain =

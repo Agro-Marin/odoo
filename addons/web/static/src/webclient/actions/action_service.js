@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_service - Action manager that routes server/client actions to views, dialogs, and URL redirects */
+/** @module @web/webclient/actions/action_service */
 
 import { reactive } from "@odoo/owl";
 import { router as _router } from "@web/core/browser/router";
@@ -51,20 +51,8 @@ actionRegistry.addValidation((entry) => typeof entry === "function");
 actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
 
 /**
- * The router surface the action layer actually consumes — deliberately NOT
- * ``typeof router``.
- *
- * ``makeActionManager(env, router)`` is public: ``web_studio``'s editor
- * (``enterprise/web_studio/.../editor.js``) passes a hand-built stub with
- * exactly these four members, because Studio's manager must not touch the real
- * URL. Typing the parameter as the concrete ``router`` singleton would reject
- * that legitimate caller and overstate the dependency; these four are the whole
- * contract (verified 2026-07-25 — the only ``router.*`` accesses anywhere in
- * ``webclient/actions/`` are ``current``, ``pushState``, ``stateToUrl`` and the
- * one ``hideKeyFromUrl`` call in the constructor).
- *
  * @typedef {Object} RouterLike
- * @property {Object} current the current parsed URL state
+ * @property {Object} current
  * @property {(state: Object, options?: Object) => void} pushState
  * @property {(state: Object) => string} stateToUrl
  * @property {(key: string) => void} hideKeyFromUrl
@@ -75,24 +63,102 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
 /** @typedef {"current" | "fullscreen" | "new" | "main" | "self"} ActionMode */
 /** @typedef {string} ActionTag */
 /** @typedef {string} ActionXMLId */
-/** @typedef {Object} Context */
+/** @typedef {Record<string, any>} Context */
 /** @typedef {Function} CallableFunction */
 /** @typedef {string} ViewType */
 
 /** @typedef {ActionId|ActionXMLId|ActionTag|ActionDescription} ActionRequest */
 
-/** @typedef {Object} Action */
-/** @typedef {Action & { type: "ir.actions.act_window" }} ActWindowAction */
-/** @typedef {Action & { type: "ir.actions.act_url" }} ActURLAction */
+/**
+ * An action after {@link preprocessAction}: the server's `ir.actions.*` record
+ * plus the fields the action manager adds to track it.
+ *
+ * @typedef {Object} Action
+ * @property {string} type
+ * @property {ActionId} [id]
+ * @property {string} [xml_id]
+ * @property {string} [path]
+ * @property {string} [name]
+ * @property {string} [display_name]
+ * @property {ActionMode|"download"} [target]
+ * @property {Context} [context]
+ * @property {any[]|string} [domain]
+ * @property {string} [res_model]
+ * @property {number|false} [res_id]
+ * @property {any[][]} [views] `[id, viewType]` pairs, as the server sends them.
+ * @property {string} [view_mode]
+ * @property {[number, string]|false} [search_view_id]
+ * @property {string|import("@odoo/owl").Markup} [help]
+ * @property {ActionTag} [tag]
+ * @property {string} [report_type]
+ * @property {Record<string, any>} [params]
+ * @property {number[]} [embedded_action_ids]
+ * @property {boolean} [cache]
+ * @property {string} [jsId]
+ * @property {string} [_originalAction] JSON of the action as loaded, before preprocessing.
+ * @property {boolean} [_noBreadcrumbs]
+ * @property {Record<string, any>} [globalState]
+ * @property {Record<ViewType, Controller>} [controllers]
+ * @property {CallableFunction} [onClose]
+ */
+/** @typedef {Omit<Action, "views"> & { type: "ir.actions.act_window", views: any[][],
+            mobile_view_mode?: string }} ActWindowAction */
+/** @typedef {Action & { type: "ir.actions.act_url", url?: string, close?: boolean }} ActURLAction */
 /** @typedef {Action & { type: "ir.actions.client" }} ClientAction */
 /** @typedef {Action & { type: "ir.actions.server" }} ServerAction */
-/** @typedef {Action & { type: "ir.actions.report" }} ReportAction */
-/** @typedef {Object} Controller */
-/** @typedef {Object} BaseView */
-/** @typedef {Object} ActionProps */
-/** @typedef {Object} Config */
-/** @typedef {Object} UpdateStackOptions */
-/** @typedef {Object} DoActionButtonParams */
+/** @typedef {Action & { type: "ir.actions.report", report_name?: string, report_file?: string,
+            data?: Record<string, any>, close_on_report_download?: boolean }} ReportAction */
+/**
+ * One entry of the controller stack: the component rendering an action, plus the
+ * state the action manager keeps about it. Built by {@link makeController}.
+ *
+ * @typedef {Object} Controller
+ * @property {string} jsId
+ * @property {Action} action
+ * @property {ActionProps} props
+ * @property {Config} config
+ * @property {boolean} [isMounted]
+ * @property {boolean} [lazy]
+ * @property {boolean} [virtual] Placeholder for a breadcrumb never mounted in this session.
+ * @property {string} [displayName]
+ * @property {typeof import("@odoo/owl").Component} [Component]
+ * @property {BaseView} [view]
+ * @property {BaseView[]} [views]
+ * @property {Record<string, any>} [state]
+ * @property {Record<string, any>} [currentState]
+ * @property {Record<string, any>} [exportedState]
+ * @property {Record<string, any>} [__info__]
+ * @property {() => any} [getGlobalState]
+ * @property {() => any} [getLocalState]
+ */
+/**
+ * @typedef {Object} BaseView
+ * @property {ViewType} type
+ * @property {boolean} [multiRecord]
+ * @property {string} [display_name]
+ * @property {string} [icon]
+ */
+/** @typedef {Record<string, any>} ActionProps */
+/** @typedef {Record<string, any>} Config */
+/** @typedef {Record<string, any>} UpdateStackOptions */
+/**
+ * @typedef {Object} DoActionButtonParams
+ * @property {string} [type] Absent for a `special` button.
+ * @property {string|number} [name]
+ * @property {string} [special]
+ * @property {string} [resModel]
+ * @property {number|false} [resId]
+ * @property {number[]} [resIds]
+ * @property {Context} [context]
+ * @property {Context} [buttonContext]
+ * @property {any[]} [args]
+ * @property {string} [effect] The raw `effect` attribute, evaluated by {@link executeActionButton}.
+ * @property {string} [block-ui] The raw `block-ui` attribute.
+ * @property {boolean} [close]
+ * @property {ViewType} [viewType]
+ * @property {string} [stackPosition]
+ * @property {CallableFunction} [onClose]
+ */
 
 /**
  * @typedef {Object} ActionOptions
@@ -108,13 +174,9 @@ actionHandlersRegistry.addValidation((entry) => typeof entry === "function");
  * @property {Object[]} [newStack]
  * @property {boolean} [noEmptyTransition]
  * @property {Function} [onActionReady]
- * @property {boolean} [isBreadcrumbRestore] this dispatch is a user-initiated
- *   breadcrumb click; on a pre-mount error, roll the stack back to the
- *   currently-displayed one instead of the truncated ``newStack`` tip. Fully
- *   documented on ``_updateUI``, which consumes it — declared here because
- *   ``restore()`` passes it through ``doAction``, whose options this typedef
- *   describes.
- * @property {number} [_actionDepth] internal — guards against runaway action chaining (see _executeAction)
+ * @property {number} [poppedLeaves]
+ * @property {boolean} [isBreadcrumbRestore]
+ * @property {number} [_actionDepth]
  */
 
 export { clearUncommittedChanges };
@@ -122,26 +184,8 @@ export { clearUncommittedChanges };
 export { ControllerNotFoundError, standardActionServiceProps };
 
 /**
- * Combine the ``onClose`` a replaced dialog handed over with the one the
- * replacing action brought of its own.
- *
- * A ``target="new"`` action opened while a dialog is already up REPLACES it, so
- * the outgoing dialog never "closed" as far as its opener is concerned: its
- * callback is stolen, re-armed on the replacement, and fires when the chain
- * finally closes. Both callbacks run, innermost first — the order the dialogs
- * would have unwound in had they closed one at a time.
- *
- * The two belong to DIFFERENT actions, so neither may cancel the other: each
- * leg runs in its own try and failures are re-raised afterwards. Dropping one
- * silently is not a lesser failure — ``doAction(..., { onClose: resolve })`` is
- * how the calendar controller and the view-button confirmation flow AWAIT a
- * dialog, so a skipped callback is an ``await`` that never returns.
- *
- * Neither callback is wrapped when the other is absent, keeping the identity of
- * the common single-callback path and the "no onClose at all" fast path.
- *
- * @param {Function} [own] the replacing action's own ``options.onClose``
- * @param {Function} [stolen] the callback carried over from the dialog being replaced
+ * @param {Function} [own]
+ * @param {Function} [stolen]
  * @returns {Function|undefined}
  */
 function chainOnClose(own, stolen) {
@@ -169,53 +213,6 @@ function chainOnClose(own, stolen) {
     };
 }
 
-/**
- * THE SIBLING CONTRACT
- * ====================
- *
- * The modules this file delegates to (``action_executors/*``,
- * ``breadcrumb_manager``, ``load_state``, ``action_button_executor``,
- * ``controller_component``, ``reports/report_executor``, ``action_loader``,
- * ``action_info_builders``, ``action_cache_invalidation``) all take the
- * ActionManager INSTANCE as their last parameter. That is deliberate and must
- * not be narrowed to the collaborators each one happens to need today:
- *
- *  - ``enterprise/web_studio/.../editor.js`` does ``Object.assign(action,
- *    { doAction })``, and siblings call ``am.doAction()`` LATE-BOUND. Capturing
- *    ``doAction`` at construction time would silently break Studio's
- *    interception.
- *  - ``_loadAction`` / ``_executeCloseAction`` / ``_getBreadcrumbs`` are used as
- *    test seams via fake ``am`` object literals.
- *
- * The sanctioned surface is enumerated in ``sibling_contract.test.js``, which
- * asserts it in both directions: every listed member must still exist, and the
- * manager must expose nothing beyond it. Adding a member is therefore a change
- * to that list, not to a comment here — a prose copy would only drift out of
- * step with the assertion that enforces it.
- *
- * Only three sites WRITE manager state, and each is documented where it happens:
- *   ``action_dispatch.js``       controllerStack — the ONLY writer, so the
- *                                stack always describes what is mounted
- *                                (commit on mount / roll back on pre-mount
- *                                error); dialog + nextDialog (the two-slot
- *                                commit — see ``_removeDialog``). This is the
- *                                per-dispatch transaction object;
- *                                ``ControllerComponent`` only reports which
- *                                outcome its lifecycle observed.
- *   ``action_cache_invalidation.js``  breadcrumbCache (flush by replacement —
- *                                see the NOTE in breadcrumb_cache.js)
- *   ``load_state.js``            _loadStateGeneration (navigation intent)
- *
- * Anything not on the sanctioned list is private to this file.
- *
- * Action manager — routes ``doAction`` / button clicks / URL state changes
- * to the appropriate action executor, maintains the breadcrumb controller
- * stack, manages the dialog overlay, and synchronizes URL state.
- *
- * ``makeActionManager(env, router)`` remains the public entry point:
- * ``enterprise/web_studio/.../editor.js`` calls it and uses the result as an
- * action-manager surface.
- */
 export class ActionManager {
     /**
      * @param {import("@web/env").OdooEnv} env
@@ -226,12 +223,9 @@ export class ActionManager {
         this.router = router;
         this.breadcrumbCache = new BreadcrumbCache();
         this.keepLast = new KeepLast({ rejectSuperseded: true });
-        /** Monotonic id source — feeds controller_<n>/action_<n> stamps and ACTION_MANAGER:UPDATE event ids. */
         this._id = 0;
         this.controllerStack = [];
         /**
-         * The inline dispatch in flight that brought its OWN base stack — a URL
-         * restore or a breadcrumb click. See {@link _effectiveStack}.
          * @type {ActionDispatch|null}
          */
         this._pendingDispatch = null;
@@ -244,7 +238,7 @@ export class ActionManager {
 
         this.uninstallActionCacheInvalidation = () => {};
 
-        /** @type {Record<string, (action: Object, options: ActionOptions) => Promise<any> | void>} */
+        /** @type {Record<string, (action: any, options: ActionOptions) => Promise<any> | void>} */
         this._actionExecutors = {
             "ir.actions.act_url": (a, o) => executeActURLAction(a, o, this),
             "ir.actions.act_window": (a, o) => executeActWindowAction(a, o, this),
@@ -262,33 +256,20 @@ export class ActionManager {
     }
 
     /**
-     * Removes the current dialog from the action service's state.
-     *
-     * Invariant: ``this.dialog`` is cleared *before* the user-provided
-     * ``onClose`` runs, so re-entrant calls (e.g. an inline follow-up's
-     * ``dialog.closeAll()``) find it already null and ``onClose`` fires once.
-     *
-     * DOM removal happens *after* ``onClose`` resolves, so a button-action
-     * ``onClose`` that reloads the view keeps the dialog visible until the
-     * reload completes — matching the cancel path and the "wait for view
-     * reload before closing" regression tests.
-     *
-     * When ``removeFn`` is given (the dialog-service ``onClose`` closures
-     * built in ``_dispatchTargetNew`` pass their own remove function), the
-     * teardown only runs if the closing entry is the *committed* one:
-     * discarding a pending, never-mounted replacement must not tear down the
-     * still-visible committed dialog.
-     *
      * @param {any} [closeParams]
-     * @param {Function} [removeFn] identity of the closing dialog's remove
+     * @param {Function} [removeFn]
      * @return {Promise<void>}
      */
     async _removeDialog(closeParams, removeFn) {
         if (removeFn && this.nextDialog && this.nextDialog.remove === removeFn) {
-            if (this.dialog && !this.dialog.onClose) {
-                this.dialog.onClose = this.nextDialog.stolenOnClose;
-            }
+            const { stolenOnClose, supersededOnClose } = this.nextDialog;
             this.nextDialog = null;
+            const inherited = chainOnClose(supersededOnClose, stolenOnClose);
+            if (this.dialog && !this.dialog.onClose) {
+                this.dialog.onClose = inherited;
+            } else {
+                await inherited?.(closeParams);
+            }
             return;
         }
         const dialog = this.dialog;
@@ -305,25 +286,6 @@ export class ActionManager {
     }
 
     /**
-     * The controller stack IN EFFECT for code running right now — which is not
-     * always the one that is mounted.
-     *
-     * A URL restore dispatches its leaf against a stack the browser has already
-     * navigated to but that nothing has rendered yet. Code running inside that
-     * dispatch has to see it: a client action asking ``currentAction`` from its
-     * ``onWillStart`` means "what am I being opened from?", and the answer is
-     * the URL's parent, not whatever is still on screen. So does a follow-up
-     * ``doAction`` chained from that client action, which must stack on the
-     * URL's ancestors rather than on the outgoing page.
-     *
-     * That visibility used to come from ``_updateUI`` writing the incoming
-     * stack onto ``controllerStack`` outright, which made every OTHER reader —
-     * breadcrumb refresh, ``pushState``, error recovery — see a stack that was
-     * not mounted, for as long as the load took, and left it installed for good
-     * if the dispatch was discarded before mounting. Naming it here keeps
-     * ``controllerStack`` a description of what is actually on screen and ends
-     * the visibility when the dispatch does.
-     *
      * @returns {Controller[]}
      */
     get _effectiveStack() {
@@ -331,18 +293,14 @@ export class ActionManager {
     }
 
     /**
-     * Returns the last controller of the stack in effect.
-     *
      * @returns {Controller|null}
      */
     _getCurrentController() {
         const stack = this._effectiveStack;
-        return stack.length ? stack.at(-1) : null;
+        return stack.at(-1) ?? null;
     }
 
     /**
-     * Returns the current action, which is the action of the last controller in the stack.
-     *
      * @returns {Promise<any>}
      */
     async _getCurrentAction() {
@@ -370,25 +328,13 @@ export class ActionManager {
     }
 
     /**
-     * Allocate the next monotonic id (feeds controller_<n>/action_<n> stamps
-     * and ACTION_MANAGER:UPDATE ids). Encapsulates ``++this._id`` so sibling
-     * modules don't reach into the private slot directly.
-     *
-     * @returns {number} the post-increment value
+     * @returns {number}
      */
     _nextId() {
         return ++this._id;
     }
 
     /**
-     * Snapshot the current navigation generation. Every ``doAction`` /
-     * ``switchView`` / ``restore`` bumps ``keepLast._id`` when it enters the
-     * KeepLast, so a later increment means a newer navigation started. Callers
-     * that ``await`` something long OUTSIDE the KeepLast (notably
-     * ``clearUncommittedChanges``, which can block on a save dialog) snapshot
-     * this before the await and compare after via {@link _isSupersededNav} to
-     * avoid mounting a stale controller on top of a newer one.
-     *
      * @returns {number}
      */
     _navGeneration() {
@@ -396,34 +342,16 @@ export class ActionManager {
     }
 
     /**
-     * @param {number} generation a value previously returned by
-     *   {@link _navGeneration}
-     * @returns {boolean} true if a newer navigation has started since
+     * @param {number} generation
+     * @returns {boolean}
      */
     _isSupersededNav(generation) {
         return this.keepLast.generation !== generation;
     }
 
     /**
-     * Ask every mounted controller for permission to leave, then re-check that
-     * no newer navigation started while we waited.
-     *
-     * Both halves are mandatory and must stay together.
-     * ``clearUncommittedChanges`` can block indefinitely (a save dialog
-     * awaiting the user) and it awaits OUTSIDE the KeepLast, so the KeepLast
-     * cannot arbitrate that window: the caller must snapshot the navigation
-     * generation before the await and re-check it after. Centralising both
-     * here means a new transition path cannot add the consent await and forget
-     * the re-check — the failure mode being a stale controller mounting on top
-     * of a newer one (see the ``concurrency.test.js`` suite, which covers this
-     * for each of the four entry points).
-     *
-     * Internal — also called by sibling ``action_executors/*`` with the
-     * ActionManager instance as ``this``. No ``@private`` tag: TS reads it as
-     * strict class-private and would block sibling-module access.
-     *
      * @param {{ forceLeave?: boolean }} [options]
-     * @returns {Promise<boolean>} ``true`` if the caller may proceed
+     * @returns {Promise<boolean>}
      */
     async _confirmLeave(options = {}) {
         const navGeneration = this._navGeneration();
@@ -444,37 +372,13 @@ export class ActionManager {
     }
 
     /**
-     * Internal — called by sibling ``action_executors/*`` and
-     * ``action_info_builders.js`` with the ActionManager instance as
-     * ``this``. No ``@private`` tag: TS reads it as strict class-private
-     * and would block sibling-module access.
-     * "The current action has no such view" and "the current action is not a
-     * window action at all" are the SAME answer to this question — ``null`` —
-     * and the callers already handle it: ``switchView`` raises a typed
-     * ``ViewNotFoundError``, and ``openFormView`` falls through to opening a
-     * standalone form via ``doAction``.
-     *
-     * Answering the second case with a throw instead would make the outcome
-     * depend on WHY the view is unavailable, and that case is reachable:
-     * ``openFormView`` is captured as the ``selectRecord`` / ``createRecord``
-     * prop of a view controller, and ``list_controller.openRecord`` awaits
-     * ``record.isDirty()`` and ``record.save()`` before calling it — so a
-     * navigation landing inside that window leaves a client action on the stack
-     * tip, and a row click must degrade to the form rather than to an error
-     * dialog.
-     *
      * @param {string} viewType
-     * @throws {ControllerNotFoundError} if there is no current controller
-     * @returns {any} the view descriptor, or ``null`` when the current action
-     *   cannot provide it
+     * @throws {ControllerNotFoundError}
+     * @returns {any}
      */
     _getView(viewType) {
         const currentController = this.controllerStack.at(-1);
         if (!currentController) {
-            // Not reachable from any in-tree caller today — every one of them
-            // runs from a mounted controller — but this is public service API,
-            // and the typed error names the problem where the next line would
-            // only raise a bare TypeError.
             throw new ControllerNotFoundError(
                 `Cannot resolve view '${viewType}': the controller stack is empty`,
             );
@@ -490,17 +394,13 @@ export class ActionManager {
         return buildBreadcrumbs(stack, this);
     }
 
-    /**
-     * Reconstruct an action request from URL state.
-     * Delegates to the extracted getActionParams in action_state.
-     */
     _getActionParams(state) {
         return getActionParams(state);
     }
 
     /**
-     * @param {ClientAction} action
-     * @param {Object} props
+     * @param {Action} action
+     * @param {ActionProps} props
      * @returns {{ props: ActionProps, config: Config }}
      */
     _getActionInfo(action, props) {
@@ -519,7 +419,7 @@ export class ActionManager {
 
     /**
      * @param {Controller[]} [stack]
-     * @returns {string|undefined} jsId of the action owning the top controller
+     * @returns {string|undefined}
      */
     _topActionJsId(stack = this.controllerStack) {
         return stack.at(-1)?.action.jsId;
@@ -527,8 +427,7 @@ export class ActionManager {
 
     /**
      * @param {Controller[]} [stack]
-     * @returns {string|undefined} jsId of the action below the top one, or
-     *   ``undefined`` when the stack holds a single action
+     * @returns {string|undefined}
      */
     _previousActionJsId(stack = this.controllerStack) {
         const topJsId = this._topActionJsId(stack);
@@ -542,11 +441,8 @@ export class ActionManager {
     }
 
     /**
-     * Computes the position of the controller in the nextStack according to options
-     *
      * @param {ActionOptions} options
-     * @param {Controller[]} [stack] the stack the dispatch builds on, which is
-     *   NOT always the live one — see {@link _updateUI}'s ``baseStack``.
+     * @param {Controller[]} [stack]
      */
     _computeStackIndex(options, stack = this.controllerStack) {
         if (options.clearBreadcrumbs) {
@@ -559,11 +455,6 @@ export class ActionManager {
                 );
             }
         } else if (options.stackPosition === "replacePreviousAction") {
-            // Walk back past every controller of the TOP action (an action can
-            // own several — one per view type it was switched through) and land
-            // on the first controller of the one before it. When the whole
-            // stack is a single action there is no previous one, so index 0
-            // replaces it — the same degradation the previous spelling had.
             const target =
                 this._previousActionJsId(stack) ?? this._topActionJsId(stack);
             if (target) {
@@ -576,24 +467,6 @@ export class ActionManager {
     }
 
     /**
-     * Triggers a re-rendering with respect to the given controller.
-     *
-     * Thin orchestrator: builds the {@link ActionDispatch} transaction (which
-     * owns the outer promise and the commit/fail/discard transitions the
-     * eventual ``ControllerComponent`` triggers), early-exits for
-     * ``newWindow``, wires
-     * the controller's reactive config via {@link _prepareControllerConfig},
-     * then dispatches to:
-     *
-     *  - {@link _dispatchTargetNew} for ``action.target === "new"``
-     *    (renders the controller inside an ActionDialog).
-     *  - {@link _dispatchInline} otherwise (drives ACTION_MANAGER:UPDATE
-     *    so the action_container swaps in the new controller).
-     *
-     * Internal — called by sibling ``action_executors/*`` and
-     * ``reports/report_executor.js`` with the ActionManager instance as
-     * ``this``. No ``@private`` tag: TS reads it as strict class-private.
-     *
      * @param {Controller} controller
      * @param {Object} [options]
      * @param {boolean} [options.clearBreadcrumbs]
@@ -603,37 +476,20 @@ export class ActionManager {
      * @param {Function} [options.onClose]
      * @param {boolean} [options.noEmptyTransition]
      * @param {Function} [options.onActionReady]
-     * @param {boolean} [options.isBreadcrumbRestore] this dispatch is a
-     *   user-initiated breadcrumb click, so the URL still points at the
-     *   CURRENTLY-DISPLAYED controller (``pushState`` only runs on mount). If
-     *   the restored controller then errors before mounting, roll back to that
-     *   displayed stack rather than to the truncated ``newStack`` tip, making
-     *   the failed click a no-op and keeping the URL consistent. A ``loadState``
-     *   dispatch runs AFTER the browser already changed the URL and must
-     *   degrade within that URL's stack, so it deliberately does NOT set this.
-     *   Read here, consumed by ``ControllerComponent``'s ``onError`` via
-     *   ``ActionDispatch``'s ``restoreStackOnError``.
+     * @param {boolean} [options.isBreadcrumbRestore]
      * @returns {Promise<any>}
      */
     async _updateUI(controller, options = {}) {
         const action = controller.action;
-        // The stack this dispatch BUILDS ON — a proposal, never an installed
-        // state. ``options.newStack`` arrives from a URL restore or a
-        // breadcrumb click and used to be written straight onto
-        // ``this.controllerStack`` here, which left the manager describing a
-        // stack that was not on screen for the whole of the controller's load:
-        // its tip had no ``config``, so anything reading the live stack in that
-        // window (breadcrumb refresh, ``pushState`` from a still-mounted
-        // controller) saw a half-applied transaction — and a dispatch that was
-        // discarded before mounting left it applied for good. The stack now
-        // moves in exactly two places: {@link ActionDispatch.commit} on mount,
-        // and {@link ActionDispatch._restoreStack} on a pre-mount failure.
         const baseStack =
             action.target !== "new" && options.newStack
                 ? options.newStack
                 : this._effectiveStack;
         const index = this._computeStackIndex(options, baseStack);
         const nextStack = [...baseStack.slice(0, index), controller];
+        if (action.target !== "new" && options.newWindow) {
+            return this._openActionInNewWindow(action, makeActionState(nextStack));
+        }
         const dispatch = new ActionDispatch(this, {
             controller,
             action,
@@ -643,9 +499,6 @@ export class ActionManager {
                 ? this._effectiveStack
                 : undefined,
         });
-        if (action.target !== "new" && options.newWindow) {
-            return this._openActionInNewWindow(action, makeActionState(nextStack));
-        }
         this._prepareControllerConfig(controller, action, nextStack);
 
         if (action.target === "new") {
@@ -657,9 +510,6 @@ export class ActionManager {
         try {
             return await this._dispatchInline(dispatch, options);
         } finally {
-            // Every exit releases it, including the one where a newer dispatch
-            // supersedes the skeleton and ``_dispatchInline`` returns without
-            // the transaction ever settling.
             if (this._pendingDispatch === dispatch) {
                 this._pendingDispatch = null;
             }
@@ -667,15 +517,6 @@ export class ActionManager {
     }
 
     /**
-     * Wires the controller's reactive ``config`` slots that drive UI
-     * affordances (breadcrumbs, display name, history back, reloading
-     * flag).
-     *
-     * Pure side effects on ``controller.config`` — no return value,
-     * no bus events, no dialog interactions. Lives outside the dispatch
-     * branches because BOTH ``_dispatchTargetNew`` and
-     * ``_dispatchInline`` need the same config plumbing.
-     *
      * @param {Controller} controller
      * @param {any} action
      * @param {Controller[]} nextStack
@@ -689,7 +530,9 @@ export class ActionManager {
             controller.displayName = displayName;
             if (controller === this._getCurrentController()) {
                 // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `title` is a declared dependency (started before us)
-                this.env.services.title.setParts({ action: controller.displayName });
+                this.env.services.title.setParts({
+                    action: controller.displayName ?? null,
+                });
             }
             if (action.target !== "new") {
                 const crumb = controller.config.breadcrumbs.find(
@@ -714,17 +557,8 @@ export class ActionManager {
     }
 
     /**
-     * Dispatch path for ``action.target === "new"``: renders the
-     * controller inside an ActionDialog registered on the dialog
-     * service. Replaces any prior ``nextDialog`` so only one
-     * action-as-dialog is live at a time.
-     *
-     * Returns the dispatch's promise so callers see the same resolution timing
-     * as the inline path — it settles when the ControllerComponent mounts and
-     * the dispatch commits.
-     *
-     * @param {ActionDispatch} dispatch the transaction for this dispatch
-     * @param {Object} options the original ``_updateUI`` options
+     * @param {ActionDispatch} dispatch
+     * @param {Object} options
      * @returns {Promise<any>}
      */
     _dispatchTargetNew(dispatch, options) {
@@ -735,20 +569,23 @@ export class ActionManager {
             actionType: action.type,
         };
         if (action.name) {
-            actionDialogProps.title = action.name;
+            actionDialogProps.title = action.name ?? null;
         }
-        const size = DIALOG_SIZES[action.context.dialog_size];
+        const context = /** @type {Context} */ (action.context);
+        const size = DIALOG_SIZES[context.dialog_size];
         if (size) {
             actionDialogProps.size = size;
         }
-        // Left absent rather than set to undefined when the context says
-        // nothing, so ``Dialog.defaultProps`` (header/footer both true) applies.
         for (const key of ["header", "footer"]) {
-            if (action.context[key] !== undefined) {
-                actionDialogProps[key] = action.context[key];
+            if (context[key] !== undefined) {
+                actionDialogProps[key] = context[key];
             }
         }
-        const stolenOnClose = this.nextDialog?.stolenOnClose ?? this.dialog?.onClose;
+        const superseded = this.nextDialog;
+        const stolenOnClose = superseded?.stolenOnClose ?? this.dialog?.onClose;
+        const supersededOnClose = superseded
+            ? chainOnClose(superseded.ownOnClose, superseded.supersededOnClose)
+            : undefined;
         delete this.dialog?.onClose;
         // eslint-disable-next-line no-restricted-syntax -- service-internal code: useService is component-only, and `dialog` is a declared dependency (started before us)
         const removeDialogFn = (removeDialogRef.current = this.env.services.dialog.add(
@@ -759,32 +596,26 @@ export class ActionManager {
                     this._removeDialog(closeParams, removeDialogFn),
             },
         ));
-        if (this.nextDialog) {
-            const superseded = this.nextDialog;
+        if (superseded) {
             this.nextDialog = null;
             superseded.remove();
         }
         this.nextDialog = {
             remove: removeDialogFn,
-            onClose: chainOnClose(options.onClose, stolenOnClose),
-            // The PURE stolen callback, never the chained one: ``_removeDialog``
-            // hands this back to the committed dialog when this pending entry is
-            // discarded without ever mounting, and in that case this action's own
-            // ``onClose`` must NOT come along — nothing of it ever opened.
+            onClose: chainOnClose(
+                chainOnClose(options.onClose, supersededOnClose),
+                stolenOnClose,
+            ),
+            ownOnClose: options.onClose,
+            supersededOnClose,
             stolenOnClose,
         };
         return dispatch.settled();
     }
 
     /**
-     * Dispatch path for the default case (``action.target`` is not
-     * ``"new"``): captures the outgoing controller's local/global
-     * state, optionally injects a SkeletonView during full breadcrumb
-     * clear, then triggers ACTION_MANAGER:UPDATE so the
-     * action_container swaps in the new controller.
-     *
-     * @param {ActionDispatch} dispatch the transaction for this dispatch
-     * @param {Object} options the original ``_updateUI`` options
+     * @param {ActionDispatch} dispatch
+     * @param {Object} options
      * @returns {Promise<void>}
      */
     async _dispatchInline(dispatch, options) {
@@ -793,11 +624,6 @@ export class ActionManager {
             this._skeletonDef.reject(new SupersededError());
             this._skeletonDef = null;
         }
-        // Reads the stack in effect, so a URL-driven dispatch finds the URL's
-        // own (virtual, exporter-less) tip here and harvests nothing: what is on
-        // screen belongs to the page the user already left, and pushing its
-        // global state would put it back into a URL the browser has moved on
-        // from.
         const currentController = this._getCurrentController();
         if (currentController?.getLocalState) {
             currentController.exportedState = currentController.getLocalState();
@@ -814,10 +640,13 @@ export class ActionManager {
             );
 
             currentController.action.globalState = globalState;
+            const controllerState = /** @type {Record<string, any>} */ (
+                currentController.state
+            );
             if (
-                currentController.state.action === this.router.current.action &&
-                currentController.state.active_id === this.router.current.active_id &&
-                currentController.state.resId === this.router.current.resId
+                controllerState.action === this.router.current.action &&
+                controllerState.active_id === this.router.current.active_id &&
+                controllerState.resId === this.router.current.resId
             ) {
                 this.router.pushState({ globalState }, { sync: true });
             }
@@ -878,8 +707,6 @@ export class ActionManager {
     }
 
     /**
-     * Main entry point of a 'doAction' request. Loads the action and executes it.
-     *
      * @param {ActionRequest} actionRequest
      * @param {ActionOptions} options
      * @returns {Promise<number | undefined | void>}
@@ -907,9 +734,6 @@ export class ActionManager {
     }
 
     /**
-     * Executes an action on top of the current one (typically, when a button in a
-     * view is clicked). Delegates to the extracted executeActionButton.
-     *
      * @param {DoActionButtonParams} params
      * @param {Object} [options={}]
      * @returns {Promise<void>}
@@ -919,20 +743,12 @@ export class ActionManager {
     }
 
     /**
-     * Switches to the given view type in action of the last controller of the
-     * stack. This action must be of type 'ir.actions.act_window'.
-     *
      * @param {ViewType} viewType
      * @param {Object} [props={}]
-     * @params {Object} [options={}]
-     * @params {boolean} [options.newWindow] set to true to open the action in a new tab/window.
-     * @throws {ViewNotFoundError} if the viewType is not found on the current action
-     * @returns {Promise<Number>}
-     */
-    /**
-     * @param {string} viewType
-     * @param {Object} [props={}]
      * @param {{ newWindow?: boolean }} [options={}]
+     * @throws {ControllerNotFoundError} the controller stack is empty
+     * @throws {ViewNotFoundError} the current action has no such view
+     * @returns {Promise<any>}
      */
     async switchView(viewType, props = {}, { newWindow } = {}) {
         await this.keepLast.add(Promise.resolve());
@@ -986,10 +802,6 @@ export class ActionManager {
     }
 
     /**
-     * Restores a controller from the controller stack given its id. Typically,
-     * this function is called when clicking on the breadcrumbs. If no id is given
-     * restores the previous controller from the stack (penultimate).
-     *
      * @param {string} jsId
      */
     async restore(jsId) {
@@ -1020,9 +832,6 @@ export class ActionManager {
                 );
             }
             const { actionRequest, options } = actionParams;
-            // ``poppedLeaves`` says how far up the URL stack the request was
-            // resolved from; the position here is already fixed by the explicit
-            // ``newStack`` below, so it has no meaning left.
             return this.doAction(actionRequest, {
                 ...omit(options, "poppedLeaves"),
                 newStack: this.controllerStack.slice(0, index),
@@ -1074,11 +883,6 @@ export class ActionManager {
 }
 
 /**
- * Thin factory preserved for back-compat.  External consumers
- * (``enterprise/web_studio/.../editor.js``) call this with ``(env, router)``
- * and use the return as an action-manager surface — the
- * {@link ActionManager} instance fulfills that surface.
- *
  * @param {import("@web/env").OdooEnv} env
  * @param {RouterLike} [router]
  * @returns {ActionManager}

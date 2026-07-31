@@ -18,6 +18,7 @@ import { executeCloseAction } from "@web/webclient/actions/action_executors/clos
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
+    /** @type {Record<string, any[]>} */
     const calls = { removeDialog: [] };
     const am = {
         dialog: null,

@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/reports/report_executor - Executes ir.actions.report as HTML preview or PDF/text download */
+/** @module @web/webclient/actions/reports/report_executor */
 
-import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
 
@@ -14,15 +13,13 @@ registry
     .category("ir.actions.report handlers")
     .addValidation((entry) => typeof entry === "function");
 
-/** @import { ActionManager, ReportAction as ReportActionType } from "../action_service.js" */
+/** @import { ActionManager, ActionOptions, ReportAction as ReportActionType } from "../action_service.js" */
 
 /**
- * Execute a report action as a client-side HTML preview.
- *
- * @param {ReportActionType} action the report action descriptor
- * @param {Object} options action execution options
+ * @param {ReportActionType} action
+ * @param {ActionOptions} options
  * @param {ActionManager} am
- * @returns {Promise}
+ * @returns {Promise<any>}
  */
 export function executeReportClientAction(action, options, am) {
     const props = {
@@ -46,18 +43,10 @@ export function executeReportClientAction(action, options, am) {
 }
 
 /**
- * Settle the dialog (if any) the report was launched from.
- *
- * Both terminal paths of {@link executeReportAction} — a registry handler
- * claiming the report, and the built-in PDF/text download — owe the caller the
- * same thing once the document has been produced.
- *
  * @param {ReportActionType} action
- * @param {Object} options
+ * @param {ActionOptions} options
  * @param {ActionManager} am
- * @returns {Promise|undefined} the close action's promise when one is
- *   dispatched, so callers can keep propagating it as the action's result
- *   exactly as both copies did
+ * @returns {Promise<any>|undefined}
  */
 function finishReport(action, options, am) {
     const { onClose } = options;
@@ -69,13 +58,10 @@ function finishReport(action, options, am) {
 }
 
 /**
- * Execute a report action. Delegates to registered report handlers first,
- * then falls back to HTML preview or PDF/text download.
- *
- * @param {ReportActionType} action the report action descriptor
- * @param {Object} options action execution options
+ * @param {ReportActionType} action
+ * @param {ActionOptions} options
  * @param {ActionManager} am
- * @returns {Promise}
+ * @returns {Promise<any>}
  */
 export async function executeReportAction(action, options, am) {
     const handlers = registry.category("ir.actions.report handlers").getAll();
@@ -98,19 +84,12 @@ export async function executeReportAction(action, options, am) {
             if (action.context) {
                 Object.assign(downloadContext, action.context);
             }
-            await downloadReport(rpc, action, type, downloadContext);
+            await downloadReport(action, type, downloadContext);
         } finally {
             am.env.services.ui.unblock();
         }
         return finishReport(action, options, am);
     } else {
-        // SINGLE EXIT — ``options.onClose`` runs on every path, the same rule
-        // ``act_url.js`` spells out. Nothing was produced, but the caller is
-        // still waiting: this is how ``view_button_hook`` reloads its view and
-        // how ``doAction(..., { onClose: resolve })`` awaits an action. A
-        // report whose type no LOADED handler claims (an enterprise handler
-        // missing from the bundle) takes this path, and returning without
-        // settling stranded the caller rather than doing less.
         console.error(
             `The ActionManager can't handle reports of type ${action.report_type}`,
             action,

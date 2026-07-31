@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/breadcrumb_manager - Breadcrumb building, display-name loading, and virtual controller reconstruction for the action service */
+/** @module @web/webclient/actions/breadcrumb_manager */
 
 import { rpc } from "@web/core/network/rpc";
 import { zip } from "@web/core/utils/collections/arrays";
@@ -10,16 +10,9 @@ import { pick } from "@web/core/utils/collections/objects";
 import { resolveClientAction } from "./action_loader.js";
 import { actionStorage } from "./action_storage.js";
 
-/** @import { ActionManager } from "./action_service.js" */
+/** @import { ActionManager, Controller } from "./action_service.js" */
 
 /**
- * The home-menu pseudo-controller (web's "menu" client action) must
- * never appear in breadcrumbs nor be fetched from the server. It is spelled two
- * ways depending on provenance: ``action.tag === "menu"`` for a live client
- * action loaded by registry key, ``action.id === "menu"`` for a URL-derived
- * virtual controller reconstructed from state. Match both so every breadcrumb
- * discriminator uses one predicate instead of picking one spelling.
- *
  * @param {{ tag?: any, id?: any }} [action]
  * @returns {boolean}
  */
@@ -28,14 +21,8 @@ export function isMenuController(action) {
 }
 
 /**
- * Fetch display names for the given action states in a single
- * ``load_breadcrumbs`` RPC and cache the per-key results.
- *
- * ``retry: 1``: like ``loadAction``, this sits on the refresh/boot path — a
- * transient failure otherwise degrades every breadcrumb of the restored URL.
- *
- * @param {Object[]} toFetch ``{action, model, resId}`` descriptors
- * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache shared by reference
+ * @param {Record<string, any>[]} toFetch
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
  */
 function fetchBreadcrumbs(toFetch, breadcrumbCache) {
     const req = rpc("/web/action/load_breadcrumbs", { actions: toFetch }, { retry: 1 });
@@ -62,13 +49,9 @@ function fetchBreadcrumbs(toFetch, breadcrumbCache) {
 }
 
 /**
- * Await the cached results for the given keys, degrading per-entry: a
- * rejected fetch resolves to ``{error}`` instead of rejecting the batch, so
- * one failed RPC never propagates a wholesale rejection to the caller.
- *
- * @param {{controller: Object, key: string}[]} controllerKeys
+ * @param {{controller: Controller, key: string}[]} controllerKeys
  * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
- * @returns {Promise<Object[]>} one settled result per key (may be undefined)
+ * @returns {Promise<Record<string, any>[]>}
  */
 function settleBreadcrumbs(controllerKeys, breadcrumbCache) {
     return Promise.all(
@@ -79,11 +62,20 @@ function settleBreadcrumbs(controllerKeys, breadcrumbCache) {
 }
 
 /**
- * Given a controller stack, return the list of breadcrumb items.
+ * One entry of the breadcrumb trail, as the control panel consumes it.
  *
- * @param {Object[]} stack the controller stack
+ * @typedef {Object} Breadcrumb
+ * @property {string} jsId
+ * @property {string} [name]
+ * @property {boolean} isFormView
+ * @property {string} url
+ * @property {() => void} onSelected
+ */
+
+/**
+ * @param {Controller[]} stack
  * @param {ActionManager} am
- * @returns {Object[]} breadcrumb items
+ * @returns {Breadcrumb[]}
  */
 export function buildBreadcrumbs(stack, am) {
     return stack
@@ -104,16 +96,17 @@ export function buildBreadcrumbs(stack, am) {
 }
 
 /**
- * Load breadcrumbs for controllers with view/record access, adding display
- * names; controllers for deleted/inaccessible records are removed.
- *
- * @param {Object[]} controllers controllers whose breadcrumbs should be loaded
- * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache shared by reference
- * @returns {Promise<Object[]>} new array of displayable controllers with display names
+ * @param {Controller[]} controllers
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
+ * @returns {Promise<Controller[]>}
  */
 async function loadBreadcrumbs(controllers, breadcrumbCache) {
     const toFetch = [];
     const controllerKeys = [];
+    /**
+     * @type {Set<string>}
+     */
+    const queued = new Set();
     for (const controller of controllers) {
         const { action, state, displayName } = controller;
         if (
@@ -122,7 +115,12 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
         ) {
             continue;
         }
-        const actionInfo = pick(state, "action", "model", "resId");
+        const actionInfo = pick(
+            /** @type {Record<string, any>} */ (state),
+            "action",
+            "model",
+            "resId",
+        );
         const key = JSON.stringify(actionInfo);
         controllerKeys.push({ controller, key });
         if (displayName) {
@@ -132,7 +130,10 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
             breadcrumbCache.touch(key);
             continue;
         }
-        toFetch.push(actionInfo);
+        if (!queued.has(key)) {
+            queued.add(key);
+            toFetch.push(actionInfo);
+        }
     }
     if (toFetch.length) {
         fetchBreadcrumbs(toFetch, breadcrumbCache);
@@ -158,17 +159,8 @@ async function loadBreadcrumbs(controllers, breadcrumbCache) {
 }
 
 /**
- * Re-fetch fresh display names for the given (live, non-virtual) controllers
- * into ``controller.displayName`` after a server-side action change.
- *
- * Unlike {@link loadBreadcrumbs}, existing display names are not trusted as
- * cache seeds (they are exactly what may be stale) and controllers are never
- * dropped: on a failed or errored fetch the current name is kept, since the
- * controllers hold live state (exported view state, cached sub-controllers)
- * that must survive a background refresh.
- *
- * @param {Object[]} controllers
- * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache shared by reference
+ * @param {Controller[]} controllers
+ * @param {import("./breadcrumb_cache.js").BreadcrumbCache} breadcrumbCache
  * @returns {Promise<void>}
  */
 export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache) {
@@ -180,7 +172,12 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
         if (!state || isMenuController(action) || action.type === "ir.actions.client") {
             continue;
         }
-        const actionInfo = pick(state, "action", "model", "resId");
+        const actionInfo = pick(
+            /** @type {Record<string, any>} */ (state),
+            "action",
+            "model",
+            "resId",
+        );
         const key = JSON.stringify(actionInfo);
         controllerKeys.push({ controller, key });
         if (!breadcrumbCache.has(key) && !seen.has(key)) {
@@ -200,16 +197,9 @@ export async function refreshBreadcrumbDisplayNames(controllers, breadcrumbCache
 }
 
 /**
- * Create an array of virtual controllers based on the given router state.
- *
- * Reads the restore cache (``actionStorage``) and the singleton client-action
- * registry (via ``resolveClientAction``) directly; only the per-instance state
- * (``router.stateToUrl``, ``_makeController``, ``breadcrumbCache``) comes
- * off the action manager.
- *
- * @param {Object} state the router state
+ * @param {Record<string, any>} state
  * @param {ActionManager} am
- * @returns {Promise<Object[]>} array of virtual controllers
+ * @returns {Promise<Controller[]>}
  */
 export async function controllersFromState(state, am) {
     const currentState = actionStorage.getCurrentState();
@@ -233,6 +223,9 @@ export async function controllersFromState(state, am) {
                 },
                 currentState: {},
             });
+            const controllerState = /** @type {Record<string, any>} */ (
+                controller.currentState
+            );
             if (actionState.action) {
                 controller.action.id = actionState.action;
 
@@ -251,7 +244,7 @@ export async function controllersFromState(state, am) {
                     controller.action.context = {
                         active_id: actionState.active_id,
                     };
-                    controller.currentState.active_id = actionState.active_id;
+                    controllerState.active_id = actionState.active_id;
                 }
             }
             if (actionState.model) {
@@ -261,7 +254,7 @@ export async function controllersFromState(state, am) {
             if (actionState.resId) {
                 controller.action.type ||= "ir.actions.act_window";
                 controller.props.resId = actionState.resId;
-                controller.currentState.resId = actionState.resId;
+                controllerState.resId = actionState.resId;
                 controller.props.type = "form";
             }
             return controller;

@@ -20,6 +20,7 @@ import { executeActWindowAction } from "@web/webclient/actions/action_executors/
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
+    /** @type {Record<string, any[]>} */
     const calls = { updateUI: [], confirmLeave: [] };
     const am = {
         env: { isSmall: false },

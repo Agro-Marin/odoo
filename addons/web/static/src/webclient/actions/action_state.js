@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_state - URL state serialization/deserialization for the action service (router integration) */
+/** @module @web/webclient/actions/action_state */
 
 import { markup } from "@odoo/owl";
 import { PATH_KEYS } from "@web/core/browser/router";
@@ -12,15 +12,11 @@ import { parseActiveIds } from "./action_constants.js";
 import { resolveClientAction } from "./action_loader.js";
 import { actionStorage } from "./action_storage.js";
 
+/** @import { ActionOptions, ActionRequest, Controller } from "./action_service.js" */
+
 /**
- * Serialize a controller stack into a URL-pushable state object.
- *
- * Produces an `actionStack` array (one entry per controller) plus
- * top-level keys for the last controller's state so that the router
- * can reconstruct the breadcrumb on page load.
- *
- * @param {Object[]} controllerStack - array of controller objects
- * @returns {Object} state suitable for `router.pushState`
+ * @param {Controller[]} controllerStack
+ * @returns {Record<string, any>}
  */
 export function makeActionState(controllerStack) {
     const actions = controllerStack.map((controller) => {
@@ -53,7 +49,9 @@ export function makeActionState(controllerStack) {
         actionStack: actions,
     };
     const stateKeys = [...PATH_KEYS];
-    const { action, props, currentState } = controllerStack.at(-1);
+    const { action, props, currentState } = /** @type {Controller} */ (
+        controllerStack.at(-1)
+    );
     if (props.type !== "form" && props.type !== action.views?.[0]?.[1]) {
         stateKeys.push("view_type");
     }
@@ -67,23 +65,8 @@ export function makeActionState(controllerStack) {
 }
 
 /**
- * Reconstruct an action request and options from a URL state object.
- *
- * Restores client actions from the registry, window actions from session
- * storage, and handles recursive actionStack unwinding for invalid states.
- * Pure function — all external dependencies are module-level imports.
- *
- * When the leaf entry cannot be resolved the tail of ``actionStack`` is popped
- * and the parse retried; ``options.poppedLeaves`` reports HOW MANY entries were
- * dropped. It is deliberately a COUNT and not a position: the caller applies it
- * to the CONTROLLER stack rebuilt by ``controllersFromState``, which is shorter
- * than ``actionStack`` whenever a record turned out to be deleted or
- * inaccessible. An absolute index into the URL stack silently means a different
- * entry once that happens — it kept the resolved action's own controller as its
- * own breadcrumb parent.
- *
- * @param {Object} state - the URL state to parse
- * @returns {{ actionRequest: Object, options: Object } | null}
+ * @param {Record<string, any>} state
+ * @returns {{ actionRequest: ActionRequest, options: ActionOptions } | null}
  */
 export function getActionParams(state) {
     /**
@@ -171,12 +154,6 @@ export function getActionParams(state) {
             }
         }
     }
-    // One rule for every shape of request the branches above can resolve.
-    // ``globalState`` (the serialized search model) is hidden from the URL but
-    // rides along in the history entry, so Back onto a ``/odoo/m-<model>``
-    // route must restore the user's facets exactly as Back onto an
-    // ``/odoo/action-<id>`` one does; restoring it only in the action branch
-    // silently emptied the search bar for model-based routes.
     if (actionRequest && state.globalState) {
         options.props = { ...options.props, globalState: state.globalState };
     }
@@ -189,9 +166,7 @@ export function getActionParams(state) {
             if (!params) {
                 return null;
             }
-            if (params.options) {
-                params.options.poppedLeaves = (params.options.poppedLeaves || 0) + 1;
-            }
+            params.options.poppedLeaves = (params.options.poppedLeaves || 0) + 1;
             return params;
         }
         actionRequest = user.homeActionId;
