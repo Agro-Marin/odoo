@@ -56,7 +56,9 @@ test("grouped kanban keeps column order after three columns empty out", async ()
         groupBy: ["product_id"],
     });
 
-    expect(model.root.groups.map((g) => g.value)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(model.root.groups.map((/** @type {any} */ g) => g.value)).toEqual([
+        1, 2, 3, 4, 5, 6,
+    ]);
 
     // empty out P2, P4, P6 server-side, then reload with identical search params
     MockServer.env["task"].unlink([2, 4, 6]);
@@ -64,13 +66,18 @@ test("grouped kanban keeps column order after three columns empty out", async ()
         const res = parent();
         expect.step(
             "server groups: " +
-                JSON.stringify(res.groups.map((g) => g.product_id && g.product_id[0])),
+                JSON.stringify(
+                    res.groups.map(
+                        (/** @type {any} */ g) => g.product_id && g.product_id[0],
+                    ),
+                ),
         );
         return res;
     });
     await model.load();
     expect.step(
-        "after reload: " + JSON.stringify(model.root.groups.map((g) => g.value)),
+        "after reload: " +
+            JSON.stringify(model.root.groups.map((/** @type {any} */ g) => g.value)),
     );
 
     expect.verifySteps(["server groups: [1,3,5]", "after reload: [1,2,3,4,5,6]"]);

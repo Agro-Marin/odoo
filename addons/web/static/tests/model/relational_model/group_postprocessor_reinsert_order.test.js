@@ -12,7 +12,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { postprocessReadGroup } from "@web/model/relational_model/group_postprocessor";
 
 function makeConfig() {
-    return {
+    return /** @type {any} */ ({
         resModel: "task",
         fields: { name: { type: "char", name: "name" } },
         activeFields: {},
@@ -23,7 +23,7 @@ function makeConfig() {
         limit: 80,
         orderBy: [],
         groups: {},
-    };
+    });
 }
 
 const DEPS = {
@@ -34,9 +34,9 @@ const DEPS = {
     defaultGroupLimit: 10,
 };
 
-async function runPostprocess(config, names) {
+async function runPostprocess(/** @type {any} */ config, /** @type {any} */ names) {
     const response = {
-        groups: names.map((name) => ({
+        groups: names.map((/** @type {any} */ name) => ({
             __count: 1,
             __extra_domain: [["name", "=", name]],
             name,
@@ -67,7 +67,7 @@ describe("sticky-empty re-insertion order", () => {
 });
 
 /** Deterministic PRNG so a failure is reproducible from its seed. */
-function makeRng(seed) {
+function makeRng(/** @type {number} */ seed) {
     let state = seed >>> 0;
     return () => {
         state = (state * 1664525 + 1013904223) >>> 0;

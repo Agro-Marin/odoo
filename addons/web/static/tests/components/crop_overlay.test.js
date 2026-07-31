@@ -28,7 +28,7 @@ function makeHost({ onResize = () => {} } = {}) {
         setup() {
             this.state = useState({ isReady: true, tick: 0 });
         }
-        onResize(area) {
+        onResize(/** @type {any} */ area) {
             onResize(area);
         }
     }
@@ -68,7 +68,7 @@ test("the crop area is published once, and not republished unchanged", async () 
     /** @type {any[]} */
     const areas = [];
     const host = await mountWithCleanup(
-        makeHost({ onResize: (area) => areas.push(area) }),
+        makeHost({ onResize: (/** @type {any} */ area) => areas.push(area) }),
     );
     await animationFrame();
 

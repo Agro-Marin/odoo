@@ -13,7 +13,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { checkValidity } from "@web/model/relational_model/record_validator";
 
-function makeChild({ resId, dirty, changes }) {
+function makeChild(/** @type {any} */ { resId, dirty, changes }) {
     const editState = new RecordEditState();
     editState.changes = { ...changes };
     editState.dirty = dirty;
@@ -38,7 +38,7 @@ function makeChild({ resId, dirty, changes }) {
 }
 
 /** @returns {any} a partial RelationalRecord, enough for checkValidity */
-function makeParent(child) {
+function makeParent(/** @type {any} */ child) {
     const list = {
         count: 1,
         _currentIds: [child.resId],
@@ -56,7 +56,7 @@ function makeParent(child) {
         get _unsetRequiredFields() {
             return editState.unsetRequiredFields;
         },
-        set _closeInvalidFieldsNotification(_value) {},
+        set _closeInvalidFieldsNotification(/** @type {any} */ _value) {},
         _isInvisible: () => false,
         _isRequired: () => false,
     };

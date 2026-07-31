@@ -112,7 +112,7 @@ test("fuzzyLevenshteinLookup: the length prefilter does not change results", () 
 });
 
 /** Straightforward reference implementation, used only to cross-check above. */
-function levenshtein(a, b) {
+function levenshtein(/** @type {string} */ a, /** @type {string} */ b) {
     const rows = [];
     for (let i = 0; i <= a.length; i++) {
         rows.push(new Array(b.length + 1).fill(0));

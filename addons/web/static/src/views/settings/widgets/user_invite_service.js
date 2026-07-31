@@ -17,12 +17,14 @@ export const userInviteService = {
              */
             fetchData(reload = false) {
                 if (!dataProm || reload) {
-                    const prom = rpc("/base_setup/data").catch((error) => {
-                        if (dataProm === prom) {
-                            dataProm = undefined;
-                        }
-                        throw error;
-                    });
+                    const prom = rpc("/base_setup/data").catch(
+                        (/** @type {any} */ error) => {
+                            if (dataProm === prom) {
+                                dataProm = undefined;
+                            }
+                            throw error;
+                        },
+                    );
                     dataProm = prom;
                 }
                 return /** @type {Promise<Record<string, any>>} */ (dataProm);

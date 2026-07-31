@@ -17,7 +17,7 @@ import { useListSelection } from "@web/views/list/list_selection";
 
 const LONG_TOUCH_THRESHOLD = 400;
 
-function mountSelectionHost(onToggle) {
+function mountSelectionHost(/** @type {any} */ onToggle) {
     class Host extends Component {
         static template = xml`<div/>`;
         static props = {};

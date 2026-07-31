@@ -26,24 +26,45 @@ import { RecordEditState } from "@web/model/relational_model/record_edit_state";
  * build their own record shape can spread it, instead of each re-deriving the
  * (order-sensitive) sequence.
  */
+/**
+ * @typedef {{
+ *  data: Record<string, any>,
+ *  _values: Record<string, any>,
+ *  _changes: Record<string, any>,
+ *  _textValues: Record<string, any>,
+ *  _initialTextValues: Record<string, any>,
+ *  _setEvalContext: () => void,
+ *  _clearChanges: () => void,
+ *  _rebuildData: () => void,
+ * }} RecordStateSurface
+ */
+
 export const RECORD_STATE_TRANSITIONS = {
+    /** @this {RecordStateSurface} */
     _rebuildData() {
         this.data = { ...this._values, ...this._changes };
         this._setEvalContext();
     },
-    /** @param {Record<string, any>} [extraValues] */
+    /**
+     * @this {RecordStateSurface}
+     * @param {Record<string, any>} [extraValues]
+     */
     _commitChanges(extraValues) {
         this._values = { ...this._values, ...this._changes, ...extraValues };
         this._clearChanges();
         this._initialTextValues = { ...this._textValues };
         this._rebuildData();
     },
+    /** @this {RecordStateSurface} */
     _discardChanges() {
         this._clearChanges();
         this._textValues = { ...this._initialTextValues };
         this._rebuildData();
     },
-    /** @param {Record<string, any>} values */
+    /**
+     * @this {RecordStateSurface}
+     * @param {Record<string, any>} values
+     */
     _resetValues(values) {
         this._values = values;
         this._clearChanges();

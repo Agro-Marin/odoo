@@ -147,7 +147,7 @@ describe("a failed read never leaves a rejected promise in the cache", () => {
             })
             .then(
                 () => (settled = true),
-                (error) => {
+                (/** @type {any} */ error) => {
                     settled = true;
                     reason = error;
                 },
