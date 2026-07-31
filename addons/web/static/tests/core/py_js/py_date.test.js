@@ -276,6 +276,7 @@ describe("datetime.date", () => {
     test("basic operations with dates", function () {
         expect.assertions(19);
 
+        /** @type {Record<string, any>} */
         let ctx = {
             d1: PyDate.create(2002, 1, 31),
             d2: PyDate.create(1956, 1, 31),

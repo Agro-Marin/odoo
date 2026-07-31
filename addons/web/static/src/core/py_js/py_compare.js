@@ -1,32 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_compare - Shared Python comparison/equality/membership kernel (isLess, isEqual, isIn) used by the interpreter, the max/min builtins and domain membership */
+/** @module @web/core/py_js/py_compare */
 
 import { EvaluationError, pyTypeName } from "./py_builtin.js";
 import { NotSupportedError, PyDate, PyDateTime, PyTime } from "./py_date.js";
+import { isPyTuple } from "./py_tuple.js";
 
 /**
- * Order: None < number (boolean) < dict < string < list. Each type maps to
- * an index representing that order.
- *
- * This is Python **2**'s total order across types, and it is deliberate — do
- * not "fix" it to Python 3, which raises a TypeError for every cross-type
- * comparison (``safe_eval("1 < 'a'")`` does raise server-side).
- *
- * The reason is that this kernel evaluates VIEW-ATTRIBUTE expressions —
- * ``decoration-danger``, ``invisible``, ``readonly`` — against a record's
- * values, where an unset field is ``false``. A list row whose ``datetime`` is
- * unset still has to evaluate ``datetime &gt; '2017-02-27 12:51:35'``, and
- * such expressions are evaluated only on the client, so there is no server
- * verdict to match. Raising there does not surface a latent bug: it replaces a
- * cosmetic decoration with a crashed view. A total order keeps them total.
- *
- * (Domain LEAF matching does not come through here — see ``matchCondition`` in
- * ``@web/core/domain``, which does follow the server exactly.)
- *
  * @param {any} val
- * @returns {number} index type
+ * @returns {number}
  */
 function pytypeIndex(val) {
     switch (typeof val) {
@@ -41,9 +24,6 @@ function pytypeIndex(val) {
 }
 
 /**
- * Concrete date/time kind of a Py* temporal value, or null. PyTime extends
- * PyDate, so it must be tested first.
- *
  * @param {any} value
  * @returns {"date" | "datetime" | "time" | null}
  */
@@ -61,10 +41,6 @@ function pyDateKind(value) {
 }
 
 /**
- * Python ``<`` semantics: numeric/boolean numeric order, lexicographic list
- * order, cross-type ordering by {@link pytypeIndex}, and a TypeError for
- * incompatible temporal kinds.
- *
  * @param {any} left
  * @param {any} right
  * @returns {boolean}
@@ -107,9 +83,6 @@ export function isLess(left, right) {
 }
 
 /**
- * Python ``==`` semantics: bool/number equivalence, deep list/set/dict
- * comparison, and typed Py* objects' own ``isEqual``.
- *
  * @param {any} left
  * @param {any} right
  * @returns {boolean}
@@ -129,6 +102,10 @@ export function isEqual(left, right) {
     }
     if (Array.isArray(left) || Array.isArray(right)) {
         if (!Array.isArray(left) || !Array.isArray(right)) {
+            return false;
+        }
+        if (isPyTuple(left) !== isPyTuple(right)) {
+            // A list never equals a tuple in Python, however alike their items.
             return false;
         }
         return (
@@ -179,9 +156,6 @@ export function isEqual(left, right) {
 }
 
 /**
- * Python ``in`` semantics: membership uses ``==`` per element for sequences,
- * substring for strings, and key membership for dicts.
- *
  * @param {any} left
  * @param {any} right
  * @returns {boolean}

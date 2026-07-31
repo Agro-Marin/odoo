@@ -1,32 +1,24 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_args - Runtime positional/keyword argument binding for Python call evaluation */
+/** @module @web/core/py_js/py_args */
+
+import { EvaluationError } from "./py_builtin.js";
 
 /**
- * Bind a call's positional (and trailing kwargs) arguments onto named keys.
+ * Bind a call's arguments onto ``spec``'s parameter names.
  *
- * Pure runtime helper (no parser/AST dependency), used by the interpreter and
- * the ``PyDate``/``PyDateTime``/``PyTime``/``PyRelativeDelta`` constructors.
- * Kept dependency-free so those classes don't have to import the parser (or
- * ``py_utils``, which imports them back — a cycle).
- *
- * INVARIANT / FOOTGUN: the LAST element of ``args`` is treated as the kwargs
- * dict whenever it is any non-null object (arrays included). Every in-tree
- * caller upholds this because the interpreter's ``FunctionCall`` case ALWAYS
- * appends a (possibly empty) plain-object kwargs as the final argument, and the
- * ``Py*.create`` static methods are only ever reached through it. Direct JS
- * callers of the exported ``Py*`` classes MUST append their own trailing kwargs
- * object — e.g. ``PyDateTime.combine(date, time, {})`` — otherwise the last
- * positional (``time``, a Py* object) is silently spread as kwargs and dropped.
- * The debug assertion below flags the one shape that is never a legitimate
- * kwargs — an Array — since that is the most likely accidental misuse.
+ * Surplus positional arguments and unknown keywords are rejected rather than
+ * dropped: an overflow used to land on the string key ``"undefined"``, so
+ * ``'abc'.strip('a','b')`` quietly answered ``"bc"`` where CPython raises.
  *
  * @param {any[]} args
  * @param {string[]} spec
+ * @param {string} [name] the callee, for the error message
  * @returns {{[name: string]: any}}
+ * @throws {EvaluationError} on surplus positionals, unknown or repeated keywords
  */
-export function bindArgs(args, spec) {
+export function bindArgs(args, spec, name = "function") {
     const last = args.at(-1);
     const hasKwargs = typeof last === "object" && last !== null;
     if (hasKwargs && Array.isArray(last) && odoo.debug) {
@@ -36,9 +28,30 @@ export function bindArgs(args, spec) {
         );
     }
     const unnamedArgs = hasKwargs ? args.slice(0, -1) : args;
-    const kwargs = hasKwargs ? { ...last } : {};
+    if (unnamedArgs.length > spec.length) {
+        throw new EvaluationError(
+            `${name}() takes at most ${spec.length} argument(s) (${unnamedArgs.length} given)`,
+        );
+    }
+    /** @type {{[name: string]: any}} */
+    const kwargs = {};
     for (const [index, val] of unnamedArgs.entries()) {
         kwargs[spec[index]] = val;
+    }
+    if (hasKwargs) {
+        for (const key of Object.keys(last)) {
+            if (!spec.includes(key)) {
+                throw new EvaluationError(
+                    `${name}() got an unexpected keyword argument '${key}'`,
+                );
+            }
+            if (Object.hasOwn(kwargs, key)) {
+                throw new EvaluationError(
+                    `${name}() got multiple values for argument '${key}'`,
+                );
+            }
+            kwargs[key] = last[key];
+        }
     }
     return kwargs;
 }

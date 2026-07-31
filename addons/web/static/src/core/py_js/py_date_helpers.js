@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_date_helpers - Calendar arithmetic: ordinal conversion, leap year, day-in-month, and overflow normalization */
+/** @module @web/core/py_js/py_date_helpers */
 
 class AssertionError extends Error {}
 export class ValueError extends Error {}
@@ -17,9 +17,6 @@ export function fmt4(n) {
 }
 
 /**
- * Python-style divmod: computes (floor(a/b), a%b) and passes to callback.
- * Unlike JS, the sign of the remainder matches the sign of b.
- *
  * @template T
  * @param {number} a
  * @param {number} b
@@ -56,7 +53,7 @@ for (let dbm = 0, i = 1; i < DAYS_IN_MONTH.length; ++i) {
 
 /**
  * @param {number} year
- * @param {number} month - 1-indexed
+ * @param {number} month
  * @returns {number}
  */
 export function daysInMonth(year, month) {
@@ -79,7 +76,7 @@ function daysBeforeYear(year) {
 
 /**
  * @param {number} year
- * @param {number} month - 1-indexed
+ * @param {number} month
  */
 function daysBeforeMonth(year, month) {
     const postLeapFeb = month > 2 && isLeap(year);
@@ -105,7 +102,6 @@ const DI100Y = daysBeforeYear(101);
 const DI4Y = daysBeforeYear(5);
 
 /**
- * Convert an ordinal number to {year, month, day}.
  * @param {number} n
  * @returns {{ year: number, month: number, day: number }}
  */
@@ -162,8 +158,6 @@ function ord2ymd(n) {
 }
 
 /**
- * Converts date/time components into valid values, applying overflows as needed.
- *
  * @param {number} year
  * @param {number} month
  * @param {number} day

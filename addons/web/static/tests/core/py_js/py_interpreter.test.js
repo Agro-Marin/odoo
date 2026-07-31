@@ -402,7 +402,11 @@ describe("objects", () => {
     });
 
     test("cannot call function in object", () => {
-        expect(() => evaluateExpr("obj.f(3)", { obj: { f: (n) => n + 1 } })).toThrow();
+        expect(() =>
+            evaluateExpr("obj.f(3)", {
+                obj: { f: (/** @type {number} */ n) => n + 1 },
+            }),
+        ).toThrow();
     });
 });
 
@@ -715,6 +719,141 @@ describe("builtins — float", () => {
         expect(() => evaluateExpr("float(None)")).toThrow(/float\(\) argument/);
         expect(() => evaluateExpr("float([])")).toThrow(/float\(\) argument/);
     });
+
+    // `float` used to hand the string to `Number()`, which accepts strictly
+    // more than CPython does (radix prefixes) and strictly less at the same
+    // time (PEP 515 underscores) -- while `int` right next to it already
+    // accepted underscores, so the two disagreed with each other too. Every
+    // expectation below is CPython-verified.
+    test("float accepts PEP 515 underscores, exactly where CPython does", () => {
+        expect(evaluateExpr('float("1_000")')).toBe(1000);
+        expect(evaluateExpr('float("1_000.5")')).toBe(1000.5);
+        expect(evaluateExpr('float("1.000_1")')).toBe(1.0001);
+        expect(evaluateExpr('float("1_0e1_0")')).toBe(1e11);
+        expect(evaluateExpr('float(".5_1")')).toBe(0.51);
+        expect(evaluateExpr('float("1_000_000")')).toBe(1000000);
+        expect(evaluateExpr('float("0_1")')).toBe(1);
+        expect(evaluateExpr('float("-1_0.5_5")')).toBe(-10.55);
+        expect(evaluateExpr('float("+1_0")')).toBe(10);
+        expect(evaluateExpr('float(" 1_0 ")')).toBe(10);
+        expect(evaluateExpr('float("1.2_3e4_5")')).toBe(1.23e45);
+        expect(evaluateExpr('float("1_0.")')).toBe(10);
+        expect(evaluateExpr('float(".1_2")')).toBe(0.12);
+    });
+
+    test("float rejects an underscore that is not between two digits", () => {
+        for (const bad of [
+            "1_",
+            "_1",
+            "1__0",
+            "1_.5",
+            "1._5",
+            "1e_5",
+            "1_e5",
+            "1.5_",
+            "_",
+        ]) {
+            expect(() => evaluateExpr(`float("${bad}")`)).toThrow(/could not convert/, {
+                message: `float("${bad}")`,
+            });
+        }
+    });
+
+    test("float rejects radix prefixes, which only int() takes", () => {
+        // Number("0x10") is 16; CPython's float() raises for all three.
+        expect(() => evaluateExpr('float("0x10")')).toThrow(/could not convert/);
+        expect(() => evaluateExpr('float("0b11")')).toThrow(/could not convert/);
+        expect(() => evaluateExpr('float("0o7")')).toThrow(/could not convert/);
+        expect(evaluateExpr('int("0x10", 16)')).toBe(16);
+    });
+
+    test("float still accepts the rest of Python's float grammar", () => {
+        expect(evaluateExpr('float("1.")')).toBe(1);
+        expect(evaluateExpr('float("1e5")')).toBe(100000);
+        expect(evaluateExpr('float("inf")')).toBe(Infinity);
+        expect(evaluateExpr('float("-inf")')).toBe(-Infinity);
+        expect(evaluateExpr('float("Infinity")')).toBe(Infinity);
+        expect(Number.isNaN(evaluateExpr('float("nan")'))).toBe(true);
+        expect(() => evaluateExpr('float("1d")')).toThrow(/could not convert/);
+    });
+});
+
+describe("builtins — sorted", () => {
+    // `safe_eval` exposes `sorted` and this module's docstring always claimed
+    // it, but it was never wired into BUILTINS: every `sorted(...)` in a
+    // client-evaluated expression died on "Name 'sorted' is not defined".
+    test("sorts lists, strings, sets and dict keys like CPython", () => {
+        expect(evaluateExpr("sorted([3, 1, 2])")).toEqual([1, 2, 3]);
+        expect(evaluateExpr('sorted("cba")')).toEqual(["a", "b", "c"]);
+        expect(evaluateExpr("sorted(set([3, 1, 2]))")).toEqual([1, 2, 3]);
+        expect(evaluateExpr("sorted({'b': 1, 'a': 2})")).toEqual(["a", "b"]);
+        expect(evaluateExpr("sorted([])")).toEqual([]);
+    });
+
+    test("reverse= honoured; the source list is not mutated", () => {
+        expect(evaluateExpr("sorted([3, 1, 2], reverse=True)")).toEqual([3, 2, 1]);
+        expect(evaluateExpr("sorted([3, 1, 2], reverse=False)")).toEqual([1, 2, 3]);
+        expect(evaluateExpr("[sorted(l), l]", { l: [3, 1, 2] })).toEqual([
+            [1, 2, 3],
+            [3, 1, 2],
+        ]);
+    });
+
+    test("key= raises instead of silently returning a differently-sorted list", () => {
+        expect(() => evaluateExpr("sorted([1, 2], key=1)")).toThrow(
+            /keyword arguments \(key\) are not supported/,
+        );
+    });
+
+    test("non-iterable raises", () => {
+        expect(() => evaluateExpr("sorted(1)")).toThrow(/not iterable/);
+    });
+});
+
+describe("builtins — repr", () => {
+    // pyRepr already backed '%r' formatting; it just was not reachable as a
+    // builtin, though safe_eval exposes `repr`.
+    test("repr matches CPython for the values py_js can hold", () => {
+        expect(evaluateExpr(`repr("it's")`)).toBe(`"it's"`);
+        expect(evaluateExpr('repr("a")')).toBe("'a'");
+        expect(evaluateExpr('repr([1, "a"])')).toBe(`[1, 'a']`);
+        expect(evaluateExpr("repr({'a': 1})")).toBe(`{'a': 1}`);
+        expect(evaluateExpr("repr(True)")).toBe("True");
+        expect(evaluateExpr("repr(None)")).toBe("None");
+        expect(evaluateExpr("repr(set([1]))")).toBe("{1}");
+    });
+});
+
+describe("error messages use Python type names, not JS class names", () => {
+    // These messages surface in the domain editor and in view-attribute
+    // evaluation failures. They used to leak the JS constructor name for every
+    // non-primitive -- 'Object' for a dict, 'Set' for a set -- and `len` used a
+    // bare `typeof`, reporting 'number' for an int.
+    test("dict and set", () => {
+        expect(() => evaluateExpr("abs({})")).toThrow(
+            /bad operand type for abs\(\): 'dict'/,
+        );
+        expect(() => evaluateExpr("abs(set([1]))")).toThrow(
+            /bad operand type for abs\(\): 'set'/,
+        );
+        expect(() => evaluateExpr("1 + {}")).toThrow(/'int' and 'dict'/);
+        expect(() => evaluateExpr("1 + set([1])")).toThrow(/'int' and 'set'/);
+    });
+
+    test("int and float, from len()", () => {
+        expect(() => evaluateExpr("len(42)")).toThrow(
+            /object of type 'int' has no len\(\)/,
+        );
+        expect(() => evaluateExpr("len(1.5)")).toThrow(
+            /object of type 'float' has no len\(\)/,
+        );
+    });
+
+    test("temporals report their Python names", () => {
+        expect(() =>
+            evaluateExpr("datetime.time(1, 0, 0) < datetime.date(2020, 1, 1)"),
+        ).toThrow(/'time' and 'date'/);
+    });
 });
 
 describe("builtins — str", () => {
@@ -975,6 +1114,39 @@ describe("Python semantics fixes", () => {
             /format requires a mapping/,
         );
         expect(() => evaluateExpr("'%s %s' % 5")).toThrow(/not enough arguments/);
+    });
+
+    test("'%' formatting accepts every py_js spelling of a dict as a mapping", () => {
+        // A dict literal, a dict arriving through the evaluation context, and
+        // the magic `context` name (a toPyDict Proxy whose prototype is the
+        // PY_DICT sentinel) are the three, and only the first two were
+        // recognised: `isMapping` tested the prototype against Object.prototype
+        // and null only, so the leftover-argument check below fired for
+        // `context` and raised "not all arguments converted" for an expression
+        // safe_eval evaluates fine server-side.
+        expect(evaluateExpr("'%(a)s' % {'a': 1}")).toBe("1");
+        expect(evaluateExpr("'%(a)s' % d", { d: { a: 1 } })).toBe("1");
+        expect(evaluateExpr("'%(lang)s' % context", { lang: "en_US" })).toBe("en_US");
+        expect(
+            evaluateExpr("'%(lang)s/%(tz)s' % context", { lang: "fr_BE", tz: "UTC" }),
+        ).toBe("fr_BE/UTC");
+        // A caller-supplied `context` key shadows the magic name; still a dict.
+        expect(evaluateExpr("'%(a)s' % context", { context: { a: 7 } })).toBe("7");
+        // ...and a missing key is still a KeyError through the Proxy.
+        expect(() => evaluateExpr("'%(nope)s' % context", { lang: "en_US" })).toThrow(
+            /KeyError: 'nope'/,
+        );
+    });
+
+    test("'%' formatting still rejects a non-dict operand as a mapping", () => {
+        // Broadening the mapping test to "any non-array object" would have
+        // swallowed these: CPython raises for both.
+        expect(() => evaluateExpr("'%(a)s' % datetime.date(2020, 1, 1)")).toThrow(
+            /format requires a mapping/,
+        );
+        expect(() => evaluateExpr("'' % datetime.date(2020, 1, 1)")).toThrow(
+            /not all arguments converted/,
+        );
     });
 
     test("'%' formatting distinguishes a tuple operand from a list operand", () => {

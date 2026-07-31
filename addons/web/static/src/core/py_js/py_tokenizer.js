@@ -1,22 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_tokenizer - Lexer that splits Python expression strings into typed tokens */
+/** @module @web/core/py_js/py_tokenizer */
 
 import { TokenType } from "./token_type.js";
 
 /**
- * The {@link Token} typedefs and the {@link TokenType} discriminant legend live
- * in ``./token_type.js`` (single source of truth shared with the parser).
- *
  * @typedef { import("./token_type").Token } Token
  */
 
 export class TokenizerError extends Error {}
 
-/**
- * Directly maps a single escape code to an output character
- */
 /** @type {Record<string, string>} */
 const directMap = {
     "\\": "\\",
@@ -32,11 +26,6 @@ const directMap = {
 };
 
 /**
- * Decodes a Python string literal (embedded in a JS string) into a JS
- * string, resolving escapes. Python 3 semantics: every string literal
- * decodes ``\u``/``\U``/``\x``/octal escapes (a ``u``/``U`` prefix is
- * accepted by the grammar but changes nothing, as in CPython).
- *
  * @param {string} str
  * @returns {string}
  */
@@ -170,7 +159,7 @@ export const binaryOperators = [
     ".",
 ];
 
-export const unaryOperators = ["-"];
+const unaryOperators = ["-"];
 
 const symbols = new Set([
     ...["(", ")", "[", "]", "{", "}", ":", ","],
@@ -186,11 +175,6 @@ function group(...args) {
 }
 
 /**
- * Convert a matched numeric-literal token to its Number value. Handles the
- * base prefixes (0x/0o/0b), PEP 515 digit-group underscores, and the legacy
- * Python-2 long suffix (10L): stripping the underscores and a trailing L lets
- * ``Number`` resolve the prefixes, decimals, floats, and exponents uniformly
- * (unlike ``parseFloat``, which reads "0x10" as 0 and stops at "_").
  * @param {string} token
  * @returns {number}
  */
@@ -233,7 +217,6 @@ const ContStr = group(
     '([uU])?"([^\n"\\\\]*(?:\\\\.[^\n"\\\\]*)*)"',
 );
 const PseudoToken = Whitespace + group(NumberToken, Funny, ContStr, Name);
-/** Module-level regex — reused across tokenize() calls, reset via lastIndex. */
 const pseudoprog = new RegExp(PseudoToken, "g");
 const NumberPattern = new RegExp("^" + NumberToken + "$");
 const StringPattern = new RegExp("^" + ContStr + "$");
@@ -241,8 +224,6 @@ const NamePattern = new RegExp("^" + Name + "$");
 const strip = new RegExp("^" + Whitespace);
 
 /**
- * Transform a string into a list of tokens
- *
  * @param {string} str
  * @returns {Token[]}
  */
