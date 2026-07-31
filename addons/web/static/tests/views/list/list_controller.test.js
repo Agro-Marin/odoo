@@ -105,6 +105,7 @@ test("onSelectionChanged fires for a cardinality-preserving selection swap", asy
     expect(seen.at(-1)).toBe("[2,3]");
 });
 
+test.tags("desktop");
 test("onSelectionChanged ignores a superseded resId resolution", async () => {
     const seen = [];
     let releaseFirst = null;
