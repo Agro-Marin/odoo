@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/field_widths - Default column widths per field type for list views */
+/** @module @web/fields/field_widths */
 
 import { xml } from "@odoo/owl";
 import {
@@ -16,13 +16,6 @@ import { renderToElement } from "@web/core/utils/render";
 
 let _dateWidths = null;
 
-/**
- * Default min/max column widths per field type.
- *
- * - Array `[min]` or `[min, max]`: flexible column with bounds.
- * - Number: fixed width (both min and max).
- * - Getter: lazily computed from locale (date/datetime formats vary).
- */
 export const FIELD_WIDTHS = Object.freeze({
     boolean: [20, 100],
     char: [80],
@@ -62,16 +55,10 @@ export const FIELD_WIDTHS = Object.freeze({
     text: [80, 1200],
 });
 
-/** Reset cached date widths (useful for tests that change locale). */
 export function resetDateFieldWidths() {
     _dateWidths = null;
 }
 
-/**
- * Compute ideal date and datetime widths by rendering sample values into
- * the DOM and measuring their pixel width. Results depend on locale and
- * font, so they are computed lazily and cached.
- */
 function computeOptimalDateWidths() {
     const { timeFormat } = localization;
     const values = {

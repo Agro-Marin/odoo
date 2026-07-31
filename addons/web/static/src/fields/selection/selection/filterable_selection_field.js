@@ -1,13 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/selection/filterable_selection_field - Selection dropdown field with whitelist/blacklist value filtering */
+/** @module @web/fields/selection/selection/filterable_selection_field */
 
-/**
- * Selection field that hides some values via whitelist/blacklist, so the
- * same model field can expose different option sets per view.
- */
-
+import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
 import {
     SelectionField,
@@ -23,9 +19,10 @@ export class FilterableSelectionField extends SelectionField {
 
     /**
      * @override
-     * @returns {Array<[string, string]>} Filtered selection options based on whitelist/blacklist
+     * @returns {Array<[string, string]>}
      */
     get options() {
+        /** @type {Array<[string, string]>} */
         let options = super.options;
         if (this.props.whitelist_fname) {
             const whitelist = this.props.record.data[this.props.whitelist_fname] || [];
@@ -54,22 +51,22 @@ export const filterableSelectionField = {
     component: FilterableSelectionField,
     supportedOptions: [
         {
-            label: "Whitelisted Values",
+            label: _t("Whitelisted Values"),
             name: "whitelisted_values",
             type: "string",
         },
         {
-            label: "Blacklisted Values",
+            label: _t("Blacklisted Values"),
             name: "blacklisted_values",
             type: "string",
         },
         {
-            label: "Whitelisted field name",
+            label: _t("Whitelisted field name"),
             name: "whitelist_fname",
             type: "string",
         },
     ],
-    extractProps: (fieldInfo, dynamicInfo) => ({
+    extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         ...selectionField.extractProps(fieldInfo, dynamicInfo),
         whitelist_fname: fieldInfo.options.whitelist_fname,
         whitelisted_values: fieldInfo.options.whitelisted_values,

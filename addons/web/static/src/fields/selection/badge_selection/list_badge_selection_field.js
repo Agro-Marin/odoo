@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/badge_selection/list_badge_selection_field - List-view variant of the badge selection field with color support */
+/** @module @web/fields/selection/badge_selection/list_badge_selection_field */
 
 import { badgeColorClass } from "@web/core/badge/badge_colors";
 import { _t } from "@web/core/l10n/translation";
@@ -17,8 +17,8 @@ export class ListBadgeSelectionField extends BadgeSelectionField {
         colorField: { type: String, optional: true },
     };
     /**
-     * @param {[string, string] | false} option Selection option tuple or false
-     * @returns {string} CSS class names for the badge element
+     * @param {[string, string] | false} option
+     * @returns {string}
      */
     getBadgeClassNames(option = false) {
         if (this.props.readonly) {
@@ -52,7 +52,7 @@ export const listBadgeSelectionField = {
             help: _t("Set an integer field to use colors with the badge."),
         },
     ],
-    extractProps: (fieldInfo, dynamicInfo) => ({
+    extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         ...badgeSelectionField.extractProps(fieldInfo, dynamicInfo),
         colorField: fieldInfo.options.color_field,
     }),

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/dynamic_placeholder_hook - OWL hook that opens a dynamic placeholder popover on trigger key */
+/** @module @web/fields/dynamic_placeholder_hook */
 
 import { useComponent } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -24,17 +24,11 @@ export function useDynamicPlaceholder(elementRef) {
     let model = null;
 
     /**
-     * Single insertion routine, shared by the trigger-key path (which removes
-     * the typed trigger key) and the magic-wand button path. Always goes
-     * through the synthetic-event path so `useInputField` stays the single
-     * source of dirty truth (the record is committed on blur/Tab, not here).
-     *
-     * @param {string} path field chain (e.g. "partner_id.name")
-     * @param {string} [defaultValue] fallback when the placeholder is empty
+     * @param {string} path
+     * @param {string} [defaultValue]
      * @param {Object} [options]
-     * @param {number} [options.rangeIndex] caret index to insert at
-     * @param {boolean} [options.removeTriggerKey] replace the trigger key
-     *     just before ``rangeIndex`` instead of inserting after it
+     * @param {number} [options.rangeIndex]
+     * @param {boolean} [options.removeTriggerKey]
      */
     const insert = function (
         path,
@@ -78,9 +72,6 @@ export function useDynamicPlaceholder(elementRef) {
     };
 
     /**
-     * Open a Model Field Selector to build a dynamic placeholder string,
-     * with or without a default value.
-     *
      * @public
      * @param {Object} opts
      * @param {function} opts.validateCallback

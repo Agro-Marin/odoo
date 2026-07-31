@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/temporal/datetime/datetime_field - Date and datetime field widget with inline editing and picker integration */
+/** @module @web/fields/temporal/datetime/datetime_field */
 
 import { Component, onWillRender, useEffect, useRef, useState } from "@odoo/owl";
 import { useDateTimePicker } from "@web/components/datetime/datetime_picker_hook";
 import { ModelEvent } from "@web/core/events";
+import { formatDate, formatDateTime } from "@web/core/formatters";
 import {
     areDatesEqual,
     deserializeDate,
@@ -16,13 +17,13 @@ import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { ensureArray } from "@web/core/utils/collections/arrays";
+import { pick } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useBus } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
 import { FIELD_WIDTHS } from "@web/fields/field_widths";
-import { formatDate, formatDateTime } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 function getFormattedPlaceholder(value, type, options) {
@@ -35,8 +36,6 @@ function getFormattedPlaceholder(value, type, options) {
 }
 
 /**
- * @typedef {any} DateTime
- *
  * @typedef {import("@web/fields/standard_field_props").StandardFieldProps & {
  *  endDateField?: string;
  *  maxDate?: string;
@@ -53,7 +52,6 @@ function getFormattedPlaceholder(value, type, options) {
  *  maxPrecision?: string;
  *  alwaysRange?: boolean;
  * }} DateTimeFieldProps
- *
  * @typedef {import("@web/components/datetime/datetime_picker").DateTimePickerProps} DateTimePickerProps
  */
 
@@ -252,9 +250,6 @@ export class DateTimeField extends Component {
             ],
         );
 
-        // `setFieldDirty` is idempotent and self-clearing on destroy, so this
-        // render-time report needs neither a transition guard nor an unmount
-        // hook of its own (see @web/fields/field_dirty_signal).
         this.setFieldDirty = useFieldDirtySignal();
         onWillRender(() => this.triggerIsDirty());
 
@@ -262,10 +257,6 @@ export class DateTimeField extends Component {
     }
 
     /**
-     * Focus handler for date/time display buttons: switches to edit mode.
-     * Skipped when useEffect just set `_suppressNextFocus` after the picker
-     * closed, to avoid immediately reopening it.
-     *
      * @param {FocusEvent} ev
      */
     onDateButtonFocus(ev) {
@@ -279,11 +270,6 @@ export class DateTimeField extends Component {
     }
 
     /**
-     * Click handler for date/time display buttons. Needed because a click
-     * after useEffect's programmatic focus doesn't re-fire `focus`, so
-     * `onDateButtonFocus` wouldn't run; setting `activeInput` twice is
-     * idempotent, so overlap with that handler is harmless.
-     *
      * @param {MouseEvent} ev
      */
     onDateButtonClick(ev) {
@@ -295,7 +281,6 @@ export class DateTimeField extends Component {
     /**
      * @param {number} valueIndex
      * @param {boolean} [numeric=this.props.numeric]
-     * @returns formatted date string
      */
     getFormattedValue(valueIndex, numeric = this.props.numeric) {
         const values = this.values;
@@ -367,8 +352,7 @@ export class DateTimeField extends Component {
 
     /**
      * @param {string} value
-     * @param {"min" | "max"} [boundary] which picker bound the value feeds;
-     *  only relevant for bare-date strings on datetime fields.
+     * @param {"min" | "max"} [boundary]
      */
     parseLimitDate(value, boundary) {
         if (value === "today") {
@@ -404,8 +388,7 @@ export class DateTimeField extends Component {
     }
 
     /**
-     * @param {boolean} [isDirty] Explicit override; otherwise computed from
-     *  the record value vs. the datetime hook's state.
+     * @param {boolean} [isDirty]
      */
     triggerIsDirty(isDirty) {
         this.setFieldDirty(
@@ -421,6 +404,7 @@ export class DateTimeField extends Component {
 const START_DATE_FIELD_OPTION = "start_date_field";
 const END_DATE_FIELD_OPTION = "end_date_field";
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const dateField = {
     component: DateTimeField,
     displayName: _t("Date"),
@@ -496,12 +480,6 @@ export const dateField = {
     ],
     supportedTypes: ["date"],
     extractProps: ({ options, placeholder, type }, dynamicInfo) => {
-        // Every option reaching a typed prop goes through exprToBoolean: an XML
-        // option may be authored as "1"/"True" as readily as a python boolean,
-        // and `numeric` feeds a `{type: Boolean}` prop. Passing the raw value
-        // made OWL's prop validation throw and destroy the whole form — the
-        // datetime descriptor below already normalized it, so the same option
-        // on `date` and on `datetime` behaved differently.
         const numeric = exprToBoolean(options.numeric ?? false);
         return /** @type {any} */ ({
             endDateField: options[END_DATE_FIELD_OPTION],
@@ -523,31 +501,28 @@ export const dateField = {
             ? FIELD_WIDTHS.numeric_date
             : FIELD_WIDTHS.date,
     fieldDependencies: ({ type, attrs, options }) => {
-        const deps = [];
+        // The companion date carries the node's own modifiers -- it is edited
+        // through the same picker -- but nothing else: `attrs` also holds
+        // presentation attributes (class, placeholder, ...) that have no
+        // meaning on a field dependency.
+        const modifiers = pick(attrs, "invisible", "readonly", "required");
+        const dependency = (name) => ({ name, type, readonly: false, ...modifiers });
         if (options[START_DATE_FIELD_OPTION]) {
-            deps.push({
-                name: options[START_DATE_FIELD_OPTION],
-                type,
-                readonly: false,
-                ...attrs,
-            });
             if (options[END_DATE_FIELD_OPTION]) {
                 console.warn(
                     `A field cannot have both ${START_DATE_FIELD_OPTION} and ${END_DATE_FIELD_OPTION} options at the same time`,
                 );
             }
-        } else if (options[END_DATE_FIELD_OPTION]) {
-            deps.push({
-                name: options[END_DATE_FIELD_OPTION],
-                type,
-                readonly: false,
-                ...attrs,
-            });
+            return [dependency(options[START_DATE_FIELD_OPTION])];
         }
-        return deps;
+        if (options[END_DATE_FIELD_OPTION]) {
+            return [dependency(options[END_DATE_FIELD_OPTION])];
+        }
+        return [];
     },
 };
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const dateTimeField = {
     ...dateField,
     displayName: _t("Date & Time"),
@@ -615,6 +590,7 @@ export const dateTimeField = {
     },
 };
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const dateRangeField = {
     ...dateTimeField,
     displayName: _t("Date Range"),

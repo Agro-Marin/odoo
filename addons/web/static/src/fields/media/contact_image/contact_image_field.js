@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/contact_image/contact_image_field - Image field variant with fallback to a preview image when empty */
+/** @module @web/fields/media/contact_image/contact_image_field */
 
 import { isBinarySize } from "@web/core/utils/format/binary";
 import { imageUrl } from "@web/core/utils/urls";
@@ -16,8 +16,8 @@ export class ContactImageField extends ImageField {
     static template = "web.ContactImageField";
 
     /**
-     * @param {string} imageFieldName Field name to fetch the image from
-     * @returns {string} Image URL, falling back to preview image when primary is empty
+     * @param {string} imageFieldName
+     * @returns {string}
      */
     getUrl(imageFieldName) {
         if (
@@ -42,7 +42,7 @@ export class ContactImageField extends ImageField {
         return super.getUrl(imageFieldName);
     }
 
-    /** @returns {string} CSS classes with reduced opacity when image is missing */
+    /** @returns {string} */
     get imgClass() {
         let classes = super.imgClass;
         if (!this.props.record.data[this.props.name] || !this.state.isValid) {
@@ -51,20 +51,16 @@ export class ContactImageField extends ImageField {
         return classes;
     }
 
-    /** @returns {boolean} Whether the field contains valid image data */
+    /** @returns {boolean} */
     get containsValidImage() {
         return this.props.record.data[this.props.name] && this.state.isValid;
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const contactImageField = {
     ...imageField,
     component: ContactImageField,
-    // Unlike the plain `image` widget — which only feeds `preview_image` to
-    // `imageUrl()` as a field NAME for the server to resolve — this variant
-    // READS the preview off the record (`getUrl`), so the field has to be in
-    // the read spec. Spreads the inherited `write_date` dependency rather than
-    // replacing it: the array form above would otherwise be shadowed.
     fieldDependencies: ({ options }) => [
         { name: "write_date", type: "datetime" },
         ...(options.preview_image

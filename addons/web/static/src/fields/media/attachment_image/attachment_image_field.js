@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/attachment_image/attachment_image_field - Read-only image display field for Many2one attachment references */
+/** @module @web/fields/media/attachment_image/attachment_image_field */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -13,6 +13,7 @@ export class AttachmentImageField extends Component {
     static props = { ...standardFieldProps };
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const attachmentImageField = {
     component: AttachmentImageField,
     displayName: _t("Attachment Image"),

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/hooks/record_observer - OWL hook for observing record value changes in field components */
+/** @module @web/fields/hooks/record_observer */
 
 import { onWillDestroy, onWillStart, onWillUpdateProps, useComponent } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -11,15 +11,6 @@ import { disposableEffect } from "@web/core/utils/reactive";
 import { batched } from "@web/core/utils/timing";
 
 /**
- * Use only in a component field (depends on record props). Runs once at
- * setup and again whenever a record value read in the callback changes.
- *
- * The effect is re-armed on record *identity* changes only, but the ``props``
- * given to the callback are always the component's latest props: prop-only
- * updates (readonly/domain/context/...) refresh the reference read at call
- * time instead of leaving the callback with the snapshot captured when the
- * effect was armed. Callbacks fired asynchronously (batched on an animation
- * frame) therefore never observe stale non-record props.
  * @param {(record: any, props?: any) => void | Promise<void>} callback
  */
 export function useRecordObserver(callback) {

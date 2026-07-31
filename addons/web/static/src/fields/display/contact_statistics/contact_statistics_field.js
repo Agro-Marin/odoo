@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/contact_statistics/contact_statistics_field - Read-only list display for contact statistics stored as JSON */
+/** @module @web/fields/display/contact_statistics/contact_statistics_field */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -14,12 +14,13 @@ export class ContactStatisticsField extends Component {
         ...standardFieldProps,
     };
 
-    /** @returns {Array<Object>} Contact statistics entries from the JSON field, or empty array. */
+    /** @returns {Array<Object>} */
     get list() {
         return this.props.record.data[this.props.name] || [];
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const contactStatisticsField = {
     component: ContactStatisticsField,
     displayName: _t("Contact Statistics"),

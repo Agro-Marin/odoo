@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/badge_selection/badge_selection_field - Clickable badge group field for Selection and Many2one columns */
+/** @module @web/fields/selection/badge_selection/badge_selection_field */
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
@@ -19,7 +19,7 @@ export class BadgeSelectionField extends SelectionLikeField {
         size: {
             type: String,
             optional: true,
-            validate: (s) => ["sm", "md", "lg"].includes(s),
+            validate: (/** @type {string} */ s) => ["sm", "md", "lg"].includes(s),
         },
     };
     static defaultProps = {
@@ -38,9 +38,6 @@ export class BadgeSelectionField extends SelectionLikeField {
     }
 
     /**
-     * Keyboard activation for the badge "radios" (they are spans, not native
-     * buttons, so Enter/Space must be wired manually).
-     *
      * @param {KeyboardEvent} ev
      * @param {string | number | false} value
      */
@@ -63,7 +60,9 @@ export class BadgeSelectionField extends SelectionLikeField {
                 if (value === false) {
                     this.props.record.update({ [this.props.name]: false });
                 } else {
-                    const option = this.options.find((option) => option[0] === value);
+                    const option = this.options.find(
+                        (/** @type {any[]} */ option) => option[0] === value,
+                    );
                     this.props.record.update({
                         [this.props.name]: {
                             id: option[0],
@@ -92,19 +91,19 @@ export const badgeSelectionField = {
     supportedTypes: ["many2one", "selection"],
     supportedOptions: [
         {
-            label: "Size",
+            label: _t("Size"),
             name: "size",
             type: "selection",
             choices: [
-                { label: "Small", value: "sm" },
-                { label: "Medium", value: "md" },
-                { label: "Large", value: "lg" },
+                { label: _t("Small"), value: "sm" },
+                { label: _t("Medium"), value: "md" },
+                { label: _t("Large"), value: "lg" },
             ],
             default: "md",
         },
     ],
     isEmpty: isFalseEmpty,
-    extractProps: (fieldInfo, dynamicInfo) => ({
+    extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         domain: dynamicInfo.domain,
         context: dynamicInfo.context,
         required: dynamicInfo.required,

@@ -1,12 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/label_selection/label_selection_field - Colored label display field for Selection columns */
+/** @module @web/fields/selection/label_selection/label_selection_field */
 
 import { Component } from "@odoo/owl";
+import { formatSelection } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
-import { formatSelection } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class LabelSelectionField extends Component {
@@ -19,13 +19,13 @@ export class LabelSelectionField extends Component {
         classesObj: {},
     };
 
-    /** @returns {string} CSS class name for the current selection value */
+    /** @returns {string} */
     get className() {
         return (
             this.props.classesObj[this.props.record.data[this.props.name]] || "primary"
         );
     }
-    /** @returns {string} Formatted display label for the current selection value */
+    /** @returns {string} */
     get string() {
         return formatSelection(this.props.record.data[this.props.name], {
             selection: Array.from(this.props.record.fields[this.props.name].selection),
@@ -33,6 +33,7 @@ export class LabelSelectionField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const labelSelectionField = {
     component: LabelSelectionField,
     displayName: _t("Label Selection"),

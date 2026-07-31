@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/badge/badge_field - Read-only badge pill for Selection and Many2one columns */
+/** @module @web/fields/display/badge/badge_field */
 
 import { Component } from "@odoo/owl";
 import { badgeColorClass } from "@web/core/badge/badge_colors";
@@ -22,7 +22,7 @@ export class BadgeField extends Component {
         decorations: {},
     };
 
-    /** @returns {string} Field value formatted for display (respects selection labels). */
+    /** @returns {string} */
     get formattedValue() {
         const { type, selection } = this.props.record.fields[this.props.name];
         return getFieldCodec(type).format(this.props.record.data[this.props.name], {
@@ -30,7 +30,7 @@ export class BadgeField extends Component {
         });
     }
 
-    /** @returns {string} Bootstrap badge CSS class based on color field or decoration rules. */
+    /** @returns {string} */
     get badgeClass() {
         const colorClass = badgeColorClass(this.props.record, this.props.colorField);
         if (colorClass) {
@@ -51,6 +51,7 @@ export class BadgeField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const badgeField = {
     component: BadgeField,
     displayName: _t("Badge"),
@@ -64,7 +65,6 @@ export const badgeField = {
             help: _t("Set an integer field to use colors with the badge."),
         },
     ],
-    // Same-record field named by an option; see progressbar for the rationale.
     fieldDependencies: ({ options }) =>
         options.color_field
             ? [{ name: options.color_field, optional: true, readonly: true }]

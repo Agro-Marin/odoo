@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/numpad_decimal_hook - OWL hook that replaces numpad decimal key with the locale decimal separator */
+/** @module @web/fields/numpad_decimal_hook */
 
 import { useEffect, useRef } from "@odoo/owl";
 import { isIOS } from "@web/core/browser/feature_detection";
@@ -30,15 +30,6 @@ function onFocus(/** @type {FocusEvent} */ ev) {
     /** @type {HTMLInputElement} */ (ev.target).select();
 }
 
-/**
- * Replace the numpad decimal key's separator with the locale's decimal
- * separator on inputs under a t-ref="numpadDecimal" ref (single input or
- * a container of several).
- *
- * NOTE: input type="number" is left to the browser's default behavior.
- * NOTE: on iOS, the inputmode attribute hides the minus sign on the virtual
- * keyboard, so it is removed to allow negative numbers.
- */
 export function useNumpadDecimal() {
     const ref = useRef("numpadDecimal");
     const isIOSDevice = isIOS();
@@ -62,7 +53,9 @@ export function useNumpadDecimal() {
             if (isIOSDevice) {
                 const inputs =
                     el.nodeName === "INPUT" ? [el] : el.querySelectorAll("input");
-                inputs.forEach((input) => input.removeAttribute("inputmode"));
+                inputs.forEach((/** @type {HTMLInputElement} */ input) =>
+                    input.removeAttribute("inputmode"),
+                );
             }
             return () => {
                 el.removeEventListener("keydown", handleKeydown);

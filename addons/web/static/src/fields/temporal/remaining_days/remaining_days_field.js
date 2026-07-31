@@ -1,16 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/temporal/remaining_days/remaining_days_field - Deadline countdown field showing remaining days with color-coded urgency */
+/** @module @web/fields/temporal/remaining_days/remaining_days_field */
 
 import { Component, onWillRender } from "@odoo/owl";
+import { formatDate } from "@web/core/formatters";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateExpr } from "@web/core/py_js/py";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { capitalize } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
-import { formatDate } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
 
@@ -38,7 +38,7 @@ export class RemainingDaysField extends Component {
         });
     }
 
-    /** @returns {number|null} Number of days until the deadline, or null if unset */
+    /** @returns {number|null} */
     computeDiffDays() {
         const { record, name } = this.props;
         const value = record.data[name];
@@ -50,12 +50,12 @@ export class RemainingDaysField extends Component {
         return Math.floor(diff.days);
     }
 
-    /** @returns {number|null} Number of days until the deadline, or null if unset */
+    /** @returns {number|null} */
     get diffDays() {
-        return this._diffDays;
+        return this._diffDays ?? null;
     }
 
-    /** @returns {string} Human-readable relative date string (e.g. "yesterday", "in 3 days") */
+    /** @returns {string} */
     get diffString() {
         const diffDays = this.diffDays;
         if (diffDays === null) {
@@ -73,19 +73,19 @@ export class RemainingDaysField extends Component {
         return capitalize(value.toRelativeCalendar(relativeCalendarOptions));
     }
 
-    /** @returns {string} Locale-formatted date string */
+    /** @returns {string} */
     get formattedValue() {
         const { record, name } = this.props;
         return formatDate(record.data[name]);
     }
 
-    /** @returns {string} Numeric-formatted date string */
+    /** @returns {string} */
     get numericValue() {
         const { record, name } = this.props;
         return formatDate(record.data[name], { numeric: true });
     }
 
-    /** @returns {Object|null} Decoration class names evaluated against remaining days */
+    /** @returns {Object|null} */
     get classNames() {
         if (this.diffDays === null) {
             return null;
@@ -100,19 +100,24 @@ export class RemainingDaysField extends Component {
         };
         for (const decoration of Object.keys(this.props.classes)) {
             const value = evaluateExpr(this.props.classes[decoration], evalContext);
-            classNames[getClassNameFromDecoration(decoration)] = value;
+            /** @type {Record<string, any>} */ (classNames)[
+                getClassNameFromDecoration(decoration)
+            ] = value;
         }
         return classNames;
     }
 
-    /** @returns {Object} Props subset compatible with DateTimeField */
+    /** @returns {Object} */
     get dateTimeFieldProps() {
         return Object.fromEntries(
-            Object.entries(this.props).filter(([key]) => standardFieldProps[key]),
+            Object.entries(this.props).filter(
+                ([key]) => /** @type {Record<string, any>} */ (standardFieldProps)[key],
+            ),
         );
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const remainingDaysField = {
     component: RemainingDaysField,
     displayName: _t("Remaining Days"),

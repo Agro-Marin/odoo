@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/temporal/datetime/list_datetime_field - List-view variant of datetime/date fields with auto-resizing input */
+/** @module @web/fields/temporal/datetime/list_datetime_field */
 
 import { useRef } from "@odoo/owl";
 import { useAutoresize } from "@web/core/utils/dom/autoresize";

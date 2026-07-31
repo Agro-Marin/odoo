@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/translation_button - Translation button component and useTranslationDialog hook for translatable fields */
+/** @module @web/fields/translation_button */
 
 import { Component } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
@@ -12,18 +12,16 @@ import { user } from "@web/services/user";
 
 import { TranslationDialog } from "./translation_dialog.js";
 
+/** @type {{ code: string | undefined, language: string }} */
 const _langCache = { code: undefined, language: "" };
 
 /**
- * Prepares a function that opens the dialog to edit a field's translation
- * values. Factored out of legacy_fields for reuse until folded into
- * TranslationButton.
- *
  * @returns {(params: { record: Object, fieldName: string }) => Promise<void>}
  */
 export function useTranslationDialog() {
     const addDialog = useOwnedDialogs();
 
+    /** @param {{ record: any, fieldName: string }} param0 */
     async function openTranslationDialog({ record, fieldName }) {
         const saved =
             record.model.root instanceof RelationalRecord
@@ -81,7 +79,7 @@ export class TranslationButton extends Component {
             record.model.root !== record
         );
     }
-    /** @returns {string} Uppercase language code (e.g. "EN") */
+    /** @returns {string} */
     get lang() {
         if (_langCache.code !== user.lang) {
             _langCache.code = user.lang;

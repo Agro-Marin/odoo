@@ -1,13 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/field - Generic Field component that resolves and renders the appropriate field widget from the registry */
+/** @module @web/fields/field */
 
 import { Component, onWillRender, xml } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { omit } from "@web/core/utils/collections/objects";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
+import { FIELD_DEPENDENCIES_VALIDATION } from "@web/model/relational_model/field_metadata";
 import { getFieldContext } from "@web/model/relational_model/utils";
 
 import { getTooltipInfo } from "./field_tooltip.js";
@@ -36,26 +38,6 @@ const validFieldTypes = [
     "html",
 ];
 
-/**
- * Shape of a single ``supportedAttributes`` / ``supportedOptions`` entry.
- *
- * Deliberately permissive: registry validation QUARANTINES failing entries
- * in production (see @web/core/registry ``validateSchema``), so an
- * over-strict shape would silently remove field widgets fleet-wide. The
- * shape below was derived from a sweep of every declaration in community,
- * enterprise and agromarin (172 entries, 2026-07):
- *
- * - ``name`` is the only universal key (e.g. enterprise's
- *   ``integration_state_selection`` declares no ``label``) — everything
- *   else is optional.
- * - ``default`` mirrors the option's runtime type: booleans (floatField),
- *   numbers (integerField), strings and objects (hr_skills
- *   ``formatted_date``) all occur — any type is accepted.
- * - ``choices[].value`` is not always a string (dateTimeField uses
- *   booleans) — any type is accepted.
- * - ``"*": true`` tolerates addon-specific extras (e.g. ``placeholder``
- *   on dateTimeField's options) without quarantining the widget.
- */
 const supportedInfoEntryShape = {
     name: String,
     label: { type: String, optional: true },
@@ -75,7 +57,6 @@ const supportedInfoEntryShape = {
         },
         optional: true,
     },
-    /** If true, listed fields come from the relation (e.g. many2many_tags: 'field' searches on the relation). */
     isRelationalField: { type: Boolean, optional: true },
     placeholder: { type: String, optional: true },
     "*": true,
@@ -108,17 +89,7 @@ fieldRegistry.addValidation({
     isEmpty: { type: Function, optional: true },
     isValid: { type: Function, optional: true },
     additionalClasses: { type: Array, element: String, optional: true },
-    fieldDependencies: {
-        type: [
-            Function,
-            {
-                type: Array,
-                element: Object,
-                shape: { name: String, type: String },
-            },
-        ],
-        optional: true,
-    },
+    fieldDependencies: FIELD_DEPENDENCIES_VALIDATION,
     relatedFields: {
         type: [
             Function,
@@ -160,16 +131,33 @@ class DefaultField extends Component {
     static props = ["*"];
 }
 
-const warnedWidgetMisses = new Set();
+/**
+ * @type {readonly string[]}
+ */
+const FIELD_OWN_PROPS = Object.freeze([
+    "attrs",
+    "class",
+    "fieldInfo",
+    "readonly",
+    "showTooltip",
+    "style",
+    "type",
+]);
 
 /**
- * Resolves a field descriptor from the field registry, searching with optional
- * jsClass and viewType prefixes (e.g. "list.char", "char").
- *
- * @param {string} fieldType - ORM field type (e.g. "char", "many2one", "float")
- * @param {string} [widget] - Widget override from the XML `widget` attribute
- * @param {string} [viewType] - View type prefix for scoped lookups (e.g. "list", "form")
- * @param {string} [jsClass] - JS class prefix for compound lookups (e.g. "sale_order")
+ * @type {Set<string>}
+ */
+const warnedWidgetMisses = new Set();
+
+export function resetWidgetMissWarnings() {
+    warnedWidgetMisses.clear();
+}
+
+/**
+ * @param {string} fieldType
+ * @param {string} [widget]
+ * @param {string} [viewType]
+ * @param {string} [jsClass]
  * @returns {{ component: import("@odoo/owl").ComponentConstructor, extractProps?: Function, supportedTypes?: string[], isEmpty?: Function, isValid?: Function, additionalClasses?: string[], relatedFields?: Array | Function, useSubView?: boolean, [key: string]: any }}
  */
 export function getFieldFromRegistry(fieldType, widget, viewType, jsClass) {
@@ -210,21 +198,15 @@ export function getFieldFromRegistry(fieldType, widget, viewType, jsClass) {
 }
 
 /**
- * Computes visual feedback state for a field widget (readonly, required, invalid, empty).
- *
- * @param {{ isEmpty?: (record: any, fieldName: string) => boolean, isValid?: (record: any, fieldName: string, fieldInfo: any) => boolean }} field - Resolved field descriptor
+ * @param {{ isEmpty?: (record: any, fieldName: string) => boolean, isValid?: (record: any, fieldName: string, fieldInfo: any) => boolean }} field
  * @param {import("@web/model/relational_model/record").RelationalRecord} record
  * @param {string} fieldName
- * @param {{ readonly?: string, required?: string }} fieldInfo - Parsed field node info
+ * @param {{ readonly?: string, required?: string }} fieldInfo
  * @returns {{ readonly: boolean, required: boolean, invalid: boolean, empty: boolean }}
  */
 export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
     const readonly = evaluateBooleanExpr(
         fieldInfo.readonly,
-        record.evalContextWithVirtualIds,
-    );
-    const required = evaluateBooleanExpr(
-        fieldInfo.required,
         record.evalContextWithVirtualIds,
     );
     const inEdit = record.isInEdition;
@@ -239,9 +221,16 @@ export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
         empty = empty && !record.data[fieldName];
     }
     empty = inEdit ? empty && readonly : empty;
+    let required;
     return {
         readonly,
-        required,
+        get required() {
+            required ??= evaluateBooleanExpr(
+                fieldInfo.required,
+                record.evalContextWithVirtualIds,
+            );
+            return required;
+        },
         invalid: field.isValid
             ? !field.isValid(record, fieldName, fieldInfo)
             : record.isFieldInvalid(fieldName),
@@ -250,9 +239,6 @@ export function fieldVisualFeedback(field, record, fieldName, fieldInfo) {
 }
 
 /**
- * Builds a normalized fieldInfo object for a property field (dynamic fields
- * defined via the Properties system, not XML arch).
- *
  * @param {{ name: string, type: string, widget?: string, string?: string, relation?: string, domain?: string, selection?: Array, tags?: Array, relatedPropertyField?: any }} propertyField
  * @returns {{ name: string, type: string, widget: string, string?: string, field: ReturnType<typeof getFieldFromRegistry>, options: Object, readonly: string, required: string, invisible: string, column_invisible: string, context: string, attrs: Object, decorations: Object, [key: string]: any }}
  */
@@ -314,16 +300,6 @@ export function getPropertyFieldInfo(propertyField) {
 
     return fieldInfo;
 }
-/**
- * Generic Field component that resolves the appropriate widget from the
- * field registry and renders it.
- *
- * Arch parsing (the static ``parseFieldNode`` that used to live here as
- * a class member) moved to ``@web/views/field_arch`` because the
- * XML→fieldInfo translation is a view-layer concern, not a component
- * concern. Callers that previously did ``Field.parseFieldNode(...)``
- * now do ``import { parseFieldNode } from "@web/views/field_arch"``.
- */
 export class Field extends Component {
     static template = "web.Field";
     static props = ["fieldInfo?", "*"];
@@ -336,19 +312,20 @@ export class Field extends Component {
             this.field = getFieldFromRegistry(fieldType, this.props.type);
         }
         onWillRender(() => {
+            this._visualFeedback = fieldVisualFeedback(
+                this.field,
+                this.props.record,
+                this.props.name,
+                this.props.fieldInfo || {},
+            );
             this._tooltip = this.computeTooltip();
         });
     }
 
-    /** @returns {Record<string, boolean>} OWL dynamic class map for the field wrapper element */
+    /** @returns {Record<string, boolean>} */
     get classNames() {
-        const { class: _class, fieldInfo, name, record } = this.props;
-        const { readonly, required, invalid, empty } = fieldVisualFeedback(
-            this.field,
-            record,
-            name,
-            fieldInfo || {},
-        );
+        const { class: _class, fieldInfo, record } = this.props;
+        const { readonly, required, invalid, empty } = this._visualFeedback;
         const classNames = {
             o_field_widget: true,
             o_readonly_modifier: readonly,
@@ -378,12 +355,12 @@ export class Field extends Component {
         return classNames;
     }
 
-    /** @returns {string} ORM field type or explicit `type` prop override */
+    /** @returns {string} */
     get type() {
         return this.props.type || this.props.record.fields[this.props.name].type;
     }
 
-    /** @returns {Object} Props forwarded to the resolved field widget component, merged from extractProps and own props */
+    /** @returns {Object} */
     get fieldComponentProps() {
         const record = this.props.record;
         let readonly = this.props.readonly || false;
@@ -391,12 +368,7 @@ export class Field extends Component {
         let propsFromNode = {};
         if (this.props.fieldInfo) {
             let fieldInfo = this.props.fieldInfo;
-            readonly =
-                readonly ||
-                evaluateBooleanExpr(
-                    fieldInfo.readonly,
-                    record.evalContextWithVirtualIds,
-                );
+            readonly = readonly || this._visualFeedback.readonly;
 
             if (this.field.extractProps) {
                 if (this.props.attrs) {
@@ -433,38 +405,15 @@ export class Field extends Component {
                             ).toList();
                         }
                     },
-                    required: evaluateBooleanExpr(
-                        fieldInfo.required,
-                        record.evalContextWithVirtualIds,
-                    ),
+                    required: this._visualFeedback.required,
                     readonly: readonly,
                 };
                 propsFromNode = this.field.extractProps(fieldInfo, dynamicInfo);
             }
         }
 
-        const props = { ...this.props };
-        delete props.style;
-        delete props.class;
-        delete props.showTooltip;
-        delete props.fieldInfo;
-        delete props.attrs;
-        delete props.type;
-        delete props.readonly;
+        const props = omit(this.props, ...FIELD_OWN_PROPS);
 
-        // Spread order is load-bearing. The generic `readonly` below also
-        // covers "the record is not being edited", but `propsFromNode` comes
-        // after it, so a widget whose `extractProps` returns
-        // `readonly: dynamicInfo.readonly` deliberately OVERRIDES that term —
-        // `dynamicInfo.readonly` is only the explicit readonly modifier.
-        //
-        // That is how the click-to-act widgets (boolean_toggle,
-        // boolean_favorite, boolean_icon, color, priority, kanban selection)
-        // stay interactive in a non-editable list, where every other field
-        // renders read-only: verified, a `boolean_toggle` there gets an enabled
-        // input and no `o_readonly_modifier`, while a plain char field renders
-        // no input at all. Returning `readonly` from `extractProps` is
-        // therefore an opt-out, not a pass-through — do not "simplify" it away.
         return {
             readonly: readonly || !record.isInEdition || false,
             ...propsFromNode,
@@ -472,7 +421,7 @@ export class Field extends Component {
         };
     }
 
-    /** @returns {string | false} JSON-serialized tooltip data, or false if tooltip is disabled */
+    /** @returns {string | false} */
     computeTooltip() {
         if (!this.props.showTooltip) {
             return false;
@@ -485,7 +434,7 @@ export class Field extends Component {
         return getTooltipInfo({ field, fieldInfo });
     }
 
-    /** @returns {string | false} JSON-serialized tooltip data, or false if tooltip is disabled */
+    /** @returns {string | false} */
     get tooltip() {
         return /** @type {string | false} */ (this._tooltip);
     }
