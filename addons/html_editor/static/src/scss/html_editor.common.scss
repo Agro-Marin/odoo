@@ -114,7 +114,7 @@
         "o-we-translated-content-color",
         $o-we-translated-content-color
     );
-    @include print-variable("o-system-fonts", $o-system-fonts);
+    @include print-variable("o-system-fonts", $o-font-family-sans-serif);
 
     @include print-variable("display-1-font-size", map-get($display-font-sizes, 1));
     @include print-variable("display-2-font-size", map-get($display-font-sizes, 2));
