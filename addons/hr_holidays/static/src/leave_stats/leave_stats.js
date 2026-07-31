@@ -1,21 +1,21 @@
 /** @odoo-module native */
-import { luxon } from "@web/core/l10n/luxon";
+import { KanbanMany2OneAvatarEmployeeField } from "@hr/views/fields/many2one_avatar_employee_field/kanban_many2one_avatar_employee_field";
+import { Component, onWillStart, useState } from "@odoo/owl";
+import { formatFloatTime } from "@web/core/formatters";
 import { serializeDateTime } from "@web/core/l10n/dates";
+import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
-import { formatFloatTime } from "@web/fields/formatters";
-import { Component, useState, onWillStart } from "@odoo/owl";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
-import { KanbanMany2OneAvatarEmployeeField } from "@hr/views/fields/many2one_avatar_employee_field/kanban_many2one_avatar_employee_field";
 const { DateTime } = luxon;
 
 export class LeaveStatsComponent extends Component {
     static template = "hr_holidays.LeaveStatsComponent";
     static components = {
-        KanbanMany2OneAvatarEmployeeField
+        KanbanMany2OneAvatarEmployeeField,
     };
-    static props = { ...standardWidgetProps};
+    static props = { ...standardWidgetProps };
 
     setup() {
         this.orm = useService("orm");
@@ -30,8 +30,8 @@ export class LeaveStatsComponent extends Component {
             has_parent_department: null,
             department_name: null,
         });
-        this.date_format = {year: "numeric", month: "2-digit", day: "2-digit"};
-        this.hour_format = {hour: "2-digit", minute: "2-digit"};
+        this.date_format = { year: "numeric", month: "2-digit", day: "2-digit" };
+        this.hour_format = { hour: "2-digit", minute: "2-digit" };
         this.state.date_from = this.props.record.data.date_from || DateTime.now();
         this.state.date_to = this.props.record.data.date_to || DateTime.now();
         this.state.employee = this.props.record.data.employee_id;
@@ -39,31 +39,32 @@ export class LeaveStatsComponent extends Component {
 
         onWillStart(async () => {
             await this.loadLeaves(this.state.employee);
-            await this.loadDepartmentLeaves(
-                this.state.department,
-                this.state.employee
-            );
+            await this.loadDepartmentLeaves(this.state.department, this.state.employee);
         });
 
         useRecordObserver(async (record) => {
             const dateFrom = record.data.date_from || DateTime.now();
             const dateTo = record.data.date_to || DateTime.now();
-            const dateChanged = !this.state.date_from.equals(dateFrom) || !this.state.date_to.equals(dateTo);
-            this.state.date_from = dateFrom
-            this.state.date_to = dateTo
+            const dateChanged =
+                !this.state.date_from.equals(dateFrom) ||
+                !this.state.date_to.equals(dateTo);
+            this.state.date_from = dateFrom;
+            this.state.date_to = dateTo;
             const employee = record.data.employee_id;
             const department = record.data.department_id;
             const proms = [];
             if (
                 dateChanged ||
-                (employee && (this.state.employee && this.state.employee.id) !== employee.id)
+                (employee &&
+                    (this.state.employee && this.state.employee.id) !== employee.id)
             ) {
                 proms.push(this.loadLeaves(employee));
             }
             if (
                 dateChanged ||
                 (department &&
-                    (this.state.department && this.state.department.id) !== department.id)
+                    (this.state.department && this.state.department.id) !==
+                        department.id)
             ) {
                 proms.push(this.loadDepartmentLeaves(department, employee));
             }
@@ -72,7 +73,8 @@ export class LeaveStatsComponent extends Component {
             this.state.employee = employee;
             this.state.department = department;
             if (this.state.department) {
-                const department_name_array = this.state.department.display_name.split('/');
+                const department_name_array =
+                    this.state.department.display_name.split("/");
                 this.state.department_name = department_name_array.pop();
                 this.state.has_parent_department = department_name_array.length > 0;
             }
@@ -109,9 +111,9 @@ export class LeaveStatsComponent extends Component {
                     number_of_hours: {},
                     leave_type_request_unit: {},
                 },
-            }
+            },
         );
-        this.state.departmentLeaves = this.arrangeData(leaves.records)
+        this.state.departmentLeaves = this.arrangeData(leaves.records);
     }
 
     async loadLeaves(employee) {
@@ -139,7 +141,7 @@ export class LeaveStatsComponent extends Component {
                     number_of_hours: {},
                     leave_type_request_unit: {},
                 },
-            }
+            },
         );
         this.state.leaves = this.arrangeData(leaves.records);
     }
@@ -155,11 +157,12 @@ export class LeaveStatsComponent extends Component {
 
             leave.date_to = date_to_string.toLocaleString(this.date_format);
             leave.hour_to = date_to_string.toLocaleString(this.hour_format);
-            leave.number_of_hours = formatFloatTime(Number(leave.number_of_hours.toFixed(2)));
+            leave.number_of_hours = formatFloatTime(
+                Number(leave.number_of_hours.toFixed(2)),
+            );
             leave.number_of_days = Number(leave.number_of_days.toFixed(2));
-        })
-        return leaves
-
+        });
+        return leaves;
     }
 }
 

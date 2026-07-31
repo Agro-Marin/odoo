@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, EventBus, onWillStart, useState, useSubEnv } from "@odoo/owl";
+import { formatMonetary } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { formatMonetary } from "@web/fields/formatters";
 import { Layout } from "@web/search/layout";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 

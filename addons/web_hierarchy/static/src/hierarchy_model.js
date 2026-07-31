@@ -548,7 +548,7 @@ export class HierarchyModel extends Model {
     /**
      * Get default domain to use, when no domain is given in the config
      *
-     * @returns {import("@web/src/core/domain").DomainListRepr} default domain
+     * @returns {import("@web/core/domain").DomainListRepr} default domain
      */
     get defaultDomain() {
         return [[this.parentFieldName, "=", false]];
@@ -558,7 +558,7 @@ export class HierarchyModel extends Model {
      * Get the global domain of the view (which is the domain defined on the
      * view without applying filters).
      *
-     * @returns {import("@web/src/core/domain").DomainListRepr} global domain
+     * @returns {import("@web/core/domain").DomainListRepr} global domain
      */
     get globalDomain() {
         if (!this.env.searchModel?.globalDomain.length) {

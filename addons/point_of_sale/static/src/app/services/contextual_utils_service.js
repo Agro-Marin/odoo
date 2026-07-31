@@ -1,8 +1,8 @@
 /** @odoo-module native */
+import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { escapeRegExp } from "@web/core/utils/format/strings";
-import { parseFloat } from "@web/fields/parsers";
 import { formatCurrency as webFormatCurrency } from "@web/services/currency";
 /**
  * This service introduces `utils` namespace in the `env` which can contain

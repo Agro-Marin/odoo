@@ -118,6 +118,22 @@ Odoo Web tours.
                 'web_tour.interactive',
                 'web_tour.recorder',
             ],
+            # Same rule, third parent: ``web.assets_unit_tests_setup`` pulls in
+            # ``web.assets_backend``, so ``tour_service.js`` and its lazy
+            # ``import()`` calls ship there too.  Without the link esbuild has
+            # no ``--external`` for those specifiers and inlines a copy into
+            # the setup bundle, while ``web.assets_unit_tests`` -- which
+            # includes the same three child bundles -- publishes them again as
+            # per-file import-map entries.  Test files then resolve the
+            # specifier to the source URL while the application code inside the
+            # bundle resolves to its own copy, so
+            # ``patchWithCleanup(TourRecorder.prototype, ...)`` patches a
+            # prototype the mounted component was never built from.
+            'web.assets_unit_tests_setup': [
+                'web_tour.automatic',
+                'web_tour.interactive',
+                'web_tour.recorder',
+            ],
         },
     },
 }

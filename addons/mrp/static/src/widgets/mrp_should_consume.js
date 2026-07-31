@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { onMounted, onPatched, useRef, useState } from "@odoo/owl";
+import { formatFloat } from "@web/core/formatters";
 import { registry } from "@web/core/registry";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
-import { formatFloat } from "@web/fields/formatters";
 
 /**
  * This widget is used to display alongside the total quantity to consume of a production order,

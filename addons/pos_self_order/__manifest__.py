@@ -90,8 +90,8 @@
             # account tax engine: base_tax owns the JS mirror; account re-exports it
             "base_tax/static/src/helpers/*.js",
             "account/static/src/helpers/*.js",
-            'web/static/src/model/relational_model/operation.js',
-            "web/static/src/fields/parsers.js",
+            'web/static/src/core/utils/operation.js',
+            "web/static/src/core/parsers.js",
 
             # Related models from point_of_sale
             "point_of_sale/static/src/app/models/data_service_options.js",

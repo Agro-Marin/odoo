@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
+import { formatFloat } from "@web/core/formatters";
 import { useService } from "@web/core/utils/hooks";
-import { formatFloat } from "@web/fields/formatters";
 
 import { assignMoves, buildLabelAction } from "../reception_report_utils.js";
 

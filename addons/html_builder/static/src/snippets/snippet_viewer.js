@@ -31,7 +31,7 @@ export class SnippetViewer extends Component {
      * @property {string} title the tooltip content
      * @property {Component?} Component the component to show the icon
      * @property {Object?} props props for the component
-     * @property {import("@web/core/utils/html").Markup?} content the markup to
+     * @property {import("@web/core/utils/dom/html").Markup?} content the markup to
      * show the icon, if no `Component`
      */
     /**

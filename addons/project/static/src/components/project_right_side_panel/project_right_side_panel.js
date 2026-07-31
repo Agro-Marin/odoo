@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component, onWillStart, useState } from "@odoo/owl";
+import { formatFloat } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
-import { formatFloat } from "@web/fields/formatters";
 import { formatCurrency } from "@web/services/currency";
 import { SIZES } from "@web/ui/viewport";
 import { ViewButton } from "@web/views/view_button/view_button";

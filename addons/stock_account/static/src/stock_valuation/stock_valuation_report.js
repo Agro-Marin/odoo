@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { Component, onWillStart, useChildSubEnv, useState } from "@odoo/owl";
+import { formatMonetary } from "@web/core/formatters";
 import { serializeDate } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { formatMonetary } from "@web/fields/formatters";
 import { ControlPanel } from "@web/search/control_panel/control_panel";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 

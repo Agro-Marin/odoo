@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Dialog } from '@web/ui/dialog/dialog';
-import { formatMonetary } from "@web/fields/formatters";
+import { formatMonetary } from "@web/core/formatters";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { Component, onMounted, markup, useRef } from "@odoo/owl";
 

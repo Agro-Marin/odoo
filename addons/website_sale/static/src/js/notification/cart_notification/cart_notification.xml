@@ -10,7 +10,7 @@
             <div class="toast-body">
                 <WarningNotification t-if="this.props.warning" warning="this.props.warning"/>
                 <AddToCartNotification
-                    t-elif="this.props.lines.length"
+                    t-elif="this.props.lines?.length"
                     lines="this.props.lines"
                     currency_id="this.props.currency_id"/>
             </div>

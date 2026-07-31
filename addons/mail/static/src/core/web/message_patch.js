@@ -3,6 +3,13 @@ import { discussComponentRegistry } from "@mail/core/common/discuss_component_re
 import { Message } from "@mail/core/common/message";
 import { messageActionOpenFullComposer } from "@mail/core/web/message_actions_patch";
 import {
+    formatChar,
+    formatFloat,
+    formatInteger,
+    formatMonetary,
+    formatText,
+} from "@web/core/formatters";
+import {
     deserializeDate,
     deserializeDateTime,
     formatDate,
@@ -12,13 +19,6 @@ import { _t } from "@web/core/l10n/translation";
 import { markEventHandled } from "@web/core/utils/dom/events";
 import { useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
-import {
-    formatChar,
-    formatFloat,
-    formatInteger,
-    formatMonetary,
-    formatText,
-} from "@web/fields/formatters";
 import { usePopover } from "@web/ui/popover/popover_hook";
 patch(Message.prototype, {
     setup() {

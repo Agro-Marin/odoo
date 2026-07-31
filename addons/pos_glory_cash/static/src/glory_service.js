@@ -397,7 +397,7 @@ export class GloryService {
     }
 
     _newSequenceNumber() {
-        this.sequenceNumber = uuid().replace("-", "").slice(0, 11);
+        this.sequenceNumber = uuid().slice(0, 11);
     }
 
     /**

@@ -75,7 +75,6 @@ Help your customers with this chat, and analyse their feedback.
     'application': True,
     'assets': {
         'web.assets_frontend': [
-            'web/static/src/fields/formatters.js',
             ('include', 'im_livechat.assets_embed_core'),
             'im_livechat/static/src/embed/frontend/**/*',
         ],
@@ -134,7 +133,6 @@ Help your customers with this chat, and analyse their feedback.
             'web/static/lib/odoo_ui_icons/style.css',
             'web/static/src/webclient/webclient.scss',
             ('include', 'web._assets_core'),
-            'web/static/src/fields/formatters.js',
             'web/static/src/scss/mimetypes.scss',
             'bus/static/src/*.js',
             'bus/static/src/services/**/*.js',

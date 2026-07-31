@@ -6,11 +6,11 @@ import {
     onWillUpdateProps,
     useState,
 } from "@odoo/owl";
+import { parseFloatTime } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { useInputField } from "@web/fields/input_field_hook";
-import { parseFloatTime } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 function formatMinutes(value) {

@@ -79,7 +79,7 @@ export function hasLine({
 }
 /**
  * @param {LineOptions} options
- * @returns {import("@web_tour/tour_service").TourStep}
+ * @returns {import("@web_tour/js/tour_step").TourStep}
  */
 export function doesNotHaveLine(options = {}) {
     const step = hasLine(options)[0];

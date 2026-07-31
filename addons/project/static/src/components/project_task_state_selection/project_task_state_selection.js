@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { useState } from "@odoo/owl";
+import { formatSelection } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-import { formatSelection } from "@web/fields/formatters";
 import {
     StateSelectionField,
     stateSelectionField,

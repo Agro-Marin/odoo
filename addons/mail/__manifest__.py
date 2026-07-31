@@ -262,7 +262,7 @@ For more specific needs, you may also assign custom-defined actions
             "web/static/src/scss/mimetypes.scss",
             "web/static/src/scss/ui.scss",
             ("include", "web._assets_core"),
-            "web/static/src/fields/formatters.js",
+            "web/static/src/core/formatters.js",
             "bus/static/src/*.js",
             "bus/static/src/services/**/*.js",
             "bus/static/src/workers/*.js",

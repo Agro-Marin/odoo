@@ -2,7 +2,7 @@ import { registry } from "@web/core/registry";
 
 /**
  * @param {"list" | "kanban"} viewType
- * @returns {import("@web_tour/tour_service/tour_service").TourStep[]}
+ * @returns {import("@web_tour/js/tour_step").TourStep[]}
  */
 function getSteps(viewType) {
     let bobChatId;
