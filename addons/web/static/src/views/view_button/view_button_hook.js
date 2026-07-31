@@ -5,7 +5,7 @@
 
 import { status, useComponent, useEnv, useSubEnv } from "@odoo/owl";
 import { evaluateExpr } from "@web/core/py_js/py";
-import { registry } from "@web/core/registry";
+import { sharedComponents } from "@web/core/shared_components";
 import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
@@ -175,6 +175,5 @@ export function useViewButtons(ref, options = {}) {
     }
 }
 
-const sharedComponents = registry.category("shared_components");
 sharedComponents.add("executeButtonCallback", executeButtonCallback);
 sharedComponents.add("useViewButtons", useViewButtons);

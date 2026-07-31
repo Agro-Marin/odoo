@@ -6,6 +6,7 @@
 import { onWillDestroy } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
 import { registry } from "@web/core/registry";
+import { sharedComponents } from "@web/core/shared_components";
 import { parseXML } from "@web/core/utils/dom/xml";
 import { useService } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
@@ -102,7 +103,5 @@ export function useFormViewInDialog() {
     onWillDestroy(() => formDialogStack.pop());
 }
 
-const sharedComponents = registry.category("shared_components");
-sharedComponents.addValidation((entry) => typeof entry === "function");
 sharedComponents.add("loadSubViews", loadSubViews);
 sharedComponents.add("useFormViewInDialog", useFormViewInDialog);

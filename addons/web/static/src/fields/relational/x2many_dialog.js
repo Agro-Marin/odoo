@@ -9,6 +9,7 @@ import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { sharedComponents as shared } from "@web/core/shared_components";
 import { createElement, parseXML } from "@web/core/utils/dom/xml";
 import {
     useBus,
@@ -19,7 +20,6 @@ import {
 import { extractFieldsFromArchInfo } from "@web/model/relational_model/utils";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-const shared = registry.category("shared_components");
 const views = registry.category("views");
 export class X2ManyFieldDialog extends Component {
     static template = "web.X2ManyFieldDialog";

@@ -10,6 +10,7 @@ import { ModelEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { sharedComponents as shared } from "@web/core/shared_components";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { standardFieldProps } from "@web/fields/standard_field_props";
@@ -20,7 +21,6 @@ import { useActiveActions } from "../relational_active_actions.js";
 import { useAddInlineRecord, useX2ManyCrud } from "../x2many_crud.js";
 import { useOpenX2ManyRecord } from "../x2many_dialog.js";
 
-const shared = registry.category("shared_components");
 const views = registry.category("views");
 
 export class X2ManyField extends Component {
