@@ -262,6 +262,17 @@ class ResConfigSettings(models.TransientModel):
                             value = 0.0
                     case "boolean":
                         value = str(value) == "True"
+                    case "selection":
+                        # A stored value that has left the selection -- the
+                        # module contributing it was uninstalled, or removed
+                        # from the addons path so its uninstall hook never ran
+                        # -- made res.config.settings unwritable, and with it
+                        # the whole Settings page, for every setting on it. The
+                        # other types already degrade to a default here; this
+                        # one raised "Wrong value for <field>" out of create().
+                        if value not in dict(field._description_selection(self.env)):
+                            _logger.warning(WARNING_MESSAGE, value, field, icp)
+                            value = False
             res[name] = value
 
         res.update(self.get_values())
