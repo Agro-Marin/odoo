@@ -1,66 +1,66 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/utils - PairSet data structure and dynamicContent patching helpers for public pages */
+/** @module @web/public/utils */
 
 /**
- * Pairs (elem1, elem2) with set semantics, backed by a WeakMap of Sets.
- *
- * Weak on the first element because the only user keys it by DOM node: an
- * element dropped from the document without its interactions being stopped
- * (there is no way to guarantee that from here) would otherwise be pinned,
- * together with every interaction class started on it, for the page's lifetime.
- * Nothing enumerates the pairs, so weakness costs nothing.
+ * @template {WeakKey} K
+ * @template V
  */
 export class PairSet {
     constructor() {
+        /** @type {WeakMap<K, Set<V>>} */
         this.map = new WeakMap();
     }
+    /**
+     * @param {K} elem1
+     * @param {V} elem2
+     * @returns {void}
+     */
     add(elem1, elem2) {
-        if (!this.map.has(elem1)) {
-            this.map.set(elem1, new Set());
+        const values = this.map.get(elem1);
+        if (values) {
+            values.add(elem2);
+        } else {
+            this.map.set(elem1, new Set([elem2]));
         }
-        this.map.get(elem1).add(elem2);
     }
+    /**
+     * @param {K} elem1
+     * @param {V} elem2
+     * @returns {boolean}
+     */
     has(elem1, elem2) {
-        if (!this.map.has(elem1)) {
-            return false;
-        }
-        return this.map.get(elem1).has(elem2);
+        return this.map.get(elem1)?.has(elem2) ?? false;
     }
+    /**
+     * @param {K} elem1
+     * @param {V} elem2
+     * @returns {void}
+     */
     delete(elem1, elem2) {
-        if (!this.map.has(elem1)) {
+        const values = this.map.get(elem1);
+        if (!values) {
             return;
         }
-        const s = this.map.get(elem1);
-        s.delete(elem2);
-        if (!s.size) {
+        values.delete(elem2);
+        if (!values.size) {
             this.map.delete(elem1);
         }
     }
 }
 
+/** @typedef {Record<string, Record<string, any>>} DynamicContent */
+
 /**
- * Patches a "t-" entry of a dynamic content.
- *
- * The wrappers are plain functions, not arrows, and forward their `this` to
- * both sides of the chain: the framework invokes a definition with the
- * interaction as `this`, so an entry written as an unbound method reference
- * (`"t-on-click": this.onClick`) would otherwise lose it the moment anything
- * patched that entry.
- *
- * @param {Object} dynamicContent
+ * @param {DynamicContent} dynamicContent
  * @param {string} selector
  * @param {string} t
- * @param {any|function} replacement, if a function, takes the element (or the
- *     event, for `t-on-`) and the replaced function's output as parameters
+ * @param {any} replacement
+ * @returns {void}
  */
 function patchDynamicContentEntry(dynamicContent, selector, t, replacement) {
     if (replacement === undefined) {
-        // no bucket is conjured for a selector that only had an entry removed:
-        // an empty one is still a selector the framework re-resolves on every
-        // updateContent, so patching an entry away used to leave a
-        // querySelectorAll behind that could never apply anything
         delete dynamicContent[selector]?.[t];
         return;
     }
@@ -72,24 +72,28 @@ function patchDynamicContentEntry(dynamicContent, selector, t, replacement) {
         }
         const oldFn = forSelector[t];
         if (["t-att-class", "t-att-style"].includes(t)) {
-            forSelector[t] = function (el, oldResult) {
-                const result = oldResult || {};
-                Object.assign(result, oldFn.call(this, el, result));
-                Object.assign(result, replacement.call(this, el, result));
-                return result;
-            };
+            forSelector[t] = /** @type {(el: any, oldResult: any) => any} */ (
+                function (el, oldResult) {
+                    const result = oldResult || {};
+                    Object.assign(result, oldFn.call(this, el, result));
+                    Object.assign(result, replacement.call(this, el, result));
+                    return result;
+                }
+            );
         } else if (t.startsWith("t-on-")) {
-            forSelector[t] = function (ev, ...args) {
-                // bound, because the documented way to chain is a bare
-                // `oldFn(ev)` call in the patching handler
-                return replacement.call(this, ev, oldFn.bind(this), ...args);
-            };
+            forSelector[t] = /** @type {(ev: any, ...args: any[]) => any} */ (
+                function (ev, ...args) {
+                    return replacement.call(this, ev, oldFn.bind(this), ...args);
+                }
+            );
         } else {
-            forSelector[t] = function (el, oldResult) {
-                let result = oldFn.call(this, el, oldResult);
-                result = replacement.call(this, el, result);
-                return result;
-            };
+            forSelector[t] = /** @type {(el: any, oldResult: any) => any} */ (
+                function (el, oldResult) {
+                    let result = oldFn.call(this, el, oldResult);
+                    result = replacement.call(this, el, result);
+                    return result;
+                }
+            );
         }
     } else {
         forSelector[t] = replacement;
@@ -97,25 +101,9 @@ function patchDynamicContentEntry(dynamicContent, selector, t, replacement) {
 }
 
 /**
- * Patches several entries in a dynamicContent.
- * Example usage:
- * patchDynamicContent(this.dynamicContent, {
- *     _root: {
- *         "t-att-class": (el, old) => ({
- *             "test": this.condition && old.test,
- *         }),
- *         // a t-on- handler is called with the event, not the element
- *         "t-on-click": (ev, oldFn) => {
- *             oldFn(ev);
- *             this.doMoreStuff();
- *         },
- *     },
- * })
- *
- * `old` is undefined when nothing was registered for that entry yet.
- *
- * @param {Object} dynamicContent
- * @param {Object} replacement
+ * @param {DynamicContent} dynamicContent
+ * @param {DynamicContent} replacement
+ * @returns {void}
  */
 export function patchDynamicContent(dynamicContent, replacement) {
     for (const [selector, forSelector] of Object.entries(replacement)) {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/login - Login form interaction that adds a loading effect on submit */
+/** @module @web/public/login */
 
 import { registry } from "@web/core/registry";
 import { addLoadingEffect } from "@web/core/utils/dom/ui";
@@ -14,10 +14,6 @@ export class Login extends Interaction {
     };
 
     /**
-     * Applies a loading effect on submit (guards against double-clicks),
-     * unless preventDefault() was already called. Wraps preventDefault so a
-     * later call removes the effect again.
-     *
      * @param {Event} ev
      */
     onSubmit(ev) {

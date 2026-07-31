@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/interaction_service - Core service that discovers, mounts, and manages Interaction instances on DOM elements */
+/** @module @web/public/interaction_service */
 
 import { App, Component } from "@odoo/owl";
 import { appTranslateFn } from "@web/core/l10n/translation";
@@ -12,6 +12,16 @@ import { Colibri } from "./colibri.js";
 import { Interaction } from "./interaction.js";
 import { PairSet } from "./utils.js";
 
+/**
+ * @typedef {Object} PreparedRoot
+ * @property {import("@odoo/owl").ComponentConstructor} C
+ * @property {any} root
+ * @property {HTMLElement} el
+ * @property {HTMLElement} hostEl
+ * @property {() => Promise<any>} mount
+ * @property {() => void} destroy
+ */
+
 registry
     .category("public.interactions")
     .addValidation(
@@ -20,37 +30,32 @@ registry
             entry?.prototype instanceof Component,
     );
 
-/**
- * Two kinds of interactions: `Interaction` subclasses (owl-free, declarative
- * DOM manipulation + event handlers) and Owl `Component` subclasses (full
- * Owl access, for more complex UI needs).
- */
-
 export class InteractionService {
     /**
-     * @param {HTMLElement} el root element to monitor for interactions
+     * @param {HTMLElement} el
      * @param {import("@web/env").OdooEnv} env
      */
     constructor(el, env) {
+        /** @type {Array<typeof Interaction>} */
         this.Interactions = [];
         this.el = el;
+        /** @type {PairSet<HTMLElement, Function>} */
         this.activeInteractions = new PairSet();
         this.env = env;
+        /** @type {Colibri[]} */
         this.interactions = [];
+        /** @type {PreparedRoot[]} */
         this.roots = [];
         this.owlApp = null;
+        /** @type {Promise<any>[]} */
         this.proms = [];
         /** @type {WeakSet<Object>} */
         this.reportedErrors = new WeakSet();
-        // set by website_edit_service, which also patches shouldStop() to read
-        // isRefreshing; declared here so the contract is visible from the class
         this.editMode = false;
         this.isRefreshing = false;
     }
 
     /**
-     * Registers interaction classes and starts them on the target element.
-     *
      * @param {Array<typeof import("@web/public/interaction").Interaction>} Interactions
      * @param {HTMLElement} [target]
      * @returns {void}
@@ -62,13 +67,6 @@ export class InteractionService {
     }
 
     /**
-     * Tracks a pending promise for `isReady`. A fulfilled one is dropped at
-     * once; a rejected one is held until an `isReady` read has surfaced it,
-     * then dropped there — keeping it forever made every later read reject
-     * long after the failing scan was history, and grew `this.proms` without
-     * bound. The rejection handler here also keeps the derived promise from
-     * reporting an unhandled rejection of its own.
-     *
      * @param {Promise<any>} prom
      * @returns {void}
      */
@@ -77,9 +75,6 @@ export class InteractionService {
         prom.then(
             () => this._forgetProm(prom),
             (error) => {
-                // a scan is tracked both on its own and through the promise
-                // `activate` derives from it, so one failure reaches this
-                // handler twice; identity keeps it a single report
                 if (error instanceof Object) {
                     if (this.reportedErrors.has(error)) {
                         return;
@@ -103,10 +98,7 @@ export class InteractionService {
     }
 
     /**
-     * Drops a component root from the tracked list, for one its owner has
-     * already destroyed.
-     *
-     * @param {{ el: HTMLElement }} root
+     * @param {PreparedRoot} root
      * @returns {void}
      */
     forgetRoot(root) {
@@ -117,25 +109,6 @@ export class InteractionService {
     }
 
     /**
-     * Single channel for surfacing interaction failures. Every async path in
-     * this framework — an event handler, a deferred callback, a scan started by
-     * insert() or by a t-out re-scan — catches its own errors rather than let
-     * them escape from a promise nobody holds, and funnels them here.
-     *
-     * Catching is not handling. What turns a failure into something the visitor
-     * can act on is `@web/services/error_service`, and its only entry point is
-     * the global "unhandledrejection" event: `rpcErrorHandler` bails unless it
-     * is given an `UncaughtPromiseError`, which nothing but that listener
-     * builds. An RPCError reported by console alone is therefore never matched
-     * against the `error_notifications` / `error_dialogs` registries — the very
-     * registries the sibling error_notifications.js fills for public pages — so
-     * a website form that failed server-side told the visitor nothing at all.
-     *
-     * Putting the failure back on that channel is what upstream's handler
-     * wrapper did by simply not catching. The error is re-raised unwrapped, so
-     * its stack still points at the interaction and the handlers still classify
-     * it by its own type.
-     *
      * @param {unknown} error
      * @returns {void}
      */
@@ -144,13 +117,11 @@ export class InteractionService {
     }
 
     /**
-     * Prepares a mountable OWL component root inside the given element.
-     *
      * @param {HTMLElement} el
      * @param {import("@odoo/owl").ComponentConstructor} C
      * @param {Record<string, any>} [props]
      * @param {InsertPosition} [position]
-     * @returns {{ C: import("@odoo/owl").ComponentConstructor, root: any, el: HTMLElement, hostEl: HTMLElement, mount: () => Promise<any>, destroy: () => void }}
+     * @returns {PreparedRoot}
      */
     prepareRoot(el, C, props, position = "beforeend") {
         if (!this.owlApp) {
@@ -163,8 +134,6 @@ export class InteractionService {
                 warnIfNoStaticProps: this.env.debug,
                 translatableAttributes: ["data-tooltip"],
             };
-            // no root component on purpose: this App exists only to hand out
-            // roots through createRoot, one per interaction that mounts one
             this.owlApp = new App(
                 /** @type {any} */ (null),
                 /** @type {any} */ (appConfig),
@@ -191,8 +160,11 @@ export class InteractionService {
                     return;
                 }
                 isDestroyed = true;
-                root.destroy();
-                rootEl.remove();
+                try {
+                    root.destroy();
+                } finally {
+                    rootEl.remove();
+                }
             },
         };
     }
@@ -208,19 +180,17 @@ export class InteractionService {
         try {
             return await root.mount();
         } catch (error) {
-            // a half-mounted root and its <owl-root> host must not survive:
-            // they would linger in the DOM and be destroyed a second time by
-            // the next stopInteractions()
             this.forgetRoot(root);
-            root.destroy();
+            try {
+                root.destroy();
+            } catch (cleanupError) {
+                this.reportError(cleanupError);
+            }
             throw error;
         }
     }
 
     /**
-     * True when a stop rooted at `el` takes this service's whole root with it,
-     * and so means "everything on the page" rather than "this subtree".
-     *
      * @param {HTMLElement} el
      * @returns {boolean}
      */
@@ -229,14 +199,6 @@ export class InteractionService {
     }
 
     /**
-     * Starts all registered interactions on elements matching their selectors
-     * inside `target`, which may be one root or several.
-     *
-     * The loop is over the interaction classes, not the roots: each class costs
-     * a `querySelectorAll` whatever the subtree's size, so that is the price of
-     * a scan, and several roots scanned together pay it once. `renderAt` used
-     * to insert its elements one at a time and pay it per element.
-     *
      * @param {HTMLElement | HTMLElement[]} [target]
      * @returns {Promise<void>}
      */
@@ -259,7 +221,7 @@ export class InteractionService {
                 );
                 continue;
             }
-            if (I.dynamicContent) {
+            if (/** @type {any} */ (I).dynamicContent) {
                 proms.push(
                     Promise.reject(
                         new Error(
@@ -303,9 +265,6 @@ export class InteractionService {
                 this._startInteraction(_el, I, proms);
             }
         }
-        // allSettled and not all: `all` settles on the first rejection and
-        // discards every other one, so a scan in which several interactions
-        // crashed only ever reported one of them
         const prom = Promise.allSettled(proms).then((results) => {
             const errors = results
                 .filter((result) => result.status === "rejected")
@@ -347,9 +306,6 @@ export class InteractionService {
                 );
             } catch (e) {
                 this.activeInteractions.delete(el, I);
-                // reported through the scan like any other start failure: sent
-                // to `_trackProm` directly, it stayed invisible to whoever
-                // awaited that very scan's promise
                 proms.push(Promise.reject(e));
             }
         } else {
@@ -376,20 +332,6 @@ export class InteractionService {
         const { selectorNotHas, selectorHas } = /** @type {any} */ (
             interaction.interaction.constructor
         );
-        if (!interaction.el) {
-            return true;
-        }
-        // A stop covering this service's own root means every interaction, and
-        // `contains` cannot see the ones whose element left the document
-        // without being stopped first — nothing guarantees that, since any code
-        // may drop a subtree. Those kept their listeners, timers and observers
-        // running, on nodes no visitor can reach, for the rest of the page's
-        // life; the website builder carries its own
-        // `stopDisconnectedInteractions` to work around it.
-        //
-        // Deliberately not extended to a scoped stop: an element may be
-        // detached on its way somewhere else, and only a caller tearing down
-        // the whole root is entitled to assume it is gone for good.
         if (!interaction.el.isConnected && this.coversWholeRoot(el)) {
             return true;
         }
@@ -401,21 +343,23 @@ export class InteractionService {
     }
 
     /**
-     * Destroys all active interactions started on elements inside `el`.
-     *
-     * @param {HTMLElement} [el]
+     * @param {(interaction: import("@web/public/colibri").Colibri) => boolean} selectsInteraction
+     * @param {(root: any) => boolean} selectsRoot
      * @returns {void}
      */
-    stopInteractions(el = this.el) {
+    stopMatching(selectsInteraction, selectsRoot) {
         const errors = [];
         const stoppedInteractions = new Set();
         for (const interaction of this.interactions.toReversed()) {
-            if (this.shouldStop(el, interaction)) {
+            if (selectsInteraction(interaction)) {
                 stoppedInteractions.add(interaction);
                 try {
                     interaction.destroy();
                 } catch (error) {
-                    errors.push([interaction.interaction.constructor.name, error]);
+                    errors.push([
+                        `interaction ${interaction.interaction.constructor.name}`,
+                        error,
+                    ]);
                 }
                 this.activeInteractions.delete(
                     interaction.el,
@@ -427,15 +371,14 @@ export class InteractionService {
             (interaction) => !stoppedInteractions.has(interaction),
         );
         const stoppedRoots = new Set();
-        // same reasoning as shouldStop(): a component root whose host left the
-        // document is invisible to `contains`, so a page-wide stop used to walk
-        // past it and leave the component running — and its `<owl-root>` in a
-        // detached subtree — for the rest of the page's life
-        const coversWholeRoot = this.coversWholeRoot(el);
         for (const root of this.roots.toReversed()) {
-            if (el.contains(root.el) || (coversWholeRoot && !root.el.isConnected)) {
+            if (selectsRoot(root)) {
                 stoppedRoots.add(root);
-                root.destroy();
+                try {
+                    root.destroy();
+                } catch (error) {
+                    errors.push([`component ${root.C?.name || "root"}`, error]);
+                }
                 this.activeInteractions.delete(root.hostEl ?? root.el, root.C);
             }
         }
@@ -443,10 +386,8 @@ export class InteractionService {
         if (errors.length) {
             throw new AggregateError(
                 errors.map(
-                    ([interaction, error]) =>
-                        new Error(`Could not destroy interaction ${interaction}`, {
-                            cause: error,
-                        }),
+                    ([what, error]) =>
+                        new Error(`Could not destroy ${what}`, { cause: error }),
                 ),
                 "Could not destroy some interactions",
             );
@@ -454,17 +395,46 @@ export class InteractionService {
     }
 
     /**
-     * @returns { Promise } settles once all current interactions have started;
-     * does not track future ones. Rejects if any of them failed, and forgets
-     * those failures afterwards so a later read reflects the scans it awaited
-     * rather than every crash the page ever had.
+     * @param {HTMLElement} [el]
+     * @returns {void}
+     */
+    stopInteractions(el = this.el) {
+        const coversWholeRoot = this.coversWholeRoot(el);
+        this.stopMatching(
+            (interaction) => this.shouldStop(el, interaction),
+            (root) => el.contains(root.el) || (coversWholeRoot && !root.el.isConnected),
+        );
+    }
+
+    /**
+     * @param {string} name
+     * @returns {void}
+     */
+    stopInteractionsByName(name) {
+        const I = registry.category("public.interactions").get(name);
+        this.stopMatching(
+            (interaction) => interaction.interaction.constructor === I,
+            (root) => root.C === I,
+        );
+    }
+
+    /**
+     * @returns {void}
+     */
+    stopDisconnectedInteractions() {
+        this.stopMatching(
+            (interaction) => !interaction.el?.isConnected,
+            (root) =>
+                !root.el.isConnected || !!(root.hostEl && !root.hostEl.isConnected),
+        );
+    }
+
+    /**
+     * @returns {Promise<void>}
      */
     get isReady() {
         const proms = this.proms.slice();
         return Promise.allSettled(proms).then((results) => {
-            // a scan is tracked both on its own and through the promise
-            // `activate` derives from it, so one failure surfaces on two
-            // promises; identity keeps it a single error
             const errors = new Set();
             for (const [index, result] of results.entries()) {
                 if (result.status === "rejected") {
@@ -487,6 +457,7 @@ export class InteractionService {
 
 export const publicInteractionService = {
     dependencies: ["localization"],
+    /** @param {import("@web/env").OdooEnv} env */
     async start(env) {
         const el = /** @type {HTMLElement} */ (
             document.getElementById("wrapwrap") || document.body

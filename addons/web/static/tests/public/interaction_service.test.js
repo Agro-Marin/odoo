@@ -3,7 +3,14 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, markup, onWillDestroy, onWillStart, xml } from "@odoo/owl";
+import {
+    Component,
+    markup,
+    onWillDestroy,
+    onWillStart,
+    onWillUnmount,
+    xml,
+} from "@odoo/owl";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { Interaction } from "@web/public/interaction";
 
@@ -13,7 +20,9 @@ describe.current.tags("interaction_dev");
 
 test("properly fallback to body when we have no match for wrapwrap", async () => {
     const env = await makeMockEnv();
-    expect(env.services["public.interactions"].el).toBe(document.querySelector("body"));
+    expect(env.services["public.interactions"].el).toBe(
+        /** @type {HTMLElement} */ (document.querySelector("body")),
+    );
 });
 
 test("wait for translation before starting interactions", async () => {
@@ -295,6 +304,7 @@ test("recover from error as much as possible when applying dynamiccontent", asyn
     let a = "a";
     let b = "b";
     let c = "c";
+    /** @type {any} */
     let interaction = null;
 
     class Test extends Interaction {
@@ -623,7 +633,9 @@ test("every interaction that fails to start is reported, not just the first", as
         `<div class="a"></div><div class="b"></div>`,
         { waitForStart: false },
     );
+    /** @type {any[]} */
     const reported = [];
+    /** @param {any} error */
     core.reportError = (error) => reported.push(error);
     let caught = null;
     try {
@@ -632,7 +644,10 @@ test("every interaction that fails to start is reported, not just the first", as
         caught = error;
     }
     expect(caught).toBeInstanceOf(AggregateError);
-    expect(caught.errors.map((e) => e.message).sort()).toEqual(["boom A", "boom B"]);
+    expect(caught.errors.map((/** @type {Error} */ e) => e.message).sort()).toEqual([
+        "boom A",
+        "boom B",
+    ]);
     // the scan and the promise `activate` derives from it carry the same
     // failure: it must not be logged twice
     expect(reported).toHaveLength(1);
@@ -808,5 +823,150 @@ test("a page-wide stop reaps a component root whose host left the document", asy
     queryOne(".host").remove();
     core.stopInteractions();
     expect(destroys).toBe(1);
+    expect(core.roots).toHaveLength(0);
+});
+
+test("a component whose onWillUnmount throws does not strand the other roots", async () => {
+    // owl runs `onWillUnmount` uncaught (only `onWillDestroy` is wrapped), so
+    // this is the ordinary way a root teardown fails: a hook touching something
+    // that has already gone away.
+    class Boom extends Component {
+        static template = xml`boom`;
+        static props = {};
+        static selector = ".boom";
+        setup() {
+            onWillUnmount(() => {
+                throw new Error("willUnmount blew up");
+            });
+        }
+    }
+    class Fine extends Component {
+        static template = xml`fine`;
+        static props = {};
+        static selector = ".fine";
+        setup() {
+            onWillDestroy(() => expect.step("fine destroyed"));
+        }
+    }
+    const { core } = await startInteraction(
+        [Fine, Boom],
+        `<div class="fine"></div><div class="boom"></div>`,
+    );
+    expect(core.roots).toHaveLength(2);
+
+    // the failure is reported, like a failing interaction destroy()
+    expect(() => core.stopInteractions()).toThrow(
+        "Could not destroy some interactions",
+    );
+    // ...but ONE of them used to abort the loop: every remaining root stayed
+    // mounted, the whole list stayed tracked, and both <owl-root> hosts stayed
+    // in the page with nothing left to ever remove them
+    expect.verifySteps(["fine destroyed"]);
+    expect(core.roots).toHaveLength(0);
+    expect(".fine owl-root").toHaveCount(0);
+    expect(".boom owl-root").toHaveCount(0);
+});
+
+describe("stopping by registry name", () => {
+    test("stops both flavours the registry can hold, not just Interactions", async () => {
+        class Inter extends Interaction {
+            static selector = ".inter";
+            destroy() {
+                expect.step("interaction stopped");
+            }
+        }
+        class Comp extends Component {
+            static template = xml`c`;
+            static props = {};
+            static selector = ".comp";
+            setup() {
+                onWillDestroy(() => expect.step("component stopped"));
+            }
+        }
+        const { core } = await startInteraction(
+            [Inter, Comp],
+            `<div class="inter"></div><div class="comp"></div>`,
+        );
+        expect(core.interactions).toHaveLength(1);
+        expect(core.roots).toHaveLength(1);
+
+        // a public component is tracked in `roots`, never in `interactions`, so
+        // a by-name stop that walks only the latter could not touch it at all
+        core.stopInteractionsByName("Comp");
+        expect.verifySteps(["component stopped"]);
+        expect(core.roots).toHaveLength(0);
+        expect(".comp owl-root").toHaveCount(0);
+        expect(core.interactions).toHaveLength(1);
+
+        core.stopInteractionsByName("Inter");
+        expect.verifySteps(["interaction stopped"]);
+        expect(core.interactions).toHaveLength(0);
+    });
+
+    test("a failing destroy does not leave the others behind", async () => {
+        class Boom extends Interaction {
+            static selector = ".boom";
+            destroy() {
+                if (this.el.classList.contains("first")) {
+                    throw new Error("destroy blew up");
+                }
+                expect.step("sibling stopped");
+            }
+        }
+        const { core } = await startInteraction(
+            Boom,
+            `<div class="boom first"></div><div class="boom"></div>`,
+        );
+        expect(core.interactions).toHaveLength(2);
+        // it used to abort on the throw, leaving `this.interactions` untouched
+        // (the rebuilt list was never assigned) and the remaining match running
+        expect(() => core.stopInteractionsByName("Boom")).toThrow(
+            "Could not destroy some interactions",
+        );
+        expect.verifySteps(["sibling stopped"]);
+        expect(core.interactions).toHaveLength(0);
+    });
+});
+
+test("stopDisconnectedInteractions reaps every detached interaction", async () => {
+    class Test extends Interaction {
+        static selector = ".test";
+        destroy() {
+            expect.step(`stopped ${this.el.dataset.n}`);
+        }
+    }
+    const { core } = await startInteraction(
+        Test,
+        `<div class="test" data-n="1"></div><div class="test" data-n="2"></div>
+         <div class="test" data-n="3"></div>`,
+    );
+    expect(core.interactions).toHaveLength(3);
+    for (const el of document.querySelectorAll(".test")) {
+        el.remove();
+    }
+    // characterises the primitive the website builder used to open-code against
+    // the service's internals; every detached one goes, none is skipped, and
+    // teardown runs newest-first like every other stop path in the service
+    core.stopDisconnectedInteractions();
+    expect.verifySteps(["stopped 3", "stopped 2", "stopped 1"]);
+    expect(core.interactions).toHaveLength(0);
+});
+
+test("stopDisconnectedInteractions also reaps detached component roots", async () => {
+    class Comp extends Component {
+        static template = xml`c`;
+        static props = {};
+        static selector = ".comp";
+        setup() {
+            onWillDestroy(() => expect.step("component stopped"));
+        }
+    }
+    const { core } = await startInteraction(Comp, `<div class="comp"></div>`);
+    expect(core.roots).toHaveLength(1);
+    /** @type {HTMLElement} */ (document.querySelector(".comp")).remove();
+    // a public component lives in `roots`, never in `interactions`, so a reaper
+    // walking only the latter left its owl root mounted on detached DOM forever
+    core.stopDisconnectedInteractions();
+    expect.verifySteps(["component stopped"]);
     expect(core.roots).toHaveLength(0);
 });

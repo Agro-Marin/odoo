@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/error_notifications - Registers Odoo exception types as notification-style error handlers instead of dialogs */
+/** @module @web/public/error_notifications */
 
 import { odooExceptionTitleMap } from "@web/components/errors/error_dialogs";
 import { _t } from "@web/core/l10n/translation";
@@ -15,11 +15,6 @@ odooExceptionTitleMap.forEach((title, exceptionName) => {
 });
 
 /**
- * The whole entry is handed to `notification.add` as its options, and `sticky`
- * defaults to false there: this one asks the visitor to confirm a reload, and
- * without it the prompt closed itself — button included — after the service's
- * 4s autoclose. Every other entry in this file already sets it.
- *
  * @type {{ title: string, message: string, type: string, sticky: boolean, buttons: Array<{ text: string, click: () => void, close: boolean }> }}
  */
 const sessionExpired = {
@@ -39,9 +34,6 @@ const sessionExpired = {
 };
 
 /**
- * Forbidden (403) is an ACCESS DENIAL, not a session expiry: reusing the
- * session-expired config reloaded the page, which either loops or masks the
- * real permission problem. Give it a distinct, non-reloading message.
  * @type {{ title: string, message: string, type: string, sticky: boolean }}
  */
 const forbidden = {
@@ -53,5 +45,5 @@ const forbidden = {
 
 registry
     .category("error_notifications")
-    .add("odoo.http.SessionExpiredException", sessionExpired)
-    .add("werkzeug.exceptions.Forbidden", forbidden);
+    .add("odoo.http.SessionExpiredException", sessionExpired, { force: true })
+    .add("werkzeug.exceptions.Forbidden", forbidden, { force: true });

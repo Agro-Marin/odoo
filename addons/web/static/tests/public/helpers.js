@@ -8,10 +8,15 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
 
+/** @type {string[] | null} */
 let activeInteractions = null;
 const elementRegistry = registry.category("public.interactions");
 const content = elementRegistry.content;
 
+/**
+ * @param {string | string[]} interactions
+ * @returns {void}
+ */
 export function setupInteractionWhiteList(interactions) {
     if (arguments.length > 1) {
         throw new Error(
@@ -31,6 +36,11 @@ export function setupInteractionWhiteList(interactions) {
 
 setupInteractionWhiteList.getWhiteList = () => activeInteractions;
 
+/**
+ * @param {any} I
+ * @param {string} html
+ * @param {{ waitForStart?: boolean, editMode?: boolean, translateMode?: boolean }} [options]
+ */
 export async function startInteraction(I, html, options) {
     clearRegistry(elementRegistry);
     for (const Interaction of Array.isArray(I) ? I : [I]) {
@@ -39,6 +49,10 @@ export async function startInteraction(I, html, options) {
     return startInteractions(html, options);
 }
 
+/**
+ * @param {string} html
+ * @param {{ waitForStart?: boolean, editMode?: boolean, translateMode?: boolean }} [options]
+ */
 export async function startInteractions(
     html,
     options = { waitForStart: true, editMode: false, translateMode: false },
@@ -88,9 +102,10 @@ export async function startInteractions(
 }
 
 export function mockSendRequests() {
+    /** @type {Array<{ url: string | null, method: string | null }>} */
     const requests = [];
     patchWithCleanup(HTMLFormElement.prototype, {
-        submit: function () {
+        submit: /** @this {HTMLFormElement} */ function () {
             requests.push({
                 url: this.getAttribute("action"),
                 method: this.getAttribute("method"),
@@ -100,6 +115,10 @@ export function mockSendRequests() {
     return requests;
 }
 
+/**
+ * @param {HTMLElement} el
+ * @returns {boolean}
+ */
 export function isElementInViewport(el) {
     const rect = el.getBoundingClientRect();
     const width = window.innerWidth || document.documentElement.clientWidth;
@@ -112,6 +131,11 @@ export function isElementInViewport(el) {
     );
 }
 
+/**
+ * @param {HTMLElement} el
+ * @param {HTMLElement} scrollEl
+ * @returns {boolean}
+ */
 export function isElementVerticallyInViewportOf(el, scrollEl) {
     const rect = el.getBoundingClientRect();
     return rect.top <= scrollEl.clientHeight && rect.bottom >= 0;

@@ -2497,6 +2497,77 @@ describe("t-att and t-out", () => {
         expect(queryOne(".inner")).toBe(inner);
     });
 
+    test("a t-att reaches the nodes a t-out built in the same pass", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.n = 0;
+            }
+            dynamicContent = {
+                ".slot": {
+                    "t-out": () => markup(`<span class="b">${this.n}</span>`),
+                },
+                ".b": { "t-att-data-n": () => String(this.n) },
+                ".btn": { "t-on-click": () => this.n++ },
+            };
+        }
+        await startInteraction(
+            Test,
+            `<div class="test"><div class="slot"></div><button class="btn">b</button></div>`,
+        );
+        // applying attributes first only ever reached the generation the t-out
+        // was about to discard, so this attribute never landed at all
+        expect(queryOne(".b")).toHaveAttribute("data-n", "0");
+        await click(".btn");
+        expect(queryOne(".b")).toHaveText("1");
+        expect(queryOne(".b")).toHaveAttribute("data-n", "1");
+    });
+
+    test("a markup t-out that already agrees with the server markup is a no-op", async () => {
+        const HTML = `<span class="inner">Hi</span>`;
+        let starts = 0;
+        class Inner extends Interaction {
+            static selector = ".inner";
+            setup() {
+                starts++;
+            }
+        }
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-out": () => markup(HTML) },
+            };
+        }
+        await startInteraction(
+            [Inner, Test],
+            `<div class="test"><div class="slot">${HTML}</div></div>`,
+        );
+        const inner = queryOne(".inner");
+        await animationFrame();
+        // nothing has been applied yet on the first pass, so the guard has to
+        // read the node itself; comparing against a blank record rebuilt the
+        // server markup and restarted every interaction underneath it
+        expect(starts).toBe(1);
+        expect(queryOne(".inner")).toBe(inner);
+    });
+
+    test("a markup t-out still rebuilds server markup another hand has changed", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-out": () => markup(`<span class="inner">Hi</span>`) },
+            };
+        }
+        // reading the node instead of a blank record must not turn the first
+        // pass into a no-op when the DOM does *not* actually agree
+        await startInteraction(
+            [Test],
+            `<div class="test"><div class="slot"><span class="inner">tampered</span></div></div>`,
+        );
+        await animationFrame();
+        expect(".inner").toHaveText("Hi");
+    });
+
     test("a plain t-out that yields the same text keeps the text node", async () => {
         class Test extends Interaction {
             static selector = ".test";
@@ -3205,6 +3276,47 @@ describe("removeChildren", () => {
         );
         expect.verifySteps(["stopped:1", "stopped:2", "stopped:3", "stopped:4"]);
         expect(core.interactions).toHaveLength(1);
+    });
+
+    test("a child whose destroy throws does not strand the removal", async () => {
+        expect.errors(1);
+        class Boom extends Interaction {
+            static selector = ".boom";
+            destroy() {
+                throw new Error("child destroy blew up");
+            }
+        }
+        class Sibling extends Interaction {
+            static selector = ".sibling";
+            destroy() {
+                expect.step("sibling stopped");
+            }
+        }
+        class Test extends Interaction {
+            static selector = ".test";
+            start() {
+                this.removeChildren(this.el);
+                expect.step("caller survived");
+            }
+        }
+        const { core } = await startInteraction(
+            [Boom, Sibling, Test],
+            `<div class="test"><div class="boom"></div><div class="sibling"></div></div>`,
+        );
+        // the sibling sits AFTER the throwing child: it used to keep running,
+        // on a node the removal below had already taken out of the document.
+        // The caller used to die with it, taking its own start() down.
+        expect.verifySteps(["sibling stopped", "caller survived"]);
+        expect(".test").toHaveInnerHTML("");
+        expect(core.interactions).toHaveLength(1);
+        await animationFrame();
+        // the child's failure is reported, not swallowed
+        expect.verifyErrors([/Could not destroy some interactions/]);
+
+        core.stopInteractions();
+        // the restore step was registered despite the failure
+        expect(".test .boom").toHaveCount(1);
+        expect(".test .sibling").toHaveCount(1);
     });
 });
 
@@ -4202,6 +4314,122 @@ describe("dynamic attributes", () => {
 });
 
 describe("lifecycle edge cases", () => {
+    test("being destroyed mid-willStart still settles the start promise", async () => {
+        const def = new Deferred();
+        class Test extends Interaction {
+            static selector = ".test";
+            async willStart() {
+                await this.waitFor(def);
+                expect.step("willStart resumed");
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+            waitForStart: false,
+        });
+        await animationFrame();
+        expect(core.interactions).toHaveLength(1);
+        core.stopInteractions();
+        def.resolve();
+
+        let settled = false;
+        core.isReady.then(
+            () => (settled = true),
+            () => (settled = true),
+        );
+        for (let i = 0; i < 10; i++) {
+            await animationFrame();
+        }
+        // `waitFor` drops its resolution once destroyed, so awaiting it left
+        // `start` pending forever: `isReady` never settled and the page never
+        // got its `is-ready` marker
+        expect(settled).toBe(true);
+        expect.verifySteps([]);
+    });
+
+    test("an async start() that rejects reaches the error channel", async () => {
+        const def = new Deferred();
+        class Test extends Interaction {
+            static selector = ".test";
+            async start() {
+                await def;
+                throw new Error("boom in async start");
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`);
+        patchWithCleanup(core, {
+            reportError(error) {
+                expect.step(`reported:${error.message}`);
+            },
+        });
+        // `start` is fire-and-forget, so this rejection used to settle with
+        // nobody looking: no report, no failed `isReady`, nothing
+        def.resolve();
+        await animationFrame();
+        await animationFrame();
+        expect.verifySteps(["reported:boom in async start"]);
+    });
+
+    test("a willStart throwing synchronously still tears the interaction down", async () => {
+        expect.errors(1);
+        class Test extends Interaction {
+            static selector = ".test";
+            setup() {
+                this.registerCleanup(() => expect.step("cleaned up"));
+            }
+            // deliberately not async: the throw lands before any promise exists
+            willStart() {
+                throw new Error("boom");
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+            waitForStart: false,
+        });
+        await expect(core.isReady).rejects.toThrow("boom");
+        expect.verifySteps(["cleaned up"]);
+        expect(core.interactions).toHaveLength(0);
+        await animationFrame();
+        expect.verifyErrors([/boom/]);
+    });
+
+    test("a willStart that fails after teardown still reaches the error channel", async () => {
+        const def = new Deferred();
+        class Test extends Interaction {
+            static selector = ".test";
+            async willStart() {
+                await def;
+            }
+        }
+        const { core } = await startInteraction(Test, `<div class="test"></div>`, {
+            waitForStart: false,
+        });
+        await animationFrame();
+        patchWithCleanup(core, {
+            reportError(error) {
+                expect.step(`reported:${error.message}`);
+            },
+        });
+        core.stopInteractions();
+        // racing the teardown settles `start`, so nothing is left awaiting this
+        // rejection: it has to be routed explicitly or it vanishes
+        def.reject(new Error("boom"));
+        await animationFrame();
+        await animationFrame();
+        expect.verifySteps(["reported:boom"]);
+    });
+
+    test("a selector named like an Object prototype key stays a CSS selector", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                // `dynamicSelectors` is a plain object, so an `in` test answers
+                // for every Object.prototype key and ran `toString` as a handler
+                toString: { "t-att-data-x": () => "hit" },
+            };
+        }
+        await startInteraction(Test, `<div class="test"><tostring></tostring></div>`);
+        expect("tostring").toHaveAttribute("data-x", "hit");
+    });
+
     test("_window still resolves when the document has no default view", async () => {
         class Test extends Interaction {
             static selector = ".test";
