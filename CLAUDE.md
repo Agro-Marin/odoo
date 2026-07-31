@@ -49,7 +49,7 @@ the `web_js` tag runs for an hour. Do not add `-u web` — it changes nothing fo
 JS and costs ~50%. A spec matching no test now exits non-zero, but still read
 `odoo.tests.result: … of N tests`.
 
-`addons/web/tooling/scripts/hoot` keeps a server warm and takes plain suite
+`tooling/hoot/hoot` keeps a server warm and takes plain suite
 paths (`./hoot '@web/core/domain'`, `./hoot --affected`, `./hoot-shard`).
 Full recipes, preset/tag semantics and the stale-source caveat:
 `addons/web/machine_doc_v1/TEST_TAGS.md`. The *rule* for which tag a test

@@ -15,7 +15,7 @@ reused from ``web`` via ``HOOTCommon``, imported through the module object
 unittest loader does not collect ``web``'s base meta-tests a second time here.
 
 Fast local runs use the warm-server runner instead:
-``addons/web/tooling/scripts/hoot --db <db> '@documents/kanban_view'``.
+``tooling/hoot/hoot --db <db> '@documents/kanban_view'``.
 """
 
 from pathlib import Path

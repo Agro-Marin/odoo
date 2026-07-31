@@ -67,19 +67,15 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# This repo is checked out in two shapes and the gate must work in both: as
-# `<workspace>/addons/odoo` locally, and ALONE as the CI checkout root. Anchoring
-# on the workspace (`parents[6]`) silently made the CI run a no-op — it resolved
-# two levels ABOVE the checkout, so every glob missed, zero files were scanned and
-# the gate reported success with broken references in the tree.
-#
-# `parents[4]` is this repo's root in either shape: <repo>/addons/web/tooling/scripts.
-ODOO_ROOT = Path(__file__).resolve().parents[4]
-ODOO_SUBPATH = "addons/odoo"
-IN_WORKSPACE = ODOO_ROOT.parent.name == "addons" and ODOO_ROOT.name == "odoo"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import ODOO_SUBPATH, find_odoo_root, in_workspace
+
+ODOO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="doc_link_gate")
+IN_WORKSPACE = in_workspace(ODOO_ROOT)
 
 # Scanning and reference resolution happen against whatever root actually exists;
 # baseline KEYS stay workspace-shaped in both, so one baseline file serves both.
@@ -87,7 +83,7 @@ REPO_ROOT = ODOO_ROOT.parents[1] if IN_WORKSPACE else ODOO_ROOT
 KEY_PREFIX = "" if IN_WORKSPACE else ODOO_SUBPATH + "/"
 
 DEFAULT_BASELINE_PATH = (
-    ODOO_ROOT / "addons/web/tooling/scripts/doc_link_baseline.json"
+    Path(__file__).resolve().parent / "baselines" / "doc_link_baseline.json"
 )
 
 # Sibling repos that exist only in the workspace checkout. A reference into one

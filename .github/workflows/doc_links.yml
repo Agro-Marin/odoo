@@ -35,7 +35,7 @@ on:
       - '**/*.yml'
       - '**/*.yaml'
       # The gate script itself, the baseline, or the next-target ranker.
-      - 'addons/web/tooling/scripts/doc_link_*'
+      - 'tooling/doclinks/**'
 
 permissions:
   contents: read
@@ -67,7 +67,7 @@ jobs:
         id: gate
         run: |
           set +e
-          python addons/web/tooling/scripts/doc_link_gate.py 2>&1 \
+          python tooling/doclinks/doc_link_gate.py 2>&1 \
             | tee /tmp/doc-link-output.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
@@ -87,7 +87,7 @@ jobs:
           BASELINE=$(python -c "
           import json, sys
           try:
-              data = json.load(open('addons/web/tooling/scripts/doc_link_baseline.json'))
+              data = json.load(open('tooling/doclinks/baselines/doc_link_baseline.json'))
               print(data.get('_total_violations', 0))
           except Exception:
               print(0)
@@ -103,7 +103,7 @@ jobs:
             if [ "$NEW_COUNT" -gt 0 ]; then
               echo "> :warning: This PR introduces ${NEW_COUNT} new broken \`.md\` reference(s)."
               echo "> Either fix the reference path or, if intentional, run"
-              echo "> \`python addons/web/tooling/scripts/doc_link_gate.py --update-baseline\`"
+              echo "> \`python tooling/doclinks/doc_link_gate.py --update-baseline\`"
               echo "> and commit the baseline diff."
             else
               echo "> :white_check_mark: No new broken doc references."

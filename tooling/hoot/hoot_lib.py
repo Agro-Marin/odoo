@@ -34,7 +34,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 _SCRIPT_DIR = Path(__file__).resolve().parent
-ODOO_ROOT = _SCRIPT_DIR.parents[3]
+
+
+def _find_odoo_root(start: Path) -> Path:
+    """Locate the checkout root by marker, not by counting directories.
+
+    A counted depth silently resolves to the wrong tree when a script moves —
+    the failure mode that once made the doc-link gate scan zero files and still
+    report success. Anchor on `odoo-bin`, and raise rather than guess.
+    """
+    for candidate in start.parents:
+        if (candidate / "odoo-bin").is_file():
+            return candidate
+    raise SystemExit(
+        f"hoot: no `odoo-bin` in any parent of {start} — cannot locate the "
+        f"odoo checkout root."
+    )
+
+
+ODOO_ROOT = _find_odoo_root(_SCRIPT_DIR)
 WORKSPACE = ODOO_ROOT.parents[1]
 VENV_PY = Path(os.environ.get("ODOO_VENV_PYTHON", sys.executable))
 ODOO_BIN = ODOO_ROOT / "odoo-bin"

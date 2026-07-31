@@ -25,7 +25,7 @@ fail open, so a tests directory nobody names silently never runs (exactly the
 hole this file closes).
 
 Fast local runs use the warm-server runner instead:
-``addons/web/tooling/scripts/hoot '@website/builder'`` (any suite or test path;
+``tooling/hoot/hoot '@website/builder'`` (any suite or test path;
 see its README).
 """
 

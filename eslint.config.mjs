@@ -494,7 +494,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
     // =========================================================================
     // Node tooling scripts — build/typecheck helpers, not browser code
     //
-    // Files under a module's tooling/scripts/ run under Node, so they
+    // Files under the repo-root tooling/ tree run under Node, so they
     // legitimately use `process`,
     // `console`, etc. They are matched by `js.configs.recommended` (no `files`
     // key → repo-wide, and eslint lints .mjs by default) but were never given
@@ -503,7 +503,7 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
     // so their `process`/`console` use stops tripping `no-undef`.
     // =========================================================================
     {
-        files: ["**/tooling/scripts/**/*.{js,mjs,cjs}"],
+        files: ["**/tooling/**/*.{js,mjs,cjs}"],
         languageOptions: {
             globals: {
                 ...globals.node,

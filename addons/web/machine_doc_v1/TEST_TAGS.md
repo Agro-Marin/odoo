@@ -98,7 +98,7 @@ id gone `hasFilter` is false and the whole bundle runs. Measured on
 naming the bad id. Headless runs now abort in ~5 s with
 `HootError: no suite or test matches id "…"`; the UI is unchanged.
 
-### Warm-server runner (`web/tooling/scripts/`)
+### Warm-server runner (`tooling/hoot/`)
 
 `./hoot '@web/core/domain'` is ~2 s faster again per run and takes plain suite
 paths, and `./hoot-shard` runs the whole desktop suite in parallel — **14209
@@ -164,7 +164,7 @@ The two classes are not redundant: tests are selected by **tag**, not by
 directory, so each platform runs a different (overlapping, neither-a-superset)
 set. A change is only verified once both have run. The warm-server dev loop has
 the same split behind `hoot --preset desktop|mobile`, where the default hides a
-mobile-only suite as a silent zero — see `web/tooling/scripts/README.md`.
+mobile-only suite as a silent zero — see `tooling/hoot/README.md`.
 
 | Method | Hoot suite(s) | Scope |
 |--------|---------------|-------|

@@ -1,7 +1,7 @@
 {
   "_comment": [
     "Single source of truth for the third-party libraries vendored under",
-    "web/static/lib. Checked by tooling/scripts/check_vendored_libs.py, which",
+    "web/static/lib. Checked by tooling/vendored/check_vendored_libs.py, which",
     "both re-derives each version from the shipped files (drift) and queries",
     "OSV for advisories affecting the pinned version (audit).",
     "",
@@ -115,7 +115,7 @@
       "license": "Apache-2.0",
       "source": "https://mozilla.github.io/pdf.js/",
       "probe": { "file": "build/pdf.js", "pattern": "pdfjsVersion = {version}" },
-      "notes": "Largest vendored library by far. Sourced from the GitHub prebuilt release zip — the LEGACY one (pdfjs-<v>-legacy-dist.zip), not the modern dist: the modern build calls Map.prototype.getOrInsertComputed with no feature detection and never defines it, and that method only reached Baseline in February 2026 (Firefox 144, Safari 26.2, Chrome 145), so PDF preview breaks on every older browser — t24581 was reported from Chrome 141. The legacy build carries the core-js polyfill in both build/pdf.js and build/pdf.worker.js, which a hand-written prototype patch could not do — it would never reach the worker. addons/web/tests/test_pdfjs_dist.py gates the flavour against the bundle files; a runtime check cannot, since a browser that ships the method natively passes it whatever build is vendored. The npm package ships no full viewer. Run through addons/web/tooling/scripts/mechanise_pdfjs.sh, after which the 12 AgroMarin: markers in web/viewer.js are re-applied. Lazily loaded via @web/core/utils/pdfjs. Since v6 the codecs are separate .wasm files under web/wasm/ — getDocument needs PDFJS_WASM_URL, which the facade defaults."
+      "notes": "Largest vendored library by far. Sourced from the GitHub prebuilt release zip — the LEGACY one (pdfjs-<v>-legacy-dist.zip), not the modern dist: the modern build calls Map.prototype.getOrInsertComputed with no feature detection and never defines it, and that method only reached Baseline in February 2026 (Firefox 144, Safari 26.2, Chrome 145), so PDF preview breaks on every older browser — t24581 was reported from Chrome 141. The legacy build carries the core-js polyfill in both build/pdf.js and build/pdf.worker.js, which a hand-written prototype patch could not do — it would never reach the worker. addons/web/tests/test_pdfjs_dist.py gates the flavour against the bundle files; a runtime check cannot, since a browser that ships the method natively passes it whatever build is vendored. The npm package ships no full viewer. Run through tooling/vendored/mechanise_pdfjs.sh, after which the 12 AgroMarin: markers in web/viewer.js are re-applied. Lazily loaded via @web/core/utils/pdfjs. Since v6 the codecs are separate .wasm files under web/wasm/ — getDocument needs PDFJS_WASM_URL, which the facade defaults."
     },
     "popper_compat": {
       "version": "generated",

@@ -305,7 +305,7 @@ class HOOTCommon(odoo.tests.HttpCase):
         so a single suite or a single test can be driven without editing this
         file. HOOT resolves each ``&id=`` against either a suite or a test, so a
         full test path narrows the run to one test — the key lever for a fast
-        edit/run loop (see web/tooling/scripts/hoot for a warm-server runner).
+        edit/run loop (see tooling/hoot/hoot for a warm-server runner).
         """
         if self.hoot_filters:
             id_filters = self.hoot_filters
@@ -429,7 +429,7 @@ class WebSuite(HOOTCommon):
         self._check_forbidden_statements("web.assets_unit_tests")
 
     def test_shard_runner_covers_ci(self):
-        """``tooling/scripts/hoot-shard`` must run every test file CI runs.
+        """``tooling/hoot/hoot-shard`` must run every test file CI runs.
 
         It presents itself as the full web suite, so a suite missing from it
         reads as "the whole thing is green". Its list used to be a hand-kept
@@ -460,8 +460,16 @@ class WebSuite(HOOTCommon):
 
     @staticmethod
     def _load_shard_runner():
-        """Import ``hoot_lib`` and the extension-less ``hoot-shard`` CLI."""
-        scripts = Path(file_path("web/tooling/scripts"))
+        """Import ``hoot_lib`` and the extension-less ``hoot-shard`` CLI.
+
+        The runner lives in the repo-root ``tooling/`` tree, outside any addons
+        path, so ``file_path`` cannot reach it — walk up for ``odoo-bin``, the
+        same anchor the runner itself uses.
+        """
+        root = next(
+            p for p in Path(__file__).resolve().parents if (p / "odoo-bin").is_file()
+        )
+        scripts = root / "tooling" / "hoot"
         sys.path.insert(0, str(scripts))
         try:
             hoot_lib = importlib.import_module("hoot_lib")

@@ -16,7 +16,7 @@ Only the **desktop** preset is wired (mobile-tagged tests such as
 with ``mail``'s suite; a mobile pass can be added once validated there.
 
 Fast local runs use the warm-server runner instead:
-``addons/web/tooling/scripts/hoot --db hoot_test_mail '@test_mail/activity'``.
+``tooling/hoot/hoot --db hoot_test_mail '@test_mail/activity'``.
 """
 
 from pathlib import Path

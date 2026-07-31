@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """generate_service_types.py — emit ``@types/services.d.ts`` from JS source.
 
-Produces ``addons/odoo/addons/web/static/src/@types/services.d.ts`` from
+Produces ``addons/web/static/src/@types/services.d.ts`` from
 the actual ``registry.category("services").add(...)`` call sites under
-``addons/odoo/addons/web/static/src/``.  The hand-maintained file drifts
+``addons/web/static/src/``.  The hand-maintained file drifts
 silently when a service is added or moved (one observed drift on
 2026-05-10: ``httpService`` was imported from ``@web/core/network/http_service``
 but the registration lives in ``@web/services/http_service``).  Pairs
@@ -14,18 +14,20 @@ TS18047/TS18048 baseline.
 USAGE
 -----
 
+All paths below are relative to the odoo checkout root (the directory
+holding ``odoo-bin``); nothing here assumes a particular machine.
+
 Regenerate the file in place::
 
-    cd /home/marin/Odoo
-    python addons/odoo/addons/web/tooling/scripts/generate_service_types.py
+    python tooling/codegen/generate_service_types.py
 
 Convenience wrapper (matches ``regen_model_types.sh``)::
 
-    ./addons/odoo/addons/web/tooling/scripts/regen_service_types.sh
+    ./tooling/codegen/regen_service_types.sh
 
 CI freshness check (paired with the existing scope_gate pattern)::
 
-    python addons/odoo/addons/web/tooling/scripts/generate_service_types.py --check
+    python tooling/codegen/generate_service_types.py --check
     # exits non-zero if the committed file disagrees with the regenerated one
 
 DESIGN CHOICES
@@ -73,8 +75,14 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[6]
-WEB_SRC_ROOT = REPO_ROOT / "addons/odoo/addons/web/static/src"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
+# Anchored on the checkout root, not the workspace: the previous `parents[6]`
+# resolved to the workspace and hardcoded `addons/odoo/...` beneath it, so this
+# generator could not run in a repo-alone CI checkout at all.
+ODOO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="generate_service_types")
+WEB_SRC_ROOT = ODOO_ROOT / "addons/web/static/src"
 DEFAULT_OUTPUT = WEB_SRC_ROOT / "@types/services.d.ts"
 
 _DIRECT_CHAIN = r'registry\s*\.\s*category\s*\(\s*"services"\s*\)'
@@ -93,6 +101,15 @@ _EXPORT_CONST_RE = re.compile(
 )
 
 _SKIP_FRAGMENTS = ("/tests/", "/legacy/")
+
+
+def _rel(path: Path) -> Path:
+    """Path relative to the checkout root, so output never leaks a machine layout."""
+    try:
+        return path.resolve().relative_to(ODOO_ROOT)
+    except ValueError:
+        return path
+
 
 _CATEGORY_ORDER: list[tuple[str, str]] = [
     ("core", "Core infrastructure services"),
@@ -345,28 +362,25 @@ def main() -> int:
             current = output_path.read_text(encoding="utf-8")
         except FileNotFoundError:
             print(
-                f"✗ {output_path} does not exist. Run without --check to generate.",
+                f"✗ {_rel(output_path)} does not exist. "
+                f"Run without --check to generate.",
                 file=sys.stderr,
             )
             return 1
         if current != new_content:
             print(
-                f"✗ {output_path} is out of date.\n"
-                f"  Run: python {Path(__file__).relative_to(REPO_ROOT)}",
+                f"✗ {_rel(output_path)} is out of date.\n"
+                f"  Run: python {_rel(Path(__file__).resolve())}",
                 file=sys.stderr,
             )
             return 1
         if not args.quiet:
-            print(f"✓ {output_path.relative_to(REPO_ROOT)} is up to date.")
+            print(f"✓ {_rel(output_path)} is up to date.")
         return 0
 
     output_path.write_text(new_content, encoding="utf-8")
     if not args.quiet:
-        try:
-            rel = output_path.relative_to(REPO_ROOT)
-        except ValueError:
-            rel = output_path
-        print(f"✓ Wrote {len(registrations)} services to {rel}")
+        print(f"✓ Wrote {len(registrations)} services to {_rel(output_path)}")
     return 0
 
 

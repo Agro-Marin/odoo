@@ -6,7 +6,7 @@ name: Service Types Freshness
 # hand-maintained ``@types/services.d.ts`` was found to have three
 # stale import paths (``httpService``, ``uiService``,
 # ``datetimePickerService``).  The generator
-# ``addons/web/tooling/scripts/generate_service_types.py`` is the source of truth;
+# ``tooling/codegen/generate_service_types.py`` is the source of truth;
 # this gate ensures the committed ``services.d.ts`` matches the
 # generator output.
 #
@@ -28,7 +28,7 @@ on:
       # Conservative — false positives are cheap (the gate is fast).
       - 'addons/web/static/src/**/*.js'
       - 'addons/web/static/src/@types/services.d.ts'
-      - 'addons/web/tooling/scripts/generate_service_types.py'
+      - 'tooling/codegen/generate_service_types.py'
 
 permissions:
   contents: read
@@ -59,7 +59,7 @@ jobs:
         id: gate
         run: |
           set +e
-          python addons/web/tooling/scripts/generate_service_types.py --check 2>&1 \
+          python tooling/codegen/generate_service_types.py --check 2>&1 \
             | tee /tmp/service-types-output.log
           GATE_EXIT=${PIPESTATUS[0]}
           set -e
@@ -79,12 +79,12 @@ jobs:
               echo ""
               echo "Run locally:"
               echo ""
-              echo "    ./addons/web/tooling/scripts/regen_service_types.sh"
+              echo "    ./tooling/codegen/regen_service_types.sh"
               echo ""
               echo "Then commit the regenerated file alongside your service change."
             fi
             echo ""
-            echo "Generator: \`addons/web/tooling/scripts/generate_service_types.py\`"
+            echo "Generator: \`tooling/codegen/generate_service_types.py\`"
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR (warn-only)
@@ -97,6 +97,6 @@ jobs:
               `Warn-only mode — does not block merge. See workflow Summary tab.`
             );
             core.warning(
-              `Run \`./addons/web/tooling/scripts/regen_service_types.sh\` ` +
+              `Run \`./tooling/codegen/regen_service_types.sh\` ` +
               `and commit the diff alongside your service change.`
             );
