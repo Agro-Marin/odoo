@@ -6,31 +6,11 @@ _logger = logging.getLogger(__name__)
 def migrate(cr, version):
     """Relabel bill lines recorded in a UoM cross-category with their order line.
 
-    ``action_match_lines`` used to pair an existing bill line with an existing
-    order line through a bare ``Command.link``, without checking that the two
-    units share a reference.  Such a pair makes ``qty_invoiced`` degrade to an
-    unconverted quantity for the rest of the order line's life, and makes the
-    matching screen raise on ``_compute_product_uom_qty``.  The guard added in
-    this version closes the flow; this normalizes the rows it let through.
-
-    Raw SQL rather than the ORM: ``product_uom_id`` feeds
-    ``_compute_price_unit`` (``@api.depends("product_id", "product_uom_id")``),
-    so writing it through the ORM re-prices the line from the supplier record
-    and rewrites ``price_subtotal``/``price_total`` on an already-posted bill.
-    Measured on a production clone: 20,243.62 became 23,482.17 while ``balance``
-    stayed put — an internally inconsistent entry.  A single-column UPDATE
-    changes the label and nothing else, which is the whole intent here.
-
-    Only rows whose invoiced quantity already equals the ordered quantity are
-    relabeled: that equality is what proves the defect is the label and not the
-    content.  A row quantified differently would *mean* something else once
-    relabeled, so it is left untouched and logged for human review.
-
     :param cr: database cursor
-    :param version: installed module version; falsy on a fresh install
+    :param version: module version being upgraded from
     """
     if not version:
-        return  # fresh install: no legacy data to normalize
+        return
 
     cross_category = """
         FROM account_move_line_purchase_order_line_rel rel
@@ -59,6 +39,8 @@ def migrate(cr, version):
             unresolved,
         )
 
+    # Raw SQL, not the ORM: `product_uom_id` feeds `_compute_price_unit`, which
+    # would re-price an already-posted bill from the supplier record.
     cr.execute(
         f"""
         UPDATE account_move_line SET product_uom_id = sub.pol_uom_id
