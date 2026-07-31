@@ -261,6 +261,7 @@ export function normalizeValue(value) {
 
 /**
  * @param {any} value
+ * @returns {value is Tree}
  */
 export function isTree(value) {
     // Tested by tag, not by elimination: "any object that is not a Domain, an

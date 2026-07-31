@@ -4,8 +4,8 @@
 /** @module @web/core/tree/construct_expression_from_tree */
 
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
-/** @typedef {any} Tree */
-/** @import { Condition, Options } from "@web/core/tree/condition_tree" */
+/** @import { Tree } from "@web/core/tree/condition_tree" */
+/** @import { Condition, Connector, Options } from "@web/core/tree/condition_tree" */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { isValidPath, not } from "@web/core/tree/ast_utils";
@@ -47,6 +47,19 @@ function isX2Many(ast, options) {
 
 /**
  * @param {Tree} tree
+ * @returns {tree is Connector}
+ */
+function isSimpleAnd(tree) {
+    return (
+        tree.type === "connector" &&
+        tree.value === "&" &&
+        !tree.negate &&
+        tree.children.length === 2
+    );
+}
+
+/**
+ * @param {Tree} tree
  * @param {Options} options
  * @param {boolean} [isRoot=false]
  * @returns {string}
@@ -58,26 +71,20 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
         !tree.negate &&
         tree.children.length === 2
     ) {
-        const isSimpleAnd = (/** @type {Tree} */ tree) =>
-            tree.type === "connector" &&
-            tree.value === "&" &&
-            !tree.negate &&
-            tree.children.length === 2;
-        if (tree.children.every((/** @type {Tree} */ c) => isSimpleAnd(c))) {
-            const [c1, c2] = tree.children;
+        const [c1, c2] = tree.children;
+        if (isSimpleAnd(c1) && isSimpleAnd(c2)) {
             for (let i = 0; i < 2; i++) {
                 const c1Child = c1.children[i];
-                const str1 = _constructExpressionFromTree({ ...c1Child }, options);
+                const str1 = _constructExpressionFromTree(c1Child, options);
                 for (let j = 0; j < 2; j++) {
                     const c2Child = c2.children[j];
                     const str2 = _constructExpressionFromTree(c2Child, options);
                     if (str1 === `not ${str2}` || `not ${str1}` === str2) {
                         const others = [c1.children[1 - i], c2.children[1 - j]];
-                        const str = _constructExpressionFromTree(c1Child, options);
                         const strs = others.map((c) =>
                             _constructExpressionFromTree(c, options),
                         );
-                        const expression = `${strs[0]} if ${str} else ${strs[1]}`;
+                        const expression = `${strs[0]} if ${str1} else ${strs[1]}`;
                         return isRoot ? expression : `( ${expression} )`;
                     }
                 }
@@ -120,12 +127,15 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
         return path.toString();
     }
 
+    if (typeof operator !== "string") {
+        throw new Error("Invalid operator");
+    }
     const op = operator === "=" ? "==" : operator;
-    if (typeof op !== "string" || !COMPARATORS.includes(op)) {
+    if (!COMPARATORS.includes(op)) {
         throw new Error("Invalid operator");
     }
 
-    if ([0, 1].includes(path)) {
+    if (path === 0 || path === 1) {
         if (operator !== "=" || value !== 1) {
             throw new Error("Invalid condition");
         }

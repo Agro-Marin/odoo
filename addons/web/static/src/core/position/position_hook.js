@@ -11,6 +11,7 @@ import {
     useEffect,
     useRef,
 } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { reposition } from "@web/core/position/utils";
 import { omit } from "@web/core/utils/collections/objects";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
@@ -115,7 +116,7 @@ export function usePosition(refName, getTarget, options = {}) {
                     doc.addEventListener("scroll", scrollListener, { capture: true });
                     doc.addEventListener("load", throttledUpdate, { capture: true });
                 }
-                window.addEventListener("resize", throttledUpdate);
+                browser.addEventListener("resize", throttledUpdate);
                 return () => {
                     for (const doc of documents) {
                         doc.removeEventListener("scroll", scrollListener, {
@@ -125,7 +126,7 @@ export function usePosition(refName, getTarget, options = {}) {
                             capture: true,
                         });
                     }
-                    window.removeEventListener("resize", throttledUpdate);
+                    browser.removeEventListener("resize", throttledUpdate);
                 };
             },
             () => [getTarget()?.ownerDocument],

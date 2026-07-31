@@ -128,11 +128,6 @@ function parseNumber(value, options) {
 export class InvalidNumberError extends ParseError {}
 
 /**
- * @param {string} value
- * @param {{ allowOperation?: boolean }} [options]
- * @returns {number}
- */
-/**
  * Read ``value`` in the user's locale, falling back to the neutral one.
  *
  * The fallback exists because values reach the parsers from places that never
@@ -160,6 +155,11 @@ function parseInLocale(value) {
     return parsed;
 }
 
+/**
+ * @param {string} value
+ * @param {{ allowOperation?: boolean }} [options]
+ * @returns {number}
+ */
 export function parseFloat(value, { allowOperation = false } = {}) {
     if (typeof value === "string" && value.trim() === "") {
         return 0;

@@ -17,35 +17,55 @@ import { browser } from "./browser.js";
 export const PATH_KEYS = ["resId", "action", "active_id", "model"];
 
 /**
+ * @typedef {{
+ *  bus: EventBus,
+ *  started: boolean,
+ *  state: Record<string, any>,
+ *  pushTimeout: ReturnType<typeof browser.setTimeout> | undefined,
+ *  pushArgs: PushArgs,
+ *  lockedKeys: Set<string>,
+ *  hiddenKeysFromUrl: Set<string>,
+ *  ephemeralStack: (object | null)[],
+ *  unwindingEphemerals: boolean,
+ * }} RouterState
+ *
+ * @typedef {{
+ *  replace: boolean,
+ *  reload: boolean,
+ *  state: Record<string, any>,
+ *  mode: "push" | "replace",
+ *  title?: string,
+ * }} PushArgs
+ */
+
+/**
  * Anchored on the global store like `rpc`, `registry`, `templates` and
  * `assets`. Evaluating this module twice otherwise gives two buses and two
  * current routes -- half the application listening to one and half pushing to
  * the other -- and registers its three window listeners a second time, so every
  * `popstate` is handled twice.
  *
- * @type {{
- *  bus: EventBus,
- *  started: boolean,
- *  state: Record<string, any>,
- *  pushTimeout: any,
- *  pushArgs: { replace: boolean, reload: boolean, state: Record<string, any>, mode: "push" | "replace", title?: string },
- *  lockedKeys: Set<string>,
- *  hiddenKeysFromUrl: Set<string>,
- *  ephemeralStack: (object | null)[],
- *  unwindingEphemerals: boolean,
- * }}
+ * The factory's return type is annotated rather than the binding: the literal
+ * is inferred on its own, so a `@type` on `_router` alone leaves `pushTimeout`
+ * and `ephemeralStack` implicitly `any`.
+ *
+ * @type {RouterState}
  */
-const _router = globalSingleton("router", () => ({
-    bus: new EventBus(),
-    started: false,
-    state: {},
-    pushTimeout: null,
-    pushArgs: { replace: false, reload: false, state: {}, mode: "replace" },
-    lockedKeys: new Set(),
-    hiddenKeysFromUrl: new Set(),
-    ephemeralStack: [],
-    unwindingEphemerals: false,
-}));
+const _router = globalSingleton(
+    "router",
+    () =>
+        /** @type {RouterState} */ ({
+            bus: new EventBus(),
+            started: false,
+            state: {},
+            pushTimeout: undefined,
+            pushArgs: { replace: false, reload: false, state: {}, mode: "replace" },
+            lockedKeys: new Set(),
+            hiddenKeysFromUrl: new Set(),
+            ephemeralStack: [],
+            unwindingEphemerals: false,
+        }),
+);
 
 export const routerBus = _router.bus;
 
@@ -300,7 +320,7 @@ function urlToState(/** @type {URL} */ urlObj) {
 }
 
 /**
- * @returns {{ replace: boolean, reload: boolean, state: Record<string, any>, mode: "push" | "replace" }}
+ * @returns {PushArgs}
  */
 function makePushArgs() {
     return { replace: false, reload: false, state: {}, mode: "replace" };
@@ -312,7 +332,7 @@ export function startRouter() {
     if (browser.location.pathname === "/web") {
         browser.history.replaceState(browser.history.state, "", url.href);
     }
-    _router.pushTimeout = null;
+    _router.pushTimeout = undefined;
     _router.pushArgs = makePushArgs();
     _router.ephemeralStack = [];
     _router.unwindingEphemerals = false;
@@ -463,7 +483,7 @@ function makeDebouncedPush(mode) {
         browser.clearTimeout(_router.pushTimeout);
         const push = () => {
             doPush();
-            _router.pushTimeout = null;
+            _router.pushTimeout = undefined;
             _router.pushArgs = makePushArgs();
         };
         if (options.sync) {
