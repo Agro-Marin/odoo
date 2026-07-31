@@ -3,7 +3,7 @@
 
 /** @module @web/components/pager/pager_indicator */
 
-import { Component, useState } from "@odoo/owl";
+import { Component, onWillUnmount, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
@@ -28,6 +28,7 @@ export class PagerIndicator extends Component {
             total: 0,
         });
         useBus(pagerBus, PAGER_UPDATED_EVENT, this.pagerUpdate);
+        onWillUnmount(() => browser.clearTimeout(this.startShowTimer));
     }
 
     /** @param {CustomEvent<{ value: string, total: number }>} ev */

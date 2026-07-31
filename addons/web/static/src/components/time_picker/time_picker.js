@@ -3,7 +3,7 @@
 
 /** @module @web/components/time_picker/time_picker */
 
-import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
+import { Component, onPatched, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -71,10 +71,21 @@ export class TimePicker extends Component {
         /** @type {Time[]} */
         this.suggestions = [];
         this.isNavigating = false;
+        this.isDirty = false;
         this.navigationOptions = this.getNavigationOptions();
         this.onPropsUpdated(this.props);
 
         onWillUpdateProps((nextProps) => this.onPropsUpdated(nextProps));
+        // Typing moves the DOM value without owl's vdom seeing it, so resetting
+        // the state back to the value it last rendered is a no-op patch and the
+        // rejected text stays on screen. Reconciling here is what actually makes
+        // the input controlled.
+        onPatched(() => {
+            const el = this.inputRef.el;
+            if (el && el.value !== this.state.inputValue) {
+                el.value = this.state.inputValue;
+            }
+        });
     }
 
     get cssClass() {
@@ -156,7 +167,7 @@ export class TimePicker extends Component {
             this.suggestions = this.getSuggestions(step);
         }
 
-        this.updateStateValue(Time.from(props.value));
+        this.updateStateValue(Time.from(props.value), props);
     }
 
     /**
@@ -220,28 +231,42 @@ export class TimePicker extends Component {
         }
 
         const lastValue = this.lastValue;
-        this.updateStateValue(newValue);
+        this.updateStateValue(newValue, this.props, true);
         if (newValue && !newValue.equals(lastValue, this.props.showSeconds)) {
             this.props.onChange(newValue.copy());
         }
     }
 
     /**
+     * The text in the box is derived from (value, showSeconds), so it has to be
+     * rewritten whenever either changes -- including when only the format does.
+     * The one exception is an edit in progress: those keystrokes belong to the
+     * user until they commit, and a commit always rewrites the box, so a
+     * rejected edit cannot leave unparseable text behind.
+     *
      * @param {Time|null} newValue
+     * @param {TimePickerProps} [props]
+     * @param {boolean} [force=false]
      */
-    updateStateValue(newValue) {
-        if (
+    updateStateValue(newValue, props = this.props, force = false) {
+        const rendered = newValue ? newValue.toString(props.showSeconds) : "";
+        const isSameInstant =
             newValue === this.lastValue ||
-            newValue?.equals(this.lastValue, this.props.showSeconds)
-        ) {
-            return;
-        }
+            newValue?.equals(this.lastValue, props.showSeconds);
 
         this.lastValue = newValue?.copy() ?? newValue;
         this.state.value = newValue;
-        this.state.inputValue = newValue
-            ? newValue.toString(this.props.showSeconds)
-            : "";
+
+        if (
+            this.state.inputValue !== rendered &&
+            isSameInstant &&
+            !force &&
+            this.isDirty
+        ) {
+            return;
+        }
+        this.isDirty = false;
+        this.state.inputValue = rendered;
         this.state.isValid = true;
     }
 
@@ -258,6 +283,7 @@ export class TimePicker extends Component {
      */
     onInput(event) {
         this.ensureOpen();
+        this.isDirty = true;
 
         const value = parseTime(this.inputRef.el.value, this.props.showSeconds);
         this.state.isValid = value !== null;
@@ -281,6 +307,8 @@ export class TimePicker extends Component {
     onChange() {
         const value = parseTime(this.inputRef.el.value, this.props.showSeconds);
         this.state.isValid = value !== null;
+        // The edit is over either way: from here the box shows the value.
+        this.isDirty = false;
         if (this.state.isValid) {
             this.setValue(value);
             this.close();

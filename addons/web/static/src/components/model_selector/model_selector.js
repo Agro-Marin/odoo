@@ -3,7 +3,7 @@
 
 /** @module @web/components/model_selector/model_selector */
 
-import { Component, onWillStart } from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -28,28 +28,37 @@ export class ModelSelector extends Component {
     setup() {
         this.orm = useService("orm");
 
-        onWillStart(async () => {
-            if (!this.props.models) {
-                this.models = await this._fetchAvailableModels();
-            } else {
-                this.models = await this.orm.call("ir.model", "display_name_for", [
-                    this.props.models,
-                ]);
+        onWillStart(() => this.loadModels(this.props));
+        onWillUpdateProps((nextProps) => {
+            // Callers routinely mount with an empty list and fill it in from an
+            // rpc; loading only once would leave those selectors empty forever.
+            if (nextProps.models !== this.props.models) {
+                return this.loadModels(nextProps);
             }
-
-            this.models = this.models.map((record) => ({
-                cssClass: `o_model_selector_${record.model.replaceAll(".", "_")}`,
-                data: {
-                    technical: record.model,
-                },
-                label: record.display_name,
-                onSelect: () =>
-                    this.props.onModelSelected({
-                        label: record.display_name,
-                        technical: record.model,
-                    }),
-            }));
         });
+    }
+
+    /**
+     * @param {Record<string, any>} props
+     * @returns {Promise<void>}
+     */
+    async loadModels(props) {
+        const records = props.models
+            ? await this.orm.call("ir.model", "display_name_for", [props.models])
+            : await this._fetchAvailableModels();
+
+        this.models = records.map((record) => ({
+            cssClass: `o_model_selector_${record.model.replaceAll(".", "_")}`,
+            data: {
+                technical: record.model,
+            },
+            label: record.display_name,
+            onSelect: () =>
+                this.props.onModelSelected({
+                    label: record.display_name,
+                    technical: record.model,
+                }),
+        }));
     }
 
     /** @returns {Object[]} */

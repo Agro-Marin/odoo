@@ -1684,3 +1684,79 @@ test("a closed menu holds no rendered options", async () => {
     expect(menu.state.choices).toEqual([]);
     expect(menu.state.displayedOptions).toEqual([]);
 });
+
+test("selected-value lookup does not scan the selection per choice", async () => {
+    const CHOICES = 2000;
+    const choices = [...Array(CHOICES)].map((_, i) => ({ value: i, label: `C${i}` }));
+    // Selected values sit at the end so a linear scan cannot short-circuit.
+    const value = [...Array(100)].map((_, i) => CHOICES - 1 - i);
+
+    // Count only linear scans of the selection itself.
+    let scanned = 0;
+    const realIncludes = Array.prototype.includes;
+    patchWithCleanup(Array.prototype, {
+        includes(...args) {
+            if (this === value) {
+                scanned += this.length;
+            }
+            return realIncludes.apply(this, args);
+        },
+    });
+
+    let menu;
+    class Probe extends SelectMenu {
+        setup() {
+            super.setup();
+            menu = this;
+        }
+    }
+    class Parent extends Component {
+        static components = { SelectMenu: Probe };
+        static props = ["*"];
+        static template = xml`<SelectMenu multiSelect="true" choices="choices" value="value"/>`;
+        setup() {
+            this.choices = choices;
+            this.value = value;
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    scanned = 0;
+    menu.filterOptions("");
+    for (const choice of menu.state.displayedOptions) {
+        menu.getItemClass(choice);
+    }
+    // Without the set this is choices x selection, i.e. hundreds of thousands.
+    expect(scanned).toBe(0);
+});
+
+test("the selected set follows a new value", async () => {
+    const choices = [
+        { value: "a", label: "A" },
+        { value: "b", label: "B" },
+    ];
+    let menu;
+    class Probe extends SelectMenu {
+        setup() {
+            super.setup();
+            menu = this;
+        }
+    }
+    class Parent extends Component {
+        static components = { SelectMenu: Probe };
+        static props = ["*"];
+        static template = xml`<SelectMenu multiSelect="true" choices="choices" value="state.value"/>`;
+        setup() {
+            this.choices = choices;
+            this.state = useState({ value: ["a"] });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect(menu.isOptionSelected(choices[0])).toBe(true);
+    expect(menu.isOptionSelected(choices[1])).toBe(false);
+
+    parent.state.value = ["b"];
+    await animationFrame();
+    expect(menu.isOptionSelected(choices[0])).toBe(false);
+    expect(menu.isOptionSelected(choices[1])).toBe(true);
+});

@@ -118,6 +118,9 @@ export class CheckBox extends Component {
                 if (status(this) === "destroyed" || !this.syncWithValue()) {
                     return;
                 }
+                if (!this.env.debug) {
+                    return;
+                }
                 if (!CheckBox.warnedRevert.has(this.constructor)) {
                     CheckBox.warnedRevert.add(this.constructor);
                     console.warn(

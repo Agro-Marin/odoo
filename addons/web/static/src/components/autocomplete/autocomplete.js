@@ -89,6 +89,7 @@ export class AutoComplete extends Component {
         this.inEdition = false;
         this.mouseSelectionActive = false;
         this.isOptionSelected = false;
+        this.dismissed = false;
 
         this.state = useState({
             navigationRev: 0,
@@ -219,6 +220,7 @@ export class AutoComplete extends Component {
 
     open(useInput = false) {
         this.state.open = true;
+        this.dismissed = false;
         this._addGlobalListeners();
         return this.loadSources(useInput);
     }
@@ -462,7 +464,15 @@ export class AutoComplete extends Component {
             this.ignoreBlur = false;
             return;
         }
-        if (this.props.selectOnBlur && !this.isOptionSelected && !this.loadingPromise) {
+        // Escape and Tab are the user saying "not this one". Leaving the field
+        // afterwards must not resurrect the suggestion they just refused --
+        // unlike a plain blur, which is what selectOnBlur is for.
+        if (
+            this.props.selectOnBlur &&
+            !this.dismissed &&
+            !this.isOptionSelected &&
+            !this.loadingPromise
+        ) {
             this.state.activeSourceOption = this.selectablePositions[0] ?? null;
             if (this.activeOption) {
                 this.selectOption(this.activeOption);
@@ -549,6 +559,7 @@ export class AutoComplete extends Component {
                 if (!this.isOpened) {
                     return;
                 }
+                this.dismissed = true;
                 this.cancel();
                 break;
             case "tab":
@@ -563,6 +574,7 @@ export class AutoComplete extends Component {
                 ) {
                     this.selectOption(this.activeOption);
                 }
+                this.dismissed = true;
                 this.close();
                 return;
             case "arrowup":
