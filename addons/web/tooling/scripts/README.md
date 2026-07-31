@@ -36,6 +36,8 @@ cd addons/web/tooling/scripts
 ./hoot '@mail/discuss' '@bus'        # ANY addon's suites (see below)
 ./hoot --affected                    # only suites touched by your git diff
 ./hoot --affected path/to/file.js    # ...or by explicit changed files
+./hoot --affected --downstream       # ...plus affected suites in OTHER addons
+./hoot --isolate '@web/ui' '@web/model'   # one page load per suite, as CI runs them
 ./hoot --watch '@web/core/domain'    # re-run on any web JS change
 ./hoot --watch --affected            # watch + re-select affected each change
 
@@ -137,8 +139,46 @@ The suite name is derived exactly as `tests/_framework/start.hoot.js`
 (`_suiteNameFromSpecifier`) does, e.g. `web/static/tests/core/domain.test.js` →
 `@web/core/domain`, so the ids match what the real test loader registers.
 
-With no arguments the changed set is `git diff --name-only HEAD` inside
-`addons/odoo`, filtered to files under a `static/` tree.
+The scan covers **every addons-path root**, not just `addons/odoo/addons`. It
+used to stop there, so a changed `src` file in any of the 84 enterprise or 4
+agromarin modules that ship HOOT tests produced an empty list — indistinguishable
+from "nothing to run". With no arguments the changed set is
+`git diff --name-only HEAD` in **each** repository backing the addons path
+(they are four separate checkouts), filtered to files under a `static/` tree.
+
+Widening the graph also means a core file legitimately reaches ~100 suites across
+a dozen addons — more than a warm DB should install for an edit loop. By default
+only suites owned by the addons you actually edited are selected; `--downstream`
+returns the full set.
+
+> In this workspace several sessions share one worktree, so a bare `--affected`
+> picks up **everyone's** uncommitted changes (272 suites at the time of
+> writing). Pass your own paths explicitly.
+
+## `hoot-shard` — what it schedules, and why it isolates
+
+The suite list is **read from `web/tests/test_js.py`**, not restated. It used to
+be a hand-kept copy marked "KEEP IN SYNC" and had drifted: `@html_editor` (4766
+tests, 494 s — over a third of the desktop pass) and `@web/libs` were missing, so
+a run presenting itself as the full web suite covered 66% of the tests.
+`WebSuite.test_shard_runner_covers_ci` now fails the build if the resolved plan
+stops covering a test file CI runs.
+
+Any suite too heavy to balance is **split into its child suites** — a whole-addon
+id is one serial page load however long it runs, so `@html_editor` alone (494 s,
+against 620 s for all 36 other web suites combined) pinned one shard while the
+rest idled. It becomes 65 schedulable units. Unknown suites are weighted by test
+file count rather than a flat constant, which is what let a 494 s suite look like
+a 30 s one.
+
+Each shard runs **one suite per page load** (`hoot --isolate`), because batched
+suites do not give CI's answer in either direction. Batching `@web/views/fields`
+with eight others failed 7 daterange/datetime/statusbar tests deterministically
+on both presets — those same suites pass alone (1343 tests), exactly as
+`WebSuite.test_fields` runs them — and separately *masked* 2 real
+`form_save_coordinator` failures that a solo run surfaces. A further 4 desktop
+and 1 mobile failures came from CPU contention between concurrent shards and did
+not reproduce on an idle box. Isolation costs ~4% and removes all of it.
 
 ## `--watch`
 
@@ -168,6 +208,21 @@ finest granularity is a `WebSuite.test_*` *method* (e.g. `test_core` = the entir
 (`@web/core/domain`, ~5 s) with **zero** per-run ERP boot or bundle rebuild —
 roughly an 8x loop speedup here, and much more where booting the ERP costs the
 30-60 s+ described in the original loop.
+
+### Full-suite runs (measured 2026-07-30, this box, `-j 4`)
+
+| | before | after |
+|---|---|---|
+| desktop tests scheduled | 9 367 (66% — `@html_editor` and `@web/libs` were missing) | **14 209 (100%)** |
+| desktop wall | 192 s | **311 s** |
+| failures reported | 11, none reproducible outside the shard runner | **0** |
+| mobile tests | 9 393 | **2 225** |
+| mobile serial | ~875 s | **261 s** |
+
+Desktop got slower per test because it now runs the whole suite and gives each
+suite its own page; mobile got 3.4x faster because it stopped re-running the
+desktop suite at 375x667. Combined serial runtime went from ~1 992 s to
+~1 477 s **while covering a third more tests**.
 
 ## How it works (short version)
 
@@ -245,6 +300,7 @@ The warm runner is for the local edit/run loop. CI runs the same suites through
 | web | `web/tests/test_js.py` | `web_js` | `@web/*` (+ `@html_editor`), granular methods + coverage walk |
 | bus | `bus/tests/test_js.py` | `bus_js` | `@bus` (one selector covers the whole tree) |
 | mail | `mail/tests/test_js.py` | `mail_js` | `@mail/*`, fanned out + coverage walk |
+| *(the other 159)* | `web/tests/test_js_addons.py` | `addon_js` | one generated method per addon that bundles suites no runner names — 660 test files that never ran |
 
 ```bash
 # CI-style (boots the ERP; slow — use the warm runner above for the dev loop):

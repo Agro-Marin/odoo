@@ -5,7 +5,7 @@ Produces one ``<model_name>.d.ts`` per Odoo model under
 ``addons/odoo/addons/web/static/src/@types/models/<module>/`` so that
 ``RelationalRecord<"sale.order">.data.partner_id`` resolves to
 ``Many2one<"res.partner">`` instead of ``any``.  Pairs with the
-existing typecheck CI gate (``tooling/scripts/typecheck_gate.mjs``):
+existing typecheck CI gate (``tooling/typecheck/scope_gate.py``):
 the generated types resolve a large fraction of the baseline's
 ``TS18047`` / ``TS18048`` ("possibly null") errors that come from
 unknown ``record.data`` shape.

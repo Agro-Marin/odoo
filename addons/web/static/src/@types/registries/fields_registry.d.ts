@@ -69,11 +69,32 @@ declare module "registries" {
 
     type SupportedOptions = BooleanOption | FieldOption | NumberOption | SelectionOption | StringOption;
 
+    /**
+     * What callers put on a field's info on top of StaticFieldInfo. Declared
+     * (not folded into an index signature) because a destructuring parameter
+     * requires the property to exist: `extractProps: ({ placeholder }) => ...`
+     * is an error against a type that only has an index signature.
+     */
+    interface ExtraFieldInfo {
+        placeholder?: string;
+        displayPlaceholder?: boolean;
+        optional?: string | boolean;
+        relatedFields?: Record<string, any>;
+        viewMode?: string;
+        views?: Record<string, any>;
+        value?: any;
+        update?: (...args: any[]) => any;
+        [key: string]: any;
+    }
+
     export interface FieldsRegistryItemShape {
         additionalClasses?: string[];
         component: any;
         displayName?: TranslatableString;
-        extractProps?(...args: any[]): Record<string, any>;
+        extractProps?(
+            staticInfo: StaticFieldInfo & ExtraFieldInfo,
+            dynamicInfo: DynamicFieldInfo & Record<string, any>,
+        ): Record<string, any>;
         fieldDependencies?: Partial<StaticFieldInfo>[] | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);
         listViewWidth?: number | number[] | ((param: { type: string; hasLabel: boolean; }) => number | false);
         relatedFields?: Partial<StaticFieldInfo>[] | ((baseInfo: StaticFieldInfo) => Partial<StaticFieldInfo>[]);

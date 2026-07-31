@@ -73,9 +73,19 @@ C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
 # to the preset, not just told which preset to run. Applied unless the user
 # overrides --browser-size / --touch explicitly.
 PRESET_ENV = {
-    "desktop": {"size": "1366x768", "touch": False},
-    "mobile": {"size": "375x667", "touch": True},
+    "desktop": {"size": "1366x768", "touch": False, "tag": ""},
+    "mobile": {"size": "375x667", "touch": True, "tag": "-headless"},
 }
+"""``tag`` mirrors what ``tests/test_js.py`` sends per preset.
+
+``MobileWebSuite`` drives every one of its runs with ``tag="-headless"`` while
+``WebSuite`` sends none, because the mobile preset only excludes ``desktop`` --
+a ``headless`` test is DOM-free by definition and re-running it at 375x667
+buys nothing. Omitting it locally made the runner disagree with CI in the
+direction that hides work: a local mobile run is a strict *superset*, so
+tagging a suite ``headless`` produced no visible change here and a real one in
+CI. Override with ``--tag`` (``--tag ''`` clears it).
+"""
 
 
 def _color(txt: str, code: str) -> str:
@@ -159,7 +169,7 @@ def _report(result: H.RunResult) -> None:
 def _resolve_suites(args) -> list[str]:
     if args.affected:
         changed = H.changed_web_js(args.suites or None)
-        suites = H.affected_suites(changed)
+        suites = H.affected_suites(changed, downstream=args.downstream)
         if not suites:
             print(_color(
                 "No affected suites detected from the changed JS files.",
@@ -171,10 +181,39 @@ def _resolve_suites(args) -> list[str]:
     return list(args.suites)
 
 
+def _run_isolated(suites: list[str], state: dict, args) -> H.RunResult:
+    """Run each suite in its own page load, then merge the results.
+
+    Suites sharing one page do NOT give the same answer as CI, which drives one
+    ``_run_hoot`` per method: batching ``@web/views/fields`` with eight other
+    suites failed 7 daterange/datetime/statusbar tests, deterministically, on
+    both presets, and the same suites passed alone (1343 tests) exactly as CI
+    runs them. Isolation costs one Chrome launch per suite and buys results
+    that mean what CI means.
+    """
+    merged = H.RunResult(ok=True, suites=list(suites))
+    for suite in suites:
+        result = _run_once([suite], state, args)
+        merged.passed += result.passed
+        merged.failed += result.failed
+        merged.repeated += result.repeated
+        merged.wall += result.wall
+        merged.failed_tests.extend(result.failed_tests)
+        merged.incomplete = merged.incomplete or result.incomplete
+        merged.ok = merged.ok and result.ok
+        if result.error and not merged.error:
+            merged.error = result.error
+    return merged
+
+
 def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
     env = PRESET_ENV.get(args.preset, PRESET_ENV["desktop"])
     browser_size = args.browser_size or env["size"]
     touch = env["touch"] if args.touch is None else args.touch
+    tag = env["tag"] if args.tag is None else args.tag
+    extra = f"&tag={tag}" if tag else ""
+    if args.filter:
+        extra += f"&filter={args.filter}"
     return H.run_suites(
         suites,
         port=state["port"],
@@ -184,15 +223,22 @@ def _run_once(suites: list[str], state: dict, args) -> H.RunResult:
         wall_timeout_s=args.timeout,
         browser_size=browser_size,
         touch_enabled=touch,
-        extra=(f"&filter={args.filter}" if args.filter else ""),
+        extra=extra,
         verbose=args.verbose,
     )
 
 
 def _watch(suites: list[str], state: dict, args) -> int:
-    """Poll web/static/src + tests mtimes; re-run affected/given suites."""
+    """Poll the run's addons' static/src + tests mtimes; re-run on change.
+
+    Scoped to the addons the run touches: the addons path now carries ~1500
+    addons, and rglob-ing all of them each second is slower than the tests.
+    """
+    watched_addons = H.addons_for_suites(suites) | {"web"}
     watch_roots = []
-    for addon in (H.WEB_ADDONS_ROOT).iterdir():
+    for addon in H.iter_addon_dirs():
+        if addon.name not in watched_addons:
+            continue
         for kind in ("src", "tests"):
             d = addon / "static" / kind
             if d.is_dir():
@@ -243,7 +289,13 @@ def main() -> int:
                          "With --affected, these are treated as changed files.")
     ap.add_argument("--affected", action="store_true",
                     help="Run only suites affected by changed JS "
-                         "(default: git diff on addons/odoo).")
+                         "(default: git diff in every addons-path repo).")
+    ap.add_argument("--downstream", action="store_true",
+                    help="With --affected: also select affected suites owned "
+                         "by OTHER addons (a core file reaches ~100 of them).")
+    ap.add_argument("--isolate", action="store_true",
+                    help="Run each suite in its own page load, as CI does; "
+                         "batched suites pollute each other.")
     ap.add_argument("--watch", action="store_true",
                     help="Re-run on JS file changes (mtime poll).")
     ap.add_argument("--preset", default="desktop",
@@ -259,6 +311,10 @@ def main() -> int:
                     help="HOOT in-page timeout, ms (default: 15000).")
     ap.add_argument("--filter", default="",
                     help="Extra HOOT text filter appended to the URL.")
+    ap.add_argument("--tag", default=None,
+                    help="HOOT tag filter, e.g. '-headless' or 'desktop'. "
+                         "Defaults to what CI sends for the preset "
+                         "(mobile: -headless); pass '' to clear it.")
     ap.add_argument("--browser-size", default=None,
                     help="Chrome window WxH (default: from --preset, "
                          "e.g. mobile=375x667).")
@@ -327,7 +383,9 @@ def main() -> int:
     if args.watch:
         return _watch(suites, state, args)
 
-    result = _run_once(suites, state, args)
+    result = (_run_isolated if args.isolate and len(suites) > 1 else _run_once)(
+        suites, state, args
+    )
     _report(result)
     if result.failed:
         # Real failures are a failure whether or not the run was truncated.

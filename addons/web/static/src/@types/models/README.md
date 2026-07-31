@@ -98,4 +98,4 @@ add a server-side field need to regenerate the affected model and commit
 the diff. The companion CI job (planned, not yet built) diffs generated
 output against committed files and fails PRs whose `fields_get` differs
 from what's checked in — same strict-ratcheting pattern as
-`typecheck_gate.mjs`.
+`tooling/typecheck/scope_gate.py`.

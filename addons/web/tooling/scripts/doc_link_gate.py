@@ -14,7 +14,7 @@ currently-tolerated violations so CI never red-lights existing rot —
 only NEW broken references trigger a gate failure.
 
 Mirrors the API and exit-code contract of the sibling
-``typecheck_gate.mjs`` so operators recognise the pattern:
+``tooling/typecheck/scope_gate.py`` so operators recognise the pattern:
 
   exit 0 — no new violations (or first run with --update-baseline)
   exit 1 — at least one new broken reference vs baseline
@@ -70,12 +70,42 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[6]
+# This repo is checked out in two shapes and the gate must work in both: as
+# `<workspace>/addons/odoo` locally, and ALONE as the CI checkout root. Anchoring
+# on the workspace (`parents[6]`) silently made the CI run a no-op — it resolved
+# two levels ABOVE the checkout, so every glob missed, zero files were scanned and
+# the gate reported success with broken references in the tree.
+#
+# `parents[4]` is this repo's root in either shape: <repo>/addons/web/tooling/scripts.
+ODOO_ROOT = Path(__file__).resolve().parents[4]
+ODOO_SUBPATH = "addons/odoo"
+IN_WORKSPACE = ODOO_ROOT.parent.name == "addons" and ODOO_ROOT.name == "odoo"
+
+# Scanning and reference resolution happen against whatever root actually exists;
+# baseline KEYS stay workspace-shaped in both, so one baseline file serves both.
+REPO_ROOT = ODOO_ROOT.parents[1] if IN_WORKSPACE else ODOO_ROOT
+KEY_PREFIX = "" if IN_WORKSPACE else ODOO_SUBPATH + "/"
+
 DEFAULT_BASELINE_PATH = (
-    REPO_ROOT / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
+    ODOO_ROOT / "addons/web/tooling/scripts/doc_link_baseline.json"
 )
 
-DEFAULT_SCAN_GLOBS = [
+# Sibling repos that exist only in the workspace checkout. A reference into one
+# of them cannot be verified from a repo-alone checkout, so it is skipped rather
+# than reported as broken.
+WORKSPACE_ONLY_ROOTS = {
+    "knowledge",
+    "enterprise",
+    "design-themes",
+    "agromarin",
+    "venv",
+    "config",
+}
+
+# Written workspace-shaped, i.e. in the baseline's key space. `_localise` strips
+# the `addons/odoo/` prefix for a repo-alone checkout and drops the entries that
+# live outside this repo.
+CANONICAL_SCAN_GLOBS = [
     "addons/odoo/addons/web/machine_doc_v1/*.md",
     "addons/odoo/.github/workflows/*.yml",
     "CLAUDE.md",
@@ -85,6 +115,17 @@ DEFAULT_SCAN_GLOBS = [
     "knowledge/agromarin-knowledge/plans/*.md",
     "knowledge/agromarin-knowledge/reference/**/*.md",
 ]
+
+
+def _localise(globs: list[str]) -> list[str]:
+    """Rewrite workspace-shaped globs for the current checkout layout."""
+    if IN_WORKSPACE:
+        return list(globs)
+    prefix = ODOO_SUBPATH + "/"
+    return [g[len(prefix) :] for g in globs if g.startswith(prefix)]
+
+
+DEFAULT_SCAN_GLOBS = _localise(CANONICAL_SCAN_GLOBS)
 
 DEFAULT_EXCLUDES = [
     "**/node_modules/**",
@@ -114,6 +155,17 @@ PLACEHOLDER_MARKERS = (
 def _is_placeholder(raw_path: str) -> bool:
     """True if the ref is documentation pseudo-syntax, not a real path."""
     return any(marker in raw_path for marker in PLACEHOLDER_MARKERS)
+
+
+def _is_unverifiable(raw_path: str) -> bool:
+    """True if the ref points into a sibling repo absent from this checkout.
+
+    Reporting it as broken would be a false positive: the target may exist
+    perfectly well in the workspace this repo is normally mounted into.
+    """
+    if IN_WORKSPACE:
+        return False
+    return _strip_anchor(raw_path).lstrip("/").split("/", 1)[0] in WORKSPACE_ONLY_ROOTS
 
 
 @dataclass(frozen=True)
@@ -256,7 +308,7 @@ def scan(
         except OSError, UnicodeDecodeError:
             continue
         for line, raw_path in _extract_refs(content):
-            if _is_placeholder(raw_path):
+            if _is_placeholder(raw_path) or _is_unverifiable(raw_path):
                 continue
             resolved = _resolve_ref(source_file, raw_path)
             if resolved is None:
@@ -268,7 +320,8 @@ def scan(
                 )
                 violations.append(
                     Violation(
-                        source_file=str(source_file.relative_to(REPO_ROOT)),
+                        source_file=KEY_PREFIX
+                        + str(source_file.relative_to(REPO_ROOT)),
                         line=line,
                         raw_path=raw_path,
                         resolved_path=attempted,

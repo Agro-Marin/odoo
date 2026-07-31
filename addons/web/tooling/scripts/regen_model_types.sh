@@ -3,7 +3,7 @@
 #
 # Resolves the venv + Odoo config from the workspace conventions and
 # invokes generate() over the supplied modules/models.  Inspired by the
-# typecheck baseline workflow (`typecheck_gate.mjs`); intentionally
+# typecheck lock workflow (`tooling/typecheck/scope_gate.py`); intentionally
 # minimal — feature requests should land in the Python script, not here.
 #
 # USAGE

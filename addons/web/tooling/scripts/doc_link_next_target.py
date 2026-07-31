@@ -2,7 +2,7 @@
 """doc_link_next_target.py — rank baselined files by cleanup leverage.
 
 Companion to ``doc_link_gate.py``; mirrors the ergonomics of the
-sibling ``typecheck_next_target.mjs``: rather than asking "what should
+sibling ``tooling/typecheck/scope_gate.py --report``: rather than asking "what should
 I fix?" each cleanup-hour cadence, this script reads the current
 baseline and prints the top-N candidates ordered by (violation count
 × per-violation ease).
@@ -61,10 +61,11 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[6]
-DEFAULT_BASELINE_PATH = (
-    REPO_ROOT / "addons/odoo/addons/web/tooling/scripts/doc_link_baseline.json"
-)
+# parents[4] is this repo's root whether it is checked out as
+# `<workspace>/addons/odoo` or alone; anchoring on the workspace breaks the
+# repo-alone case. Same fix as doc_link_gate.py.
+ODOO_ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_BASELINE_PATH = ODOO_ROOT / "addons/web/tooling/scripts/doc_link_baseline.json"
 
 AUTHORITATIVE_PATHS = (
     "addons/odoo/addons/web/machine_doc_v1/",

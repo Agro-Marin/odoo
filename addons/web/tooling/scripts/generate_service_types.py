@@ -7,7 +7,7 @@ the actual ``registry.category("services").add(...)`` call sites under
 silently when a service is added or moved (one observed drift on
 2026-05-10: ``httpService`` was imported from ``@web/core/network/http_service``
 but the registration lives in ``@web/services/http_service``).  Pairs
-with ``typecheck_gate.mjs``: a typed service registry resolves
+with ``tooling/typecheck/scope_gate.py``: a typed service registry resolves
 ``useService("orm")`` to ``ORM`` instead of ``any``, shrinking the
 TS18047/TS18048 baseline.
 
@@ -23,7 +23,7 @@ Convenience wrapper (matches ``regen_model_types.sh``)::
 
     ./addons/odoo/addons/web/tooling/scripts/regen_service_types.sh
 
-CI freshness check (paired with the existing typecheck_gate pattern)::
+CI freshness check (paired with the existing scope_gate pattern)::
 
     python addons/odoo/addons/web/tooling/scripts/generate_service_types.py --check
     # exits non-zero if the committed file disagrees with the regenerated one

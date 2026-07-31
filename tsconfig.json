@@ -14,10 +14,7 @@
         "skipLibCheck": true,
         "lib": ["ESNext", "DOM", "DOM.Iterable"],
         "disableSizeLimit": true,
-        "typeRoots": [
-            "*/static/src/@types",
-            "addons/mail/static/src/js/tooling/types"
-        ],
+        "types": [],
         "paths": {
             "@odoo/hoot": ["addons/web/static/lib/hoot/hoot.js"],
             "@odoo/hoot-mock": ["addons/web/static/lib/hoot/hoot-mock.js"],
@@ -128,7 +125,13 @@
         "**/lib/signature_pad",
         "**/lib/stacktracejs",
         "**/lib/zxing-library",
-        "**/l10n*",
+        // Anchored at addons/, NOT "**/l10n*": the loose glob was aimed at the
+        // l10n_* localisation addons but every path segment starting "l10n"
+        // matched it, so addons/web/static/tests/{core/l10n,l10n} — eight
+        // .test.js files — were dropped from the program. They reported no
+        // errors because nothing compiled them, and the default-deny gate
+        // counted that silence as eight files locked at zero.
+        "addons/l10n_*",
         "addons/spreadsheet/static/src/o_spreadsheet/o_spreadsheet.js"
     ]
 }

@@ -8,3 +8,21 @@ interface Element {
         selectors: string
     ): NodeListOf<E>;
 }
+
+interface MediaSettingsRange {
+    max: number;
+    min: number;
+    step: number;
+}
+
+interface MediaTrackCapabilities {
+    zoom?: MediaSettingsRange;
+}
+
+interface MediaTrackSettings {
+    zoom?: number;
+}
+
+interface MediaTrackConstraintSet {
+    zoom?: ConstrainDouble;
+}
