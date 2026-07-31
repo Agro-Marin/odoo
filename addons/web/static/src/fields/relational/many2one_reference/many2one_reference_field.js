@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one_reference/many2one_reference_field - Many2one field for Many2oneReference columns with dynamic relation model */
+/** @module @web/fields/relational/many2one_reference/many2one_reference_field */
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
@@ -13,7 +13,7 @@ import {
 export class Many2OneReferenceField extends Many2OneField {
     static template = "web.Many2OneReferenceField";
 
-    /** @returns {Object} Props for the inner Many2One component */
+    /** @returns {Object} */
     get m2oProps() {
         const relation = this.relation;
         const value = this.props.record.data[this.props.name];
@@ -23,11 +23,11 @@ export class Many2OneReferenceField extends Many2OneField {
             relation,
             value: value ? { id: value.resId, display_name: value.displayName } : false,
             readonly: this.props.readonly || !relation,
-            update: (changes) => this.update(changes),
+            update: (/** @type {any} */ changes) => this.update(changes),
         };
     }
 
-    /** @returns {string|false} Technical model name from the model_field */
+    /** @returns {string|false} */
     get relation() {
         const modelField = this.props.record.fields[this.props.name].model_field;
         if (!(modelField in this.props.record.data)) {

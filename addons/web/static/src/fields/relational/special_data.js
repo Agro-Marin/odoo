@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/special_data - OWL hook for loading and caching special data tied to a record lifecycle */
+/** @module @web/fields/relational/special_data */
 
 import {
     onWillDestroy,
@@ -15,28 +15,6 @@ import { useRecordObserver } from "@web/fields/hooks/record_observer";
 /** @import { Services } from "services" */
 
 /**
- * Components that must re-run their ``loadFn`` when a shared cache entry turns
- * out to be stale, keyed by the model's ``specialDataCaches`` map and then by
- * cache key.
- *
- * ``specialDataCaches`` deduplicates identical loads across every widget of a
- * view, which is why only the FIRST caller of a key ever reached
- * ``orm.cache(...)`` — and therefore why only that caller's ``callback`` was
- * registered. Every later widget sharing the key (two ``many2many_checkboxes``
- * over the same relation, a ``selection`` and a ``radio`` on the same
- * many2one) got the memoized promise and no subscription, so when the disk
- * cache came back with different data one widget refreshed and its twins kept
- * rendering the stale option list until the next record change.
- *
- * Note the layering: ``rpc_cache.read`` ALREADY multiplexes subscribers over
- * one in-flight request, precisely for this. The dedupe here sits a layer
- * above it and hid that from it, so the fix is to re-establish the fan-out at
- * this layer rather than to bypass the memo (which would cost one refetch per
- * widget, since these entries are read with ``update: "always"``).
- *
- * A ``WeakMap`` keyed on the model's own map keeps this per-model and lets it
- * die with the model.
- *
  * @type {WeakMap<Map<string, Promise<any>>, Map<string, Set<() => void>>>}
  */
 const staleReloadSubscribers = new WeakMap();
@@ -61,10 +39,6 @@ function subscribersFor(specialDataCaches, key) {
 }
 
 /**
- * Hook for loading and caching special data (e.g. selection options) tied to a
- * record's lifecycle. Uses ORM disk cache with change detection to keep the
- * data fresh across record navigation.
- *
  * @template T, [Props=any]
  * @param {(orm: Services["orm"], props: Component<Props>["props"]) => Promise<T>} loadFn
  * @returns {{ data: T }}
@@ -82,8 +56,6 @@ export function useSpecialData(loadFn) {
             result.data = data;
         }
     };
-    // Function declaration, not a const: it and `ormWithCache` reference each
-    // other, and only this direction can be hoisted.
     function reloadOnStaleCache() {
         if (status(component) === "destroyed") {
             return;
@@ -92,7 +64,6 @@ export function useSpecialData(loadFn) {
         loadFn(ormWithCache, component.props).then((res) => apply(ticket, res));
     }
 
-    /** Subscriber sets this hook joined, so it can leave every one on destroy. */
     const joinedSubscribers = new Set();
     onWillDestroy(() => {
         for (const subscribers of joinedSubscribers) {
@@ -117,8 +88,6 @@ export function useSpecialData(loadFn) {
                         if (!hasChanged) {
                             return;
                         }
-                        // Snapshot: a subscriber may unsubscribe (destroy)
-                        // while the loop runs.
                         for (const subscriber of [...subscribers]) {
                             subscriber();
                         }

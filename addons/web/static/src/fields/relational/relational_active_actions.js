@@ -1,21 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/relational_active_actions - Reactive OWL hook for computing x2many field CRUD permissions */
+/** @module @web/fields/relational/relational_active_actions */
 
 import { onWillUpdateProps, useComponent } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 
 /**
- * @typedef {Object} RelationalActiveActions {
+ * @typedef {Object} RelationalActiveActions
  * @property {"x2m"} type
  * @property {boolean} create
- * @property {boolean | undefined} createEdit ``undefined`` when no
- *   ``createEdit`` crud option was supplied, and that is load-bearing rather
- *   than sloppy: ``Many2XAutocomplete.addCreateEditSuggestion`` reads
- *   ``createEdit ?? create``, so "unset" means "follow create" while ``false``
- *   means "explicitly denied". Coercing it to a boolean would silently remove
- *   the "Create and edit..." entry from every x2many that never set the option.
+ * @property {boolean | undefined} createEdit
  * @property {boolean} delete
  * @property {boolean} [link]
  * @property {boolean} [unlink]
@@ -33,34 +28,13 @@ const STANDARD_ACTIVE_ACTIONS = [
 ];
 
 /**
- * The per-props inputs a caller's ``getEvalParams`` supplies to one
- * recomputation of the active actions.
- *
- * Every member is optional, and that is the point: the default
- * ``getEvalParams`` returns ``{}``, and ``compute`` supplies its own fallbacks
- * (``evalContext = {}``, ``readonly = true``, and ``edit ?? crudOptions.edit``
- * for callers that still pass ``edit`` through ``crudOptions``). Naming the
- * shape here replaces two implicit contracts that disagreed: ``getEvalParams``
- * was declared to return an untyped ``Record<any, any>``, while ``compute``'s
- * parameter type was inferred from its destructuring pattern — which made
- * ``edit`` REQUIRED, since it alone has no default in the pattern. The two were
- * therefore mutually unassignable even though the runtime contract is exactly
- * "any subset of these three".
- *
  * @typedef {Object} ActiveActionsEvalParams
- * @property {Object} [evalContext] context the CRUD domains are evaluated against
- * @property {boolean} [readonly] whether the field is currently readonly
- * @property {boolean} [edit] per-props edit permission; falls back to
- *   ``crudOptions.edit``
+ * @property {Object} [evalContext]
+ * @property {boolean} [readonly]
+ * @property {boolean} [edit]
  */
 
 /**
- * Reactive OWL hook for x2m field CRUD permissions. Complements the static
- * `getActiveActions()` in `@web/views/view_utils` which parses view-level XML attributes.
- * The two are intentionally separate: view-level actions are parsed once at arch parse
- * time, while field-level actions are evaluated reactively against domain expressions
- * and fed through `subViewActiveActions`.
- *
  * @param {Object} params
  * @param {string} params.fieldType
  * @param {Record<string, boolean>} [params.subViewActiveActions={}]

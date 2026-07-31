@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_checkboxes/many2many_checkboxes_field - Checkbox group field for Many2many relations */
+/** @module @web/fields/relational/many2many_checkboxes/many2many_checkboxes_field */
 
 import { Component, onWillRender, onWillUnmount, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -49,14 +49,6 @@ export class Many2ManyCheckboxesField extends Component {
             }
             return items;
         });
-        // Reactive, because they are render inputs: a click is only written
-        // to the model 500ms later, so until then these two lists ALONE decide
-        // what `isSelected` reports. Held in bare Sets, a toggle changed
-        // nothing owl could see, no re-render followed, and `CheckBox.toggle`
-        // then re-asserted its unchanged `value` prop onto the input — the box
-        // the user had just clicked snapped back. Arrays rather than Sets:
-        // owl's reactivity covers plain objects and arrays, not Set/Map, and
-        // an id-keyed object would stringify the ids.
         this.pending = useState({ add: [], remove: [] });
         this.debouncedCommitChanges = debounce(this.commitChanges.bind(this), 500);
         onWillRender(() => {
@@ -82,13 +74,13 @@ export class Many2ManyCheckboxesField extends Component {
         });
     }
 
-    /** @returns {Array<[number, string]>} Name-search results for available checkboxes */
+    /** @returns {Array<[number, string]>} */
     get items() {
         return this.specialData.data;
     }
 
     /**
-     * @param {[number, string]} item - A [resId, displayName] pair
+     * @param {[number, string]} item
      * @returns {boolean}
      */
     isSelected(item) {
@@ -99,7 +91,7 @@ export class Many2ManyCheckboxesField extends Component {
         return this.currentIds.has(id) || this.pending.add.includes(id);
     }
 
-    /** @returns {Promise|undefined} Flushes pending add/remove changes to the relation */
+    /** @returns {Promise|undefined} */
     commitChanges() {
         const { add, remove } = this.pending;
         if (!add.length && !remove.length) {
@@ -132,6 +124,7 @@ export class Many2ManyCheckboxesField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const many2ManyCheckboxesField = {
     component: Many2ManyCheckboxesField,
     displayName: _t("Checkboxes"),

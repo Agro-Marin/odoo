@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one/many2one - Core Many2One autocomplete component with search, navigation, and barcode support */
+/** @module @web/fields/relational/many2one/many2one */
 
 import { Component, toRaw, useRef, useState } from "@odoo/owl";
 import { BarcodeScanner } from "@web/components/barcode/barcode_dialog";
@@ -17,7 +17,7 @@ import { usePopover } from "@web/ui/popover/popover_hook";
 import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.js";
 
 /**
- * @param {Object} record - Raw record data with id and display_name/name
+ * @param {Object} record
  * @returns {{ id: number, display_name: string }}
  */
 export function extractData(record) {
@@ -31,8 +31,8 @@ export function extractData(record) {
 }
 
 /**
- * @param {Object} fieldProps - Many2OneField component props
- * @returns {Object} Props for the inner Many2One component
+ * @param {Object} fieldProps
+ * @returns {Object}
  */
 export function computeM2OProps(fieldProps) {
     const computeLinkCssClass = () => {
@@ -87,15 +87,6 @@ export class Many2One extends Component {
     static components = { Many2XAutocomplete };
 
     /**
-     * Shared display-name cache, used to publish a freshly-read name so every
-     * other on-screen widget referencing the same record updates too.
-     *
-     * Declared as a field so its type is not `… | undefined`: it is assigned
-     * from `useService("name")` in `setup()`. Safe for an OWL component (OWL
-     * constructs, then calls `setup()`); see Pattern 7 in
-     * `machine_doc_v1/JSDOC_TYPE_TIGHTENING.md`. The type is DERIVED from the
-     * service rather than restated, so it cannot drift from it.
-     *
      * @type {ReturnType<typeof import("@web/services/name_service").nameService.start>}
      */
     nameService;
@@ -223,7 +214,7 @@ export class Many2One extends Component {
         };
     }
 
-    /** @returns {Object} Props forwarded to the Many2XAutocomplete sub-component */
+    /** @returns {Object} */
     get many2XAutocompleteProps() {
         return {
             activeActions: this.activeActions,
@@ -257,7 +248,7 @@ export class Many2One extends Component {
         };
     }
 
-    /** @returns {string} First line of the display name, or empty string */
+    /** @returns {string} */
     get displayName() {
         if (this.props.value) {
             if (this.props.value.display_name) {
@@ -270,7 +261,7 @@ export class Many2One extends Component {
         }
     }
 
-    /** @returns {string[]} Additional lines from a multiline display name */
+    /** @returns {string[]} */
     get extraLines() {
         const name = this.props.value?.display_name;
         return name
@@ -281,7 +272,7 @@ export class Many2One extends Component {
             : [];
     }
 
-    /** @returns {boolean} Whether to show the barcode scanner button */
+    /** @returns {boolean} */
     get hasBarcodeButton() {
         const supported = isBarcodeScannerSupported();
         return (
@@ -292,7 +283,7 @@ export class Many2One extends Component {
         );
     }
 
-    /** @returns {boolean} Whether to show the external link button */
+    /** @returns {boolean} */
     get hasLinkButton() {
         return (
             this.props.canOpen &&
@@ -306,7 +297,7 @@ export class Many2One extends Component {
         return this.rootRef.el?.querySelector("input") ?? null;
     }
 
-    /** @returns {string} URL path to the linked record's form view */
+    /** @returns {string} */
     get linkHref() {
         if (!this.props.value) {
             return "/";
@@ -317,7 +308,6 @@ export class Many2One extends Component {
         return `/odoo/${relation}/${this.props.value.id}`;
     }
 
-    /** Opens the device barcode scanner and processes the result */
     async openBarcodeScanner() {
         const barcode = await BarcodeScanner.scanBarcode(this.env);
         if (barcode) {
@@ -351,7 +341,7 @@ export class Many2One extends Component {
         }
     }
 
-    /** @param {boolean} newWindow - Whether to open in a new browser tab */
+    /** @param {boolean} newWindow */
     async openRecordInAction(newWindow) {
         const action = await this.orm.call(
             this.props.relation,
@@ -362,7 +352,6 @@ export class Many2One extends Component {
         await this.action.doAction(action, { newWindow });
     }
 
-    /** Opens the linked record in a FormViewDialog */
     async openRecordInDialog() {
         return this.recordDialog.open({
             resId: this.props.value?.id,
@@ -370,7 +359,7 @@ export class Many2One extends Component {
         });
     }
 
-    /** @param {string} barcode - Scanned barcode string to search for */
+    /** @param {string} barcode */
     async processScannedBarcode(barcode) {
         const pairs = await this.orm.call(this.props.relation, "name_search", [], {
             name: barcode,
@@ -397,7 +386,7 @@ export class Many2One extends Component {
     }
 
     /**
-     * @param {string} name - Display name for the new quick-created record
+     * @param {string} name
      * @returns {Promise}
      */
     quickCreate(name) {
@@ -441,7 +430,7 @@ export class KanbanMany2One extends Component {
         });
     }
 
-    /** @param {HTMLElement} target - DOM element to anchor the popover to */
+    /** @param {HTMLElement} target */
     openAssignPopover(target) {
         this.assignPopover.open(target, {
             ...this.props,

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_binary/many2many_binary_field - File attachment list field for Many2many relations to ir.attachment */
+/** @module @web/fields/relational/many2many_binary/many2many_binary_field */
 
 import { Component } from "@odoo/owl";
 import { FileInput } from "@web/components/file_input/file_input";
@@ -24,6 +24,11 @@ export class Many2ManyBinaryField extends Component {
         numberOfFiles: { type: Number, optional: true },
     };
 
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {ReturnType<typeof useX2ManyCrud>} */
+    operations;
+
     setup() {
         this.orm = useService("orm");
         this.notification = useService("notification");
@@ -33,21 +38,23 @@ export class Many2ManyBinaryField extends Component {
         );
     }
 
-    /** @returns {string} Field label used as upload button text */
+    /** @returns {string} */
     get uploadText() {
         return this.props.record.fields[this.props.name].string;
     }
-    /** @returns {Array<Object>} Attachment data objects with `id` set to resId */
+    /** @returns {Array<Object>} */
     get files() {
-        return this.props.record.data[this.props.name].records.map((record) => ({
-            ...record.data,
-            id: record.resId,
-        }));
+        return this.props.record.data[this.props.name].records.map(
+            (/** @type {any} */ record) => ({
+                ...record.data,
+                id: record.resId,
+            }),
+        );
     }
 
     /**
-     * @param {number} id - Attachment record ID
-     * @returns {string} Download URL for the attachment
+     * @param {number} id
+     * @returns {string}
      */
     getUrl(id) {
         return `/web/content/${id}?download=true`;
@@ -55,7 +62,15 @@ export class Many2ManyBinaryField extends Component {
 
     /**
      * @param {{ name: string }} file
-     * @returns {string} File extension without the leading dot
+     * @returns {string}
+     */
+    getDownloadTooltip(file) {
+        return _t("Download %s", file.name);
+    }
+
+    /**
+     * @param {{ name: string }} file
+     * @returns {string}
      */
     getExtension(file) {
         return file.name.replace(/^.*\./, "");
@@ -69,7 +84,7 @@ export class Many2ManyBinaryField extends Component {
         return file.mimetype.startsWith("image/");
     }
 
-    /** @param {Array<{ id: number, error?: string }>} files - Uploaded file descriptors */
+    /** @param {Array<{ id: number, error?: string }>} files */
     async onFileUploaded(files) {
         const uploadedIds = [];
         for (const file of files) {
@@ -87,21 +102,19 @@ export class Many2ManyBinaryField extends Component {
         }
     }
 
-    /** @param {number} deleteId - resId of the attachment to unlink */
+    /** @param {number} deleteId */
     async onFileRemove(deleteId) {
         const record = this.props.record.data[this.props.name].records.find(
-            (record) => record.resId === deleteId,
+            (/** @type {any} */ record) => record.resId === deleteId,
         );
         if (!record) {
-            // A double click on the remove icon reaches here twice for the
-            // same id; after the first removal the lookup misses and
-            // `forget(undefined)` throws. The tags widget already guards this.
             return;
         }
         return this.operations.removeRecord(record);
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const many2ManyBinaryField = {
     component: Many2ManyBinaryField,
     supportedOptions: [

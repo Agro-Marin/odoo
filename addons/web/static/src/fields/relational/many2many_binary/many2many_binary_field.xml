@@ -31,7 +31,7 @@
         <div class="o_attachment_wrap">
             <t t-set="ext" t-value="getExtension(file)"/>
             <t t-set="url" t-value="getUrl(file.id)"/>
-            <div class="o_image_box float-start" t-att-data-tooltip="'Download ' + file.name">
+            <div class="o_image_box float-start" t-att-data-tooltip="getDownloadTooltip(file)">
                 <a t-att-href="url" aria-label="Download" download="">
                     <img t-if="isImage(file)" class="o_preview_image o_hover object-fit-cover rounded align-baseline"
                         t-attf-src="/web/image/{{ file.id }}" onerror="this.src = '/web/static/img/mimetypes/image.svg'"/>
@@ -40,7 +40,7 @@
             </div>
 
             <div class="caption">
-                <a class="ml4" t-att-data-tooltip="'Download ' + file.name" t-att-href="url" download=""><t t-esc='file.name'/></a>
+                <a class="ml4" t-att-data-tooltip="getDownloadTooltip(file)" t-att-href="url" download=""><t t-esc='file.name'/></a>
             </div>
             <div class="caption small">
                 <a class="ml4 small text-uppercase" t-att-href="url" download=""><b><t t-esc='ext'/></b></a>

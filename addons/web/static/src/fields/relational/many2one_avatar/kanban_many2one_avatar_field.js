@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one_avatar/kanban_many2one_avatar_field - Kanban-view Many2one field displaying an avatar image */
+/** @module @web/fields/relational/many2one_avatar/kanban_many2one_avatar_field */
 
 import { Component } from "@odoo/owl";
 import { registerField } from "@web/fields/_registry";
@@ -20,7 +20,7 @@ export class KanbanMany2OneAvatarField extends Component {
     static components = { KanbanMany2One };
     static props = { ...Many2OneField.props };
 
-    /** @returns {Object} Computed Many2One component props from field props */
+    /** @returns {Object} */
     get m2oProps() {
         return computeM2OProps(this.props);
     }
