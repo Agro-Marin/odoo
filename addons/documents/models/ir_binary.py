@@ -10,11 +10,13 @@ class IrBinary(models.AbstractModel):
     _inherit = "ir.binary"
 
     def _record_to_stream(self, record: models.Model, field_name: str) -> Any:
-        if record._name == "documents.document" and field_name in (
-            "raw",
-            "datas",
-            "db_datas",
-        ):
+        # `raw`/`datas` only: those are the two content aliases
+        # `documents.document` actually declares. `db_datas` was listed too, but
+        # a document has no such field -- `_get_stream_from` resolves
+        # `record._fields[field_name]` before calling this, so that name never
+        # arrives here, it raises there. Naming it suggested a document can
+        # stream its attachment's raw storage column, which it cannot.
+        if record._name == "documents.document" and field_name in ("raw", "datas"):
             # Read access to document give implicit read access to the attachment
             return super()._record_to_stream(record.attachment_id.sudo(), field_name)
 

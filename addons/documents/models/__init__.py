@@ -7,6 +7,15 @@ from . import documents_access
 from . import documents_access_log
 from . import documents_access_tracking
 from . import documents_document
+
+# Concerns of `documents.document`, in their own files. The base class (with
+# `_name`) has to be registered first; each of these extends it with `_inherit`.
+from . import documents_document_access
+from . import documents_document_user_folder
+from . import documents_document_search_panel
+from . import documents_document_versioning
+from . import documents_document_embedded_actions
+from . import documents_document_mail
 from . import documents_redirect
 from . import documents_tag
 

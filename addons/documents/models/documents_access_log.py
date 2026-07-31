@@ -101,7 +101,11 @@ class DocumentsAccessLog(models.Model):
                 cutoff=fields.Datetime.subtract(now, seconds=window),
             )
         )
-        self.invalidate_model()
+        # No `invalidate_model()`. The statement only ever INSERTs, and the ids
+        # it creates did not exist a moment ago, so no cached field value can
+        # have gone stale -- there is nothing to invalidate. This runs on read
+        # paths, including anonymous ones; discarding every cached row of the
+        # model on each visit was work that bought nothing.
 
     @api.model
     def _retention_days(self) -> int:

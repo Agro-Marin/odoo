@@ -77,13 +77,17 @@ class MailActivity(models.Model):
         # user who may reschedule the activity but only has *view* on the target
         # (a common request setup) would hit an AccessError that rolls the whole
         # activity write back. Run the sync in sudo instead.
-        document_requestee_partner_ids = self.env["documents.document"].sudo().search_read(
-            [
-                ("id", "in", act_on_docs.mapped("res_id")),
-                ("requestee_partner_id", "!=", False),
-                ("request_activity_id", "in", self.ids),
-            ],
-            ["requestee_partner_id"],
+        document_requestee_partner_ids = (
+            self.env["documents.document"]
+            .sudo()
+            .search_read(
+                [
+                    ("id", "in", act_on_docs.mapped("res_id")),
+                    ("requestee_partner_id", "!=", False),
+                    ("request_activity_id", "in", self.ids),
+                ],
+                ["requestee_partner_id"],
+            )
         )
         new_expiration_date = datetime.combine(
             self[0].date_deadline, datetime.max.time()

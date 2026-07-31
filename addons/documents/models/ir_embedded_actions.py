@@ -45,17 +45,34 @@ class IrEmbeddedActions(models.Model):
         ]
 
     @api.autovacuum
-    def _gc_documents_obsolete(self) -> None:
-        """Remove documents embedded actions for children actions as they can't be executed."""
-        documents_executable_domain = self._get_documents_embed_base_domain()
-        Documents = self.env["documents.document"]
-        embeddable_domain = Documents._get_embeddable_server_action_domain()
-        documents_embeddable_server_action = self.env["ir.actions.server"]._search(
-            embeddable_domain
+    def _gc_documents_obsolete(self) -> tuple[int, bool]:
+        """Drop embedded actions that can never be executed (child actions).
+
+        ``restrict_to_user_groups=False`` is the whole point: obsolescence is a
+        property of the action, not of whoever happens to be running the
+        vacuum. With the group clause left in, an action restricted to a group
+        the vacuum user lacks looked non-embeddable, and every folder that had
+        it pinned lost that pin -- silently, permanently, and only on the
+        databases where the vacuum ran as someone without the group.
+
+        Reports the autovacuum ``(removed, maybe more)`` contract so a backlog
+        is drained across runs rather than in one unbounded delete.
+        """
+        embeddable = self.env["ir.actions.server"]._search(
+            self.env["documents.document"]._get_embeddable_server_action_domain(
+                restrict_to_user_groups=False
+            )
         )
-        documents_not_embeddable_domain = [
-            ("action_id", "not in", documents_embeddable_server_action)
-        ]
-        self.env["ir.embedded.actions"].search(
-            Domain.AND([documents_executable_domain, documents_not_embeddable_domain])
-        ).unlink()
+        limit = 1000
+        obsolete = self.search(
+            Domain.AND(
+                [
+                    self._get_documents_embed_base_domain(),
+                    [("action_id", "not in", embeddable)],
+                ]
+            ),
+            limit=limit,
+        )
+        removed = len(obsolete)
+        obsolete.unlink()
+        return removed, removed == limit
