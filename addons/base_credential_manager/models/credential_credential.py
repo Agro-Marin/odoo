@@ -5,7 +5,7 @@ import ipaddress
 import json
 import logging
 import re
-from typing import Any
+from typing import Any, Self
 
 from cryptography import x509
 from cryptography.fernet import Fernet, InvalidToken
@@ -2207,6 +2207,31 @@ class CredentialCredential(models.Model):
         )
         der_bytes = cert.public_bytes(serialization.Encoding.DER)
         return self._format_bytes(der_bytes, formatting)
+
+    @api.model
+    def _get_active_for_category(self, code: str) -> Self:
+        """Return the active credential filed under category *code*.
+
+        The lookup every consumer of a single-credential category was writing
+        for itself. Resolving by ``code`` rather than by XML id keeps a consumer
+        independent of which module declared the category.
+
+        Deterministic when several active credentials share one category: the
+        most recently updated wins, so two callers never disagree about which
+        one is "the" credential.
+
+        :return: the credential, or an empty recordset if none is filed
+        """
+        category = self.env["credential.category"].search(
+            [("code", "=", code)], limit=1
+        )
+        if not category:
+            return self.browse()
+        return self.sudo().search(
+            [("category_id", "=", category.id), ("active", "=", True)],
+            order="write_date desc, id desc",
+            limit=1,
+        )
 
     def get_credential_dict(self) -> dict[str, Any]:
         """Get credential as dictionary (for multi-value credentials).
