@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_form_renderer - FormRenderer subclass registering settings-specific sub-components (search highlight, tabs) */
+/** @module @web/views/settings/settings_form_renderer */
 
 import { useState } from "@odoo/owl";
 import { FormRenderer } from "@web/views/form/form_renderer";

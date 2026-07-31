@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/fields/upgrade_boolean_field - Boolean field for settings that shows an Enterprise upgrade dialog when checked */
+/** @module @web/views/settings/fields/upgrade_boolean_field */
 
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
@@ -10,12 +10,16 @@ import { BooleanField, booleanField } from "@web/fields/basic/boolean/boolean_fi
 import { UpgradeDialog } from "./upgrade_dialog.js";
 
 export class UpgradeBooleanField extends BooleanField {
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialogService;
+
     setup() {
         super.setup();
         this.dialogService = useService("dialog");
         this.isEnterprise = odoo.info && odoo.info.isEnterprise;
     }
 
+    /** @param {any} newValue */
     async onChange(newValue) {
         if (!this.isEnterprise) {
             this.dialogService.add(
@@ -33,10 +37,16 @@ export class UpgradeBooleanField extends BooleanField {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const upgradeBooleanField = {
     ...booleanField,
     component: UpgradeBooleanField,
-    additionalClasses: [...(booleanField.additionalClasses || []), "o_field_boolean"],
+    additionalClasses: [
+        .../** @type {string[]} */ (
+            /** @type {Record<string, any>} */ (booleanField).additionalClasses || []
+        ),
+        "o_field_boolean",
+    ],
 };
 
 registerField("upgrade_boolean", upgradeBooleanField);

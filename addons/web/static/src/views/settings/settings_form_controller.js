@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_form_controller - Controller for res.config.settings with search filtering and save-via-Apply behavior */
+/** @module @web/views/settings/settings_form_controller */
 
 import { useEffect, useRef, useState, useSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -12,12 +12,6 @@ import { formView } from "@web/views/form/form_view";
 import { SettingsConfirmationDialog } from "./settings_confirmation_dialog.js";
 import { SettingsFormRenderer } from "./settings_form_renderer.js";
 
-/**
- * Controller for the res.config.settings form view.
- *
- * Adds search-based filtering, confirmation dialogs on unsaved changes,
- * and overrides auto-save behavior (settings should only save via "Apply").
- */
 export class SettingsFormController extends formView.Controller {
     static template = "web.SettingsFormView";
     static components = {
@@ -72,6 +66,7 @@ export class SettingsFormController extends formView.Controller {
     /**
      * @override
      */
+    /** @param {Record<string, any>} clickParams */
     async beforeExecuteActionButton(clickParams) {
         if (clickParams.name === "cancel") {
             return true;
@@ -105,7 +100,7 @@ export class SettingsFormController extends formView.Controller {
     /** @param {any} [_ev] */
     async beforeUnload(_ev) {}
 
-    /** @returns {Promise<any> | undefined} matches the base FormController signature; body intentionally no-op */
+    /** @returns {Promise<any> | undefined} */
     beforeVisibilityChange() {
         return undefined;
     }
@@ -180,13 +175,6 @@ export class SettingsFormController extends formView.Controller {
                     _continue = false;
                     resolve();
                 },
-                // Escape and the header's X route through ConfirmationDialog's
-                // ``_dismiss``, which falls back to ``cancel`` when no
-                // ``dismiss`` is given. That fallback is written for two-button
-                // dialogs, where cancel IS the harmless choice — here ``cancel``
-                // is the Discard button, so dismissing the dialog threw the
-                // user's unsaved settings away and navigated on. Dismissal is
-                // "I did not choose", which is what Stay Here means.
                 dismiss: () => {
                     _continue = false;
                     resolve();

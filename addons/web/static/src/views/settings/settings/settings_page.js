@@ -1,13 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/settings_page - Top-level settings page with app tabs, swipe navigation, and URL hash-based tab/anchor selection */
+/** @module @web/views/settings/settings/settings_page */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";
 import { browser } from "@web/core/browser/browser";
 import { Deferred } from "@web/core/utils/concurrency";
-/** Also remembers scroll position per tab across switches. */
 export class SettingsPage extends Component {
     static template = "web.SettingsPage";
     static components = { ActionSwiper };
@@ -17,6 +16,15 @@ export class SettingsPage extends Component {
         initialTab: { type: String, optional: 1 },
         slots: Object,
     };
+    /** @type {import("@odoo/owl").Ref} */
+    settingsRef;
+    /** @type {import("@odoo/owl").Ref} */
+    settingsTabRef;
+    /** @type {{ selectedTab: string; search: any }} */
+    state;
+    /** @type {import("@web/core/utils/concurrency").Deferred | undefined} */
+    tabChangeProm;
+
     setup() {
         this.state = useState({
             selectedTab: "",
@@ -28,10 +36,16 @@ export class SettingsPage extends Component {
 
             if (browser.location.hash) {
                 const hash = browser.location.hash.slice(1);
-                if (this.props.modules.map((m) => m.key).includes(hash)) {
+                if (
+                    this.props.modules
+                        .map((/** @type {any} */ m) => m.key)
+                        .includes(hash)
+                ) {
                     selectedTab = hash;
                 } else {
-                    const anchor = this.props.anchors.find((a) => a.settingId === hash);
+                    const anchor = this.props.anchors.find(
+                        (/** @type {any} */ a) => a.settingId === hash,
+                    );
                     if (anchor) {
                         selectedTab = anchor.app;
                     }
@@ -60,7 +74,7 @@ export class SettingsPage extends Component {
 
     getCurrentIndex() {
         return this.props.modules.findIndex(
-            (object) => object.key === this.state.selectedTab,
+            (/** @type {any} */ object) => object.key === this.state.selectedTab,
         );
     }
 
@@ -93,14 +107,14 @@ export class SettingsPage extends Component {
 
     scrollToSelectedTab() {
         const key = this.state.selectedTab;
-        this.settingsTabRef.el.querySelector(`[data-key='${key}']`).scrollIntoView({
+        this.settingsTabRef.el?.querySelector(`[data-key='${key}']`)?.scrollIntoView({
             behavior: "smooth",
             inline: "center",
             block: "nearest",
         });
     }
 
-    /** @param {string} key - the module key of the tab to activate */
+    /** @param {string} key */
     onSettingTabClick(key) {
         if (this.settingsRef.el) {
             const { scrollTop } = this.settingsRef.el;

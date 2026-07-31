@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/res_config_edition - About section settings widget showing Odoo version, expiration date, and copyrights */
+/** @module @web/views/settings/widgets/res_config_edition */
 
 import { Component } from "@odoo/owl";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -17,7 +17,6 @@ class ResConfigEdition extends Component {
         ...standardWidgetProps,
     };
 
-    /** Read server version and compute human-readable expiration date. */
     setup() {
         /** @type {string} */
         this.serverVersion = session.server_version;
@@ -29,6 +28,7 @@ class ResConfigEdition extends Component {
     }
 }
 
+/** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const resConfigEdition = {
     component: ResConfigEdition,
 };

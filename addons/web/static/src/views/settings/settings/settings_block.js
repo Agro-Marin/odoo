@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/settings_block - Collapsible group of settings within an app tab with search-based visibility toggling */
+/** @module @web/views/settings/settings/settings_block */
 
 import {
     Component,
@@ -25,7 +25,17 @@ export class SettingsBlock extends Component {
         slots: { type: Object, optional: true },
         class: { type: String, optional: true },
     };
-    /** Initialize reactive state, refs, and search-driven visibility effects. */
+    /** @type {import("@odoo/owl").Ref} */
+    settingsContainerRef;
+    /** @type {import("@odoo/owl").Ref} */
+    settingsContainerTipRef;
+    /** @type {import("@odoo/owl").Ref} */
+    settingsContainerTitleRef;
+    /** @type {{ showAllContainer: boolean }} */
+    showAllContainerState;
+    /** @type {{ search: any }} */
+    state;
+
     setup() {
         this.state = useState({
             search: this.env.searchState,
@@ -41,12 +51,14 @@ export class SettingsBlock extends Component {
         this.settingsContainerTipRef = useRef("settingsContainerTip");
         useEffect(
             () => {
+                const container = this.settingsContainerRef.el;
+                if (!container) {
+                    return;
+                }
                 const force =
                     this.state.search.value &&
                     !this.matchesTitleOrTip() &&
-                    !this.settingsContainerRef.el.querySelector(
-                        ".o_setting_box.o_searchable_setting",
-                    );
+                    !container.querySelector(".o_setting_box.o_searchable_setting");
                 this.toggleContainer(force);
             },
             () => [this.state.search.value],
@@ -56,12 +68,6 @@ export class SettingsBlock extends Component {
         });
     }
     /**
-     * Whether the search value matches the block title or tip. Uses the same
-     * diacritic-insensitive matching as the individual settings
-     * (searchable_setting.js) and the highlighting, so block visibility never
-     * disagrees with setting visibility on accented text. An empty search
-     * matches (parity with the settings).
-     *
      * @returns {boolean}
      */
     matchesTitleOrTip() {
@@ -70,8 +76,7 @@ export class SettingsBlock extends Component {
         return normalizedMatch(blockText, searchValue).start !== -1;
     }
     /**
-     * Show or hide the container title, tip, and body based on search match.
-     * @param {boolean} force - If true, hide the container elements
+     * @param {boolean} force
      */
     toggleContainer(force) {
         if (this.settingsContainerTitleRef.el) {
@@ -80,6 +85,6 @@ export class SettingsBlock extends Component {
         if (this.settingsContainerTipRef.el) {
             this.settingsContainerTipRef.el.classList.toggle("d-none", force);
         }
-        this.settingsContainerRef.el.classList.toggle("d-none", force);
+        this.settingsContainerRef.el?.classList.toggle("d-none", force);
     }
 }

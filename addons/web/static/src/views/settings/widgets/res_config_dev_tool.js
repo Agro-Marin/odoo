@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/res_config_dev_tool - Developer Tools settings widget for toggling debug modes and installing demo data */
+/** @module @web/views/settings/widgets/res_config_dev_tool */
 
 import { Component, onWillStart } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
@@ -21,6 +21,11 @@ export class ResConfigDevTool extends Component {
         ...standardWidgetProps,
     };
 
+    /** @type {import("services").ServiceFactories["action"]} */
+    action;
+    /** @type {import("services").ServiceFactories["demo_data"]} */
+    demo;
+
     setup() {
         /** @type {boolean} */
         this.isDebug = Boolean(odoo.debug);
@@ -36,21 +41,18 @@ export class ResConfigDevTool extends Component {
     }
 
     /**
-     * Activate or change the debug mode and reload the page.
-     * @param {string} value - Debug mode value (e.g., "1", "assets", "tests")
+     * @param {string} value
      */
     activateDebug(value) {
         router.pushState({ debug: value }, { reload: true });
     }
 
-    /**
-     * Forces demo data to be installed in a database without demo data installed.
-     */
     onClickForceDemo() {
         this.action.doAction("base.demo_force_install_action");
     }
 }
 
+/** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const resConfigDevTool = {
     component: ResConfigDevTool,
 };

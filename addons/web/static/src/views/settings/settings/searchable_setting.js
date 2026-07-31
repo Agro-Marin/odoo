@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/searchable_setting - Setting variant with search-based visibility filtering and URL hash highlighting */
+/** @module @web/views/settings/settings/searchable_setting */
 
 import { onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -17,13 +17,15 @@ export class SearchableSetting extends Setting {
         FormLabel: FormLabelHighlightText,
         HighlightText,
     };
-    /**
-     * Initialize search state, collect searchable label texts, and apply
-     * URL-hash-based highlight animation on mount.
-     */
+
+    /** @type {string[]} */
+    labels;
+
     setup() {
         this.settingRef = useRef("setting");
-        /** @type {{ search: { value: string }, showAllContainer: { showAllContainer: boolean }, highlightClass: Record<string, boolean> }} */
+        /**
+         * @type {{ search: { value: string }, showAllContainer: { showAllContainer: boolean }, highlightClass: Record<string, boolean> }}
+         */
         this.state = useState({
             search: this.env.searchState,
             showAllContainer: this.env.showAllContainer,
@@ -52,7 +54,6 @@ export class SearchableSetting extends Setting {
     }
 
     /**
-     * CSS class map extended with searchable and highlight classes.
      * @returns {Record<string, boolean>}
      */
     get classNames() {
@@ -62,8 +63,6 @@ export class SearchableSetting extends Setting {
     }
 
     /**
-     * Whether this setting matches the current search, or true if there is
-     * no search or "show all" is active.
      * @returns {boolean}
      */
     visible() {
