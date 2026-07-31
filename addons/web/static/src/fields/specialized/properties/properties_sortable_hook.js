@@ -1,40 +1,22 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/properties_sortable_hook - useSortable wiring for property + property-group drag in the properties field */
+/** @module @web/fields/specialized/properties/properties_sortable_hook */
 
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 
 /**
  * @typedef {object} PropertiesSortableOptions
- * @property {{ el: HTMLElement | null }} propertiesRef OWL ref to the
- *   properties root container.
- * @property {() => boolean} getEnabled Per-call gate forwarded to
- *   ``useSortable.enable``. Typically
- *   ``!readonly && state.canChangeDefinition``.
- * @property {() => number} getRenderedColumnsCount Column count for
- *   the active layout. Mono-column (``1``) widens the draggable
- *   selector to include group-label rows so the user can drop a
- *   property right above a separator.
- * @property {() => Array<{ name: string; elements: Array<{ name: string }> }>}
- *   getGroupedPropertiesList Lookup used when a drop lands in an empty
- *   group: we walk to the group's last child to compute the ``to``
- *   anchor for {@link onPropertyMoveTo}.
- * @property {(from: string, to: string | null, moveBefore: boolean) => Promise<void>}
- *   onPropertyMoveTo Renderer-supplied move handler.
- * @property {(from: string, to: string | undefined) => Promise<void>}
- *   onGroupMoveTo Renderer-supplied group-move handler.
- * @property {(separatorNames: string[], forceState: boolean) => void}
- *   onToggleSeparators Renderer-supplied separator visibility toggle.
+ * @property {{ el: HTMLElement | null }} propertiesRef
+ * @property {() => boolean} getEnabled
+ * @property {() => number} getRenderedColumnsCount
+ * @property {() => Array<{ name: string; elements: Array<{ name: string }> }>} getGroupedPropertiesList
+ * @property {(from: string, to: string | null, moveBefore: boolean) => Promise<void>} onPropertyMoveTo
+ * @property {(from: string, to: string | undefined) => Promise<void>} onGroupMoveTo
+ * @property {(separatorNames: string[], forceState: boolean) => void} onToggleSeparators
  */
 
 /**
- * Install the two ``useSortable`` instances the properties field needs: one for
- * individual properties (optional cross-group connection) and one for property
- * groups (column-style reordering) — bundled here since both share the same
- * ``enable`` predicate and drag-state classes (``o_property_dragging``,
- * ``o_property_drag_item``, ``o_property_drag_group``).
- *
  * @param {PropertiesSortableOptions} options
  */
 export function usePropertiesSortable(options) {

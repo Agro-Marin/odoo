@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_value - Polymorphic value editor component supporting all property field types */
+/** @module @web/fields/specialized/properties/property_value */
 
 import { Component, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -11,6 +11,7 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { Domain } from "@web/core/domain";
 import { ModelEvent } from "@web/core/events";
+import { formatInteger, formatMany2one, formatMonetary } from "@web/core/formatters";
 import {
     deserializeDate,
     deserializeDateTime,
@@ -20,13 +21,12 @@ import {
     serializeDateTime,
 } from "@web/core/l10n/dates";
 import { _t } from "@web/core/l10n/translation";
+import { parseFloat, parseInteger, parseMonetary } from "@web/core/parsers";
 import { deepCopy } from "@web/core/utils/collections/objects";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
-import { formatInteger, formatMany2one, formatMonetary } from "@web/fields/formatters";
-import { parseFloat, parseInteger, parseMonetary } from "@web/fields/parsers";
 import { extractData } from "@web/fields/relational/many2one/many2one";
 import {
     Many2XAutocomplete,
@@ -37,11 +37,6 @@ import { getCurrency } from "@web/services/currency";
 import { PropertyTags } from "./property_tags.js";
 import { PropertyText } from "./property_text.js";
 
-/**
- * Renders the appropriate editor for a property value based on its type
- * (text, integer, boolean, selection, date(time), many2one, many2many,
- * monetary, tags, ...).
- */
 export class PropertyValue extends Component {
     static template = "web.PropertyValue";
     static components = {
@@ -134,8 +129,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Value of the current property, shaped for the sub-components.
-     *
      * @returns {object}
      */
     get propertyValue() {
@@ -201,8 +194,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Return the model domain (related to many2one and many2many properties).
-     *
      * @returns {array}
      */
     get propertyDomain() {
@@ -220,8 +211,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Formatted value displayed in readonly mode.
-     *
      * @returns {string}
      */
     get displayValue() {
@@ -254,8 +243,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Return true if the relational properties are clickable.
-     *
      * @returns {boolean}
      */
     get clickableRelational() {
@@ -263,8 +250,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Return True if we need to display a avatar for the current property.
-     *
      * @returns {boolean}
      */
     get showAvatar() {
@@ -275,8 +260,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Parse the value received by the sub-components and trigger an onChange event.
-     *
      * @param {object} newValue
      */
     async onValueChange(newValue) {
@@ -323,8 +306,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Open the form view of the current record.
-     *
      * @param {event} event
      */
     async onMany2oneClick(event) {
@@ -334,9 +315,6 @@ export class PropertyValue extends Component {
         }
     }
 
-    /**
-     * Open the current many2one record form view in a modal.
-     */
     onExternalLinkClick() {
         return this.openMany2X({
             resId: this.propertyValue.id,
@@ -346,8 +324,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Removed a record from the many2many list.
-     *
      * @param {integer} many2manyId
      */
     onMany2manyDelete(many2manyId) {
@@ -357,8 +333,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Ask to create a record from a relational property.
-     *
      * @param {string} name
      */
     async onQuickCreate(name) {
@@ -369,8 +343,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Open the form view of the given record id / model.
-     *
      * @param {string} recordModel
      * @param {integer} recordId
      */
@@ -388,9 +360,6 @@ export class PropertyValue extends Component {
     }
 
     /**
-     * Get the display name of the given record.
-     * Model is taken from the current selected model.
-     *
      * @param {number} recordId
      * @returns {Promise<any>}
      */

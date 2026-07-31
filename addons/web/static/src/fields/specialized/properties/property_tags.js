@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_tags - Tag list component with color picker for property tag values */
+/** @module @web/fields/specialized/properties/property_tags */
 
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
@@ -47,6 +47,11 @@ export class PropertyTags extends Component {
         onValueChange: { type: Function, optional: true },
         onTagsChange: { type: Function, optional: true },
     };
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {ReturnType<typeof usePopover>} */
+    popover;
+
     setup() {
         this.notification = useService("notification");
         this.popover = usePopover(
@@ -58,7 +63,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Whether to display badges vs. just the tag label.
      * @returns {array}
      */
     get displayBadge() {
@@ -68,7 +72,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Tags values and actions for the TagsList component.
      * @returns {array}
      */
     get tagListItems() {
@@ -102,8 +105,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Current selected tags, deep-copied so callers can mutate/discard
-     * without touching the original.
      * @returns {array}
      */
     get selectedTags() {
@@ -111,8 +112,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Current selectable tags, deep-copied so callers can mutate/discard
-     * without touching the original.
      * @returns {array}
      */
     get availableTags() {
@@ -120,7 +119,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Options available in the autocomplete component.
      * @returns {array}
      */
     get autocompleteSources() {
@@ -172,9 +170,7 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Add one value to the current tag list values.
-     * @param {string | object} tagValue Either {toCreate: true, value: label} to
-     *      create a new value, or an existing value to select it.
+     * @param {string | object} tagValue
      */
     onOptionSelected(tagValue) {
         const selectedTags = this.selectedTags;
@@ -183,7 +179,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Create a new tag, add it to the definition, and select it.
      * @param {string} newLabel
      */
     async onTagCreate(newLabel) {
@@ -215,9 +210,7 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Delete-button handler for a tag pill; behavior depends on "deleteAction":
-     * unselect the value, or remove it from the available tags.
-     * @param {string} deleteTag ID of the tag to delete
+     * @param {string} deleteTag
      */
     onTagDelete(deleteTag) {
         if (this.props.deleteAction === "value") {
@@ -233,7 +226,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Click on a tag pill; open the color popover if the tag definition is editable.
      * @param {Event} event
      * @param {string} tagId
      * @param {integer} tagColor
@@ -251,7 +243,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Change the color of a tag.
      * @param {integer} colorIndex
      * @param {object} currentTag
      */
@@ -264,7 +255,6 @@ export class PropertyTags extends Component {
     }
 
     /**
-     * Delete a tag by index (backspace navigation).
      * @param {integer} index
      */
     deleteTagByIndex(index) {
@@ -291,6 +281,7 @@ export class PropertyTagsField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const propertyTagsField = {
     component: PropertyTagsField,
 };

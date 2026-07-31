@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/kanban_color_picker/kanban_color_picker_field - Inline color palette picker for kanban card color selection */
+/** @module @web/fields/specialized/kanban_color_picker/kanban_color_picker_field */
 
 import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
@@ -13,14 +13,14 @@ class KanbanColorPickerField extends Component {
     static template = "web.KanbanColorPickerField";
     static props = standardFieldProps;
 
-    /** @returns {number[]} Available color indices from the ColorList */
+    /** @returns {number[]} */
     get colors() {
         return ColorList.COLORS;
     }
 
     /**
-     * @param {number} colorIndex Color index to set and immediately save
-     * @returns {Promise}
+     * @param {number} colorIndex
+     * @returns {Promise<any>}
      */
     selectColor(colorIndex) {
         return this.props.record.update(
@@ -30,6 +30,7 @@ class KanbanColorPickerField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const kanbanColorPickerField = {
     component: KanbanColorPickerField,
     displayName: _t("Color Picker"),

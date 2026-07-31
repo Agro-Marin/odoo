@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_definition - Property type and configuration editor for defining dynamic property fields */
+/** @module @web/fields/specialized/properties/property_definition */
 
 import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -114,8 +114,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * Return the list of property types with their labels.
-     *
      * @returns {array}
      */
     get availablePropertyTypes() {
@@ -160,9 +158,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * Return the list of tag values, that will be selected by the PropertyTags
-     * component (all existing tags because we are editing the definition).
-     *
      * @returns {array}
      */
     get propertyTagValues() {
@@ -170,8 +165,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * Return an unique ID to be used in the DOM.
-     *
      * @returns {string}
      */
     getUniqueDomID(suffix) {
@@ -179,8 +172,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * We changed the string of the property.
-     *
      * @param {Event} event
      */
     onPropertyLabelChange(event) {
@@ -194,8 +185,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * Pressed enter on the property label close the definition.
-     *
      * @param {KeyboardEvent} event
      */
     onPropertyLabelKeypress(event) {
@@ -206,8 +195,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * We changed the default value of the property.
-     *
      * @param {object} newDefault
      */
     onDefaultChange(newDefault) {
@@ -220,8 +207,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * We selected a new property type.
-     *
      * @param {string} newType
      */
     onPropertyTypeChange(newType) {
@@ -261,8 +246,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * The model of the relational property (many2one / many2many) has been changed.
-     *
      * @param {string} newModel
      */
     async onModelChange(newModel) {
@@ -286,8 +269,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * The domain of the relational property has been changed.
-     *
      * @param {string} newDomain
      */
     async onDomainChange(newDomain) {
@@ -301,9 +282,6 @@ export class PropertyDefinition extends Component {
         await this._updateMatchingRecordsCount();
     }
 
-    /**
-     * Open the list view of the records matching the current domain.
-     */
     onButtonDomainClick() {
         const SelectCreateDialog = registry.category("dialogs").get("select_create");
         this.addDialog(SelectCreateDialog, {
@@ -317,9 +295,7 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * Move the current property up or down.
-     *
-     * @param {string} direction, either 'up' or 'down'
+     * @param {string} direction
      */
     onPropertyMove(direction) {
         if (direction === "up") {
@@ -331,8 +307,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * We renamed / created / removed a selection option.
-     *
      * @param {array} newOptions
      */
     onSelectionOptionChange(newOptions) {
@@ -357,8 +331,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * We renamed / created / removed tags.
-     *
      * @param {array} newTags
      */
     onTagsChange(newTags) {
@@ -371,8 +343,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * We activate / deactivate the property in the kanban view.
-     *
      * @param {boolean} newValue
      */
     onViewInKanbanChange(newValue) {
@@ -385,7 +355,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * Ensure the section below the separator is folded/unfolded by default
      * @param {boolean} checked
      */
     onFoldByDefaultChange(checked) {
@@ -407,9 +376,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * The property value changed (e.g. we discard a form view editing).
-     * Re-update the state with the new props.
-     *
      * @param {object} propertyDefinition
      */
     async _syncStateWithProps(propertyDefinition) {
@@ -465,8 +431,6 @@ export class PropertyDefinition extends Component {
     }
 
     /**
-     * Return the property label corresponding to the property type.
-     *
      * @param {string} propertyType
      * @returns {string}
      */

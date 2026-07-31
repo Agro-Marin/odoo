@@ -1,13 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/user_groups/res_user_group_ids_popover - Popover showing group implication details (implied-by, implies, disjoint) */
+/** @module @web/fields/specialized/user_groups/res_user_group_ids_popover */
 
 import { Component, useState } from "@odoo/owl";
 import { groupBy } from "@web/core/utils/collections/arrays";
 import { omit } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
-/** Popover showing group implication details (implied-by, implies, disjoint). */
 export class ResUserGroupIdsPopover extends Component {
     static template = "web.ResUserGroupIdsPopover";
     static props = {
@@ -16,6 +15,9 @@ export class ResUserGroupIdsPopover extends Component {
         groups: Object,
         privileges: Object,
     };
+
+    /** @type {import("services").ServiceFactories["action"]} */
+    actionService;
 
     setup() {
         this.actionService = useService("action");
@@ -58,7 +60,7 @@ export class ResUserGroupIdsPopover extends Component {
 
     /**
      * @param {Object} group
-     * @returns {string} formatted as "privilege/name" or just "name"
+     * @returns {string}
      */
     getGroupDisplayName(group) {
         const prefix = group.privilege_id
@@ -67,7 +69,7 @@ export class ResUserGroupIdsPopover extends Component {
         return `${prefix}${group.name}`;
     }
 
-    /** @param {Object} group - navigate to this group's form view */
+    /** @param {Object} group */
     onGroupClicked(group) {
         this.actionService.doAction({
             res_id: group.id,

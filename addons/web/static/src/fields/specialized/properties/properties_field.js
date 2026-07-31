@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/properties_field - Dynamic property field editor with drag-and-drop reordering and inline definition */
+/** @module @web/fields/specialized/properties/properties_field */
 
 import {
     Component,
@@ -25,6 +25,13 @@ import { user } from "@web/services/user";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
+import {
+    findEnclosingSeparator,
+    groupProperties,
+    moveGroupTo,
+    movePropertyByOffset,
+    movePropertyTo,
+} from "./properties_layout.js";
 import { usePropertiesSortable } from "./properties_sortable_hook.js";
 import { PropertyDefinition } from "./property_definition.js";
 import { PropertyValue } from "./property_value.js";
@@ -162,9 +169,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Return the number of columns to render (properties can be split
-     * across columns to follow the form view's layout).
-     *
      * @returns {object}
      */
     get renderedColumnsCount() {
@@ -172,18 +176,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Return a deep copy of the properties values, so mutating them in
-     * event handlers doesn't touch the record's stored objects (e.g. so
-     * discarding the form view still restores the original props).
-     *
-     * Properties staged for deletion (`definition_deleted`) are filtered
-     * out: this list is the *active* view used for rendering and index
-     * math. Because of that, any update built from it must go through
-     * `_updateRecordProperties` (never `record.update` directly), which
-     * re-appends the staged tombstones — the server only deletes a
-     * definition when the saved value still carries its
-     * `definition_deleted` entry.
-     *
      * @returns {array}
      */
     get propertiesList() {
@@ -197,71 +189,13 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Split the properties into groups (by separator), then split the
-     * groups into columns. Order matters since separators define the
-     * group boundaries.
-     *
-     * @returns {any[]}
+     * @returns {import("./properties_layout").PropertyGroup[]}
      */
     get groupedPropertiesList() {
-        const propertiesList = this.propertiesList;
-        const groupedProperties =
-            propertiesList[0]?.type !== "separator"
-                ? [
-                      {
-                          title: null,
-                          name: null,
-                          elements: [],
-                          invisibleLabel: true,
-                      },
-                  ]
-                : [];
-
-        propertiesList.forEach((property) => {
-            if (property.type === "separator") {
-                groupedProperties.push(
-                    /** @type {any} */ ({
-                        title: property.string,
-                        name: property.name,
-                        elements: [],
-                        isFolded: property.value ?? property.fold_by_default,
-                    }),
-                );
-            } else {
-                groupedProperties.at(-1).elements.push(property);
-            }
-        });
-
-        if (groupedProperties.length === 1 && !groupedProperties[0].isFolded) {
-            const invisibleLabel = propertiesList[0]?.type !== "separator";
-            groupedProperties[0].elements = [];
-            groupedProperties[0].invisibleLabel = invisibleLabel;
-            for (let col = 1; col < this.renderedColumnsCount; ++col) {
-                groupedProperties.push({
-                    title: null,
-                    name: null,
-                    columnSeparator: true,
-                    elements: [],
-                    invisibleLabel: true,
-                });
-            }
-            const properties = propertiesList.filter(
-                (property) => property.type !== "separator",
-            );
-            properties.forEach((property, index) => {
-                const columnIndex = Math.floor(
-                    (index * this.renderedColumnsCount) / properties.length,
-                );
-                groupedProperties[columnIndex].elements.push(property);
-            });
-        }
-
-        return groupedProperties;
+        return groupProperties(this.propertiesList, this.renderedColumnsCount);
     }
 
     /**
-     * Return the id of the definition record.
-     *
      * @returns {integer}
      */
     get definitionRecordId() {
@@ -269,8 +203,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Return the model of the definition record.
-     *
      * @returns {string}
      */
     get definitionRecordModel() {
@@ -278,11 +210,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Whether the properties-definition popover should close for the given
-     * click target. Widgets like the datetime picker or many2one modal
-     * render outside the popover's DOM subtree, so clicks inside them must
-     * not close it.
-     *
      * @param {HTMLElement} target
      * @returns {boolean}
      */
@@ -307,9 +234,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Return a unique but render-stable ID to be used in the DOM for the
-     * given property.
-     *
      * @param {string} propertyName
      * @returns {string}
      */
@@ -318,8 +242,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Generate a new property name.
-     *
      * @returns {string}
      */
     generatePropertyName(propertyType) {
@@ -331,23 +253,19 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Move the given property up or down in the list.
-     *
      * @param {string} propertyName
-     * @param {string} direction, either "up" or "down"
+     * @param {string} direction
      */
     async onPropertyMove(propertyName, direction) {
         let movedValues = null;
         let movedTargetIndex = -1;
         await this._updateRecordProperties((propertiesValues) => {
-            const propertyIndex = propertiesValues.findIndex(
-                (property) => property.name === propertyName,
+            const result = movePropertyByOffset(
+                propertiesValues,
+                propertyName,
+                direction,
             );
-            if (propertyIndex < 0) {
-                return null;
-            }
-            const targetIndex = propertyIndex + (direction === "down" ? 1 : -1);
-            if (targetIndex < 0 || targetIndex >= propertiesValues.length) {
+            if (result.status === "at-edge") {
                 this.notification.add(
                     direction === "down"
                         ? _t("This field is already last")
@@ -356,15 +274,12 @@ export class PropertiesField extends Component {
                 );
                 return null;
             }
+            if (result.status !== "moved") {
+                return null;
+            }
             this.state.movedPropertyName = propertyName;
-
-            const prop = propertiesValues[targetIndex];
-            propertiesValues[targetIndex] = propertiesValues[propertyIndex];
-            propertiesValues[propertyIndex] = prop;
-            propertiesValues[propertyIndex].definition_changed = true;
-
             movedValues = propertiesValues;
-            movedTargetIndex = targetIndex;
+            movedTargetIndex = result.targetIndex;
             return propertiesValues;
         });
         if (!movedValues) {
@@ -377,131 +292,33 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Move a property after the target property.
-     *
      * @param {string} propertyName
-     * @param {string} toPropertyName, the target property
-     *  (null if we move the property to the first index)
+     * @param {string} toPropertyName
      */
     async onPropertyMoveTo(propertyName, toPropertyName, moveBefore) {
-        return this._updateRecordProperties((propertiesValues) => {
-            let fromIndex = propertiesValues.findIndex(
-                (property) => property.name === propertyName,
-            );
-            let toIndex = propertiesValues.findIndex(
-                (property) => property.name === toPropertyName,
-            );
-            if (fromIndex < 0) {
-                return null;
-            }
-            const columnSize = Math.ceil(
-                propertiesValues.length / this.renderedColumnsCount,
-            );
-
-            if (
-                this.renderedColumnsCount > 1 &&
-                !propertiesValues.some(
-                    (p, index) => index !== 0 && p.type === "separator",
-                ) &&
-                Math.floor(fromIndex / columnSize) !== Math.floor(toIndex / columnSize)
-            ) {
-                const newSeparators = [];
-                for (let col = 0; col < this.renderedColumnsCount; ++col) {
-                    const separatorIndex = columnSize * col + newSeparators.length;
-
-                    if (propertiesValues[separatorIndex]?.type === "separator") {
-                        propertiesValues[separatorIndex].value = false;
-                        newSeparators.push(propertiesValues[separatorIndex].name);
-                        continue;
-                    }
-                    const newSeparator = {
-                        type: "separator",
-                        string: _t("Group %s", col + 1),
-                        name: this.generatePropertyName("separator"),
-                        value: false,
-                    };
-                    newSeparators.push(newSeparator.name);
-                    propertiesValues.splice(separatorIndex, 0, newSeparator);
-                }
-                toPropertyName = toPropertyName || propertiesValues.at(-1).name;
-
-                fromIndex = propertiesValues.findIndex(
-                    (property) => property.name === propertyName,
-                );
-                toIndex = propertiesValues.findIndex(
-                    (property) => property.name === toPropertyName,
-                );
-            }
-
-            if (moveBefore) {
-                toIndex--;
-            }
-            if (toIndex < fromIndex) {
-                toIndex++;
-            }
-            propertiesValues.splice(
-                toIndex,
-                0,
-                propertiesValues.splice(fromIndex, 1)[0],
-            );
-            propertiesValues[0].definition_changed = true;
-            return propertiesValues;
-        });
+        return this._updateRecordProperties((propertiesValues) =>
+            movePropertyTo(propertiesValues, {
+                propertyName,
+                toPropertyName,
+                moveBefore,
+                columnsCount: this.renderedColumnsCount,
+                generateName: (type) => this.generatePropertyName(type),
+                separatorTitle: (index) => _t("Group %s", index),
+            }),
+        );
     }
 
     /**
-     * Move a group of properties after the target group.
-     *
      * @param {string} propertyName
-     * @param {string} toPropertyName, the target group (separator)
-     *  (null if we move the group to the first index)
+     * @param {string} toPropertyName
      */
     onGroupMoveTo(propertyName, toPropertyName) {
-        return this._updateRecordProperties((propertiesValues) => {
-            const fromIndex = propertiesValues.findIndex(
-                (property) => property.name === propertyName,
-            );
-            const toIndex = propertiesValues.findIndex(
-                (property) => property.name === toPropertyName,
-            );
-            if (fromIndex < 0) {
-                return null;
-            }
-            if (
-                propertiesValues[fromIndex].type !== "separator" ||
-                (toIndex >= 0 && propertiesValues[toIndex].type !== "separator")
-            ) {
-                throw new Error("Something went wrong");
-            }
-
-            const getNextSeparatorIndex = (startIndex) => {
-                const nextSeparatorIndex = propertiesValues.findIndex(
-                    (property, index) =>
-                        property.type === "separator" && index > startIndex,
-                );
-                return nextSeparatorIndex < 0
-                    ? propertiesValues.length
-                    : nextSeparatorIndex;
-            };
-            const groupSize = getNextSeparatorIndex(fromIndex) - fromIndex;
-            let targetIndex = getNextSeparatorIndex(toIndex);
-            if (targetIndex > fromIndex) {
-                targetIndex -= groupSize;
-            }
-            propertiesValues.splice(
-                targetIndex,
-                0,
-                ...propertiesValues.splice(fromIndex, groupSize),
-            );
-            propertiesValues[0].definition_changed = true;
-            return propertiesValues;
-        });
+        return this._updateRecordProperties((propertiesValues) =>
+            moveGroupTo(propertiesValues, propertyName, toPropertyName),
+        );
     }
 
     /**
-     * The value / definition of the given property has been changed.
-     * `propertyValue` contains the definition of the property with the value.
-     *
      * @param {string} propertyName
      * @param {object} propertyValue
      */
@@ -519,9 +336,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Check if the definition is not already opened
-     * and if it's not the case, open the popover with the property definition.
-     *
      * @param {MouseEvent} event
      * @param {string} propertyName
      */
@@ -538,8 +352,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * The property definition or value has been changed.
-     *
      * @param {object} propertyDefinition
      */
     async onPropertyDefinitionChange(propertyDefinition) {
@@ -608,8 +420,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Mark a property as "to delete".
-     *
      * @param {string} propertyName
      */
     onPropertyDelete(propertyName) {
@@ -710,9 +520,7 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Fold / unfold the given separator property.
-     *
-     * @param {string} propertyName, Name of the separator property
+     * @param {string} propertyName
      */
     onSeparatorClick(propertyName) {
         if (propertyName) {
@@ -720,10 +528,6 @@ export class PropertiesField extends Component {
         }
     }
 
-    /**
-     * Verify that we can write on properties, we can not change the definition
-     * if we don't have access for parent or if no parent is set.
-     */
     async checkDefinitionWriteAccess() {
         if (!this.definitionRecordId || !this.definitionRecordModel) {
             return false;
@@ -737,9 +541,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * The tags list has been changed.
-     * If `newValue` is given, update the property value as well.
-     *
      * @param {string} propertyName
      * @param {array} newTags
      * @param {array | null} newValue
@@ -757,17 +558,7 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Update the record with the given properties values, preserving the
-     * properties already staged for deletion.
-     *
-     * `propertiesList` (from which every outgoing list is derived) filters
-     * out `definition_deleted` entries, but the server only deletes a
-     * definition when the saved value carries its tombstone. So every
-     * update must re-append the previously staged tombstones until save,
-     * otherwise a later change (value edit, fold, move…) silently reverts
-     * a confirmed deletion.
-     *
-     * @param {array} propertiesValues
+     * @param {(properties: any[]) => any[] | void} mutate
      * @returns {Promise}
      */
     _updateRecordProperties(mutate) {
@@ -798,18 +589,11 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Recompute `state.canChangeDefinition` / `state.isInEditMode` against
-     * the given props. Single implementation for every edit-mode transition
-     * (mount, cog-menu edit, definition record change, props update).
-     *
      * @param {object} [props=this.props]
      * @param {object} [options]
-     * @param {boolean} [options.recheck=false] force a fresh write-access
-     *  check instead of reusing a previously granted one (e.g. when the
-     *  definition record changed)
-     * @param {boolean} [options.force=false] enter edit mode regardless of
-     *  the current state / `editMode` prop (e.g. explicit user action)
-     * @returns {Promise<boolean>} whether edit mode is active
+     * @param {boolean} [options.recheck=false]
+     * @param {boolean} [options.force=false]
+     * @returns {Promise<boolean>}
      */
     async _recomputeEditMode(
         props = this.props,
@@ -828,10 +612,8 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Switch the folded state of the given separators.
-     *
-     * @param {array} separatorNames, list of separator name to fold / unfold
-     * @param {boolean} [forceState] force the separator to be folded or open
+     * @param {array} separatorNames
+     * @param {boolean} [forceState]
      */
     _toggleSeparators(separatorNames, forceState) {
         return this._updateRecordProperties((propertiesValues) => {
@@ -848,10 +630,6 @@ export class PropertiesField extends Component {
         });
     }
 
-    /**
-     * Move the popover to the given property id, used when the position of
-     * properties changes. Runs after the DOM update (see the useEffect below).
-     */
     _movePopoverIfNeeded() {
         if (!this.movePopoverToProperty) {
             return;
@@ -866,14 +644,6 @@ export class PropertiesField extends Component {
             return;
         }
 
-        // `popover.isOpen`, not a DOM probe: a move that crosses a group
-        // boundary re-parents the row, so owl destroys the node the popover was
-        // anchored to and the popover's own target-removal watchdog closes it —
-        // the editor vanishes mid-edit and every further move becomes
-        // impossible, since its buttons went with it. The overlay node is still
-        // in the document at this point (it is removed on a later frame), so
-        // querying for it reports a popover that is already dead. Repositioning
-        // cannot help something that is gone: re-anchor by reopening.
         if (!this.popover.isOpen) {
             this._openPropertyDefinition(
                 /** @type {HTMLElement} */ (target),
@@ -896,10 +666,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Regenerate the property name if the type/comodel changed (so children
-     * reset), or restore the original name otherwise (see
-     * _saveInitialPropertiesValues).
-     *
      * @param {object} newDefinition
      * @param {object} oldDefinition
      */
@@ -922,18 +688,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Render identity of a property row, stable across the technical-name
-     * regeneration a type/comodel change performs.
-     *
-     * The row used to be keyed on ``name`` itself, so a type change re-created
-     * the whole block — and with it the ``.o_field_property_open_popover``
-     * anchor the definition popover is attached to. The popover's own
-     * target-removal watchdog then closed it, throwing the user out of the
-     * definition editor at the exact moment they changed the type. The name is
-     * mutable metadata; the slot the user is editing is what the DOM node
-     * stands for, and ``initialValues`` already resolves any regenerated name
-     * back to the one the slot started with.
-     *
      * @param {string} propertyName
      * @returns {string}
      */
@@ -942,9 +696,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Find the index of the given property, resolving through name
-     * regeneration if the type/model changed (see _regeneratePropertyName).
-     *
      * @params {string} propertyName
      * @returns {integer}
      */
@@ -955,11 +706,6 @@ export class PropertiesField extends Component {
         );
     }
 
-    /**
-     * Save the original property values so a type/model change can later
-     * be discarded (even after save) and the original name restored (see
-     * _regeneratePropertyName).
-     */
     _saveInitialPropertiesValues() {
         this.initialValues = {};
         for (const propertiesValues of this.props.record.data[this.props.name] || []) {
@@ -972,8 +718,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Open the popover with the property definition.
-     *
      * @param {Element} target
      * @param {string} propertyName
      * @param {boolean} isNewlyCreated
@@ -997,13 +741,6 @@ export class PropertiesField extends Component {
             return propertyName;
         };
 
-        // Close any popover still open FIRST. `popover.open` closes the
-        // previous one itself, but by then `onCloseCurrentPopover` below has
-        // already been overwritten — so the outgoing popover would run the
-        // incoming one's teardown (clearing the new target's `disabled` mark
-        // and writing the new property's default value), and the outgoing
-        // target would keep its `disabled` class forever, making its edit
-        // button permanently dead.
         this.popover.close();
 
         this.onCloseCurrentPopover = () => {
@@ -1036,8 +773,6 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Write the default value on the given property.
-     *
      * @param {string} propertyName
      */
     _setDefaultPropertyValue(propertyName) {
@@ -1054,24 +789,16 @@ export class PropertiesField extends Component {
     }
 
     /**
-     * Unfold the group of the given property.
-     *
      * @param {integer} targetIndex
      * @param {object} propertiesValues
      */
     _unfoldPropertyGroup(targetIndex, propertiesValues) {
-        const separator = propertiesValues.findLast(
-            (property, index) => property.type === "separator" && index <= targetIndex,
-        );
+        const separator = findEnclosingSeparator(propertiesValues, targetIndex);
         if (separator) {
             return this._toggleSeparators([separator.name], false);
         }
     }
 
-    /**
-     * Returns the text for the warning raised in the "PROPERTY_FIELD:EDIT"
-     * bus event, if the PropertiesField component cannot enter edit mode.
-     */
     _getPropertyEditWarningText() {
         if (!this.definitionRecordId) {
             return _t(
@@ -1090,6 +817,7 @@ export class PropertiesField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const propertiesField = {
     component: PropertiesField,
     displayName: _t("Properties"),

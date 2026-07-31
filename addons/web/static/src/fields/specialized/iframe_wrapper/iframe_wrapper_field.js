@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/iframe_wrapper/iframe_wrapper_field - Iframe wrapper that renders HTML field content inside an isolated iframe */
+/** @module @web/fields/specialized/iframe_wrapper/iframe_wrapper_field */
 
 import { Component, useEffect, useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -30,6 +30,7 @@ export class IframeWrapperField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const iframeWrapperField = {
     component: IframeWrapperField,
     displayName: _t("Wrap raw html within an iframe"),

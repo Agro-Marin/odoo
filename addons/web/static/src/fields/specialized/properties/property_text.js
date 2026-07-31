@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_text - Auto-resizing textarea component for property text values */
+/** @module @web/fields/specialized/properties/property_text */
 
 import { Component, useRef } from "@odoo/owl";
 import { ModelEvent } from "@web/core/events";
@@ -15,15 +15,20 @@ export class PropertyText extends Component {
         record: { type: Object, optional: true },
     };
 
+    /** @type {import("@odoo/owl").Ref} */
+    textareaRef;
+
     setup() {
         this.textareaRef = useRef("textarea");
         useAutoresize(/** @type {any} */ (this.textareaRef));
 
         if (this.props.record) {
-            const flush = (ev) => {
+            const flush = (/** @type {Event} */ ev) => {
                 const el = this.textareaRef.el;
                 if (el && el === document.activeElement) {
-                    ev.detail?.proms?.push(this.props.updateProperty({ target: el }));
+                    /** @type {CustomEvent} */ (ev).detail?.proms?.push(
+                        this.props.updateProperty({ target: el }),
+                    );
                 }
             };
             useBus(this.props.record.model.bus, ModelEvent.NEED_LOCAL_CHANGES, flush);
