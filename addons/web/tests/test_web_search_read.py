@@ -2,6 +2,9 @@ from unittest.mock import patch
 
 from odoo.tests import common
 
+# Screening a stale spec key is only safe because it is reported.
+SCREENING_LOGGER = "odoo.addons.web.models.web_onchange"
+
 
 @common.tagged("post_install", "-at_install", "web_unit", "web_search")
 class TestWebSearchRead(common.TransactionCase):
@@ -93,16 +96,17 @@ class TestWebSearchRead(common.TransactionCase):
         self.assertIn("display_name", result)
         self.assertIn("__formatted_display_name", result)
 
-
     def test_stale_specification_key_is_screened(self):
         """A stale field name in the spec must be dropped (mirroring
         web_read's tolerance), not 500: ``_determine_fields_to_fetch`` is
         strict and used to ValueError on the whole call."""
-        res = self.env["res.partner"].web_search_read(
-            domain=[],
-            specification={"id": {}, "display_name": {}, "stale_zz": {}},
-            limit=2,
-        )
+        with self.assertLogs(SCREENING_LOGGER, "WARNING") as capture:
+            res = self.env["res.partner"].web_search_read(
+                domain=[],
+                specification={"id": {}, "display_name": {}, "stale_zz": {}},
+                limit=2,
+            )
+        self.assertIn("stale_zz", capture.output[0])
         self.assertTrue(res["records"])
         for rec in res["records"]:
             self.assertIn("display_name", rec)
@@ -116,13 +120,15 @@ class TestWebSearchRead(common.TransactionCase):
         child = self.env["res.partner"].create(
             {"name": "WSR Sub Child", "parent_id": parent.id}
         )
-        res = self.env["res.partner"].web_search_read(
-            domain=[("id", "=", child.id)],
-            specification={
-                "id": {},
-                "parent_id": {"fields": {"display_name": {}, "stale_sub_zz": {}}},
-            },
-        )
+        with self.assertLogs(SCREENING_LOGGER, "WARNING") as capture:
+            res = self.env["res.partner"].web_search_read(
+                domain=[("id", "=", child.id)],
+                specification={
+                    "id": {},
+                    "parent_id": {"fields": {"display_name": {}, "stale_sub_zz": {}}},
+                },
+            )
+        self.assertIn("stale_sub_zz", capture.output[0])
         [rec] = res["records"]
         self.assertEqual(rec["parent_id"]["display_name"], "WSR Sub Parent")
         self.assertNotIn("stale_sub_zz", rec["parent_id"])

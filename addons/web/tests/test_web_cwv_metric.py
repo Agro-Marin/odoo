@@ -161,7 +161,10 @@ class TestWebCwvBeacon(HttpCase):
         observability._rate_state.clear()
         self.addCleanup(observability._rate_state.clear)
 
-        with patch.object(observability, "_RATE_LIMIT_MAX", 3):
+        with (
+            patch.object(observability, "_RATE_LIMIT_MAX", 3),
+            mute_logger("odoo.addons.web.controllers.observability"),
+        ):
             statuses = [
                 self.url_open(
                     "/web/observability/js_error",
@@ -185,7 +188,10 @@ class TestWebCwvBeacon(HttpCase):
         obs._rate_state.clear()
         self.addCleanup(obs._rate_state.clear)
 
-        with patch.object(obs, "_RATE_LIMIT_MAX", 2):
+        with (
+            patch.object(obs, "_RATE_LIMIT_MAX", 2),
+            mute_logger("odoo.addons.web.controllers.observability"),
+        ):
             cwv = [
                 self._beacon(
                     {"url": "/odoo", "pageview_id": f"sep-{i}", "lcp": 1000.0}

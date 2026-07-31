@@ -13,6 +13,8 @@ from odoo.tests import TransactionCase, tagged
 
 from odoo.addons.web.controllers.database import Database, _is_loopback
 
+CONTROLLER_LOGGER = "odoo.addons.web.controllers.database"
+
 
 @tagged("web_unit", "database_manager")
 class TestDatabaseMasterPassword(TransactionCase):
@@ -53,29 +55,39 @@ class TestDatabaseMasterPassword(TransactionCase):
         return calls
 
     def test_promotes_from_loopback_when_insecure(self):
-        calls = self._promote_calls(insecure=True, remote_addr="127.0.0.1")
+        with self.assertLogs(CONTROLLER_LOGGER, "WARNING") as capture:
+            calls = self._promote_calls(insecure=True, remote_addr="127.0.0.1")
         self.assertEqual(
             calls, [("db", "change_admin_password", ["admin", "new-strong-pw"])]
         )
+        self.assertIn("Auto-promoting", capture.output[0])
 
     def test_promotes_from_ipv6_loopback(self):
-        calls = self._promote_calls(insecure=True, remote_addr="::1")
+        with self.assertLogs(CONTROLLER_LOGGER, "WARNING") as capture:
+            calls = self._promote_calls(insecure=True, remote_addr="::1")
         self.assertEqual(len(calls), 1)
+        self.assertIn("Auto-promoting", capture.output[0])
 
     def test_refuses_promotion_from_remote_address(self):
-        calls = self._promote_calls(insecure=True, remote_addr="203.0.113.7")
+        with self.assertLogs(CONTROLLER_LOGGER, "WARNING") as capture:
+            calls = self._promote_calls(insecure=True, remote_addr="203.0.113.7")
         self.assertEqual(calls, [])
+        self.assertIn("Refusing to auto-promote", capture.output[0])
 
     def test_refuses_promotion_when_remote_addr_unknown(self):
-        calls = self._promote_calls(insecure=True, remote_addr=None)
+        with self.assertLogs(CONTROLLER_LOGGER, "WARNING") as capture:
+            calls = self._promote_calls(insecure=True, remote_addr=None)
         self.assertEqual(calls, [])
+        self.assertIn("Refusing to auto-promote", capture.output[0])
 
     def test_noop_when_password_already_secure(self):
-        calls = self._promote_calls(insecure=False, remote_addr="127.0.0.1")
+        with self.assertNoLogs(CONTROLLER_LOGGER, "WARNING"):
+            calls = self._promote_calls(insecure=False, remote_addr="127.0.0.1")
         self.assertEqual(calls, [])
 
     def test_noop_when_no_master_pwd_submitted(self):
-        calls = self._promote_calls(
-            insecure=True, remote_addr="127.0.0.1", master_pwd=""
-        )
+        with self.assertNoLogs(CONTROLLER_LOGGER, "WARNING"):
+            calls = self._promote_calls(
+                insecure=True, remote_addr="127.0.0.1", master_pwd=""
+            )
         self.assertEqual(calls, [])
