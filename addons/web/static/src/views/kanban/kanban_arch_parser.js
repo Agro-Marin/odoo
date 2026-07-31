@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_arch_parser - Parses kanban view XML arch into card templates, field nodes, progress bars, and quick-create config */
+/** @module @web/views/kanban/kanban_arch_parser */
 
 import { extractAttributes, visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
@@ -14,20 +14,11 @@ import { Widget } from "@web/views/widgets/widget";
 export const KANBAN_CARD_ATTRIBUTE = "card";
 export const KANBAN_MENU_ATTRIBUTE = "menu";
 
-/**
- * Parser for kanban view arch XML.
- *
- * Extracts field nodes, widget nodes, header buttons, control elements,
- * active actions, progress bar config, quick-create settings, and template
- * documents from the `<kanban>` arch definition.
- */
 export class KanbanArchParser {
     /**
-     * Parse a kanban arch XML document into a structured archInfo object.
-     *
-     * @param {Element} xmlDoc - Root `<kanban>` XML element (named `xmlDoc` historically; actually a root Element).
-     * @param {Object} models - Map of model name to `{ fields }` definitions.
-     * @param {string} modelName - Technical name of the primary model.
+     * @param {Element} xmlDoc
+     * @param {Object} models
+     * @param {string} modelName
      * @returns {{
      *   activeActions: Object,
      *   canOpenRecords: boolean,
@@ -252,10 +243,8 @@ export class KanbanArchParser {
     }
 
     /**
-     * Parse a `<progressbar>` element into its configuration.
-     *
-     * @param {Element} progressBar - The `<progressbar>` XML element.
-     * @param {Object} fields - Field definitions for the model.
+     * @param {Element} progressBar
+     * @param {Object} fields
      * @returns {{ fieldName: string, colors: Object, sumField: Object | false, help: string }}
      */
     parseProgressBar(progressBar, fields) {
@@ -283,10 +272,8 @@ export class KanbanArchParser {
     }
 
     /**
-     * Extract button attributes from a `<button>` node.
-     *
-     * @param {Element} node - A `<button>` XML element.
-     * @returns {Object} Processed button descriptor.
+     * @param {Element} node
+     * @returns {Object}
      */
     processButton(node) {
         return processButton(node);

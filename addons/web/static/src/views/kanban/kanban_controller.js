@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_controller - Controller for the kanban view with grouping, quick-create, and progress bar support */
+/** @module @web/views/kanban/kanban_controller */
 
 import { reactive, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -34,14 +34,6 @@ const QUICK_CREATE_FIELD_TYPES = [
     "many2many",
 ];
 
-/**
- * Main controller for the kanban view, extending MultiRecordController.
- *
- * Manages the kanban-specific model (with sample data support), progress bar
- * state, quick-create workflow, column scroll restoration, and record CRUD
- * actions (open, create, delete). Coordinates between the KanbanRenderer,
- * RelationalModel, and pager.
- */
 export class KanbanController extends MultiRecordController {
     static template = `web.KanbanView`;
     static components = {
@@ -238,14 +230,6 @@ export class KanbanController extends MultiRecordController {
     }
 
     /**
-     * Configuration object passed to the RelationalModel constructor.
-     *
-     * Delegates the shared multi-record skeleton (state restoration,
-     * countLimit, defaultOrderBy, activeIdsLimit, hooks merge) to
-     * ``buildMultiRecordModelParams``; this getter only owns the
-     * kanban-specific bits (cardColorField + progressBar field
-     * dependencies, ``maxGroupByDepth: 1``, no group limit).
-     *
      * @returns {Object}
      */
     get modelParams() {
@@ -290,7 +274,7 @@ export class KanbanController extends MultiRecordController {
         });
     }
 
-    /** @returns {Object[]} Fields to aggregate in progress bar computations. */
+    /** @returns {Object[]} */
     get progressBarAggregateFields() {
         const res = [];
         const { progressAttributes } = this.props.archInfo;
@@ -309,12 +293,12 @@ export class KanbanController extends MultiRecordController {
         return this.props.className;
     }
 
-    /** @returns {boolean} Whether the user can create new records. */
+    /** @returns {boolean} */
     get canCreate() {
         return this.props.archInfo.activeActions.create;
     }
 
-    /** @returns {boolean} Whether the "New" button should be disabled (e.g. empty many2one grouping). */
+    /** @returns {boolean} */
     get isNewButtonDisabled() {
         const { createGroup } = this.props.archInfo.activeActions;
         const list = this.model.root;
@@ -327,7 +311,7 @@ export class KanbanController extends MultiRecordController {
         );
     }
 
-    /** @returns {boolean} Whether quick-create is available for the current group-by field. */
+    /** @returns {boolean} */
     get canQuickCreate() {
         const { activeActions } = this.props.archInfo;
         if (!activeActions.quickCreate) {
@@ -345,7 +329,7 @@ export class KanbanController extends MultiRecordController {
         return this.isQuickCreateField(list.groupByField);
     }
 
-    /** @returns {Object[]} Field definitions eligible for data export (excludes properties). */
+    /** @returns {Object[]} */
     getExportableFields() {
         return Object.keys(this.model.root.config.activeFields)
             .map((e) => this.model.root.fields[e])
@@ -361,8 +345,7 @@ export class KanbanController extends MultiRecordController {
     }
 
     /**
-     * Evaluate a view modifier expression in the current context.
-     * @param {string} modifier - Boolean expression string.
+     * @param {string} modifier
      * @returns {boolean}
      */
     evalViewModifier(modifier) {
@@ -370,8 +353,7 @@ export class KanbanController extends MultiRecordController {
     }
 
     /**
-     * Delete a single record with a confirmation dialog.
-     * @param {Object} record - The record datapoint to delete.
+     * @param {Object} record
      */
     deleteRecord(record) {
         this.deleteRecordsWithConfirmation(this.deleteConfirmationDialogProps, [
@@ -384,10 +366,6 @@ export class KanbanController extends MultiRecordController {
         this.props.selectRecord(record.resId, { activeIds, newWindow });
     }
 
-    /**
-     * Create a new record via quick-create, custom action, or default flow.
-     * Dispatches based on the `on_create` arch attribute.
-     */
     async createRecord() {
         const { onCreate } = this.props.archInfo;
         const { root } = this.model;
@@ -416,8 +394,7 @@ export class KanbanController extends MultiRecordController {
     }
 
     /**
-     * Update progress bar counts after a record is saved in a grouped view.
-     * @param {Object} record - The saved record datapoint.
+     * @param {Object} record
      */
     onRecordSaved(record) {
         if (this.model.root.isGrouped) {
@@ -430,14 +407,12 @@ export class KanbanController extends MultiRecordController {
 
     async onUpdatedPager() {}
 
-    /** Scroll the content area to the top. */
     scrollTop() {
         this.rootRef.el?.querySelector(".o_content")?.scrollTo({ top: 0 });
     }
 
     /**
-     * Check whether a field type supports quick-create grouping.
-     * @param {Object | null} field - Field definition with a `type` property.
+     * @param {Object | null} field
      * @returns {boolean}
      */
     isQuickCreateField(field) {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_header - Column header with group title, record count, progress bar, and fold/edit/delete cog menu */
+/** @module @web/views/kanban/kanban_header */
 
 import { Component, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -16,7 +16,6 @@ import { GroupConfigMenu } from "@web/views/view_components/group_config_menu";
 
 import { ColumnProgress } from "./column_progress.js";
 
-/** Popover component displaying field-based tooltip info for a kanban group header. */
 class KanbanHeaderTooltip extends Component {
     static template = "web.KanbanGroupTooltip";
     static props = {
@@ -25,10 +24,6 @@ class KanbanHeaderTooltip extends Component {
     };
 }
 
-/**
- * Kanban column header: title, count, progress bar, cog menu (fold/edit/
- * delete/archive), many2one hover tooltip, and quick-create trigger.
- */
 export class KanbanHeader extends Component {
     static template = "web.KanbanHeader";
     static components = {
@@ -53,6 +48,11 @@ export class KanbanHeader extends Component {
         canQuickCreate: false,
     };
 
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {ReturnType<typeof usePopover>} */
+    popover;
+
     setup() {
         this.dialog = useService("dialog");
         this.orm = useService("orm");
@@ -62,8 +62,6 @@ export class KanbanHeader extends Component {
     }
 
     /**
-     * Show a tooltip popover on group title hover (debounced).
-     * Only fires for many2one group-by fields that have tooltip info.
      * @param {MouseEvent} ev
      */
     async onTitleMouseEnter(ev) {
@@ -81,13 +79,12 @@ export class KanbanHeader extends Component {
         }
     }
 
-    /** Cancel pending tooltip load and close any open popover. */
     onTitleMouseLeave() {
         /** @type {any} */ (this.onTitleMouseEnter).cancel();
         this.popover.close();
     }
 
-    /** @returns {Object} Props for the GroupConfigMenu dropdown (fold, edit, delete, archive). */
+    /** @returns {Object} */
     get configMenuProps() {
         return {
             activeActions: this.props.activeActions,
@@ -114,7 +111,7 @@ export class KanbanHeader extends Component {
         };
     }
 
-    /** @returns {Object | undefined} Progress bar info for this column, if enabled. */
+    /** @returns {Object | undefined} */
     get progressBar() {
         return this.props.progressBarState?.getGroupInfo(this.group);
     }
@@ -123,14 +120,14 @@ export class KanbanHeader extends Component {
         return this.props.group;
     }
 
-    /** @returns {{ title: string, value: number }} Aggregate value for the progress bar sum field. */
+    /** @returns {{ title: string, value: number }} */
     get groupAggregate() {
         const { group, progressBarState } = this.props;
         const { sumField } = progressBarState.progressAttributes;
         return progressBarState.getAggregateValue(group, sumField);
     }
 
-    /** @returns {boolean} Whether this group header should show a tooltip on hover. */
+    /** @returns {boolean} */
     get hasTooltip() {
         const { name, type } = this.group.groupByField;
         return (
@@ -139,9 +136,6 @@ export class KanbanHeader extends Component {
     }
 
     /**
-     * Fetch tooltip field values from the server. The resolved promise is
-     * cached; a rejected one is dropped so a transient RPC failure doesn't
-     * permanently break the tooltip for this header.
      * @returns {Promise<Array<{ title: string, value: any }>>}
      */
     loadTooltip = () => {
@@ -170,12 +164,10 @@ export class KanbanHeader extends Component {
             }));
     }
 
-    /** Activate quick-create mode for this column. */
-    quickCreate(group) {
+    quickCreate() {
         this.props.quickCreateState.groupId = this.group.id;
     }
 
-    /** Fold or unfold this column. */
     toggleGroup() {
         return this.group.toggle();
     }
@@ -185,8 +177,7 @@ export class KanbanHeader extends Component {
     }
 
     /**
-     * Handle a progress bar segment click to filter the column.
-     * @param {*} value - The bar value that was clicked.
+     * @param {*} value
      */
     async onBarClicked(value) {
         await this.props.progressBarState.selectBar(this.props.group.id, value);

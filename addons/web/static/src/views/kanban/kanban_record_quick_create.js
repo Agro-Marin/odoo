@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_record_quick_create - Inline mini-form for quick-creating records within a kanban column */
+/** @module @web/views/kanban/kanban_record_quick_create */
 
 import {
     Component,
@@ -38,14 +38,20 @@ const ACTION_SELECTORS = [
     ".o-kanban-button-new",
 ];
 
-/**
- * Embedded form controller for the kanban record quick-create widget.
- *
- * Renders a minimal inline form (default: just `display_name`) inside a kanban
- * column. Handles validation, save via `name_create` or full ORM save, and
- * falls back to a FormViewDialog on RPC errors.
- */
 export class KanbanQuickCreateController extends Component {
+    /** @type {ReturnType<typeof useOwnedDialogs>} */
+    addDialog;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notificationService;
+    /** @type {import("@odoo/owl").Ref} */
+    rootRef;
+    /** @type {{ disabled: boolean } | { isLoaded: boolean }} */
+    state;
+    /** @type {import("services").ServiceFactories["ui"]} */
+    uiService;
+    /** @type {import("services").ServiceFactories["view"]} */
+    viewService;
+
     static props = {
         Model: Function,
         Renderer: Function,
@@ -141,8 +147,7 @@ export class KanbanQuickCreateController extends Component {
     }
 
     /**
-     * Save the quick-create record.
-     * @param {"add" | "edit"} mode - "add" resets the form for another entry; "edit" closes.
+     * @param {"add" | "edit"} mode
      */
     async validate(mode) {
         let resId = undefined;
@@ -182,7 +187,6 @@ export class KanbanQuickCreateController extends Component {
             }
 
             if (resId) {
-                // global error service; awaiting would only relocate where it
                 this.props.onValidate(resId, mode);
                 if (mode === "add") {
                     await this.model.load({ resId: false });
@@ -196,8 +200,7 @@ export class KanbanQuickCreateController extends Component {
     }
 
     /**
-     * Cancel quick-create. Asks for confirmation if the form is dirty.
-     * @param {boolean} force - If true, cancel without checking dirty state.
+     * @param {boolean} force
      */
     async cancel(force) {
         if (this.state.disabled) {
@@ -209,8 +212,7 @@ export class KanbanQuickCreateController extends Component {
     }
 
     /**
-     * Open a full FormViewDialog as fallback when quick-create save fails.
-     * @param {Error} e - The error from the failed save attempt.
+     * @param {Error} e
      */
     showFormDialogInError(e) {
         if (!(e instanceof RPCError)) {
@@ -233,20 +235,12 @@ export class KanbanQuickCreateController extends Component {
         });
     }
 
-    /** @returns {string} CSS classes for the quick-create card. */
+    /** @returns {string} */
     get className() {
         return "o_kanban_quick_create o_field_highlight shadow";
     }
 }
 
-/**
- * Wrapper component that loads the quick-create form arch (default or custom)
- * and renders a KanbanQuickCreateController once ready.
- *
- * If a `quick_create_view` is specified in the kanban arch, it fetches that
- * form view definition; otherwise it uses a minimal default form with just
- * `display_name`.
- */
 export class KanbanRecordQuickCreate extends Component {
     static components = { KanbanQuickCreateController };
     static template = "web.KanbanRecordQuickCreate";
@@ -278,8 +272,7 @@ export class KanbanRecordQuickCreate extends Component {
     }
 
     /**
-     * Load the quick-create form view and build controller props.
-     * @param {Object} props - Component props containing group context and quickCreateView ref.
+     * @param {Object} props
      */
     async getQuickCreateProps(props) {
         /** @type {any} */

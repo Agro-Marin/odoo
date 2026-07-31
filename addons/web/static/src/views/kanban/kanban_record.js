@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_record - Individual kanban card component with compiled template, color strips, cover images, and action handling */
+/** @module @web/views/kanban/kanban_record */
 
 import {
     Component,
@@ -60,8 +60,6 @@ function getColorIndex(value) {
 }
 
 /**
- * Returns a "raw" version of the field value on a given record.
- *
  * @param {any} record
  * @param {string} fieldName
  * @returns {any}
@@ -88,8 +86,6 @@ export function getRawValue(record, fieldName) {
 }
 
 /**
- * Returns a formatted version of the field value on a given record.
- *
  * @param {any} record
  * @param {string} fieldName
  * @returns {string}
@@ -102,16 +98,24 @@ function getValue(record, fieldName) {
 }
 
 /**
- * Returns a lazily formatted version of a record for the card template's
- * rendering context: `id` and each active field expose `value`/`raw_value`
- * accessors computed on read rather than eagerly, so only accessed fields
- * are formatted and reactively subscribed.
- *
  * @param {any} record
  * @returns {any}
  */
 export function getFormattedRecord(record) {
     const entries = Object.create(null);
+    /**
+     * @type {Set<string> | null}
+     */
+    let fieldNameSet = null;
+    let memoKey = null;
+    const getFieldNames = () => {
+        const key = record.activeFields;
+        if (fieldNameSet === null || memoKey !== key) {
+            memoKey = key;
+            fieldNameSet = new Set(record.fieldNames);
+        }
+        return fieldNameSet;
+    };
     const getEntry = (fieldName) => {
         if (!entries[fieldName]) {
             if (fieldName === "id") {
@@ -137,7 +141,7 @@ export function getFormattedRecord(record) {
         return entries[fieldName];
     };
     const isField = (p) =>
-        typeof p === "string" && (p === "id" || record.fieldNames.includes(p));
+        typeof p === "string" && (p === "id" || getFieldNames().has(p));
     return new Proxy(Object.create(null), {
         get(target, p) {
             return isField(p) ? getEntry(p) : Reflect.get(target, p);
@@ -146,9 +150,7 @@ export function getFormattedRecord(record) {
             return isField(p) || Reflect.has(target, p);
         },
         ownKeys(target) {
-            return [
-                ...new Set(["id", ...record.fieldNames, ...Reflect.ownKeys(target)]),
-            ];
+            return [...new Set(["id", ...getFieldNames(), ...Reflect.ownKeys(target)])];
         },
         getOwnPropertyDescriptor(target, p) {
             if (isField(p)) {
@@ -160,15 +162,11 @@ export function getFormattedRecord(record) {
 }
 
 /**
- * Returns the image URL of a given field on the record.
- *
  * @param {any} record
- * @param {string} [model] model name
- * @param {string} [field] field name
- * @param {number | [number, ...any[]]} [idOrIds] id or array
- *      starting with the id of the desired record.
- * @param {string} [placeholder] fallback when the image does not
- *  exist
+ * @param {string} [model]
+ * @param {string} [field]
+ * @param {number | [number, ...any[]]} [idOrIds]
+ * @param {string} [placeholder]
  * @returns {string}
  */
 export function getImageSrcFromRecordInfo(record, model, field, idOrIds, placeholder) {
@@ -277,8 +275,6 @@ export class KanbanRecord extends Component {
     }
 
     /**
-     * Assigns "widget" properties on the kanban record.
-     *
      * @param {Object} props
      */
     createWidget(props) {
@@ -449,9 +445,6 @@ export class KanbanRecord extends Component {
     }
 
     /**
-     * Returns the card template's rendering context. The keys follow
-     * outdated conventions but must not be changed, for compatibility.
-     *
      * @returns {Object}
      */
     get renderingContext() {

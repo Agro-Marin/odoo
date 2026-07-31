@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/column_progress - Progress bar with colored segments for kanban column group aggregates */
+/** @module @web/views/kanban/column_progress */
 
 import { Component } from "@odoo/owl";
 
@@ -23,7 +23,7 @@ export class ColumnProgress extends Component {
     };
 
     /**
-     * @param {Object} bar - progress bar segment that was clicked
+     * @param {Object} bar
      * @returns {Promise<void>}
      */
     async onBarClick(bar) {

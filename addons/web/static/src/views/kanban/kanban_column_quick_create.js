@@ -1,17 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_column_quick_create - Inline quick-create widget for adding new kanban columns (groups) */
+/** @module @web/views/kanban/kanban_column_quick_create */
 
 import { Component, onPatched, useExternalListener, useRef, useState } from "@odoo/owl";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
-/**
- * Inline quick-create widget for kanban columns (groups): appears at the end
- * of the board when grouped by a supported field. Supports fold/unfold,
- * Enter-to-validate, Escape-to-close, and closes on outside click.
- */
 export class KanbanColumnQuickCreate extends Component {
     static template = "web.KanbanColumnQuickCreate";
     static props = {
@@ -20,6 +15,13 @@ export class KanbanColumnQuickCreate extends Component {
         folded: Boolean,
         groupByField: Object,
     };
+
+    /** @type {import("@odoo/owl").Ref} */
+    inputRef;
+    /** @type {import("@odoo/owl").Ref} */
+    root;
+    /** @type {{ hasInputFocused: boolean }} */
+    state;
 
     setup() {
         this.dialog = useService("dialog");
@@ -39,7 +41,9 @@ export class KanbanColumnQuickCreate extends Component {
             "click",
             (/** @type {Event} */ ev) => {
                 const target = /** @type {Node} */ (this.mousedownTarget || ev.target);
-                const gotClickedInside = this.root.el.contains(target);
+                const gotClickedInside = /** @type {HTMLElement} */ (
+                    this.root.el
+                ).contains(target);
                 if (!gotClickedInside) {
                     this.fold();
                 }
@@ -51,27 +55,24 @@ export class KanbanColumnQuickCreate extends Component {
         useHotkey("escape", () => this.fold());
         onPatched(() => {
             if (this.state.hasInputFocused && !this.props.folded) {
-                this.root.el.scrollIntoView({ behavior: "smooth" });
+                this.root.el?.scrollIntoView({ behavior: "smooth" });
             }
         });
     }
 
-    /** @returns {string} Human-readable label of the group-by field. */
+    /** @returns {string} */
     get relatedFieldName() {
         return this.props.groupByField.string;
     }
 
-    /** Collapse the quick-create input. */
     fold() {
         this.props.onFoldChange(true);
     }
 
-    /** Expand the quick-create input. */
     unfold() {
         this.props.onFoldChange(false);
     }
 
-    /** Submit the input value as a new column title, then reset the input. */
     validate() {
         const inputEl = /** @type {HTMLInputElement} */ (this.inputRef.el);
         const title = inputEl.value.trim();
@@ -84,7 +85,6 @@ export class KanbanColumnQuickCreate extends Component {
     }
 
     /**
-     * Validate on Enter key press.
      * @param {KeyboardEvent} ev
      */
     onInputKeydown(ev) {

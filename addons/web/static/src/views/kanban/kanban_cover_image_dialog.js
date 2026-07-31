@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_cover_image_dialog - Dialog for selecting, uploading, or removing a cover image on a kanban record */
+/** @module @web/views/kanban/kanban_cover_image_dialog */
 
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { FileInput } from "@web/components/file_input/file_input";
@@ -10,12 +10,6 @@ import { Dialog } from "@web/ui/dialog/dialog";
 
 let nextDialogId = 1;
 
-/**
- * Dialog for selecting or uploading a cover image on a kanban record.
- *
- * On open, fetches existing image attachments for the record. The user can
- * pick an existing attachment, upload a new image, or remove the current cover.
- */
 export class KanbanCoverImageDialog extends Component {
     static template = "web.KanbanCoverImageDialog";
     static components = { Dialog, FileInput };
@@ -46,14 +40,13 @@ export class KanbanCoverImageDialog extends Component {
         });
     }
 
-    /** @returns {boolean} Whether the record currently has a cover image set. */
+    /** @returns {boolean} */
     get hasCoverImage() {
         return Boolean(this.props.record.data[this.props.fieldName]);
     }
 
     /**
-     * Handle a completed file upload.
-     * @param {Object[]} _ - Array with one uploaded attachment object.
+     * @param {Object[]} _
      */
     onUpload([attachment]) {
         if (!attachment) {
@@ -63,9 +56,8 @@ export class KanbanCoverImageDialog extends Component {
     }
 
     /**
-     * Toggle selection of an attachment. If already selected, deselect it.
-     * @param {Object} attachment - Attachment record with `id`.
-     * @param {boolean} setSelected - If true, immediately persist the choice.
+     * @param {Record<string, any>} attachment
+     * @param {boolean} setSelected
      */
     selectAttachment(attachment, setSelected) {
         if (this.state.selectedAttachmentId !== attachment.id) {
@@ -78,13 +70,11 @@ export class KanbanCoverImageDialog extends Component {
         }
     }
 
-    /** Clear the cover image and persist the change. */
     removeCover() {
         this.state.selectedAttachmentId = null;
         this.setCover();
     }
 
-    /** Persist the selected (or cleared) cover image to the record. */
     async setCover() {
         const value = this.state.selectedAttachmentId
             ? { id: this.state.selectedAttachmentId }

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_compiler - Template compiler transforming kanban card/menu arch into OWL-compatible templates */
+/** @module @web/views/kanban/kanban_compiler */
 
 import {
     append,
@@ -32,12 +32,6 @@ const SPECIAL_TYPES = [
     "unarchive",
 ];
 
-/**
- * Template compiler for kanban card/menu templates: wires action buttons
- * (open, delete, set_cover, archive, url) to `triggerAction()`, renders
- * widget-less fields as `<span>`, lazy-loads images, and resolves `t-call`
- * against compiled template refs.
- */
 export class KanbanCompiler extends ViewCompiler {
     setup() {
         /** @type {any} */ (this).compilers.push(
@@ -150,10 +144,6 @@ export class KanbanCompiler extends ViewCompiler {
             });
             compiled.setAttribute("attrs", `{${attrsParts.join(",")}}`);
         } else {
-            // A widget-less field compiles to a bare <span t-out="..."/>. Forward
-            // the author's presentational attributes onto it: the widget branch
-            // above passes them through `attrs`, so dropping them here made the
-            // same arch style or not depending on an unrelated `widget=`.
             for (const [key, value] of Object.entries(attrs)) {
                 if (
                     ["class", "style"].includes(key) ||
@@ -181,7 +171,7 @@ export class KanbanCompiler extends ViewCompiler {
      */
     compileTCall(el, params) {
         const compiled = this.compileGenericNode(el, params);
-        const tname = el.getAttribute("t-call");
+        const tname = /** @type {string} */ (el.getAttribute("t-call"));
         if (tname in this.templates) {
             compiled.setAttribute(
                 "t-call",
