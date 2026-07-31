@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/settings_app - Container for a single app's settings tab content, hidden when search yields no matches */
+/** @module @web/views/settings/settings/settings_app */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 
@@ -14,10 +14,6 @@ export class SettingsApp extends Component {
         selectedTab: { type: String, optional: 1 },
         slots: Object,
     };
-    /**
-     * Track search state and toggle `d-none` on the app container when a search
-     * is active but no visible settings or containers remain inside this app.
-     */
     setup() {
         /** @type {{ search: { value: string } }} */
         this.state = useState({

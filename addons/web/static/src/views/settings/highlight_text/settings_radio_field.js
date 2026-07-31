@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/highlight_text/settings_radio_field - RadioField variant with search-term highlighting on option labels */
+/** @module @web/views/settings/highlight_text/settings_radio_field */
 
 import { registerField } from "@web/fields/_registry";
 import { RadioField, radioField } from "@web/fields/selection/radio/radio_field";

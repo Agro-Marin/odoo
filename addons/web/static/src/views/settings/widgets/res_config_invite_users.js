@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/res_config_invite_users - Settings widget for inviting users by email with validation and pending-invitation list */
+/** @module @web/views/settings/widgets/res_config_invite_users */
 
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -14,6 +14,17 @@ class ResConfigInviteUsers extends Component {
     static props = {
         ...standardWidgetProps,
     };
+
+    /** @type {import("services").ServiceFactories["action"]} */
+    action;
+    /** @type {import("services").ServiceFactories["user_invite"]} */
+    invite;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {{ status: string; emails: string; invite: null }} */
+    state;
 
     setup() {
         this.orm = useService("orm");
@@ -34,7 +45,7 @@ class ResConfigInviteUsers extends Component {
 
     /**
      * @param {string} email
-     * @returns {boolean} true if the given email address is valid
+     * @returns {boolean}
      */
     validateEmail(email) {
         const re =
@@ -109,7 +120,7 @@ class ResConfigInviteUsers extends Component {
         }
     }
 
-    /** Send invitation for valid and unique email addresses. @private */
+    /** @private */
     async sendInvite() {
         if (this.state.status === "inviting") {
             return;
@@ -149,6 +160,7 @@ class ResConfigInviteUsers extends Component {
     }
 }
 
+/** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const resConfigInviteUsers = {
     component: ResConfigInviteUsers,
 };

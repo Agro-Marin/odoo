@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_form_view - View descriptor for the settings form view (base_setup) with custom record, model, and compiler */
+/** @module @web/views/settings/settings_form_view */
 
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -13,7 +13,6 @@ import { SettingsFormCompiler } from "./settings_form_compiler.js";
 import { SettingsFormController } from "./settings_form_controller.js";
 import { SettingsFormRenderer } from "./settings_form_renderer.js";
 
-/** Record subclass that handles header-field changes with confirmation dialogs. */
 class SettingRecord extends formView.Model.Record {
     _update(changes) {
         const changedFields = Object.keys(changes);
@@ -55,12 +54,11 @@ class SettingRecord extends formView.Model.Record {
     }
 }
 
-/** Model subclass that tracks header fields and forces resId=false on config reload. */
 class SettingModel extends formView.Model {
     static withCache = false;
 
-    setup(params) {
-        super.setup(/** @type {any} */ (params));
+    setup(params, services) {
+        super.setup(/** @type {any} */ (params), services);
         this._headerFields = params.headerFields;
         this._onChangeHeaderFields = params.onChangeHeaderFields;
     }

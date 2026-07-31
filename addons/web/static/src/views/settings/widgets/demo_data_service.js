@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/widgets/demo_data_service - Service that checks whether demo data is active in the current database */
+/** @module @web/views/settings/widgets/demo_data_service */
 
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -12,13 +12,15 @@ export const demoDataService = {
         let isDemoDataActiveProm;
         return {
             /**
-             * Check whether demo data is installed (cached after first call).
              * @returns {Promise<boolean>}
              */
             isDemoDataActive() {
-                if (!isDemoDataActiveProm) {
-                    isDemoDataActiveProm = rpc("/base_setup/demo_active");
-                }
+                isDemoDataActiveProm ??= rpc("/base_setup/demo_active").catch(
+                    (error) => {
+                        isDemoDataActiveProm = undefined;
+                        throw error;
+                    },
+                );
                 return isDemoDataActiveProm;
             },
         };

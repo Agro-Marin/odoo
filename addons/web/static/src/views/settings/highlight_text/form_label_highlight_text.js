@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/highlight_text/form_label_highlight_text - FormLabel variant with search-term highlighting and enterprise upgrade badge */
+/** @module @web/views/settings/highlight_text/form_label_highlight_text */
 
 import { FormLabel } from "@web/views/form/form_label";
 import { upgradeBooleanField } from "@web/views/settings/fields/upgrade_boolean_field";
@@ -14,7 +14,7 @@ export class FormLabelHighlightText extends FormLabel {
     setup() {
         super.setup();
         /** @type {boolean} */
-        const isEnterprise = odoo.info && odoo.info.isEnterprise;
+        const isEnterprise = Boolean(odoo.info && odoo.info.isEnterprise);
         if (this.props.fieldInfo?.field === upgradeBooleanField && !isEnterprise) {
             this.upgradeEnterprise = true;
         }

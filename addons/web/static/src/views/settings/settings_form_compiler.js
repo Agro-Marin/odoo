@@ -1,17 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_form_compiler - Compiler transforming settings arch (app/block elements) into SettingsPage/SettingsApp components */
+/** @module @web/views/settings/settings_form_compiler */
 
 import { append, createElement } from "@web/core/utils/dom/xml";
 import { FormCompiler } from "@web/views/form/form_compiler";
 import { isTextNode } from "@web/views/view_compiler";
 import { toStringExpression } from "@web/views/view_utils";
-/**
- * Compiles `<app>`/`<block>` elements into SettingsApp/SettingsBlock, wraps
- * text nodes in HighlightText for search, and collects module/anchor
- * metadata for the SettingsPage tab navigation.
- */
 export class SettingsFormCompiler extends FormCompiler {
     setup() {
         super.setup();

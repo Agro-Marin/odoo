@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/fields/upgrade_dialog - Dialog prompting the user to upgrade to Odoo Enterprise */
+/** @module @web/views/settings/fields/upgrade_dialog */
 
 import { Component } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
@@ -13,11 +13,13 @@ export class UpgradeDialog extends Component {
     static props = {
         close: Function,
     };
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+
     setup() {
         this.orm = useService("orm");
     }
     /**
-     * Count non-share users and open the Odoo Enterprise upgrade page.
      * @returns {Promise<void>}
      */
     async _confirmUpgrade() {

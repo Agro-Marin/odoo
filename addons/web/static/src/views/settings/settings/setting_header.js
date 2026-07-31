@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings/setting_header - Setting variant for header-type fields displayed in the app header row */
+/** @module @web/views/settings/settings/setting_header */
 
 import { Setting } from "@web/views/form/setting/setting";
 export class SettingHeader extends Setting {

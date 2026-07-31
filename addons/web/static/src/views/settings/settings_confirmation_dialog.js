@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/settings/settings_confirmation_dialog - Three-way dialog (Save/Discard/Stay) for unsaved settings changes */
+/** @module @web/views/settings/settings_confirmation_dialog */
 
 import { _t } from "@web/core/l10n/translation";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
