@@ -134,8 +134,8 @@ class ReadMixin(_ModelStubs):
         values, in the format expected by :meth:`read`.  Unlike ``read`` this
         reads from cache, avoiding a query when possible.
 
-        Properties fields use ``convert_to_read_multi`` to batch record
-        existence, display names, etc.
+        Properties and many2one fields use ``convert_to_read_multi`` to batch
+        record existence, display names and the target access check.
         """
         use_display_name = load == "_classic_read"
         env = self.env
@@ -206,7 +206,15 @@ class ReadMixin(_ModelStubs):
 
         for name in record_fnames:
             field = _fields[name]
-            if field.type == "properties":
+            # Fields that answer for a whole column at once. `properties`
+            # batches record existence and display names; `many2one` batches the
+            # access check that decides whether the target may be named at all,
+            # which is one query per value whenever the comodel's record rules
+            # are written on a search-defined field (see
+            # `Many2one.convert_to_read_multi`).
+            if field.type in ("properties", "many2one"):
+                if field.store:
+                    field.ensure_computed(self)
                 values_list = []
                 records = []
                 valid_data = []
@@ -220,11 +228,11 @@ class ReadMixin(_ModelStubs):
                     except MissingError:
                         vals.clear()
 
-                prop_results = field.convert_to_read_multi(
-                    values_list, self.browse(records)
+                multi_results = field.convert_to_read_multi(
+                    values_list, self.browse(records), use_display_name
                 )
                 for (_, vals), convert_result in zip(
-                    valid_data, prop_results, strict=True
+                    valid_data, multi_results, strict=True
                 ):
                     vals[name] = convert_result
                 continue

@@ -243,15 +243,71 @@ class Many2one(_Relational):
         record: ModelLike,
         use_display_name: bool = True,
     ) -> int | tuple[int, str] | typing.Literal[False]:
-        if use_display_name and value:
+        return self.convert_to_read_multi([value], record, use_display_name)[0]
+
+    def convert_to_read_multi(
+        self,
+        values: list[BaseModel],
+        records: ModelLike,
+        use_display_name: bool = True,
+    ) -> list[typing.Any]:
+        """Convert a whole column of values, checking access ONCE.
+
+        Naming a target the reader may not see would leak it, so each value is
+        hidden unless it passes ``read``. Asked one value at a time -- as it was
+        -- that is usually free: ``filtered_domain`` evaluates the comodel's
+        record rules in Python, straight off the cache. But a rule written on a
+        **search-defined** field cannot be evaluated in Python at all;
+        ``Domain._as_predicate`` falls through to ``_search_defined_predicate``,
+        which runs a query. Reading such a many2one over N records therefore
+        cost N queries -- ``documents.document.folder_id``, whose rule is
+        ``user_permission != 'none'``: 105 queries for 100 records, against 5 in
+        superuser mode where no rule applies.
+
+        Resolving the column in one pass makes that one query, and changes
+        nothing for the comodels whose rules were already free.
+
+        This is the single implementation; :meth:`convert_to_read` delegates to
+        it for one value, the way ``Properties`` already does. A subclass that
+        needs different behaviour must override **this** method -- overriding
+        only ``convert_to_read`` would leave ``_read_format`` calling the stock
+        conversion.
+
+        :param values: one value per record in *records*, same order
+        :param records: the records the values were read from
+        :param use_display_name: when false, return bare ids and check nothing
+        """
+        if not use_display_name:
+            return [value.id for value in values]
+
+        allowed_ids: set | None = None
+        if target_ids := list(unique(value.id for value in values if value)):
+            targets = records.env[self.comodel_name].browse(target_ids)
             try:
-                if not value._filtered_access("read"):
-                    return False
-                return (value.id, value.sudo().display_name)
+                allowed_ids = set(targets._filtered_access("read")._ids)
             except MissingError:
-                return False
-        else:
-            return value.id
+                # A target vanished mid-read. Rules evaluated in Python raise on
+                # a deleted row rather than simply not matching it, so fall back
+                # to asking per value, which answers False for exactly those.
+                allowed_ids = None
+
+        result: list[typing.Any] = []
+        for value in values:
+            if not value:
+                result.append(False)
+                continue
+            try:
+                readable = (
+                    value.id in allowed_ids
+                    if allowed_ids is not None
+                    else bool(value._filtered_access("read"))
+                )
+                result.append(
+                    (value.id, value.sudo().display_name) if readable else False
+                )
+            except MissingError:
+                result.append(False)
+        return result
 
     @override
     def convert_to_write(
