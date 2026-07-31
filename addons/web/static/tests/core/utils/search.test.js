@@ -1,8 +1,8 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { fuzzyLevenshteinLookup, fuzzyLookup, fuzzyTest } from "@web/core/utils/search";
 import { normalize } from "@web/core/l10n/utils";
+import { fuzzyLevenshteinLookup, fuzzyLookup, fuzzyTest } from "@web/core/utils/search";
 
 describe.current.tags("headless");
 
@@ -77,7 +77,8 @@ test("fuzzyLevenshteinLookup: the length prefilter does not change results", () 
     const words = ["apple", "maple", "ape", "banana", "a", "applesauce"];
     // A length gap larger than the correction budget cannot be within it, so
     // skipping the matrix for those candidates is result-preserving.
-    for (const [pattern, errorRatio] of [
+    /** @type {[string, number][]} */
+    const cases = [
         ["aple", 3],
         ["aple", 5],
         ["aple", 100],
@@ -85,16 +86,23 @@ test("fuzzyLevenshteinLookup: the length prefilter does not change results", () 
         ["b", 3],
         ["banana", 2],
         ["", 3],
-    ]) {
+    ];
+    for (const [pattern, errorRatio] of cases) {
         const got = fuzzyLevenshteinLookup(pattern, words, errorRatio);
         // Recompute without the prefilter, straight from the definition.
         const expected = words
             .map((candidate) => {
                 const norm = normalize(candidate);
                 const pat = normalize(pattern);
-                return { candidate, score: norm.includes(pat) ? 0 : levenshtein(pat, norm) };
+                return {
+                    candidate,
+                    score: norm.includes(pat) ? 0 : levenshtein(pat, norm),
+                };
             })
-            .filter(({ score }) => score <= Math.round(normalize(pattern).length / errorRatio))
+            .filter(
+                ({ score }) =>
+                    score <= Math.round(normalize(pattern).length / errorRatio),
+            )
             .sort((a, b) => a.score - b.score)
             .map((r) => r.candidate);
         expect(got).toEqual(expected, {

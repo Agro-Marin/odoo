@@ -20,6 +20,7 @@ describe.current.tags("headless");
 const LINK = 4;
 const SET = 6;
 
+/** @returns {any} a partial StaticList, enough for applyCommands */
 function makeList() {
     const loadedIds = [];
     const list = {

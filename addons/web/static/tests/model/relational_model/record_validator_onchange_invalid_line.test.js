@@ -8,7 +8,7 @@
  */
 
 import { expect, test } from "@odoo/hoot";
-import { click } from "@odoo/hoot-dom";
+import { click, queryOne } from "@odoo/hoot-dom";
 import {
     defineModels,
     fields,
@@ -57,7 +57,9 @@ test("a required o2m line field cleared by an onchange blocks the save", async (
     });
 
     // typing in the parent field fires the onchange that empties the line
-    const input = document.querySelector(".o_field_widget[name=name] input");
+    const input = /** @type {HTMLInputElement} */ (
+        queryOne(".o_field_widget[name=name] input")
+    );
     input.value = "changed";
     input.dispatchEvent(new InputEvent("input", { bubbles: true }));
     input.dispatchEvent(new Event("change", { bubbles: true }));
