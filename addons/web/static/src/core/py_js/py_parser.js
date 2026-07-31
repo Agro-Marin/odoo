@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_parser - Pratt parser that converts Python token streams into AST nodes */
+/** @module @web/core/py_js/py_parser */
 
 import { ASTType } from "./ast_type.js";
 import { binaryOperators, comparators } from "./py_tokenizer.js";
@@ -12,55 +12,56 @@ import { TokenType } from "./token_type.js";
  */
 
 /**
- * The AST node typedefs and the {@link ASTType} discriminant legend live in
- * ``./ast_type.js`` (single source of truth shared with the interpreter and the
- * domain/context/tree decoders).
- *
  * @typedef { import("./ast_type").AST } AST
  * @typedef { import("./ast_type").ASTBinaryOperator } ASTBinaryOperator
  */
 
 class ParserError extends Error {}
 
-/**
- * Guard against unbounded parser recursion (deeply nested parentheses /
- * brackets / unary operators): a crafted input like ``"(".repeat(20000)``
- * would otherwise blow the JS call stack with a raw ``RangeError`` outside the
- * error taxonomy. Real expressions never nest this deep.
- */
 const MAX_PARSE_DEPTH = 200;
-let parseDepth = 0;
 
-const chainedOperators = new Set(comparators);
-const infixOperators = new Set([...binaryOperators, ...comparators]);
+// "not" is in `comparators` only so the tokenizer can glue "not in" / "is not";
+// on its own it is never a comparison, so it cannot continue a chain either.
+const chainedOperators = new Set(comparators.filter((op) => op !== "not"));
+// "not" reaches the parser only as a prefix (`not x`) or already glued into
+// "not in" / "is not"; on its own it is not an infix operator, and treating it
+// as one let `1 < 2 not 3` parse and fail at evaluation instead.
+const infixOperators = new Set(
+    [...binaryOperators, ...comparators].filter((op) => op !== "not"),
+);
 
-/**
- * A lightweight cursor wrapping a token array for O(1) consumption.
- * Replaces Array.shift() (O(n)) with index-based access.
- */
 class TokenCursor {
     /** @param {Token[]} tokens */
     constructor(tokens) {
         this._tokens = tokens;
         this._pos = 0;
+        // Depth belongs to the parse in progress, not to the module. It was a
+        // module-level counter that `parse()` reset on entry, which is only
+        // sound because nothing reparses re-entrantly; the interpreter already
+        // keeps its equivalent per evaluation.
+        this._depth = 0;
     }
-    /** Peek at the current token without consuming it. */
+    enter() {
+        if (this._depth >= MAX_PARSE_DEPTH) {
+            throw new ParserError("Maximum expression depth exceeded");
+        }
+        this._depth++;
+    }
+    leave() {
+        this._depth--;
+    }
     peek() {
         return this._tokens[this._pos];
     }
-    /** Consume and return the current token, advancing the position. */
     next() {
         return this._tokens[this._pos++];
     }
-    /** Number of unconsumed tokens remaining. */
     get remaining() {
         return this._tokens.length - this._pos;
     }
 }
 
 /**
- * Compute the "binding power" of a symbol
- *
  * @param {string} symbol
  * @returns {number}
  */
@@ -116,8 +117,6 @@ export function bp(symbol) {
 }
 
 /**
- * Compute binding power of a token.
- *
  * @param {Token} token
  * @returns {number}
  */
@@ -128,8 +127,6 @@ function bindingPower(token) {
 }
 
 /**
- * Check if a token is a symbol of a given value.
- *
  * @param {Token} token
  * @param {string} value
  * @returns {boolean}
@@ -268,7 +265,7 @@ function parseInfix(left, current, cur) {
                     current.value === "**"
                         ? bindingPower(current) - 1
                         : bindingPower(current);
-                let right = _parse(cur, rightBp);
+                const right = _parse(cur, rightBp);
                 if (current.value === "and" || current.value === "or") {
                     return {
                         type: ASTType.BooleanOperator,
@@ -287,36 +284,34 @@ function parseInfix(left, current, cur) {
                         throw new ParserError("invalid obj lookup");
                     }
                 }
-                /** @type {AST} */
-                let op = {
+                const continuesAChain = () =>
+                    cur.peek() &&
+                    cur.peek().type === TokenType.Symbol &&
+                    chainedOperators.has(/** @type {string} */ (cur.peek().value));
+                if (
+                    chainedOperators.has(/** @type {string} */ (current.value)) &&
+                    continuesAChain()
+                ) {
+                    // `a < b < c` is one node, not `(a < b) and (b < c)`: the
+                    // desugaring put the *same* node on both sides, so the
+                    // middle operand was evaluated twice -- `t1 < now() < t2`
+                    // read the clock twice -- and formatAST rewrote the user's
+                    // expression on every round trip through the editors.
+                    const operands = [left, right];
+                    const operators = [/** @type {string} */ (current.value)];
+                    while (continuesAChain()) {
+                        const nextToken = cur.next();
+                        operators.push(/** @type {string} */ (nextToken.value));
+                        operands.push(_parse(cur, bindingPower(nextToken)));
+                    }
+                    return { type: ASTType.Chain, operands, operators };
+                }
+                return {
                     type: ASTType.BinaryOperator,
                     op: /** @type {string} */ (current.value),
                     left,
                     right,
                 };
-                while (
-                    chainedOperators.has(/** @type {string} */ (current.value)) &&
-                    cur.peek() &&
-                    cur.peek().type === TokenType.Symbol &&
-                    chainedOperators.has(/** @type {string} */ (cur.peek().value))
-                ) {
-                    const nextToken = cur.next();
-                    /** @type {ASTBinaryOperator} */
-                    const nextRight = {
-                        type: ASTType.BinaryOperator,
-                        op: /** @type {string} */ (nextToken.value),
-                        left: right,
-                        right: _parse(cur, bindingPower(nextToken)),
-                    };
-                    op = {
-                        type: ASTType.BooleanOperator,
-                        op: "and",
-                        left: op,
-                        right: nextRight,
-                    };
-                    right = nextRight.right;
-                }
-                return op;
             }
             switch (current.value) {
                 case "(": {
@@ -400,10 +395,7 @@ function parseInfix(left, current, cur) {
  * @returns {AST}
  */
 function _parse(cur, bpVal = 0) {
-    if (parseDepth >= MAX_PARSE_DEPTH) {
-        throw new ParserError("Maximum expression depth exceeded");
-    }
-    parseDepth++;
+    cur.enter();
     try {
         const token = cur.next();
         let expr = parsePrefix(token, cur);
@@ -412,18 +404,15 @@ function _parse(cur, bpVal = 0) {
         }
         return expr;
     } finally {
-        parseDepth--;
+        cur.leave();
     }
 }
 
 /**
- * Parse a list of tokens.
- *
  * @param {Token[]} tokens
  * @returns {AST}
  */
 export function parse(tokens) {
-    parseDepth = 0;
     if (tokens.length) {
         const cur = new TokenCursor(tokens);
         const ast = _parse(cur, 0);

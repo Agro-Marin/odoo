@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py - Public API for parsing and evaluating Python expressions in JS */
+/** @module @web/core/py_js/py */
 
 import { ASTType } from "./ast_type.js";
+import { BUILTINS } from "./py_builtin.js";
 import { evaluate } from "./py_interpreter.js";
 import { parse } from "./py_parser.js";
 import { tokenize } from "./py_tokenizer.js";
@@ -19,25 +20,33 @@ export { formatAST } from "./py_utils.js";
  */
 
 /**
- * Bounded cache for parsed ASTs. Domain/modifier/QWeb expressions are highly
- * repetitive (e.g. "state == 'draft'" evaluated once per record × field);
- * caching avoids redundant tokenize+parse work (~2,400 calls reduced to ~10
- * unique parses per 80-row list render).
- *
- * Eviction is FIFO, not LRU: a hit never refreshes recency. True LRU would add
- * a Map delete+set on every one of those hot-path hits for a benefit that
- * never materializes — the ~10-expression working set never hits the 512-entry
- * cap. Revisit if ``_AST_CACHE_MAX`` is ever lowered enough to be hit in practice.
- *
  * @type {Map<string, AST>}
  */
 const _astCache = new Map();
 const _AST_CACHE_MAX = 512;
 
 /**
- * Parses an expression into a valid AST representation.
- * Results are cached — repeated calls with the same string return the same AST.
+ * Cached ASTs are handed to every caller of the same expression -- ``Domain``,
+ * ``Expression`` and all six ``tree/`` constructors hold onto them -- so the
+ * cache is only sound while nobody writes into one. Freezing on the way in
+ * makes that an error instead of a convention: an in-place edit now throws
+ * where it used to silently poison every later reader of that expression.
  *
+ * @template {AST} T
+ * @param {T} node
+ * @returns {T}
+ */
+function deepFreeze(node) {
+    if (node && typeof node === "object" && !Object.isFrozen(node)) {
+        Object.freeze(node);
+        for (const child of Object.values(node)) {
+            deepFreeze(child);
+        }
+    }
+    return node;
+}
+
+/**
  * @param {string} expr
  * @returns { AST }
  */
@@ -47,7 +56,7 @@ export function parseExpr(expr) {
         return ast;
     }
     const tokens = tokenize(expr);
-    ast = parse(tokens);
+    ast = deepFreeze(parse(tokens));
     if (_astCache.size >= _AST_CACHE_MAX) {
         _astCache.delete(_astCache.keys().next().value);
     }
@@ -55,14 +64,11 @@ export function parseExpr(expr) {
     return ast;
 }
 
-/** Clear the AST cache (for tests). */
 export function clearASTCache() {
     _astCache.clear();
 }
 
 /**
- * Evaluates a python expression.
- *
  * @param {string} expr
  * @param {{[key: string]: any}} [context]
  * @returns {any}
@@ -88,9 +94,7 @@ export function evaluateExpr(expr, context = {}) {
 }
 
 /**
- * Evaluates a python expression to return a boolean.
- *
- * @param {string | undefined} expr
+ * @param {unknown} expr an expression, or an already-evaluated modifier value
  * @param {{[key: string]: any}} [context]
  * @returns {boolean}
  */
@@ -101,22 +105,19 @@ export function evaluateBooleanExpr(expr, context = {}) {
     if (expr === "True" || expr === "1") {
         return true;
     }
-    return evaluateExpr(`bool(${expr})`, context);
+    // Applying `bool` to the result rather than splicing `bool(...)` around the
+    // source: the wrapped spelling parsed and cached a second AST for every
+    // expression, and reported syntax errors against text the caller never
+    // wrote. It also stringified whatever it was handed, which is the only
+    // reason a non-string modifier value ever worked -- so keep answering for
+    // one, explicitly.
+    if (typeof expr !== "string") {
+        return BUILTINS.bool(expr);
+    }
+    return BUILTINS.bool(evaluateExpr(expr, context));
 }
 
 /**
- * Recursively collect free-variable *root* names from an AST node into ``acc``.
- *
- * A root name is the top-level identifier: for a plain ``ASTName`` it's the
- * name itself; for attribute access (e.g. ``parent.state``) it's the base name
- * — attribute keys are plain strings, never ``ASTName`` children, so they're
- * excluded automatically. Call callees (``bool``, ``len``, …) are ``ASTName``
- * nodes and included; callers wanting a bounded universe filter downstream.
- *
- * The walk is structural and type-agnostic (dispatches on the numeric ``type``
- * discriminant rather than switching per {@link ASTType}), so it stays correct
- * as node types are added.
- *
  * @param {any} node
  * @param {Set<string>} acc
  */
@@ -148,15 +149,8 @@ function collectFreeVariables(node, acc) {
 }
 
 /**
- * Extract free-variable root names from a Python expression, reusing the
- * bounded AST cache in {@link parseExpr}. Attribute accesses collapse to their
- * base name (``parent.state`` → ``"parent"``); subscripts contribute both
- * operands (``a[b]`` → ``"a"``, ``"b"``).
- *
  * @param {string} expr
  * @returns {Set<string>}
- * @throws re-throws the tokenizer/parser error from {@link parseExpr} on
- *  malformed input — callers wanting a conservative fallback should catch it.
  */
 export function getExprFreeVariables(expr) {
     const ast = parseExpr(expr);

@@ -1,21 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_utils - AST-to-value conversion and AST-to-string formatting for Python expressions */
+/** @module @web/core/py_js/py_utils */
 
 import { ASTType } from "./ast_type.js";
 import { PyDate, PyDateTime, PyTime } from "./py_date.js";
 import { bp } from "./py_parser.js";
 
 /**
- * AST node — a discriminated union keyed on the literal ``type`` tag (see
- * {@link ASTType}); ``.type``/``switch`` checks narrow it to each node shape.
  * @typedef {import("./ast_type.js").AST} AST
  */
 
 /**
- * Represent any value as a primitive AST
- *
  * @param {any} value
  * @returns {AST}
  */
@@ -49,13 +45,6 @@ export function toPyValue(value) {
             } else {
                 /** @type {Record<string, any>} */
                 const content = {};
-                // OWN keys only. ``for...in`` also walks the prototype chain,
-                // so a value carrying any enumerable inherited property (a
-                // class instance, an object built on a non-trivial prototype)
-                // emitted phantom dict entries — which reach the server, since
-                // this AST is what ``Domain``/``formatAST`` serialize. Every
-                // sibling here (``formatAST``, the interpreter's Dictionary
-                // case) already reads own keys only.
                 for (const key of Object.keys(value)) {
                     content[key] = toPyValue(value[key]);
                 }
@@ -66,11 +55,6 @@ export function toPyValue(value) {
     }
 }
 
-/**
- * Comparison operators are non-associative in Python: `(a < b) < c` and the
- * chained `a < b < c` are different expressions, so BOTH equal-precedence
- * children must be parenthesized when they are themselves comparisons.
- */
 const COMPARATORS = new Set([
     "in",
     "not in",
@@ -87,7 +71,7 @@ const COMPARATORS = new Set([
 
 /**
  * @param {AST} ast
- * @param {number} [lbp] left binding power
+ * @param {number} [lbp]
  * @return {string}
  */
 export function formatAST(ast, lbp = 0) {
@@ -158,6 +142,17 @@ export function formatAST(ast, lbp = 0) {
             const str = `${formatAST(ast.left, abp)} ${ast.op} ${formatAST(ast.right, abp)}`;
             return abp < lbp ? `(${str})` : str;
         }
+        case ASTType.Chain: {
+            const abp = bp(ast.operators[0]);
+            const str = ast.operands
+                .map((operand, i) =>
+                    i === 0
+                        ? formatAST(operand, abp + 1)
+                        : `${ast.operators[i - 1]} ${formatAST(operand, abp + 1)}`,
+                )
+                .join(" ");
+            return abp < lbp ? `(${str})` : str;
+        }
         case ASTType.ObjLookup:
             return `${formatAST(ast.obj, 150)}.${ast.key}`;
         case ASTType.FunctionCall: {
@@ -174,22 +169,50 @@ export function formatAST(ast, lbp = 0) {
 }
 
 /**
- * Prototype sentinel: the interpreter recognizes a value as a Python dict
- * when its [[Prototype]] is PY_DICT (see the ObjLookup case).
+ * Objects the interpreter has been told to treat as a Python dict, tracked
+ * beside them rather than on them.
+ *
+ * A ``Proxy`` whose ``getPrototypeOf`` trap answered a sentinel used to carry
+ * this. The trap must return the target's real prototype once the target is
+ * non-extensible, so every frozen, sealed or ``preventExtensions``-ed object --
+ * a context frozen by ``search_model._freezeInDevMode``, an ``immutable`` RPC
+ * cache payload -- made the engine throw a ``TypeError`` about proxy
+ * invariants, naming neither the expression nor the context. A ``WeakSet``
+ * answers the same question without touching the object, and keeps the
+ * caller's identity intact.
+ *
+ * @type {WeakSet<object>}
  */
-export const PY_DICT = Object.create(null);
+const PY_DICTS = new WeakSet();
 
 /**
- * Wrap a plain object as a Python dict for the interpreter: the returned
- * Proxy reports PY_DICT as its prototype so dict methods (`.get`) resolve.
- *
  * @param {Record<string, any>} obj
  * @returns {Record<string, any>}
  */
 export function toPyDict(obj) {
-    return new Proxy(obj, {
-        getPrototypeOf() {
-            return PY_DICT;
-        },
-    });
+    PY_DICTS.add(obj);
+    return obj;
+}
+
+/**
+ * @param {any} value
+ * @returns {boolean}
+ */
+export function isPyDict(value) {
+    return typeof value === "object" && value !== null && PY_DICTS.has(value);
+}
+
+/**
+ * @param {any} value
+ * @returns {boolean}
+ */
+export function isPyMapping(value) {
+    if (value === null || typeof value !== "object" || Array.isArray(value)) {
+        return false;
+    }
+    if (PY_DICTS.has(value)) {
+        return true;
+    }
+    const proto = Object.getPrototypeOf(value);
+    return proto === Object.prototype || proto === null;
 }

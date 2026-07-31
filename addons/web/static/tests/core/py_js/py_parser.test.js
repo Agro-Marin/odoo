@@ -104,47 +104,34 @@ test("expression with + and ==", () => {
 });
 
 test("can parse chained comparisons", () => {
+    // One node with N+1 operands, not `(a < b) and (b < c)`: the desugaring
+    // shared the middle operand between both halves, so it was evaluated twice
+    // and formatAST could not spell the expression back.
     expect(parseExpr("1 < 2 <= 3")).toEqual({
-        type: 14,
-        op: "and",
-        left: {
-            type: 7,
-            op: "<",
-            left: { type: 0, value: 1 },
-            right: { type: 0, value: 2 },
-        },
-        right: {
-            type: 7,
-            op: "<=",
-            left: { type: 0, value: 2 },
-            right: { type: 0, value: 3 },
-        },
+        type: 16,
+        operands: [
+            { type: 0, value: 1 },
+            { type: 0, value: 2 },
+            { type: 0, value: 3 },
+        ],
+        operators: ["<", "<="],
     });
     expect(parseExpr("1 < 2 <= 3 > 33")).toEqual({
-        type: 14,
-        op: "and",
-        left: {
-            type: 14,
-            op: "and",
-            left: {
-                type: 7,
-                op: "<",
-                left: { type: 0, value: 1 },
-                right: { type: 0, value: 2 },
-            },
-            right: {
-                type: 7,
-                op: "<=",
-                left: { type: 0, value: 2 },
-                right: { type: 0, value: 3 },
-            },
-        },
-        right: {
-            type: 7,
-            op: ">",
-            left: { type: 0, value: 3 },
-            right: { type: 0, value: 33 },
-        },
+        type: 16,
+        operands: [
+            { type: 0, value: 1 },
+            { type: 0, value: 2 },
+            { type: 0, value: 3 },
+            { type: 0, value: 33 },
+        ],
+        operators: ["<", "<=", ">"],
+    });
+    // a single comparison stays a plain binary operator
+    expect(parseExpr("1 < 2")).toEqual({
+        type: 7,
+        op: "<",
+        left: { type: 0, value: 1 },
+        right: { type: 0, value: 2 },
     });
 });
 

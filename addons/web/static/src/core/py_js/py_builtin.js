@@ -1,20 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_builtin - Python built-in functions (bool, len, set, sorted, etc.) for the JS evaluator */
+/** @module @web/core/py_js/py_builtin */
 
 import { isLess } from "./py_compare.js";
 import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_date.js";
+import { isPyMapping } from "./py_utils.js";
 
 export class EvaluationError extends Error {}
 
 /**
- * Python ``repr()`` of a string: pick single quotes unless the string contains
- * a ``'`` and no ``"`` (then use double quotes), and escape the backslash, the
- * chosen quote and the common control characters. The old ``'${value}'`` gave
- * unparseable output for strings containing a quote or backslash
- * (``repr("it's")`` → ``'it's'``).
- *
  * @param {string} s
  * @returns {string}
  */
@@ -38,10 +33,6 @@ function pyReprString(s) {
 }
 
 /**
- * Python ``repr()``: the unambiguous representation. Strings get quotes, lists
- * render as ``[1, 2]``, dicts as ``{'a': 1}``, sets as ``{1, 2}`` / ``set()``.
- * Typed Py* objects (PyDate, PyTimeDelta, ...) defer to their own toString.
- *
  * @param {any} value
  * @returns {string}
  */
@@ -77,9 +68,6 @@ export function pyRepr(value) {
 }
 
 /**
- * Python ``str()``: containers render like ``repr`` (``str([1, 2])`` → "[1, 2]"),
- * top-level strings stay unquoted, and typed Py* objects use their toString.
- *
  * @param {any} value
  * @returns {string}
  */
@@ -103,15 +91,6 @@ export function pyStr(value) {
 }
 
 /**
- * Python-compatible round() with half-to-even (banker's rounding).
- *
- * Unlike a naive multiply→round→divide approach, this examines the IEEE-754
- * decimal representation of the original value. This matches CPython's dtoa-based
- * round(), which operates on the stored double — not the decimal literal.
- *
- * Example: 2.675 is stored as 2.6749999999999998 (below halfway) → rounds to 2.67,
- * while 0.45 is stored as 0.45000000000000001 (above halfway) → rounds to 0.5.
- *
  * @param {number} value
  * @param {number} ndigits
  * @returns {number}
@@ -123,6 +102,13 @@ export function _pythonRound(value, ndigits) {
     if (ndigits < 0) {
         const factor = 10 ** -ndigits;
         return _pythonRound(value / factor, 0) * factor;
+    }
+    if (Number.isInteger(value)) {
+        // Already integral: rounding to a non-negative number of decimals is
+        // the identity. The generic path below would route large values
+        // through `value * 10 ** ndigits`, which is not exactly representable
+        // (`round(1e20, 3)` came back as 99999999999999980000).
+        return value;
     }
 
     const sign = Math.sign(value);
@@ -171,16 +157,8 @@ export function _pythonRound(value, ndigits) {
 }
 
 /**
- * Parse a Python ``int(str, base)`` literal. Mirrors CPython: an optional
- * ``+``/``-`` sign, base-matching ``0x``/``0o``/``0b`` prefixes, surrounding
- * whitespace, and single underscores between digits (and directly after the
- * base prefix — PEP 515). ``base === 0`` auto-detects from the prefix and
- * otherwise means decimal (rejecting redundant leading zeros, e.g.
- * ``int("010", 0)``). Throws the CPython ``invalid literal for int() with
- * base N`` message on malformed input.
- *
  * @param {string} raw
- * @param {number} base 0 or 2..36
+ * @param {number} base
  * @returns {number}
  */
 function pyIntFromString(raw, base) {
@@ -227,8 +205,17 @@ function pyIntFromString(raw, base) {
     return negative ? -n : n;
 }
 
+const PY_TEMPORAL_TYPE_NAMES = new Map(
+    /** @type {[Function, string][]} */ ([
+        [PyDate, "date"],
+        [PyDateTime, "datetime"],
+        [PyTime, "time"],
+        [PyTimeDelta, "timedelta"],
+        [PyRelativeDelta, "relativedelta"],
+    ]),
+);
+
 /**
- * Python-ish type name for error messages.
  * @param {any} value
  * @returns {string}
  */
@@ -247,7 +234,17 @@ export function pyTypeName(value) {
         case "string":
             return "str";
         case "object":
-            return value.constructor?.name || "object";
+            if (value instanceof Set) {
+                return "set";
+            }
+            if (isPyMapping(value)) {
+                return "dict";
+            }
+            return (
+                PY_TEMPORAL_TYPE_NAMES.get(value.constructor) ||
+                value.constructor?.name ||
+                "object"
+            );
         default:
             return typeof value;
     }
@@ -275,17 +272,8 @@ export function execOnIterable(iterable, func) {
 }
 
 /**
- * Resolve the items for a Python-style ``max``/``min`` call: either a single
- * iterable argument or several positional ones. The trailing element is the
- * kwargs object the interpreter appends, so it is always dropped.
- *
- * The single-argument form accepts any Python iterable: arrays and Sets
- * spread into their elements, strings into their characters (``max("abc")``
- * is ``"c"``) and plain dicts iterate over their keys — all matching CPython.
- * A non-iterable single argument raises, as in Python.
- *
- * @param {any[]} args raw call arguments (kwargs object last)
- * @param {"max" | "min"} name for the empty-sequence error message
+ * @param {any[]} args
+ * @param {"max" | "min"} name
  * @returns {any[]}
  */
 function maxMinItems(args, name) {
@@ -314,6 +302,8 @@ function maxMinItems(args, name) {
     }
     return items;
 }
+
+const PY_FLOAT_REGEXP = /^[+-]?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?$/i;
 
 export const BUILTINS = {
     /**
@@ -373,13 +363,30 @@ export const BUILTINS = {
         return items.reduce((acc, item) => (isLess(item, acc) ? item : acc));
     },
 
+    sorted(/** @type {any} */ iterable, /** @type {any[]} */ ...rest) {
+        const kwargs = rest.at(-1) ?? {};
+        const unsupported = Object.keys(kwargs).filter((key) => key !== "reverse");
+        if (unsupported.length) {
+            throw new EvaluationError(
+                `sorted() keyword arguments (${unsupported.join(", ")}) are not supported`,
+            );
+        }
+        const sign = BUILTINS.bool(kwargs.reverse) ? -1 : 1;
+        return execOnIterable(iterable, (/** @type {Iterable<any>} */ it) =>
+            [...it].sort((a, b) => sign * (isLess(a, b) ? -1 : isLess(b, a) ? 1 : 0)),
+        );
+    },
+
+    repr(/** @type {any} */ value) {
+        return pyRepr(value);
+    },
+
     time: {
         strftime(/** @type {string} */ format) {
             return PyDateTime.now().strftime(format);
         },
     },
 
-    /** Return the length of a collection (array, string, Set, or object keys). */
     len(/** @type {any} */ value) {
         if (arguments.length > 2) {
             throw new EvaluationError(
@@ -392,13 +399,14 @@ export const BUILTINS = {
         if (value instanceof Set) {
             return value.size;
         }
-        if (value && typeof value === "object") {
+        // Only a mapping, not "any object": counting own properties answered 3
+        // for `len(datetime.date(2020, 1, 1))`, which CPython rejects.
+        if (isPyMapping(value)) {
             return Object.keys(value).length;
         }
-        throw new EvaluationError(`object of type '${typeof value}' has no len()`);
+        throw new EvaluationError(`object of type '${pyTypeName(value)}' has no len()`);
     },
 
-    /** Return the absolute value of a number or timedelta. */
     abs(/** @type {any} */ value) {
         if (arguments.length > 2) {
             throw new EvaluationError(
@@ -420,14 +428,6 @@ export const BUILTINS = {
         return Math.abs(Number(value));
     },
 
-    /**
-     * Convert to integer. With no ``base`` it truncates a number toward zero
-     * or parses a base-10 string; with an explicit ``base`` (2..36 or 0 for
-     * prefix auto-detect) it parses a string in that base — ``int("ff", 16)``,
-     * ``int("10", 2)``. The interpreter appends its trailing kwargs object, so
-     * ``int(x)`` → rest=[{}], ``int(s, 2)`` → rest=[2, {}], ``int(s, base=2)``
-     * → rest=[{base: 2}] (mirrors ``round``).
-     */
     int(/** @type {any} */ value, /** @type {any[]} */ ...rest) {
         const kwargs = rest.at(-1);
         const base = rest.length > 1 ? rest[0] : kwargs?.base;
@@ -459,42 +459,42 @@ export const BUILTINS = {
         return Math.trunc(value);
     },
 
-    /** Convert to float. */
     float(/** @type {any} */ value) {
         if (typeof value === "boolean") {
             return value ? 1.0 : 0.0;
         }
-        if (typeof value !== "number" && typeof value !== "string") {
+        if (typeof value === "number") {
+            return value;
+        }
+        if (typeof value !== "string") {
             throw new EvaluationError(
                 `float() argument must be a string or a real number, not '${pyTypeName(value)}'`,
             );
         }
-        if (typeof value === "string" && !value.trim()) {
-            throw new EvaluationError(`could not convert string to float: '${value}'`);
+        const invalid = () =>
+            new EvaluationError(`could not convert string to float: '${value}'`);
+        const trimmed = value.trim();
+        if (!trimmed) {
+            throw invalid();
         }
-        if (typeof value === "string") {
-            const trimmed = value.trim();
-            const magnitude = trimmed.replace(/^[+-]/, "").toLowerCase();
-            if (magnitude === "inf" || magnitude === "infinity") {
-                return trimmed[0] === "-" ? -Infinity : Infinity;
-            }
-            if (magnitude === "nan") {
-                return NaN;
-            }
+        const magnitude = trimmed.replace(/^[+-]/, "").toLowerCase();
+        if (magnitude === "inf" || magnitude === "infinity") {
+            return trimmed[0] === "-" ? -Infinity : Infinity;
         }
-        const n = Number(value);
-        if (Number.isNaN(n)) {
-            throw new EvaluationError(`could not convert string to float: '${value}'`);
+        if (magnitude === "nan") {
+            return NaN;
         }
-        return n;
+        const bare = trimmed.replace(/(?<=[0-9])_(?=[0-9])/g, "");
+        if (!PY_FLOAT_REGEXP.test(bare)) {
+            throw invalid();
+        }
+        return Number(bare);
     },
 
-    /** Convert to string. */
     str(/** @type {any} */ value) {
         return pyStr(value);
     },
 
-    /** Round a number to a given number of decimal places (banker's rounding). */
     round(/** @type {any} */ value, /** @type {any[]} */ ...rest) {
         const kwargs = rest.at(-1);
         const ndigits = rest.length > 1 ? rest[0] : (kwargs?.ndigits ?? 0);

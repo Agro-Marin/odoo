@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_date - Python date, datetime, time, and relativedelta emulation in JavaScript */
+/** @module @web/core/py_js/py_date */
 
 import { DateTime } from "@web/core/l10n/luxon";
 
@@ -24,18 +24,9 @@ export { PyTimeDelta } from "./py_timedelta.js";
 export class NotSupportedError extends Error {}
 
 /**
- * Shared strftime implementation. Only the conversion chars present in
- * ``converters`` are supported; any other ``%X`` raises ``ValueError``.
- *
  * @param {string} format
- * @param {Record<string, () => string>} converters conversion char → getter
+ * @param {Record<string, () => string>} converters
  * @returns {string}
- */
-/**
- * The locale-defined composites, in their C-locale form (what CPython's
- * ``strftime`` produces by default). They are expanded into the primitive
- * directives rather than implemented per class, because ``%c`` spans both the
- * date and the time halves, which live in different converter maps.
  */
 const COMPOSITE_DIRECTIVES = {
     c: "%a %b %e %H:%M:%S %Y",
@@ -46,9 +37,6 @@ const COMPOSITE_DIRECTIVES = {
 const DIRECTIVE_RE = /%(%|[A-Za-z])/g;
 
 function strftime(format, converters) {
-    // One expansion pass, sharing the regex so an escaped ``%%c`` stays a
-    // literal "%" followed by "c". The expansions hold no composites of their
-    // own, so a single pass reaches a fixed point.
     const expanded = format.replace(DIRECTIVE_RE, (m, c) =>
         c in COMPOSITE_DIRECTIVES
             ? /** @type {Record<string, string>} */ (COMPOSITE_DIRECTIVES)[c]
@@ -66,7 +54,6 @@ function strftime(format, converters) {
 }
 
 /**
- * ``%I`` 12-hour clock hour (01–12); midnight and noon both format as 12.
  * @param {number} hour24
  * @returns {string}
  */
@@ -76,7 +63,6 @@ function fmt12(hour24) {
 }
 
 /**
- * ``%p`` AM/PM marker (CPython's default C locale).
  * @param {number} hour24
  * @returns {string}
  */
@@ -95,17 +81,6 @@ const MONTH_FULL =
     );
 
 /**
- * The date-derived strftime conversions, shared by all three date classes
- * (PyTime formats against 1900-01-01, as CPython's ``time.strftime`` does).
- *
- * Day and month names are the C-locale English ones, as are the ``%c``/``%x``/
- * ``%X`` composites expanded in {@link strftime}. CPython takes all of these
- * from the process locale, so a server running under a non-English ``LANG``
- * would render them differently. That residual mismatch is still the better
- * trade: these directives produce prose, nothing a domain compares on, and the
- * alternative — raising — takes down the whole expression, and with it the view
- * that evaluates it.
- *
  * @param {number} year
  * @param {number} month
  * @param {number} day
@@ -134,10 +109,6 @@ function dateDirectives(year, month, day) {
 }
 
 /**
- * Reject a non-integer component (also catching the missing-argument case,
- * where the value is ``undefined``). Mirrors Python's TypeError for
- * ``date(2020, 1)`` and ``date(2020, "x", 1)``.
- *
  * @param {string} name
  * @param {any} value
  */
@@ -148,11 +119,6 @@ function assertIntComponent(name, value) {
 }
 
 /**
- * Range-validate the date components, mirroring Python's ``date()`` (which
- * raises ``ValueError`` on ``date(2020, 13, 45)``). Without this the raw
- * values flowed straight into strftime, yielding garbage like "2020-13-45"
- * or "2020-01-undefined".
- *
  * @param {any} year
  * @param {any} month
  * @param {any} day
@@ -162,9 +128,6 @@ function assertDateComponents(year, month, day) {
     assertIntComponent("month", month);
     assertIntComponent("day", day);
     if (year < 1 || year > 9999) {
-        // Python's MINYEAR..MAXYEAR. Unchecked, a negative year reached
-        // ``fmt4`` and rendered as "00-5-01-01" — the malformed-date case this
-        // function exists to stop, one field further left.
         throw new ValueError(`year must be in 1..9999, not ${year}`);
     }
     if (month < 1 || month > 12) {
@@ -176,9 +139,6 @@ function assertDateComponents(year, month, day) {
 }
 
 /**
- * Range-validate the time components, mirroring Python's ``time()`` /
- * ``datetime()``.
- *
  * @param {any} hour
  * @param {any} minute
  * @param {any} second
@@ -205,14 +165,6 @@ function assertTimeComponents(hour, minute, second, microsecond = 0) {
 
 export class PyDate {
     /**
-     * The current date in the USER's timezone. The client's zone is luxon's
-     * ``Settings.defaultZone``, set from ``res.users.tz`` at boot (services/
-     * user.js), so this matches the server's ``fields.Date.context_today``
-     * (also the user tz) — not the browser zone, which ``new Date()`` would
-     * give. Date fields are timezone-naive, so a ``date_field >= today`` domain
-     * must use the user-perceived today; ``PyDateTime.now`` stays UTC.
-     * ``context_today()`` (py_builtin.js) aliases this.
-     *
      * @returns {PyDate}
      */
     static today() {
@@ -243,11 +195,11 @@ export class PyDate {
     }
 
     /**
-     * @param  {...any} args
+     * @param {...any} args
      * @returns {PyDate}
      */
     static create(...args) {
-        const { year, month, day } = bindArgs(args, ["year", "month", "day"]);
+        const { year, month, day } = bindArgs(args, ["year", "month", "day"], "date");
         assertDateComponents(year, month, day);
         return new PyDate(year, month, day);
     }
@@ -277,15 +229,11 @@ export class PyDate {
     }
 
     /**
-     * CPython's ``date.replace``: a copy with the given components substituted.
-     * Goes through {@link PyDate.create} so an out-of-range result is rejected
-     * the same way ``date(2024, 2, 30)`` is.
-     *
-     * @param  {...any} args
+     * @param {...any} args
      * @returns {PyDate}
      */
     replace(...args) {
-        const p = bindArgs(args, ["year", "month", "day"]);
+        const p = bindArgs(args, ["year", "month", "day"], "replace");
         return PyDate.create(
             p.year ?? this.year,
             p.month ?? this.month,
@@ -315,10 +263,6 @@ export class PyDate {
      */
     subtract(other) {
         if (other instanceof PyTimeDelta) {
-            // CPython's ``date.__sub__`` is ``self + timedelta(-other.days)``:
-            // it drops the sub-day part *before* negating. Negating the whole
-            // duration first would borrow a day out of it (a -1µs delta
-            // normalizes to days=-1), shifting the result by one day.
             return this.add(new PyTimeDelta(-other.days, 0, 0));
         }
         if (other instanceof PyDate && !(other instanceof PyTime)) {
@@ -333,8 +277,6 @@ export class PyDate {
     }
 
     /**
-     * String representation used by ``str()`` / JS coercion. Subclasses
-     * (PyDateTime, PyTime) override ``toJSON`` so this stays correct for them.
      * @returns {string}
      */
     toString() {
@@ -347,10 +289,6 @@ export class PyDate {
     }
 
     /**
-     * Ordering protocol: relational operators (``<``, ``>``) coerce via
-     * ToPrimitive → ``valueOf``. Returning the ordinal makes dates compare
-     * chronologically; equality still goes through ``isEqual``.
-     *
      * @returns {number}
      */
     valueOf() {
@@ -358,16 +296,10 @@ export class PyDate {
     }
 }
 
-/** Proleptic Gregorian ordinal of 1970-01-01, i.e. ``ymd2ord(1970, 1, 1)``. */
 const UNIX_EPOCH_ORDINAL = 719163;
 
 export class PyDateTime {
     /**
-     * The current datetime in UTC — matches how the SERVER evaluates
-     * ``datetime.now()`` in domains/modifiers, directly comparable to UTC
-     * datetime record values. Using LOCAL now made ``deadline < now``-style
-     * checks drift by the user's UTC offset.
-     *
      * @returns {PyDateTime}
      */
     static now() {
@@ -398,19 +330,15 @@ export class PyDateTime {
     }
 
     /**
-     * @param  {...any} args
+     * @param {...any} args
      * @returns {PyDateTime}
      */
     static create(...args) {
-        const namedArgs = bindArgs(args, [
-            "year",
-            "month",
-            "day",
-            "hour",
-            "minute",
-            "second",
-            "microsecond",
-        ]);
+        const namedArgs = bindArgs(
+            args,
+            ["year", "month", "day", "hour", "minute", "second", "microsecond"],
+            "datetime",
+        );
         const year = namedArgs.year;
         const month = namedArgs.month;
         const day = namedArgs.day;
@@ -424,11 +352,11 @@ export class PyDateTime {
     }
 
     /**
-     * @param  {...any} args
+     * @param {...any} args
      * @returns {PyDateTime}
      */
     static combine(...args) {
-        const { date, time } = bindArgs(args, ["date", "time"]);
+        const { date, time } = bindArgs(args, ["date", "time"], "combine");
         return PyDateTime.create(
             date.year,
             date.month,
@@ -503,21 +431,15 @@ export class PyDateTime {
     }
 
     /**
-     * CPython's ``datetime.replace``.
-     *
-     * @param  {...any} args
+     * @param {...any} args
      * @returns {PyDateTime}
      */
     replace(...args) {
-        const p = bindArgs(args, [
-            "year",
-            "month",
-            "day",
-            "hour",
-            "minute",
-            "second",
-            "microsecond",
-        ]);
+        const p = bindArgs(
+            args,
+            ["year", "month", "day", "hour", "minute", "second", "microsecond"],
+            "replace",
+        );
         return PyDateTime.create(
             p.year ?? this.year,
             p.month ?? this.month,
@@ -576,8 +498,6 @@ export class PyDateTime {
     }
 
     /**
-     * Odoo's datetime wire format, which has no sub-second field — this is what
-     * gets embedded in a domain, so it must stay second-resolution.
      * @returns {string}
      */
     toJSON() {
@@ -585,9 +505,6 @@ export class PyDateTime {
     }
 
     /**
-     * String representation used by ``str()`` / JS coercion. CPython's
-     * ``str(datetime)`` appends ``.ffffff`` when the microsecond is non-zero;
-     * deferring to {@link toJSON} instead silently dropped it.
      * @returns {string}
      */
     toString() {
@@ -596,18 +513,6 @@ export class PyDateTime {
     }
 
     /**
-     * Reinterpret this naive wall-clock datetime as being in the USER's
-     * timezone and convert it to UTC.
-     *
-     * The zone has to be the user's (luxon's ``Settings.defaultZone``, set from
-     * ``res.users.tz`` at boot), because that is the zone the value being
-     * converted came from — ``to_utc()`` exists to turn a ``context_today()``
-     * wall clock into something comparable with a stored UTC datetime, and
-     * {@link PyDate#today} reads the user zone. Going through ``new Date`` +
-     * ``getTimezoneOffset`` instead took the offset from the BROWSER zone, so a
-     * user whose Odoo tz differed from their machine's got a window shifted by
-     * the difference between the two.
-     *
      * @returns {PyDateTime}
      */
     to_utc() {
@@ -631,9 +536,6 @@ export class PyDateTime {
     }
 
     /**
-     * Ordering protocol (see {@link PyDate#valueOf}): microseconds since the
-     * Unix epoch, exact as an IEEE-754 double for years ~1685–2255.
-     *
      * @returns {number}
      */
     valueOf() {
@@ -647,11 +549,11 @@ export class PyDateTime {
 
 export class PyTime extends PyDate {
     /**
-     * @param  {...any} args
+     * @param {...any} args
      * @returns {PyTime}
      */
     static create(...args) {
-        const namedArgs = bindArgs(args, ["hour", "minute", "second"]);
+        const namedArgs = bindArgs(args, ["hour", "minute", "second"], "time");
         const hour = namedArgs.hour || 0;
         const minute = namedArgs.minute || 0;
         const second = namedArgs.second || 0;
@@ -660,13 +562,6 @@ export class PyTime extends PyDate {
     }
 
     /**
-     * A Python ``time`` carries no date, but this class extends PyDate and so
-     * has to pass one up. It is 1900-01-01 — CPython's own reference date for
-     * ``time.strftime``, which is what {@link PyTime#strftime} formats against.
-     * Stamping *today* instead made every PyTime carry a hidden dependency on
-     * the wall clock, so two times built either side of midnight differed in
-     * fields nothing is allowed to read.
-     *
      * @param {number} hour
      * @param {number} minute
      * @param {number} second
@@ -679,10 +574,6 @@ export class PyTime extends PyDate {
     }
 
     /**
-     * Python's time supports no arithmetic at all (time ± timedelta and
-     * time - time are TypeErrors); block the operations inherited from PyDate,
-     * which would silently use the stamped "today" date part.
-     *
      * @param {PyTimeDelta} [timedelta]
      * @returns {PyDate}
      */
@@ -714,14 +605,11 @@ export class PyTime extends PyDate {
     }
 
     /**
-     * CPython's ``time.replace`` — hour/minute/second, not the inherited
-     * year/month/day of {@link PyDate#replace}.
-     *
-     * @param  {...any} args
+     * @param {...any} args
      * @returns {PyTime}
      */
     replace(...args) {
-        const p = bindArgs(args, ["hour", "minute", "second"]);
+        const p = bindArgs(args, ["hour", "minute", "second"], "replace");
         return PyTime.create(
             p.hour ?? this.hour,
             p.minute ?? this.minute,
@@ -750,11 +638,6 @@ export class PyTime extends PyDate {
     }
 
     /**
-     * Ordering protocol (see {@link PyDate#valueOf}): seconds since midnight.
-     * Overrides the inherited PyDate ordinal (which would compare the stamped
-     * "today" date and tie all times) so times order by time of day. Equality
-     * is untouched — it still goes through the inherited ``isEqual``.
-     *
      * @returns {number}
      */
     valueOf() {
@@ -764,12 +647,6 @@ export class PyTime extends PyDate {
 
 const DAYS_IN_YEAR = [31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 366];
 
-/**
- * Valid ranges for the ABSOLUTE (singular) arguments, mirroring what
- * dateutil/CPython ultimately enforce when the delta is applied
- * (IllegalMonthError for month, ValueError from datetime.replace for the
- * others). Relative (plural) arguments are unbounded, negative included.
- */
 const PERIOD_RANGES = {
     year: [1, 9999],
     month: [1, 12],
@@ -788,13 +665,6 @@ const ABSOLUTE_KEYS =
     );
 
 /**
- * dateutil's ``relativedelta._fix`` cascade: each relative unit that overflows
- * its range carries into the next coarser one, truncating toward zero so the
- * sign survives. This never changes the delta a date sees — the relative units
- * are summed on application — but it is what decides {@link hasTimeComponent},
- * which is why it has to run: ``relativedelta(hours=24)`` is a pure-date delta
- * in dateutil, ``relativedelta(hours=1)`` is not.
- *
  * @type {[string, string, number][]}
  */
 const OVERFLOW_CASCADE = [
@@ -819,12 +689,6 @@ function cascadeOverflow(params) {
 }
 
 /**
- * dateutil's ``relativedelta._has_time``, evaluated after {@link
- * cascadeOverflow}: whether the delta says anything about the time of day. It
- * decides the *type* of ``date + delta`` — dateutil promotes a date to a
- * datetime only for a time-bearing delta, and a plain date otherwise drops the
- * sub-day part of the result (``date.__add__`` reads only ``timedelta.days``).
- *
  * @param {Record<string, any>} params
  * @returns {boolean}
  */
@@ -841,14 +705,38 @@ function hasTimeComponent(params) {
     );
 }
 
-const argsSpec = ["dt1", "dt2"];
+// dateutil's full signature, in order. The spec is both the positional
+// binding order and the closed set of keywords relativedelta accepts.
+const argsSpec = [
+    "dt1",
+    "dt2",
+    "years",
+    "months",
+    "days",
+    "leapdays",
+    "weeks",
+    "hours",
+    "minutes",
+    "seconds",
+    "microseconds",
+    "year",
+    "month",
+    "day",
+    "weekday",
+    "yearday",
+    "nlyearday",
+    "hour",
+    "minute",
+    "second",
+    "microsecond",
+];
 export class PyRelativeDelta {
     /**
-     * @param  {...any} args
+     * @param {...any} args
      * @returns {PyRelativeDelta}
      */
     static create(...args) {
-        const params = bindArgs(args, argsSpec);
+        const params = bindArgs(args, argsSpec, "relativedelta");
         if ("dt1" in params) {
             throw new Error("relativedelta(dt1, dt2) is not supported for now");
         }
@@ -865,9 +753,6 @@ export class PyRelativeDelta {
         for (const key of ABSOLUTE_KEYS) {
             params[key] = key in params ? params[key] : null;
         }
-        // A month or year has no fixed length, so dateutil refuses a fractional
-        // one instead of guessing. Without this the value flowed into
-        // ``daysInMonth(year, 2.5)`` -> undefined and produced a NaN date.
         for (const key of ["years", "months"]) {
             if (!Number.isInteger(params[key])) {
                 throw new ValueError(
@@ -876,9 +761,6 @@ export class PyRelativeDelta {
             }
         }
         if (params.weekday !== null) {
-            // dateutil indexes a 7-tuple of weekday constants, so a negative
-            // index counts back from Sunday (``weekday=-1`` is SU) and anything
-            // outside -7..6 is an IndexError there.
             if (
                 !Number.isInteger(params.weekday) ||
                 params.weekday < -7 ||
@@ -1028,12 +910,6 @@ export class PyRelativeDelta {
     }
 
     /**
-     * Truthiness matching dateutil's ``relativedelta.__bool__``: false only
-     * when every relative field is zero and every absolute field is unset
-     * (``bool(relativedelta())`` is ``False``). Without this the generic
-     * ``Object.keys(value).length`` fallback made every relativedelta truthy,
-     * so e.g. ``not relativedelta(days=n)`` was wrongly always-false at n=0.
-     *
      * @returns {boolean}
      */
     isTrue() {

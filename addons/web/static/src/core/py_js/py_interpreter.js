@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/py_js/py_interpreter - AST-walking interpreter for Python expressions used in domains and QWeb */
+/** @module @web/core/py_js/py_interpreter */
 
 import { ASTType } from "./ast_type.js";
 import { bindArgs } from "./py_args.js";
@@ -23,19 +23,17 @@ import {
     PyTime,
     PyTimeDelta,
 } from "./py_date.js";
-import { PY_DICT, toPyDict } from "./py_utils.js";
+import { isPyTuple, markPyTuple } from "./py_tuple.js";
+import { isPyDict, isPyMapping, toPyDict } from "./py_utils.js";
+
+export { isPyTuple };
 
 /**
- * AST node walked by the interpreter — a discriminated union keyed on the
- * literal ``type`` tag (see {@link ASTType}); ``switch (ast.type)`` narrows each
- * case to its concrete node shape.
  * @typedef {import("./ast_type.js").AST} AST
  */
 
-/** @type {(value?: any) => boolean} */
-let isTrue;
+const isTrue = BUILTINS.bool;
 
-/** Properties that must never be accessed via bracket or dot notation in expressions. */
 const BLOCKED_PROPERTIES = new Set([
     "constructor",
     "__proto__",
@@ -63,7 +61,7 @@ const DICT = {
      * @returns {any}
      */
     get(...args) {
-        const { key, defValue } = bindArgs(args, ["key", "defValue"]);
+        const { key, defValue } = bindArgs(args, ["key", "defValue"], "get");
         if (Object.hasOwn(this, key)) {
             return this[key];
         } else if (defValue !== undefined) {
@@ -87,14 +85,13 @@ const STRING = {
         return this.charAt(0).toUpperCase() + this.slice(1).toLowerCase();
     },
     /**
-     * ASCII approximation of str.title(): a word is a run of letters, so any
-     * non-letter (digit, apostrophe, ...) starts a new word, as in Python
-     * ("it's 2b".title() → "It'S 2B").
      * @this {string}
      */
     title() {
+        // CPython's word boundary is "cased character or not", not "ASCII
+        // letter or not": `'éa'.title()` is `'Éa'` there and was `'éA'` here.
         return this.replace(
-            /[a-zA-Z]+/g,
+            /\p{Alphabetic}[\p{Alphabetic}\p{Mn}]*/gu,
             (word) => word[0].toUpperCase() + word.slice(1).toLowerCase(),
         );
     },
@@ -103,7 +100,7 @@ const STRING = {
      * @param {...any} args
      */
     strip(...args) {
-        const { chars } = bindArgs(args, ["chars"]);
+        const { chars } = bindArgs(args, ["chars"], "strip");
         if (chars === undefined || chars === null) {
             return this.trim();
         }
@@ -126,7 +123,11 @@ const STRING = {
      * @param {...any} args
      */
     startswith(...args) {
-        const { prefix, start, end } = bindArgs(args, ["prefix", "start", "end"]);
+        const { prefix, start, end } = bindArgs(
+            args,
+            ["prefix", "start", "end"],
+            "startswith",
+        );
         const prefixes = Array.isArray(prefix) ? prefix : [prefix];
         if (!prefixes.every((p) => typeof p === "string")) {
             throw new EvaluationError(
@@ -141,7 +142,11 @@ const STRING = {
      * @param {...any} args
      */
     endswith(...args) {
-        const { suffix, start, end } = bindArgs(args, ["suffix", "start", "end"]);
+        const { suffix, start, end } = bindArgs(
+            args,
+            ["suffix", "start", "end"],
+            "endswith",
+        );
         const suffixes = Array.isArray(suffix) ? suffix : [suffix];
         if (!suffixes.every((s) => typeof s === "string")) {
             throw new EvaluationError(
@@ -156,20 +161,23 @@ const STRING = {
      * @param {...any} args
      */
     replace(...args) {
-        const params = bindArgs(args, ["old", "new", "count"]);
+        const params = bindArgs(args, ["old", "new", "count"], "replace");
         const oldStr = params.old;
         const newStr = params.new;
         const count = params.count;
         if (typeof oldStr !== "string" || typeof newStr !== "string") {
             throw new EvaluationError("replace() arguments must be str");
         }
-        if (count === undefined || count === null || count < 0) {
+        if (count === undefined || count === null) {
             return this.replaceAll(oldStr, newStr);
         }
         if (!Number.isInteger(count) && typeof count !== "boolean") {
             throw new EvaluationError(
                 `replace() count must be an integer, not '${pyTypeName(count)}'`,
             );
+        }
+        if (count < 0) {
+            return this.replaceAll(oldStr, newStr);
         }
         let rest = String(this);
         let out = "";
@@ -195,7 +203,7 @@ const STRING = {
      * @param {...any} args
      */
     split(...args) {
-        const { sep, maxsplit } = bindArgs(args, ["sep", "maxsplit"]);
+        const { sep, maxsplit } = bindArgs(args, ["sep", "maxsplit"], "split");
         const max =
             maxsplit === undefined || maxsplit === null || maxsplit < 0
                 ? Infinity
@@ -234,7 +242,7 @@ const STRING = {
      * @param {...any} args
      */
     join(...args) {
-        const { iterable } = bindArgs(args, ["iterable"]);
+        const { iterable } = bindArgs(args, ["iterable"], "join");
         return execOnIterable(iterable, (/** @type {Iterable<any>} */ it) => {
             const items = [...it];
             for (const item of items) {
@@ -248,10 +256,6 @@ const STRING = {
         });
     },
     /**
-     * Subset of str.format(): auto ({}), positional ({0}) and named ({name})
-     * fields plus {{ }} escapes. Format specs / conversions ({x:>8}, {x!r})
-     * and attribute/index access ({x.y}, {x[0]}) raise instead of rendering
-     * wrong output.
      * @this {string}
      * @param {...any} args
      */
@@ -259,6 +263,7 @@ const STRING = {
         const kwargs = args.at(-1) ?? {};
         const positional = args.slice(0, -1);
         let auto = 0;
+        /** @type {"auto" | "manual" | null} */
         let mode = null;
         return this.replace(/\{\{|\}\}|\{([^{}]*)\}/g, (m, field) => {
             if (m === "{{") {
@@ -375,9 +380,8 @@ const SET = {
 };
 
 /**
- * Apply a unary operator.
  * @param {import("./ast_type.js").ASTUnaryOperator} ast
- * @param {(ast: AST) => any} recurse evaluator for sub-expressions
+ * @param {(ast: AST) => any} recurse
  * @returns {any}
  */
 function _applyUnaryOp(ast, recurse) {
@@ -431,11 +435,7 @@ function _applyUnaryOp(ast, recurse) {
 }
 
 /**
- * Reject non-numeric operands with a Python-style TypeError message instead
- * of letting JS coercion silently produce NaN (Python bools are ints, so
- * booleans are accepted).
- *
- * @param {string} op operator symbol, for the error message
+ * @param {string} op
  * @param {any} value
  */
 function assertNumericOperand(op, value) {
@@ -447,7 +447,7 @@ function assertNumericOperand(op, value) {
 }
 
 /**
- * @param {string} op operator symbol, for the error message
+ * @param {string} op
  * @param {any} left
  * @param {any} right
  */
@@ -463,11 +463,7 @@ function assertNumericOperands(op, left, right) {
 }
 
 /**
- * Bitwise/shift operators are integer-only in Python: floats raise TypeError
- * (JS would silently truncate) and non-numbers raise instead of coercing.
- * Booleans are ints, as everywhere else.
- *
- * @param {string} op operator symbol, for the error message
+ * @param {string} op
  * @param {any} left
  * @param {any} right
  */
@@ -482,18 +478,8 @@ function assertIntegerOperands(op, left, right) {
 }
 
 /**
- * Python floor division (``a // b``). ``Math.floor(a / b)`` is wrong whenever
- * ``a / b`` rounds UP to a representable value at or above the true quotient:
- * e.g. ``5 / 0.1`` rounds to exactly ``50`` (0.1 is slightly more than 1/10), so
- * ``Math.floor`` yields 50, but CPython's ``5 // 0.1`` is ``49`` — the true
- * quotient is 49.999…. Mirrors CPython's ``float_divmod``
- * (Objects/floatobject.c): derive the quotient from the ``fmod`` remainder (so
- * it is never rounded past an integer boundary), fix the sign, then floor with
- * the half-unit correction. Correct for integer operands too (a subset here,
- * since JS has one number type), so it uniformly replaces ``Math.floor``.
- *
  * @param {number} a
- * @param {number} b nonzero
+ * @param {number} b
  * @returns {number}
  */
 function pyFloorDiv(a, b) {
@@ -508,18 +494,8 @@ function pyFloorDiv(a, b) {
 }
 
 /**
- * Python modulo (``a % b``). Mirrors CPython's ``float_divmod``, like
- * {@link pyFloorDiv}: take the ``fmod`` remainder (JS ``%`` already is fmod) and
- * correct its sign only when it disagrees with the divisor.
- *
- * The shorter ``((a % b) + b) % b`` gets the sign right but not the value: for
- * operands that already agree in sign it adds ``b`` and takes it back out, and
- * that round trip is not exact in binary floating point — ``0.1 % 1`` came out
- * as ``0.10000000000000009`` where CPython gives ``0.1``. Exact for integers
- * either way; this form is exact for floats too.
- *
  * @param {number} a
- * @param {number} b nonzero
+ * @param {number} b
  * @returns {number}
  */
 function pyMod(a, b) {
@@ -528,25 +504,81 @@ function pyMod(a, b) {
 }
 
 /**
- * Python-style exponential notation: like toExponential but with the
- * exponent padded to at least two digits (``1.5e+2`` → ``1.500000e+02``).
+ * Split ``num`` into a mantissa rounded to ``precision`` fractional digits and
+ * its decimal exponent.
+ *
+ * ``Number.prototype.toExponential`` rounds halves away from zero; CPython
+ * (through the C library) rounds them to even, so ``"%.0e" % 2.5`` is
+ * ``2e+00`` there and was ``3e+00`` here. Rounding the mantissa through
+ * ``_pythonRound`` instead restores the tie-break, renormalising when the
+ * rounding carries (``9.99`` at precision 1 becomes ``1.0e+01``).
  *
  * @param {number} num
  * @param {number} precision
- * @returns {string}
+ * @returns {[string, number]}
  */
-function formatExponential(num, precision) {
-    return num.toExponential(precision).replace(/e([+-])(\d)$/, "e$10$2");
+function roundedMantissa(num, precision) {
+    const [rawMantissa, rawExponent] = num.toExponential(20).split("e");
+    let exponent = Number(rawExponent);
+    const negative = rawMantissa.startsWith("-");
+    // Round the significant digits themselves. Re-parsing the mantissa as a
+    // float would round-trip through a *different* double than `num`: 255 is
+    // exact but 2.55 is not, so "%.1e" % 255 has an exact tie that CPython
+    // breaks upwards (to the even 6) and a re-parsed 2.5499... breaks down.
+    const digits = rawMantissa.replace("-", "").replace(".", "");
+    let kept = digits.slice(0, precision + 1);
+    const rest = digits.slice(precision + 1);
+    let roundUp = rest[0] > "5";
+    if (rest[0] === "5") {
+        roundUp =
+            /[1-9]/.test(rest.slice(1)) || Number(kept[kept.length - 1]) % 2 === 1;
+    }
+    if (roundUp) {
+        const incremented = kept.split("");
+        let carry = 1;
+        for (let i = incremented.length - 1; i >= 0 && carry; i--) {
+            const digit = Number(incremented[i]) + carry;
+            incremented[i] = String(digit % 10);
+            carry = digit < 10 ? 0 : 1;
+        }
+        kept = incremented.join("");
+        if (carry) {
+            kept = `1${kept.slice(0, -1)}`;
+            exponent += 1;
+        }
+    }
+    const mantissa = precision > 0 ? `${kept[0]}.${kept.slice(1)}` : kept[0];
+    return [negative ? `-${mantissa}` : mantissa, exponent];
 }
 
 /**
- * Python ``%f`` magnitude: round to ``precision`` decimals with round-half-to
- * -even (CPython's rule) instead of ``toFixed``'s round-half-away, then render
- * with exactly ``precision`` trailing digits. ``_pythonRound`` returns a value
- * already at ``precision`` decimals, so ``toFixed`` only restores zeros — it
- * does not re-round the half cases. Caller passes a non-negative magnitude.
- *
- * @param {number} num non-negative
+ * @param {number} exponent
+ * @returns {string}
+ */
+function formatExponentSuffix(exponent) {
+    const sign = exponent < 0 ? "-" : "+";
+    return `e${sign}${String(Math.abs(exponent)).padStart(2, "0")}`;
+}
+
+/**
+ * @param {number} num
+ * @param {number} precision
+ * @param {boolean} [alt] keep the decimal point even with nothing after it
+ * @returns {string}
+ */
+function formatExponential(num, precision, alt = false) {
+    if (!Number.isFinite(num)) {
+        return num.toExponential(precision);
+    }
+    let [mantissa, exponent] = roundedMantissa(num, precision);
+    if (alt && !mantissa.includes(".")) {
+        mantissa += ".";
+    }
+    return mantissa + formatExponentSuffix(exponent);
+}
+
+/**
+ * @param {number} num
  * @param {number} precision
  * @returns {string}
  */
@@ -558,100 +590,43 @@ function formatFixed(num, precision) {
 }
 
 /**
- * Python ``%g`` conversion: ``precision`` significant digits (0 counts as 1);
- * fixed notation when the decimal exponent is in [-4, precision), scientific
- * otherwise; trailing zeros stripped in both cases.
- *
  * @param {number} num
  * @param {number} precision
+ * @param {boolean} [alt] keep trailing zeros and the decimal point
  * @returns {string}
  */
-function formatGeneral(num, precision) {
+function formatGeneral(num, precision, alt = false) {
     if (!Number.isFinite(num)) {
         return String(num);
     }
     const p = precision === 0 ? 1 : precision;
     if (num === 0) {
-        return "0";
+        return alt ? `0.${"0".repeat(p - 1)}` : "0";
     }
-    const eStr = num.toExponential(p - 1);
-    const exp = Number(eStr.slice(eStr.indexOf("e") + 1));
-    if (exp >= -4 && exp < p) {
-        let str = num.toFixed(Math.max(0, p - 1 - exp));
-        if (str.includes(".")) {
-            str = str.replace(/\.?0+$/, "");
+    let [mantissa, exponent] = roundedMantissa(num, p - 1);
+    if (exponent >= -4 && exponent < p) {
+        const str = formatFixed(num, Math.max(0, p - 1 - exponent));
+        if (!alt) {
+            return str.includes(".") ? str.replace(/\.?0+$/, "") : str;
         }
-        return str;
+        return str.includes(".") ? str : `${str}.`;
     }
-    let [mantissa, exponent] = eStr.split("e");
-    if (mantissa.includes(".")) {
+    if (!alt && mantissa.includes(".")) {
         mantissa = mantissa.replace(/\.?0+$/, "");
+    } else if (alt && !mantissa.includes(".")) {
+        mantissa += ".";
     }
-    return `${mantissa}e${exponent}`.replace(/e([+-])(\d)$/, "e$10$2");
+    return mantissa + formatExponentSuffix(exponent);
 }
 
 /**
- * Marks an array as having come from a Python **tuple** literal.
- *
- * py_js evaluates both tuples and lists to plain JS arrays — deliberately, so
- * that every downstream consumer (``Domain``, the ORM payload builders, the
- * ~115 pinned test expectations) keeps seeing arrays. But ``%`` formatting is
- * the one operator whose semantics genuinely differ between the two: Python
- * spreads a **tuple** right-operand as the argument list and treats a **list**
- * as a single value (``'%s' % [1, 2]`` → ``"[1, 2]"``).
- *
- * A non-enumerable Symbol marker records the distinction without changing the
- * value's type: ``Array.isArray`` still holds, ``JSON.stringify`` /
- * ``for...of`` / spread / deep-equality are all untouched, and nothing but
- * {@link isPyTuple} can observe it.
- */
-const PY_TUPLE = Symbol("py.tuple");
-
-/**
- * @param {any[]} array
- * @returns {any[]} the same array, marked as a tuple
- */
-function markPyTuple(array) {
-    Object.defineProperty(array, PY_TUPLE, {
-        value: true,
-        enumerable: false,
-        configurable: true,
-    });
-    return array;
-}
-
-/**
- * Whether *value* came from a Python tuple literal (see {@link PY_TUPLE}).
- *
- * @param {any} value
- * @returns {boolean}
- */
-export function isPyTuple(value) {
-    return Array.isArray(value) && /** @type {any} */ (value)[PY_TUPLE] === true;
-}
-
-/**
- * printf-style ``%`` formatting for strings (``'%s' % val`` /
- * ``'%s=%d' % (a, b)``). Supports the conversions that show up in real Odoo
- * expressions: s, r, d/i, f, e/g, x/X, o and the ``%%`` literal, with optional
- * flags / width / precision.
- *
- * Only a **tuple** right operand is spread as the argument list, matching
- * CPython: a list (or any array reaching here from the evaluation context,
- * which is JSON and therefore has no tuples) is a single value, so
- * ``'%s' % [1, 2]`` renders ``"[1, 2]"`` exactly as Python does.
- *
  * @param {string} fmt
- * @param {any} value single value, or a tuple of values to spread
+ * @param {any} value
  * @returns {string}
  */
 function pyStringFormat(fmt, value) {
     const values = isPyTuple(value) ? value.slice() : [value];
-    const proto =
-        value !== null && typeof value === "object" && !Array.isArray(value)
-            ? Object.getPrototypeOf(value)
-            : undefined;
-    const isMapping = proto === Object.prototype || proto === null;
+    const isMapping = isPyMapping(value);
     let i = 0;
     const formatted = fmt.replace(
         /%(?:\((\w+)\))?([-+ #0]*)(\d+)?(?:\.(\d+))?([a-zA-Z%])/g,
@@ -661,11 +636,7 @@ function pyStringFormat(fmt, value) {
             }
             let arg;
             if (mapKey != null) {
-                if (
-                    value === null ||
-                    typeof value !== "object" ||
-                    Array.isArray(value)
-                ) {
+                if (!isMapping) {
                     throw new EvaluationError("format requires a mapping");
                 }
                 if (!Object.hasOwn(value, mapKey)) {
@@ -716,12 +687,10 @@ function pyStringFormat(fmt, value) {
                         : "";
             let prefix = "";
             let body;
-            let zeroPad = flags.includes("0");
+            const zeroPad = flags.includes("0");
+            const alt = flags.includes("#");
             const isIntConv = "diuxXo".includes(conv);
             if (isIntConv) {
-                // d/i/u truncate a float, but the radix conversions are
-                // integer-only in CPython: `'%x' % 3.14` is a TypeError, not
-                // "3". Booleans are ints, as everywhere else.
                 if (
                     "xXo".includes(conv) &&
                     typeof arg !== "boolean" &&
@@ -737,10 +706,12 @@ function pyStringFormat(fmt, value) {
                     body = body.toUpperCase();
                 }
                 if (precision != null) {
+                    // C ignores the '0' flag once a precision is given for an
+                    // integer conversion; CPython does not, and it is CPython
+                    // this interpreter mirrors ("%05.3d" % 7 is "00007").
                     body = body.padStart(precision, "0");
-                    zeroPad = false;
                 }
-                if (flags.includes("#")) {
+                if (alt) {
                     prefix =
                         conv === "o"
                             ? "0o"
@@ -755,13 +726,16 @@ function pyStringFormat(fmt, value) {
                 const p = precision != null ? precision : 6;
                 if (conv === "f") {
                     body = formatFixed(magnitude, p);
+                    if (alt && !body.includes(".")) {
+                        body += ".";
+                    }
                 } else if (conv === "e" || conv === "E") {
-                    body = formatExponential(magnitude, p);
+                    body = formatExponential(magnitude, p, alt);
                     if (conv === "E") {
                         body = body.toUpperCase();
                     }
                 } else {
-                    body = formatGeneral(magnitude, p);
+                    body = formatGeneral(magnitude, p, alt);
                     if (conv === "G") {
                         body = body.toUpperCase();
                     }
@@ -791,14 +765,36 @@ function pyStringFormat(fmt, value) {
 }
 
 /**
- * Apply a binary operator.
+ * The comparison operators, shared by ``ASTType.BinaryOperator`` and
+ * ``ASTType.Chain`` so the two spellings of ``a < b`` cannot drift apart.
+ *
+ * @type {Record<string, (left: any, right: any) => boolean>}
+ */
+const COMPARISONS = {
+    "==": (left, right) => isEqual(left, right),
+    "<>": (left, right) => !isEqual(left, right),
+    "!=": (left, right) => !isEqual(left, right),
+    "<": (left, right) => isLess(left, right),
+    ">": (left, right) => isLess(right, left),
+    ">=": (left, right) => isEqual(left, right) || isLess(right, left),
+    "<=": (left, right) => isEqual(left, right) || isLess(left, right),
+    in: (left, right) => isIn(left, right),
+    "not in": (left, right) => !isIn(left, right),
+    is: (left, right) => (left === null ? right === null : left === right),
+    "is not": (left, right) => (left === null ? right !== null : left !== right),
+};
+
+/**
  * @param {import("./ast_type.js").ASTBinaryOperator} ast
- * @param {(ast: AST) => any} recurse evaluator for sub-expressions
+ * @param {(ast: AST) => any} recurse
  * @returns {any}
  */
 function _applyBinaryOp(ast, recurse) {
     const left = recurse(ast.left);
     const right = recurse(ast.right);
+    if (Object.hasOwn(COMPARISONS, ast.op)) {
+        return COMPARISONS[ast.op](left, right);
+    }
     switch (ast.op) {
         case "+": {
             const relativeDeltaOnLeft = left instanceof PyRelativeDelta;
@@ -990,36 +986,11 @@ function _applyBinaryOp(ast, recurse) {
             }
             return power;
         }
-        case "==":
-            return isEqual(left, right);
-        case "<>":
-        case "!=":
-            return !isEqual(left, right);
-        case "<":
-            return isLess(left, right);
-        case ">":
-            return isLess(right, left);
-        case ">=":
-            return isEqual(left, right) || isLess(right, left);
-        case "<=":
-            return isEqual(left, right) || isLess(left, right);
-        case "in":
-            return isIn(left, right);
-        case "not in":
-            return !isIn(left, right);
-        case "is":
-            return left === null ? right === null : left === right;
-        case "is not":
-            return left === null ? right !== null : left !== right;
         case "|":
         case "^":
         case "&":
         case "<<":
         case ">>": {
-            // Sets carry their own algebra in Python — and so does the
-            // server's ``safe_eval``, which evaluates ``set(a) | set(b)``
-            // fine. Only the client rejected it, because these operators fell
-            // straight through to the integer-only path.
             if (left instanceof Set && right instanceof Set) {
                 switch (ast.op) {
                     case "|":
@@ -1072,9 +1043,8 @@ function _applyBinaryOp(ast, recurse) {
 }
 
 /**
- * @param {Function} _class the class whose methods we want
- * @returns {Function[]} an array containing the methods defined on the class,
- *  including the constructor
+ * @param {Function} _class
+ * @returns {Function[]}
  */
 function methods(_class) {
     return Object.getOwnPropertyNames(_class.prototype).map(
@@ -1082,8 +1052,37 @@ function methods(_class) {
     );
 }
 
-/** @type {Set<any>} */
-let allowedFns;
+/**
+ * The only functions an expression may call. `methods()` includes each
+ * prototype's `constructor`, which is what puts `PyDate` & co. in the set --
+ * `datetime.date(...)` calls the class itself.
+ *
+ * @type {Set<any>}
+ */
+const allowedFns = new Set([
+    BUILTINS.time.strftime,
+    BUILTINS.set,
+    BUILTINS.bool,
+    BUILTINS.min,
+    BUILTINS.max,
+    BUILTINS.len,
+    BUILTINS.abs,
+    BUILTINS.sorted,
+    BUILTINS.repr,
+    BUILTINS.int,
+    BUILTINS.float,
+    BUILTINS.str,
+    BUILTINS.round,
+    BUILTINS.context_today,
+    BUILTINS.datetime.datetime.now,
+    BUILTINS.datetime.datetime.combine,
+    BUILTINS.datetime.date.today,
+    ...methods(BUILTINS.relativedelta),
+    ...Object.values(BUILTINS.datetime).flatMap((obj) => methods(obj)),
+    ...Object.values(SET),
+    ...Object.values(DICT),
+    ...Object.values(STRING),
+]);
 
 const unboundFn = Symbol("unbound function");
 
@@ -1093,31 +1092,6 @@ const unboundFn = Symbol("unbound function");
  * @returns {any}
  */
 export function evaluate(ast, context = {}) {
-    if (!isTrue) {
-        isTrue = BUILTINS.bool;
-        allowedFns = new Set([
-            BUILTINS.time.strftime,
-            BUILTINS.set,
-            BUILTINS.bool,
-            BUILTINS.min,
-            BUILTINS.max,
-            BUILTINS.len,
-            BUILTINS.abs,
-            BUILTINS.int,
-            BUILTINS.float,
-            BUILTINS.str,
-            BUILTINS.round,
-            BUILTINS.context_today,
-            BUILTINS.datetime.datetime.now,
-            BUILTINS.datetime.datetime.combine,
-            BUILTINS.datetime.date.today,
-            ...methods(BUILTINS.relativedelta),
-            ...Object.values(BUILTINS.datetime).flatMap((obj) => methods(obj)),
-            ...Object.values(SET),
-            ...Object.values(DICT),
-            ...Object.values(STRING),
-        ]);
-    }
     const dicts = new Set();
     /** @type {any} */
     let pyContext;
@@ -1147,7 +1121,7 @@ export function evaluate(ast, context = {}) {
                     }
                     if (Object.hasOwn(context, name)) {
                         return context[name];
-                    } else if (name in BUILTINS) {
+                    } else if (Object.hasOwn(BUILTINS, name)) {
                         return /** @type {Record<string, any>} */ (BUILTINS)[name];
                     } else {
                         throw new EvaluationError(`Name '${name}' is not defined`);
@@ -1161,6 +1135,22 @@ export function evaluate(ast, context = {}) {
                     return _applyUnaryOp(ast, _evaluate);
                 case ASTType.BinaryOperator:
                     return _applyBinaryOp(ast, _evaluate);
+                case ASTType.Chain: {
+                    let left = _evaluate(ast.operands[0]);
+                    for (const [index, op] of ast.operators.entries()) {
+                        if (!Object.hasOwn(COMPARISONS, op)) {
+                            throw new EvaluationError(
+                                `Unknown comparison operator: ${op}`,
+                            );
+                        }
+                        const right = _evaluate(ast.operands[index + 1]);
+                        if (!COMPARISONS[op](left, right)) {
+                            return false;
+                        }
+                        left = right;
+                    }
+                    return true;
+                }
                 case ASTType.BooleanOperator: {
                     const left = _evaluate(ast.left);
                     if (ast.op === "and") {
@@ -1212,12 +1202,26 @@ export function evaluate(ast, context = {}) {
                     if (BLOCKED_PROPERTIES.has(key)) {
                         throw new EvaluationError(`Access to '${key}' is forbidden`);
                     }
-                    if (
-                        typeof key === "number" &&
-                        key < 0 &&
-                        (typeof dict === "string" || Array.isArray(dict))
-                    ) {
-                        return dict.at(key);
+                    // An absent key used to read back as `undefined`, which does
+                    // not stop the evaluation: `{'a': 1}['b'] == None` answered
+                    // `false` where safe_eval raises, so the expression came
+                    // back with a *different result* rather than an error.
+                    if (typeof dict === "string" || Array.isArray(dict)) {
+                        if (typeof key !== "number" || !Number.isInteger(key)) {
+                            throw new EvaluationError(
+                                `${Array.isArray(dict) ? "list" : "string"} indices must be integers, not '${pyTypeName(key)}'`,
+                            );
+                        }
+                        const value = key < 0 ? dict.at(key) : dict[key];
+                        if (value === undefined) {
+                            throw new EvaluationError(
+                                `IndexError: ${Array.isArray(dict) ? "list" : "string"} index out of range`,
+                            );
+                        }
+                        return value;
+                    }
+                    if (isPyMapping(dict) && !Object.hasOwn(dict, key)) {
+                        throw new EvaluationError(`KeyError: ${pyRepr(key)}`);
                     }
                     return dict[key];
                 }
@@ -1231,7 +1235,7 @@ export function evaluate(ast, context = {}) {
                 case ASTType.ObjLookup: {
                     let left = _evaluate(ast.obj);
                     let result;
-                    if (dicts.has(left) || Object.isPrototypeOf.call(PY_DICT, left)) {
+                    if (dicts.has(left) || isPyDict(left)) {
                         result = /** @type {Record<string, any>} */ (DICT)[ast.key];
                     } else if (typeof left === "string") {
                         result = /** @type {Record<string, any>} */ (STRING)[ast.key];
