@@ -1,33 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_styling - Class-name + formatted-value helpers extracted from ListRenderer */
-
-/**
- * Styling cohort extracted from ``ListRenderer``, installed onto
- * ``ListRenderer.prototype`` via ``installListRendererMixin`` in list_renderer.js
- * (descriptor copying with ``enumerable: false`` — NOT ``Object.assign``, which
- * would invoke the getters at install time and break OWL's reactivity capture;
- * see the rationale at the install site).
- *
- * Mixin rather than a hook (unlike ``useListAggregates``, ``useListSelection``)
- * because ~40 fork-wide subclasses (stock, hr, account, sale, web_studio, ...)
- * override these methods via ``super.getCellClass(...)`` etc.; staying on the
- * prototype chain preserves that without rewriting every subclass. Methods read
- * renderer state via ``this`` (``cellClassByColumn``, ``_readonlyCache``,
- * ``props``, ``fields``, ``editedRecord``); field initializations
- * (``this.cellClassByColumn = {}``) stay in the renderer's setup.
- */
+/** @module @web/views/list/list_styling */
 
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { getClassNameFromDecoration } from "@web/core/utils/decorations";
 import { getFormattedValue } from "@web/views/view_utils";
 
-/**
- * Field-type → CSS-class table consulted when building a cell's class
- * string.  Drives ``o_list_number``, ``o_list_text``, etc. — controls
- * column alignment and width hints in CSS.
- */
 const FIELD_CLASSES = {
     char: "o_list_char",
     float: "o_list_number",
@@ -37,18 +16,8 @@ const FIELD_CLASSES = {
     many2one: "o_list_many2one",
 };
 
-/**
- * Mixin applied to ``ListRenderer.prototype`` after class declaration.
- * Methods here use ``this`` to access the renderer's reactive state and
- * dependent helpers (``isSortable``, ``isNumericColumn``,
- * ``canResequenceRows``, ``isInlineEditable``, ``editedRecord``,
- * ``columns``, ``fields``).  Those stay on the renderer (some belong to
- * the sorting cohort, extracted separately; others are renderer-local).
- */
 export const listStylingMixin = {
     /**
-     * Class string applied to a column header ``<th>``.
-     *
      * @param {{ name: string, widget?: string, hasLabel?: boolean, type?: string }} column
      * @returns {string}
      */
@@ -71,9 +40,6 @@ export const listStylingMixin = {
         if (this.isNumericColumn(column)) {
             classNames.push("o_list_number_th");
         }
-        if (column.type === "button_group") {
-            classNames.push("o_list_button");
-        }
         if (column.widget) {
             classNames.push(`o_${column.widget}_cell`);
         }
@@ -81,15 +47,11 @@ export const listStylingMixin = {
     },
 
     /**
-     * Class string applied to a row ``<tr>`` representing the given
-     * record.  Combines arch-defined decorations with selection / edit
-     * / drag-handle state classes.
-     *
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
      * @returns {string}
      */
     getRowClass(record) {
-        /** @type {string[]} Decoration classnames evaluated against the record */
+        /** @type {string[]} */
         const classNames = this.props.archInfo.decorations
             .filter((decoration) =>
                 evaluateBooleanExpr(
@@ -111,18 +73,6 @@ export const listStylingMixin = {
     },
 
     /**
-     * Class string applied to a cell ``<td>``.
-     *
-     * Two layers of caching:
-     *   - ``this.cellClassByColumn[column.id]`` — column-level base
-     *     class (type, widget, button-group); recomputed once per
-     *     column.
-     *   - ``this._readonlyCache`` — per-render two-level cache
-     *     (``Map<recordId, Map<columnKey, value>>``) for the full
-     *     (column × record) class string; recreated on each render by
-     *     ``onWillRender`` and evicted per record (O(1)) by
-     *     ``clearRecordCaches`` on isolated row re-renders.
-     *
      * @param {Object} column
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
      */
@@ -138,7 +88,9 @@ export const listStylingMixin = {
             return cached;
         }
 
-        if (!this.cellClassByColumn[column.id]) {
+        const memoize = !column.relatedPropertyField;
+        let baseClass = memoize ? this.cellClassByColumn[column.id] : undefined;
+        if (!baseClass) {
             const classNames = ["o_data_cell"];
             if (column.type === "button_group") {
                 classNames.push("o_list_button");
@@ -155,9 +107,12 @@ export const listStylingMixin = {
                     classNames.push(`o_${column.widget}_cell`);
                 }
             }
-            this.cellClassByColumn[column.id] = classNames.join(" ");
+            baseClass = classNames.join(" ");
+            if (memoize) {
+                this.cellClassByColumn[column.id] = baseClass;
+            }
         }
-        let result = this.cellClassByColumn[column.id];
+        let result = baseClass;
         if (column.type === "field") {
             const evalCtx = record.evalContextWithVirtualIds;
             if (evaluateBooleanExpr(/** @type {any} */ (column.required), evalCtx)) {
@@ -190,9 +145,6 @@ export const listStylingMixin = {
             }
         }
         if (this._readonlyCache) {
-            // Re-read: the isCellReadonly / canUseFormatter calls above may have
-            // created this record's Map, and reusing the stale local would
-            // replace it — dropping the entries they just cached.
             const key = String(record.id);
             recordCache = this._readonlyCache.get(key);
             if (!recordCache) {
@@ -237,15 +189,9 @@ export const listStylingMixin = {
     },
 
     /**
-     * Cell ``title`` attribute — the full text shown in a tooltip when
-     * a fixed-width column truncates the displayed value.  Limited to
-     * scalar string-like fields where the formatted value matches the
-     * displayed text.
-     *
      * @param {Object} column
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
-     * @param {string} [formattedValue] value already formatted for display in
-     *  the cell body — passed by the template to avoid formatting twice
+     * @param {string} [formattedValue]
      */
     getCellTitle(column, record, formattedValue) {
         if (["many2one", "reference", "char"].includes(this.fields[column.name].type)) {
@@ -256,10 +202,6 @@ export const listStylingMixin = {
     },
 
     /**
-     * Class string forwarded to the inner ``<Field>`` component.  Only
-     * arch-supplied ``class`` attribute survives — base layout classes
-     * (``o_field_cell``) live on the ``<td>``.
-     *
      * @param {Object} column
      */
     getFieldClass(column) {
@@ -267,11 +209,6 @@ export const listStylingMixin = {
     },
 
     /**
-     * Format a record's value for the given column.  Honours the
-     * ``enable_formatting=false`` arch option to bypass formatting for
-     * raw display, and otherwise delegates to the canonical
-     * ``getFormattedValue`` helper from ``view_utils``.
-     *
      * @param {Object} column
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
      */
@@ -285,9 +222,6 @@ export const listStylingMixin = {
     },
 
     /**
-     * Evaluate the ``invisible`` arch attribute against a record's
-     * eval context (with virtual ids for not-yet-saved x2many rows).
-     *
      * @param {string} invisible
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
      */
@@ -296,9 +230,6 @@ export const listStylingMixin = {
     },
 
     /**
-     * Evaluate the ``column_invisible`` arch attribute against the
-     * list-level eval context (no per-record state).
-     *
      * @param {string} columnInvisible
      */
     evalColumnInvisible(columnInvisible) {
@@ -306,11 +237,6 @@ export const listStylingMixin = {
     },
 
     /**
-     * Whether the formatter (vs the field widget) should render the
-     * cell's value.  False for cells that have an explicit widget, and
-     * for inline-editable rows currently in edition (so the editable
-     * widget renders instead of formatted text).
-     *
      * @param {Object} column
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
      */
@@ -328,11 +254,6 @@ export const listStylingMixin = {
     },
 
     /**
-     * Whether the record itself should render as readonly regardless
-     * of column-level overrides.  Captures: new records always
-     * editable; ``activeActions.edit === false`` forces readonly;
-     * dialog-opened x2many edits stay readonly in the list.
-     *
      * @param {import("@web/model/relational_model/record").RelationalRecord} record
      */
     isRecordReadonly(record) {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_renderer - Table rendering, inline editing, column resize, and drag-and-drop for list view */
+/** @module @web/views/list/list_renderer */
 
 import {
     Component,
@@ -66,11 +66,8 @@ import {
  * @typedef {import('@web/model/relational_model/relational_model').RelationalModel} RelationalModel
  * @typedef {import('@web/model/relational_model/static_list').StaticList} StaticList
  * @typedef {import("../view").ViewProps} ViewProps
- *
  * @typedef {import("./list_column_utils").Column} Column
- *
  * @typedef {"up" | "down" | "left" | "right"} Direction
- *
  * @typedef {ViewProps & {
  *  list: DynamicList | StaticList;
  *  archInfo?: any;
@@ -90,7 +87,6 @@ export class ListRenderer extends Component {
     static groupRowTemplate = "web.ListRenderer.GroupRow";
     static useMagicColumnWidths = true;
     static LONG_TOUCH_THRESHOLD = 400;
-    /** Minimum flat row count to activate row virtualization. Set Infinity to disable. */
     static VIRTUALIZATION_THRESHOLD = DEFAULT_VIRTUALIZATION_THRESHOLD;
     static components = {
         DropdownItem,
@@ -107,10 +103,6 @@ export class ListRenderer extends Component {
     static defaultProps = { allowSelectors: false, cycleOnTab: true };
 
     /**
-     * Memoized tooltip info per column id (class field: definitely assigned,
-     * so tsc doesn't widen it to ``| undefined``). Populated by
-     * ``makeTooltip``; invalidated from ``onWillRender``, which is the only
-     * place whose writes reach the component (see the comment there).
      * @type {Record<string, string>}
      */
     tooltipInfoByColumn = {};
@@ -162,15 +154,15 @@ export class ListRenderer extends Component {
     activeElement;
     /** @type {any[]} */
     dialogClose;
-    /** @type {Set<string> | undefined} record ids rendered since the last full render (row cache invalidation) */
+    /** @type {Set<string> | undefined} */
     _renderedRowIds;
-    /** @type {any[] | undefined} previous identity-stable columns array */
+    /** @type {any[] | undefined} */
     _stableColumns;
-    /** @type {any} stable fallback for the activeActions getter */
+    /** @type {any} */
     _defaultActiveActions;
-    /** @type {any} identity-stable self reference (see setup) */
+    /** @type {any} */
     _rendererInstance;
-    /** @type {() => void} identity-stable bound ``displaySaveNotification`` (see setup) */
+    /** @type {() => void} */
     _displaySaveNotification;
 
     setup() {
@@ -202,14 +194,6 @@ export class ListRenderer extends Component {
                 .LONG_TOUCH_THRESHOLD,
             getEnv: () => this.env,
         });
-
-        /**
-         * If the pointer is a few pixels off the resize handle, a click can
-         * fire on the column title and reorder it right after a resize — bad
-         * UX we prevent via `resizing`/`preventReorder`, set in
-         * onClickSortColumn, onColumnTitleMouseUp, and onStartResize.
-         */
-        this.preventReorder = false;
 
         this.controls = this.props.archInfo.controls.length
             ? this.props.archInfo.controls
@@ -286,16 +270,6 @@ export class ListRenderer extends Component {
             this._readonlyCache = new Map();
             this._renderedRowIds = new Set();
 
-            // Invalidating from `makeTooltip` did not work: the template calls
-            // it as a bare `makeTooltip(column)`, so it runs against OWL's
-            // per-render context and both `this.tooltipInfoDebug = …` and
-            // `this.tooltipInfoByColumn = {}` landed on that throwaway object
-            // (see §4.3.2 of doc/coding_guidelines.rst). The component's flag
-            // therefore never advanced, so after a runtime debug toggle the
-            // reset ran on every call forever, handing each render a fresh
-            // empty context-local cache — every column rebuilt on every
-            // render — while the real cache kept its stale pre-toggle entries.
-            // A lifecycle hook is component-bound, so the write sticks.
             if (this.tooltipInfoDebug !== this.isDebugMode) {
                 this.tooltipInfoDebug = this.isDebugMode;
                 this.tooltipInfoByColumn = {};
@@ -442,13 +416,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Overridable seam around the shared column pre-processing util.
-     * Sub-renderers remap column attributes before the shared processing
-     * runs — e.g. account's invoice-line renderer resolves
-     * optional="conditional" to "show"/"hide" from the move type. Keep
-     * calling this method (not the util directly) from render paths so
-     * those overrides stay effective.
-     *
      * @param {Column[]} allColumns
      * @param {DynamicList | StaticList} list
      * @returns {Column[]}
@@ -479,7 +446,7 @@ export class ListRenderer extends Component {
 
     get hasOptionalOpenFormViewColumn() {
         return (
-            this.props.editable && this.env.debug && !this.props.hasOpenFormViewButton
+            this.props.editable && this.isDebugMode && !this.props.hasOpenFormViewButton
         );
     }
 
@@ -524,23 +491,11 @@ export class ListRenderer extends Component {
         return this.props.activeActions || (this._defaultActiveActions ||= {});
     }
 
-    /**
-     * Row component class for the rows template, derived per renderer class
-     * so sub-component resolution uses this renderer's ``static components``
-     * (as the historical ``t-call`` did).
-     */
     get rowComponent() {
         return getRowComponentClass(/** @type {any} */ (this.constructor));
     }
 
     /**
-     * Props for one ``ListRecordRow``. Every value must be referentially
-     * stable across renders for unchanged rows (what lets OWL skip them).
-     * The renderer's props are spread in so template ``props.X`` expressions
-     * (including subclass ones) keep resolving; the scalar keys below are
-     * computed per render and double as invalidation channels for affected
-     * rows.
-     *
      * @param {RelationalRecord} record
      * @param {Group | undefined} group
      * @param {string | undefined} groupId
@@ -568,9 +523,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Reuse the previous columns array when the recomputed one is elementwise
-     * identical (see comment at the ``onWillRender`` call site).
-     *
      * @param {any[]} columns
      * @returns {any[]}
      */
@@ -588,11 +540,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Called by ``ListRecordRow`` at the start of each row render, to evict
-     * stale ``_readonlyCache`` entries when a row re-renders without a full
-     * renderer render. Skipped on the first row render after a full render,
-     * since the cache was just recreated empty.
-     *
      * @param {string} recordId
      */
     markRowRender(recordId) {
@@ -607,11 +554,6 @@ export class ListRenderer extends Component {
     }
 
     /**
-     * Evict all ``_readonlyCache`` entries for one record. The cache is
-     * two-level — ``Map<recordId, Map<columnKey, value>>`` (see
-     * ``list_styling.js``) — precisely so this eviction, which runs on every
-     * isolated row re-render, is O(1) instead of a scan of all keys.
-     *
      * @param {string} recordId
      */
     clearRecordCaches(recordId) {
@@ -629,7 +571,7 @@ export class ListRenderer extends Component {
         ) {
             return false;
         }
-        return !orderBy.length || (orderBy.length && orderBy[0].name === handleField);
+        return !orderBy.length || orderBy[0].name === handleField;
     }
 
     get fields() {
@@ -685,9 +627,6 @@ export class ListRenderer extends Component {
                 viewIdentifier.push(keyParts[partName]);
             }
         });
-        // `toSorted`, not `sort`: `fields` is `list.fieldNames`, and sorting it
-        // in place would reorder whatever that getter handed back. It happens
-        // to build a fresh array today — this must not depend on that.
         viewIdentifier.push(...keyParts.fields.toSorted());
         return viewIdentifier.join(",");
     }
@@ -766,7 +705,7 @@ export class ListRenderer extends Component {
         return this.activeActions.type !== "view";
     }
 
-    get getEmptyRowIds() {
+    get emptyRowIds() {
         let nbEmptyRow = Math.max(0, 4 - this.props.list.records.length);
         if (nbEmptyRow > 0 && this.displayRowCreates) {
             nbEmptyRow -= 1;
@@ -939,12 +878,6 @@ export class ListRenderer extends Component {
             /** @type {HTMLElement} */ (ev.target).closest("td, th")
         );
         if (!closestCell) {
-            // The handler is bound on cells, but a keydown can still surface
-            // here from content the cell only owns logically (a portalled
-            // dropdown/popover panel, a datepicker in the overlay container).
-            // Every branch below addresses a cell, so with no cell there is
-            // nothing to handle — bail instead of throwing out of a keydown
-            // handler and killing the key for the whole view.
             return;
         }
         if (closestCell.querySelector(".o_select_menu [aria-expanded=true]")) {
@@ -1013,7 +946,7 @@ export class ListRenderer extends Component {
      * @param {HTMLTableCellElement} cell
      * @param {Group | null} group
      * @param {RelationalRecord | null} record
-     * @returns {boolean} true if some behavior has been taken
+     * @returns {boolean}
      */
     onCellKeydownEditMode(hotkey, cell, group, record) {
         return this.nav.onCellKeydownEditMode(hotkey, cell, group, record);
@@ -1024,7 +957,7 @@ export class ListRenderer extends Component {
      * @param {HTMLTableCellElement} cell
      * @param {Group | null} group
      * @param {RelationalRecord | null} record
-     * @returns {boolean} true if some behavior has been taken
+     * @returns {boolean}
      */
     onCellKeydownReadOnlyMode(hotkey, cell, group, record) {
         return this.nav.onCellKeydownReadOnlyMode(hotkey, cell, group, record);
@@ -1141,18 +1074,9 @@ export class ListRenderer extends Component {
             fieldInfo: /** @type {any} */ (column),
         });
         if (!column.relatedPropertyField) {
-            // Property columns are excluded from the memo by the guard above
-            // (their definition can change under a stable column id), so
-            // writing their entry only grew a map nothing would ever read.
             this.tooltipInfoByColumn[column.id] = tooltipInfo;
         }
         return tooltipInfo;
-    }
-
-    onColumnTitleMouseUp() {
-        if (this.columnWidths.resizing) {
-            this.preventReorder = true;
-        }
     }
 
     /**

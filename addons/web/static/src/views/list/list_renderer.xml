@@ -21,7 +21,6 @@
  <th t-if="column.type === 'field'"
  t-att-data-name="column.name"
  t-att-class="getColumnClass(column) + ' opacity-trigger-hover w-print-auto'"
- t-on-pointerup="onColumnTitleMouseUp"
  t-on-click="() => this.onClickSortColumn(column)"
  t-on-keydown="(ev) => this.onCellKeydown(ev)"
  data-tooltip-delay="1000"
@@ -95,10 +94,12 @@
  <ListAggregatesRow
  list="props.list"
  archInfo="props.archInfo"
+ columns="columns"
  optionalActiveFields="optionalActiveFields"
  hasSelectors="hasSelectors"
  hasOpenFormViewColumn="hasOpenFormViewColumn"
  displayOptionalFields="displayOptionalFields"
+ hasActionsColumn="hasActionsColumn"
  activeActions="activeActions"
  canCreateGroup="canCreateGroup"
  showGroupInput="state.showGroupInput"
@@ -150,7 +151,7 @@
  </t>
  <t t-call="{{ constructor.createControlsTemplate }}"/>
  <t t-if="!props.list.isGrouped and !props.noContentHelp">
- <tr t-foreach="getEmptyRowIds" t-as="emptyRowId" t-key="emptyRowId">
+ <tr t-foreach="emptyRowIds" t-as="emptyRowId" t-key="emptyRowId">
  <td t-att-colspan="nbCols">&#8203;</td>
  </tr>
  </t>

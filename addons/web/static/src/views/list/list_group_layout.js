@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module views/list/list_group_layout - Group header layout utilities for ListRenderer */
+/** @module views/list/list_group_layout */
 
 /** @import { Group } from "@web/model/relational_model/group" */
 /** @typedef {import("@web/views/list/list_column_utils").Column} Column */
@@ -9,12 +9,10 @@
 import { AGGREGATABLE_FIELD_TYPES } from "@web/model/relational_model/utils";
 
 /**
- * Find the index of the first column that has an aggregate value.
- *
  * @param {Column[]} columns
- * @param {Object} fields
- * @param {Object} aggregates - group.aggregates or footer aggregates
- * @returns {number} index or -1
+ * @param {Record<string, any>} fields
+ * @param {Record<string, any>} aggregates
+ * @returns {number}
  */
 function getFirstAggregateIndex(columns, fields, aggregates) {
     return columns.findIndex(
@@ -26,12 +24,10 @@ function getFirstAggregateIndex(columns, fields, aggregates) {
 }
 
 /**
- * Find the index of the last column that has an aggregate value.
- *
  * @param {Column[]} columns
- * @param {Object} fields
- * @param {Object} aggregates
- * @returns {number} index or -1
+ * @param {Record<string, any>} fields
+ * @param {Record<string, any>} aggregates
+ * @returns {number}
  */
 function getLastAggregateIndex(columns, fields, aggregates) {
     const reversedColumns = columns.toReversed();
@@ -45,10 +41,8 @@ function getLastAggregateIndex(columns, fields, aggregates) {
 }
 
 /**
- * Get the slice of columns between first and last aggregate (inclusive).
- *
  * @param {Column[]} columns
- * @param {Object} fields
+ * @param {Record<string, any>} fields
  * @param {Object} aggregates
  * @returns {Column[]}
  */
@@ -59,10 +53,8 @@ export function getAggregateColumns(columns, fields, aggregates) {
 }
 
 /**
- * Compute the colspan for the group name cell (first cell in a group header row).
- *
  * @param {Column[]} columns
- * @param {Object} fields
+ * @param {Record<string, any>} fields
  * @param {Object} aggregates
  * @param {{ hasSelectors: boolean }} options
  * @returns {number}
@@ -77,10 +69,8 @@ export function getGroupNameCellColSpan(columns, fields, aggregates, { hasSelect
 }
 
 /**
- * Compute the colspan for the group pager cell (last cell in a group header row).
- *
  * @param {Column[]} columns
- * @param {Object} fields
+ * @param {Record<string, any>} fields
  * @param {Object} aggregates
  * @param {{ hasOpenFormViewColumn?: boolean }} [options]
  * @returns {number}
@@ -100,8 +90,6 @@ export function getGroupPagerCellColspan(
 }
 
 /**
- * Recursively count visible records in a (possibly nested) group.
- *
  * @param {Group} group
  * @returns {number}
  */

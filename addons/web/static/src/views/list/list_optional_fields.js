@@ -1,23 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_optional_fields - Hook managing localStorage-backed optional column visibility for the list view */
+/** @module @web/views/list/list_optional_fields */
 
 /**
- * Reads/writes the localStorage-backed set of visible optional columns,
- * plus the debug "open form view" toggle.
- *
- * @param {string} keyOptionalFields - localStorage key for optional field state
- * @param {string} keyDebugOpenView - localStorage key for debug open-view toggle
+ * @param {string} keyOptionalFields
+ * @param {string} keyDebugOpenView
  * @param {object} options
- * @param {() => import("./list_renderer").Column[]} options.getAllColumns - returns allColumns
- * @param {() => Record<string, boolean>} options.getOptionalActiveFields - returns the shared state
- * @param {() => void} options.onSave - callback to persist (routes through class for override support)
+ * @param {() => import("./list_renderer").Column[]} options.getAllColumns
+ * @param {() => Record<string, boolean>} options.getOptionalActiveFields
+ * @param {() => void} options.onSave
  * @returns {{
  *   debugOpenView: boolean,
  *   computeOptionalActiveFields: () => Record<string, boolean>,
  *   saveOptionalActiveFields: () => void,
- *   refreshDebugOpenView: () => void,
  *   toggleOptionalField: (fieldName: string, render: () => void) => void,
  *   toggleOptionalFieldGroup: (groupId: string, render: () => void) => void,
  *   toggleDebugOpenView: (render: () => void) => void,
@@ -34,9 +30,6 @@ export function useListOptionalFields(
     const self = {
         debugOpenView: exprToBoolean(browser.localStorage.getItem(keyDebugOpenView)),
 
-        /**
-         * Compute which optional fields are active from localStorage or defaults.
-         */
         computeOptionalActiveFields() {
             const localStorageValue = optionalFieldsStorageValue;
             const optionalColumns = getAllColumns().filter(
@@ -56,33 +49,17 @@ export function useListOptionalFields(
             return result;
         },
 
-        /**
-         * Persist the current optional field visibility to localStorage.
-         */
         saveOptionalActiveFields() {
             const optionalActiveFields = getOptionalActiveFields();
             const activeFieldNames = Object.keys(optionalActiveFields).filter(
                 (fieldName) => optionalActiveFields[fieldName],
             );
-            browser.localStorage.setItem(
-                keyOptionalFields,
-                /** @type {any} */ (activeFieldNames),
-            );
-            optionalFieldsStorageValue = activeFieldNames.join(",");
+            const serialized = activeFieldNames.join(",");
+            browser.localStorage.setItem(keyOptionalFields, serialized);
+            optionalFieldsStorageValue = serialized;
         },
 
         /**
-         * Reload debug open-view state from localStorage.
-         */
-        refreshDebugOpenView() {
-            self.debugOpenView = exprToBoolean(
-                browser.localStorage.getItem(keyDebugOpenView),
-            );
-        },
-
-        /**
-         * Toggle a single optional field's visibility and persist.
-         *
          * @param {string} fieldName
          * @param {() => void} render
          */
@@ -94,8 +71,6 @@ export function useListOptionalFields(
         },
 
         /**
-         * Toggle all optional fields in a property-field group and persist.
-         *
          * @param {string} groupId
          * @param {() => void} render
          */
@@ -120,8 +95,6 @@ export function useListOptionalFields(
         },
 
         /**
-         * Toggle the debug "open form view" column and persist.
-         *
          * @param {() => void} render
          */
         toggleDebugOpenView(render) {

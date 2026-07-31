@@ -1,31 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module views/list/list_aggregates_row - Footer aggregate row component for ListRenderer */
+/** @module views/list/list_aggregates_row */
 
 import { Component, onWillRender, useRef } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
-import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useAutofocus } from "@web/core/utils/hooks";
 
 import { useListAggregates } from "./list_aggregates.js";
-import { processAllColumns } from "./list_column_utils.js";
 import {
     getAggregateColumns as getAggregateColumnsUtil,
     getGroupNameCellColSpan as getGroupNameCellColSpanUtil,
 } from "./list_group_layout.js";
 
 /**
- * Renders the single footer row (`<tr>`) inside the list `<tfoot>`.
- *
- * Extracted from ListRenderer so OWL's template-level reactive tracking applies
- * to aggregate computation: re-renders fire only when `list.records`,
- * `record.data`, or `record.selected` actually change — not on unrelated parent
- * re-renders (e.g. `editedRecord` toggling when a cell is clicked).
- *
- * The component also owns the "Add a <groupBy>" button and input, previously
- * managed on the parent.
- *
  * @extends Component
  */
 export class ListAggregatesRow extends Component {
@@ -34,34 +22,38 @@ export class ListAggregatesRow extends Component {
     static props = {
         /** @type {any} */
         list: Object,
-        /** @type {any} - parsed view arch info */
+        /** @type {any} */
         archInfo: Object,
-        /** @type {any} - reactive (useState) optional field visibility */
+        /**
+         * @type {any}
+         */
+        columns: Array,
+        /** @type {any} */
         optionalActiveFields: Object,
-        /** Whether a selector checkbox column is present */
         hasSelectors: Boolean,
-        /** Whether the "open in form view" column is present */
         hasOpenFormViewColumn: Boolean,
-        /** Whether there is at least one optional field (drives the trailing empty td) */
         displayOptionalFields: Boolean,
-        /** Active actions object from the controller */
+        hasActionsColumn: Boolean,
         activeActions: Object,
-        /** Whether the current user can create a new group via the footer button */
         canCreateGroup: Boolean,
-        /** Parent-managed flag controlling the group creation input visibility */
         showGroupInput: Boolean,
-        /** Tell parent to show the group creation input */
         onShowGroupInput: Function,
-        /** Tell parent to hide the group creation input */
         onHideGroupInput: Function,
         /**
-         * Confirm a new group name — called with the string value typed by the user.
          * @type {(value: string) => void}
          */
         onGroupInputConfirm: Function,
     };
 
-    /** Initialize group creation input ref and aggregate computation hook. */
+    /** @type {number} */
+    _renderId;
+    /** @type {{ renderId: number, value: any }} */
+    _aggregatesCache;
+    /** @type {ReturnType<typeof useListAggregates>} */
+    agg;
+    /** @type {import("@odoo/owl").Ref} */
+    groupInputRef;
+
     setup() {
         this.groupInputRef = useRef("groupInput");
         useAutofocus({ refName: "groupInput" });
@@ -74,43 +66,18 @@ export class ListAggregatesRow extends Component {
         });
 
         this._renderId = 0;
-        this._columnsCache = { renderId: -1, value: null };
         this._aggregatesCache = { renderId: -1, value: null };
         onWillRender(() => {
             this._renderId++;
         });
     }
 
-    /** @returns {any[]} All columns including expanded property fields. */
-    get allColumns() {
-        return processAllColumns(this.props.archInfo.columns, this.props.list);
-    }
-
-    /** @returns {any[]} Visible columns (excluding optional-hidden and column-invisible). */
+    /** @returns {any[]} */
     get columns() {
-        if (this._columnsCache.renderId !== this._renderId) {
-            this._columnsCache = {
-                renderId: this._renderId,
-                value: this.allColumns.filter((col) => {
-                    if (col.optional && !this.props.optionalActiveFields[col.name]) {
-                        return false;
-                    }
-                    if (
-                        evaluateBooleanExpr(
-                            col.column_invisible,
-                            this.props.list.evalContext,
-                        )
-                    ) {
-                        return false;
-                    }
-                    return true;
-                }),
-            };
-        }
-        return this._columnsCache.value;
+        return this.props.columns;
     }
 
-    /** @returns {Record<string, object>} Computed aggregate values keyed by field name. */
+    /** @returns {Record<string, object>} */
     get aggregates() {
         if (this._aggregatesCache.renderId !== this._renderId) {
             this._aggregatesCache = {
@@ -121,12 +88,12 @@ export class ListAggregatesRow extends Component {
         return this._aggregatesCache.value;
     }
 
-    /** @returns {Record<string, any>} Field definitions from the list model. */
+    /** @returns {Record<string, any>} */
     get fields() {
         return this.props.list.fields;
     }
 
-    /** @returns {any[]} Columns that have aggregate values to display. */
+    /** @returns {any[]} */
     getAggregateColumns() {
         return getAggregateColumnsUtil(
             /** @type {any} */ (this.columns),
@@ -135,7 +102,7 @@ export class ListAggregatesRow extends Component {
         );
     }
 
-    /** @returns {number} Column span for the group name cell in the footer row. */
+    /** @returns {number} */
     getGroupNameCellColSpan() {
         return getGroupNameCellColSpanUtil(
             /** @type {any} */ (this.columns),
@@ -146,8 +113,6 @@ export class ListAggregatesRow extends Component {
     }
 
     /**
-     * Handle keydown in the group creation input. Enter confirms, Escape cancels.
-     *
      * @param {KeyboardEvent} ev
      */
     onGroupInputKeydown(ev) {
@@ -162,18 +127,15 @@ export class ListAggregatesRow extends Component {
         }
     }
 
-    /** Read the group input value and pass it to the parent confirmation callback. */
     _confirmGroupInput() {
         const value = /** @type {HTMLInputElement} */ (this.groupInputRef.el).value;
         this.props.onGroupInputConfirm(value);
     }
 
     /**
-     * Open the multi-currency breakdown popover for a monetary aggregate cell.
-     *
-     * @param {MouseEvent} ev - click event on the aggregate cell
-     * @param {any} value - the aggregate value object
-     * @param {string} fieldName - the monetary field name
+     * @param {MouseEvent} ev
+     * @param {any} value
+     * @param {string} fieldName
      */
     openMultiCurrencyPopover(ev, value, fieldName) {
         this.agg.openMultiCurrencyPopover(ev, value, fieldName);

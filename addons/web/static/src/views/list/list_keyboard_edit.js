@@ -1,26 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_keyboard_edit - Edit-mode keyboard handlers (enter/escape, tab, multi-edit) for list view inline editing */
-
-/**
- * Edit-mode keyboard handlers for the list view.
- *
- * Extracted from useListKeyboardNavigation to separate the inline-edit concern
- * (enter/escape, tab between records, multi-edit, group-boundary creation) from
- * the navigation concern (arrow keys, focus management, read-only mode).
- *
- * @see list_keyboard_nav.js for the coordinator that composes these handlers
- */
+/** @module @web/views/list/list_keyboard_edit */
 
 import { getElementToFocus } from "./list_keyboard_nav.js";
 
 /**
- * Create edit-mode keyboard handlers that are merged onto the navigation object.
- *
- * @param {object} nav - the self object from useListKeyboardNavigation
- * @param {any} tableRef - ref to the <table> element
- * @param {object} options - same options passed to the main hook
+ * @param {object} nav
+ * @param {any} tableRef
+ * @param {object} options
  */
 export function makeEditHandlers(nav, tableRef, options) {
     const {
@@ -37,8 +25,6 @@ export function makeEditHandlers(nav, tableRef, options) {
 
     return {
         /**
-         * Focus the first editable cell for the given column on the selected row.
-         *
          * @param {object} column
          * @param {boolean} [forward=true]
          */
@@ -84,8 +70,6 @@ export function makeEditHandlers(nav, tableRef, options) {
         },
 
         /**
-         * Handle tab/shift+tab staying on the same row (moving between editable cells).
-         *
          * @param {string} hotkey
          * @param {HTMLTableCellElement} cell
          * @param {object} _group
@@ -111,8 +95,6 @@ export function makeEditHandlers(nav, tableRef, options) {
         },
 
         /**
-         * Handle keyboard in multi-edit mode (selected records being edited together).
-         *
          * @param {string} hotkey
          * @param {HTMLTableCellElement} cell
          * @param {object} group
@@ -168,8 +150,6 @@ export function makeEditHandlers(nav, tableRef, options) {
         },
 
         /**
-         * Handle keyboard at the end of a group (create new record in group).
-         *
          * @param {string} hotkey
          * @param {HTMLElement} _cell
          * @param {object} group
@@ -197,8 +177,6 @@ export function makeEditHandlers(nav, tableRef, options) {
         },
 
         /**
-         * Handle keyboard in edit mode (inline editing a single record).
-         *
          * @param {string} hotkey
          * @param {HTMLTableCellElement} cell
          * @param {object | null} group

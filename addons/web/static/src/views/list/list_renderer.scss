@@ -47,6 +47,16 @@
         border-collapse: collapse;
         font-variant-numeric: tabular-nums;
 
+        // The UA `font` shorthand on form controls resets font-variant-numeric,
+        // which `font-family: inherit` from Reboot does not restore. Without
+        // this an input renders proportional figures inside a table of tabular
+        // ones, so every digit shifts the moment a cell is clicked into.
+        input,
+        textarea,
+        select {
+            font-variant-numeric: inherit;
+        }
+
         @include media-only(print) {
             width: 100% !important;
             border-collapse: separate;

@@ -4817,10 +4817,12 @@ test(`aggregates are computed correctly in grouped lists`, async () => {
     expect(`.o_group_header:eq(1) td:eq(-1)`).toHaveText("9", {
         message: "second group total should be 9",
     });
-    expect(`tfoot td:eq(-1)`).toHaveText("32", { message: "total should be 32" });
+    expect(`tfoot td.o_list_number:eq(-1)`).toHaveText("32", {
+        message: "total should be 32",
+    });
     await contains(`.o_group_header:eq(0)`).click();
     await clickRecordSelector();
-    expect(`tfoot td:eq(-1)`).toHaveText("10", {
+    expect(`tfoot td.o_list_number:eq(-1)`).toHaveText("10", {
         message: "total should be 10 as first record of first group is selected",
     });
 });
@@ -5440,19 +5442,25 @@ test(`groups can be sorted on aggregates`, async () => {
     expect(queryAllTexts(`tbody .o_list_number`)).toEqual(["5", "17", "10"], {
         message: "initial order should be 5, 17, 10",
     });
-    expect(`tfoot td:eq(-1)`).toHaveText("32", { message: "total should be 32" });
+    expect(`tfoot td.o_list_number:eq(-1)`).toHaveText("32", {
+        message: "total should be 32",
+    });
 
     await contains(`.o_column_sortable[data-name=int_field]`).click();
     expect(queryAllTexts(`tbody .o_list_number`)).toEqual(["5", "10", "17"], {
         message: "order should be 5, 10, 17",
     });
-    expect(`tfoot td:eq(-1)`).toHaveText("32", { message: "total should still be 32" });
+    expect(`tfoot td.o_list_number:eq(-1)`).toHaveText("32", {
+        message: "total should still be 32",
+    });
 
     await contains(`.o_column_sortable[data-name=int_field]`).click();
     expect(queryAllTexts(`tbody .o_list_number`)).toEqual(["17", "10", "5"], {
         message: "initial order should be 17, 10, 5",
     });
-    expect(`tfoot td:eq(-1)`).toHaveText("32", { message: "total should still be 32" });
+    expect(`tfoot td.o_list_number:eq(-1)`).toHaveText("32", {
+        message: "total should still be 32",
+    });
     expect.verifySteps(["", "int_field ASC", "int_field DESC"]);
 });
 
@@ -15960,7 +15968,7 @@ test(`list view with optional fields rendering and local storage mock`, async ()
 
     forceLocalStorage = false;
     await contains(`.o-dropdown--menu span.dropdown-item:eq(1) input`).click();
-    expect.verifySteps([[`setItem ${localStorageKey}`, ["m2o", "reference"]]]);
+    expect.verifySteps([[`setItem ${localStorageKey}`, "m2o,reference"]]);
     expect(`th:not(.o_list_record_selector)`).toHaveCount(4, {
         message:
             "should have 1 for checkbox (desktop only), 3 for columns, 1 for optional columns",
@@ -16031,7 +16039,7 @@ test(`list view with optional fields from local storage being the empty array`, 
         `.o-dropdown--menu span.dropdown-item:not(.dropdown-item-studio)`,
     ).toHaveCount(2, { message: "dropdown has 2 optional column headers" });
     await contains(`.o-dropdown--menu span.dropdown-item input:eq(1)`).click();
-    expect.verifySteps([[`setItem ${localStorageKey}`, []]]);
+    expect.verifySteps([[`setItem ${localStorageKey}`, ""]]);
     verifyHeaders(["foo"]);
     await getService("action").doAction(1);
     expect.verifySteps([["getItem", localStorageKey]]);

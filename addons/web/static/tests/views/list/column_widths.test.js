@@ -144,6 +144,7 @@ function getColumnWidths() {
     return queryAllProperties(".o_list_table thead th", "offsetWidth");
 }
 
+/** @param {number[]} expectedColumnWidths */
 function expectedColumnWidthsToBeCloseTo(expectedColumnWidths) {
     getColumnWidths().forEach((width, index) =>
         expect(width).toBeCloseTo(expectedColumnWidths[index], { margin: 3 }),
@@ -1311,6 +1312,29 @@ test(`freeze widths: x2many, toggle optional field`, async () => {
     expect(getColumnWidths()).toEqual([110, 436, 190, 32]);
 });
 
+test(`a resize released over another header does not swallow the next sort`, async () => {
+    await mountView({
+        resModel: "foo",
+        type: "list",
+        arch: `
+            <list>
+                <field name="foo"/>
+                <field name="int_field"/>
+            </list>
+        `,
+    });
+
+    await contains(`th[data-name=foo]`).click();
+    expect(`th[data-name=foo]`).toHaveClass("table-active");
+
+    await contains(`th[data-name=foo] .o_resize`, { visible: false }).dragAndDrop(
+        `th[data-name=int_field]`,
+    );
+
+    await contains(`th[data-name=int_field]`).click();
+    expect(`th[data-name=int_field]`).toHaveClass("table-active");
+});
+
 test(`resize, reorder, resize again`, async () => {
     await mountView({
         resModel: "foo",
@@ -1613,4 +1637,32 @@ test(`dblclick on resize handle to force a recomputation of all widths`, async (
 
     await contains(".o_list_table th .o_resize", { visible: false }).dblclick();
     expect(getColumnWidths()).toEqual(originalWidths);
+});
+
+test(`width computation: percentage width is a share of the table, not pixels`, async () => {
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        arch: `
+            <list>
+                <field name="int_field" width="50%"/>
+                <field name="foo" width="25%"/>
+                <field name="qux"/>
+            </list>`,
+    });
+    expect(getColumnWidths()).toEqual([40, 380, 194, 185]);
+});
+
+test(`width computation: an unparsable width falls back to the default sizing`, async () => {
+    await mountView({
+        type: "list",
+        resModel: "foo",
+        arch: `
+            <list>
+                <field name="int_field" width="wide"/>
+                <field name="foo"/>
+                <field name="qux"/>
+            </list>`,
+    });
+    expect(getColumnWidths()).toEqual([40, 189, 350, 221]);
 });

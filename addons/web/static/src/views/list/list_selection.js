@@ -1,21 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_selection - Hook for checkbox selection, shift-range selection, and long-touch selection in list views */
+/** @module @web/views/list/list_selection */
 
-import { useExternalListener } from "@odoo/owl";
+import { onWillDestroy, useExternalListener } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 
 /**
- * Hook for list-view selection: shift-key range selection, long-touch
- * selection on mobile, and click-capture behavior in selection mode.
- *
  * @param {object} options
  * @param {() => import("./list_renderer").ListRendererProps} options.getProps
  * @param {() => boolean} options.getAllowSelectors
  * @param {(record: object) => void} options.toggleRecordSelection
- * @param {number} options.longTouchThreshold - ms before long-touch triggers selection
+ * @param {number} options.longTouchThreshold
  * @param {() => any} options.getEnv
  * @returns {{
  *   toggleRangeSelection: (record: object) => void,
@@ -42,18 +39,12 @@ export function useListSelection({
     let touchStartMs = 0;
 
     const self = {
-        /** Whether shift key is currently held. */
         shiftKeyMode: false,
 
-        /** Record where shift-selection started. */
         shiftKeyedRecord: undefined,
 
-        /** Last record whose checkbox was toggled (for range selection). */
         lastCheckedRecord: undefined,
 
-        /**
-         * Reset the long-touch timer if one is running.
-         */
         resetLongTouchTimer() {
             if (longTouchTimer) {
                 browser.clearTimeout(longTouchTimer);
@@ -62,8 +53,6 @@ export function useListSelection({
         },
 
         /**
-         * Select/deselect a range of records between lastCheckedRecord and the given record.
-         *
          * @param {object} record
          */
         toggleRangeSelection(record) {
@@ -84,11 +73,9 @@ export function useListSelection({
         },
 
         /**
-         * Expand checkbox selection by one record in the given direction (shift+arrow).
-         *
          * @param {object} record
          * @param {"up" | "down"} direction
-         * @returns {boolean} whether a checkbox was toggled
+         * @returns {boolean}
          */
         expandCheckboxes(record, direction) {
             const { records } = getProps().list;
@@ -132,8 +119,6 @@ export function useListSelection({
         },
 
         /**
-         * Handle touch start on a record row for long-touch selection.
-         *
          * @param {object} record
          * @param {TouchEvent} ev
          */
@@ -154,8 +139,6 @@ export function useListSelection({
         },
 
         /**
-         * Handle touch end — cancel the long-touch timer if touch was short.
-         *
          * @param {object} _record
          */
         onRowTouchEnd(_record) {
@@ -166,8 +149,6 @@ export function useListSelection({
         },
 
         /**
-         * Cancel long-touch on move.
-         *
          * @param {object} _record
          */
         onRowTouchMove(_record) {
@@ -175,8 +156,6 @@ export function useListSelection({
         },
 
         /**
-         * In mobile selection mode, prevent all other click handlers and toggle selection.
-         *
          * @param {object} record
          * @param {PointerEvent} ev
          */
@@ -190,8 +169,6 @@ export function useListSelection({
         },
 
         /**
-         * In mobile selection mode, swallow events that aren't selection-related.
-         *
          * @param {MouseEvent} ev
          */
         ignoreEventInSelectionMode(ev) {
@@ -215,6 +192,7 @@ export function useListSelection({
     useExternalListener(window, "blur", () => {
         self.shiftKeyMode = false;
     });
+    onWillDestroy(() => self.resetLongTouchTimer());
 
     return self;
 }
