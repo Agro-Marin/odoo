@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { press, queryOne } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { advanceTime, animationFrame } from "@odoo/hoot-mock";
 import { Component, onMounted, xml } from "@odoo/owl";
 import {
     defineModels,
@@ -272,5 +272,328 @@ describe("combobox popup association", () => {
         expect(
             document.getElementById(input.getAttribute("aria-activedescendant")),
         ).not.toBe(null);
+    });
+});
+
+describe("field paths are data, not property names", () => {
+    // A field path reaches the client as free-form text: stored `ir.filters`
+    // domains, action domains, `<field>` widget options, the tree editor
+    // mid-edit. Every map keyed by one of those must answer "is this a declared
+    // field" and not "does Object.prototype happen to have this member".
+
+    test("an OR of `=` on a `__proto__` path merges instead of throwing", () => {
+        // `childrenByPath["__proto__"]` read back `Object.prototype` — truthy,
+        // so the accumulator entry was never created and the very next
+        // `.elems.push(...)` threw, taking down every rendering of the domain.
+        const merged = simplifyTree(
+            constructTreeFromDomain([
+                "|",
+                ["__proto__", "=", 1],
+                ["__proto__", "=", 2],
+            ]),
+        );
+        expect(merged.type).toBe("condition");
+        expect(merged.path).toBe("__proto__");
+        expect(merged.operator).toBe("in");
+        expect(merged.value).toEqual([1, 2]);
+    });
+
+    test("a `constructor` path resolves to no field definition", async () => {
+        await makeMockEnv();
+        const { fieldDef } = await getService("field").loadFieldInfo(
+            "hardening",
+            "constructor",
+        );
+        // `fields_get()["constructor"]` is `Object`, which every consumer
+        // downstream then read as a field definition: `loadPath` reported the
+        // path VALID and the domain description rendered a field that does not
+        // exist on the model.
+        expect(fieldDef).toBe(null);
+    });
+
+    test("the tree processor's field-def lookup honours its null contract", async () => {
+        await makeMockEnv();
+        const treeProcessor = getService("tree_processor");
+        const tree = constructTreeFromDomain([
+            "|",
+            ["constructor", "=", 1],
+            ["state", "=", "draft"],
+        ]);
+        const getFieldDef = await treeProcessor.makeGetFieldDef("hardening", tree);
+        expect(getFieldDef("constructor")).toBe(null);
+        // A real field on the same tree still resolves, so the guard narrows
+        // nothing beyond the names that were never declared.
+        expect(getFieldDef("state")?.type).toBe("char");
+    });
+
+    test("a `toString` path describes as unknown rather than as a field", async () => {
+        await makeMockEnv();
+        const { isInvalid, displayNames } = await getService(
+            "field",
+        ).loadPathDescription("hardening", "toString");
+        expect(isInvalid).toBe(true);
+        expect(displayNames).toEqual(["toString"]);
+    });
+});
+
+describe("malformed condition values", () => {
+    // `constructTreeFromDomain` does not validate operators, so a stored
+    // `ir.filters` domain, an action domain or the debug code editor can hand
+    // the renderer an `in range` whose value is not the 4-tuple the branch
+    // reads. The description is produced client-side, before any server ever
+    // rejects the domain.
+    const BAD_IN_RANGE_VALUES = [
+        ["a scalar string", "not-an-array", "State is in not-an-array"],
+        ["a number", 42, "State is in 42"],
+        ["an empty list", [], "State is in "],
+        ["a short list", ["date"], "State is in date"],
+        [
+            "an unknown range type",
+            ["char", "no such range", false, false],
+            "State is in no such range",
+        ],
+    ];
+    for (const [label, value, expected] of BAD_IN_RANGE_VALUES) {
+        test(`an \`in range\` carrying ${label} renders instead of throwing`, async () => {
+            await makeMockEnv();
+            const treeProcessor = getService("tree_processor");
+            const tree = constructTreeFromDomain([["state", "=", "x"]]);
+            tree.operator = "in range";
+            tree.value = value;
+            // A scalar indexed at [1] yields a CHARACTER ("State is in o"); a
+            // short list yields `undefined`, and `undefined.toString()` threw
+            // out of the whole description.
+            expect(
+                await treeProcessor.getDomainTreeDescription("hardening", tree),
+            ).toBe(expected);
+        });
+    }
+
+    test("a well-formed `in range` is still read as a range", async () => {
+        await makeMockEnv();
+        const treeProcessor = getService("tree_processor");
+        const tree = constructTreeFromDomain([["state", "=", "x"]]);
+        tree.operator = "in range";
+        tree.value = ["char", "today", false, false];
+        // The guard must narrow nothing for the shape the tree editor produces.
+        expect(await treeProcessor.getDomainTreeDescription("hardening", tree)).toBe(
+            "State is in Today",
+        );
+    });
+});
+
+describe("connection recovery is per env", () => {
+    test("a session-expired dialog left open by one env does not silence the next", async () => {
+        const { UncaughtPromiseError } =
+            await import("@web/core/errors/uncaught_errors");
+        const { InvalidResponseError } = await import("@web/core/network/rpc");
+        const { lostConnectionHandler } = await import("@web/services/error_handlers");
+
+        const makeError = () => {
+            const error = new UncaughtPromiseError();
+            error.unhandledRejectionEvent = { preventDefault: () => {} };
+            return error;
+        };
+        const makeEnv = (opened) => ({
+            services: { dialog: { add: () => opened.push(1) } },
+        });
+        const expired = new InvalidResponseError("/web/x", 200);
+
+        const firstEnvDialogs = [];
+        const firstEnv = makeEnv(firstEnvDialogs);
+        lostConnectionHandler(firstEnv, makeError(), expired);
+        lostConnectionHandler(firstEnv, makeError(), expired);
+        // Same env: the second occurrence is deduplicated onto the open dialog.
+        expect(firstEnvDialogs).toHaveLength(1);
+
+        // A different env (next webclient, embedded app, next test) must not
+        // inherit the first one's "a dialog is already open" flag — that flag
+        // was module-level, so an env whose dialog never emitted `onClose`
+        // silenced the session-expired prompt for everyone after it.
+        const secondEnvDialogs = [];
+        lostConnectionHandler(makeEnv(secondEnvDialogs), makeError(), expired);
+        expect(secondEnvDialogs).toHaveLength(1);
+    });
+});
+
+describe("property names are data, not property names", () => {
+    // A property's `name` is USER-CHOSEN and the ORM's validator is
+    // `^[a-z0-9_]+$` (odoo/orm/validation.py), which accepts `__proto__` and
+    // `constructor`. Verified against a live database: the server stores such a
+    // definition and `get_properties_base_definition` hands it straight back.
+    class Holder extends models.Model {
+        _name = "holder";
+        properties_base_definition_id = fields.Many2one({
+            relation: "properties.base.definition",
+        });
+        properties = fields.Properties({
+            string: "Properties",
+            definition_record: "properties_base_definition_id",
+            definition_record_field: "properties_definition",
+        });
+    }
+    class BaseDef extends models.Model {
+        _name = "properties.base.definition";
+        properties_definition = fields.Char();
+    }
+    defineModels([Holder, BaseDef]);
+
+    const serverPayload = () => ({
+        records: [
+            {
+                id: 1,
+                display_name: "Holder Properties",
+                properties_definition: [
+                    { name: "__proto__", type: "char", string: "Proto Prop" },
+                    { name: "normal_prop", type: "char", string: "Normal Prop" },
+                ],
+            },
+        ],
+    });
+
+    test("a property named `__proto__` survives the definitions map", async () => {
+        await makeMockEnv();
+        onRpc(
+            "/web/dataset/call_kw/properties.base.definition/get_properties_base_definition",
+            serverPayload,
+        );
+        const definitions = await getService("field").loadPropertyDefinitions(
+            "holder",
+            "properties",
+        );
+        // On a plain object, `definitions["__proto__"] = {...}` invokes the
+        // prototype SETTER: the entry is dropped and the definition object's
+        // prototype becomes the property definition itself.
+        expect(Object.keys(definitions)).toEqual(["__proto__", "normal_prop"]);
+        expect(definitions["__proto__"].string).toBe("Proto Prop");
+    });
+
+    test("no other property name inherits the injected definition's members", async () => {
+        await makeMockEnv();
+        onRpc(
+            "/web/dataset/call_kw/properties.base.definition/get_properties_base_definition",
+            serverPayload,
+        );
+        const definitions = await getService("field").loadPropertyDefinitions(
+            "holder",
+            "properties",
+        );
+        // Measured before the fix: `definitions.type` was "char" and
+        // `definitions.string` was "Proto Prop" — a lookup for a property named
+        // `type` or `string` silently answered with the injected one's values.
+        for (const polluted of ["type", "string", "name", "searchable", "record_id"]) {
+            expect(definitions[polluted]).toBe(undefined, {
+                message: `definitions.${polluted} must not be inherited`,
+            });
+        }
+    });
+
+    test("loadPropertyDefinitions names the contract a caller broke", async () => {
+        await makeMockEnv();
+        await expect(
+            getService("field").loadPropertyDefinitions("holder", "nosuchfield"),
+        ).rejects.toThrow(/has no field "nosuchfield"/);
+    });
+});
+
+describe("input bindings are per owner", () => {
+    class InputHost extends Component {
+        static props = [];
+        static template = xml`<div class="host"><input class="shared"/></div>`;
+    }
+
+    /** @param {any[]} sink */
+    const makePicker = (sink) =>
+        getService("datetime_picker").create({
+            target: queryOne(".host"),
+            getInputs: () => [queryOne("input.shared"), null],
+            pickerProps: { type: "date" },
+            onChange: (value) => sink.push(String(value)),
+        });
+
+    test("disposing one picker does not deafen another on the same input", async () => {
+        await makeMockEnv();
+        await mountWithCleanup(InputHost);
+        const first = [];
+        const second = [];
+        const firstPicker = makePicker(first);
+        firstPicker.enable();
+        const secondPicker = makePicker(second);
+        secondPicker.enable();
+        firstPicker.dispose();
+
+        const input = queryOne("input.shared");
+        input.value = "02/20/2020";
+        input.dispatchEvent(new Event("change"));
+
+        // A module-level "already listened" registry used to make the second
+        // picker attach nothing, then let the first one's dispose remove the
+        // only real listeners — leaving an alive, enabled picker permanently
+        // deaf. Measured before the fix: second.length === 0.
+        expect(second.length).toBe(1);
+        expect(first.length).toBe(0);
+        secondPicker.dispose();
+    });
+
+    test("one picker enabled twice still fires exactly once", async () => {
+        await makeMockEnv();
+        await mountWithCleanup(InputHost);
+        const changes = [];
+        const picker = makePicker(changes);
+        picker.enable();
+        picker.enable();
+        const input = queryOne("input.shared");
+        input.value = "03/10/2020";
+        input.dispatchEvent(new Event("change"));
+        // `enable()` detaches its previous binding first, which is what makes
+        // the shared registry unnecessary rather than merely harmful.
+        expect(changes.length).toBe(1);
+        picker.dispose();
+    });
+});
+
+describe("reconnect poll stops with its env", () => {
+    test("destroying the env cancels the pending reconnect probe", async () => {
+        const { UncaughtPromiseError } =
+            await import("@web/core/errors/uncaught_errors");
+        const { ConnectionLostError } = await import("@web/core/network/rpc");
+        const { lostConnectionHandler, connectionRecoveryService } =
+            await import("@web/services/error_handlers");
+        await makeMockEnv();
+        // The probe must SUCCEED, otherwise the poll only ever reschedules and
+        // the assertion below cannot tell a cancelled chain from a live one.
+        onRpc("/web/webclient/version_info", () => {
+            expect.step("probe");
+            return {};
+        });
+
+        const error = new UncaughtPromiseError();
+        error.unhandledRejectionEvent = { preventDefault: () => {} };
+        const notifications = [];
+        const env = {
+            services: {
+                notification: {
+                    add: (message) => {
+                        notifications.push(String(message));
+                        return () => {};
+                    },
+                },
+            },
+        };
+
+        const recovery = connectionRecoveryService.start(env);
+        expect(lostConnectionHandler(env, error, new ConnectionLostError("/x"))).toBe(
+            true,
+        );
+        expect(notifications).toEqual(["Connection lost. Trying to reconnect..."]);
+
+        // The poll re-armed itself with `setTimeout` until the server answered
+        // and nothing could stop it: a torn-down env kept probing
+        // `/web/webclient/version_info` for the life of the page and then
+        // pushed "Connection restored" into a UI nobody displays.
+        recovery.destroy();
+        await advanceTime(120_000);
+        expect.verifySteps([]);
+        expect(notifications).toEqual(["Connection lost. Trying to reconnect..."]);
     });
 });

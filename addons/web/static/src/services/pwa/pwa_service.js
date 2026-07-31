@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/pwa/pwa_service - PWA install service: manages beforeinstallprompt, manifest fetch, and Safari fallback */
+/** @module @web/services/pwa/pwa_service */
 
 import { reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -25,7 +25,14 @@ const serviceRegistry = registry.category("services");
 
 const INSTALLATION_STATE_KEY = "pwaService.installationState";
 
-/** @type {Event | null} */
+/**
+ * The browser may fire `beforeinstallprompt` before any service exists, so the
+ * event is parked here at module scope and claimed by the next service to
+ * start. That latch outlives every env, which is why it needs an explicit
+ * reset: without one a parked event survives into whatever runs next.
+ *
+ * @type {Event | null}
+ */
 let BEFOREINSTALLPROMPT_EVENT;
 /** @type {((ev: Event) => void) | undefined} */
 let REGISTER_BEFOREINSTALLPROMPT_EVENT;
@@ -38,25 +45,27 @@ browser.addEventListener("beforeinstallprompt", (ev) => {
     }
 });
 
-/**
- * @typedef {Object} PwaServiceState
- * @property {boolean} canPromptToInstall - whether the install prompt can be shown
- * @property {boolean} isAvailable - whether PWA installation is supported and applicable
- * @property {boolean} isScopedApp - whether we're on a scoped app page
- * @property {boolean} isSupportedOnBrowser - whether the browser supports PWA install
- * @property {string} startUrl - the start URL for the PWA
- * @property {() => void} decline - mark the install prompt as dismissed
- * @property {() => Promise<Object>} getManifest - fetch and cache the web manifest
- * @property {(scope: string) => boolean} hasScopeBeenInstalled - check if a scope was previously installed
- * @property {(options?: { onDone?: Function }) => Promise<void>} show - show the install prompt
- */
+export function _resetPwaInstallPrompt() {
+    BEFOREINSTALLPROMPT_EVENT = null;
+    REGISTER_BEFOREINSTALLPROMPT_EVENT = undefined;
+}
 
 /**
- * Service managing Progressive Web App installation state and prompts.
- * Handles both native (Chrome) and Safari-specific install flows.
+ * @typedef {Object} PwaServiceState
+ * @property {boolean} canPromptToInstall
+ * @property {boolean} isAvailable
+ * @property {boolean} isScopedApp
+ * @property {boolean} isSupportedOnBrowser
+ * @property {string} startUrl
+ * @property {() => void} decline
+ * @property {() => Promise<Object>} getManifest
+ * @property {(scope: string) => boolean} hasScopeBeenInstalled
+ * @property {(options?: { onDone?: Function }) => Promise<void>} show
  */
+
 export const pwaService = {
     dependencies: ["dialog"],
+    async: ["getManifest", "show"],
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ dialog: any }} services
@@ -66,9 +75,6 @@ export const pwaService = {
         /** @type {any} */
         let _manifest;
         /**
-         * In-flight manifest fetch, so concurrent callers share one request.
-         * Memoizing only the RESULT left a window in which every caller during
-         * the fetch started its own.
          * @type {Promise<any> | null}
          */
         let _manifestPromise = null;
@@ -85,19 +91,14 @@ export const pwaService = {
             getManifest,
             hasScopeBeenInstalled,
             show,
+            destroy() {
+                if (REGISTER_BEFOREINSTALLPROMPT_EVENT === handleRegisteredPrompt) {
+                    REGISTER_BEFOREINSTALLPROMPT_EVENT = undefined;
+                }
+            },
         });
 
         /**
-         * Read the whole persisted state map from localStorage.
-         * A corrupted value must not throw: at service start an unguarded
-         * parse error would take pwa (and its dependents) down on every
-         * boot, and later in show()/decline() it would break the install
-         * flow. Treat it as no state (the next write resets it).
-         *
-         * ``validate``: the previous ``|| {}`` caught ``null`` but let a
-         * stored array or number through, and ``_setInstallationState`` then
-         * wrote a scope key onto it — persisting a shape that never reads
-         * back as an installation state again.
          * @returns {Record<string, string>}
          */
         function _readState() {
@@ -108,17 +109,15 @@ export const pwaService = {
         }
 
         /**
-         * Read the installation state from localStorage for a given scope.
-         * @param {string} [scope] - defaults to the current startUrl
-         * @returns {string} "accepted", "dismissed", or ""
+         * @param {string} [scope]
+         * @returns {string}
          */
         function _getInstallationState(scope = state.startUrl) {
             return _readState()[scope] || "";
         }
 
         /**
-         * Persist the installation state for the current scope.
-         * @param {string} value - "accepted" or "dismissed"
+         * @param {string} value
          */
         function _setInstallationState(value) {
             const ls = _readState();
@@ -126,7 +125,6 @@ export const pwaService = {
             writeJSONStorage(INSTALLATION_STATE_KEY, ls);
         }
 
-        /** Remove the persisted installation state for the current scope. */
         function _removeInstallationState() {
             const ls = _readState();
             delete ls[state.startUrl];
@@ -135,9 +133,6 @@ export const pwaService = {
 
         if (state.isScopedApp) {
             if (browser.location.pathname === "/scoped_app") {
-                // `searchParams.get` returns null when `path` is absent, which
-                // concatenated into the literal scope "/null" — a key that then
-                // got its own persisted installation state.
                 const path = new URL(browser.location.href).searchParams.get("path");
                 state.startUrl = path ? `/${path}` : state.startUrl;
             } else {
@@ -178,9 +173,8 @@ export const pwaService = {
         }
 
         /**
-         * Handle the browser's `beforeinstallprompt` event.
-         * @param {Event} ev - the BeforeInstallPromptEvent
-         * @param {string} installationState - current persisted state
+         * @param {Event} ev
+         * @param {string} installationState
          */
         function _handleBeforeInstallPrompt(ev, installationState) {
             nativePrompt = ev;
@@ -194,8 +188,7 @@ export const pwaService = {
         }
 
         /**
-         * Fetch and cache the web app manifest.
-         * @returns {Promise<Object>} parsed manifest JSON
+         * @returns {Promise<Object>}
          */
         async function getManifest() {
             if (_manifest) {
@@ -214,9 +207,6 @@ export const pwaService = {
                         return _manifest;
                     })
                     .finally(() => {
-                        // Clear on settlement so a failed fetch (offline, expired
-                        // session) is retried by the next caller instead of
-                        // handing every one of them the same rejection forever.
                         _manifestPromise = null;
                     });
             }
@@ -224,9 +214,7 @@ export const pwaService = {
         }
 
         /**
-         * Check if a scope was previously installed (based on localStorage state).
-         * Does not guarantee the app is still installed on the device.
-         * @param {string} scope - the PWA scope to check
+         * @param {string} scope
          * @returns {boolean}
          */
         function hasScopeBeenInstalled(scope) {
@@ -238,12 +226,6 @@ export const pwaService = {
                 return;
             }
             if (nativePrompt) {
-                // A BeforeInstallPromptEvent may be prompted ONCE; a second
-                // call rejects with InvalidStateError, which surfaced as an
-                // uncaught error dialog. Release it here — the browser fires a
-                // fresh event (repopulating this slot through
-                // REGISTER_BEFOREINSTALLPROMPT_EVENT) if the app is still
-                // installable later.
                 const prompt = nativePrompt;
                 nativePrompt = null;
                 const res = await prompt.prompt();
@@ -268,24 +250,10 @@ export const pwaService = {
             }
         }
 
-        /** Mark the install prompt as dismissed and hide it. */
         function decline() {
             _setInstallationState("dismissed");
             state.canPromptToInstall = false;
         }
-
-        /**
-         * Release the module-level hook back to the "stash the event" path.
-         * `REGISTER_BEFOREINSTALLPROMPT_EVENT` is a module singleton pointing
-         * into this env's closure: left set, it keeps a torn-down env alive and
-         * swallows the event for whichever env starts next, which then never
-         * learns the app is installable.
-         */
-        state.destroy = () => {
-            if (REGISTER_BEFOREINSTALLPROMPT_EVENT === handleRegisteredPrompt) {
-                REGISTER_BEFOREINSTALLPROMPT_EVENT = undefined;
-            }
-        };
 
         return state;
     },

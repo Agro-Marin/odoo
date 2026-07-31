@@ -2,10 +2,7 @@
 /** @odoo-module native */
 
 /**
- * @module @web/services/sortable_service - Service for creating sortable drag-and-drop outside OWL component lifecycle
- *
- * Used by modules that need drag-and-drop outside OWL lifecycle (e.g. website_slides).
- * Most OWL components use the `useSortable()` hook from `@web/core/utils/dnd/sortable_owl` directly.
+ * @module @web/services/sortable_service
  */
 
 import { reactive } from "@odoo/owl";
@@ -22,26 +19,12 @@ import { throttleForAnimation } from "@web/core/utils/timing";
 
 const DEFAULT_SORTABLE_ID = Symbol.for("defaultSortable");
 
-/**
- * Service for creating drag-and-drop sortable behaviors on DOM elements
- * outside the OWL component lifecycle. Manages element binding to avoid
- * duplicate setups and provides explicit enable/cleanup control.
- */
 export const sortableService = {
-    /** @returns {{ create: (hookParams: SortableServiceHookParams) => { enable: () => { cleanup: () => void } } }} */
+    /**
+     * @returns {{ create: (hookParams: SortableServiceHookParams) => { enable: () => { cleanup: () => void } } }}
+     */
     start() {
-        /**
-         * Map to avoid to setup/enable twice or more time the same element.
-         *
-         * WEAK on purpose. A strong ``Map`` keyed by ``Element`` pins every
-         * element ever passed to ``create()`` — and its whole detached DOM
-         * subtree — for the page's lifetime, because the only removal path is
-         * an explicit ``cleanup()``. This service exists precisely for callers
-         * OUTSIDE the OWL lifecycle (website_slides et al.), which is where
-         * "the element just went away without anyone calling cleanup" is the
-         * normal case. Nothing iterates this map, so weakness costs nothing.
-         * @type {WeakMap<Element, Object>}
-         */
+        /** @type {WeakMap<Element, Record<string | symbol, () => void>>} */
         const boundElements = new WeakMap();
         return {
             /**
@@ -49,18 +32,12 @@ export const sortableService = {
              */
             create: (hookParams) => {
                 if (!hookParams?.ref) {
-                    // Reaching `.el` on an absent ref throws a bare TypeError
-                    // that hides which of the two contract violations happened.
                     throw new Error(
                         "sortable service: create() requires a `ref` in hookParams",
                     );
                 }
                 const element = hookParams.ref.el;
                 if (!element) {
-                    // The ref is not mounted yet. Keying `boundElements` by
-                    // `undefined` collapses every such call onto ONE entry, so
-                    // the second unmounted sortable is handed the first one's
-                    // cleanup and never sets itself up.
                     throw new Error(
                         "sortable service: create() requires a mounted ref " +
                             "(hookParams.ref.el is not set)",
@@ -69,13 +46,11 @@ export const sortableService = {
                 const sortableId = hookParams.sortableId ?? DEFAULT_SORTABLE_ID;
                 if (boundElements.has(element)) {
                     const boundElement = boundElements.get(element);
-                    if (/** @type {any} */ (sortableId) in boundElement) {
+                    if (boundElement && sortableId in boundElement) {
                         return {
                             enable() {
                                 return {
-                                    cleanup:
-                                        boundElements.get(element)?.[sortableId] ??
-                                        (() => {}),
+                                    cleanup: boundElement[sortableId] ?? (() => {}),
                                 };
                             },
                         };
@@ -92,18 +67,12 @@ export const sortableService = {
 
                 const cleanup = () => {
                     const boundElement = boundElements.get(element);
-                    if (
-                        boundElement &&
-                        /** @type {any} */ (sortableId) in boundElement
-                    ) {
-                        delete (/** @type {any} */ (boundElement)[sortableId]);
+                    if (boundElement && sortableId in boundElement) {
+                        delete boundElement[sortableId];
                         if (Reflect.ownKeys(boundElement).length === 0) {
                             boundElements.delete(element);
                         }
                     }
-                    // Drain rather than iterate: `cleanup` is handed to callers
-                    // and is also reachable through `boundElements`, so calling
-                    // it twice used to run every teardown callback twice.
                     cleanupFunctions.splice(0).forEach((fn) => fn());
                 };
 
@@ -131,12 +100,9 @@ export const sortableService = {
 
                 const boundElement = boundElements.get(element);
                 if (boundElement) {
-                    /** @type {any} */ (boundElement)[sortableId] = cleanup;
+                    boundElement[sortableId] = cleanup;
                 } else {
-                    boundElements.set(
-                        element,
-                        /** @type {any} */ ({ [sortableId]: cleanup }),
-                    );
+                    boundElements.set(element, { [sortableId]: cleanup });
                 }
 
                 let enabled = false;

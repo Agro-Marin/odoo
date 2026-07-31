@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/install_scoped_app/install_scoped_app - Public page component for installing scoped Progressive Web Apps */
+/** @module @web/services/install_scoped_app/install_scoped_app */
 
 import { Component, onMounted, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -9,14 +9,13 @@ import { browser } from "@web/core/browser/browser";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-/**
- * Public page component that lets users install a scoped Progressive Web App.
- * Displays the app manifest info, allows renaming, and triggers the PWA install prompt.
- */
 export class InstallScopedApp extends Component {
     static props = {};
     static template = "web.InstallScopedApp";
     static components = { Dropdown };
+    /** @type {{ manifest: Record<string, any>; showInstallUI: boolean }} */
+    state;
+
     setup() {
         this.pwa = useService(/** @type {any} */ ("pwa"));
         this.state = useState({
@@ -31,8 +30,6 @@ export class InstallScopedApp extends Component {
         });
     }
     /**
-     * Reload the page with a new `app_name` query parameter when the user
-     * modifies the app name input.
      * @param {Event} ev
      */
     onChangeName(ev) {
@@ -43,7 +40,6 @@ export class InstallScopedApp extends Component {
             browser.location.replace(url);
         }
     }
-    /** Trigger the PWA install prompt and redirect to the app on acceptance. */
     onInstall() {
         this.state.showInstallUI = false;
         this.pwa.show({

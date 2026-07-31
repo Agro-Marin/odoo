@@ -1,17 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/orm_service - ORM RPC client for CRUD, read_group, and x2many command helpers */
+/** @module @web/services/orm_service */
 
 import { Domain } from "@web/core/domain";
 import { UPDATE_METHODS } from "@web/core/network/model_mutation";
 import { rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { user } from "@web/services/user";
-
-/**
- * Standard way to interact with the Python ORM from the javascript codebase.
- */
 
 /**
  * @param {any} value
@@ -50,31 +46,6 @@ function validateArray(name, array) {
     }
 }
 
-/**
- * Methods that mutate server state. ``retry``/``dedup``/``cache`` are
- * hard-rejected for these: a retried partial mutation could be re-applied
- * server-side, deduplication would conflate two distinct caller invocations
- * that happen to share a payload, and caching would store the write's result
- * and serve a later identical write from cache without hitting the server.
- * Superset of {@link UPDATE_METHODS} (which is scoped to cache-invalidation
- * consumers and intentionally left untouched).
- *
- * ``copy`` is included explicitly: it duplicates records (a mutation) but is
- * NOT in ``UPDATE_METHODS`` (which drives cache invalidation, where copy is
- * handled by the returned record's own read). Without it,
- * ``orm.retry(1).call(model, "copy", [ids])`` would slip through the guard and
- * a retry after a lost response could create duplicate records.
- *
- * NOTE — a full inversion to an idempotent-read WHITELIST (rejecting every
- * method not known to be a safe read) is deliberately DEFERRED: the ``call``
- * escape hatch is used with legitimately-cacheable CUSTOM read methods
- * (e.g. enterprise ``ai.agent.get_ask_ai_agent`` via ``orm.cache().call``),
- * which a hard-throw whitelist in this base module cannot enumerate and would
- * break at runtime. A safe inversion needs a caller-side idempotence opt-in
- * (e.g. ``orm.idempotent.call(...)``) plus migrating those custom callers —
- * out of scope here. Until then the blacklist stays authoritative; add any
- * newly-discovered mutating method here.
- */
 const NON_IDEMPOTENT_METHODS = new Set([
     ...UPDATE_METHODS,
     "web_resequence",
@@ -107,19 +78,6 @@ export class ORM {
     }
 
     /**
-     * Opt-in: identical concurrent (url, params) share a single in-flight
-     * promise. Useful for non-cached idempotent reads fired by multiple
-     * components on the same record (e.g. a form and its sidebar both
-     * reading the same partner during a mount cascade).
-     *
-     * Redundant on top of ``cache({type:"disk"|"ram"})``, which already dedupes via
-     * ``RPCCache.pendingRequests`` — apply ``.dedup`` to uncached reads only.
-     * Abort is shared: aborting one caller's promise cancels the underlying
-     * fetch and rejects every other caller with ``ConnectionAbortedError``;
-     * don't opt in if you need independent abort lifecycles.
-     *
-     * Never apply to writes — identical payloads are still distinct calls.
-     *
      * @returns {ORM}
      */
     get dedup() {
@@ -127,20 +85,7 @@ export class ORM {
     }
 
     /**
-     * Opt-in exponential-backoff retry, for idempotent reads that benefit
-     * from resilience to transient failures (proxy hiccup, pool exhaustion,
-     * brief network blip):
-     *
-     *     orm.retry(1).webSearchRead("res.partner", domain, {});
-     *     orm.retry({ retries: 3, baseMs: 100 }).read(...);
-     *
-     * Caller must ensure the call is safe to retry — never apply to writes
-     * (create/write/unlink/web_save/...), which could re-apply a partial
-     * server-side mutation.
-     *
      * @param {number | { retries?: number, baseMs?: number, maxMs?: number }} [options=1]
-     *   Default matches the boot-path budget in CONVENTIONS.md (~200ms, one
-     *   backoff interval); raise only for background paths the user can't see.
      * @returns {ORM}
      */
     retry(options = 1) {
@@ -211,7 +156,7 @@ export class ORM {
     /**
      * @param {string} model
      * @param {number[]} ids
-     * @param {string[]} fields
+     * @param {string[]} [fields] Omit to read every field.
      * @param {any} [kwargs={}]
      * @returns {Promise<any[]>}
      */
@@ -238,6 +183,7 @@ export class ORM {
         validateArray("domain", domain);
         validatePrimitiveList("groupby", "string", groupby);
         validatePrimitiveList("aggregates", "string", aggregates);
+        /** @type {any[]} */
         const res = await this.call(model, "formatted_read_group", [], {
             ...kwargs,
             domain,
@@ -268,6 +214,7 @@ export class ORM {
         validateArray("domain", domain);
         validateArray("grouping_sets", grouping_sets);
         validatePrimitiveList("aggregates", "string", aggregates);
+        /** @type {any[][]} */
         const res = await this.call(model, "formatted_read_grouping_sets", [], {
             ...kwargs,
             domain,
@@ -367,6 +314,9 @@ export class ORM {
      */
     webRead(model, ids, kwargs = {}) {
         validatePrimitiveList("ids", "number", ids);
+        if (!ids.length) {
+            return Promise.resolve([]);
+        }
         return this.call(model, "web_read", [ids], kwargs);
     }
 
@@ -382,6 +332,9 @@ export class ORM {
      */
     webResequence(model, ids, kwargs = {}) {
         validatePrimitiveList("ids", "number", ids);
+        if (!ids.length) {
+            return Promise.resolve([]);
+        }
         return this.call(model, "web_resequence", [ids], {
             ...kwargs,
             specification: kwargs.specification || {},
@@ -421,6 +374,8 @@ export class ORM {
      * @param {Object} [kwargs.context]
      * @returns {Promise<any[]>}
      */
+    // An empty `ids` means CREATE here, not "nothing to do" — unlike read/unlink
+    // this must never short-circuit.
     webSave(model, ids, data, kwargs = {}) {
         validatePrimitiveList("ids", "number", ids);
         validateObject("data", data);
@@ -446,19 +401,6 @@ export class ORM {
     }
 }
 
-/**
- * ``orm.silent`` sets ``settings.silent`` on the RPC, which ONLY suppresses
- * the request's UI *progress* affordances: the loading indicator
- * (loading_indicator.js) and the slow-RPC notification (slow_rpc_service.js).
- * It does NOT suppress error dialogs -- nothing in the error pipeline
- * (error_service.js / error_handlers.js) inspects ``silent`` -- so a failing
- * ``orm.silent`` call still surfaces its error. Use it for background/polling
- * reads that shouldn't flash the spinner:
- *
- * this.orm = useService('orm');
- * ...
- * const result = await this.orm.silent.read('res.partner', [id]);
- */
 export const ormService = {
     async: [
         "call",

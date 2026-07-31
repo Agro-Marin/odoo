@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/scss_error_display - Detects SCSS compilation errors in stylesheets and shows a sticky notification */
+/** @module @web/services/scss_error_display */
 
 import { browser } from "@web/core/browser/browser";
 import { _t, translationIsReady } from "@web/core/l10n/translation";
@@ -10,18 +10,6 @@ import { getOrigin } from "@web/core/utils/urls";
 import { user } from "@web/services/user";
 
 /**
- * Whether the current user is someone a style-compilation error is actionable
- * for.
- *
- * A failed SCSS compilation is an administrator/developer problem to fix
- * database-wide, so the sticky, un-actionable notification only makes sense for
- * people who can act on it. Exported as a named policy rather than left inline
- * in {@link scssErrorNotificationService}: the service around it can only be
- * exercised through a browser tour (it scrapes `document.styleSheets`), so an
- * inline check was in practice untestable — and it silently invalidated the
- * frontend tour, which runs as the public user and had asserted the toast
- * appeared for everyone.
- *
  * @returns {boolean}
  */
 export function canActOnScssErrors() {
@@ -48,10 +36,6 @@ export const scssErrorNotificationService = {
                 sheet.href?.includes("/assets/") &&
                 new URL(sheet.href, browser.location.origin).origin === origin,
         );
-        // `translationIsReady` is a module-scoped promise that may already be
-        // long-settled or may settle after this env is gone. Without the guard,
-        // a torn-down env still pushes a sticky danger toast into a
-        // notification service that is no longer displayed anywhere.
         let destroyed = false;
         translationIsReady.then(() => {
             if (destroyed) {
@@ -72,11 +56,6 @@ export const scssErrorNotificationService = {
                 ) {
                     continue;
                 }
-                // One toast, however many bundles failed: the message is
-                // identical and un-actionable per-bundle, so N failing assets
-                // used to stack N sticky danger notifications over the UI.
-                // The console dump still runs per asset — that IS per-bundle
-                // diagnostic detail.
                 if (!notified) {
                     notified = true;
                     notification.add(

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/hotkeys/hotkey_service - Keyboard shortcut registration, dispatch, and overlay access-key management */
+/** @module @web/services/hotkeys/hotkey_service */
 
 import { browser } from "@web/core/browser/browser";
 import {
@@ -17,24 +17,13 @@ export { getActiveHotkey };
 
 /**
  * @typedef {(context: { area: HTMLElement, target: EventTarget }) => void} HotkeyCallback
- *
  * @typedef {Object} HotkeyOptions
  * @property {boolean} [allowRepeat]
- *  allow registration to perform multiple times when hotkey is held down
  * @property {boolean} [bypassEditableProtection]
- *  if true the hotkey service will call this registration
- *  even if an editable element is focused
  * @property {boolean} [global]
- *  allow registration to perform no matter the UI active element
  * @property {() => HTMLElement} [area]
- *  adds a restricted operating area for this hotkey
  * @property {(target: HTMLElement) => boolean} [isAvailable]
- *  adds a validation before calling the hotkey registration's callback
  * @property {() => HTMLElement} [withOverlay]
- *  provides the element on which the overlay should be displayed;
- *  if provided, the hotkey only fires via the overlay access key,
- *  like all [data-hotkey] DOM attributes.
- *
  * @typedef {HotkeyOptions & {
  *  hotkey: string,
  *  callback: HotkeyCallback,
@@ -53,9 +42,6 @@ export const hotkeyService = {
         /** @type {Map<number, HotkeyRegistration>} */
         const registrations = new Map();
         /**
-         * Secondary index for dispatch: registrations grouped by hotkey, in
-         * insertion order (Sets preserve it), so a keydown only inspects the
-         * registrations that can actually match instead of all of them.
          * @type {Map<string, Set<HotkeyRegistration>>}
          */
         const registrationsByHotkey = new Map();
@@ -63,8 +49,6 @@ export const hotkeyService = {
         let overlaysVisible = false;
 
         /**
-         * Whether the hotkey contains every part of the overlay modifier —
-         * the precondition for the [accesskey] takeover and DOM [data-hotkey] registrations.
          * @param {string} hotkey
          * @returns {boolean}
          */
@@ -74,11 +58,13 @@ export const hotkeyService = {
                 .every((part) => hotkey.includes(part));
         }
 
+        /** @type {Set<() => void>} */
+        const listenerRemovers = new Set();
         const removeWindowListeners = addListeners(/** @type {any} */ (browser));
 
         /**
          * @param {Window} target
-         * @returns {() => void} disposer that detaches every listener it added
+         * @returns {() => void}
          */
         function addListeners(target) {
             target.addEventListener("keydown", onKeydown);
@@ -94,7 +80,6 @@ export const hotkeyService = {
         }
 
         /**
-         * Dispatch guard: bails out if UI is blocked or the key isn't whitelisted.
          * @param {KeyboardEvent} event
          */
         function onKeydown(event) {
@@ -157,12 +142,6 @@ export const hotkeyService = {
         }
 
         /**
-         * Dispatches an hotkey to first matching registration.
-         * Registrations are iterated in following order:
-         * - priority to all registrations done through the hotkeyService.add()
-         *   method (NB: in descending order of insertion = newer first)
-         * - then all registrations done through the DOM [data-hotkey] attribute
-         *
          * @param {{
          *  activeElement: HTMLElement,
          *  hotkey: string,
@@ -170,7 +149,7 @@ export const hotkeyService = {
          *  target: EventTarget,
          *  shouldProtectEditable: boolean,
          * }} infos
-         * @returns {boolean} true if has been dispatched
+         * @returns {boolean}
          */
         function dispatch(infos) {
             const { activeElement, hotkey, isRepeated, target, shouldProtectEditable } =
@@ -187,12 +166,6 @@ export const hotkeyService = {
             const domRegistrations = getDomRegistrations(hotkey, activeElement);
             const allRegistrations = [...reversedRegistrations, ...domRegistrations];
 
-            // `area()` is caller-supplied and typically queries the DOM. It used
-            // to be invoked up to twice per candidate in the filter and twice
-            // more per candidate in the containment loop, on every keystroke —
-            // and, worse, a callback returning a fresh result between calls made
-            // the comparisons inconsistent. Resolve it exactly once per
-            // registration and compare the resolved elements.
             const candidates = allRegistrations
                 .map((reg) => ({ reg, area: reg.area?.() }))
                 .filter(
@@ -230,8 +203,6 @@ export const hotkeyService = {
         }
 
         /**
-         * Get a list of registrations from the [data-hotkey] defined in the DOM
-         *
          * @param {string} hotkey
          * @param {HTMLElement} activeElement
          * @returns {HotkeyRegistration[]}
@@ -265,7 +236,6 @@ export const hotkeyService = {
         }
 
         /**
-         * Add the hotkey overlays respecting the ui active element.
          * @param {HTMLElement} activeElement
          */
         function addHotkeyOverlays(activeElement) {
@@ -351,12 +321,10 @@ export const hotkeyService = {
         }
 
         /**
-         * Registers a new hotkey.
-         *
          * @param {string} hotkey
          * @param {HotkeyCallback} callback
          * @param {HotkeyOptions} [options]
-         * @returns {number} registration token
+         * @returns {number}
          */
         function registerHotkey(hotkey, callback, options = {}) {
             if (!hotkey || !hotkey.length) {
@@ -371,22 +339,6 @@ export const hotkeyService = {
                 );
             }
 
-            /**
-             * An hotkey must comply to these rules:
-             *  - all parts are whitelisted
-             *  - single key part comes last
-             *  - each part is separated by the dash character: "+"
-             *
-             * The last two are CANONICALISED rather than merely documented.
-             * Dispatch matches ``getActiveHotkey``'s output, which always spells
-             * modifiers in {@link MODIFIERS} order with the key last, against an
-             * exact-string index — so a registration written any other way used
-             * to be accepted without complaint and then never fire. Measured:
-             * ``alt+shift+u`` fired while ``shift+alt+u``, ``control+alt+shift+u``
-             * and ``u+alt`` were all silent. Sorting here is what makes the
-             * documented rules true instead of aspirational; it also collapses a
-             * repeated modifier ("alt+alt+a") onto one slot.
-             */
             const parts = hotkey
                 .toLowerCase()
                 .split("+")
@@ -445,9 +397,6 @@ export const hotkeyService = {
                 const sameHotkey = registrationsByHotkey.get(registration.hotkey);
                 sameHotkey?.delete(registration);
                 if (sameHotkey && !sameHotkey.size) {
-                    // Otherwise the index retains one empty Set per hotkey ever
-                    // registered, and `dispatch` pays a Map hit that can never
-                    // match for the rest of the session.
                     registrationsByHotkey.delete(registration.hotkey);
                 }
             }
@@ -468,31 +417,26 @@ export const hotkeyService = {
                 };
             },
             /**
-             * Attach the hotkey listeners to an iframe's window.
              * @param {HTMLIFrameElement} iframe
-             * @returns {() => void} disposer — call it on iframe removal/unmount
-             *   to avoid leaking the four listeners (and retaining the detached
-             *   window) every time the iframe is re-created.
+             * @returns {() => void}
              */
             registerIframe(iframe) {
-                // A cross-origin or not-yet-loaded iframe exposes no
-                // contentWindow; `addListeners(null)` throws a bare TypeError
-                // out of the caller's mount path.
                 const iframeWindow = iframe?.contentWindow;
                 if (!iframeWindow) {
                     return () => {};
                 }
-                return addListeners(iframeWindow);
+                const removeIframeListeners = addListeners(iframeWindow);
+                const remove = () => {
+                    listenerRemovers.delete(remove);
+                    removeIframeListeners();
+                };
+                listenerRemovers.add(remove);
+                return remove;
             },
-            /**
-             * Detach the four ``window`` listeners on env teardown. Without it
-             * every env (each JS-test mount, each embedded/public context) leaks
-             * a keydown/keyup/blur/click handler that retains ``registrations``
-             * and the ``ui`` closure — and every keypress then runs every prior
-             * env's ``dispatch``. Mirrors the destroy() its sibling
-             * window-listener services (name, slow_rpc, navigation) added.
-             */
             destroy() {
+                for (const remove of [...listenerRemovers]) {
+                    remove();
+                }
                 removeWindowListeners();
             },
         };

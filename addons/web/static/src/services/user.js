@@ -13,63 +13,46 @@ import { Cache } from "@web/core/utils/collections/cache";
 import { session } from "@web/session";
 
 /**
- * User identity, company context, group membership, and access-right checks.
- * Exports a singleton `user` object constructed from the session, along with
- * a `userBus` that emits `ACTIVE_COMPANIES_CHANGED` on company switches.
  * @module user
  */
 
 /**
- * One entry of ``session_info``'s ``user_companies``.
- *
- * Shape is fixed by the server (see ``web/tests/test_session_info.py``):
- * ``allowed_companies`` carries id/name/sequence/child_ids/currency_id/parent_id,
- * ``disallowed_ancestor_companies`` carries the same minus ``currency_id`` —
- * which is why that one key is optional here. ``parent_id`` is the raw id (0 /
- * falsy at the root), not a many2one pair.
- *
- * Only `id` is guaranteed. The rest are optional on purpose: the session
- * payload varies by source (`disallowed_ancestor_companies` carries no
- * `currency_id`), `patchWithCleanup` in tests installs `{id}`-only stubs, and
- * the implementation types its own backing arrays `any[]` for exactly this
- * reason. Requiring them would make correct call sites and fixtures fail.
- *
  * @typedef {Object} UserCompany
  * @property {number} id
  * @property {string} [name]
  * @property {number} [sequence]
  * @property {number[]} [child_ids]
- * @property {number} [parent_id] - falsy for a root company
- * @property {number} [currency_id] - absent on disallowed ancestors
+ * @property {number} [parent_id]
+ * @property {number} [currency_id]
  */
 
 /**
  * @typedef {Object} UserObject
- * @property {string} name - display name
- * @property {string} login - username / email
- * @property {boolean} isAdmin - is ERP manager
- * @property {boolean} isSystem - has system group
- * @property {boolean} isInternalUser - has internal user group
- * @property {number} partnerId - res.partner ID
- * @property {number|false} homeActionId - default home action
- * @property {boolean} showEffect - whether to show UI effects (confetti, etc.)
- * @property {number} userId - res.users ID
- * @property {string} writeDate - partner write date (for avatar cache busting)
- * @property {Record<string, any>} context - user context (lang, tz, uid, allowed_company_ids)
- * @property {string} lang - BCP 47 locale string
- * @property {string} tz - timezone identifier
- * @property {Record<string, any>} settings - res.users.settings snapshot
- * @property {(update: Object) => void} updateContext - merge keys into the user context
- * @property {(group: string) => Promise<boolean>} hasGroup - check group membership (cached)
- * @property {(model: string, operation: string, ids?: number[]|number, options?: {context?: Object}) => Promise<boolean>} checkAccessRight - check model ACL. `ids` accepts a scalar (the implementation runs it through `ensureArray`). Cached by [model, operation, ids] ONLY; passing `options.context` bypasses the cache entirely because the key omits the context and a company-dependent answer would otherwise poison it. Do not drop the 4th argument at a call site to satisfy a type — it is load-bearing (see `user.test.js` "explicit context bypasses the cache").
- * @property {(key: string, value: any) => Promise<void>} setUserSettings - persist a setting to the server
- * @property {(key: string, value: any) => void} updateUserSettings - update a setting locally (no RPC)
- * @property {UserCompany | undefined} defaultCompany - fallback company from session
- * @property {UserCompany[]} allowedCompanies - authorized companies
- * @property {UserCompany[]} allowedCompaniesWithAncestors - includes disallowed ancestors
- * @property {UserCompany[]} activeCompanies - currently selected companies
- * @property {UserCompany} activeCompany - primary active company
- * @property {(companyIds: number[], options?: {includeChildCompanies?: boolean, reload?: boolean}) => Promise<void>} activateCompanies - switch active companies
+ * @property {string} name
+ * @property {string} login
+ * @property {boolean} isAdmin
+ * @property {boolean} isSystem
+ * @property {boolean} isInternalUser
+ * @property {number} partnerId
+ * @property {number|false} homeActionId
+ * @property {boolean} showEffect
+ * @property {number} userId
+ * @property {string} writeDate
+ * @property {Record<string, any>} context
+ * @property {string} lang
+ * @property {string} tz
+ * @property {Record<string, any>} settings
+ * @property {(update: Object) => void} updateContext
+ * @property {(group: string) => Promise<boolean>} hasGroup
+ * @property {(model: string, operation: string, ids?: number[]|number, options?: {context?: Object}) => Promise<boolean>} checkAccessRight
+ * @property {(key: string, value: any) => Promise<void>} setUserSettings
+ * @property {(key: string, value: any) => void} updateUserSettings
+ * @property {UserCompany | undefined} defaultCompany
+ * @property {UserCompany[]} allowedCompanies
+ * @property {UserCompany[]} allowedCompaniesWithAncestors
+ * @property {UserCompany[]} activeCompanies
+ * @property {UserCompany} activeCompany
+ * @property {(companyIds: number[], options?: {includeChildCompanies?: boolean, reload?: boolean}) => Promise<void>} activateCompanies
  */
 
 export const userBus = new EventBus();
@@ -84,11 +67,8 @@ function getCookieCompanyIds() {
 }
 
 /**
- * Build the user object from session data. Exposed for testing so each test
- * suite can construct an isolated instance with fresh caches.
- *
- * @param {Record<string, any>} session - the raw session payload from the server
- * @returns {UserObject} the user singleton with identity, companies, and access APIs
+ * @param {Record<string, any>} session
+ * @returns {UserObject}
  */
 export function _makeUser(session) {
     const {
@@ -111,9 +91,7 @@ export function _makeUser(session) {
     const settings = user_settings || {};
 
     /**
-     * Update the list of active companies from cookie IDs, falling back to
-     * the default company if the cookie values are stale or empty.
-     * @param {number[]} cids - company IDs from the cookie
+     * @param {number[]} cids
      * @param {Array<{id: number, child_ids: number[]}>} allowedCompanies
      * @param {{id: number} | undefined} defaultCompany
      */
@@ -123,7 +101,6 @@ export function _makeUser(session) {
             .map((cid) => allowedCompanies.find((c) => c.id === cid))
             .filter((c) => c !== undefined);
         if (!activeCompanies.length) {
-            // .map((c) => c.id) never receives undefined elements.
             const fallback = defaultCompany || allowedCompanies[0];
             activeCompanies = fallback ? [fallback] : [];
         }
@@ -138,12 +115,6 @@ export function _makeUser(session) {
         cookie.set("cids", activeIds.join("-"));
         Object.assign(context, { allowed_company_ids: activeIds });
 
-        // Every listener of this event does expensive invalidation work: the
-        // group and access-right caches are dropped and reseeded here, and the
-        // whole display-name cache is dropped in `name_service`. Re-selecting
-        // the companies already active (re-clicking the same entry in the
-        // company switcher, a recovery path that adds an id already present)
-        // must not pay for that.
         if (activeIds.join("-") !== previousIds) {
             userBus.trigger(UserEvent.ACTIVE_COMPANIES_CHANGED);
         }
@@ -221,7 +192,9 @@ export function _makeUser(session) {
         }
     };
     seedGroupCache();
-    /** @type {(model: string, operation: string, ids: number[], context: Object) => Promise<boolean>} */
+    /**
+     * @type {(model: string, operation: string, ids: number[], context: Object) => Promise<boolean>}
+     */
     const getAccessRightCacheValue = (model, operation, ids, context) => {
         const url = `/web/dataset/call_kw/${model}/has_access`;
         return rpc(url, {
@@ -231,10 +204,6 @@ export function _makeUser(session) {
             kwargs: { context },
         });
     };
-    // ``ids`` is a SET as far as ``has_access`` is concerned, so the key must be
-    // order- and duplicate-insensitive: keying on the caller's literal array
-    // made `[2, 1]` miss the entry `[1, 2]` had just filled and pay a second
-    // round-trip for the identical question.
     const getAccessRightCacheKey = (
         /** @type {string} */ model,
         /** @type {string} */ operation,
@@ -249,14 +218,20 @@ export function _makeUser(session) {
         getAccessRightCacheValue,
         getAccessRightCacheKey,
     );
-    userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () => {
-        groupCache.invalidate();
-        seedGroupCache();
-        accessRightCache.invalidate();
-    });
     const lang = pyToJsLocale(context?.lang);
 
     return {
+        /**
+         * Invalidation is driven by the single module-level subscription below,
+         * dispatching through the live `user` binding. Subscribing from here
+         * instead would add one permanent listener to the module-global
+         * `userBus` per `_makeUser` call, and tests build throwaway users.
+         */
+        _onActiveCompaniesChanged() {
+            groupCache.invalidate();
+            seedGroupCache();
+            accessRightCache.invalidate();
+        },
         name,
         login,
         isAdmin,
@@ -274,8 +249,6 @@ export function _makeUser(session) {
             return lang;
         },
         get tz() {
-            // Read the closure directly: `this.context` builds a fresh spread
-            // of the whole context object just to pluck one key.
             return context.tz;
         },
         get settings() {
@@ -316,9 +289,6 @@ export function _makeUser(session) {
                 {
                     model,
                     method,
-                    // Closure, not `this.settings`: the getter spreads the whole
-                    // settings object just to read one key (same reason the `tz`
-                    // getter reads `context` directly).
                     args: [[settings.id]],
                     kwargs: {
                         new_settings: {
@@ -353,10 +323,6 @@ export function _makeUser(session) {
                   : [];
 
             /**
-             * `child_ids` is optional on a UserCompany (see the typedef:
-             * `disallowed_ancestor_companies` omits keys, and test fixtures
-             * install `{id}`-only stubs), so it must never be spread or
-             * iterated raw — `for…of undefined` throws.
              * @param {number} companyId
              * @returns {number[]}
              */
@@ -390,13 +356,14 @@ export function _makeUser(session) {
 
 export const user = _makeUser(session);
 
+userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, () =>
+    user._onActiveCompaniesChanged(),
+);
+
 const LAST_CONNECTED_USER_KEY = "web.lastConnectedUser";
 
 /** @returns {any[]} */
 export const getLastConnectedUsers = () =>
-    // `JSON.parse` happily returns a number, string or object here; every
-    // caller then does `.filter` / `.slice` on it and throws, bricking the
-    // quick-login list until localStorage is cleared by hand.
     readJSONStorage(LAST_CONNECTED_USER_KEY, {
         fallback: /** @type {any[]} */ ([]),
         validate: Array.isArray,

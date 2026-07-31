@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/tree_processor_service - Converts domains to condition trees with human-readable descriptions and tooltips */
+/** @module @web/services/tree_processor_service */
 
 import {
     deserializeDate,
@@ -25,12 +25,10 @@ import { introduceVirtualOperators } from "@web/core/tree/virtual_operators";
 import { unique, zip } from "@web/core/utils/collections/arrays";
 
 /**
- * Format a condition value for display in domain descriptions.
- * Resolves record IDs to display names, selection labels, and date formatting.
  * @param {import("@web/core/tree/condition_tree").Value} val
- * @param {boolean} disambiguate - whether to JSON-stringify string values
- * @param {Record<string, any> | null} fieldDef - field definition from the field service
- * @param {Record<number, string>} displayNames - map of record IDs to display names
+ * @param {boolean} disambiguate
+ * @param {Record<string, any> | null} fieldDef
+ * @param {Record<number, string>} displayNames
  * @returns {string | import("@web/core/tree/condition_tree").Value}
  */
 function formatValue(val, disambiguate, fieldDef, displayNames) {
@@ -68,10 +66,9 @@ function formatValue(val, disambiguate, fieldDef, displayNames) {
 }
 
 /**
- * Collect all field paths referenced in a condition tree.
  * @param {any} tree
- * @param {boolean} [lookInSubTrees=false] - whether to recurse into sub-expression trees
- * @returns {any[]} unique field paths found in the tree
+ * @param {boolean} [lookInSubTrees=false]
+ * @returns {any[]}
  */
 function collectPaths(tree, lookInSubTrees = false) {
     const paths = [];
@@ -93,30 +90,16 @@ function collectPaths(tree, lookInSubTrees = false) {
     return paths;
 }
 
+/**
+ * @param {any} tree
+ * @param {boolean} [lookInSubTrees=false]
+ * @returns {any[]}
+ */
 function getPathsInTree(tree, lookInSubTrees = false) {
     return unique(collectPaths(tree, lookInSubTrees));
 }
 
 /**
- * Simplify a condition tree by merging multiple `=` / `in` conditions on the
- * same field path (under OR connectors) into a single `in` condition.
- *
- * Only NON-negated children may merge: `a = 1 or a = 2` is `a in [1, 2]`, but
- * `a != 1 or a != 2` is a tautology, whereas the merged `a not in [1, 2]` is
- * its near-opposite (De Morgan turns the OR into an AND). A negated child is
- * therefore passed through untouched.
- *
- * A child only merges when its candidates are ENUMERABLE here, which an `in`
- * value is only when it is an actual list. Nothing guarantees that: a domain
- * may name a single candidate without its brackets (`("state", "in", "draft")`,
- * which the server rejects but which still reaches the client from stored
- * `ir.filters`, hand-written action domains and the tree editor mid-edit), an
- * {@link Expression} (`a in ids` — the members are a server value), or
- * geoengine's `"{ACTIVE_IDS}"` placeholder. Spreading those merged the STRING's
- * characters in as candidates — `("state", "in", "draft")` OR'd with
- * `("state", "=", "done")` rendered as "State = d or r or a or f or ..." — and
- * threw outright on a number. Such a child is passed through like a negated one,
- * so it renders as its own condition instead.
  * @param {any} tree
  * @returns {any}
  */
@@ -129,8 +112,8 @@ export function simplifyTree(tree) {
         return { ...tree, children: processedChildren };
     }
     const children = [];
-    /** @type {Record<string, { elems: any[], index: number }>} */
-    const childrenByPath = {};
+    /** @type {Map<string, { elems: any[], index: number }>} */
+    const childrenByPath = new Map();
     for (const child of processedChildren) {
         if (
             child.type === "connector" ||
@@ -141,30 +124,28 @@ export function simplifyTree(tree) {
         ) {
             children.push(child);
         } else {
-            if (!childrenByPath[child.path]) {
-                childrenByPath[child.path] = { elems: [], index: children.length };
+            let entry = childrenByPath.get(child.path);
+            if (!entry) {
+                entry = { elems: [], index: children.length };
+                childrenByPath.set(child.path, entry);
                 children.push(child);
             }
-            childrenByPath[child.path].elems.push(child);
+            entry.elems.push(child);
         }
     }
-    for (const path of Object.keys(childrenByPath)) {
-        if (childrenByPath[path].elems.length === 1) {
+    for (const [path, { elems, index }] of childrenByPath) {
+        if (elems.length === 1) {
             continue;
         }
         const value = [];
-        for (const child of childrenByPath[path].elems) {
+        for (const child of elems) {
             if (child.operator === "=") {
                 value.push(child.value);
             } else {
                 value.push(...child.value);
             }
         }
-        children[childrenByPath[path].index] = condition(
-            path,
-            "in",
-            normalizeValue(unique(value)),
-        );
+        children[index] = condition(path, "in", normalizeValue(unique(value)));
     }
     if (children.length === 1) {
         const only = { ...children[0] };
@@ -177,18 +158,8 @@ export function simplifyTree(tree) {
 }
 
 /**
- * Render a condition's value part: the values joined by their connector word.
- *
- * A multi-value list is additionally bracketed when the condition is rendered
- * INSIDE a larger expression, because its own ``join`` is then indistinguishable
- * from the connector between sibling conditions — "a = 1 or 2 or b = 3" does not
- * say where the first condition ends, "a = ( 1 or 2 ) or b = 3" does. Standalone
- * renderings (one facet, one tooltip line, one tree-editor row) stay unbracketed:
- * there is no sibling to confuse them with, so brackets would be pure noise.
- *
  * @param {{ values: any[], join: string, addParenthesis: boolean, bracketWhenNested?: boolean }} valueDescription
- * @param {boolean} [isNested=false] the condition is a child of a connector in a
- *   single-string rendering
+ * @param {boolean} [isNested=false]
  * @returns {string}
  */
 function formatValueDescription(
@@ -202,11 +173,10 @@ function formatValueDescription(
 }
 
 /**
- * Recursively extract record IDs from relational conditions in a tree.
  * @param {any} tree
  * @param {(path: string) => Record<string, any> | null} getFieldDef
- * @param {Record<string, number[]>} idsByModel - accumulator, mutated in place
- * @returns {Record<string, number[]>} the same idsByModel accumulator
+ * @param {Map<string, number[]>} idsByModel
+ * @returns {Map<string, number[]>}
  */
 function _extractIdsRecursive(tree, getFieldDef, idsByModel) {
     if (tree.type === "condition") {
@@ -216,11 +186,13 @@ function _extractIdsRecursive(tree, getFieldDef, idsByModel) {
             const values = Array.isArray(value) ? value : [value];
             const ids = values.filter((val) => isId(val));
             const resModel = getResModel(fieldDef);
-            if (ids.length) {
-                if (!idsByModel[resModel]) {
-                    idsByModel[resModel] = [];
+            if (ids.length && typeof resModel === "string" && resModel) {
+                let modelIds = idsByModel.get(resModel);
+                if (!modelIds) {
+                    modelIds = [];
+                    idsByModel.set(resModel, modelIds);
                 }
-                idsByModel[resModel].push(...ids);
+                modelIds.push(...ids);
             }
         }
     }
@@ -233,16 +205,15 @@ function _extractIdsRecursive(tree, getFieldDef, idsByModel) {
 }
 
 /**
- * Extract all record IDs from relational conditions, grouped by co-model.
  * @param {import("@web/core/tree/condition_tree").Tree} tree
  * @param {(path: string) => Record<string, any> | null} getFieldDef
- * @returns {Record<string, number[]>} map of model name to unique record IDs
+ * @returns {Map<string, number[]>}
  */
 function extractIdsFromTree(tree, getFieldDef) {
-    const idsByModel = _extractIdsRecursive(tree, getFieldDef, {});
+    const idsByModel = _extractIdsRecursive(tree, getFieldDef, new Map());
 
-    for (const resModel of Object.keys(idsByModel)) {
-        idsByModel[resModel] = unique(idsByModel[resModel]);
+    for (const [resModel, ids] of idsByModel) {
+        idsByModel.set(resModel, unique(ids));
     }
 
     return idsByModel;
@@ -258,9 +229,6 @@ function extractIdsFromTree(tree, getFieldDef) {
  */
 
 /**
- * Everything the rendering of one tree needs, resolved once for that tree and
- * threaded through its recursion instead of re-derived per node.
- *
  * @typedef {Object} TreeContext
  * @property {(path: string) => Record<string, any> | null} getFieldDef
  * @property {(node: any) => ConditionDescription} getConditionDescription
@@ -268,16 +236,11 @@ function extractIdsFromTree(tree, getFieldDef) {
 
 /**
  * @typedef {Object} ConditionDescription
- * @property {string} pathDescription - human-readable field path
- * @property {string} operatorDescription - operator label
+ * @property {string} pathDescription
+ * @property {string} operatorDescription
  * @property {{ values: any[], join: string, addParenthesis: boolean, bracketWhenNested: boolean } | null} valueDescription
  */
 
-/**
- * Service for processing domain condition trees: converting domains to trees,
- * generating human-readable descriptions and tooltips, and resolving field
- * definitions and display names.
- */
 export const treeProcessorService = {
     dependencies: ["field", "name"],
     async: [
@@ -294,27 +257,25 @@ export const treeProcessorService = {
      */
     start(_env, { field: fieldService, name: nameService }) {
         /**
-         * Load display names for all relational record IDs in a tree.
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @param {(path: string) => Record<string, any> | null} getFieldDef
-         * @returns {Promise<Record<string, Record<number, string>>>} map of model to (id → displayName)
+         * @returns {Promise<Map<string, Record<number, string>>>}
          */
         async function getDisplayNames(tree, getFieldDef) {
             const resIdsByModel = extractIdsFromTree(tree, getFieldDef);
             const proms = [];
             const resModels = [];
-            for (const [resModel, resIds] of Object.entries(resIdsByModel)) {
+            for (const [resModel, resIds] of resIdsByModel) {
                 resModels.push(resModel);
                 proms.push(nameService.loadDisplayNames(resModel, resIds));
             }
-            return Object.fromEntries(zip(resModels, await Promise.all(proms)));
+            return new Map(zip(resModels, await Promise.all(proms)));
         }
 
         /**
-         * Build a lookup function that maps field paths to human-readable descriptions.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
-         * @param {number} [limit] - max segments in path description before truncating
+         * @param {number} [limit]
          * @returns {Promise<(path: string) => string | undefined>}
          */
         async function makeGetPathDescriptions(resModel, tree, limit) {
@@ -346,15 +307,6 @@ export const treeProcessorService = {
         }
 
         /**
-         * Resolve, ONCE for a whole (already simplified) tree, everything its
-         * rendering needs: the field definitions, the path descriptions and the
-         * display names. The public entry point simplifies and delegates; the
-         * two internal callers that simplify for their own recursion reuse this
-         * directly instead of paying a second full-tree pass.
-         *
-         * ``getFieldDef`` is part of the returned context rather than a private
-         * local because the recursions need it too — see the note in
-         * {@link describeSimplifiedTree}.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @param {number} [limit]
@@ -381,11 +333,10 @@ export const treeProcessorService = {
         }
 
         /**
-         * Create a function that returns a structured description for a condition node.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
-         * @param {number} [limit] - max values to show before truncating
-         * @param {number} [pathLimit] - max segments in path descriptions
+         * @param {number} [limit]
+         * @param {number} [pathLimit]
          * @returns {Promise<(node: any) => ConditionDescription>}
          */
         async function makeGetConditionDescription(resModel, tree, limit, pathLimit) {
@@ -399,12 +350,11 @@ export const treeProcessorService = {
         }
 
         /**
-         * Build a structured description of a single condition node.
-         * @param {Record<string, any>} node - condition tree node
+         * @param {Record<string, any>} node
          * @param {(path: string) => Record<string, any> | null} getFieldDef
          * @param {(path: string) => string | undefined} getPathDescription
-         * @param {Record<string, Record<number, string>>} displayNames
-         * @param {number} [limit=5] - max values before truncating
+         * @param {Map<string, Record<number, string>>} displayNames
+         * @param {number} [limit=5]
          * @returns {ConditionDescription}
          */
         function _getConditionDescription(
@@ -416,7 +366,9 @@ export const treeProcessorService = {
         ) {
             const { negate, path } = node;
             let { operator, value } = node;
-            if (operator === "in range" && value[1] === "custom range") {
+            const isRangeValue =
+                operator === "in range" && Array.isArray(value) && value.length === 4;
+            if (isRangeValue && value[1] === "custom range") {
                 operator = "between";
                 value = value.slice(2);
             }
@@ -459,13 +411,13 @@ export const treeProcessorService = {
                 return description;
             }
 
-            const coModeldisplayNames = displayNames[getResModel(fieldDef)];
+            const coModeldisplayNames = displayNames.get(getResModel(fieldDef));
             const dis = disambiguate(value, coModeldisplayNames);
             let values;
-            if (operator === "in range") {
+            if (isRangeValue && operator === "in range") {
                 const valueType = value[1];
                 const opt = IN_RANGE_OPTIONS.find(([t]) => t === valueType);
-                values = [(opt ? opt[1] : valueType).toString()];
+                values = [opt ? opt[1].toString() : String(valueType)];
             } else {
                 const rawValues = Array.isArray(value) ? value : [value];
                 const truncated = rawValues.length > limit;
@@ -479,8 +431,6 @@ export const treeProcessorService = {
 
             let join;
             let addParenthesis = Array.isArray(value);
-            // "between A and B" / "is in Today" read as fixed idioms, so their
-            // join word is never mistaken for a connector between conditions.
             let bracketWhenNested = true;
             switch (operator) {
                 case "between":
@@ -489,10 +439,6 @@ export const treeProcessorService = {
                     bracketWhenNested = false;
                     break;
                 case "in range":
-                    // Not `_t(" ")`: a lone space is not a translatable term,
-                    // and it lands in the PO catalog as an entry no translator
-                    // can act on (gettext also reserves the empty msgid for
-                    // catalog metadata).
                     join = " ";
                     addParenthesis = false;
                     bracketWhenNested = false;
@@ -514,14 +460,11 @@ export const treeProcessorService = {
         }
 
         /**
-         * Generate a human-readable string description of a domain tree.
-         * Connector nodes produce "X and Y" or "X or Y"; condition nodes
-         * produce "Field operator value".
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
-         * @param {boolean} [isSubExpression=false] - whether to wrap in parentheses
-         * @param {number} [limit] - max values per condition
-         * @param {number} [pathLimit] - max path segments
+         * @param {boolean} [isSubExpression=false]
+         * @param {number} [limit]
+         * @param {number} [pathLimit]
          * @returns {Promise<string>}
          */
         async function getDomainTreeDescription(
@@ -543,28 +486,6 @@ export const treeProcessorService = {
         }
 
         /**
-         * Recursive body of {@link getDomainTreeDescription}, taking an ALREADY
-         * simplified tree and the tree-wide ``getConditionDescription`` closure.
-         * ``simplifyTree`` recurses into children itself, so re-simplifying each
-         * subtree on the way down was O(nodes x depth) of idempotent work.
-         *
-         * The whole {@link TreeContext} is likewise resolved ONCE for the tree
-         * and threaded down. Building it per leaf re-ran the full resolution —
-         * field defs, path descriptions and display names — once per condition,
-         * defeating the very batching those helpers exist to provide (measured:
-         * 12 ``loadFieldInfo`` + 12 ``loadDisplayNames`` for a 12-leaf tree that
-         * needs one of each). It also left the display-name batching
-         * microtask-alignment-dependent: leaves at different depths reach
-         * ``loadDisplayNames`` on different ticks and fragment into separate RPCs.
-         *
-         * ``ctx.getFieldDef`` is threaded for the same reason. The sub-expression
-         * branch below needs the co-model of ``tree.path``, and used to re-derive
-         * it with a fresh ``makeGetFieldDef`` call — resolving a path the
-         * tree-wide context had already resolved (``makeGetFieldDef`` runs with
-         * ``lookInSubTrees``) and that ``getConditionDescription`` had just
-         * resolved again one line earlier. Because each nesting level repeated
-         * that for every level below it, the cost grew QUADRATICALLY in nesting
-         * depth: 5 / 11 / 19 ``loadFieldInfo`` calls at depth 1 / 2 / 3.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @param {boolean} isSubExpression
@@ -608,12 +529,6 @@ export const treeProcessorService = {
                 const _fieldDef = ctx.getFieldDef(/** @type {any} */ (tree).path);
                 const _resModel = getResModel(_fieldDef);
                 const _tree = /** @type {any} */ (tree.value);
-                // `limit`/`pathLimit` must cross into the sub-domain. They are
-                // threaded through this whole recursion for this one call, and
-                // dropping them here made them dead parameters: a caller asking
-                // for a compact rendering (mass_mailing's snippet-visibility
-                // facet passes 2/1) got the DEFAULTS back the moment the domain
-                // contained an `any` sub-expression.
                 const description = await getDomainTreeDescription(
                     _resModel,
                     _tree,
@@ -627,10 +542,9 @@ export const treeProcessorService = {
         }
 
         /**
-         * Build indented tooltip lines for a domain tree (used in popover tooltips).
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
-         * @param {number} [depth=0] - current indentation level
+         * @param {number} [depth=0]
          * @returns {Promise<string[]>}
          */
         async function getTooltipLines(resModel, tree, depth = 0) {
@@ -644,13 +558,10 @@ export const treeProcessorService = {
         }
 
         /**
-         * Recursive body of {@link getTooltipLines}, taking an ALREADY simplified
-         * tree — see {@link describeSimplifiedTree}.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @param {number} depth
-         * @param {TreeContext} ctx resolved once for the whole tree — see
-         *   {@link describeSimplifiedTree}
+         * @param {TreeContext} ctx
          * @returns {Promise<string[]>}
          */
         async function tooltipLinesOfSimplifiedTree(resModel, tree, depth, ctx) {
@@ -687,7 +598,6 @@ export const treeProcessorService = {
         }
 
         /**
-         * Generate a multi-line tooltip string for a domain tree.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @returns {Promise<string>}
@@ -698,8 +608,6 @@ export const treeProcessorService = {
         }
 
         /**
-         * Build a lookup function that maps field paths to their field definitions.
-         * Loads all field info for paths used in the tree in parallel.
          * @param {string} resModel
          * @param {import("@web/core/tree/condition_tree").Tree} tree
          * @returns {Promise<(path: string) => Record<string, any> | null>}
@@ -707,31 +615,30 @@ export const treeProcessorService = {
         async function makeGetFieldDef(resModel, tree) {
             const paths = new Set(getPathsInTree(tree, true));
             const promises = [];
-            /** @type {Record<string, any>} */
-            const fieldDefs = {};
+            /** @type {Map<string, any>} */
+            const fieldDefs = new Map();
             for (const path of paths) {
                 promises.push(
                     fieldService
                         .loadFieldInfo(resModel, path)
                         .then((/** @type {{ fieldDef: any }} */ { fieldDef }) => {
-                            fieldDefs[path] = fieldDef;
+                            fieldDefs.set(path, fieldDef);
                         }),
                 );
             }
             await Promise.all(promises);
             return (path) => {
                 if (typeof path === "string") {
-                    return fieldDefs[path];
+                    return fieldDefs.get(path) ?? null;
                 }
                 return null;
             };
         }
 
         /**
-         * Convert a domain array into a condition tree with virtual operators.
          * @param {string} resModel
-         * @param {any[]} domain - Odoo domain expression
-         * @param {boolean} [distributeNot=true] - whether to push NOT down into leaves
+         * @param {any[]} domain
+         * @param {boolean} [distributeNot=true]
          * @returns {Promise<import("@web/core/tree/condition_tree").Tree>}
          */
         async function treeFromDomain(resModel, domain, distributeNot = true) {

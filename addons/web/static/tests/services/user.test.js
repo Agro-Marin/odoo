@@ -15,7 +15,6 @@ import { _makeUser, getLastConnectedUsers, user, userBus } from "@web/services/u
 describe.current.tags("headless");
 
 test("successive calls to hasGroup", async () => {
-    serverState.uid = 7;
     await makeMockEnv();
     const groups = ["x"];
     onRpc("has_group", (args) => {

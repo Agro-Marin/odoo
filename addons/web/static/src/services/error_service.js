@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/error_service - Global error/rejection interceptor with UncaughtError classification and handler pipeline */
+/** @module @web/services/error_service */
 
 import { browser } from "@web/core/browser/browser";
 import { isBrowserChrome, isBrowserFirefox } from "@web/core/browser/feature_detection";
@@ -21,12 +21,11 @@ export {
     UncaughtPromiseError,
 };
 
-/** Error raised when an HTML element (img, script, iframe) fails to load. */
 class HTMLElementLoadingError extends Error {
     static message = "Error loading an HTML Element";
     /**
      * @param {string} [message]
-     * @param {Event} [event] - the DOM error event
+     * @param {Event} [event]
      */
     constructor(message = HTMLElementLoadingError.message, event) {
         super(message);
@@ -35,17 +34,12 @@ class HTMLElementLoadingError extends Error {
     }
 }
 
-/**
- * Global error handling service. Listens for uncaught errors and unhandled
- * promise rejections, classifies them, and dispatches to registered error handlers.
- */
 export const errorService = {
     /**
      * @param {import("@web/env").OdooEnv} env
      */
     start(env) {
         /**
-         * Dispatch an uncaught error to all registered error handlers.
          * @param {UncaughtError} uncaughtError
          */
         function handleError(/** @type {any} */ uncaughtError) {
@@ -103,9 +97,7 @@ export const errorService = {
                 try {
                     isThirdPartyScriptError =
                         new URL(filename).origin !== browser.location.origin;
-                } catch {
-                    // filename is not a valid URL (inline script, eval, etc.) — not third-party
-                }
+                } catch {}
             }
             if (isThirdPartyScriptError && !env.debug) {
                 return;
@@ -133,12 +125,7 @@ export const errorService = {
                                         true;
                                 },
                             });
-                        } catch {
-                            // Instrumented event (e.g. hoot pins a
-                            // non-configurable preventDefault): handler
-                            // opt-out tracking is lost, which only affects
-                            // console verbosity.
-                        }
+                        } catch {}
                     }
                     const annotated = env.debug?.includes("assets");
                     await completeUncaughtError(uncaughtError, error, annotated);
@@ -178,35 +165,18 @@ export const errorService = {
             uncaughtError.unhandledRejectionEvent = ev;
             /** @type {any} */ (uncaughtError).event = ev;
             uncaughtError.traceback = traceback ?? null;
-            // Suppress the browser's own log ONLY when this service will print
-            // a traceback itself, i.e. when one is already set or when
-            // `completeUncaughtError` below is going to set one (it runs only
-            // for real Errors). Suppressing unconditionally silences a
-            // `Promise.reject("string")` entirely: shouldLogError() bails on
-            // the null traceback, so neither the browser nor Odoo reports it.
-            //
-            // It must also happen BEFORE the awaits below: preventDefault() on
-            // an already-dispatched event is a no-op, which is why the deferred
-            // call in shouldLogError() never suppressed anything and every
-            // Error rejection was logged twice. Mirrors the "error" path.
             const willReportTraceback = error instanceof Error || Boolean(traceback);
             if (willReportTraceback && !ev.defaultPrevented) {
                 ev.preventDefault();
                 /** @type {any} */ (uncaughtError).browserLogSuppressed = true;
                 try {
-                    // Keep a handler's later preventDefault() meaningful as an
-                    // opt-out of Odoo's own log, now that the real one has
-                    // already fired.
                     Object.defineProperty(ev, "preventDefault", {
                         configurable: true,
                         value: () => {
                             /** @type {any} */ (uncaughtError).logSuppressed = true;
                         },
                     });
-                } catch {
-                    // Instrumented event: opt-out tracking is lost, which only
-                    // affects console verbosity.
-                }
+                } catch {}
             }
             if (error instanceof Error) {
                 /** @type {any} */ (error).errorEvent = ev;

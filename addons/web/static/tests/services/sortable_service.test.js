@@ -39,6 +39,7 @@ test("enable() is idempotent — a second call does not re-arm listeners", async
 
     const handle = sortable.create({ ref: { el: root }, elements: ".item" });
     const first = handle.enable();
+    /** @type {any} */
     let second;
     expect(() => {
         second = handle.enable();

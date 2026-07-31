@@ -205,7 +205,7 @@ test("an unchanged metric set is not beaconed twice", async () => {
 
 test("destroy detaches the observers and the page listeners", async () => {
     observerFor("layout-shift").emit([shift(0, 0.2)]);
-    service.destroy();
+    /** @type {any} */ (service).destroy();
     service = undefined;
 
     expect(observerFor("layout-shift").disconnected).toBe(true);

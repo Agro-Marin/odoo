@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/slow_rpc_service - Sticky toast when an RPC exceeds the patience threshold; auto-dismissed on response */
+/** @module @web/services/slow_rpc_service */
 
 import { browser } from "@web/core/browser/browser";
 import { RpcEvent } from "@web/core/events";
@@ -9,20 +9,8 @@ import { _t } from "@web/core/l10n/translation";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 
-/**
- * Patience threshold in ms — 5 s is the usual "user wonders if it's broken"
- * cliff. Exposed as a mutable object so deployment-time tuning (future:
- * read `slow_rpc.threshold_ms` via session_info) and tests can override it.
- */
 export const SLOW_RPC_CONFIG = { thresholdMs: 5000 };
 
-/**
- * Shows a single shared toast while at least one non-silent RPC exceeds
- * {@link SLOW_RPC_CONFIG}.thresholdMs; clears it once every slow request got
- * its `RPC:RESPONSE` (success, error, abort, or timeout). Silent RPCs
- * (boot-time metadata, action loads, retries) opt out, same as they do for
- * error dialogs.
- */
 export const slowRpcService = {
     dependencies: ["notification"],
     /**
@@ -36,7 +24,7 @@ export const slowRpcService = {
         /** @type {(() => void) | null} */
         let closeNotification = null;
 
-        const onRequest = (event) => {
+        const onRequest = (/** @type {any} */ event) => {
             const detail = /** @type {any} */ (event).detail;
             if (!detail?.data) {
                 return;
@@ -61,7 +49,7 @@ export const slowRpcService = {
             }, SLOW_RPC_CONFIG.thresholdMs);
         };
 
-        const onResponse = (event) => {
+        const onResponse = (/** @type {any} */ event) => {
             const detail = /** @type {any} */ (event).detail;
             const rpcId = detail?.data?.id;
             if (rpcId === undefined) {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/commands/default_providers - Default command palette providers: hotkey badges, clickable elements, setup registry */
+/** @module @web/services/commands/default_providers */
 
 import { Component } from "@odoo/owl";
 import { isMacOS } from "@web/core/browser/feature_detection";
@@ -20,10 +20,6 @@ commandSetupRegistry.add("default", {
     placeholder: _t("Search for a command..."),
 });
 
-/**
- * Command palette item component that renders a hotkey badge and registers
- * the hotkey so the command can also be triggered by keyboard shortcut.
- */
 export class HotkeyCommandItem extends Component {
     static template = "web.HotkeyCommandItem";
     static props = [
@@ -39,10 +35,8 @@ export class HotkeyCommandItem extends Component {
     }
 
     /**
-     * Split a hotkey string into individual key labels, adapting modifier
-     * names for macOS (Control→Command, Alt→Control).
      * @param {{ hotkey: string }} command
-     * @returns {string[]} uppercase key labels
+     * @returns {string[]}
      */
     getKeysToPress(command) {
         const { hotkey } = command;
@@ -72,12 +66,6 @@ commandProviderRegistry.add("command", {
                 (/** @type {Record<string, any>} */ command) =>
                     command.isAvailable === undefined || command.isAvailable(),
             );
-        // Keep the FIRST of each (name, category) pair. Nested Map/Set rather
-        // than one composite string key: `name` is not always a primitive —
-        // `_t()` returns a boxed `TranslatedString` while translations are
-        // still loading — and Map/Set key equality is SameValueZero, i.e. the
-        // same reference comparison the previous `===` scan used. Stringifying
-        // would silently merge two distinct lazy translations of one term.
         /** @type {Map<any, Set<any>>} */
         const seen = new Map();
         const uniqueCommands = commands.filter(
