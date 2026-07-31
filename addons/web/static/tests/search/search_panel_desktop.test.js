@@ -18,6 +18,7 @@ import {
     fields,
     findComponent,
     getService,
+    makeMockEnv,
     MockServer,
     models,
     mountWithCleanup,
@@ -29,6 +30,8 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { SearchBarMenu } from "@web/search/search_bar_menu/search_bar_menu";
 import { SearchPanel } from "@web/search/search_panel/search_panel";
+import { WithSearch } from "@web/search/with_search/with_search";
+import { getDefaultConfig } from "@web/views/view";
 import { WebClient } from "@web/webclient/webclient";
 
 function parseContent(text) {
@@ -3463,7 +3466,12 @@ test("group and value checkboxes of one section get distinct ids", async () => {
     expect(ids).toHaveLength(2);
     expect(new Set(ids).size).toBe(2);
     for (const id of ids) {
-        expect(id).toMatch(/^\d+_(group|input)_\d+$/);
+        // The leading segment is the SearchPanel instance's own prefix: two
+        // panels on one page would otherwise both emit "1_input_1" (see "two
+        // search panels on one page do not share checkbox ids"). What this test
+        // pins is the `_group_` / `_input_` discriminator, since group ids and
+        // value ids come from different comodels and overlap freely.
+        expect(id).toMatch(/^o_sp\d+_\d+_(group|input)_\d+$/);
     }
 });
 
@@ -3575,8 +3583,50 @@ test("an unreachable ancestor yields the partial chain", async () => {
     // 201's parent was pruned from the returned range.
     category.values.set(201, { id: 201, parentId: 202, childrenIds: [] });
 
-    expect(searchPanel.getAncestorValueIds(category, 201)).toEqual([202]);
+    // 202 does not resolve, so the chain from 201 upwards is empty. This used
+    // to return [202] — the id was collected before being looked up, which
+    // contradicted this test's own name and handed getCategorySelection an id
+    // it dereferences unguarded (see the next test).
+    expect(searchPanel.getAncestorValueIds(category, 201)).toEqual([]);
     expect(searchPanel.getAncestorValueIds(category, 999)).toEqual([]);
+});
+
+test("an unreachable ancestor does not break the collapsed sidebar", async () => {
+    Partner._views = {
+        search: `
+            <search>
+                <searchpanel>
+                    <field name="category_id"/>
+                </searchpanel>
+            </search>
+        `,
+    };
+    const component = await mountWithSearch(TestComponent, {
+        resModel: "partner",
+        searchViewId: false,
+    });
+    const searchPanel = findComponent(component, (c) => c instanceof SearchPanel);
+    const { searchModel } = component.env;
+    // The live section, not a getSections() copy: that copy shares the `values`
+    // Map by reference but carries its own `activeValueId` scalar.
+    const [category] = [...searchModel.sections.values()].filter(
+        (s) => s.type === "category",
+    );
+
+    category.values.set(201, {
+        id: 201,
+        display_name: "Orphan",
+        parentId: 202,
+        childrenIds: [],
+    });
+    category.activeValueId = 201;
+    searchModel._sections = null;
+
+    // getCategorySelection backs the collapsed-sidebar summary; it used to
+    // throw "Cannot read properties of undefined (reading 'display_name')".
+    expect(searchPanel.getCategorySelection()).toEqual([
+        { values: ["Orphan"], icon: category.icon, color: category.color },
+    ]);
 });
 
 test("the sidebar collapse and expand toggles carry an accessible name", async () => {
@@ -3700,4 +3750,50 @@ test("a category row with children exposes aria-expanded, a leaf does not", asyn
         ".o_search_panel_category_value header:has(.o_search_panel_label_title:contains(agrolait))",
     );
     expect(child.hasAttribute("aria-expanded")).toBe(false);
+});
+
+test("two search panels on one page do not share checkbox ids", async () => {
+    // Section ids restart at 1 for every search view, so building the checkbox
+    // ids from them alone made both panels emit "1_input_1". `<label for>`
+    // resolves to the FIRST match in the document, so clicking the second
+    // panel's label toggled the first panel's value.
+    class TwoPanels extends Component {
+        static template = xml`
+            <div>
+                <WithSearch resModel="'partner'" searchViewId="false" searchViewArch="arch" t-slot-scope="s">
+                    <SearchPanel/>
+                </WithSearch>
+                <WithSearch resModel="'partner'" searchViewId="false" searchViewArch="arch" t-slot-scope="s">
+                    <SearchPanel/>
+                </WithSearch>
+            </div>
+        `;
+        static components = { WithSearch, SearchPanel };
+        static props = ["*"];
+        setup() {
+            this.arch = `
+                <search>
+                    <searchpanel>
+                        <field name="company_id" select="multi"/>
+                    </searchpanel>
+                </search>
+            `;
+        }
+    }
+    const env = await makeMockEnv({ config: getDefaultConfig() });
+    await mountWithCleanup(TwoPanels, { env });
+    await animationFrame();
+    await animationFrame();
+
+    expect(".o_search_panel").toHaveCount(2);
+    const ids = queryAll(".o_search_panel input[type=checkbox]").map((i) => i.id);
+    expect(ids.length).toBeGreaterThan(1);
+    expect(new Set(ids).size).toBe(ids.length);
+
+    for (const label of queryAll(".o_search_panel label[for]")) {
+        const target = document.getElementById(label.getAttribute("for"));
+        expect(label.closest(".o_search_panel")).toBe(
+            target.closest(".o_search_panel"),
+        );
+    }
 });

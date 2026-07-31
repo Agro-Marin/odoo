@@ -1,33 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_panel/search_panel_fetch - Search panel section tree creation utilities */
+/** @module @web/search/search_panel/search_panel_fetch */
 
 /**
- * Create the category tree from server results.
- *
- * @param {Object} category - the category section (mutated in place)
- * @param {Object} result - server response from search_panel_select_range
- * @param {Function} ensureCategoryValue - (category, valueIds) => void
- */
-
-/**
- * Order filter groups by `sequence`, then by name.
- *
- * A single `sequence || name` key cannot express this: `sortBy` falls back to
- * `a > b ? 1 : a < b ? -1 : 0`, and a number compared with a string yields
- * `false` both ways, i.e. "equal". One group without a sequence would therefore
- * compare equal to every sequenced group and silently flatten the whole
- * section's ordering back to server order. `search_panel_select_multi_range`
- * emits no `group_sequence` today, so this only bites a module that adds one.
- *
  * @param {any[]} groupIds
  * @param {Map<any, {name: string, sequence?: number}>} groups
  * @returns {any[]}
  */
 function sortGroupIds(groupIds, groups) {
+    /**
+     * @param {any} id
+     * @returns {[number, string]}
+     */
     const rank = (id) => {
-        const { sequence, name } = groups.get(id);
+        const { sequence, name } = groups.get(id) ?? {};
         return [
             typeof sequence === "number" ? sequence : Number.POSITIVE_INFINITY,
             String(name ?? ""),
@@ -43,6 +30,11 @@ function sortGroupIds(groupIds, groups) {
     });
 }
 
+/**
+ * @param {Object} category
+ * @param {Object} result
+ * @param {Function} ensureCategoryValue
+ */
 export function createCategoryTree(category, result, ensureCategoryValue) {
     const { error_msg, parent_field: parentField } = result;
     let { values } = result;
@@ -86,10 +78,8 @@ export function createCategoryTree(category, result, ensureCategoryValue) {
 }
 
 /**
- * Create the filter tree from server results.
- *
- * @param {Object} filter - the filter section (mutated in place)
- * @param {Object} result - server response from search_panel_select_multi_range
+ * @param {Object} filter
+ * @param {Object} result
  */
 export function createFilterTree(filter, result) {
     const { error_msg } = result;

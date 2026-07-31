@@ -1,32 +1,21 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_properties_mixin - Property-field search logic mixed into SearchModel */
+/** @module @web/search/search_properties_mixin */
 
 import { groupBy } from "@web/core/utils/collections/arrays";
 
 import { findGroupByGroupId } from "./search_group_by.js";
 
 /**
- * Property-field search logic for SearchModel: lazily loading property
- * definitions and materializing the corresponding search / group-by items.
- *
- * Mixed into SearchModel (``extends SearchPropertiesMixin(...)``) rather than
- * kept as pass-``this`` module functions with proxy methods: the logic lives on
- * the prototype directly, using ``this``. None of these methods is overridden by
- * any SearchModel subclass. ``searchViewFields``/``searchItems``/``fieldService``
- * and the item helpers live on SearchModel and are reached via ``this``.
- *
  * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchPropertiesMixin = (Base) =>
     class extends Base {
         /**
-         * Generate (or refresh) property-based search items for a "properties" field.
-         *
-         * @param {Object} searchItem - a "field" search item with fieldType "properties"
-         * @returns {Promise<Object[]>} matching search items
+         * @param {Object} searchItem
+         * @returns {Promise<Object[]>}
          */
         async getSearchItemsProperties(searchItem) {
             if (searchItem.type !== "field" || searchItem.fieldType !== "properties") {
@@ -86,11 +75,6 @@ export const SearchPropertiesMixin = (Base) =>
                 }
             }
 
-            // A definition deleted on the parent record leaves its search item
-            // behind, and an active one keeps contributing its clause to the
-            // effective domain — the user goes on searching a property that no
-            // longer exists. `_fillPropertyFieldSearchItems` already retires
-            // vanished group-bys; do the same for the field_property items.
             const staleIds = Object.values(existingFieldProperties)
                 .filter((item) => !searchItemIds.has(item.id))
                 .map((item) => item.id);
@@ -112,18 +96,6 @@ export const SearchPropertiesMixin = (Base) =>
             );
         }
 
-        /**
-         * Lazily populate search view items for properties fields: fetch definitions
-         * via RPC, create group-by items for each, register them in searchViewFields.
-         *
-         * Concurrent calls for one field share a single fetch, but the entry is
-         * dropped once it settles rather than memoised for the model's lifetime:
-         * definitions live on the parent record and change under us (a property
-         * added, renamed or deleted), and `_fillPropertyFieldSearchItems` is
-         * idempotent, so re-running it is how those changes reach the Group By
-         * menu. The only call site is one dropdown open, so this costs at most
-         * one RPC per open.
-         */
         async fillSearchViewItemsProperty() {
             if (!this.searchViewFields) {
                 return;
@@ -155,10 +127,7 @@ export const SearchPropertiesMixin = (Base) =>
         }
 
         /**
-         * Fetch one properties field's definitions and materialize its group-by
-         * search items (single-flight body of {@link fillSearchViewItemsProperty}).
-         *
-         * @param {Object} field - a searchViewFields entry with type "properties"
+         * @param {Object} field
          */
         async _fillPropertyFieldSearchItems(field) {
             const result = await this._fetchPropertiesDefinition(
@@ -166,35 +135,24 @@ export const SearchPropertiesMixin = (Base) =>
                 field.name,
             );
 
-            const searchItemsNames = Object.values(this.searchItems)
-                .filter(
-                    (item) =>
-                        item.isProperty &&
-                        ["groupBy", "dateGroupBy"].includes(item.type),
-                )
-                .map((item) => item.fieldName);
+            const isPropertyGroupBy = (item) =>
+                item.isProperty && ["groupBy", "dateGroupBy"].includes(item.type);
+            const existingByFieldName = new Map(
+                Object.values(this.searchItems)
+                    .filter(isPropertyGroupBy)
+                    .map((item) => [item.fieldName, item]),
+            );
+            const liveIds = new Set();
+            const liveFieldNames = new Set();
 
             for (const {
                 definitionRecordId,
                 definitionRecordName,
                 definitions,
             } of result) {
-                const groupNames = definitions.map(
-                    (definition) => `group_by_${field.name}.${definition.name}`,
-                );
-                Object.values(this.searchItems).forEach((searchItem) => {
-                    if (
-                        searchItem.isProperty &&
-                        searchItem.definitionRecordId === definitionRecordId &&
-                        ["groupBy", "dateGroupBy"].includes(searchItem.type) &&
-                        !groupNames.includes(searchItem.name)
-                    ) {
-                        searchItem.type = "group_by_property_deleted";
-                    }
-                });
-
                 for (const definition of definitions) {
                     const fullName = `${field.name}.${definition.name}`;
+                    liveFieldNames.add(fullName);
                     this.searchViewFields[fullName] = {
                         name: fullName,
                         readonly: false,
@@ -209,41 +167,70 @@ export const SearchPropertiesMixin = (Base) =>
                         relatedPropertyField: field,
                     };
 
-                    if (
-                        !searchItemsNames.includes(fullName) &&
-                        !["html", "separator"].includes(definition.type)
-                    ) {
-                        const id = this.nextId++;
-                        this.searchItems[id] = {
-                            id,
-                            description: definition.string,
-                            definitionRecordId,
-                            definitionRecordName,
-                            fieldName: fullName,
-                            fieldType: definition.type,
-                            isProperty: true,
-                            name: `group_by_${field.name}.${definition.name}`,
-                            propertyFieldName: field.name,
-                            type: ["datetime", "date"].includes(definition.type)
-                                ? "dateGroupBy"
-                                : "groupBy",
-                            groupId:
-                                findGroupByGroupId(this.searchItems) ??
-                                this.nextGroupId++,
-                        };
+                    if (["html", "separator"].includes(definition.type)) {
+                        continue;
                     }
+                    const existing = existingByFieldName.get(fullName);
+                    if (existing) {
+                        liveIds.add(existing.id);
+                        continue;
+                    }
+                    const id = this.nextId++;
+                    this.searchItems[id] = {
+                        id,
+                        description: definition.string,
+                        definitionRecordId,
+                        definitionRecordName,
+                        fieldName: fullName,
+                        fieldType: definition.type,
+                        isProperty: true,
+                        name: `group_by_${field.name}.${definition.name}`,
+                        propertyFieldName: field.name,
+                        type: ["datetime", "date"].includes(definition.type)
+                            ? "dateGroupBy"
+                            : "groupBy",
+                        groupId:
+                            findGroupByGroupId(this.searchItems) ?? this.nextGroupId++,
+                    };
+                    liveIds.add(id);
+                }
+            }
+
+            const staleIds = Object.values(this.searchItems)
+                .filter(
+                    (item) =>
+                        isPropertyGroupBy(item) &&
+                        item.propertyFieldName === field.name &&
+                        !liveIds.has(item.id),
+                )
+                .map((item) => item.id);
+            for (const id of staleIds) {
+                delete this.searchItems[id];
+            }
+
+            const prefix = `${field.name}.`;
+            for (const fieldName of Object.keys(this.searchViewFields)) {
+                if (fieldName.startsWith(prefix) && !liveFieldNames.has(fieldName)) {
+                    delete this.searchViewFields[fieldName];
                 }
             }
 
             this._enrichedSearchItems = null;
+            if (staleIds.length) {
+                const queryLength = this.query.length;
+                this.query = this.query.filter(
+                    (queryElem) => !staleIds.includes(queryElem.searchItemId),
+                );
+                if (this.query.length !== queryLength) {
+                    await this._notify();
+                }
+            }
         }
 
         /**
-         * Fetch property definitions for a given model and field.
-         *
-         * @param {string} resModel - the model name
-         * @param {string} fieldName - the properties field name
-         * @returns {Promise<Object[]>} array of { definitionRecordId, definitionRecordName, definitions }
+         * @param {string} resModel
+         * @param {string} fieldName
+         * @returns {Promise<Object[]>}
          */
         async _fetchPropertiesDefinition(resModel, fieldName) {
             const domain = [];

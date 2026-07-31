@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/breadcrumbs/breadcrumbs - Navigation breadcrumb trail showing the action stack with back-navigation */
+/** @module @web/search/breadcrumbs/breadcrumbs */
 
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";

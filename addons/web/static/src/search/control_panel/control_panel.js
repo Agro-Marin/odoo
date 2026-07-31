@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/control_panel/control_panel - Control panel UI with search bar, breadcrumbs, filter/groupby menus, and embedded actions */
+/** @module @web/search/control_panel/control_panel */
 
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -27,11 +27,6 @@ import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 const STICKY_CLASS = "o_mobile_sticky";
 
 /**
- * Default embedded infos so templates can safely read `state.embeddedInfos.*`
- * when the action has no embedded actions. A factory, not a shared constant:
- * shared nested arrays get aliased by every `{ ...CONST }` shallow copy, so a
- * stray push would leak across control-panel instances.
- *
  * @returns {{showEmbedded: boolean, embeddedActions: any[], visibleEmbeddedActions: any[], newActionIsShared: boolean, newActionName: string, currentEmbeddedAction: any}}
  */
 function makeNoEmbeddedInfos() {
@@ -45,17 +40,6 @@ function makeNoEmbeddedInfos() {
     };
 }
 
-/**
- * Main control panel component that renders breadcrumbs, search bar, view
- * switcher, pager, embedded actions tabs, and layout action buttons.
- *
- * Handles mobile sticky scroll behavior and keyboard navigation. The
- * embedded-actions machinery lives in the {@link EmbeddedActions} model and
- * the {@link EmbeddedActionsBar} sub-component, and is only instantiated
- * when the current action provides embedded actions; the thin delegating
- * methods kept here are the extension surface for inheriting control panels
- * (and back the mobile `web.embeddedActionsDropdown` render).
- */
 export class ControlPanel extends Component {
     static template = "web.ControlPanel";
     static components = {
@@ -73,7 +57,6 @@ export class ControlPanel extends Component {
         slots: { type: Object, optional: true },
     };
 
-    // Declared with @type so strictNullChecks treats them as initialized; real
     /** @type {any} */
     actionService;
     /** @type {any} */
@@ -84,7 +67,9 @@ export class ControlPanel extends Component {
     breadcrumbs;
     /** @type {any} */
     orm;
-    /** @type {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedActions | null} */
+    /**
+     * @type {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedActions | null}
+     */
     embeddedActions;
     /** @type {import("@web/components/dropdown/dropdown_hooks").DropdownState} */
     embeddedActionsDropdown;
@@ -94,7 +79,9 @@ export class ControlPanel extends Component {
     newActionNameRef;
     /** @type {any} */
     adaptiveMenuRef;
-    /** @type {{embeddedInfos: {showEmbedded: boolean, embeddedActions: any[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: any[], currentEmbeddedAction: any}}} */
+    /**
+     * @type {{embeddedInfos: {showEmbedded: boolean, embeddedActions: any[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: any[], currentEmbeddedAction: any}}}
+     */
     state;
     /** @type {(ev: Event) => void} */
     onScrollThrottledBound;
@@ -141,7 +128,6 @@ export class ControlPanel extends Component {
                 },
                 {
                     category: "view_switcher",
-                    // Global so the command is available regardless of which
                     global: true,
                     isAvailable: () => view.type !== this.env.config.viewType,
                 },
@@ -209,7 +195,7 @@ export class ControlPanel extends Component {
         });
     }
 
-    /** @returns {HTMLElement} the scrollable parent element */
+    /** @returns {HTMLElement} */
     getScrollingElement() {
         return this.root.el.parentElement;
     }
@@ -234,7 +220,7 @@ export class ControlPanel extends Component {
 
     /**
      * @param {import("@web/search/embedded_actions_bar/embedded_actions_bar").EmbeddedAction} action
-     * @returns {string} CSS class ("selected" or "")
+     * @returns {string}
      */
     getDropdownClass(action) {
         return (!this.env.isSmall && this._isEmbeddedActionVisible(action)) ||
@@ -244,7 +230,6 @@ export class ControlPanel extends Component {
             : "";
     }
 
-    /** Show or hide the embedded actions bar. */
     async onClickShowEmbedded() {
         await this.embeddedActions.toggleBar();
     }
@@ -286,10 +271,6 @@ export class ControlPanel extends Component {
         }
     }
 
-    /**
-     * Show or hide the control panel on the top screen; throttled to avoid
-     * refreshing the scroll position more often than necessary.
-     */
     onScrollThrottled() {
         if (this.isScrolling) {
             return;
@@ -320,16 +301,20 @@ export class ControlPanel extends Component {
     }
 
     /**
-     * Switch from the current view to another, e.g. from the view switcher;
-     * resets mobile search state.
-     *
+     * @param {{ name: string }} view
+     * @returns {string}
+     */
+    viewSwitcherLabel(view) {
+        return _t("%s View", view.name);
+    }
+
+    /**
      * @param {import("@web/views/view").ViewType} viewType
      */
     switchView(viewType, newWindow) {
         return this.actionService.switchView(viewType, {}, { newWindow });
     }
 
-    /** Cycle to the next view type in the view switcher. */
     cycleThroughViews() {
         const currentViewType = this.env.config.viewType;
         const viewSwitcherEntries = this.env.config.viewSwitcherEntries;
@@ -352,7 +337,6 @@ export class ControlPanel extends Component {
         }
     }
 
-    /** Convert button elements inside the adaptive dropdown into dropdown-item styling. */
     dropdownifyButtons() {
         const adaptiveMenu = this.adaptiveMenuRef.el;
         if (!adaptiveMenu) {
@@ -366,8 +350,6 @@ export class ControlPanel extends Component {
     }
 
     /**
-     * Recursively collect visible (non-`display:none`) elements, flattening
-     * `display:contents` wrappers.
      * @param {HTMLCollection} elements
      * @returns {HTMLElement[]}
      */

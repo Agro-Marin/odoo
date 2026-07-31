@@ -1,16 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_domain - Domain computation utilities for SearchModel */
+/** @module search/search_domain */
 
 import { Domain } from "@web/core/domain";
 
 import { constructDateDomain } from "./utils/dates.js";
 /**
- * Compute the domain based on the current active categories.
- * If `excludedCategoryId` is provided, that category is excluded.
- *
- * @param {Iterable} categories - iterable of category sections
+ * @param {Iterable} categories
  * @param {Object} searchViewFields
  * @param {number} [excludedCategoryId]
  * @returns {Array[]}
@@ -34,10 +31,7 @@ export function computeCategoryDomain(
 }
 
 /**
- * Compute the domain based on the current checked filters.
- * Checked values within a group are combined with OR; groups with AND.
- *
- * @param {Iterable} filters - iterable of filter sections
+ * @param {Iterable} filters
  * @param {number} [excludedFilterId]
  * @returns {Array[]}
  */
@@ -73,10 +67,6 @@ export function computeFilterDomain(filters, excludedFilterId) {
 }
 
 /**
- * Compute a domain/object of domains to complement filter domains for accurate
- * record counts (by group). Checked values within a group should not impact
- * counts for other values in the same group.
- *
  * @param {Object} filter
  * @param {Object} searchViewFields
  * @returns {Object|Array[]|null}
@@ -85,11 +75,6 @@ export function computeGroupDomain(filter, searchViewFields) {
     const { fieldName, groups, enableCounters } = filter;
     const { type: fieldType } = searchViewFields[fieldName];
 
-    // Only relational filters can have a value checked in one group skew the
-    // counts of another. `search_panel_select_multi_range` also accepts
-    // selection fields, whose values are mutually exclusive, so there is
-    // nothing to compensate — say so explicitly instead of falling off the end
-    // of the lookup below and sending `undefined` to the server.
     if (!["many2one", "many2many"].includes(fieldType)) {
         return null;
     }
@@ -130,30 +115,23 @@ export function computeGroupDomain(filter, searchViewFields) {
                 }
             });
         });
-        groupDomain = {};
+        /** @type {Record<string, any[]>} */
+        const byGroup = {};
         for (const [gId, ids] of checkedValueIds.entries()) {
             for (const groupId of groups.keys()) {
                 if (gId !== groupId) {
                     const key = JSON.stringify(groupId);
-                    if (!groupDomain[key]) {
-                        groupDomain[key] = [];
-                    }
-                    /** @type {any[]} */ (groupDomain[key]).push([
-                        fieldName,
-                        "in",
-                        ids,
-                    ]);
+                    (byGroup[key] ??= []).push([fieldName, "in", ids]);
                 }
             }
         }
+        groupDomain = byGroup;
     }
     return groupDomain;
 }
 
 /**
- * Compute the domain for a field-type search item from its autocomplete values.
- *
- * @param {Object} field - the search item
+ * @param {Object} field
  * @param {Object[]} autocompleteValues
  * @returns {Domain}
  */
@@ -184,12 +162,10 @@ export function computeFieldDomain(field, autocompleteValues) {
 }
 
 /**
- * Compute the domain (or description) for a date filter from its generator ids.
- *
- * @param {Object} referenceMoment - luxon DateTime
- * @param {Object} dateFilter - the search item
+ * @param {Object} referenceMoment
+ * @param {Object} dateFilter
  * @param {Array} generatorIds
- * @param {string} [key="domain"] - "domain" or "description"
+ * @param {string} [key="domain"]
  * @returns {Domain|string}
  */
 export function computeDateFilterDomain(
@@ -207,8 +183,6 @@ export function computeDateFilterDomain(
 }
 
 /**
- * Compute the domain for a single active search item.
- *
  * @param {Object} activeItem
  * @param {Object} searchItems
  * @param {Object} referenceMoment
@@ -236,8 +210,6 @@ export function computeSearchItemDomain(activeItem, searchItems, referenceMoment
 }
 
 /**
- * Compute the combined search panel domain (categories AND filters).
- *
  * @param {Array[]} categoryDomain
  * @param {Array[]} filterDomain
  * @returns {Domain}
@@ -247,27 +219,20 @@ export function computeSearchPanelDomain(categoryDomain, filterDomain) {
 }
 
 /**
- * Compute the full search domain by combining global, per-group, and search panel domains.
- *
  * @param {Object} params
- * @param {Object[]} params.groups - active query groups
+ * @param {Object[]} params.groups
  * @param {Domain|Array} params.globalDomain
  * @param {boolean} params.withGlobal
  * @param {boolean} params.withSearchPanel
- * @param {Function} params.getSearchItemDomain - (activeItem) => Domain|null
- * @param {Function} params.getSearchPanelDomain - () => Domain
+ * @param {Function} params.getSearchItemDomain
+ * @param {Function} params.getSearchPanelDomain
  * @param {Object} params.domainEvalContext
  * @param {boolean} params.raw
  * @returns {any[]|Domain}
  */
 /**
- * Collect the (non-null) domains of a query group's active items. The
- * effective search domain OR-combines these per group, and each facet exposes
- * the same OR as its clickable ``domain`` — shared here so the two stay in
- * lockstep (see ``buildFacets`` in search_facets.js).
- *
- * @param {Object} group - a query group with ``activeItems``
- * @param {Function} getSearchItemDomain - (activeItem) => Domain|null
+ * @param {Object} group
+ * @param {Function} getSearchItemDomain
  * @returns {Domain[]}
  */
 export function computeActiveItemDomains(group, getSearchItemDomain) {

@@ -1,13 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_bar/search_bar_toggler - Toggle button and hook for responsive search bar visibility on small screens */
+/** @module @web/search/search_bar/search_bar_toggler */
 
 import { Component, useEffect, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-/** Toggle button for showing/hiding the search bar on small screens. */
 export class SearchBarToggler extends Component {
     static template = "web.SearchBar.Toggler";
     static props = {
@@ -18,8 +17,6 @@ export class SearchBarToggler extends Component {
 }
 
 /**
- * OWL hook managing responsive search bar visibility: shown automatically on
- * large screens, toggleable on small screens.
  * @returns {{ state: { isSmall: boolean, showSearchBar: boolean }, component: typeof SearchBarToggler, props: Object }}
  */
 export function useSearchBarToggler() {

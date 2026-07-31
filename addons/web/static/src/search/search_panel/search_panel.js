@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_panel/search_panel - Sidebar filter panel with category trees and grouped checkbox filters */
+/** @module @web/search/search_panel/search_panel */
 
 import {
     Component,
@@ -18,6 +18,7 @@ import { useSetupAction } from "@web/core/action_hook";
 import { browser } from "@web/core/browser/browser";
 import { SearchModelEvent } from "@web/core/events";
 import { exprToBoolean } from "@web/core/utils/format/strings";
+import { uniqueId } from "@web/core/utils/functions";
 import { useBus } from "@web/core/utils/hooks";
 
 const isFilter = (s) => s.type === "filter";
@@ -38,9 +39,7 @@ const nameOfCheckedValues = (values) => {
 };
 
 /**
- * Sidebar filter panel, divided into sections defined by a "<searchpanel>"
- * node inside the "<search>" arch. Each section holds categories or filter
- * values (grouped or ungrouped), driven by @see SearchModel.
+ * @see SearchModel
  */
 export class SearchPanel extends Component {
     static template = "web.SearchPanel";
@@ -55,6 +54,7 @@ export class SearchPanel extends Component {
     };
 
     setup() {
+        this.idPrefix = uniqueId("o_sp");
         this.keyExpandSidebar = `search_panel_expanded,${this.env.config.viewId},${this.env.config.actionId}`;
         this.state = useState({
             expanded: {},
@@ -113,12 +113,12 @@ export class SearchPanel extends Component {
         });
     }
 
-    /** @returns {Object[]} non-empty search panel sections from the search model */
+    /** @returns {Object[]} */
     get sections() {
         return this.env.searchModel.getSections((s) => !s.empty);
     }
 
-    /** @returns {string} JSON-serialized panel state (expanded nodes, scroll, width) */
+    /** @returns {string} */
     exportState() {
         const exported = {
             expanded: this.state.expanded,
@@ -129,7 +129,7 @@ export class SearchPanel extends Component {
         return JSON.stringify(exported);
     }
 
-    /** @param {Object|null} state - previously exported panel state, or null */
+    /** @param {Object|null} state */
     importState(state) {
         this.hasImportedState = Boolean(state);
         if (this.hasImportedState) {
@@ -141,7 +141,6 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Get or create a reactive dropdown state for a section (mobile mode).
      * @param {number} sectionId
      * @returns {{ isOpen: boolean, open: Function, close: Function }}
      */
@@ -157,14 +156,6 @@ export class SearchPanel extends Component {
         return this.dropdownStates[sectionId];
     }
 
-    /**
-     * Give every category an expansion map. Seeding is separate from computing
-     * the default expansions because the latter is skipped for an imported
-     * state, while the map itself is not optional: the Category template reads
-     * `state.expanded[section.id][valueId]` for any value with children, and an
-     * imported state only carries the categories that existed when it was
-     * exported — `{}` when it was exported before the sections had loaded.
-     */
     ensureExpansionState() {
         for (const category of this.env.searchModel.getSections(
             (s) => s.type === "category",
@@ -173,7 +164,6 @@ export class SearchPanel extends Component {
         }
     }
 
-    /** Expand category values holding a category's default (active) value. */
     expandDefaultValue() {
         this.ensureExpansionState();
         if (this.hasImportedState) {
@@ -195,7 +185,6 @@ export class SearchPanel extends Component {
         }
     }
 
-    /** Expand category tree nodes up to the configured `depth` level. */
     expandValues() {
         if (this.hasImportedState) {
             return;
@@ -227,33 +216,27 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Ancestors of a value, closest last.
-     *
-     * Iterative and cycle-guarded rather than plain recursion: the chain comes
-     * from `parentId`s the server sent, so a comodel whose parent hierarchy
-     * loops (no `_check_recursion`, or a value whose parent was pruned and
-     * re-added) used to blow the stack and take the whole panel down. Bailing
-     * out yields the partial chain, which is what an unreachable ancestor means.
-     *
      * @param {Object} category
      * @param {number} categoryValueId
-     * @returns {number[]} list of ids of the ancestors of the given value in
-     *   the given category.
+     * @returns {number[]}
      */
     getAncestorValueIds(category, categoryValueId) {
         const ancestorIds = [];
         const seen = new Set([categoryValueId]);
         let { parentId } = category.values.get(categoryValueId) || {};
         while (parentId && !seen.has(parentId)) {
+            const parent = category.values.get(parentId);
+            if (!parent) {
+                break;
+            }
             ancestorIds.unshift(parentId);
             seen.add(parentId);
-            ({ parentId } = category.values.get(parentId) || {});
+            ({ parentId } = parent);
         }
         return ancestorIds;
     }
 
     /**
-     * Return active categories formatted for the control panel selection banner.
      * @returns {Object[]}
      */
     getCategorySelection() {
@@ -277,7 +260,6 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Return active filters formatted for the control panel selection banner.
      * @returns {Object[]}
      */
     getFilterSelection() {
@@ -301,7 +283,7 @@ export class SearchPanel extends Component {
 
     /**
      * @param {Object} section
-     * @returns {boolean} whether the section holds a selection
+     * @returns {boolean}
      */
     isSelected(section) {
         if (section.type === "category") {
@@ -311,8 +293,6 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Check whether the given section (or any section, if omitted) has an
-     * active selection.
      * @param {Number} sectionId
      */
     hasSelection(sectionId = 0) {
@@ -323,8 +303,6 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Clear the active selection in the given section (or all sections, if
-     * omitted).
      * @param {Number} sectionId
      */
     clearSelection(sectionId = 0) {
@@ -335,8 +313,6 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Prevent unnecessary calls to the model by ensuring a different category
-     * is clicked.
      * @param {Object} category
      * @param {Object} value
      */
@@ -357,15 +333,6 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Activate a category row from the keyboard.
-     *
-     * The row IS the control — `toggleCategory` both selects the value and
-     * folds its children — but it is a `<header>`, so it gets neither of the
-     * two things a native button has for free. The only thing standing in for
-     * that was the `o_toggle_fold` button, which carries no handler and no
-     * accessible name and merely happened to bubble its click here; it is now
-     * marked decorative, so this is the keyboard path.
-     *
      * @param {KeyboardEvent} ev
      * @param {Object} category
      * @param {Object} value
@@ -374,14 +341,11 @@ export class SearchPanel extends Component {
         if (ev.key !== "Enter" && ev.key !== " ") {
             return;
         }
-        // Space would otherwise scroll the panel out from under the selection.
         ev.preventDefault();
         this.toggleCategory(category, value);
     }
 
     /**
-     * `aria-expanded` for a category row, or false to leave the attribute off a
-     * leaf (where "collapsed" would be a lie rather than a state).
      * @param {Object} category
      * @param {Object} value
      * @returns {string|false}
@@ -393,7 +357,6 @@ export class SearchPanel extends Component {
         return this.state.expanded[category.id][value.id] ? "true" : "false";
     }
 
-    /** Toggle sidebar expanded/collapsed and persist preference to localStorage. */
     toggleSidebar() {
         this._sidebarAutoCollapsed = false;
         this.state.sidebarExpanded = !this.state.sidebarExpanded;
@@ -421,8 +384,6 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Checked / indeterminate state of a filter group's header, read from the
-     * same `value.checked` the value checkboxes render from.
      * @param {{ values: Map<any, Object> }} group
      * @returns {{ checked: boolean, indeterminate: boolean }}
      */
@@ -439,17 +400,6 @@ export class SearchPanel extends Component {
         };
     }
 
-    /**
-     * Collapse the sidebar while the model exposes no section, and restore it
-     * when sections come back — but only if this is the one that collapsed it,
-     * so a user who closed the sidebar by hand keeps it closed.
-     *
-     * Named for the `super.updateActiveValues()` call sites this is the hook
-     * for (see account's product-catalog panel). It no longer mirrors the
-     * model's checked/active values into component state: the templates read
-     * `value.checked` and `section.activeValueId` off the sections themselves,
-     * so there is nothing left to keep in sync.
-     */
     updateActiveValues() {
         if (!this.sections.length) {
             if (this.state.sidebarExpanded) {
@@ -463,7 +413,6 @@ export class SearchPanel extends Component {
     }
 
     /**
-     * Start the sidebar resize drag.
      * @private
      * @param {PointerEvent} ev
      */

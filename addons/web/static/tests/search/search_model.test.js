@@ -1397,6 +1397,168 @@ test("a property deleted on the parent record stops contributing to the domain",
     expect(model.query.some((q) => q.searchItemId === gone.id)).toBe(false);
 });
 
+test("an active property group-by is retired when its definition is deleted", async () => {
+    // The item used to be re-typed to "group_by_property_deleted" and left in
+    // the query: nothing renders that type, so it disappeared from the Group By
+    // menu while the search bar kept a chip with no icon, no colour and no
+    // label for it, and the memos the view reads were never invalidated.
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+    });
+    let definitions = [{ name: "p1", string: "P1", type: "char" }];
+    model._fetchPropertiesDefinition = async () => [
+        { definitionRecordId: 1, definitionRecordName: "Parent", definitions },
+    ];
+    await model.fillSearchViewItemsProperty();
+
+    const item = Object.values(model.searchItems).find((i) => i.isProperty);
+    await model.toggleSearchItem(item.id);
+    expect(model.groupBy).toEqual(["properties.p1"]);
+    expect(model.facets).toHaveLength(1);
+
+    definitions = [];
+    await model.fillSearchViewItemsProperty();
+
+    expect(model.searchItems[item.id]).toBe(undefined);
+    expect(model.query).toEqual([]);
+    expect(model.groupBy).toEqual([]);
+    expect(model.facets).toEqual([]);
+});
+
+test("a definition record dropping out entirely retires its group-bys", async () => {
+    // The retiring pass used to key on definitionRecordId taken from the
+    // result, so a record that stopped contributing definitions was never
+    // considered at all.
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+    });
+    let result = [
+        {
+            definitionRecordId: 1,
+            definitionRecordName: "Parent",
+            definitions: [{ name: "p1", string: "P1", type: "char" }],
+        },
+    ];
+    model._fetchPropertiesDefinition = async () => result;
+    await model.fillSearchViewItemsProperty();
+
+    const item = Object.values(model.searchItems).find((i) => i.isProperty);
+    await model.toggleSearchItem(item.id);
+    expect(model.groupBy).toEqual(["properties.p1"]);
+
+    result = [];
+    await model.fillSearchViewItemsProperty();
+
+    expect(model.getSearchItems((i) => i.isProperty)).toEqual([]);
+    expect(model.groupBy).toEqual([]);
+    expect(model.facets).toEqual([]);
+});
+
+test("an untouched property group-by keeps its id across a refresh", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+    });
+    model._fetchPropertiesDefinition = async () => [
+        {
+            definitionRecordId: 1,
+            definitionRecordName: "Parent",
+            definitions: [
+                { name: "p1", string: "P1", type: "char" },
+                { name: "p2", string: "P2", type: "char" },
+            ],
+        },
+    ];
+    await model.fillSearchViewItemsProperty();
+    const idsBefore = model.getSearchItems((i) => i.isProperty).map((i) => i.id);
+
+    await model.fillSearchViewItemsProperty();
+
+    expect(model.getSearchItems((i) => i.isProperty).map((i) => i.id)).toEqual(
+        idsBefore,
+    );
+});
+
+test("editing the domain of a favorite that group-bys a property", async () => {
+    // splitAndAddDomain re-creates the favorite's group-bys as custom ones,
+    // which needs field metadata a property only gets once the definitions have
+    // been fetched. It used to throw a TypeError out of createNewGroupBy AFTER
+    // deactivating the favorite's group, losing the whole search.
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+        irFilters: [
+            {
+                context: "{'group_by': ['properties.p1']}",
+                domain: "[('foo', '=', 'a')]",
+                id: 1,
+                is_default: true,
+                name: "Fav",
+                sort: "[]",
+                user_ids: [2],
+            },
+        ],
+    });
+    model._fetchPropertiesDefinition = async () => [
+        {
+            definitionRecordId: 1,
+            definitionRecordName: "Parent",
+            definitions: [{ name: "p1", string: "P1", type: "char" }],
+        },
+    ];
+    expect(model.groupBy).toEqual(["properties.p1"]);
+    const facet = model.facets.find((f) => f.type === "favorite");
+
+    await model.splitAndAddDomain(`[("foo", "=", "b")]`, facet.groupId);
+
+    expect(JSON.stringify(model.domain)).toInclude("b");
+    expect(model.groupBy).toEqual(["properties.p1"]);
+});
+
+test("a favorite group-by on a deleted property drops the group-by, not the search", async () => {
+    const model = await createSearchModel({
+        searchViewArch: `
+            <search>
+                <field name="properties"/>
+            </search>
+        `,
+        irFilters: [
+            {
+                context: "{'group_by': ['properties.gone']}",
+                domain: "[('foo', '=', 'a')]",
+                id: 1,
+                is_default: true,
+                name: "Fav",
+                sort: "[]",
+                user_ids: [2],
+            },
+        ],
+    });
+    model._fetchPropertiesDefinition = async () => [
+        { definitionRecordId: 1, definitionRecordName: "Parent", definitions: [] },
+    ];
+    const facet = model.facets.find((f) => f.type === "favorite");
+
+    await model.splitAndAddDomain(`[("foo", "=", "b")]`, facet.groupId);
+
+    expect(JSON.stringify(model.domain)).toInclude("b");
+    expect(model.groupBy).toEqual([]);
+});
+
 test("search() invalidates the memos consumers detect changes by", async () => {
     const model = await createSearchModel({
         searchViewArch: `<search><filter name="filt" string="Filt" domain="[('foo','=','a')]"/></search>`,

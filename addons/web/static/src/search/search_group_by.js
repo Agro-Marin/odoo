@@ -1,13 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_group_by - GroupBy/OrderBy computation utilities for SearchModel */
+/** @module search/search_group_by */
 
 import { rankInterval } from "./utils/dates.js";
 
 /**
- * Reconstruct (active) groups from query elements and search items.
- *
  * @param {Object[]} query
  * @param {Object} searchItems
  * @returns {Object[]}
@@ -71,14 +69,6 @@ export function getQueryGroups(query, searchItems) {
 }
 
 /**
- * The groupId group-by search items share, or undefined when none exists yet.
- *
- * Group-bys form a SINGLE query group, so activating several of them yields one
- * ">"-separated facet the user can drop in one click. The parser puts every
- * arch group-by in `pregroupOfGroupBys`; the ones materialized later (custom
- * group-bys, property group-bys) have to join that group explicitly, or each
- * lands in a group of its own and the search bar grows one chip per group-by.
- *
  * @param {Object} searchItems
  * @returns {number|undefined}
  */
@@ -90,8 +80,6 @@ export function findGroupByGroupId(searchItems) {
 }
 
 /**
- * Compute group-bys for a single active search item.
- *
  * @param {Object} activeItem
  * @param {Object} searchItems
  * @returns {string[]|null}
@@ -116,14 +104,12 @@ export function computeSearchItemGroupBys(activeItem, searchItems) {
 }
 
 /**
- * Compute the full list of group-bys from all active groups.
- *
  * @param {Object} params
  * @param {Object[]} params.groups
  * @param {string[]} params.globalGroupBy
  * @param {string[]} [params.defaultGroupBy]
  * @param {boolean} params.fallbackOnDefault
- * @param {Function} params.getSearchItemGroupBys - (activeItem) => string[]|null
+ * @param {Function} params.getSearchItemGroupBys
  * @returns {string[]}
  */
 export function computeGroupBy({
@@ -154,15 +140,11 @@ export function computeGroupBy({
  */
 
 /**
- * Compute the order-by from active groups.
- *
  * @param {Object[]} groups
  * @param {Object} searchItems
- * @param {string[]} groupBy - current groupBy result
+ * @param {string[]} groupBy
  * @param {string|false} orderByCount
- * @param {OrderTerm[]} globalOrderBy - copied, never returned by reference: the
- *  caller memoizes and freezes the result, which would otherwise freeze the
- *  action-owned array this was built from (see computeGroupBy, same rule).
+ * @param {OrderTerm[]} globalOrderBy
  * @returns {OrderTerm[]}
  */
 export function computeOrderBy(
@@ -181,11 +163,6 @@ export function computeOrderBy(
             const { searchItemId } = activeItem;
             const searchItem = searchItems[searchItemId];
             if (searchItem.type === "favorite") {
-                // Copied per term, not spread by reference: the caller memoizes
-                // and freezes the result, but that freeze is SHALLOW, so a
-                // consumer editing a term would reach through into the favorite's
-                // own `orderBy` and corrupt it for every later activation. Same
-                // rule as `globalOrderBy` below.
                 orderBy.push(...searchItem.orderBy.map((term) => ({ ...term })));
             }
         }
@@ -194,8 +171,6 @@ export function computeOrderBy(
 }
 
 /**
- * Get selected generator ids for a date filter from the query.
- *
  * @param {Object[]} query
  * @param {number} dateFilterId
  * @returns {Array}

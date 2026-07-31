@@ -99,13 +99,13 @@
                     <div class="form-check w-100">
                         <input type="checkbox"
                             class="form-check-input"
-                            t-attf-id="{{ section.id }}_group_{{ groupId }}"
+                            t-attf-id="{{ idPrefix }}_{{ section.id }}_group_{{ groupId }}"
                             t-att-checked="groupState.checked"
                             t-att-indeterminate="groupState.indeterminate"
                             t-on-click="() => this.toggleFilterGroup(section.id, group)"
                         />
                         <label
-                            t-attf-for="{{ section.id }}_group_{{ groupId }}"
+                            t-attf-for="{{ idPrefix }}_{{ section.id }}_group_{{ groupId }}"
                             class="o_search_panel_label form-check-label d-flex align-items-center justify-content-between w-100 cursor-pointer"
                             t-att-class="{ o_with_counters: group.enableCounters }"
                             t-att-title="group.tooltip or false"
@@ -235,13 +235,13 @@
         <t t-set="value" t-value="values.get(valueId)"/>
         <div class="form-check w-100">
             <input type="checkbox"
-                t-attf-id="{{ section.id }}_input_{{ valueId }}"
+                t-attf-id="{{ idPrefix }}_{{ section.id }}_input_{{ valueId }}"
                 t-att-checked="value.checked"
                 class="form-check-input"
                 t-on-click="() => this.toggleFilterValue(section.id, valueId)"
             />
             <label class="o_search_panel_label form-check-label d-flex align-items-center justify-content-between w-100 cursor-pointer"
-                t-attf-for="{{ section.id }}_input_{{ valueId }}"
+                t-attf-for="{{ idPrefix }}_{{ section.id }}_input_{{ valueId }}"
                 t-att-title="(group and group.tooltip) or false">
                 <span class="o_search_panel_label_title text-truncate" t-esc="value.display_name"/>
                 <span t-if="section.enableCounters and value.__count gt 0"

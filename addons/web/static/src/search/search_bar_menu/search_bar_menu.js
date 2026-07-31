@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_bar_menu/search_bar_menu - Dropdown menu grouping Filter, Group By, Favorites, and search panels */
+/** @module @web/search/search_bar_menu/search_bar_menu */
 
 import { Component, useState } from "@odoo/owl";
 import { AccordionItem } from "@web/components/dropdown/accordion_item";
@@ -29,11 +29,6 @@ favoriteMenuRegistry.addValidation({
     "*": true,
 });
 
-/**
- * Dropdown menu, rendered in the search bar, that groups the Filter,
- * Group By (incl. custom/property group-bys), and Favorites panels, plus
- * registry-provided favorite menu items.
- */
 export class SearchBarMenu extends Component {
     static template = "web.SearchBarMenu";
     static components = {
@@ -67,11 +62,6 @@ export class SearchBarMenu extends Component {
     }
 
     /**
-     * Groupable fields, sorted by label. A live getter rather than a setup-time
-     * snapshot: `fillSearchViewItemsProperty` (properties flow) mutates
-     * `searchViewFields` at runtime, so a snapshot could go stale — matching the
-     * live-view convention `SearchBar.searchItemsFields` documents. Recomputing
-     * a sortBy over ~50 fields per menu render is negligible.
      * @returns {Object[]}
      */
     get fields() {
@@ -86,7 +76,7 @@ export class SearchBarMenu extends Component {
         return sortBy(fields, "string");
     }
 
-    /** @returns {Object[]} enriched filter and dateFilter search items */
+    /** @returns {Object[]} */
     get filterItems() {
         return this.env.searchModel.getSearchItems((searchItem) =>
             ["filter", "dateFilter"].includes(searchItem.type),
@@ -158,7 +148,7 @@ export class SearchBarMenu extends Component {
         this.env.searchModel.createNewGroupBy(fieldName);
     }
 
-    /** @returns {Object[]} private favorite search items (owned by current user) */
+    /** @returns {Object[]} */
     get favorites() {
         return this.env.searchModel.getSearchItems(
             (searchItem) =>
@@ -166,7 +156,7 @@ export class SearchBarMenu extends Component {
         );
     }
 
-    /** @returns {Object[]} all shared favorite search items */
+    /** @returns {Object[]} */
     get allSharedFavorites() {
         return this.env.searchModel.getSearchItems(
             (searchItem) =>
@@ -174,7 +164,7 @@ export class SearchBarMenu extends Component {
         );
     }
 
-    /** @returns {Object[]} shared favorite search items (collapsed to 3 until expanded) */
+    /** @returns {Object[]} */
     get sharedFavorites() {
         const sharedFavorites = this.allSharedFavorites;
         const expanded =
@@ -182,7 +172,7 @@ export class SearchBarMenu extends Component {
         return expanded ? sharedFavorites : sharedFavorites.slice(0, 3);
     }
 
-    /** @returns {{ Component: Function, groupNumber: number, key: string }[]} registry-provided favorite menu items */
+    /** @returns {{ Component: Function, groupNumber: number, key: string }[]} */
     get otherItems() {
         const registryMenus = [];
         for (const item of favoriteMenuRegistry.getAll()) {
@@ -217,13 +207,6 @@ export class SearchBarMenu extends Component {
     }
 
     /**
-     * Activate the edit-favorite affordance from the keyboard.
-     *
-     * It is an `<i>` carrying a click handler, so it had neither a role nor a
-     * way in from the keyboard: editing a favorite was mouse-only. The element
-     * is left as-is rather than promoted to a `<button>` because it has no
-     * `btn` classes and would pick up the browser's button styling.
-     *
      * @param {KeyboardEvent} ev
      * @param {number} itemId
      */
@@ -231,7 +214,6 @@ export class SearchBarMenu extends Component {
         if (ev.key !== "Enter" && ev.key !== " ") {
             return;
         }
-        // Both would otherwise reach the CheckboxItem and toggle the favorite.
         ev.preventDefault();
         ev.stopPropagation();
         this.editFavorite(itemId);

@@ -10,7 +10,7 @@
                             <button class="btn btn-secondary o_draggable"
                                     t-att-class="{ 'active': state.embeddedInfos.currentEmbeddedAction?.id === action.id}"
                                     t-on-click="() => this.onEmbeddedActionClick(action)"
-                                    t-att-data-id="action.id"
+                                    t-att-data-embedded-index="action_index"
                             >
                                 <span t-out="action.name"/>
                             </button>

@@ -1,15 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_enrichment - Pure search-item enrichment producing activated copies with period/interval metadata */
+/** @module @web/search/search_enrichment */
 
 import { getPeriodOptions } from "./utils/dates.js";
 
 /**
- * Enrich option descriptors with an `isActive` flag.
- *
  * @param {Object[]} options
- * @param {Array} selectedIds - currently selected option ids
+ * @param {Array} selectedIds
  * @returns {Object[]}
  */
 function enrichOptions(options, selectedIds) {
@@ -21,12 +19,6 @@ function enrichOptions(options, selectedIds) {
 }
 
 /**
- * Index the query elements by the search item they belong to.
- *
- * Enrichment is a whole-model pass, so scanning the query once here beats
- * re-filtering it inside every item (`items × query` comparisons per query
- * cycle, on a hot render path).
- *
  * @param {Object[]} query
  * @returns {Map<number, Object[]>}
  */
@@ -45,15 +37,8 @@ export function indexQueryBySearchItem(query) {
 }
 
 /**
- * Return an enriched copy of `searchItem` with activation status and
- * type-specific metadata (options, autocomplete values).
- *
- * Always returns an item — visibility is decided by the caller
- * (`getSearchItems` evaluates the item's `invisible` expression).
- *
  * @param {Object} searchItem
- * @param {Object[] | Map<number, Object[]>} query - current query elements, or
- *  the {@link indexQueryBySearchItem} index of them
+ * @param {Object[] | Map<number, Object[]>} query
  * @param {any} referenceMoment
  * @param {Object[]} intervalOptions
  * @returns {Object}

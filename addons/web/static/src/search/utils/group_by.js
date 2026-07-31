@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/utils/group_by - Group-by descriptor parser and interval validation for search queries */
+/** @module @web/search/utils/group_by */
 
 import { BACKEND_INTERVAL_OPTIONS, DEFAULT_INTERVAL } from "./dates.js";
 
@@ -14,12 +14,14 @@ function errorMsg(descr) {
 
 /**
  * @param {string} descr
- * @param {Object} fields
+ * @param {Record<string, any>} [fields]
  * @returns {Object}
  */
 export function getGroupBy(descr, fields) {
     let spec;
-    let [fieldName, interval] = descr.split(":");
+    const [fieldName, rawInterval] = descr.split(":");
+    /** @type {string | null | undefined} */
+    let interval = rawInterval;
     if (!fieldName) {
         throw Error(errorMsg(descr));
     }

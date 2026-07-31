@@ -4,6 +4,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { DEFAULT_INTERVAL } from "@web/search/utils/dates";
 import { getGroupBy } from "@web/search/utils/group_by";
 
+describe.current.tags("headless");
+
 const fields = {
     display_name: { string: "Displayed name", type: "char" },
     foo: {

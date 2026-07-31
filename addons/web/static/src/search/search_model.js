@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_model - Search state machine managing facets, domains, groupbys, and favorites */
+/** @module @web/search/search_model */
 
 import { EventBus, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
@@ -49,98 +49,6 @@ import { getIntervalOptions } from "./utils/dates.js";
 /** @import { Domain, DomainListRepr } from "@web/core/domain" */
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 /** @import { Field, FieldInfo, SearchParams } from "@web/model/types" */
-
-/**
- * Documents SearchModel's internal member surface — the instance state and
- * methods the split-out concerns (now the panel/properties/favorites/query/
- * split-domain mixins) read, write, or call back into. Every concern is folded
- * into the prototype chain and accesses this surface via ``this.*``; keeping the
- * surface enumerated here means a rename on the model side is a visible diff
- * against a single contract rather than a silent break scattered across mixins.
- * (Formerly the pass-`this` "delegate module" seam; the modules became mixins,
- * but the enumerated surface is still the useful invariant.)
- *
- * The former `& Record<string, any>` escape hatch (which admitted any property
- * access and defeated the whole point) has been removed.
- * Externally-provided objects (`env`, ORM/services, tree processor) are
- * intentionally `any` — they are not part of the invariant this contract guards.
- * Mutations are still funneled by convention rather than through dedicated
- * helper methods (see A11 note): tightening the typedef was the low-risk half.
- *
- * @typedef {{
- *   env: any,
- *   orm: any,
- *   dialog: any,
- *   fieldService: any,
- *   treeProcessor: any,
- *   DomainSelectorDialog: Function,
- *   getDefaultDomain: Function,
- *   resModel: string,
- *   isDebugMode: boolean,
- *   globalContext: Object,
- *   referenceMoment: Object,
- *   blockNotification: boolean,
- *   orderByCount: string | false,
- *   defaultGroupBy: string[] | undefined,
- *   defaultGroupByRemoved: boolean | undefined,
- *   query: Object[],
- *   searchItems: Record<number, Object>,
- *   searchViewFields: Record<string, Object>,
- *   nextId: number,
- *   nextGroupId: number,
- *   nextGroupNumber: number,
- *   facets: Object[],
- *   sections: Map<number, Section>,
- *   categories: Object[],
- *   filters: Object[],
- *   searchDomain: any[],
- *   searchPanelInfo: Object,
- *   sectionsPromise: Promise<void> | undefined,
- *   categoriesLoadId: number,
- *   filtersLoadId: number,
- *   display: Object,
- *   _rawContext: Object,
- *   _sections: Object[] | null,
- *   _sectionLoadIds: Map<number, number>,
- *   _enrichedSearchItems: Object[] | null,
- *   _filledPropertyFields: any,
- *   trigger: Function,
- *   _pendingNotification: boolean | undefined,
- *   _notify: () => Promise<void>,
- *   _drainPendingNotification: () => Promise<void>,
- *   _reset: () => void,
- *   _reloadSections: () => Promise<void>,
- *   clearQuery: Function,
- *   deactivateGroup: Function,
- *   createNewFilters: Function,
- *   createNewGroupBy: Function,
- *   toggleSearchItem: Function,
- *   toggleDateGroupBy: Function,
- *   _withNotificationsBlocked: (fn: () => void) => void,
- *   splitAndAddDomain: Function,
- *   getSearchItems: Function,
- *   _createGroupOfSearchItems: Function,
- *   _createIrFilters: Function,
- *   _createCategoryTree: Function,
- *   _createFilterTree: Function,
- *   _ensureCategoryValue: Function,
- *   _fetchCategories: Function,
- *   _fetchFilters: Function,
- *   _fetchSections: Function,
- *   _fetchPropertiesDefinition: Function,
- *   _getCategoryDomain: Function,
- *   _getDomain: Function,
- *   _getFilterDomain: Function,
- *   _getGroupBy: Function,
- *   _getGroupDomain: Function,
- *   _getGroups: Function,
- *   _getIrFilterDescription: Function,
- *   _getSearchItemContext: Function,
- *   _getSearchItemGroupBys: Function,
- *   _getSelectedGeneratorIds: Function,
- *   _shouldWaitForData: Function,
- * }} SearchModelLike
- */
 
 /**
  * @typedef {Object} Section
@@ -209,12 +117,10 @@ export class SearchModel extends SearchQueryMixin(
     /**
      * @param {Object} config
      * @param {string} config.resModel
-     *
      * @param {string} [config.searchViewArch="<search/>"]
      * @param {Object} [config.searchViewFields={}]
      * @param {number|false} [config.searchViewId=false]
      * @param {Object[]} [config.irFilters=[]]
-     *
      * @param {boolean} [config.activateFavorite=true]
      * @param {Object} [config.context={}]
      * @param {Array} [config.domain=[]]
@@ -385,19 +291,6 @@ export class SearchModel extends SearchQueryMixin(
                 this.searchDomain = /** @type {DomainListRepr} */ (
                     this._getDomain({ withSearchPanel: false })
                 );
-                // Seeded BEFORE the fetch, not after it: `_fetchCategories` and
-                // `_fetchFilters` build their `filter_domain` from the checked
-                // values, so checking the defaults afterwards left the FIRST
-                // counters describing the unfiltered set — the panel opened
-                // showing a selection whose counts belonged to no selection at
-                // all. `createFilterTree` carries `checked` over from the
-                // previous values map, so a placeholder entry is enough, and one
-                // the server does not return simply drops out.
-                //
-                // A category consumes its default as a scalar, a filter as a
-                // list of value ids; nothing enforces the two forms apart, so
-                // accept the scalar a caller naturally writes. Falsy stays
-                // "no default".
                 for (const { fieldName, values } of this.filters) {
                     const rawDefault = searchPanelDefaults[fieldName];
                     for (const valueId of rawDefault ? [].concat(rawDefault) : []) {
@@ -440,10 +333,6 @@ export class SearchModel extends SearchQueryMixin(
         this.globalGroupBy = "groupBy" in config ? groupBy || [] : this.globalGroupBy;
         this.globalOrderBy = "orderBy" in config ? orderBy || [] : this.globalOrderBy;
 
-        // Consumed once, at load. Re-applying them here would re-activate a
-        // default on every prop change (WithSearch.onWillUpdateProps reloads on
-        // any of them), including one the user has just switched off; they are
-        // stripped only so they cannot leak into the context sent to the server.
         this._extractSearchDefaultsFromGlobalContext();
 
         await this._reloadSections();
@@ -458,11 +347,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Sections of a given type, memoized per `sections` Map. Keyed on the Map
-     * itself rather than cleared in `_reset`: the Map is only ever replaced
-     * wholesale (`load`, `_importState`), never added to, so an identity check
-     * cannot go stale — and section *contents* changing (values, counters,
-     * errors) does not change which sections have which type.
      * @param {string} type
      * @returns {Section[]}
      */
@@ -481,8 +365,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Raw memoized context. Also the value the public `context` getter now
-     * returns directly (see there).
      * @returns {Context}
      */
     get _rawContext() {
@@ -494,21 +376,13 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Memoized context, returned by reference (frozen in dev) — same read-only
-     * convention as `facets`/`getSections`. The former deep-copy-on-every-access
-     * was redundant (makeContext already produced a detached object) and costly:
-     * views re-read this on every SearchParams build, several times per search
-     * interaction, over potentially large contexts.
-     * @returns {Context} should be imported from context.js?
+     * @returns {Context}
      */
     get context() {
         return this._rawContext;
     }
 
     /**
-     * Memoized domain, returned by reference (frozen in dev). computeDomain
-     * already JSON-round-trips into a detached structure, so the previous
-     * per-access deep copy was pure overhead. See the `context` getter.
      * @returns {DomainListRepr}
      */
     get domain() {
@@ -552,16 +426,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Unlike `context`/`domain`/`orderBy`, this returns a FRESH array on every
-     * access, and must keep doing so. `web.WithSearch` passes context, domain,
-     * groupBy, orderBy and display down as slot props, and Owl skips
-     * re-rendering a child whose props are all strictly identical
-     * (`arePropsDifferent` in owl.es.js). The other four are stable references
-     * within a query cycle, so this copy is the only thing that makes the view
-     * subtree re-render on a `WithSearch` render that did not reset the memos —
-     * see `search()`. `slice` rather than `deepCopy`: the entries are groupBy
-     * specs (strings), so the recursion bought nothing; it is the identity that
-     * is load-bearing, not the depth.
      * @returns {string[]}
      */
     get groupBy() {
@@ -575,8 +439,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Memoized orderBy, returned by reference (frozen in dev). See the `context`
-     * getter. Consumers (relational/graph/pivot models) only read or rebuild it.
      * @returns {OrderTerm[]}
      */
     get orderBy() {
@@ -601,8 +463,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Return an array containing enriched copies of all searchElements or of those
-     * satifying the given predicate if any
      * @param {(searchItem: Object) => boolean} [predicate]
      * @returns {Object[]}
      */
@@ -620,11 +480,6 @@ export class SearchModel extends SearchQueryMixin(
                     enrichedSearchItems.push(enrichedSearchitem);
                 }
             }
-            // Sorted once, here, rather than only when the result happens to
-            // contain a favorite: whether the list came back grouped used to
-            // depend on the caller's predicate. `id` breaks the ties
-            // `groupNumber` alone leaves to the engine, and covers the
-            // property-derived items that carry no groupNumber at all.
             enrichedSearchItems.sort(
                 (f1, f2) =>
                     (f1.groupNumber || 0) - (f2.groupNumber || 0) || f1.id - f2.id,
@@ -636,22 +491,11 @@ export class SearchModel extends SearchQueryMixin(
             : [...this._enrichedSearchItems];
     }
 
-    /**
-     * Re-run the current search (the search bar's Enter key and its magnifier).
-     * The reset is what makes the update reach the view: consumers detect a
-     * change by the identity of the context/domain/groupBy/orderBy slot props
-     * `WithSearch` hands them, and without it every one of them is still the
-     * memo from before — leaving `groupBy`'s copy-on-read as the only, accidental
-     * reason the view re-renders at all (see the `groupBy` getter).
-     */
     search() {
         this._reset();
         this.trigger(SearchModelEvent.UPDATE);
     }
 
-    /**
-     * Activate the default favorite (if any) or all default filters.
-     */
     _activateDefaultSearchItems(defaultFavoriteId) {
         if (defaultFavoriteId) {
             this.toggleSearchItem(defaultFavoriteId);
@@ -673,9 +517,6 @@ export class SearchModel extends SearchQueryMixin(
         }
     }
 
-    /**
-     * Add filters of type 'filter' determined by the key array dynamicFilters.
-     */
     _createGroupOfDynamicFilters(dynamicFilters) {
         const pregroup = dynamicFilters.map((filter) => ({
             groupNumber: this.nextGroupNumber,
@@ -688,13 +529,6 @@ export class SearchModel extends SearchQueryMixin(
         this._createGroupOfSearchItems(pregroup);
     }
 
-    /**
-     * Add filters of type 'favorite' determined by the array this.favoriteFilters.
-     */
-    /**
-     * Using a list (a 'pregroup') of 'prefilters', create new filters in `searchItems`
-     * for each prefilter. The new filters belong to a same new group.
-     */
     _createGroupOfSearchItems(pregroup) {
         pregroup.forEach((preSearchItem) => {
             const searchItem = Object.assign(preSearchItem, {
@@ -708,11 +542,6 @@ export class SearchModel extends SearchQueryMixin(
         this._enrichedSearchItems = null;
     }
 
-    /**
-     * Return null, or a copy of the filter enriched with info used only
-     * outside the control panel model (search bar, menus). Null means the
-     * filter should not appear.
-     */
     _enrichItem(searchItem, queryIndex) {
         return enrichSearchItem(
             searchItem,
@@ -727,8 +556,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Domain based on the current active categories; excludedCategoryId, if
-     * given, is left out of the computation.
      * @param {number} [excludedCategoryId]
      * @returns {Array[]}
      */
@@ -741,8 +568,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Construct a single context from the contexts of
-     * filters of type 'filter', 'favorite', and 'field'.
      * @returns {Object}
      */
     _getContext() {
@@ -751,10 +576,6 @@ export class SearchModel extends SearchQueryMixin(
         );
     }
 
-    /**
-     * Compute the string representation or the description of the current domain associated
-     * with a date filter starting from its corresponding query elements.
-     */
     _getDateFilterDomain(dateFilter, generatorIds, key = "domain") {
         return computeDateFilterDomain(
             this.referenceMoment,
@@ -765,9 +586,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Which components are displayed in the current action. Components are
-     * opt-out (shown unless a falsy value is given); the search panel must
-     * also match the view type when instantiated in a view.
      * @private
      * @param {Object} [display={}]
      * @returns {{ controlPanel: Object | false, searchPanel: boolean }}
@@ -786,13 +604,11 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Return a domain created by combinining appropriately (with an 'AND') the domains
-     * coming from the active groups of type 'filter', 'dateFilter', 'favorite', and 'field'.
      * @param {Object} [params]
      * @param {boolean} [params.raw=false]
      * @param {boolean} [params.withSearchPanel=true]
      * @param {boolean} [params.withGlobal=true]
-     * @returns {DomainListRepr | Domain} Domain instance if 'raw', else the evaluated list domain
+     * @returns {DomainListRepr | Domain}
      */
     _getDomain(params = {}) {
         const withSearchPanel =
@@ -826,18 +642,11 @@ export class SearchModel extends SearchQueryMixin(
         });
     }
 
-    /**
-     * Return the domain resulting from the combination of the autocomplete values
-     * of a search item of type 'field'.
-     */
     _getFieldDomain(field, autocompleteValues) {
         return computeFieldDomain(field, autocompleteValues);
     }
 
     /**
-     * Domain from currently checked filters: values within a group are
-     * OR'd, groups are AND'd (an ungrouped filter's values form an implicit
-     * group). excludedFilterId, if given, is left out of the computation.
      * @param {number} [excludedFilterId]
      * @returns {Array[]}
      */
@@ -846,9 +655,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Concatenation of groupBys from active 'favorite' and 'groupBy' filters:
-     * favorite's groupBys first, then 'groupBy' filters in query order.
-     * Falls back to globalGroupBy / defaultGroupBy if none are found.
      * @param {Object} [options={}]
      * @param {boolean} [options.fallbackOnDefault=true]
      * @returns {string[]}
@@ -867,8 +673,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Domain(s) that complement the filter domain so record counts per
-     * filter value aren't skewed by other checked values in the same group.
      * @param {Filter} filter
      * @returns {Object<string, Array[]> | Array[] | null}
      */
@@ -877,7 +681,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Reconstruct the (active) groups from the query elements.
      * @returns {Object[]}
      */
     _getGroups() {
@@ -900,16 +703,10 @@ export class SearchModel extends SearchQueryMixin(
         );
     }
 
-    /**
-     * Return the context of the provided (active) filter.
-     */
     _getSearchItemContext(activeItem) {
         return computeSearchItemContext(activeItem, this.searchItems);
     }
 
-    /**
-     * Return the domain of the provided filter.
-     */
     _getSearchItemDomain(activeItem) {
         return computeSearchItemDomain(
             activeItem,
@@ -922,10 +719,6 @@ export class SearchModel extends SearchQueryMixin(
         return computeSearchItemGroupBys(activeItem, this.searchItems);
     }
 
-    /**
-     * Starting from a date filter id, returns the array of option ids currently selected
-     * for the corresponding date filter.
-     */
     _getSelectedGeneratorIds(dateFilterId) {
         return getSelectedGeneratorIds(this.query, dateFilterId);
     }
@@ -964,18 +757,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Emit the notification a query mutation raised while a blocking window was
-     * open, when that window was NOT opened by `_notify` itself (`reload`, and
-     * any future async entry point that batches). `_notify`'s own do/while
-     * drains its window; every other opener must drain here or the update is
-     * lost for good — the flag has no other consumer, so the view would keep
-     * showing results for the pre-mutation domain until the next interaction.
-     *
-     * Must be called after the blocking window is closed (and, for
-     * `_reloadSections`, outside `_reloadMutex`): `_notify` re-enters
-     * `_reloadSections`, which would deadlock on a mutex still held by the
-     * caller.
-     *
      * @returns {Promise<void>}
      */
     async _drainPendingNotification() {
@@ -987,10 +768,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Freeze a memoized getter result in dev mode to enforce the read-only
-     * convention (shared with facets/getSections). Shallow (top-level) — enough
-     * to catch an accidental push/splice or top-level key assignment — and a
-     * no-op in production so the hot render path pays nothing.
      * @template T
      * @param {T} value
      * @returns {T}
@@ -1014,9 +791,6 @@ export class SearchModel extends SearchQueryMixin(
     }
 
     /**
-     * Legacy compatibility: the imported state of a legacy search panel model
-     * extension doesn't include the arch information, i.e. the class name and
-     * view types. We have to extract those if they are not given.
      * @param {Object} searchViewDescription
      * @param {Object} searchViewFields
      */

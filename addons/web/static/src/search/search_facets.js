@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_facets - Facet building utilities for SearchModel */
+/** @module search/search_facets */
 
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
@@ -12,14 +12,6 @@ import { BACKEND_INTERVAL_OPTIONS } from "./utils/dates.js";
 import { FACET_COLORS, FACET_ICONS } from "./utils/misc.js";
 
 /**
- * Describe an interval for a facet label, falling back to the raw id.
- *
- * Ranked against the BACKEND options, not the five the UI offers, for the same
- * reason `rankInterval` is: `hour` is a legal group-by interval that a
- * `<filter context="{'group_by': 'x:hour'}">` puts straight into the query, and
- * looking it up in the UI-only table produced a facet with NO values at all —
- * an empty chip the user could see but not read.
- *
  * @param {string} intervalId
  * @returns {string}
  */
@@ -28,12 +20,6 @@ function intervalDescription(intervalId) {
 }
 
 /**
- * Icon of a facet: a group-by facet carries the count-sort arrow whenever the
- * count sort is on. Shared by the query-driven facets and the synthetic
- * default-group-by facet below — `computeOrderBy` count-sorts a surviving
- * `defaultGroupBy` too, so the two must show the same icon or the sort looks
- * inactive on the only facet the user can click to flip it.
- *
  * @param {string} type
  * @param {string|false} orderByCount
  * @returns {string}
@@ -46,13 +32,11 @@ function groupByIcon(type, orderByCount) {
 }
 
 /**
- * Build the facets array from active query groups.
- *
  * @param {Object} params
- * @param {Object[]} params.groups - active query groups
+ * @param {Object[]} params.groups
  * @param {Object} params.searchItems
- * @param {Function} params.getSearchItemDomain - (activeItem) => Domain|null
- * @param {Function} params.getDateFilterDomain - (searchItem, generatorIds, key) => string
+ * @param {Function} params.getSearchItemDomain
+ * @param {Function} params.getDateFilterDomain
  * @param {string|false} params.orderByCount
  * @param {string[]} params.globalGroupBy
  * @param {string[]} [params.defaultGroupBy]

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_favorites_mixin - Favorite (ir.filters) management mixed into SearchModel */
+/** @module @web/search/search_favorites_mixin */
 
 import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
@@ -14,28 +14,14 @@ import {
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js";
 
 /**
- * Favorite (``ir.filters``) management for SearchModel: creating/persisting
- * favorites, deriving the ir.filter description of the current query, and
- * reconciling imported favorites against the server records.
- *
- * Mixed into SearchModel (``extends SearchFavoritesMixin(...)``) rather than
- * kept as pass-``this`` module functions so the methods live on the prototype
- * chain: enterprise ``knowledge`` overrides ``_reconciliateFavorites`` to a
- * no-op and reaches it via the class, and every internal call routes through
- * ``this`` so such overrides are honoured. Query-item state (``searchItems``,
- * ``query``, ``nextId``/``nextGroupId``), the domain/context/groupBy builders,
- * ``clearQuery``, ``_createGroupOfSearchItems`` and ``_notify`` live on
- * SearchModel and are reached via ``this``.
- *
  * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchFavoritesMixin = (Base) =>
     class extends Base {
         /**
-         * Create a new filter of type 'favorite' and activate it.
          * @param {Object} params
-         * @returns {Promise<number>} the server-side ir.filters id
+         * @returns {Promise<number>}
          */
         async createNewFavorite(params) {
             const { preFavorite, irFilter } = this._getIrFilterDescription(params);
@@ -60,14 +46,10 @@ export const SearchFavoritesMixin = (Base) =>
                 this.nextGroupId++;
                 this.nextId++;
             });
-            // Awaited, not floated: callers await this id to close a dialog or
-            // chain a save, so the reload must have settled by then, and a
-            // rejection needs to reach them rather than go unhandled.
             await this._notify();
             return serverSideId;
         }
 
-        /** Create an ir.filters record on the server. */
         async _createIrFilters(irFilter) {
             const serverSideIds = await this.orm.call("ir.filters", "create_filter", [
                 irFilter,
@@ -76,21 +58,17 @@ export const SearchFavoritesMixin = (Base) =>
             return serverSideIds[0];
         }
 
-        /** The ir.filter payload for the current query (used to persist a favorite). */
         getIrFilterValues(params) {
             const { irFilter } = this._getIrFilterDescription(params);
             return irFilter;
         }
 
-        /** The pre-favorite descriptor for the current query (context/groupBys/orderBy). */
         getPreFavoriteValues(params) {
             const { preFavorite } = this._getIrFilterDescription(params);
             return preFavorite;
         }
 
         /**
-         * Build both the pre-favorite descriptor and the ir.filter payload that
-         * capture the current query's context, domain, groupBy and orderBy.
          * @param {Object} [params]
          */
         _getIrFilterDescription(params = {}) {
@@ -125,8 +103,6 @@ export const SearchFavoritesMixin = (Base) =>
         }
 
         /**
-         * Turn loaded ir.filters into favorite search items, returning the id of
-         * the default favorite (if any).
          * @param {Object[]} irFilters
          * @returns {number|null}
          */
@@ -142,13 +118,11 @@ export const SearchFavoritesMixin = (Base) =>
             return defaultFavoriteId;
         }
 
-        /** Convert an ir.filter record into a favorite search item. */
         _irFilterToFavorite(irFilter) {
             return irFilterToFavorite(irFilter, this.searchViewFields);
         }
 
         /**
-         * Reconciliate the search items with the ir.filters.
          * @private
          */
         _reconciliateFavorites() {
@@ -162,9 +136,6 @@ export const SearchFavoritesMixin = (Base) =>
                 (irFilter) => this._irFilterToFavorite(irFilter),
                 (irFilters) => this._createGroupOfFavorites(irFilters),
             );
-            // Replacing/removing favorites in place invalidates the enrichment
-            // memo, and `_createGroupOfSearchItems` only clears it when there is
-            // at least one NEW favorite to create.
             this._enrichedSearchItems = null;
         }
     };

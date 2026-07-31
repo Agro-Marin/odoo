@@ -396,6 +396,123 @@ describe("EmbeddedActions.saveNewAction", () => {
     });
 });
 
+describe("EmbeddedActions.reorderFromDrop", () => {
+    /**
+     * Build a minimal `this` for reorderFromDrop, keeping the real sortActions
+     * so the assertions cover the resulting tab order and not just the payload.
+     * @param {number[]} ids
+     * @param {Function} setEmbeddedActionsConfig
+     */
+    function makeReorderSelf(ids, setEmbeddedActionsConfig) {
+        return {
+            embeddedInfos: { embeddedActions: ids.map((id) => ({ id })) },
+            sortActions: EmbeddedActions.prototype.sortActions,
+            configHandler: { setEmbeddedActionsConfig },
+        };
+    }
+
+    /**
+     * A tab as the template renders it: tagged with its position in the bar,
+     * never with its action id.
+     * @param {number|string} index
+     */
+    function tab(index) {
+        const element = document.createElement("button");
+        element.dataset.embeddedIndex = String(index);
+        return element;
+    }
+
+    test("dropping after a sibling persists the new order", async () => {
+        /** @type {number[] | undefined} */
+        let persisted;
+        const self = makeReorderSelf([7, 8, 9], async ({ embedded_actions_order }) => {
+            persisted = embedded_actions_order;
+            return true;
+        });
+
+        await EmbeddedActions.prototype.reorderFromDrop.call(self, {
+            element: tab(2),
+            previous: tab(0),
+        });
+
+        expect(persisted).toEqual([7, 9, 8]);
+        expect(self.embeddedInfos.embeddedActions.map((a) => a.id)).toEqual([7, 9, 8]);
+    });
+
+    test("dropping without a previous sibling moves the tab to the front", async () => {
+        /** @type {number[] | undefined} */
+        let persisted;
+        const self = makeReorderSelf([7, 8, 9], async ({ embedded_actions_order }) => {
+            persisted = embedded_actions_order;
+            return true;
+        });
+
+        await EmbeddedActions.prototype.reorderFromDrop.call(self, { element: tab(2) });
+
+        expect(persisted).toEqual([9, 7, 8]);
+        expect(self.embeddedInfos.embeddedActions.map((a) => a.id)).toEqual([9, 7, 8]);
+    });
+
+    test("an unparseable position is ignored instead of dropping the last tab", async () => {
+        let calls = 0;
+        const self = makeReorderSelf([7, 8, 9], async () => {
+            calls++;
+            return true;
+        });
+
+        await EmbeddedActions.prototype.reorderFromDrop.call(self, {
+            element: tab("nope"),
+            previous: tab(0),
+        });
+
+        expect(calls).toBe(0);
+        expect(self.embeddedInfos.embeddedActions.map((a) => a.id)).toEqual([7, 8, 9]);
+    });
+
+    test("the main action, whose id is false, can be reordered", async () => {
+        /** @type {any[] | undefined} */
+        let persisted;
+        const self = makeReorderSelf(
+            [false, 102, 103],
+            async ({ embedded_actions_order }) => {
+                persisted = embedded_actions_order;
+                return true;
+            },
+        );
+
+        // The main action's id is `false`, which OWL strips from a `t-att-`
+        // attribute instead of rendering; tagging tabs by position is what
+        // keeps it addressable from a drop.
+        await EmbeddedActions.prototype.reorderFromDrop.call(self, {
+            element: tab(0),
+            previous: tab(1),
+        });
+
+        expect(persisted).toEqual([102, false, 103]);
+        expect(self.embeddedInfos.embeddedActions.map((a) => a.id)).toEqual([
+            102,
+            false,
+            103,
+        ]);
+    });
+
+    test("a position outside the bar is ignored", async () => {
+        let calls = 0;
+        const self = makeReorderSelf([7, 8, 9], async () => {
+            calls++;
+            return true;
+        });
+
+        await EmbeddedActions.prototype.reorderFromDrop.call(self, {
+            element: tab(404),
+            previous: tab(0),
+        });
+
+        expect(calls).toBe(0);
+        expect(self.embeddedInfos.embeddedActions.map((a) => a.id)).toEqual([7, 8, 9]);
+    });
+});
+
 describe("EmbeddedActionsBar rendering", () => {
     class EmbeddedActionsFoo extends models.Model {
         _name = "embedded.actions.foo";

@@ -1,11 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_context - Context computation utilities for SearchModel */
+/** @module search/search_context */
 
 /**
- * Compute the context for a single active search item.
- *
  * @param {Object} activeItem
  * @param {Object} searchItems
  * @returns {Object|null}
@@ -49,11 +47,9 @@ export function computeSearchItemContext(activeItem, searchItems) {
 }
 
 /**
- * Compute the combined search context from all active groups.
- *
- * @param {Object[]} groups - active query groups
+ * @param {Object[]} groups
  * @param {Object} userContext
- * @param {Function} getSearchItemContext - (activeItem) => Object|null
+ * @param {Function} getSearchItemContext
  * @returns {Object}
  */
 export function computeSearchContext(groups, userContext, getSearchItemContext) {

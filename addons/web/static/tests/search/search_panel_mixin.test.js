@@ -583,6 +583,37 @@ describe("_fetchCategories per-section stale guard", () => {
         expect(applied.get(1)).toBe(resultA);
         expect(applied.get(2)).toBe(resultB2);
     });
+
+    test("a client-side failure is not laundered into a section error message", async () => {
+        // Building the RPC kwargs used to happen inside the try that guards the
+        // call, so a programming error (a category naming a field absent from
+        // searchViewFields makes _getCategoryDomain throw) was rendered in the
+        // search panel as "Cannot destructure property 'type' of 'e[t]'" —
+        // no dialog, no traceback, indistinguishable from a server refusal.
+        const category = makeCategory(1, { fieldName: "a" });
+        const created = [];
+        const { orm } = makeMockOrm();
+        const model = makeSearchModel(new Map([[1, category]]), {
+            _sectionLoadIds: new Map(),
+            orm,
+            globalContext: {},
+            resModel: "res.partner",
+            categories: [category],
+            _getFilterDomain: () => [],
+            _getCategoryDomain: () => {
+                throw new TypeError("cannot read type of undefined");
+            },
+            _createCategoryTree: (id, result) => created.push([id, result]),
+            _reset() {},
+            trigger() {},
+        });
+
+        await expect(model._fetchCategories([category])).rejects.toThrow(
+            /cannot read type of undefined/,
+        );
+        expect(created).toEqual([]);
+        expect(category.errorMsg).toBe(undefined);
+    });
 });
 
 describe("_shouldWaitForData", () => {
