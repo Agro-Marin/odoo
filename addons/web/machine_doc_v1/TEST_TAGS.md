@@ -2,6 +2,9 @@
 
 Quick reference for running targeted subsets of `core/addons/web/tests/`.
 
+> Iterating on JS? Skip to **[Fastest edit/run loop](#fastest-editrun-loop--start-here)** —
+> one test file is ~6 s, not one of the whole-tag times below.
+
 ## By Speed/Type
 
 | Tag | Type | Tests | Time |
@@ -9,11 +12,18 @@ Quick reference for running targeted subsets of `core/addons/web/tests/`.
 | `web_unit` | TransactionCase (pure Python, + 1 stray HttpCase) | 286 tests | ~45s |
 | `web_http` | HttpCase (url_open, no browser) | 87 tests | ~5 min |
 | `web_tour` | HttpCase (start_tour/browser_js) | 5 tests | ~2 min |
-| `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr |
+| `web_js` | Full JS suites (HOOT) | 37 tests | ~1-2 hr † |
+| `addon_js` | HOOT suites of addons with no runner of their own | 159 tests | depends on the DB's module set |
 | `web_perf` | Query count regression (@warmup) | 26 tests | ~2 min |
 | `web_benchmark` | Statistical timing (run_benchmark) | 8 tests | ~5 min |
 | `click_all` | Click-everywhere (-standard) | 2 tests (TestMenusAdmin, TestMenusDemo) | ~1+ hr |
 
+> † The `web_js` figure is inherited and has **not** been re-measured. What has:
+> the desktop `@web/...` suites are 9339 tests in ~613 s of serial runtime
+> (235 s wall at `hoot-shard -j 3`), so the hour-plus is dominated by whatever
+> else the tag drags in — `test_hoot` alone carries a 1800 s timeout. Never
+> reach for the whole tag to check one change.
+>
 > Counting basis: these are **tests as Odoo's loader collects them**
 > (`odoo.tests.loader.make_suite(['web'], '<tag>')`), which includes methods
 > inherited from untagged base classes. That is deliberately *not* a textual
@@ -35,6 +45,108 @@ Quick reference for running targeted subsets of `core/addons/web/tests/`.
 > conventions (`-standard`, `external`, `post_install`, `-at_install`).
 > They are not selected by any of the filters in this table; run with
 > the `/web` module filter alone (`-u web`) to include them.
+
+## Fastest edit/run loop — start here
+
+A single HOOT test **file** costs ~6 s and a single **test** ~5 s. Nothing below
+needs a warm server, a special tool, or a full group run; the cost is dominated
+by process start, not by the tests.
+
+```bash
+# ONE file (78 tests, measured 6.1s)
+--test-tags '/web:WebSuite.test_core[@web/core/domain]'
+
+# ONE test inside it
+--test-tags '/web:WebSuite.test_core[@web/core/domain/Basic Properties/empty]'
+
+# the same method without the parameter runs the WHOLE group (1803 tests, ~50s)
+--test-tags '/web:WebSuite.test_core'
+```
+
+The suite/test path is a **bracketed parameter**, not a dotted path. The spec
+grammar is `[-][tag][/module][:Class][.method][[params]]`
+(`odoo/tests/tag_selector.py`); `_run_hoot` hashes each parameter into the
+`&id=` filter HOOT resolves against either a suite **or** a single test.
+
+**Do not pass `-u web`.** It is not needed to pick up JS changes — a fresh
+`odoo-bin` process rebuilds asset bundles from source, including brand-new
+`*.test.js` files — and it costs ~50%: 9.5 s median against 6.2 s over three
+runs each of the same one-file selection.
+
+**A spec that matches nothing now fails the run.** It used to collect zero tests
+and exit `0`, so `:WebSuite.test_core.@web/core/domain` (dot instead of
+brackets), an unknown method and an unknown class all read as clean runs.
+`preload_registries` returns non-zero when an explicit `--test-tags` selects no
+test; `--test-enable` alone is unaffected, so installing a module that ships no
+tests is still legal. Read `odoo.tests.result: … of N tests` regardless.
+
+**A bracketed suite path that matches nothing also fails now — it used to run
+everything.** HOOT resolves `&id=` against registered jobs, and
+`runner.js::_simplifyIncludeSpecs` *dropped* an id it could not resolve and
+warned. That is what the interactive UI needs (it keeps ids in the URL across
+runs, so a renamed test would wedge the page) but it is fail-open: with the last
+id gone `hasFilter` is false and the whole bundle runs. Measured on
+`[@web/core/does_not_exist]`: the warm runner reported `WARN … exit 0` after
+181 s and 4410 tests, and `odoo-bin` ran 10108 tests across `@base_import`,
+`@bus` and `@html_editor` before dying on the 900 s script timeout with nothing
+naming the bad id. Headless runs now abort in ~5 s with
+`HootError: no suite or test matches id "…"`; the UI is unchanged.
+
+### Warm-server runner (`web/tooling/scripts/`)
+
+`./hoot '@web/core/domain'` is ~2 s faster again per run and takes plain suite
+paths, and `./hoot-shard` runs the whole desktop suite in parallel — **14209
+tests in 311 s wall at `-j 4`** against ~1216 s serial. Its suite list is read
+from `test_js.py` (it once silently omitted `@html_editor` and covered 66% of the
+tests), heavy suites are split into child ids, and each suite gets its own page
+load so results mean what CI means. See that directory's `README.md`.
+`./hoot --affected` selects suites from your git diff across **all four addon
+repos**; add `--downstream` for suites in other addons.
+
+> **Stale-source warning.** A long-lived `--dev=assets` server can serve the
+> *previous* `static/src` with no error: `*.test.js` edits rebuilt, `static/src`
+> edits did not, and a src constant flipped three times was served frozen 10
+> runs running. The cause was inotify watches missing on directories nested
+> inside a subtree moved in whole (a branch switch), fixed in
+> `odoo/service/_watcher.py::FSWatcherInotify._watch_directory`. If a result
+> ever looks impossible, `./hoot --restart` re-registers every watch — and a
+> per-run `odoo-bin` process is immune by construction.
+
+### Presets and tags
+
+`WebSuite` runs `preset=desktop`, `MobileWebSuite` runs `preset=mobile` **with
+`tag=-headless`**. So:
+
+| Tag on a test | Desktop pass | Mobile pass |
+|---|---|---|
+| *(none)* | runs | runs — but only if its **file** owns a mobile test (see below) |
+| `desktop` | runs | skipped |
+| `mobile` | skipped | runs |
+| `headless` | runs | skipped |
+
+`headless` means DOM-free, not "no browser": it still runs in the desktop pass.
+
+**The mobile pass is scoped to the files that own a mobile test.** The preset
+excludes only `desktop`-tagged tests, and 49% of `@web` plus 97% of
+`@html_editor` carry no platform tag at all, so the mobile pass used to be 9393
+tests and ~875 s of serial runtime against **198** tests that actually carry a
+`mobile` tag. Across ~23600 executions its failure set was a strict subset of the
+desktop pass's — the same 7 cross-suite pollution failures, nothing else.
+`MobileWebSuite._run_hoot` now narrows each category to the 45 test files that
+own a mobile test (`_mobile_suites_under`), which keeps every mobile test and the
+untagged tests sitting beside them: **2225 tests, 261 s**. A category with no
+mobile test at all (`test_core`, `test_services`, `test_public`, `test_model`,
+`test_misc`) skips with a message rather than running — an empty id list would
+otherwise mean *no filter*, i.e. the whole bundle.
+
+An explicit `--test-tags` suite path bypasses the narrowing: that path is
+someone asking for exactly what they typed.
+
+`./hoot --preset mobile` sends `-headless` by default so it matches CI; use
+`--tag ''` for the unfiltered superset, or `--tag` for anything else. Note
+`--tag mobile` does **not** restrict a run to mobile-tagged tests — a positive
+tag include does not exclude untagged jobs (measured: `@web/views/list` gives
+421 tests with `--tag mobile` against 358 with CI's `-headless`).
 
 ## Granular JS Tests (web_js)
 
@@ -123,6 +235,37 @@ mobile-only suite as a silent zero — see `web/tooling/scripts/README.md`.
 | `web_typed_services` | test_typed_services_consistency | `@types/registries/services.d.ts` ↔ runtime registry consistency |
 | `assets_bundle` | test_assets | Bundle generation timings and asset cursors (sub-tag alongside `web_assets`) |
 | `web_bundle_size` | test_web_bundle_size | ESM bundle byte-size regression gate; pins upper-bound budgets per bundle (sub-tag alongside `web_perf` and `web_assets`) |
+
+## Addons with no runner of their own (`addon_js`)
+
+`_run_hoot` selects suites by explicit name, so a suite no runner names never
+runs — and the page still reports success for the tests it *did* run, so nothing
+goes red. That was **660 test files across 159 addons, 38% of the workspace's
+HOOT tests**, tracked in a hand-maintained `KNOWN_UNCOVERED_ADDONS` allowlist
+that only grew when someone noticed. `base_import` sat in it with 38 tests, two
+broken, one of them a real UI bug.
+
+`tests/test_js_addons.py` closes it structurally: it walks every addon that
+bundles `*.test.js`, subtracts what the 14 explicit runners already select, and
+**generates one test method per remaining addon** (`AddonSuite.test_<addon>`,
+tag `addon_js`). A new addon is covered the day it lands.
+
+- Selection is per **suite**, not per addon: `point_of_sale` has a runner for
+  `@point_of_sale/unit` and bundles one file outside it, so its generated method
+  runs only that file.
+- A method **skips** when its addon is not installed on the test database —
+  coverage follows whatever module set the CI job built.
+- `KNOWN_FAILING_ADDONS` in that module is the remaining debt: addons whose
+  suites do not pass yet. `test_every_addon_unit_suite_is_selected_by_a_runner`
+  asserts it exact in both directions, so it can only shrink.
+
+```bash
+--test-tags 'addon_js'                        # every generated addon runner
+--test-tags '/web:AddonSuite.test_web_studio' # one addon
+```
+
+For the dev loop use the warm runner instead — it installs the module into its
+own DB and needs no CI database: `./hoot '@web_studio/navigation'`.
 
 ## HOOT suite scoping (`&module_scope=`)
 

@@ -153,6 +153,12 @@ class IrHttp(models.AbstractModel):
             "test_mode": config["test_enable"],
             "cwv_sample_rate": cwv_sample_rate,
             "feature_flags": self._resolve_feature_flags(ir_config_sudo),
+            # Whether ``ilike`` folds accents on this database. The web client
+            # evaluates the same domains in memory (``@web/core/domain``) and
+            # has to make the same choice: ``--unaccent`` defaults to off, so a
+            # database without the extension compares ``café`` and ``cafe`` as
+            # different text and the client must not fold either.
+            "has_unaccent": bool(self.env.registry.has_unaccent),
         }
         if request.session.debug:
             info["bundle_params"]["debug"] = request.session.debug

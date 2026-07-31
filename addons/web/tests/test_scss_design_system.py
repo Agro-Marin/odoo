@@ -54,9 +54,27 @@ def _contrast_ratio(fg, bg):
     return (lighter + 0.05) / (darker + 0.05)
 
 
+_VAR_WITH_FALLBACK = re.compile(r"var\(\s*--[\w-]+\s*,\s*([^()]*)\)")
+
+
+def _resolve_var_fallbacks(css_value):
+    """Substitute every `var(--x, fallback)` with its fallback.
+
+    The utilities carry their opacity as `RGBA(r, g, b, var(--text-opacity, 1))`
+    so a surface can retune it; unset - which `@property … inherits:false`
+    guarantees at the top of a cascade - the browser uses the fallback, and that
+    is the colour the declaration ships.
+    """
+    previous = None
+    while previous != css_value:
+        previous = css_value
+        css_value = _VAR_WITH_FALLBACK.sub(r"\1", css_value)
+    return css_value
+
+
 def _parse_color(css_value):
     """Parse `#rgb`, `#rrggbb` and `rgb()`/`rgba()` into ((r, g, b), alpha)."""
-    css_value = css_value.strip()
+    css_value = _resolve_var_fallbacks(css_value.strip())
     hex_match = re.fullmatch(r"#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})", css_value)
     if hex_match:
         digits = hex_match.group(1)
@@ -74,6 +92,18 @@ def _parse_color(css_value):
 
 def _composite(fg, alpha, bg):
     return [alpha * f + (1 - alpha) * b for f, b in zip(fg, bg, strict=True)]
+
+
+def _declaration(css, prop):
+    """Value declared for `prop`, or None. Works on a rule body or a whole bundle.
+
+    Anchored at a declaration boundary because a substring test does not
+    distinguish a property from every property ending in it: `color` matches
+    `background-color`, which was enough to pick `.o_cohort_view thead` - a rule
+    that declares a background and no text colour - as the list header.
+    """
+    match = re.search(rf"(?:^|[;{{])\s*{re.escape(prop)}\s*:\s*([^;}}]+)", css)
+    return match.group(1).strip() if match else None
 
 
 @tagged("-at_install", "post_install")
@@ -115,28 +145,23 @@ class TestScssDesignSystem(TransactionCase):
         haystack = self.css if css is None else css
         return [body for _, body in re.findall(pattern, haystack, re.MULTILINE)]
 
-    def _rule(self, selector, containing=None, css=None):
-        """Body of the last matching rule, optionally the last one declaring `containing`.
-
-        `containing` is matched at a declaration boundary rather than anywhere in
-        the body: as a bare substring, `color:` also matches `background-color:`,
-        which selected rules that never declare a foreground at all.
-        """
+    def _rule(self, selector, declaring=None, css=None):
+        """Body of the last matching rule, optionally the last one declaring `declaring`."""
         bodies = [
             b
             for b in self._rules(selector, css=css)
-            if containing is None or re.search(rf"(?:^|;)\s*{re.escape(containing)}", b)
+            if declaring is None or _declaration(b, declaring) is not None
         ]
         self.assertTrue(
-            bodies, f"no rule found for {selector} (containing {containing!r})"
+            bodies, f"no rule found for {selector} (declaring {declaring!r})"
         )
         return bodies[-1]
 
     def _page_background(self):
         """First `--body-bg` in the bundle: light mode, emitted before the dark override."""
-        match = re.search(r"--body-bg:\s*([^;}]+)", self.css)
-        self.assertTrue(match, "--body-bg is not defined")
-        return _parse_color(match.group(1))[0]
+        value = _declaration(self.css, "--body-bg")
+        self.assertTrue(value, "--body-bg is not defined")
+        return _parse_color(value)[0]
 
     def test_subdued_text_meets_wcag_aa_in_both_schemes(self):
         """Subdued text must reach for the muted token, not a step of the ramp.
@@ -153,21 +178,17 @@ class TestScssDesignSystem(TransactionCase):
         """
         failures = []
         for scheme, css in (("light", self.css), ("dark", self._compiled(DARK_BUNDLE))):
-            page = re.search(r"--body-bg:\s*([^;}]+)", css)
+            page = _declaration(css, "--body-bg")
             self.assertTrue(page, f"{scheme}: --body-bg is not defined")
-            background = _parse_color(page.group(1))[0]
+            background = _parse_color(page)[0]
 
-            body = self._rule(LIST_HEADER, containing="color:", css=css)
-            colour = re.search(r"(?:^|;)color:\s*([^;}]+)", body)
-            self.assertTrue(colour, f"{scheme}: list header declares no colour")
-            rgb, alpha = _parse_color(colour.group(1))
+            body = self._rule(LIST_HEADER, declaring="color", css=css)
+            colour = _declaration(body, "color")
+            rgb, alpha = _parse_color(colour)
 
             ratio = _contrast_ratio(_composite(rgb, alpha, background), background)
             if ratio < WCAG_AA_TEXT:
-                failures.append(
-                    f"{scheme}: {colour.group(1).strip()} on "
-                    f"{page.group(1).strip()} = {ratio:.2f}:1"
-                )
+                failures.append(f"{scheme}: {colour} on {page} = {ratio:.2f}:1")
         self.assertFalse(
             failures, f"below WCAG AA ({WCAG_AA_TEXT}:1): {', '.join(failures)}"
         )
@@ -186,19 +207,20 @@ class TestScssDesignSystem(TransactionCase):
         """
         failures = []
         for scheme, css in (("light", self.css), ("dark", self._compiled(DARK_BUNDLE))):
-            body = self._rule(".form-check-input", containing="border:", css=css)
+            body = self._rule(".form-check-input", declaring="border", css=css)
             border = re.search(
-                r"(?:^|;)border:\s*[^;}]*?\ssolid\s+(#[0-9a-fA-F]{3,6}|rgba?\([^)]*\))",
-                body,
+                r"\bsolid\s+(#[0-9a-fA-F]{3,6}|rgba?\([^)]*\))",
+                _declaration(body, "border"),
                 re.IGNORECASE,
             )
-            self.assertTrue(border, f"{scheme}: .form-check-input declares no border")
+            self.assertTrue(
+                border, f"{scheme}: .form-check-input declares no border colour"
+            )
             rgb, alpha = _parse_color(border.group(1))
 
             for surface in ("--body-bg", "--card-bg"):
-                found = re.search(re.escape(surface) + r":\s*([^;}]+)", css)
-                self.assertTrue(found, f"{scheme}: {surface} is not defined")
-                value = found.group(1).strip()
+                value = _declaration(css, surface)
+                self.assertTrue(value, f"{scheme}: {surface} is not defined")
                 # `white` and friends are keywords `_parse_color` does not take.
                 background = (
                     [255, 255, 255] if value == "white" else _parse_color(value)[0]
@@ -250,7 +272,7 @@ class TestScssDesignSystem(TransactionCase):
         """
         tracking = []
         for level in range(1, 7):
-            body = self._rule(f"h{level}", containing="letter-spacing:")
+            body = self._rule(f"h{level}", declaring="letter-spacing")
             declared = re.search(r"(?:^|;)letter-spacing:\s*(-?[\d.]+)em", body)
             self.assertTrue(declared, f"h{level} declares no em letter-spacing")
             tracking.append(float(declared.group(1)))
@@ -281,12 +303,10 @@ class TestScssDesignSystem(TransactionCase):
         background = self._page_background()
         failures = []
         for name in ("primary", "success", "info", "warning", "danger"):
-            declaration = self._rule(f".text-{name}", containing="--color:")
-            colour = re.search(
-                r"--color:\s*(RGBA?\([^)]*\))", declaration, re.IGNORECASE
+            colour = _declaration(
+                self._rule(f".text-{name}", declaring="--color"), "--color"
             )
-            self.assertTrue(colour, f".text-{name} has no --color declaration")
-            rgb, alpha = _parse_color(colour.group(1))
+            rgb, alpha = _parse_color(colour)
             ratio = _contrast_ratio(_composite(rgb, alpha, background), background)
             if ratio < WCAG_AA_TEXT:
                 failures.append(f".text-{name}: {ratio:.2f}:1")
@@ -306,23 +326,15 @@ class TestScssDesignSystem(TransactionCase):
         page background behind it.
         """
         backgrounds = {"page": self._page_background()}
-        view = re.search(r"--o-view-background-color:\s*([^;}]+)", self.css)
-        if view:
-            backgrounds["view"] = _parse_color(view.group(1))[0]
-        else:
-            backgrounds["view"] = [255, 255, 255]
+        view = _declaration(self.css, "--o-view-background-color")
+        backgrounds["view"] = _parse_color(view)[0] if view else [255, 255, 255]
 
-        link = re.search(r"--link-color:\s*([^;}]+)", self.css)
+        link = _declaration(self.css, "--link-color")
         self.assertTrue(link, "--link-color is not defined")
-        candidates = {"--link-color": _parse_color(link.group(1))}
+        candidates = {"--link-color": _parse_color(link)}
 
-        action = re.search(
-            r"--color:\s*(RGBA?\([^)]*\))",
-            self._rule(".text-action", containing="--color:"),
-            re.IGNORECASE,
-        )
-        self.assertTrue(action, ".text-action has no --color declaration")
-        candidates[".text-action"] = _parse_color(action.group(1))
+        action = self._rule(".text-action", declaring="--color")
+        candidates[".text-action"] = _parse_color(_declaration(action, "--color"))
 
         failures = []
         for label, (rgb, alpha) in candidates.items():
@@ -345,22 +357,18 @@ class TestScssDesignSystem(TransactionCase):
         """
         failures = []
         for name in ("primary", "secondary"):
-            body = self._rule(f".btn-{name}", containing="--btn-bg")
-            fill = re.search(r"--btn-bg:\s*([^;}]+)", body)
-            label = re.search(r"--btn-color:\s*([^;}]+)", body)
-            self.assertTrue(fill, f".btn-{name} declares no --btn-bg")
+            body = self._rule(f".btn-{name}", declaring="--btn-bg")
+            fill = _declaration(body, "--btn-bg")
+            label = _declaration(body, "--btn-color")
             self.assertTrue(label, f".btn-{name} declares no --btn-color")
-            fill_rgb, fill_alpha = _parse_color(fill.group(1))
+            fill_rgb, fill_alpha = _parse_color(fill)
             self.assertEqual(fill_alpha, 1.0, f".btn-{name} fill must be opaque")
-            label_rgb, label_alpha = _parse_color(label.group(1))
+            label_rgb, label_alpha = _parse_color(label)
             ratio = _contrast_ratio(
                 _composite(label_rgb, label_alpha, fill_rgb), fill_rgb
             )
             if ratio < WCAG_AA_TEXT:
-                failures.append(
-                    f".btn-{name}: {label.group(1).strip()} on "
-                    f"{fill.group(1).strip()} = {ratio:.2f}:1"
-                )
+                failures.append(f".btn-{name}: {label} on {fill} = {ratio:.2f}:1")
         self.assertFalse(
             failures, f"below WCAG AA ({WCAG_AA_TEXT}:1): {', '.join(failures)}"
         )
@@ -385,14 +393,13 @@ class TestScssDesignSystem(TransactionCase):
             "light",
             "dark",
         ):
-            body = self._rule(f".text-bg-{name}", containing="--color:")
-            fg = re.search(r"--color:\s*(RGBA?\([^)]*\))", body, re.IGNORECASE)
-            self.assertTrue(fg, f".text-bg-{name} declares no foreground")
+            body = self._rule(f".text-bg-{name}", declaring="--color")
+            fg = _declaration(body, "--color")
             # Bootstrap paints the surface as RGBA(var(--<name>-rgb), …).
-            channels = re.search(rf"--{name}-rgb:\s*([\d\s,]+)", self.css)
+            channels = _declaration(self.css, f"--{name}-rgb")
             self.assertTrue(channels, f"--{name}-rgb is not defined")
-            surface = [float(c) for c in channels.group(1).split(",")]
-            fg_rgb, fg_alpha = _parse_color(fg.group(1))
+            surface = [float(c) for c in channels.split(",")]
+            fg_rgb, fg_alpha = _parse_color(fg)
             ratio = _contrast_ratio(_composite(fg_rgb, fg_alpha, surface), surface)
             if ratio < WCAG_AA_TEXT:
                 failures.append(f".text-bg-{name}: {ratio:.2f}:1")
@@ -438,23 +445,23 @@ class TestScssDesignSystem(TransactionCase):
         It is expected to retune `--o-ring-color`; this checks the value it
         picks actually clears the threshold against itself.
         """
-        navbar = self._rule(".o_main_navbar", containing="--o-ring-color")
-        declared = re.search(r"--o-ring-color:\s*([^;}]+)", navbar)
-        self.assertTrue(declared, ".o_main_navbar declares no --o-ring-color")
-        ring, ring_alpha = _parse_color(declared.group(1))
+        navbar = self._rule(".o_main_navbar", declaring="--o-ring-color")
+        declared = _declaration(navbar, "--o-ring-color")
+        ring, ring_alpha = _parse_color(declared)
         self.assertEqual(ring_alpha, 1.0, "navbar ring colour must be opaque")
 
-        surface = re.search(r"background:\s*(#[0-9a-fA-F]{3,6}|rgba?\([^)]*\))", navbar)
+        background = _declaration(navbar, "background")
+        self.assertTrue(background, ".o_main_navbar declares no background")
+        surface = re.search(r"#[0-9a-fA-F]{3,6}|rgba?\([^)]*\)", background)
         self.assertTrue(surface, ".o_main_navbar declares no background colour")
-        surface_rgb, surface_alpha = _parse_color(surface.group(1))
+        surface_rgb, surface_alpha = _parse_color(surface.group())
         self.assertEqual(surface_alpha, 1.0, "navbar background must be opaque")
 
         ratio = _contrast_ratio(ring, surface_rgb)
         self.assertGreaterEqual(
             ratio,
             WCAG_NON_TEXT,
-            f"focus ring {declared.group(1).strip()} on navbar "
-            f"{surface.group(1)}: {ratio:.2f}:1",
+            f"focus ring {declared} on navbar {surface.group()}: {ratio:.2f}:1",
         )
 
     def test_no_cascade_layers(self):
@@ -574,11 +581,11 @@ class TestScssDesignSystem(TransactionCase):
         default stack while the components reading `$o-font-family-monospace`
         used a different one - two monospace faces in the same UI.
         """
-        declared = re.search(r"--font-monospace:\s*([^;}]+)", self.css)
+        declared = _declaration(self.css, "--font-monospace")
         self.assertTrue(declared, "--font-monospace is not defined")
         self.assertIn(
             "Odoo Unicode Support Noto",
-            declared.group(1),
+            declared,
             "--font-monospace is not the stack built by "
             "o-add-unicode-support-font(); it is Bootstrap's default",
         )

@@ -80,10 +80,6 @@ function computePosition(popper, target, {
   container,
   extendedFlipping,
   flip,
-  // `reposition` always spreads DEFAULTS underneath the caller's options,
-  // so these three are present on every call; defaulting them here says
-  // so rather than leaving `margin` to be read as possibly-undefined at
-  // the four places it enters the arithmetic below.
   margin = DEFAULTS.margin ?? 0,
   position = DEFAULTS.position ?? "bottom",
   shrink
@@ -336,14 +332,20 @@ function createPopper(reference, popper, config = {}) {
   const arrowSelector = modifiers.get("arrow")?.options?.element;
   const preSetPlacement = modifiers.get("preSetPlacement");
   const flipEnabled = modifiers.get("flip")?.enabled !== false;
-  const state = { placement: config.placement ?? "bottom", elements: { reference, popper } };
+  const state = {
+    placement: config.placement ?? "bottom",
+    elements: { reference, popper }
+  };
   function update() {
     if (inert || !popper.isConnected) {
       return;
     }
     ensureDirection();
     const { position, extendedFlipping } = toEnginePosition(config.placement);
-    const { margin, skidding } = readOffset(modifiers.get("offset"), state.placement);
+    const { margin, skidding } = readOffset(
+      modifiers.get("offset"),
+      state.placement
+    );
     const solution = reposition(
       popper,
       /** @type {any} */
@@ -362,12 +364,20 @@ function createPopper(reference, popper, config = {}) {
     applySkidding(popper, solution.direction, skidding);
     if (arrowSelector) {
       const arrow = typeof arrowSelector === "string" ? popper.querySelector(arrowSelector) : arrowSelector;
-      positionArrow(arrow, popper, reference.getBoundingClientRect(), solution.direction);
+      positionArrow(
+        arrow,
+        popper,
+        reference.getBoundingClientRect(),
+        solution.direction
+      );
     }
   }
   const onViewportChange = () => update();
   if (!inert) {
-    window.addEventListener("scroll", onViewportChange, { capture: true, passive: true });
+    window.addEventListener("scroll", onViewportChange, {
+      capture: true,
+      passive: true
+    });
     window.addEventListener("resize", onViewportChange, { passive: true });
   }
   update();

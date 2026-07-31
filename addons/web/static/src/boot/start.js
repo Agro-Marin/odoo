@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/boot/start - Initializes session data, caches, and mounts the root web client component */
+/** @module @web/boot/start */
 
 import { Component, whenReady } from "@odoo/owl";
 import { hasTouch } from "@web/core/browser/feature_detection";
@@ -20,16 +20,6 @@ chromeMetaTag.setAttribute("content", "nointentdetection");
 document.head.appendChild(chromeMetaTag);
 
 /**
- * Paint a dependency-free static failure surface when the web client fails to
- * mount (a throwing service.start(), a template resolution error, etc.).
- *
- * The regular error_service renders *inside* the WebClient — useless when the
- * WebClient itself never mounts — and importing anything here risks a
- * secondary failure. So this uses only raw DOM + inline styles, and best-effort
- * ``sendBeacon`` (phase ``boot_mount_failed``, mirroring the wire shape in
- * ``module_loader.js`` / ``observability.py::js_error``). Exported so it can be
- * unit-tested in isolation without driving a real mount failure.
- *
  * @param {unknown} error
  */
 export function paintBootFailureOverlay(error) {
@@ -53,10 +43,7 @@ export function paintBootFailureOverlay(error) {
                 { type: "application/json" },
             );
             globalThis.navigator?.sendBeacon?.("/web/observability/js_error", blob);
-        } catch {
-            // sendBeacon can throw on quota / sandboxed iframe: never let the
-            // failure surface itself raise.
-        }
+        } catch {}
         if (document.querySelector(".o_boot_failure")) {
             return;
         }
@@ -90,15 +77,10 @@ export function paintBootFailureOverlay(error) {
         card.appendChild(button);
         overlay.appendChild(card);
         (document.body || document.documentElement).appendChild(overlay);
-    } catch {
-        // Absolute last resort: the failure surface must never throw.
-    }
+    } catch {}
 }
 
 /**
- * Starts a webclient. Used by both community and enterprise (main.js), so
- * enterprise can pass a Webclient subclass with added features.
- *
  * @param {Component} Webclient
  */
 export async function startWebClient(Webclient) {

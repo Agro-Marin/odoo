@@ -6,6 +6,10 @@ from odoo.modules import Manifest
 from odoo.tests import TransactionCase, tagged
 
 
+def _declared_depends(addon):
+    return set((Manifest.for_addon(addon) or {}).get("depends") or ["base"])
+
+
 @tagged("post_install", "-at_install", "asset_scope")
 class TestUnitTestAssetScope(TransactionCase):
     """``web.assets_unit_tests_setup`` scoping for HOOT runs.
@@ -45,11 +49,49 @@ class TestUnitTestAssetScope(TransactionCase):
 
         self.assertEqual(closure, frozenset(graph))
 
+    def test_closure_is_transitive_over_installed_addons(self):
+        """The closure is ``depends`` walked to a fixed point, not one hop.
+
+        The direct list looks too narrow — ``mail`` declares only ``web_tour``
+        and ``html_editor`` — but ``html_editor`` -> ``bus`` -> ``web`` ->
+        ``base``, so the walk still covers what a suite's JS needs. Asserted as
+        closure under the dependency relation over the addons this database
+        actually carries: naming one example pinned a test in ``web`` to an
+        addon ``web`` does not depend on, and it failed outright wherever that
+        addon was not installed.
+        """
+        IrAsset = self.env["ir.asset"]
+        installed = IrAsset._get_installed_addons_list()
+
+        for addon in installed:
+            closure = IrAsset._get_unit_test_scope_addons(addon)
+            self.assertIn(addon, closure, f"{addon}: closure is not reflexive")
+            self.assertLessEqual(
+                closure, installed, f"{addon}: closure escapes the installed set"
+            )
+            for member in closure:
+                self.assertLessEqual(
+                    _declared_depends(member) & installed,
+                    closure,
+                    f"{addon}: closure stops at {member}'s dependencies instead "
+                    "of walking through them",
+                )
+
     def test_closure_excludes_addons_that_merely_depend_on_the_scope(self):
-        closure = self.env["ir.asset"]._get_unit_test_scope_addons("web")
+        """Depending *on* the scope does not put an addon in it.
+
+        The relation is directed: what a suite's JS needs is what its addon
+        depends on, and pulling the reverse direction in would restore exactly
+        the foreign ``src`` the scope exists to keep out.
+        """
+        IrAsset = self.env["ir.asset"]
+        installed = IrAsset._get_installed_addons_list()
+        closure = IrAsset._get_unit_test_scope_addons("web")
 
         self.assertIn("web", closure)
-        self.assertNotIn("mail", closure)
+        dependents = {a for a in installed if "web" in _declared_depends(a)} - {"web"}
+        self.assertTrue(dependents, "no installed addon depends on web")
+        self.assertFalse(dependents & closure)
 
     def test_uninstalled_scope_yields_no_addons(self):
         self.assertFalse(

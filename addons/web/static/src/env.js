@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/env - OWL environment factory, service dependency resolution, and app mounting */
+/** @module @web/env */
 
 import { App, EventBus } from "@odoo/owl";
 import { isMacOS } from "@web/core/browser/feature_detection";
@@ -31,8 +31,6 @@ const log = makeAssetLog("env");
  */
 
 /**
- * Return a value Odoo Env object
- *
  * @returns {OdooEnv}
  */
 export function makeEnv() {
@@ -49,18 +47,6 @@ export function makeEnv() {
         get isSmall() {
             throw new Error("UI service not initialized!");
         },
-        /**
-         * Service-teardown contract. Disposes the singleton-registry UPDATE
-         * listener this env installed, then calls each started service's
-         * optional ``destroy()`` so services holding process-global resources
-         * (rpcBus listeners, timers, body event listeners) release them.
-         *
-         * Production creates one page-lived env and never destroys it (no-op
-         * there); test infra and embedded/sub-app envs call this on cleanup to
-         * stop leaked listeners from firing against a dead env — the root cause
-         * behind the ``slow_rpc`` / ``result_set_cache_invalidator`` rpcBus
-         * leaks and the previously-unreachable ``tooltip`` disposer.
-         */
         destroy() {
             this.disposeServiceRegistryListener?.();
             for (const [name, service] of Object.entries(this.services)) {
@@ -114,36 +100,15 @@ serviceRegistry.addEventListener("UPDATE", (ev) => {
 });
 
 /**
- * Dedup state for the cascade-skip warning below: without it, a single
- * misconfigured service re-warns on every ``startServices`` call (327+
- * identical lines in a Hoot run of ``@web/core``). Keyed by
- * (sorted-skipped-set | sorted-missing-set); process-scoped, cleared via
- * ``_resetCascadeWarningCache`` for tests.
- *
  * @type {Set<string>}
  */
 const _seenCascadeWarnings = new Set();
 
-/**
- * Test-only: clear the cascade-skip warning dedup cache so a repeated
- * misconfiguration warns again. Not part of the public env API.
- */
 export function _resetCascadeWarningCache() {
     _seenCascadeWarnings.clear();
 }
 
 /**
- * Start all services registered in the service registry, resolving
- * dependencies first.
- *
- * The UPDATE listener installed on the singleton registry is owned by
- * ``env``: callers that create/dispose envs (test infra) MUST call
- * ``env.disposeServiceRegistryListener()`` on cleanup, or stale listeners
- * keep re-running services against dead envs — causing expect.step()
- * pollution and false "Circular service dependency" errors between tests.
- * Production creates one env for the page lifetime, so this is a no-op
- * there.
- *
  * @param {OdooEnv} env
  * @returns {Promise<void>}
  */
@@ -175,19 +140,6 @@ export async function startServices(env) {
 }
 
 /**
- * Force a complete service-startup pass and resolve once every service whose
- * dependencies are met has started.
- *
- * ``loadBundle`` only *registers* a lazy bundle's services; actually
- * starting them happens asynchronously via the registry UPDATE listener. A
- * caller that lazy-loads a bundle and immediately mounts a component reading
- * one of its services in ``setup`` (``useService`` throws if not yet in
- * ``env.services``) can race that background startup — awaiting this after
- * ``loadBundle`` closes the race deterministically. Services with genuinely
- * unregistered deps are left to the cascade-skip; re-entrant calls serialize
- * via ``startServicesPromise``. Installs no listener, safe to call
- * repeatedly.
- *
  * @param {OdooEnv} env
  * @returns {Promise<void>}
  */
@@ -197,11 +149,6 @@ export async function ensureServicesStarted(env) {
 }
 
 /**
- * Start all services in `toStart`, resolving dependencies with O(N+E)
- * dependency-counting and reverse-edge propagation. Waves: each wave starts
- * services whose deps are met, waits for results, then propagates to unlock
- * the next wave.
- *
  * @param {OdooEnv} env
  * @param {Map<string, any>} toStart
  */
@@ -226,8 +173,6 @@ async function _startServices(env, toStart) {
     });
 
     /**
-     * Register a service for dependency tracking.
-     * Idempotent — skips services already tracked.
      * @param {string} name
      */
     function _trackService(name) {
@@ -404,7 +349,12 @@ export const customDirectives = {
 };
 
 export const globalValues = {
-    /** @param {MouseEvent} ev @param {Function} value @param {boolean} hasStop @param {boolean} hasPrevent */
+    /**
+     * @param {MouseEvent} ev
+     * @param {Function} value
+     * @param {boolean} hasStop
+     * @param {boolean} hasPrevent
+     */
     click: (ev, value, hasStop, hasPrevent) => {
         if (ev.button === 0 || ev.button === 1) {
             if (hasStop) {
@@ -421,15 +371,9 @@ export const globalValues = {
 };
 
 /**
- * Create an application with a given component as root and mount it. If no env
- * is provided, the application will be treated as a "root": an env will be
- * created and the services will be started, it will also be set as the root
- * in `__WOWL_DEBUG__`
- *
- * @param {import("@odoo/owl").Component} component the component to mount
- * @param {HTMLElement} target the HTML element in which to mount the app
- * @param {Partial<ConstructorParameters<typeof App>[1]>} [appConfig] object
- *  containing a (partial) config for the app.
+ * @param {import("@odoo/owl").Component} component
+ * @param {HTMLElement} target
+ * @param {Partial<ConstructorParameters<typeof App>[1]>} [appConfig]
  */
 export async function mountComponent(component, target, appConfig = {}) {
     let { env } = appConfig;

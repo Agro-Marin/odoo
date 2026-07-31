@@ -17,54 +17,15 @@
                 // eslint-disable-next-line no-console -- opt-in asset-loader trace diagnostics
                 console.debug("[asset.loader]", ...parts);
             }
-        } catch {
-            // Sandboxed iframe (no localStorage access): silently disabled.
-        }
+        } catch {}
     }
 
     class OdooModuleLoader {
-        /**
-         * Shared Map of module specifier → namespace object, populated by
-         * ``registerNativeModules`` from the esbuild bundle's entry. Sibling
-         * bundles (lazy children, cross-doc iframes via
-         * ``@web/core/assets.loadESMBundle``) look it up through bridge
-         * modules (``odoo.tools.assets.esm_bridges.BridgeShimManager`` in
-         * Python, ``@web/core/module_bridge`` in JS). Singleton identity for
-         * ``@web/core/registry``, ``@web/services/*``, etc. depends on every
-         * consumer resolving the same specifier to the same object via this
-         * shared Map.
-         */
         modules = new Map();
 
-        /**
-         * Lifecycle event surface for the module graph. Dispatches one
-         * event: ``rebind`` — a CustomEvent fired when
-         * ``registerNativeModules`` re-binds a known specifier to a
-         * DIFFERENT namespace object (``detail.specifiers`` lists them). In
-         * production this signals a singleton-split risk; in dev hot-reload
-         * it's expected. Subscribe via
-         * ``odoo.loader.bus.addEventListener("rebind", ...)``.
-         */
         bus = new EventTarget();
 
         /**
-         * Register already-evaluated ES module namespaces into the shared
-         * Map. Called from the esbuild bundle's auto-generated entry (after
-         * its ``import * as __mN`` statements run) and from
-         * ``@web/core/assets.loadESMBundle`` in cross-doc mode (bridge
-         * script forwarding resolved specifier → namespace pairs back to
-         * the parent).
-         *
-         * ``Map.set`` overwrite semantics: re-binding a specifier to the
-         * SAME namespace object (repeat dynamic import, parallel bridges, a
-         * second inline shim) is benign and silent. Re-binding to a
-         * DIFFERENT object breaks singleton identity across bundles —
-         * detected by reference and surfaced on ``bus`` (event ``rebind``)
-         * plus the debug-gated asset log, opt-in channels so a legitimate
-         * dev hot-reload can't spam telemetry. Never throws: this runs at
-         * the bundle's top level, where a raised error would white-screen
-         * the page.
-         *
          * @param {Record<string, any>} modulesByName
          */
         registerNativeModules(modulesByName) {
@@ -100,34 +61,13 @@
                     this.bus.dispatchEvent(
                         new CustomEvent("rebind", { detail: { specifiers: rebound } }),
                     );
-                } catch {
-                    // A missing CustomEvent (or dispatchEvent itself
-                    // throwing) must not abort the bundle's top-level
-                    // evaluation. A throwing listener doesn't reach here —
-                    // the DOM reports those globally.
-                }
+                } catch {}
             }
         }
 
         /**
-         * Self-heal a failed bundle-asset load with ONE guarded reload.
-         * Bundle URLs are content-addressed
-         * (``/web/assets/<unique>/...``, ``/web/assets/esm/<hash>/...``);
-         * when the attachment GC sweeps a row while a stale cached page
-         * still references its URL, the script (or stylesheet) 404s and
-         * the page white-screens (or renders unstyled) with no recovery
-         * path. Reloading re-renders through ``ir.qweb``, which mints
-         * fresh URLs. Covers SCRIPT and LINK elements: a stale
-         * content-addressed URL can never succeed by re-requesting it, so
-         * the reload is the only fix for both kinds.
-         *
-         * Guard: at most one reload per minute per tab (``sessionStorage``)
-         * — a persistent failure (server down, genuine bundle error)
-         * degrades to the normal error surface instead of looping. No
-         * storage access (sandboxed iframe) means no reload either.
-         *
-         * @param {EventTarget | null} target the element whose load failed
-         * @returns {boolean} whether a reload was triggered
+         * @param {EventTarget | null} target
+         * @returns {boolean}
          */
         handleAssetLoadError(target) {
             const el = /** @type {any} */ (target);
@@ -154,7 +94,6 @@
             return true;
         }
 
-        /** Reload seam — overridden in tests; reloads only THIS document. */
         _reloadPage() {
             globalThis.location.reload();
         }
@@ -174,11 +113,7 @@
                 type: "application/json",
             });
             globalThis.navigator?.sendBeacon?.("/web/observability/js_error", blob);
-        } catch {
-            // sendBeacon can throw on payload size > UA quota or in
-            // sandboxed iframes.  The error reporter must never raise
-            // a secondary error that the page can't surface.
-        }
+        } catch {}
     }
     globalThis.addEventListener?.("error", (ev) => {
         reportError({
