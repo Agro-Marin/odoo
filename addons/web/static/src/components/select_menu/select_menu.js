@@ -3,7 +3,14 @@
 
 /** @module @web/components/select_menu/select_menu */
 
-import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
+import {
+    Component,
+    onWillRender,
+    onWillUpdateProps,
+    useEffect,
+    useRef,
+    useState,
+} from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -151,6 +158,10 @@ export class SelectMenu extends Component {
             this.onInput(searchString);
         }, DEBOUNCED_DELAY);
         this.dropdownState = useDropdownState();
+
+        onWillRender(() => {
+            this._selectedValueSet = null;
+        });
 
         this.selectedChoice = this.getSelectedChoice(this.props);
         /** @type {WeakMap<any[], { source: any[], sorted: any[] }>} */
@@ -357,14 +368,14 @@ export class SelectMenu extends Component {
     /**
      * Membership is asked once per choice by filterOptions and again per choice
      * by every render, so a linear scan of the selection makes both quadratic.
+     * The set is rebuilt once per pass rather than kept against the value's
+     * identity: parents mutate reactive arrays in place, which leaves the
+     * identity untouched and would serve a stale selection.
      *
      * @returns {Set<any>}
      */
     get selectedValueSet() {
-        if (this._selectedValueSetSource !== this.props.value) {
-            this._selectedValueSetSource = this.props.value;
-            this._selectedValueSet = new Set(this.selectedValues);
-        }
+        this._selectedValueSet ??= new Set(this.selectedValues);
         return this._selectedValueSet;
     }
 
@@ -437,6 +448,7 @@ export class SelectMenu extends Component {
      * @param {String} searchString
      */
     filterOptions(searchString = "", groups) {
+        this._selectedValueSet = null;
         const groupsList = groups || [
             { choices: this.props.choices, section: "" },
             ...this.props.groups,
