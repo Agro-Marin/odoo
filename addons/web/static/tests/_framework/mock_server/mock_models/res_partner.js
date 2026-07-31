@@ -18,7 +18,9 @@ export class ResPartner extends ServerModel {
 
         for (const partner of this) {
             const users = ResUsers.browse(partner.user_ids);
-            const internalUsers = users.filter((user) => !user.share);
+            const internalUsers = users.filter(
+                (/** @type {any} */ user) => !user.share,
+            );
             if (internalUsers.length > 0) {
                 partner.main_user_id = internalUsers[0].id;
             } else if (users.length > 0) {

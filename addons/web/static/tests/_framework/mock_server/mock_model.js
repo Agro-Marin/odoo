@@ -1621,7 +1621,7 @@ export class Model extends Array {
     /** @type {Record<string, (this: Model, fieldName: string) => void>} */
     _computes = {};
     _description = "";
-    /** @type {Record<string, any> | null} */
+    /** @type {Record<string, any>} */
     _fields = {};
     /** @type {Record<string, any>[]} */
     _filters = [];

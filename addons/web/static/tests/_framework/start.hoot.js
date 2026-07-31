@@ -39,6 +39,7 @@ const REQUESTED_IDS = new Set(
         .filter((id) => !id.startsWith("-")),
 );
 
+/** @param {any} test */
 function beforeFocusRequired(test) {
     if (!document.hasFocus()) {
         console.warn(
@@ -147,7 +148,7 @@ function _selectTestSpecifiers(testSpecifiers) {
     if (!REQUESTED_IDS.size) {
         return testSpecifiers;
     }
-    const isSelected = (specifier) => {
+    const isSelected = (/** @type {any} */ specifier) => {
         if (!specifier.endsWith(".test")) {
             return true;
         }

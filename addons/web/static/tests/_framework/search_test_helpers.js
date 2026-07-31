@@ -276,7 +276,7 @@ export async function switchView(viewType) {
 }
 
 /**
- * @param {HTMLElement} root
+ * @param {HTMLElement} [root]
  */
 export function getPagerValue(root) {
     return queryText(".o_pager .o_pager_value", { root })
@@ -285,21 +285,21 @@ export function getPagerValue(root) {
 }
 
 /**
- * @param {HTMLElement} root
+ * @param {HTMLElement} [root]
  */
 export function getPagerLimit(root) {
     return parseInt(queryText(".o_pager .o_pager_limit", { root }), 10);
 }
 
 /**
- * @param {HTMLElement} root
+ * @param {HTMLElement} [root]
  */
 export async function pagerNext(root) {
     await contains(".o_pager button.o_pager_next", { root }).click();
 }
 
 /**
- * @param {HTMLElement} root
+ * @param {HTMLElement} [root]
  */
 export async function pagerPrevious(root) {
     await contains(".o_pager button.o_pager_previous", { root }).click();

@@ -12,6 +12,9 @@ export class ResLang extends ServerModel {
      * Override via ``onRpc("res.lang", "get_installed", () => […])`` if needed.
      */
     get_installed() {
-        return /** @type {any} */ (this._records).map((r) => [r.code, r.name]);
+        return /** @type {any[]} */ (this._records).map((/** @type {any} */ r) => [
+            r.code,
+            r.name,
+        ]);
     }
 }

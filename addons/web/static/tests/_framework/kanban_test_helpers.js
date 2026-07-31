@@ -142,7 +142,7 @@ export async function toggleKanbanColumnActions(columnIndex = 0) {
         root: column,
         visible: false,
     }).click();
-    return (buttonText) => {
+    return (/** @type {string} */ buttonText) => {
         const menu = getDropdownMenu(column);
         return contains(`.dropdown-item:contains(/\\b${buttonText}\\b/i)`, {
             root: menu,

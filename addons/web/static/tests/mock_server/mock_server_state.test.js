@@ -20,7 +20,7 @@ test("default state", () => {
         ],
         db: "test",
         debug: "",
-        disallowedAncestorCompanies: [],
+        disallowedAncestorCompanies: /** @type {any[]} */ ([]),
         groupId: 11,
         lang: "en",
         multiLang: false,

@@ -209,6 +209,35 @@ export function setupTestEnvironment() {
     }
     trackTestListeners(document.body);
 
+    // `getFieldFromRegistry` dedups its "Missing widget" / "widget doesn't
+    // support the type" warnings in a process-global Set, so the FIRST test to
+    // resolve a broken arch claims the key and every later test asserting the
+    // same warning sees silence — passing alone, vacuous in a full run. Looked
+    // up lazily, like the buses above, so this file stays usable in bundles
+    // that ship no field widgets.
+    const fieldModule = loader.modules.get("@web/fields/field");
+    if (fieldModule?.resetWidgetMissWarnings) {
+        beforeEach(fieldModule.resetWidgetMissWarnings, { global: true });
+    }
+
+    // A `beforeinstallprompt` fired while no pwa service is running is parked
+    // at module scope until one claims it, so an event a test never consumed
+    // makes the NEXT test's service report an install prompt it never saw.
+    const pwaModule = loader.modules.get("@web/services/pwa/pwa_service");
+    if (pwaModule?._resetPwaInstallPrompt) {
+        beforeEach(pwaModule._resetPwaInstallPrompt, { global: true });
+    }
+
+    // `featureFlag` memoizes the parsed `?features=` overrides on first read.
+    // That memo is derived from `browser.location` but outlives it, so
+    // `patchWithCleanup(browser.location, ...)` — the correct way to install a
+    // URL — cannot reach it: any earlier read pins the answer and the patching
+    // test is silently told there are no overrides.
+    const featureFlagsModule = loader.modules.get("@web/services/feature_flags");
+    if (featureFlagsModule?._resetFeatureFlagsCache) {
+        beforeEach(featureFlagsModule._resetFeatureFlagsCache, { global: true });
+    }
+
     setupMockCurrencies(loader);
 
     setupMockTemplates(loader);
@@ -279,6 +308,26 @@ export async function fetchModelDefinitions(modelNames) {
 }
 
 /**
+ * `mockLocation` names a host that does not exist, so any URL the application
+ * absolutized against it — which is the correct thing for app code to do, the
+ * bundle really is same-origin — cannot be fetched for real. This is the one
+ * place that leaves the mock for the network, so it is the place that has to
+ * undo the mock's own fiction: drop the mocked origin and let the request
+ * resolve against the page actually serving the test.
+ *
+ * @param {string | URL} input
+ * @returns {string}
+ */
+function unmockOrigin(input) {
+    const raw = String(input);
+    const mockOrigin = mockLocation.origin;
+    if (mockOrigin && raw.startsWith(mockOrigin)) {
+        return raw.slice(mockOrigin.length) || "/";
+    }
+    return raw;
+}
+
+/**
  * @param {string | URL} input
  * @param {RequestInit} [init]
  */
@@ -288,9 +337,9 @@ export function globalCachedFetch(input, init) {
             `cannot use a global cached fetch with HTTP method "${init.method}"`,
         );
     }
-    const key = String(input);
+    const key = unmockOrigin(input);
     if (!(key in globalFetchCache)) {
-        globalFetchCache[key] = realFetch(input, init).catch((reason) => {
+        globalFetchCache[key] = realFetch(key, init).catch((reason) => {
             delete globalFetchCache[key];
             throw reason;
         });

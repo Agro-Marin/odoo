@@ -59,6 +59,8 @@ function replaceAttributes(template) {
     }
 }
 
+const mockTemplatesRegistered = new WeakSet();
+
 /**
  * Register the `src → data-src` template processor on
  * `@web/core/templates` so it runs at parse time for every template.
@@ -70,8 +72,6 @@ function replaceAttributes(template) {
  *
  * @param {{ modules: Map<string, any> }} loader
  */
-const mockTemplatesRegistered = new WeakSet();
-
 export function setupMockTemplates(loader) {
     const templatesModule = loader.modules.get("@web/core/templates");
     if (!templatesModule?.registerTemplateProcessor) {

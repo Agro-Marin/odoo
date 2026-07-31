@@ -37,7 +37,7 @@ const KWARGS_SYMBOL = Symbol("is_kwargs");
  * @returns {T}
  */
 export function makeKwArgs(kwargs) {
-    kwargs[KWARGS_SYMBOL] = true;
+    /** @type {any} */ (kwargs)[KWARGS_SYMBOL] = true;
     return kwargs;
 }
 
@@ -127,7 +127,7 @@ export function safeSplit(value, separator) {
  * @returns {T}
  */
 export function unmakeKwArgs(kwargs) {
-    delete kwargs[KWARGS_SYMBOL];
+    delete (/** @type {any} */ (kwargs)[KWARGS_SYMBOL]);
     return kwargs;
 }
 

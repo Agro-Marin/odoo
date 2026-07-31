@@ -36,7 +36,7 @@ export class ResUsers extends ServerModel {
         return true;
     }
 
-    _is_public(id) {
+    _is_public(/** @type {number} */ id) {
         return id === serverState.publicUserId;
     }
 

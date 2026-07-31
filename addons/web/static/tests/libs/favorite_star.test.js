@@ -10,7 +10,7 @@ describe.current.tags("headless");
  * outline glyph. Styling keyed on the old `fa-star-o` name silently stops
  * matching, so both states render identically - which no behavioural test can catch.
  */
-function mountStars(wrapperClass, iconTag = "i") {
+function mountStars(/** @type {string} */ wrapperClass, iconTag = "i") {
     const fixture = getFixture();
     fixture.innerHTML = `
         <div class="${wrapperClass}" id="off"><${iconTag} class="fa-regular fa-star me-1"></${iconTag}></div>

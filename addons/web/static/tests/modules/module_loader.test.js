@@ -16,8 +16,7 @@ import { after, describe, expect, test } from "@odoo/hoot";
  * "is not a constructor".
  */
 
-/** @type {typeof OdooModuleLoader} */
-const ModuleLoader = odoo.loader.constructor;
+const ModuleLoader = /** @type {typeof OdooModuleLoader} */ (odoo.loader.constructor);
 
 describe.current.tags("headless");
 
