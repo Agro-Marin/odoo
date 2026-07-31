@@ -1,17 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/utils - Shared helpers for value disambiguation, ID checking, model resolution, and default paths */
+/** @module @web/core/tree/utils */
 
 /** @import { Value } from "./condition_tree.js" */
 
 /**
- * Determine whether a value is ambiguous and needs explicit typing.
- * Returns true when a value mixes strings/IDs with other types or contains empty strings.
  * @param {Value} value
- * @param {boolean | Record<number, string>} [displayNames] - truthy means IDs
- *   should be treated as strings; a non-empty display-names map is also
- *   accepted (the function only uses ``displayNames`` for truthiness).
+ * @param {boolean | Record<number, string>} [displayNames]
  * @returns {boolean}
  */
 export function disambiguate(value, displayNames) {
@@ -35,14 +31,13 @@ export function disambiguate(value, displayNames) {
 
 /**
  * @param {unknown} value
- * @returns {boolean} whether the value is a positive integer (valid record ID)
+ * @returns {boolean}
  */
 export function isId(value) {
     return Number.isInteger(value) && /** @type {number} */ (value) >= 1;
 }
 
 /**
- * Extract the related model name from a field definition.
  * @param {Record<string, any>|null} fieldDef
  * @returns {string|null}
  */
@@ -64,11 +59,9 @@ const SPECIAL_FIELDS = [
 ];
 
 /**
- * Pick a sensible default field path from a set of field definitions.
- * Prefers well-known relational fields, falls back to the first available field.
  * @param {Record<string, Record<string, any>>} fieldDefs
  * @returns {string}
- * @throws {Error} if no fields exist
+ * @throws {Error}
  */
 export function getDefaultPath(fieldDefs) {
     for (const name of SPECIAL_FIELDS) {

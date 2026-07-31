@@ -14,13 +14,14 @@
  * same entry point view modifiers use); domains are compared by matching both
  * spellings against a record corpus (`Domain.contains`).
  *
- * The expression direction is deliberately aimed at
- * `construct_expression_from_tree.js`'s ternary reconstruction — the
- * `(P and X) or (not P and Y)` -> `X if P else Y` rewrite carrying the
- * `@todo smth smarter. this is very fragile` marker. It is detected by
- * *string-comparing* rendered sub-expressions, so the generator below emits
+ * The expression direction is deliberately aimed at the ternary
+ * reconstruction in `_constructExpressionFromTree`
+ * (`construct_expression_from_tree.js`, the `str1 === \`not ${str2}\`` branch):
+ * the `(P and X) or (not P and Y)` -> `X if P else Y` rewrite. It pairs its
+ * operands by *string-comparing* rendered sub-expressions and assembles the
+ * result as text rather than as an AST node, so the generator below emits
  * shapes where a sub-expression's rendering coincides with the negation of
- * another's, which is exactly where a string-keyed match can fire on the
+ * another's, which is exactly where a string-keyed match could fire on the
  * wrong pair.
  */
 

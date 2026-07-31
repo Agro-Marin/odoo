@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/virtual_operators - Introduces and eliminates virtual operators (between, in range, any/all) in condition trees */
+/** @module @web/core/tree/virtual_operators */
 
 /** @import { Tree, Options, Condition, Connector, Value } from "./condition_tree.js" */
 
@@ -24,7 +24,13 @@ import {
  * @param {Value} path
  */
 function splitPath(path) {
-    const pathParts = typeof path === "string" ? path.split(".") : [];
+    // A non-string path has no dotted prefix to peel off, but it is still the
+    // path: returning "" for it replaced `("amount", ">=", 1)` with
+    // `("", ">=", 1)`, a domain the server rejects as an invalid field.
+    if (typeof path !== "string") {
+        return { initialPath: "", lastPart: path };
+    }
+    const pathParts = path.split(".");
     const lastPart = pathParts.pop() || "";
     const initialPath = pathParts.join(".");
     return { initialPath, lastPart };
@@ -496,9 +502,6 @@ function removeFalseTrueLeaves(tree) {
 }
 
 /**
- * Transform a raw condition tree by introducing virtual operators (between, in-range,
- * starts-with, any/all set operators) where the raw domain operators match their patterns.
- * Call before rendering the tree in a UI tree editor.
  * @param {Tree} tree
  * @param {Options} [options={}]
  * @returns {Tree}
@@ -548,8 +551,6 @@ export function introduceVirtualOperators(tree, options = {}) {
 }
 
 /**
- * Convert virtual operators back to standard domain operators.
- * Reverses `introduceVirtualOperators`. Call before converting a tree to a domain string.
  * @param {Tree} tree
  * @param {Options} [options={}]
  * @returns {Tree}
@@ -559,8 +560,6 @@ export function eliminateVirtualOperators(tree, options = {}) {
 }
 
 /**
- * Return whether two trees represent the same logical domain, normalising away
- * virtual-operator representations (between, in-range, etc.) before comparing.
  * @param {Tree} tree
  * @param {Tree} otherTree
  * @returns {boolean}

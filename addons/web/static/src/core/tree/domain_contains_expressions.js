@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/domain_contains_expressions - Checks whether a domain string contains dynamic Python expressions */
+/** @module @web/core/tree/domain_contains_expressions */
 
-/** Tree widened to `any` (see other tree-helper modules). */
 /** @typedef {any} Tree */
 /** @import { DomainRepr } from "@web/core/domain" */
 
@@ -11,7 +10,6 @@ import { Expression, isTree } from "@web/core/tree/condition_tree";
 import { constructTreeFromDomain } from "@web/core/tree/construct_tree_from_domain";
 
 /**
- * Recursively check whether any node in the tree contains an Expression value.
  * @param {Tree} tree
  * @returns {boolean}
  */
@@ -36,9 +34,8 @@ function treeContainsExpressions(tree) {
 }
 
 /**
- * Check whether a domain contains dynamic Python expressions.
  * @param {DomainRepr} domain
- * @returns {boolean|null} true/false if parseable, null if domain is invalid
+ * @returns {boolean|null}
  */
 export function domainContainsExpressions(domain) {
     let tree;

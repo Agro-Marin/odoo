@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/construct_expression_from_tree - Converts a condition tree into a Python expression string */
+/** @module @web/core/tree/construct_expression_from_tree */
 
-/** Tree kept `any` (condition_tree's Tree is a separate union). */
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @typedef {any} Tree */
 /** @import { Condition, Options } from "@web/core/tree/condition_tree" */
@@ -16,7 +15,6 @@ import { COMPARATORS, TERM_OPERATORS_NEGATION } from "@web/core/tree/operators";
 import { ASTType } from "../py_js/ast_type.js";
 
 /**
- * Normalize a condition by folding negation into the operator when possible.
  * @param {Condition} condition
  * @returns {Condition}
  */
@@ -30,7 +28,6 @@ function getNormalizedCondition(condition) {
 }
 
 /**
- * Check whether an AST node refers to a x2many (one2many/many2many) field.
  * @param {AST} ast
  * @param {Options} options
  * @returns {boolean}
@@ -49,12 +46,9 @@ function isX2Many(ast, options) {
 }
 
 /**
- * Recursively convert a condition tree into a Python expression string.
- * Handles connectors (and/or), complex conditions, comparators, x2many
- * set intersections, and ternary if/else patterns.
  * @param {Tree} tree
  * @param {Options} options
- * @param {boolean} [isRoot=false] - whether this is the top-level call (skips outer parens)
+ * @param {boolean} [isRoot=false]
  * @returns {string}
  */
 function _constructExpressionFromTree(tree, options, isRoot = false) {
@@ -78,7 +72,6 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
                     const c2Child = c2.children[j];
                     const str2 = _constructExpressionFromTree(c2Child, options);
                     if (str1 === `not ${str2}` || `not ${str1}` === str2) {
-                        /** @todo smth smarter. this is very fragile */
                         const others = [c1.children[1 - i], c2.children[1 - j]];
                         const str = _constructExpressionFromTree(c1Child, options);
                         const strs = others.map((c) =>
@@ -201,11 +194,10 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
 }
 
 /**
- * Convert a condition tree into a Python expression string.
  * @param {Tree} tree
  * @param {Options} [options={}]
  * @returns {string}
- * @throws {Error} on trees that have no expression representation
+ * @throws {Error}
  */
 export function constructExpressionFromTree(tree, options = {}) {
     return _constructExpressionFromTree(tree, options, true);

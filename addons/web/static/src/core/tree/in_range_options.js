@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/in_range_options - Date range option labels for "in range" virtual operator */
+/** @module @web/core/tree/in_range_options */
 
 import { _t } from "@web/core/l10n/translation";
 

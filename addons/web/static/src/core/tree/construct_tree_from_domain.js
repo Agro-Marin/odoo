@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/construct_tree_from_domain - Parses an Odoo domain string into a condition tree structure */
+/** @module @web/core/tree/construct_tree_from_domain */
 
 import { Domain } from "@web/core/domain";
 import { formatAST } from "@web/core/py_js/py";
@@ -13,12 +13,6 @@ import { addChild, connector, Expression, toValue } from "./condition_tree.js";
 /** @import { Tree } from "./condition_tree.js" */
 
 /**
- * Build the tree for the prefix-notation AST list with an index cursor and an
- * explicit connector stack. The previous version copied the tail array at
- * every node (O(N²) in domain size) and recursed once per connector — the
- * normalized ["&", "&", ..., leaf, ...] chain nests to depth O(N) and
- * overflowed the stack on large generated domains.
- *
  * @param {AST[]} ASTs
  * @param {boolean} [distributeNot=false]
  * @returns {Tree}
