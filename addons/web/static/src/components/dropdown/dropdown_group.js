@@ -1,12 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/dropdown_group - Groups multiple dropdowns so only one can be open at a time */
+/** @module @web/components/dropdown/dropdown_group */
 
 import { Component, onWillDestroy, useChildSubEnv, xml } from "@odoo/owl";
 
+/** @type {Map<any, { group: Set<any>, count: number }>} */
 const GROUPS = new Map();
 
+/** @param {any} id */
 function getGroup(id) {
     if (!GROUPS.has(id)) {
         GROUPS.set(id, {
@@ -14,10 +16,14 @@ function getGroup(id) {
             count: 0,
         });
     }
-    GROUPS.get(id).count++;
-    return GROUPS.get(id).group;
+    const groupData = /** @type {{ group: Set<any>, count: number }} */ (
+        GROUPS.get(id)
+    );
+    groupData.count++;
+    return groupData.group;
 }
 
+/** @param {any} id */
 function removeGroup(id) {
     const groupData = GROUPS.get(id);
     if (!groupData) {

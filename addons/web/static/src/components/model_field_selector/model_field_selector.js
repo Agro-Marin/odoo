@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/model_field_selector/model_field_selector - Field path selector with breadcrumb display and popover field browser */
+/** @module @web/components/model_field_selector/model_field_selector */
 
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { KeepLast } from "@web/core/utils/concurrency";
@@ -37,6 +37,15 @@ export class ModelFieldSelector extends Component {
         update: () => {},
         followRelations: true,
     };
+
+    /** @type {import("services").ServiceFactories["field"]} */
+    fieldService;
+    /** @type {KeepLast} */
+    keepLast;
+    /** @type {ReturnType<typeof usePopover>} */
+    popover;
+    /** @type {{ isInvalid: boolean; displayNames: never[] }} */
+    state;
 
     setup() {
         this.fieldService = useService("field");

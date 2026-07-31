@@ -1525,14 +1525,55 @@ test("sections render in the order they were declared", async () => {
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["In Zebra", "In Alpha"]);
 });
 
-// `navigationOptions.shouldFocusFirstItem` is `!hasTouch()`, so opening the menu
-// activates no choice on touch and there is deliberately nothing to publish.
+// Desktop-only PREMISE, not a desktop-only guarantee: opening the menu leaves
+// DOM focus in the search input here, whereas `onStateChanged` deliberately
+// blurs under `isBottomSheet` so the sheet does not raise the on-screen
+// keyboard. The touch path reaches the same state once the user taps the
+// input, and is covered by the `mobile` counterpart below.
 test.tags("desktop");
 test("a searchable menu publishes its active choice via aria-activedescendant", async () => {
     // `searchable` turns on `virtualFocus`, so DOM focus stays in the search
-    // input and the highlighted choice is conveyed ONLY by this attribute.
-    // Regression guard: the popup carries `role="menu"`, and the navigator only
-    // publishes the attribute on a composite role.
+    // input and the highlighted choice is conveyed ONLY by this attribute --
+    // read off the FOCUSED element, which is the input and never the menu.
+    // Navigated explicitly rather than relying on `shouldFocusFirstItem`, which
+    // is `!hasTouch()` and so publishes nothing at all under a touch preset.
+    await mountSingleApp(SelectMenu, {
+        choices: [
+            { label: "Alpha", value: "a" },
+            { label: "Beta", value: "b" },
+        ],
+        searchable: true,
+        onSelect: () => {},
+    });
+    await click(".o_select_menu_toggler");
+    await animationFrame();
+    await press("ArrowDown");
+    await animationFrame();
+
+    const input = queryOne(".o_select_menu_input");
+    expect(document.activeElement).toBe(input);
+    expect(input).toHaveAttribute("role", "combobox");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(input).toHaveAttribute("aria-controls", queryOne(".o_select_menu_menu").id);
+    expect(queryOne(".o_select_menu_menu")).toHaveAttribute("role", "listbox");
+
+    const active = input.getAttribute("aria-activedescendant");
+    expect(active).not.toBe(null);
+    const activeEl = document.getElementById(active);
+    expect(activeEl).not.toBe(null);
+    expect(activeEl).toHaveClass("focus");
+    // `aria-selected` is only defined on `option`; it is what makes the
+    // highlighted choice announceable at all.
+    expect(activeEl).toHaveAttribute("role", "option");
+    expect(activeEl).toHaveAttribute("aria-selected", "true");
+    // Nothing is left behind on the menu, which is not focused.
+    expect(queryOne(".o_select_menu_menu").getAttribute("aria-activedescendant")).toBe(
+        null,
+    );
+});
+
+test.tags("mobile");
+test("a searchable BottomSheet publishes its active choice once its input is focused", async () => {
     await mountSingleApp(SelectMenu, {
         choices: [
             { label: "Alpha", value: "a" },
@@ -1544,9 +1585,102 @@ test("a searchable menu publishes its active choice via aria-activedescendant", 
     await click(".o_select_menu_toggler");
     await animationFrame();
 
-    const menu = queryOne(".o_select_menu_menu");
-    const active = menu.getAttribute("aria-activedescendant");
-    expect(active).not.toBe(null);
-    expect(document.getElementById(active)).not.toBe(null);
-    expect(document.getElementById(active)).toHaveClass("focus");
+    // The sheet opens with nothing focused, so there is no element assistive
+    // technology would read `aria-activedescendant` off yet. Tapping the search
+    // input is what puts the user in the virtual-focus state the desktop
+    // counterpart starts in.
+    const input = queryOne(".o_select_menu_input");
+    await click(input);
+    await animationFrame();
+    await press("ArrowDown");
+    await animationFrame();
+
+    expect(document.activeElement).toBe(input);
+    // Resolvable, not dangling: the sheet renders the menu id the toggler's
+    // `aria-controls` names, which it dropped while only the popover did.
+    const menuId = input.getAttribute("aria-controls");
+    expect(document.getElementById(menuId)).toBe(queryOne(".o_select_menu_menu"));
+    expect(queryOne(".o_select_menu_menu")).toHaveAttribute("role", "listbox");
+
+    const activeEl = document.getElementById(
+        input.getAttribute("aria-activedescendant"),
+    );
+    expect(activeEl).not.toBe(null);
+    expect(activeEl).toHaveClass("focus");
+    expect(activeEl).toHaveAttribute("role", "option");
+    expect(activeEl).toHaveAttribute("aria-selected", "true");
+});
+
+test("choices mutated in place are re-sorted on the next open", async () => {
+    class InPlaceChoices extends Component {
+        static props = ["*"];
+        static components = { SelectMenu };
+        static template = xml`<SelectMenu choices="state.choices"/>`;
+        setup() {
+            this.state = useState({
+                choices: [
+                    { label: "Bravo", value: "b" },
+                    { label: "Alpha", value: "a" },
+                ],
+            });
+        }
+    }
+    const parent = await mountWithCleanup(InPlaceChoices);
+
+    await contains(".o_select_menu_toggler").click();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha", "Bravo"]);
+    await contains(".o_select_menu_toggler").click();
+    await animationFrame();
+
+    parent.state.choices.push({ label: "Charlie", value: "c" });
+    await animationFrame();
+
+    await contains(".o_select_menu_toggler").click();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha", "Bravo", "Charlie"]);
+    await contains(".o_select_menu_toggler").click();
+    await animationFrame();
+
+    parent.state.choices.splice(0, 3, { label: "Zulu", value: "z" });
+    await animationFrame();
+
+    await contains(".o_select_menu_toggler").click();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Zulu"]);
+});
+
+test("the toggler picks up a value whose choice only arrives with the groups", async () => {
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`<SelectMenu groups="state.groups" value="state.value"/>`;
+        setup() {
+            this.state = useState({ groups: [], value: "optionB" });
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    expect(".o_select_menu_toggler_slot, .o_select_menu_toggler").toHaveCount(1);
+
+    // Grouped choices are routinely loaded after the value is known.
+    parent.state.groups = [
+        { label: "Group A", choices: [{ label: "Option B", value: "optionB" }] },
+    ];
+    await animationFrame();
+
+    expect(queryOne(".o_select_menu_toggler").value).toBe("Option B");
+});
+
+test("a closed menu holds no rendered options", async () => {
+    const choices = Array.from({ length: 80 }, (_, i) => ({
+        label: `Option ${i}`,
+        value: i,
+    }));
+    const menu = await mountSingleApp(SelectMenu, { choices, onSelect: () => {} });
+    await contains(".o_select_menu_toggler").click();
+    expect(menu.state.displayedOptions.length).toBe(80);
+
+    // Closed by the state rather than a click-away: on a touch viewport the
+    // menu is a bottom sheet and a body click does not dismiss it.
+    menu.dropdownState.close();
+    await animationFrame();
+    expect(menu.state.choices).toEqual([]);
+    expect(menu.state.displayedOptions).toEqual([]);
 });

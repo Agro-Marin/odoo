@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_upload/file_upload_progress_record - Per-record file upload overlay showing percentage and MB progress */
+/** @module @web/components/file_upload/file_upload_progress_record */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -17,8 +17,7 @@ export class FileUploadProgressRecord extends Component {
         selector: { type: String, optional: true },
     };
     /**
-     * Compute progress display texts for the upload overlay.
-     * @returns {{ left: string, right: string }} left label and right MB counter
+     * @returns {{ left: string, right: string }}
      */
     getProgressTexts() {
         const fileUpload = this.props.fileUpload;

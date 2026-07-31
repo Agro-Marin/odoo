@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor_value_editors - Field-type-specific value editor configurations for tree editor conditions */
+/** @module @web/components/tree_editor/tree_editor_value_editors */
 
 import { DateTimeInput } from "@web/components/datetime/datetime_input";
 import {
@@ -50,7 +50,7 @@ const formatters = registry.category("formatters");
 /**
  * @param {string} fieldType
  * @param {string} value
- * @returns {any} parsed value, or the original string if parsing fails
+ * @returns {any}
  */
 function parseValue(fieldType, value) {
     const parser = getFieldCodec(fieldType).parse;
@@ -78,8 +78,8 @@ function isParsable(fieldType, value) {
 
 /**
  * @param {"date"|"datetime"} type
- * @param {any} value luxon DateTime instance
- * @returns {string} serialized date string
+ * @param {any} value
+ * @returns {string}
  */
 function genericSerializeDate(type, value) {
     return type === "date" ? serializeDate(value) : serializeDateTime(value);
@@ -88,7 +88,7 @@ function genericSerializeDate(type, value) {
 /**
  * @param {"date"|"datetime"} type
  * @param {string} value
- * @returns {any} luxon DateTime instance
+ * @returns {any}
  */
 function genericDeserializeDate(type, value) {
     return type === "date" ? deserializeDate(value) : deserializeDateTime(value);
@@ -127,7 +127,7 @@ const STRING_EDITOR = {
 };
 
 /**
- * @param {Array<[any, string]>} options - value/label pairs
+ * @param {Array<[any, string]>} options
  * @param {Object} [params]
  * @param {boolean} [params.addBlankOption]
  * @returns {ValueEditorInfo}
@@ -159,7 +159,7 @@ function makeSelectEditor(options, params = {}) {
 
 /**
  * @param {Object} fieldDef
- * @returns {Array} domain list for autocomplete filtering
+ * @returns {Array}
  */
 function getDomain(fieldDef) {
     if (fieldDef.type === "many2one") {
@@ -201,7 +201,7 @@ function isLitteralObject(value) {
 }
 
 /**
- * @param {Object} fieldDef - field definition (may be empty)
+ * @param {Object} fieldDef
  * @param {string} operator
  * @param {Object} [params]
  * @returns {Partial<ValueEditorInfo>}
@@ -477,8 +477,8 @@ export function getValueEditorInfo(fieldDef, operator, options = {}) {
 /**
  * @param {Object} fieldDef
  * @param {string} operator
- * @param {any} [value=null] - current value to keep if supported
- * @returns {any} the default value for the field/operator, or the current value if valid
+ * @param {any} [value=null]
+ * @returns {any}
  */
 export function getDefaultValue(fieldDef, operator, value = null) {
     const { isSupported, shouldResetValue, defaultValue } = getValueEditorInfo(

@@ -1,7 +1,7 @@
 // @ts-check
 
 import { beforeEach, expect, test } from "@odoo/hoot";
-import { click, hover, queryAllTexts, resize } from "@odoo/hoot-dom";
+import { click, hover, queryAll, queryAllTexts, resize } from "@odoo/hoot-dom";
 import { animationFrame, mockDate } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
@@ -1380,4 +1380,18 @@ test("grid refreshes when isDateValid / dayCellClass change their answer", async
 
     expect(".o_date_item_cell[disabled]").toHaveCount(6);
     expect(".o_blocked").toHaveCount(6);
+});
+
+test("without isDateValid every in-month day stays selectable", async () => {
+    // `isValid` was `isInRange(...) && isDateValid?.(day)`, which yields
+    // `undefined` when the callback is absent -- correct only because
+    // `toDateItem`'s parameter default rescued it two functions away. Pinned so
+    // that giving that parameter an explicit default cannot silently make every
+    // day in every picker unselectable.
+    await mountWithCleanup(DateTimePicker, { props: { type: "date" } });
+
+    const cells = queryAll(".o_date_item_cell:not(.o_out_of_range)");
+    expect(cells.length).toBeGreaterThan(20);
+    expect(cells.filter((cell) => cell.disabled).length).toBe(0);
+    expect(".o_date_item_cell:not(.o_out_of_range).opacity-50").toHaveCount(0);
 });

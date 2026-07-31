@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor_components - Shared input, select, range, and list sub-components for tree editor value entry */
+/** @module @web/components/tree_editor/tree_editor_components */
 
 import { Component } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
@@ -16,7 +16,7 @@ export class Select extends Component {
     static template = "web.TreeEditor.Select";
 
     /**
-     * @param {string} value - JSON-serialized value
+     * @param {string} value
      * @returns {any}
      */
     deserialize(value) {
@@ -25,7 +25,7 @@ export class Select extends Component {
 
     /**
      * @param {any} value
-     * @returns {string} JSON-serialized value
+     * @returns {string}
      */
     serialize(value) {
         return JSON.stringify(value);
@@ -37,7 +37,6 @@ export class Range extends Component {
     static template = "web.TreeEditor.Range";
 
     /**
-     * Updates one side of the range (start or end).
      * @param {0|1} index
      * @param {any} newValue
      */
@@ -53,7 +52,7 @@ export class InRange extends Component {
     static template = "web.TreeEditor.InRange";
     static options = IN_RANGE_OPTIONS;
     /**
-     * @param {string} newValueType - e.g. "today", "last 7 days", "custom range"
+     * @param {string} newValueType
      */
     updateValueType(newValueType) {
         const [fieldType, currentValueType] = this.props.value;
@@ -66,7 +65,7 @@ export class InRange extends Component {
         }
     }
     /**
-     * @param {[any, any]} values - start and end values for the range
+     * @param {[any, any]} values
      */
     updateValues(values) {
         const [fieldType, currentValueType] = this.props.value;
@@ -82,20 +81,21 @@ export class List extends Component {
     /** @returns {Array<{text: string, colorIndex: number, onDelete: Function}>} */
     get tags() {
         const { isSupported, stringify } = this.props.editorInfo;
-        return this.props.value.map((val, index) => ({
-            text: stringify(val),
-            colorIndex: isSupported(val) ? 0 : 2,
-            onDelete: () => {
-                this.props.update([
-                    ...this.props.value.slice(0, index),
-                    ...this.props.value.slice(index + 1),
-                ]);
-            },
-        }));
+        return this.props.value.map(
+            (/** @type {any} */ val, /** @type {number} */ index) => ({
+                text: stringify(val),
+                colorIndex: isSupported(val) ? 0 : 2,
+                onDelete: () => {
+                    this.props.update([
+                        ...this.props.value.slice(0, index),
+                        ...this.props.value.slice(index + 1),
+                    ]);
+                },
+            }),
+        );
     }
 
     /**
-     * Appends a new value to the list.
      * @param {any} newValue
      */
     update(newValue) {

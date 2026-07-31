@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/expression_editor/expression_editor - Visual tree-based editor for Python expressions with field path selection */
+/** @module @web/components/expression_editor/expression_editor */
 
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { getExpressionDisplayedOperators } from "@web/components/expression_editor/expression_editor_operator_editor";
@@ -30,7 +30,7 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * @param {typeof this.props} props - incoming component props
+     * @param {typeof this.props} props
      * @returns {Promise<void>}
      */
     async onPropsUpdated(props) {
@@ -52,9 +52,9 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * @param {string | number} name - field name to look up
-     * @param {typeof this.props} [props] - props containing field definitions
-     * @returns {Object | null} field definition or null if not found
+     * @param {string | number} name
+     * @param {typeof this.props} [props]
+     * @returns {Object | null}
      */
     getFieldDef(name, props = this.props) {
         if (typeof name === "string") {
@@ -64,7 +64,7 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * @returns {Object} a condition node with default path, operator, and value
+     * @returns {Object}
      */
     getDefaultCondition() {
         const defaultPath = getDefaultPath(this.filteredFields);
@@ -75,16 +75,16 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * @param {Object} fieldDef - field definition
-     * @returns {string} first valid operator for the field type
+     * @param {Object} fieldDef
+     * @returns {string}
      */
     getDefaultOperator(fieldDef) {
         return getExpressionDisplayedOperators(fieldDef)[0];
     }
 
     /**
-     * @param {Object} fieldDef - field definition
-     * @returns {any} editor info with filtered operators (OperatorEditorInfo from tree_editor_operator_editor)
+     * @param {Object} fieldDef
+     * @returns {any}
      */
     getOperatorEditorInfo(fieldDef) {
         const operators = getExpressionDisplayedOperators(fieldDef);
@@ -92,9 +92,9 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * @param {string} resModel - model technical name (must match props.resModel)
-     * @param {Object} defaultCondition - fallback condition for default path value
-     * @returns {Object} path editor descriptor with component, extractProps, isSupported, stringify, defaultValue, and message
+     * @param {string} resModel
+     * @param {Object} defaultCondition
+     * @returns {Object}
      */
     getPathEditorInfo(resModel, defaultCondition) {
         if (resModel !== this.props.resModel) {
@@ -127,7 +127,7 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * @param {string} expression - new Python expression string
+     * @param {string} expression
      */
     onExpressionChange(expression) {
         this.props.update(expression);
@@ -138,7 +138,7 @@ export class ExpressionEditor extends Component {
     }
 
     /**
-     * @param {Object} tree - condition tree to serialize into a Python expression
+     * @param {Object} tree
      */
     update(tree) {
         let expression;

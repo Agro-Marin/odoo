@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/user_switch/user_switch - Login page component for quick-switching between recently connected user accounts */
+/** @module @web/components/user_switch/user_switch */
 
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -48,12 +48,16 @@ export class UserSwitch extends Component {
         this.form.querySelector(":placeholder-shown")?.focus();
     }
 
+    /** @param {{ partnerId: number, partnerWriteDate: any }} param0 */
     getAvatarUrl({ partnerId, partnerWriteDate: unique }) {
         return imageUrl("res.partner", partnerId, "avatar_128", { unique });
     }
 
+    /** @param {any} deletedUser */
     remove(deletedUser) {
-        this.state.users = this.state.users.filter((user) => user !== deletedUser);
+        this.state.users = this.state.users.filter(
+            (/** @type {any} */ user) => user !== deletedUser,
+        );
         setLastConnectedUsers(this.state.users);
         if (!this.state.users.length) {
             this.fillForm();

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/multi_record_selector - Multi-value record picker with tag display and autocomplete search */
+/** @module @web/components/record_selectors/multi_record_selector */
 
 import { useState } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
@@ -12,6 +12,9 @@ import { imageUrl } from "@web/core/utils/urls";
 import { BaseRecordSelector } from "./base_record_selector.js";
 import { RecordAutocomplete } from "./record_autocomplete.js";
 import { useTagNavigation } from "./tag_navigation_hook.js";
+
+/** @typedef {{ text: string, onDelete: Function, img: string | false }} RecordTag */
+/** @typedef {{ resIds: number[], [key: string]: any }} MultiRecordSelectorProps */
 
 export class MultiRecordSelector extends BaseRecordSelector {
     static props = {
@@ -26,6 +29,9 @@ export class MultiRecordSelector extends BaseRecordSelector {
     static components = { RecordAutocomplete, TagsList };
     static template = "web.MultiRecordSelector";
 
+    /** @type {{ tags: RecordTag[] }} */
+    state;
+
     setup() {
         super.setup();
         this.state = useState({ tags: [] });
@@ -34,13 +40,13 @@ export class MultiRecordSelector extends BaseRecordSelector {
         });
     }
 
-    /** @returns {Array<{text: string, onDelete: Function, img: string | false}>} reactive tag list */
+    /** @returns {RecordTag[]} */
     get tags() {
         return this.state.tags;
     }
 
     /**
-     * @param {Object} props
+     * @param {MultiRecordSelectorProps} props
      * @param {Record<number, string>} displayNames
      */
     applyDisplayNames(props, displayNames) {
@@ -48,8 +54,6 @@ export class MultiRecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * Empty when at least one tag exists — the input itself stays empty even
-     * with tags, so the native placeholder attribute can't be relied on.
      * @returns {string | undefined}
      */
     get placeholder() {
@@ -57,7 +61,7 @@ export class MultiRecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * @param {Object} [props]
+     * @param {MultiRecordSelectorProps} [props]
      * @returns {number[]}
      */
     getIds(props = this.props) {
@@ -65,10 +69,9 @@ export class MultiRecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * Build tag objects from record IDs and their display names.
-     * @param {Object} props
+     * @param {MultiRecordSelectorProps} props
      * @param {Record<number, string>} displayNames
-     * @returns {Array<{text: string, onDelete: Function, img: string | false}>}
+     * @returns {RecordTag[]}
      */
     getTags(props, displayNames) {
         return props.resIds.map((id, index) => {
@@ -90,8 +93,7 @@ export class MultiRecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * Remove a tag by index and notify the parent.
-     * @param {number} index - position of the tag to remove
+     * @param {number} index
      */
     deleteTag(index) {
         this.props.update([
@@ -101,8 +103,7 @@ export class MultiRecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * Append newly selected record IDs to the current selection.
-     * @param {number[]} resIds - IDs to add
+     * @param {number[]} resIds
      */
     update(resIds) {
         this.props.update([...this.props.resIds, ...resIds]);

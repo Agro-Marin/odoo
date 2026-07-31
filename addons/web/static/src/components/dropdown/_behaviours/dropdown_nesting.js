@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/_behaviours/dropdown_nesting - Parent-child nesting state and close propagation logic for nested dropdowns */
+/** @module @web/components/dropdown/_behaviours/dropdown_nesting */
 
 import { EventBus, onWillDestroy, useChildSubEnv, useEffect, useEnv } from "@odoo/owl";
 import { localization } from "@web/core/l10n/localization";
@@ -68,12 +68,7 @@ class DropdownNestingState {
 }
 
 /**
- * Closes every open dropdown that isn't a parent of this one when this one
- * opens. Scoped to dropdowns sharing the same UI active element, so
- * dropdowns in different dialogs don't interfere.
- *
  * @param {import("@web/components/dropdown/dropdown_hooks").DropdownState} state
- * @returns
  */
 export function useDropdownNesting(state) {
     const env = useEnv();
@@ -117,7 +112,7 @@ export function useDropdownNesting(state) {
         get hasParent() {
             return Boolean(current.parent);
         },
-        /**@type {import("@web/services/navigation/navigation").NavigationOptions} */
+        /** @type {import("@web/services/navigation/navigation").NavigationOptions} */
         navigationOptions: {
             onUpdated: (navigator) => {
                 if (current.parent && !navigator.activeItem) {

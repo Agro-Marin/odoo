@@ -1,13 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/barcode/ZXingBarcodeDetector - BarcodeDetector polyfill built on ZXing for browsers without native support */
+/** @module @web/components/barcode/ZXingBarcodeDetector */
 
 /**
- * Builder for BarcodeDetector-like polyfill class using ZXing library.
- *
- * @param {any} ZXing - ZXing library
- * @returns {typeof BarcodeDetector} ZxingBarcodeDetector class
+ * @param {any} ZXing
+ * @returns {typeof BarcodeDetector}
  */
 export function buildZXingBarcodeDetector(ZXing) {
     const ZXingFormats = new Map([
@@ -26,13 +24,10 @@ export function buildZXingBarcodeDetector(ZXing) {
 
     const allSupportedFormats = Array.from(ZXingFormats.keys());
 
-    /**
-     * Implements the Shape Detection Web API's BarcodeDetector interface.
-     */
     class ZXingBarcodeDetector {
         /**
          * @param {object} opts
-         * @param {Array} opts.formats list of codes' formats to detect
+         * @param {Array} opts.formats
          */
         constructor(opts = { formats: [] }) {
             const formats = opts.formats.length ? opts.formats : allSupportedFormats;
@@ -52,10 +47,8 @@ export function buildZXingBarcodeDetector(ZXing) {
         }
 
         /**
-         * Detect codes in image.
-         *
-         * @param {HTMLVideoElement} video source video element
-         * @returns {Promise<Array>} array of detected codes
+         * @param {HTMLVideoElement} video
+         * @returns {Promise<Array>}
          */
         async detect(video) {
             if (!(video instanceof HTMLVideoElement)) {
@@ -90,7 +83,7 @@ export function buildZXingBarcodeDetector(ZXing) {
                 canvas.height = barcodeArea.height;
             }
 
-            const ctx = this.ctx;
+            const ctx = /** @type {CanvasRenderingContext2D} */ (this.ctx);
 
             ctx.drawImage(
                 video,
@@ -148,8 +141,6 @@ export function buildZXingBarcodeDetector(ZXing) {
     }
 
     /**
-     * Supported codes formats
-     *
      * @static
      * @returns {Promise<string[]>}
      */
@@ -158,11 +149,6 @@ export function buildZXingBarcodeDetector(ZXing) {
     return ZXingBarcodeDetector;
 }
 
-/**
- * Check for HTMLVideoElement readiness.
- *
- * See https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/readyState
- */
 const HAVE_NOTHING = 0;
 const HAVE_METADATA = 1;
 export function isVideoElementReady(video) {

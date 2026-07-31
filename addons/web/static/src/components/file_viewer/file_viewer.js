@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_viewer/file_viewer - Full-screen image, PDF, video, and text file preview with navigation controls */
+/** @module @web/components/file_viewer/file_viewer */
 
 import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { hidePDFJSButtons } from "@web/core/utils/pdfjs";
+import { useThrottleForAnimation } from "@web/core/utils/timing";
 /**
  * @typedef {Object} File
  * @property {string} name
@@ -63,6 +64,11 @@ export class FileViewer extends Component {
             isIframeLoaded: false,
         });
         this.ui = useService("ui");
+        // Dragging fires far faster than the screen refreshes, and each call
+        // measures the image and the viewport before writing a transform back.
+        this.throttledUpdateZoomerStyle = useThrottleForAnimation(() =>
+            this.updateZoomerStyle(),
+        );
         onWillUpdateProps((nextProps) => this.onFilesUpdated(nextProps.files));
         useEffect(
             (el) => {
@@ -108,15 +114,6 @@ export class FileViewer extends Component {
     }
 
     /**
-     * Re-anchors the viewer on a new file list. Without this, `state.index` and
-     * `state.file` stay the snapshot taken in `setup`, so deleting or replacing
-     * an attachment while the viewer is open leaves it previewing a file that no
-     * longer exists — while `next()` / `previous()` read a fresh
-     * `props.files.length`, mixing the two lists.
-     *
-     * The currently viewed file wins over the index: reordering the list should
-     * keep showing the same document.
-     *
      * @param {Array<Object>} files
      */
     onFilesUpdated(files) {
@@ -136,9 +133,7 @@ export class FileViewer extends Component {
 
     /**
      * @param {number} index
-     * @param {Array<Object>} [files] list to read from; defaults to the current
-     *  props, but must be passed explicitly from `onWillUpdateProps`, where
-     *  `this.props` is still the previous set.
+     * @param {Array<Object>} [files]
      */
     activateFile(index, files = this.props.files) {
         this.state.index = index;
@@ -213,15 +208,9 @@ export class FileViewer extends Component {
         this.dragStartY = ev.clientY;
         try {
             ev.target.setPointerCapture(ev.pointerId);
-        } catch {
-            // no active pointer to capture (synthetic event)
-        }
+        } catch {}
     }
 
-    /**
-     * Ends an image pan. Bound on the main view (pointerup/pointercancel) so it
-     * fires whether or not the pointer was captured by the image.
-     */
     onPointerupView() {
         if (!this.isDragging) {
             return;
@@ -246,13 +235,9 @@ export class FileViewer extends Component {
         if (this.translate.dx || this.translate.dy) {
             this.didDrag = true;
         }
-        this.updateZoomerStyle();
+        this.throttledUpdateZoomerStyle();
     }
 
-    /**
-     * The click composed at the end of an image pan released over the main
-     * view must not close the viewer; only a genuine click does.
-     */
     onClickView() {
         if (this.didDrag) {
             this.didDrag = false;
@@ -261,10 +246,6 @@ export class FileViewer extends Component {
         this.close();
     }
 
-    /**
-     * Consumes a drag-end click landing on the image (its `.stop` keeps it
-     * from the main view) so the next genuine click still closes the viewer.
-     */
     onClickImage() {
         this.didDrag = false;
     }
@@ -275,7 +256,7 @@ export class FileViewer extends Component {
     }
 
     rotate() {
-        this.state.angle += 90;
+        this.state.angle = (this.state.angle + 90) % 360;
     }
 
     /**
@@ -334,7 +315,6 @@ export class FileViewer extends Component {
         } else {
             style += "max-height: 100%; max-width: 100%;";
         }
-        style += `background: repeating-conic-gradient(#ccc 0deg 90deg, #fff 90deg 180deg) 50% / 20px 20px;`;
         return style;
     }
 
@@ -344,10 +324,6 @@ export class FileViewer extends Component {
             return;
         }
         const image = printWindow.document.createElement("img");
-        // Real handlers, not `onload="..."` attribute strings: those are parsed
-        // as inline script, so they are the first thing a `script-src` policy
-        // kills — and if they never run, the popup is stranded open with no way
-        // back to it.
         const printAndClose = () => {
             printWindow.print();
             printWindow.setTimeout(() => printWindow.close(), 10);

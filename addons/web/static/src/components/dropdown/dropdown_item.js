@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/dropdown_item - Single selectable item within a dropdown menu with configurable close behavior */
+/** @module @web/components/dropdown/dropdown_item */
 
 import { Component } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
@@ -35,12 +35,20 @@ export class DropdownItem extends Component {
             type: Object,
             optional: true,
         },
+        role: {
+            type: String,
+            optional: true,
+        },
         slots: { type: Object, optional: true },
     };
     static defaultProps = {
         closingMode: ClosingMode.AllParents,
         attrs: {},
+        role: "menuitem",
     };
+
+    /** @type {ReturnType<typeof useDropdownCloser>} */
+    dropdownControl;
 
     setup() {
         this.dropdownControl = useDropdownCloser();

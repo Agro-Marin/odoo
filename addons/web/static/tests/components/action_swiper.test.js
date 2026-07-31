@@ -743,3 +743,40 @@ test("no timer is scheduled once the swiper is destroyed mid-action", async () =
 
     expect(scheduledAfterDestroy).toEqual([]);
 });
+
+test("a rejecting swipe action still resets the swiper", async () => {
+    patchWithCleanup(ActionSwiper.prototype, {
+        reportActionError(caught) {
+            expect.step(`reported: ${caught.message}`);
+        },
+    });
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { ActionSwiper };
+        static template = xml`
+            <div class="d-flex">
+                <ActionSwiper onRightSwipe = "{
+                    action: () => this.failingAction(),
+                    icon: 'fa-circle',
+                    bgColor: 'bg-warning'
+                }">
+                    <div class="target-component" style="width: 200px; height: 80px">Test</div>
+                </ActionSwiper>
+            </div>
+        `;
+        failingAction() {
+            return Promise.reject(new Error("boom"));
+        }
+    }
+    await mountWithCleanup(Parent);
+    const targetContainer = queryFirst(".o_actionswiper_target_container");
+
+    await swipeRight(".o_actionswiper");
+    await advanceTime(1000);
+    await animationFrame();
+
+    expect.verifySteps(["reported: boom"]);
+    expect(targetContainer.style.transform).not.toInclude("translateX", {
+        message: "the swiper is reset even though the action rejected",
+    });
+});

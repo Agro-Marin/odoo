@@ -69,5 +69,5 @@ test("_addNewConnector appends when the sibling is not a child", () => {
         condition("zzz", "=", 9),
     );
     expect(parent.children.length).toBe(3);
-    expect(parent.children.at(-1).type).toBe("connector");
+    expect(/** @type {any} */ (parent.children.at(-1)).type).toBe("connector");
 });

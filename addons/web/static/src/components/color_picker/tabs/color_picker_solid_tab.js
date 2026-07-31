@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/color_picker/tabs/color_picker_solid_tab - Color picker tab rendering the preset solid color palette grid */
+/** @module @web/components/color_picker/tabs/color_picker_solid_tab */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/notebook/notebook - Tabbed notebook component that renders one page at a time with tab navigation */
+/** @module @web/components/notebook/notebook */
 
 import {
     Component,
@@ -14,51 +14,6 @@ import {
 import { KeepLast } from "@web/core/utils/concurrency";
 
 /**
- * A notebook component that will render only the current page and allow
- * switching between its pages.
- *
- * You can also set pages using a template component. Use an array with
- * the `pages` props to do such rendering.
- *
- * Pages can also specify their index in the notebook.
- *
- *      e.g.:
- *          PageTemplate.template = xml`
-                    <h1 t-esc="props.heading" />
-                    <p t-esc="props.text" />`;
-
- *      `pages` could be:
- *      [
- *          {
- *              Component: PageTemplate,
- *              id: 'unique_id' // optional: can be given as defaultPage props to the notebook
- *              index: 1 // optional: page position in the notebook
- *              name: 'some_name' // optional
- *              title: "Some Title 1", // title displayed on the tab pane
- *              props: {
- *                  heading: "Page 1",
- *                  text: "Text Content 1",
- *              },
- *          },
- *          {
- *              Component: PageTemplate,
- *              title: "Some Title 2",
- *              props: {
- *                  heading: "Page 2",
- *                  text: "Text Content 2",
- *              },
- *          },
- *      ]
- *
- * <Notebook pages="pages">
- *    <t t-set-slot="Page Name 1" title="Some Title" isVisible="bool">
- *      <div>Page Content 1</div>
- *    </t>
- *    <t t-set-slot="Page Name 2" title="Some Title" isVisible="bool">
- *      <div>Page Content 2</div>
- *    </t>
- * </Notebook>
- *
  * @extends Component
  */
 
@@ -80,6 +35,7 @@ export class Notebook extends Component {
         icons: { type: Object, optional: true },
         onPageUpdate: { type: Function, optional: true },
         onWillActivatePage: { type: Function, optional: true },
+        isFieldInvalid: { type: Function, optional: true },
     };
 
     /** @type {import("@odoo/owl").Ref<HTMLElement>} */
@@ -98,7 +54,7 @@ export class Notebook extends Component {
         this.activePane = useRef("activePane");
         /** @type {Array<[string, Object]>} */
         this.pages = this.computePages(this.props);
-        /** @type {Set<string>} page IDs with invalid fields */
+        /** @type {Set<string>} */
         this.invalidPages = new Set();
         this.state = useState({ currentPage: null });
         this.state.currentPage = this.computeActivePage(this.props.defaultPage, true);
@@ -109,11 +65,6 @@ export class Notebook extends Component {
             },
             () => [this.state.currentPage],
         );
-        // The pane is keyed on the active page, so a real page switch mounts a
-        // fresh (opacity-0) element that this fades in. Keying `show` to the
-        // element rather than to `currentPage` is what makes an A -> B -> A
-        // sequence safe: both writes land before OWL patches, so the pane is
-        // reused and stays visible instead of being left permanently faded out.
         useEffect(
             (pane) => {
                 pane?.classList.add("show");
@@ -135,12 +86,12 @@ export class Notebook extends Component {
         });
     }
 
-    /** @returns {Array<[string, Object]>} visible page entries for tab navigation */
+    /** @returns {Array<[string, Object]>} */
     get navItems() {
         return this.pages.filter((e) => e[1].isVisible);
     }
 
-    /** @returns {Object | undefined} the active page descriptor, if it has a Component */
+    /** @returns {Object | undefined} */
     get page() {
         const entry = this.pages.find((e) => e[0] === this.state.currentPage);
         if (!entry) {
@@ -151,12 +102,9 @@ export class Notebook extends Component {
     }
 
     /**
-     * Switch to a page tab unless it is disabled or already active.
-     * @param {string} pageIndex - page ID to activate
+     * @param {string} pageIndex
      */
     async activatePage(pageIndex) {
-        // An id that matches no page would otherwise become `currentPage`,
-        // leaving the notebook with no active tab and no rendered pane.
         const exists = this.pages.some(([id]) => id === pageIndex);
         if (
             !exists ||
@@ -175,14 +123,10 @@ export class Notebook extends Component {
     }
 
     /**
-     * Build the ordered page list from slots and programmatic pages.
-     * @param {Object} props - component props with slots and/or pages
-     * @returns {Array<[string, Object]>} ordered [id, descriptor] pairs
+     * @param {Object} props
+     * @returns {Array<[string, Object]>}
      */
     computePages(props) {
-        // Initialised before the early return: `activatePage` reads it
-        // unconditionally, so a notebook with neither slots nor pages used to
-        // leave it undefined and throw on the first programmatic activation.
         this.disabledPages = [];
         if (!props.slots && !props.pages) {
             return [];
@@ -217,10 +161,9 @@ export class Notebook extends Component {
     }
 
     /**
-     * Determine which page should be active.
-     * @param {string | undefined} defaultPage - preferred default page ID
-     * @param {boolean} activateDefault - whether to force-activate the default
-     * @returns {string | null} active page ID, or null if no pages exist
+     * @param {string | undefined} defaultPage
+     * @param {boolean} activateDefault
+     * @returns {string | null}
      */
     computeActivePage(defaultPage, activateDefault) {
         if (!this.pages.length) {
@@ -246,16 +189,20 @@ export class Notebook extends Component {
         return current;
     }
 
-    /** Recompute the set of page IDs that contain invalid fields. */
     computeInvalidPages() {
-        this.invalidPages = new Set();
-        for (const page of this.navItems) {
-            const invalid = page[1].fieldNames?.some((fieldName) =>
-                this.env.model?.root.isFieldInvalid(fieldName),
-            );
-            if (invalid) {
-                this.invalidPages.add(page[0]);
+        const isFieldInvalid = this.props.isFieldInvalid;
+        if (!isFieldInvalid) {
+            if (this.invalidPages.size) {
+                this.invalidPages = new Set();
+            }
+            return;
+        }
+        const invalidPages = new Set();
+        for (const [id, page] of this.navItems) {
+            if (page.fieldNames?.some((fieldName) => isFieldInvalid(fieldName))) {
+                invalidPages.add(id);
             }
         }
+        this.invalidPages = invalidPages;
     }
 }

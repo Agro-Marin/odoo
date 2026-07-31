@@ -153,3 +153,39 @@ test("youtube URLs are matched on the host, not on a substring", async () => {
     // Subdomain spoofing must not pass either.
     expect(videoId("https://youtube.evil.com/watch?v=abc123")).toBe(null);
 });
+
+test("dragging an image measures the layout once per frame, not once per event", async () => {
+    let measures = 0;
+    class Probe extends FileViewer {
+        updateZoomerStyle() {
+            measures++;
+            return super.updateZoomerStyle();
+        }
+    }
+    const viewer = await mountWithCleanup(Probe, {
+        props: { files: [IMAGE_FILE], startIndex: 0, modal: false },
+    });
+    await animationFrame();
+    // Zoom in so the image overflows its zoomer and the translation is applied.
+    viewer.zoomIn();
+    viewer.zoomIn();
+    await animationFrame();
+
+    measures = 0;
+    await pointerDown(".o-FileViewer-viewImage", { position: { x: 0, y: 0 } });
+    for (let i = 1; i <= 20; i++) {
+        await hover(".o-FileViewer-main", { position: { x: i * 3, y: i * 2 } });
+    }
+    // 20 pointermoves used to mean 20 forced layouts.
+    expect(measures).toBeLessThan(20);
+    // Throttling the style write must not lose the last move.
+    expect(viewer.translate.dx).toBe(60);
+    expect(viewer.translate.dy).toBe(40);
+
+    // The drop is not deferred: it settles the offset straight away.
+    const beforeDrop = measures;
+    await pointerUp(".o-FileViewer-main");
+    expect(measures).toBeGreaterThan(beforeDrop);
+    expect(viewer.translate.dx).toBe(0);
+    expect(viewer.translate.dy).toBe(0);
+});

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/select_menu/select_menu - Searchable dropdown select menu with multi-select tags and keyboard navigation */
+/** @module @web/components/select_menu/select_menu */
 
 import { Component, onWillUpdateProps, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -12,10 +12,11 @@ import { hasTouch } from "@web/core/browser/feature_detection";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { scrollTo } from "@web/core/utils/dom/scrolling";
+import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 import { useDebounced } from "@web/core/utils/timing";
-let selectMenuId = 0;
+import { utils } from "@web/ui/viewport";
 
 const collator = new Intl.Collator();
 
@@ -91,8 +92,11 @@ export class SelectMenu extends Component {
             type: Array,
             optional: true,
             element: {
-                label: { type: String },
-                name: { type: String },
+                type: Object,
+                shape: {
+                    label: { type: String },
+                    name: { type: String },
+                },
             },
         },
         id: { type: String, optional: true },
@@ -125,7 +129,8 @@ export class SelectMenu extends Component {
     };
 
     setup() {
-        this.selectMenuId = selectMenuId++;
+        this.selectMenuId = uniqueId("o_select_menu_");
+        this.menuId = `${this.selectMenuId}_menu`;
         this.state = useState({
             choices: [],
             displayedOptions: [],
@@ -148,16 +153,14 @@ export class SelectMenu extends Component {
         this.dropdownState = useDropdownState();
 
         this.selectedChoice = this.getSelectedChoice(this.props);
-        /** @type {WeakMap<any[], any[]> | null} */
-        this._sortedChoicesCache = null;
-        // Deliberately does NOT assign `state.choices`: that field holds the
-        // list `filterOptions` builds (filtered, sorted, group headers folded
-        // in), and seeding it with the raw prop let "No results" -- which reads
-        // `state.choices` -- render on top of the options still listed from
-        // `state.displayedOptions`. The effect below rebuilds both together.
+        /** @type {WeakMap<any[], { source: any[], sorted: any[] }>} */
+        this._sortedChoicesCache = new WeakMap();
         onWillUpdateProps((nextProps) => {
+            // Grouped choices carry labels too, so a value whose choice only
+            // exists under `groups` resolves to nothing until they are read.
             if (
                 this.props.choices !== nextProps.choices ||
+                this.props.groups !== nextProps.groups ||
                 this.props.value !== nextProps.value
             ) {
                 this.selectedChoice = this.getSelectedChoice(nextProps);
@@ -207,10 +210,6 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * The selected values, in multi-select mode. `value` is an optional prop,
-     * so a multi-select consumer that has not supplied one yet must read as
-     * "nothing selected" instead of throwing on `undefined.includes`.
-     *
      * @returns {any[]}
      */
     get selectedValues() {
@@ -234,7 +233,7 @@ export class SelectMenu extends Component {
     }
 
     get isBottomSheet() {
-        return this.env.isSmall && hasTouch();
+        return utils.isSmall() && hasTouch();
     }
 
     get canDeselect() {
@@ -280,7 +279,7 @@ export class SelectMenu extends Component {
         return this.props.placeholder;
     }
 
-    async onBeforeOpen() {
+    onBeforeOpen() {
         this.onInput("");
     }
 
@@ -347,14 +346,15 @@ export class SelectMenu extends Component {
             this.loadMoreObserver?.disconnect();
             this.loadMoreObserver = null;
             this.state.searchValue = null;
+            // Up to SCROLL_SETTINGS.defaultCount options were sliced out for a
+            // menu that is gone; opening rebuilds them from the props.
+            this.state.choices = [];
+            this.state.displayedOptions = [];
             this.props.onClosed();
         }
     }
 
     isOptionSelected(choice) {
-        // Group and section headers carry no `value`, so an unset `props.value`
-        // would match them via `undefined === undefined` and report a header as
-        // the selected option.
         if (choice.isGroup) {
             return false;
         }
@@ -397,7 +397,9 @@ export class SelectMenu extends Component {
                 choiceByValue.set(choice.value, choice);
             }
         }
-        return [...choiceByValue.values()];
+        return /** @type {any[]} */ (props.value ?? [])
+            .map((value) => choiceByValue.get(value))
+            .filter(Boolean);
     }
 
     onItemSelected(value) {
@@ -418,9 +420,6 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * Filters choices by ``searchString``, slicing the result to a
-     * reasonable amount to avoid delay when opening the select.
-     *
      * @param {String} searchString
      */
     filterOptions(searchString = "", groups) {
@@ -431,12 +430,6 @@ export class SelectMenu extends Component {
 
         const _choices = [];
         const _sections = new Set();
-        // Sections declared in `props.sections` are ordered as declared —
-        // it is an ordered array, and its order was previously ignored in
-        // favour of the section's technical name, which the user never sees.
-        // Sections that were never declared keep the alphabetical fallback:
-        // `section` doubles as a grouping key that works without any
-        // `props.sections` at all, and then the name is the only order there is.
         const sectionRank = (group) => {
             if (!group.section) {
                 return -1;
@@ -477,8 +470,8 @@ export class SelectMenu extends Component {
                 const section = this.props.sections.find(
                     (e) => e.name === group.section,
                 );
-                if (!_sections.has(section)) {
-                    _sections.add(section);
+                if (section && !_sections.has(section.name)) {
+                    _sections.add(section.name);
                     _choices.push({ ...section, isGroup: true });
                 }
             }
@@ -493,28 +486,26 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * Returns ``choices`` sorted by label, cached against the array's identity
-     * so the n·log n sort runs once per distinct array reference instead of on
-     * every open / every debounced keystroke-clear. A WeakMap keyed on the
-     * array covers per-GROUP choices too (the previous single-slot cache only
-     * covered ``props.choices``, so group-based consumers re-sorted every
-     * group on every open — a visible latency cliff for large lists).
-     *
      * @param {any[]} choices
      * @returns {any[]}
      */
     getSortedChoices(choices) {
-        const sortByLabel = (a, b) => collator.compare(a.label, b.label);
-        if (!this._sortedChoicesCache) {
-            /** @type {WeakMap<any[], any[]>} */
-            this._sortedChoicesCache = new WeakMap();
+        const cached = this._sortedChoicesCache.get(choices);
+        if (
+            cached &&
+            cached.source.length === choices.length &&
+            cached.source.every((choice, index) => choice === choices[index])
+        ) {
+            return cached.sorted;
         }
-        let sorted = this._sortedChoicesCache.get(choices);
-        if (!sorted) {
-            sorted = choices.toSorted(sortByLabel);
-            this._sortedChoicesCache.set(choices, sorted);
-        }
+        const sorted = choices.toSorted((a, b) => collator.compare(a.label, b.label));
+        this._sortedChoicesCache.set(choices, { source: [...choices], sorted });
         return sorted;
+    }
+
+    /** @returns {typeof SelectMenu.SCROLL_SETTINGS} */
+    get scrollSettings() {
+        return /** @type {typeof SelectMenu} */ (this.constructor).SCROLL_SETTINGS;
     }
 
     /**
@@ -553,24 +544,14 @@ export class SelectMenu extends Component {
         this.loadMoreObserver.observe(sentinel);
     }
 
-    /**
-     * Sets ``displayedOptions`` so the selected choice is visible, showing
-     * at least ``defaultCount`` options overall.
-     */
     sliceDisplayedOptions() {
         const selectedIndex = this.getSelectedOptionIndex();
-        const defaultCount = /** @type {any} */ (this.constructor).SCROLL_SETTINGS
-            .defaultCount;
+        const { defaultCount, increaseAmount } = this.scrollSettings;
 
         if (selectedIndex === -1) {
             this.state.displayedOptions = this.state.choices.slice(0, defaultCount);
         } else {
-            const endIndex = Math.max(
-                selectedIndex +
-                    /** @type {any} */ (this.constructor).SCROLL_SETTINGS
-                        .increaseAmount,
-                defaultCount,
-            );
+            const endIndex = Math.max(selectedIndex + increaseAmount, defaultCount);
             this.state.displayedOptions = this.state.choices.slice(0, endIndex);
         }
     }

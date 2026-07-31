@@ -1668,3 +1668,31 @@ test("a mouseenter on an open dropdown does not hijack focus on the next open", 
 
     expect(document.activeElement).toBe(queryOne(".realOwner"));
 });
+
+test("a toggler the slot stops rendering is left as it was found", async () => {
+    class Parent extends Component {
+        static components = { Dropdown };
+        static props = [];
+        static template = xml`
+            <Dropdown>
+                <button t-if="state.primary" class="first">First</button>
+                <button t-else="" class="second">Second</button>
+                <t t-set-slot="content">Menu</t>
+            </Dropdown>`;
+        setup() {
+            this.state = useState({ primary: true });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    const first = queryOne("button.first");
+    expect(first).toHaveClass("o-dropdown");
+    expect(first).toHaveAttribute("aria-expanded", "false");
+
+    // The slot hands the dropdown a different element to drive.
+    parent.state.primary = false;
+    await animationFrame();
+    expect(queryOne("button.second")).toHaveClass("o-dropdown");
+    expect(first).not.toHaveClass("o-dropdown");
+    expect(first).not.toHaveClass("dropdown");
+    expect(first).not.toHaveAttribute("aria-expanded");
+});

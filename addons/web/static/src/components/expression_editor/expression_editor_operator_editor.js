@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/expression_editor/expression_editor_operator_editor - Filters domain operators to the subset valid for Python expressions */
+/** @module @web/components/expression_editor/expression_editor_operator_editor */
 
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 
@@ -22,8 +22,8 @@ const EXPRESSION_VALID_OPERATORS = [
 ];
 
 /**
- * @param {Object} fieldDef - field definition with type and metadata
- * @returns {string[]} domain operators valid for use in Python expressions
+ * @param {Object} fieldDef
+ * @returns {string[]}
  */
 export function getExpressionDisplayedOperators(fieldDef) {
     const operators = getDomainDisplayedOperators(fieldDef);

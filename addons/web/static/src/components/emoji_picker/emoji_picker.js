@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/emoji_picker/emoji_picker - Emoji picker with category navigation, fuzzy search, and recent emoji tracking */
+/** @module @web/components/emoji_picker/emoji_picker */
 
 import {
     App,
@@ -30,11 +30,12 @@ import { markEventHandled } from "@web/core/utils/dom/events";
 import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useOwnedDialogs, useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
+import { useThrottleForAnimation } from "@web/core/utils/timing";
 /**
  * @typedef Emoji
  * @property {string} category
- * @property {string} codepoints the emoji itself to be displayed
- * @property {string[]} emoticons string substitution (eg: ":p")
+ * @property {string} codepoints
+ * @property {string[]} emoticons
  * @property {string[]} keywords
  * @property {string} name
  * @property {string[]} shortcodes
@@ -51,10 +52,6 @@ export function useEmojiPicker(
 }
 
 /**
- * Precomputed, normalized fuzzy-search candidate strings per emoji. Rebuilding
- * these on every lookup dominated search cost over ~8.7k emojis; the emoji
- * objects are singletons, so build once here instead.
- *
  * @type {WeakMap<Emoji, string[]>}
  */
 const searchStringsByEmoji = new WeakMap();
@@ -79,7 +76,9 @@ function getEmojiSearchStrings(emoji) {
 
 export const loader = reactive({
     loadEmoji: () => loadBundle("web.assets_emoji"),
-    /** @type {{ emojiValueToShortcodes: {[key: string]: string[]}, emojiRegex: RegExp } | undefined} */
+    /**
+     * @type {{ emojiValueToShortcodes: {[key: string]: string[]}, emojiRegex: RegExp } | undefined}
+     */
     loaded: undefined,
 });
 
@@ -119,19 +118,11 @@ export async function loadEmoji() {
     }
 }
 
-/**
- * Drop the parsed emoji caches of the emoji data module THIS module resolves
- * to. Mainly for tests: bundling may duplicate `emoji_data` (bundle chunk vs
- * import-mapped URL), and only the instance reachable from here is the one
- * the picker actually renders.
- */
 export async function resetLoadedEmojiData() {
     try {
         const emojiData = await import("@web/components/emoji_picker/emoji_data");
         emojiData.resetEmojiData?.();
-    } catch {
-        // Emoji data not loadable in this context: nothing to reset.
-    }
+    } catch {}
 }
 
 export const PICKER_PROPS = [
@@ -148,7 +139,6 @@ export class EmojiPicker extends Component {
     static props = [...PICKER_PROPS, "class?", "initialSearchTerm?"];
     static template = "web.EmojiPicker";
 
-    // Declared with @type (not assigned) so strictNullChecks treats them as
     /** @type {{el: HTMLElement | null}} */
     gridRef;
     /** @type {{el: HTMLElement | null}} */
@@ -159,7 +149,9 @@ export class EmojiPicker extends Component {
     ui;
     /** @type {boolean} */
     isMobileOS;
-    /** @type {{activeEmojiIndex: number, categoryId: number | null, searchTerm: string, emojiNavbarRepr: any[][] | undefined}} */
+    /**
+     * @type {{activeEmojiIndex: number, categoryId: number | null, searchTerm: string, emojiNavbarRepr: any[][] | undefined}}
+     */
     state;
     /** @type {any} */
     frequentEmojiService;
@@ -169,7 +161,9 @@ export class EmojiPicker extends Component {
     emojis;
     /** @type {{[key: string]: Emoji}} */
     emojiByCodepoints;
-    /** @type {Map<string, {name: string, displayName: string, sortId: number, title?: string}>} */
+    /**
+     * @type {Map<string, {name: string, displayName: string, sortId: number, title?: string}>}
+     */
     categoryByName;
     /** @type {Emoji[] | undefined} */
     _recentEmojis;
@@ -181,7 +175,7 @@ export class EmojiPicker extends Component {
     _emojisCache;
     /** @type {Emoji[] | undefined} */
     _emojisFromSearch;
-    /** @type {Emoji | undefined} the emoji under the pointer; see setHoveredEmoji */
+    /** @type {Emoji | undefined} */
     hoveredEmoji;
     /** @type {{name: string, displayName: string, title: string, sortId: number}} */
     recentCategory;
@@ -209,6 +203,11 @@ export class EmojiPicker extends Component {
         });
         this.frequentEmojiService = useService("web.frequent.emoji");
         this.searchInputRef = useAutofocus();
+        // Scrolling the grid fires far faster than the highlight can change, and
+        // resolving the top-most category forces a synchronous layout each time.
+        this.onGridScroll = useThrottleForAnimation(() =>
+            this.highlightActiveCategory(),
+        );
         onWillStart(async () => {
             const { categories, emojis } = await loadEmoji();
             this.categories = categories;
@@ -230,9 +229,13 @@ export class EmojiPicker extends Component {
                 : (this.categories[0]?.sortId ?? null);
         });
         onWillRender(() => {
-            this._recentEmojis = this.computeRecentEmojis();
-            this._emojis = this.computeEmojis();
-            this._emojisFromSearch = [...this._recentEmojis, ...this._emojis];
+            const recentEmojis = this.computeRecentEmojis();
+            const emojis = this.computeEmojis(recentEmojis);
+            if (recentEmojis !== this._recentEmojis || emojis !== this._emojis) {
+                this._recentEmojis = recentEmojis;
+                this._emojis = emojis;
+                this._emojisFromSearch = [...recentEmojis, ...emojis];
+            }
         });
         onMounted(() => {
             if (!this.emojis.length) {
@@ -267,7 +270,7 @@ export class EmojiPicker extends Component {
         });
         useEffect(
             () => this.updateEmojiPickerRepr(),
-            () => [this.state.categoryId, this.state.searchTerm],
+            () => [this.state.categoryId, this.searchTerm],
         );
         useEffect(
             (el) => {
@@ -293,6 +296,12 @@ export class EmojiPicker extends Component {
         );
         useEffect(
             () => {
+                if (this.searchTerm !== this.lastSearchTerm) {
+                    // The result list is a different list; an index into the
+                    // previous one selects nothing and deadens Enter and the
+                    // arrow keys.
+                    this.state.activeEmojiIndex = 0;
+                }
                 if (!this.gridRef.el) {
                     return;
                 }
@@ -331,9 +340,11 @@ export class EmojiPicker extends Component {
             Number.parseInt(computedStyle.marginLeft, 10) -
             Number.parseInt(computedStyle.paddingRight, 10) -
             Number.parseInt(computedStyle.marginRight, 10);
-        const itemWidth = this.navbarRef.el
-            .querySelector(".o-Emoji")
-            .getBoundingClientRect().width;
+        const firstItem = this.navbarRef.el.querySelector(".o-Emoji");
+        if (!firstItem) {
+            return;
+        }
+        const itemWidth = firstItem.getBoundingClientRect().width;
         const gapWidth = Number.parseInt(computedStyle.gap, 10);
         const maxAvailableNavbarItemAmountAtOnce = Math.floor(
             availableWidth / (itemWidth + gapWidth),
@@ -370,7 +381,7 @@ export class EmojiPicker extends Component {
         if (!this.state.emojiNavbarRepr) {
             return this.getAllCategories().map((c) => c.sortId);
         }
-        if (this.state.categoryId === null || Number.isNaN(this.state.categoryId)) {
+        if (this.state.categoryId === null) {
             return this.state.emojiNavbarRepr[0];
         }
         return this.state.emojiNavbarRepr.find((panel) =>
@@ -395,16 +406,26 @@ export class EmojiPicker extends Component {
     }
 
     computeRecentEmojis() {
-        const recent = Object.entries(this.frequentEmojiService.all)
+        const usageByCodepoints = Object.entries(this.frequentEmojiService.all);
+        const cacheKey = `${this.searchTerm}\x00${usageByCodepoints
+            .map(([codepoints, usage]) => `${codepoints}:${usage}`)
+            .join(",")}`;
+        if (this._recentEmojisCache && this._recentEmojisCacheKey === cacheKey) {
+            return this._recentEmojisCache;
+        }
+        const recent = usageByCodepoints
             .sort(([, usage_1], [, usage_2]) => usage_2 - usage_1)
             .map(([codepoints]) => this.emojiByCodepoints[codepoints])
             .filter(Boolean);
-        if (this.searchTerm && recent.length) {
-            return fuzzyLookup(this.searchTerm, recent, getEmojiSearchStrings, {
-                preNormalized: true,
-            });
-        }
-        return recent.slice(0, 42);
+        const result =
+            this.searchTerm && recent.length
+                ? fuzzyLookup(this.searchTerm, recent, getEmojiSearchStrings, {
+                      preNormalized: true,
+                  })
+                : recent.slice(0, 42);
+        this._recentEmojisCacheKey = cacheKey;
+        this._recentEmojisCache = result;
+        return result;
     }
 
     get placeholder() {
@@ -412,14 +433,6 @@ export class EmojiPicker extends Component {
     }
 
     /**
-     * The hovered emoji feeds exactly one thing: the search input's
-     * placeholder. Holding it in `state` made every pointer crossing repaint
-     * the entire grid — one full OWL patch of ~1450 cells per cell entered,
-     * measured at 14-61ms (avg 22ms) — so a mouse sweep could not keep up with
-     * the frame budget. It is a plain field written straight to the DOM
-     * instead; `placeholder` still reads it, so any genuine re-render (search,
-     * category switch) renders the same value.
-     *
      * @param {Emoji|undefined} emoji
      */
     setHoveredEmoji(emoji) {
@@ -467,19 +480,10 @@ export class EmojiPicker extends Component {
         this.selectCategory(this.state.emojiNavbarRepr[panelIndex - 1].at(-2));
     }
 
-    /**
-     * Builds a 2D matrix of emoji indices from the current DOM, used for
-     * keyboard navigation.
-     */
     updateEmojiPickerRepr() {
         if (!this.emojis.length) {
             return;
         }
-        // `offsetTop` rather than `getBoundingClientRect().top`: the grid is a
-        // single flex-wrap container, so both orderings are identical (rows
-        // only ever break downwards), but this reads one number per element
-        // instead of allocating a DOMRect for each of the ~1450 emojis --
-        // measured 1.4x faster on the full set, with no GC churn.
         const emojiEls = Array.from(this.gridRef.el.querySelectorAll(".o-Emoji"));
         const emojiTops = emojiEls.map((el) => el.offsetTop);
         this.emojiMatrix = [];
@@ -492,73 +496,65 @@ export class EmojiPicker extends Component {
         }
     }
 
-    handleNavigation(key) {
-        const currentIdx = this.state.activeEmojiIndex;
-        let currentRow = -1;
-        let currentCol = -1;
-        const rowIdx = this.emojiMatrix.findIndex((row) => row.includes(currentIdx));
-        if (rowIdx !== -1) {
-            currentRow = rowIdx;
-            currentCol = this.emojiMatrix[currentRow].indexOf(currentIdx);
+    /**
+     * A row is one visual line of one category, so the last row of a category
+     * is usually shorter than the grid is wide. Moving vertically prefers the
+     * next row that reaches the current column, and otherwise lands on the
+     * adjacent row's last cell rather than nowhere.
+     *
+     * @param {number} row
+     * @param {number} col
+     * @param {-1 | 1} direction
+     * @returns {number | undefined}
+     */
+    rowNeighbour(row, col, direction) {
+        const adjacent = this.emojiMatrix[row + direction];
+        if (!adjacent) {
+            return undefined;
         }
+        if (adjacent.length > col) {
+            return adjacent[col];
+        }
+        const skipped = this.emojiMatrix[row + 2 * direction];
+        return skipped?.length > col ? skipped[col] : adjacent.at(-1);
+    }
+
+    handleNavigation(key) {
+        const currentRow = this.emojiMatrix.findIndex((row) =>
+            row.includes(this.state.activeEmojiIndex),
+        );
+        if (currentRow === -1) {
+            // A filtered list can be shorter than the index we were sitting on.
+            this.state.activeEmojiIndex =
+                this.emojiMatrix[0]?.[0] ?? this.state.activeEmojiIndex;
+            return;
+        }
+        const row = this.emojiMatrix[currentRow];
+        const currentCol = row.indexOf(this.state.activeEmojiIndex);
         let newIdx;
         switch (key) {
-            case "ArrowDown": {
-                const rowBelow = this.emojiMatrix[currentRow + 1];
-                const rowBelowBelow = this.emojiMatrix[currentRow + 2];
-                if (
-                    rowBelow?.length <= currentCol &&
-                    rowBelowBelow?.length >= currentCol
-                ) {
-                    newIdx = rowBelowBelow?.[currentCol];
-                } else {
-                    newIdx = rowBelow?.[Math.min(currentCol, rowBelow.length - 1)];
-                }
+            case "ArrowDown":
+                newIdx = this.rowNeighbour(currentRow, currentCol, 1);
                 break;
-            }
-            case "ArrowUp": {
-                const rowAbove = this.emojiMatrix[currentRow - 1];
-                const rowAboveAbove = this.emojiMatrix[currentRow - 2];
-                if (
-                    rowAbove?.length <= currentCol &&
-                    rowAboveAbove?.length >= currentCol
-                ) {
-                    newIdx = rowAboveAbove?.[currentCol];
-                } else {
-                    newIdx = rowAbove?.[Math.min(currentCol, rowAbove.length - 1)];
-                }
+            case "ArrowUp":
+                newIdx = this.rowNeighbour(currentRow, currentCol, -1);
                 break;
-            }
-            case "ArrowRight": {
-                const colRight = currentCol + 1;
-                if (colRight === this.emojiMatrix[currentRow]?.length) {
-                    const rowBelowRight = this.emojiMatrix[currentRow + 1];
-                    newIdx = rowBelowRight?.[0];
-                } else {
-                    newIdx = this.emojiMatrix[currentRow]?.[colRight];
-                }
+            case "ArrowRight":
+                newIdx =
+                    currentCol + 1 === row.length
+                        ? this.emojiMatrix[currentRow + 1]?.[0]
+                        : row[currentCol + 1];
                 break;
-            }
-            case "ArrowLeft": {
-                const colLeft = currentCol - 1;
-                if (colLeft < 0) {
-                    const rowAboveLeft = this.emojiMatrix[currentRow - 1];
-                    newIdx = rowAboveLeft?.at(-1) ?? this.state.activeEmojiIndex;
-                } else {
-                    newIdx = this.emojiMatrix[currentRow][colLeft];
-                }
+            case "ArrowLeft":
+                newIdx =
+                    currentCol === 0
+                        ? this.emojiMatrix[currentRow - 1]?.at(-1)
+                        : row[currentCol - 1];
                 break;
-            }
         }
         this.state.activeEmojiIndex = newIdx ?? this.state.activeEmojiIndex;
     }
 
-    /**
-     * `activeEmojiIndex` indexes the very list the grid renders, so read it
-     * from that list rather than round-tripping through `data-index` in the
-     * DOM: the query returned the same emoji but threw outright whenever the
-     * grid was not mounted yet.
-     */
     get activeEmoji() {
         return this.getEmojisFromSearch()[this.state.activeEmojiIndex];
     }
@@ -598,8 +594,7 @@ export class EmojiPicker extends Component {
         return this._emojis ?? this.computeEmojis();
     }
 
-    computeEmojis() {
-        const recentEmojis = this.recentEmojis;
+    computeEmojis(recentEmojis = this.recentEmojis) {
         const cacheKey = this.searchTerm
             ? `${this.searchTerm}\x00${recentEmojis.map((e) => e.codepoints).join(",")}`
             : "";
@@ -625,12 +620,6 @@ export class EmojiPicker extends Component {
         return emojisToDisplay;
     }
 
-    /**
-     * The list the grid renders, and the list `activeEmojiIndex` indexes into.
-     * Built once per render alongside its two halves rather than re-spread on
-     * every read — `activeEmoji` reads it from event handlers, not just from
-     * the template.
-     */
     getEmojisFromSearch() {
         return this._emojisFromSearch ?? [...this.recentEmojis, ...this.getEmojis()];
     }
@@ -661,13 +650,19 @@ export class EmojiPicker extends Component {
         }
         const coords = this.gridRef.el.getBoundingClientRect();
         const res = document.elementFromPoint(coords.x + 10, coords.y + 10);
-        if (!res) {
+        const categoryEl = /** @type {HTMLElement | null} */ (res)?.closest(
+            "[data-category]",
+        );
+        if (!categoryEl) {
             return;
         }
-        this.state.categoryId = Number.parseInt(
-            /** @type {HTMLElement} */ (res).dataset.category,
+        const categoryId = Number.parseInt(
+            /** @type {HTMLElement} */ (categoryEl).dataset.category,
             10,
         );
+        if (!Number.isNaN(categoryId)) {
+            this.state.categoryId = categoryId;
+        }
     }
 }
 
@@ -772,9 +767,6 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
         }
     }
 
-    // The listeners are attached from an effect rather than at setup, which is
-    // the only point where `ref.el` is resolved (during `setup` every ref is
-    // still null).
     const toggler = () => toggle(isMobileOS() ? undefined : ref);
     useEffect(
         (el) => {

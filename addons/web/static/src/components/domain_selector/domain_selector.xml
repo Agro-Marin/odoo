@@ -17,7 +17,7 @@
                 >
                     <CheckBox
                         t-if="showArchivedCheckbox"
-                        value="includeArchived"
+                        value="state.includeArchived"
                         disabled="props.readonly"
                         className="'form-switch'"
                         onChange.bind="toggleIncludeArchived"

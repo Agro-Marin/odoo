@@ -46,7 +46,7 @@ test("color click does not open the list if canToggle props is not given", async
         props: {
             colors: [4, 5, 6],
             selectedColor: selectedColorId,
-            onColorSelected: (colorId) =>
+            onColorSelected: (/** @type {any} */ colorId) =>
                 expect.step("color #" + colorId + " is selected"),
         },
     });
@@ -64,7 +64,7 @@ test("open the list of colors if canToggle props is given", async function () {
             canToggle: true,
             colors: [4, 5, 6],
             selectedColor: selectedColorId,
-            onColorSelected: (colorId) =>
+            onColorSelected: (/** @type {any} */ colorId) =>
                 expect.step("color #" + colorId + " is selected"),
         },
     });

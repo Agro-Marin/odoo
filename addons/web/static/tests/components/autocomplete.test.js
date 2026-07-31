@@ -86,7 +86,9 @@ test("can be rendered", async () => {
     expect(queryAllTexts(".o-autocomplete--dropdown-item")).toEqual(["World", "Hello"]);
 
     const dropdownItemIds = queryAllAttributes(".dropdown-item", "id");
-    expect(dropdownItemIds).toEqual(["autocomplete_0_0", "autocomplete_0_1"]);
+    expect(dropdownItemIds).toHaveLength(2);
+    expect(dropdownItemIds[0]).toMatch(/_0_0$/);
+    expect(dropdownItemIds[1]).toMatch(/_0_1$/);
     expect(queryAllAttributes(".dropdown-item", "role")).toEqual(["option", "option"]);
     expect(queryAllAttributes(".dropdown-item", "aria-selected")).toEqual([
         "true",
@@ -574,7 +576,9 @@ test("correct sequence of blur, focus and select", async () => {
     await contains(".o-autocomplete input").click();
 
     let dropdownItemIds = queryAllAttributes(".dropdown-item", "id");
-    expect(dropdownItemIds).toEqual(["autocomplete_0_0", "autocomplete_0_1"]);
+    expect(dropdownItemIds).toHaveLength(2);
+    expect(dropdownItemIds[0]).toMatch(/_0_0$/);
+    expect(dropdownItemIds[1]).toMatch(/_0_1$/);
     expect(queryAllAttributes(".dropdown-item", "role")).toEqual(["option", "option"]);
     expect(queryAllAttributes(".dropdown-item", "aria-selected")).toEqual([
         "true",
@@ -588,7 +592,9 @@ test("correct sequence of blur, focus and select", async () => {
     await contains(".o-autocomplete--input").press("ArrowDown");
 
     dropdownItemIds = queryAllAttributes(".dropdown-item", "id");
-    expect(dropdownItemIds).toEqual(["autocomplete_0_0", "autocomplete_0_1"]);
+    expect(dropdownItemIds).toHaveLength(2);
+    expect(dropdownItemIds[0]).toMatch(/_0_0$/);
+    expect(dropdownItemIds[1]).toMatch(/_0_1$/);
     expect(queryAllAttributes(".dropdown-item", "role")).toEqual(["option", "option"]);
     expect(queryAllAttributes(".dropdown-item", "aria-selected")).toEqual([
         "false",
@@ -894,12 +900,13 @@ test("unselectable options are... not selectable", async () => {
 
     await mountWithCleanup(Parent);
     await contains(`.o-autocomplete input`).click();
+    const secondOptionId = queryAllAttributes(".dropdown-item", "id")[1];
     expect(`.o-autocomplete--input`).toHaveAttribute(
         "aria-activedescendant",
-        "autocomplete_0_1",
+        secondOptionId,
     );
-    expect(`.dropdown-item#autocomplete_0_1`).toHaveText("selectable");
-    expect(`.dropdown-item#autocomplete_0_1`).toHaveAttribute("aria-selected", "true");
+    expect(`.dropdown-item#${secondOptionId}`).toHaveText("selectable");
+    expect(`.dropdown-item#${secondOptionId}`).toHaveAttribute("aria-selected", "true");
 
     await press("arrowup");
     await animationFrame();
@@ -909,7 +916,7 @@ test("unselectable options are... not selectable", async () => {
     await animationFrame();
     expect(`.o-autocomplete--input`).toHaveAttribute(
         "aria-activedescendant",
-        "autocomplete_0_1",
+        secondOptionId,
     );
 
     await press("arrowdown");
@@ -920,7 +927,7 @@ test("unselectable options are... not selectable", async () => {
     await animationFrame();
     expect(`.o-autocomplete--input`).toHaveAttribute(
         "aria-activedescendant",
-        "autocomplete_0_1",
+        secondOptionId,
     );
 
     expect(`.o-autocomplete--input`).toBeFocused();
@@ -960,16 +967,17 @@ test("keyboard navigation skips a loaded-but-empty source", async () => {
 
     await mountWithCleanup(Parent);
     await contains(`.o-autocomplete input`).click();
+    const [firstOptionId, secondOptionId] = queryAllAttributes(".dropdown-item", "id");
     expect(`.o-autocomplete--input`).toHaveAttribute(
         "aria-activedescendant",
-        "autocomplete_0_0",
+        firstOptionId,
     );
 
     await press("arrowdown");
     await animationFrame();
     expect(`.o-autocomplete--input`).toHaveAttribute(
         "aria-activedescendant",
-        "autocomplete_0_1",
+        secondOptionId,
     );
 
     await press("arrowdown");
@@ -984,7 +992,7 @@ test("keyboard navigation skips a loaded-but-empty source", async () => {
     await animationFrame();
     expect(`.o-autocomplete--input`).toHaveAttribute(
         "aria-activedescendant",
-        "autocomplete_0_0",
+        firstOptionId,
     );
     await press("enter");
     await animationFrame();
@@ -1174,4 +1182,143 @@ test("a new value prop is applied after the edit was abandoned with Escape", asy
     await animationFrame();
 
     expect(".o-autocomplete--input").toHaveValue("external");
+});
+
+test("a pointerdown inside an iframe dismisses the dropdown", async () => {
+    // Events do not cross a browsing-context boundary, so the hand-rolled
+    // `window.addEventListener("pointerdown")` this used to carry never saw a
+    // click inside an iframe -- and every embedded editor, report preview and
+    // website-builder canvas is an iframe.
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static template = xml`
+            <div>
+                <iframe class="probeFrame" srcdoc="&lt;p&gt;hi&lt;/p&gt;"/>
+                <AutoComplete value="'Hello'" sources="sources"/>
+            </div>`;
+        static props = [];
+        sources = buildSources(() => [item("World"), item("Hello")]);
+    }
+
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    await runAllTimers();
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(1);
+
+    const frame = /** @type {HTMLIFrameElement} */ (queryOne("iframe.probeFrame"));
+    await new Promise((resolve) => {
+        if (frame.contentDocument?.readyState === "complete") {
+            resolve(undefined);
+        } else {
+            frame.addEventListener("load", () => resolve(undefined), { once: true });
+        }
+    });
+    frame.contentWindow.document.body.dispatchEvent(
+        new frame.contentWindow.PointerEvent("pointerdown", { bubbles: true }),
+    );
+    await animationFrame();
+
+    expect(".o-autocomplete .dropdown-menu").toHaveCount(0);
+});
+
+test("two id-less autocompletes do not share generated option ids", async () => {
+    class Parent extends Component {
+        static components = { AutoComplete };
+        static props = ["*"];
+        static template = xml`
+            <div>
+                <AutoComplete value="''" sources="props.srcs" dropdown="false"/>
+                <AutoComplete value="''" sources="props.srcs" dropdown="false"/>
+            </div>`;
+    }
+    await mountWithCleanup(Parent, {
+        props: { srcs: [{ options: [{ label: "aa", onSelect: () => {} }] }] },
+    });
+    await animationFrame();
+    const ids = [...document.querySelectorAll("[id]")]
+        .map((el) => el.id)
+        .filter((id) => id.includes("autocomplete"));
+    expect(ids.length).toBeGreaterThan(0);
+    expect(new Set(ids).size).toBe(ids.length);
+});
+
+test("a source with no selectable option never leaves one active", async () => {
+    class Parent extends Component {
+        static template = xml`<AutoComplete value="''" sources="sources"/>`;
+        static components = { AutoComplete };
+        static props = [];
+        sources = buildSources(() => [
+            { label: "(no result)" },
+            { label: "also not selectable" },
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(`.o-autocomplete input`).click();
+
+    expect(".dropdown-item").toHaveCount(2);
+    expect(`.o-autocomplete--input`).not.toHaveAttribute("aria-activedescendant");
+
+    // Stepping in either direction has nothing to land on, and must not latch
+    // onto an option the user cannot choose.
+    for (const key of ["arrowdown", "arrowdown", "arrowup"]) {
+        await press(key);
+        await animationFrame();
+        expect(`.o-autocomplete--input`).not.toHaveAttribute("aria-activedescendant");
+    }
+
+    await press("enter");
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-menu").toHaveCount(1);
+});
+
+test("tab does not autoselect after the dropdown was closed and reopened", async () => {
+    class Parent extends Component {
+        static template = xml`<AutoComplete value="''" sources="sources" autoSelect="true"/>`;
+        static components = { AutoComplete };
+        static props = [];
+
+        sources = buildSources(() => [
+            item("World", () => expect.step("select World")),
+            item("Hello", () => expect.step("select Hello")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+
+    // The user browses the suggestions, then gives up on them.
+    await contains(".o-autocomplete input").click();
+    await press("arrowdown");
+    await animationFrame();
+    await press("escape");
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(0);
+
+    // A fresh, untouched dropdown: tabbing out of an empty input commits nothing.
+    await contains(".o-autocomplete input").click();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(2);
+    await press("tab");
+    await animationFrame();
+    expect.verifySteps([]);
+});
+
+test("blur selects the first selectable option, whichever source holds it", async () => {
+    class Parent extends Component {
+        static template = xml`<AutoComplete value="''" sources="sources" selectOnBlur="true"/>`;
+        static components = { AutoComplete };
+        static props = [];
+
+        sources = [
+            // A source whose only entry is a message, not a choice.
+            { options: () => [{ label: "(no result)" }] },
+            { options: () => [item("World", () => expect.step("select World"))] },
+        ];
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    expect(queryAllTexts(".o-autocomplete--dropdown-item")).toEqual([
+        "(no result)",
+        "World",
+    ]);
+
+    await contains(document.body).click();
+    expect.verifySteps(["select World"]);
 });

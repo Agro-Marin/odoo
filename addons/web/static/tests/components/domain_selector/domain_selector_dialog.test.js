@@ -51,7 +51,7 @@ defineModels([Partner, Product, Team, Player, Country, Stage]);
 test("a domain with a user context dynamic part is valid", async () => {
     await makeDomainSelectorDialog({
         domain: "[('foo', '=', uid)]",
-        onConfirm(domain) {
+        onConfirm(/** @type {any} */ domain) {
             expect(domain).toBe("[('foo', '=', uid)]");
             expect.step("confirmed");
         },
@@ -68,7 +68,7 @@ test("can extend eval context", async () => {
     await makeDomainSelectorDialog({
         domain: "['&', ('foo', '=', uid), ('bar', '=', var)]",
         context: { uid: 99, var: "true" },
-        onConfirm(domain) {
+        onConfirm(/** @type {any} */ domain) {
             expect(domain).toBe("['&', ('foo', '=', uid), ('bar', '=', var)]");
             expect.step("confirmed");
         },

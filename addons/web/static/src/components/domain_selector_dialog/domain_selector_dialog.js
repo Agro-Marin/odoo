@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/domain_selector_dialog/domain_selector_dialog - Modal dialog for editing and validating an Odoo domain filter */
+/** @module @web/components/domain_selector_dialog/domain_selector_dialog */
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
@@ -43,6 +43,13 @@ export class DomainSelectorDialog extends Component {
         context: {},
     };
 
+    /** @type {import("@odoo/owl").Ref} */
+    confirmButtonRef;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {{ domain: any }} */
+    state;
+
     setup() {
         this.notification = useService("notification");
         this.orm = useService("orm");
@@ -77,7 +84,7 @@ export class DomainSelectorDialog extends Component {
             isDebugMode: this.props.isDebugMode,
             defaultConnector: this.props.defaultConnector,
             domain: this.state.domain,
-            update: (domain) => {
+            update: (/** @type {string} */ domain) => {
                 this.state.domain = domain;
             },
         };

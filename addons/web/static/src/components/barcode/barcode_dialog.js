@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/barcode/barcode_dialog - Dialog wrapper for the barcode video scanner with error state handling */
+/** @module @web/components/barcode/barcode_dialog */
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -20,6 +20,9 @@ export class BarcodeDialog extends Component {
     };
     static props = ["facingMode", "close", "onResult", "onError"];
 
+    /** @type {{ barcodeScannerSupported: boolean, errorMessage: string }} */
+    state;
+
     setup() {
         this.state = useState({
             barcodeScannerSupported: isBarcodeScannerSupported(),
@@ -28,13 +31,7 @@ export class BarcodeDialog extends Component {
     }
 
     /**
-     * Detection success handler
-     *
-     * Notifies before closing: closing fires the dialog service's `onClose`
-     * hook, which `scanBarcode()` uses to resolve `null` on manual close —
-     * the actual result must win that one-shot settle race.
-     *
-     * @param {string} result found code
+     * @param {string} result
      */
     onResult(result) {
         this.props.onResult(result);
@@ -42,8 +39,6 @@ export class BarcodeDialog extends Component {
     }
 
     /**
-     * Detection error handler
-     *
      * @param {Error} error
      */
     onError(error) {
@@ -53,10 +48,7 @@ export class BarcodeDialog extends Component {
 }
 
 /**
- * Opens the BarcodeScanning dialog and begins code detection using the device's camera.
- *
- * @returns {Promise<string|null>} resolves with the detected {qr,bar}code, or
- *  `null` when the user closes the dialog without scanning (X button / ESC)
+ * @returns {Promise<string|null>}
  */
 export async function scanBarcode(env, facingMode = "environment") {
     return new Promise((resolve, reject) => {

@@ -17,6 +17,11 @@
             autocomplete="selectMenuAutocompleteOff"
             autocorrect="off"
             spellcheck="false"
+            role="combobox"
+            aria-haspopup="listbox"
+            t-att-aria-autocomplete="props.searchable ? 'list' : undefined"
+            t-att-aria-expanded="dropdownState.isOpen ? 'true' : 'false'"
+            t-att-aria-controls="menuId"
         />
     </t>
 
@@ -31,6 +36,8 @@
                 onStateChanged.bind="onStateChanged"
                 navigationOptions="navigationOptions"
                 state="dropdownState"
+                role="'listbox'"
+                menuId="menuId"
                 >
                 <t t-if="displayInputInToggler">
                     <t t-set="inputClass" t-value="'o_select_menu_toggler ' + (!displayInputInDropdown ? 'o_select_menu_input ' : '') + props.togglerClass"/>
@@ -47,7 +54,10 @@
                     </div>
                 </t>
                 <t t-else="">
-                    <button type="button" t-attf-class="o_select_menu_toggler d-flex border btn btn-light w-100 bg-light {{ props.togglerClass }}" t-att-disabled="props.disabled">
+                    <button type="button" t-attf-class="o_select_menu_toggler d-flex border btn btn-light w-100 bg-light {{ props.togglerClass }}" t-att-disabled="props.disabled"
+                        role="combobox" aria-haspopup="listbox"
+                        t-att-aria-expanded="dropdownState.isOpen ? 'true' : 'false'"
+                        t-att-aria-controls="menuId">
                         <span class="o_select_menu_toggler_slot text-start text-truncate">
                             <span t-if="props.placeholder and !props.value" class="text-muted" t-out="props.placeholder"/>
                             <t t-slot="default" />
@@ -67,7 +77,7 @@
                         </t>
                     </div>
                     <t t-if="state.choices.length === 0">
-                        <p class="text-muted fst-italic mx-4 my-1">No results</p>
+                        <p class="text-muted fst-italic mx-4 my-1" role="status">No results</p>
                     </t>
                     <t t-foreach="state.displayedOptions" t-as="choice" t-key="choice_index">
                         <t t-call="{{ this.constructor.choiceItemTemplate }}">
@@ -87,6 +97,7 @@
             t-if="choice.isGroup and choice.label"
             class="o_select_menu_group position-sticky start-0 px-1 fw-bolder user-select-none"
             t-att-class="{'o_select_menu_searchable_group': displayInputInDropdown, 'ms-2': !!choice.section }"
+            role="presentation"
         >
             <span t-esc="choice.label" />
         </div>
@@ -94,6 +105,7 @@
             t-if="!choice.isGroup"
             onSelected="() => this.onItemSelected(choice.value)"
             class="getItemClass(choice) + ' text-wrap'"
+            role="'option'"
             attrs="{ 'data-choice-index': choice_index }"
         >
             <t t-if="props.slots and props.slots.choice" t-slot="choice" data="choice"/>

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_viewer/file_model - FileModelMixin providing URL routing and type detection for viewable file attachments */
+/** @module @web/components/file_viewer/file_model */
 
 import { url } from "@web/core/utils/urls";
 export const FileModelMixin = (T) =>
@@ -21,10 +21,9 @@ export const FileModelMixin = (T) =>
         /** @type {string} */
         tmpUrl;
         /**
-         * This URL should not be used as the URL to serve the file. `urlRoute` should be used
-         * instead. The server will properly redirect to the correct URL when necessary.
-         *
-         * @type {string}
+         * A binary attachment carries no URL, so this is not always a string —
+         * see the typeof guard in isUrlYoutube.
+         * @type {string | false | null}
          */
         url;
         /** @type {boolean} */
@@ -89,14 +88,6 @@ export const FileModelMixin = (T) =>
         }
 
         /**
-         * Video id when `url` really points at YouTube, `null` otherwise.
-         *
-         * Matching on the parsed hostname rather than on a `"youtu"` substring:
-         * any URL merely containing those letters (`example.com/youtube-clone`)
-         * used to be classified as a video and rewritten into an embed of
-         * whatever its last path segment happened to be, replacing a working
-         * link with a broken player.
-         *
          * @returns {string|null}
          */
         get youtubeVideoId() {

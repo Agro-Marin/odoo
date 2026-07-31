@@ -1,11 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/domain_selector/domain_selector_operator_editor - Maps field types to their valid domain comparison operators */
+/** @module @web/components/domain_selector/domain_selector_operator_editor */
 
 /**
- * @param {Object} [fieldDef] - field definition with type and is_property flag
- * @returns {string[]} list of valid domain operators for the given field type
+ * @param {Record<string, any>} [fieldDef]
+ * @returns {string[]}
  */
 export function getDomainDisplayedOperators(fieldDef) {
     if (!fieldDef) {

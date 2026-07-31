@@ -218,6 +218,8 @@ describe("DateTimeInput (date)", () => {
         expect(".o_datetime_input").toHaveValue("1997/01/09");
     });
 
+    // The 100vh spacer only exists on small screens (`ensureVisibility` defaults
+    // to `env.isSmall`); on desktop the popover service repositions instead.
     test.tags("mobile");
     test("popover should have enough space to be displayed", async () => {
         class Root extends Component {
@@ -244,6 +246,30 @@ describe("DateTimeInput (date)", () => {
         expect(parent.clientHeight).toBeGreaterThan(pickerRectHeight, {
             message: "initial height should be big enough to display the picker",
         });
+    });
+
+    test.tags("desktop");
+    test("on a large screen the picker is shown without resizing its anchor", async () => {
+        class Root extends Component {
+            static components = { DateTimeInput };
+            static template = xml`<div class="d-flex"><DateTimeInput t-props="props" /></div>`;
+            static props = ["*"];
+        }
+        await mountWithCleanup(Root, {
+            props: {
+                value: DateTime.fromFormat("09/01/1997", "dd/MM/yyyy"),
+                type: "date",
+            },
+        });
+        const input = queryFirst(".o_datetime_input");
+        const parent = input.parentElement;
+        const initialParentHeight = parent.clientHeight;
+
+        await contains(".o_datetime_input", { root: parent }).click();
+
+        expect(".o_datetime_picker").toHaveCount(1);
+        expect(input.style.marginBottom).toBe("");
+        expect(parent.clientHeight).toBe(initialParentHeight);
     });
 });
 

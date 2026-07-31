@@ -1,9 +1,9 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, queryAll, waitFor } from "@odoo/hoot-dom";
+import { click, press, queryAll, waitFor } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, onRendered, useRef, useState, xml } from "@odoo/owl";
+import { Component, onRendered, reactive, useRef, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import {
     EmojiPicker,
@@ -149,4 +149,171 @@ test("hovering an emoji updates the placeholder without re-rendering the grid", 
         "placeholder",
         picker.getEmojisFromSearch()[3].shortcodes.join(" "),
     );
+});
+
+test("adaptNavbar survives a navbar with no emoji rendered", async () => {
+    // Driven by a ResizeObserver, so it can fire on a navbar that has been
+    // emptied (emoji data failed to load, or a resize landing between two
+    // patches) -- where the unguarded querySelector threw out of the observer
+    // callback, which nothing catches.
+    let picker;
+    patchWithCleanup(EmojiPicker.prototype, {
+        setup() {
+            super.setup();
+            picker = this;
+        },
+    });
+    await mountWithCleanup(EmojiPicker, { props: { onSelect: () => {} } });
+    await animationFrame();
+
+    const navbar = picker.navbarRef.el;
+    expect(navbar.querySelectorAll(".o-Emoji").length).toBeGreaterThan(0);
+    for (const el of [...navbar.querySelectorAll(".o-Emoji")]) {
+        el.remove();
+    }
+    expect(() => picker.adaptNavbar()).not.toThrow();
+});
+
+test("category id stays a number when a search returns nothing", async () => {
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+    }
+    await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    await animationFrame();
+    picker.state.searchTerm = "zzzzqqqqxxxx";
+    await animationFrame();
+    expect(".o-EmojiPicker-content .o-Emoji").toHaveCount(0);
+    picker.highlightActiveCategory();
+    await animationFrame();
+    expect(Number.isNaN(picker.state.categoryId)).toBe(false);
+});
+
+test("external state search rebuilds the navigation grid", async () => {
+    const external = reactive({ searchTerm: "" });
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+    }
+    class Parent extends Component {
+        static components = { EmojiPicker: Probe };
+        static props = ["*"];
+        static template = xml`<EmojiPicker onSelect="() => {}" state="props.st"/>`;
+    }
+    await mountWithCleanup(Parent, { props: { st: external } });
+    await animationFrame();
+
+    external.searchTerm = "cat";
+    await animationFrame();
+    await animationFrame();
+    const cells = () => picker.emojiMatrix.reduce((n, row) => n + row.length, 0);
+    expect(cells()).toBe(queryAll(".o-EmojiPicker-content .o-Emoji").length);
+
+    external.searchTerm = "flag";
+    await animationFrame();
+    await animationFrame();
+    expect(cells()).toBe(queryAll(".o-EmojiPicker-content .o-Emoji").length);
+});
+
+test("the merged emoji list is not rebuilt on every render", async () => {
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+    }
+    await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    await animationFrame();
+    const before = picker.getEmojisFromSearch();
+    picker.render();
+    await animationFrame();
+    expect(picker.getEmojisFromSearch()).toBe(before);
+});
+
+test("every cell with a neighbouring row can be left with an arrow key", async () => {
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+    }
+    await mountWithCleanup(Probe, { props: { onSelect: () => {} } });
+    await animationFrame();
+
+    // Rows are per-category runs of the real grid, so they are ragged: a row
+    // can be wider than the one under it, and the cursor must still get out.
+    for (const searchTerm of ["", "cat", "a"]) {
+        picker.state.searchTerm = searchTerm;
+        await animationFrame();
+        await animationFrame();
+        const matrix = picker.emojiMatrix;
+        const stuck = [];
+        for (const [rowIndex, row] of matrix.entries()) {
+            for (const [colIndex, index] of row.entries()) {
+                for (const [key, step] of [
+                    ["ArrowDown", 1],
+                    ["ArrowUp", -1],
+                ]) {
+                    if (!matrix[rowIndex + step]) {
+                        continue;
+                    }
+                    picker.state.activeEmojiIndex = index;
+                    picker.handleNavigation(key);
+                    if (picker.state.activeEmojiIndex === index) {
+                        stuck.push(
+                            `${searchTerm || "<all>"} ${key} @${rowIndex},${colIndex}`,
+                        );
+                    }
+                }
+            }
+        }
+        expect(stuck).toEqual([]);
+    }
+});
+
+test.tags("desktop");
+test("an externally driven search brings the keyboard selection back in range", async () => {
+    // The picker's own search box resets the selection inline (t-on-input in
+    // web.EmojiPicker.searchInput); a parent driving `state.searchTerm` does not
+    // go through it, so the invariant has to hold in the component.
+    const external = reactive({ searchTerm: "" });
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+    }
+    class Parent extends Component {
+        static components = { EmojiPicker: Probe };
+        static props = ["*"];
+        static template = xml`<EmojiPicker onSelect="(codepoints) => this.props.onSelect(codepoints)" state="props.st"/>`;
+    }
+    await mountWithCleanup(Parent, {
+        props: { st: external, onSelect: (codepoints) => expect.step(codepoints) },
+    });
+    await animationFrame();
+
+    picker.state.activeEmojiIndex = 300;
+    external.searchTerm = "cat";
+    await animationFrame();
+    await animationFrame();
+
+    const cells = queryAll(".o-EmojiPicker-content .o-Emoji");
+    expect(cells.length).toBeGreaterThan(0);
+    expect(cells.length).toBeLessThan(300);
+    expect(picker.activeEmoji).not.toBe(undefined);
+
+    // Enter clicks whatever data-index the selection points at.
+    await press("enter");
+    await animationFrame();
+    expect.verifySteps([picker.getEmojisFromSearch()[0].codepoints]);
 });

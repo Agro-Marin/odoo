@@ -1,31 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/pager/pager - Pagination component with prev/next navigation and editable page range input */
+/** @module @web/components/pager/pager */
 
-import {
-    Component,
-    EventBus,
-    useEffect,
-    useExternalListener,
-    useState,
-} from "@odoo/owl";
+import { Component, EventBus, useEffect, useState } from "@odoo/owl";
+import { useClickAway } from "@web/core/utils/dom/click_away";
 import { clamp } from "@web/core/utils/format/numbers";
 import { useAutofocus } from "@web/core/utils/hooks";
 export const PAGER_UPDATED_EVENT = "PAGER:UPDATED";
 export const pagerBus = new EventBus();
 
 /**
- * Pager
- *
- * The pager goes from 1 to total (included).
- * The current value is minimum if limit === 1 or the interval:
- *      [minimum, minimum + limit[ if limit > 1].
- * The value can be manually changed by clicking on the pager value and giving
- * an input matching the pattern: min[,max] (in which the comma can be a dash
- * or a semicolon).
- * The pager also provides two buttons to quickly change the current page (next
- * or previous).
  * @extends Component
  */
 export class Pager extends Component {
@@ -55,14 +40,10 @@ export class Pager extends Component {
             isDisabled: false,
         });
         this.inputRef = useAutofocus();
-        useExternalListener(
-            document,
-            "mousedown",
-            /** @type {EventListener} */ (this.onClickAway),
-            {
-                capture: true,
-            },
-        );
+        useClickAway((node) => this.onClickAway(node), {
+            getAnchor: () => this.inputRef.el,
+            getContentEl: () => this.inputRef.el,
+        });
         let firstMount = true;
         useEffect(
             () => {
@@ -101,9 +82,7 @@ export class Pager extends Component {
         return parts.join("-");
     }
     /**
-     * Returns false if the "updateTotal" prop was passed, since then the real
-     * total is unknown and a single page can't be asserted.
-     * @returns {boolean} true if there is only one page
+     * @returns {boolean}
      */
     get isSinglePage() {
         return (
@@ -116,10 +95,20 @@ export class Pager extends Component {
      * @param {-1 | 1} direction
      */
     async navigate(direction) {
+        if (this.state.isDisabled) {
+            return;
+        }
         let minimum = this.props.offset + this.props.limit * direction;
         let total = this.props.total;
         if (this.props.updateTotal && minimum < 0) {
-            total = await this.props.updateTotal();
+            // Resolving the real total is a round trip; without holding the
+            // pager disabled across it, a second click starts a second one.
+            this.state.isDisabled = true;
+            try {
+                total = await this.props.updateTotal();
+            } finally {
+                this.state.isDisabled = false;
+            }
         }
         if (minimum >= total) {
             if (!this.props.updateTotal) {
@@ -134,9 +123,9 @@ export class Pager extends Component {
     }
     /**
      * @param {string} value
-     * @returns {Promise<{ minimum: number, maximum: number }>}
+     * @returns {{ minimum: number, maximum: number }}
      */
-    async parse(value) {
+    parse(value) {
         const [minStr, maxStr] = value.trim().split(/\s*[-\s,;]\s*/);
         const minimum = Number.parseInt(minStr, 10);
         const maximum = maxStr ? Number.parseInt(maxStr, 10) : minimum;
@@ -152,7 +141,7 @@ export class Pager extends Component {
      * @param {string} value
      */
     async setValue(value) {
-        const { minimum, maximum } = await this.parse(value);
+        const { minimum, maximum } = this.parse(value);
 
         if (!Number.isNaN(minimum) && !Number.isNaN(maximum) && minimum < maximum) {
             this.update(minimum, maximum - minimum);
@@ -189,10 +178,10 @@ export class Pager extends Component {
     }
 
     /**
-     * @param {MouseEvent} ev
+     * @param {Node} [node]
      */
-    onClickAway(ev) {
-        if (ev.target !== this.inputRef.el) {
+    onClickAway(node) {
+        if (node !== this.inputRef.el) {
             this.state.isEditing = false;
         }
     }

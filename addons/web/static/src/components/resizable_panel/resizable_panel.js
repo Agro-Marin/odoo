@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/resizable_panel/resizable_panel - Side panel component with drag handle for interactive width resizing */
+/** @module @web/components/resizable_panel/resizable_panel */
 
 import {
     Component,
@@ -12,30 +12,26 @@ import {
     useExternalListener,
     useRef,
 } from "@odoo/owl";
+import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 /**
  * @typedef {"start" | "end"} ResizeSide
- *
  * @typedef {Object} UseResizableParams
- * @property {string | import("@odoo/owl").Ref<HTMLElement>} containerRef - Ref name or ref object for the resizable container
- * @property {string | import("@odoo/owl").Ref<HTMLElement>} handleRef - Ref name or ref object for the drag handle
- * @property {number} [initialWidth=400] - Starting width in pixels
- * @property {(props: Object) => number} [getMinWidth] - Returns minimum width from current props
- * @property {(width: number) => void} [onResize] - Callback invoked after each resize with the new width
- * @property {(props: Object) => ResizeSide} [getResizeSide] - Returns which side the handle is on from current props
+ * @property {string | import("@odoo/owl").Ref<HTMLElement>} containerRef
+ * @property {string | import("@odoo/owl").Ref<HTMLElement>} handleRef
+ * @property {(props: Object) => number} [getInitialWidth]
+ * @property {(props: Object) => number} [getMinWidth]
+ * @property {(width: number) => void} [onResize]
+ * @property {(props: Object) => ResizeSide} [getResizeSide]
  */
 
 /**
- * OWL composable hook that makes a container element resizable via a drag handle.
- * Handles pointer interactions (mouse, touch, and pen), respects RTL/LTR
- * direction, and clamps width between a minimum and the available parent width.
- *
  * @param {UseResizableParams} params
  */
 function useResizable({
     containerRef: _containerRef,
     handleRef: _handleRef,
-    initialWidth = 400,
+    getInitialWidth = (_props) => 400,
     getMinWidth = (_props) => 400,
     onResize = (_width) => {},
     getResizeSide = (_props) => "end",
@@ -49,13 +45,12 @@ function useResizable({
 
     let minWidth = getMinWidth(props);
     let resizeSide = getResizeSide(props);
+    let initialWidth = getInitialWidth(props);
     let isChangingSize = false;
 
-    useExternalListener(window, "resize", () => {
-        // `useRef().el` is null for an element that is not in the document, so
-        // a panel detached while still mounted would throw here on the next
-        // resize. Every other reader in this hook already guards; this one and
-        // `resize` did not.
+    // Resizing fires far faster than the screen refreshes, and each call
+    // measures the container and its offset parent before writing a width back.
+    const onWindowResize = useThrottleForAnimation(() => {
         if (!containerRef.el) {
             return;
         }
@@ -64,6 +59,7 @@ function useResizable({
             resize(computeFinalWidth(limit));
         }
     });
+    useExternalListener(window, "resize", onWindowResize);
 
     let docDirection;
 
@@ -76,8 +72,17 @@ function useResizable({
     });
 
     onWillUpdateProps((nextProps) => {
+        const previousInitialWidth = initialWidth;
         minWidth = getMinWidth(nextProps);
         resizeSide = getResizeSide(nextProps);
+        initialWidth = getInitialWidth(nextProps);
+        const currentWidth = getCurrentWidth();
+        const nextWidth = clampWidth(
+            initialWidth !== previousInitialWidth ? initialWidth : currentWidth,
+        );
+        if (nextWidth !== currentWidth) {
+            resize(nextWidth);
+        }
     });
 
     onWillUnmount(() => {
@@ -90,36 +95,22 @@ function useResizable({
     });
 
     /**
-     * Begin drag — disable pointer events and text selection on body.
-     * The document-level drag listeners are only attached for the
-     * duration of the drag. Pointer events (vs mouse events) make the
-     * handle usable with touch and pen too; capturing the pointer keeps
-     * the move/up stream flowing to the handle (and bubbling to the
-     * document listeners below) even when the pointer leaves it.
-     *
      * @param {PointerEvent} ev
      */
     function onPointerDown(ev) {
         isChangingSize = true;
-        // Read the direction per drag rather than caching it from a mount-time
-        // effect: that made correctness depend on hook registration order (the
-        // effect had to be registered before the onMounted that resizes), and
-        // it never picked up a direction flipped after mount.
         if (containerRef.el) {
             docDirection = getComputedStyle(containerRef.el).direction;
         }
         document.body.classList.add("pe-none", "user-select-none");
         try {
             handleRef.el?.setPointerCapture(ev.pointerId);
-        } catch {
-            // Synthetic events (tests) have no active pointer to capture.
-        }
+        } catch {}
         document.addEventListener("pointermove", onPointerMove);
         document.addEventListener("pointerup", onPointerUp);
         document.addEventListener("pointercancel", onPointerUp);
     }
 
-    /** End drag — restore pointer events and text selection on body. */
     function onPointerUp() {
         isChangingSize = false;
         document.body.classList.remove("pe-none", "user-select-none");
@@ -129,9 +120,6 @@ function useResizable({
     }
 
     /**
-     * Handle drag movement — compute new width from cursor position,
-     * accounting for RTL/LTR direction and resize side.
-     *
      * @param {PointerEvent} ev
      */
     function onPointerMove(ev) {
@@ -149,16 +137,14 @@ function useResizable({
         resize(computeFinalWidth(newWidth));
     }
 
-    /** @returns {number} half the handle's width, the gap it needs to stay grabbable */
+    /** @returns {number} */
     function getHandlerSpacing() {
         return handleRef.el ? handleRef.el.offsetWidth / 2 : 10;
     }
 
     /**
-     * Clamp a width between the minimum width and the available parent space.
-     *
-     * @param {number} width - desired container width in pixels
-     * @returns {number} clamped width in pixels
+     * @param {number} width
+     * @returns {number}
      */
     function clampWidth(width) {
         return Math.min(
@@ -168,42 +154,43 @@ function useResizable({
     }
 
     /**
-     * Clamp a drag target, offsetting it by the handle spacing so the handle
-     * stays under the cursor.
-     *
-     * @param {number} targetContainerWidth - desired container width in pixels
-     * @returns {number} clamped width in pixels
+     * @param {number} targetContainerWidth
+     * @returns {number}
      */
     function computeFinalWidth(targetContainerWidth) {
         return clampWidth(targetContainerWidth + getHandlerSpacing());
     }
 
     /**
-     * Get the container's positional rect in viewport coordinates -- the same
-     * space as `PointerEvent.clientX`, which `onPointerMove` subtracts it from.
-     *
      * @returns {{ left: number, right: number, width: number }}
      */
     function getContainerRect() {
-        return containerRef.el.getBoundingClientRect();
+        return /** @type {HTMLElement} */ (containerRef.el).getBoundingClientRect();
     }
 
     /**
-     * Get the maximum available width from the offset parent, or the window.
-     *
-     * @returns {number} maximum width in pixels
+     * @returns {number}
+     */
+    function getCurrentWidth() {
+        const styled = Number.parseFloat(containerRef.el?.style.width ?? "");
+        if (Number.isFinite(styled)) {
+            return styled;
+        }
+        return containerRef.el ? getContainerRect().width : initialWidth;
+    }
+
+    /**
+     * @returns {number}
      */
     function getLimitWidth() {
         const offsetParent = /** @type {HTMLElement | null} */ (
-            containerRef.el.offsetParent
+            /** @type {HTMLElement} */ (containerRef.el).offsetParent
         );
         return offsetParent ? offsetParent.offsetWidth : window.innerWidth;
     }
 
     /**
-     * Apply the given width to the container element and notify via callback.
-     *
-     * @param {number} width - new width in pixels
+     * @param {number} width
      */
     function resize(width) {
         if (!containerRef.el) {
@@ -214,10 +201,6 @@ function useResizable({
     }
 }
 
-/**
- * Side panel OWL component with a drag handle for interactive width resizing.
- * Wraps the `useResizable` hook with declarative props.
- */
 export class ResizablePanel extends Component {
     static template = "web.ResizablePanel";
 
@@ -241,22 +224,19 @@ export class ResizablePanel extends Component {
         handleSide: "end",
     };
 
-    /** Wire up the resizable hook with prop-driven configuration. */
     setup() {
         useResizable({
             containerRef: "containerRef",
             handleRef: "handleRef",
             onResize: this.props.onResize,
-            initialWidth: this.props.initialWidth,
+            getInitialWidth: (props) => props.initialWidth,
             getMinWidth: (props) => props.minWidth,
             getResizeSide: (props) => props.handleSide,
         });
     }
 
     /**
-     * Compute CSS classes, adding `position-relative` if no position class is present.
-     *
-     * @returns {string} space-separated class string
+     * @returns {string}
      */
     get class() {
         const classes = this.props.class.split(" ");

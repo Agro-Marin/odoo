@@ -1,16 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropzone/dropzone_hook - Hooks for attaching drag-and-drop file upload zones to DOM elements */
+/** @module @web/components/dropzone/dropzone_hook */
 
 import { onWillDestroy, useEffect, useExternalListener } from "@odoo/owl";
 import { Dropzone } from "@web/components/dropzone/dropzone";
 import { useService } from "@web/core/utils/hooks";
 /**
- * @param {any} targetRef - Element on which to place the dropzone.
- * @param {import("@odoo/owl").ComponentConstructor} dropzoneComponent - Class used to instantiate the dropzone component.
- * @param {Object} dropzoneComponentProps - Props given to the instantiated dropzone component.
- * @param {function} isDropzoneEnabled - Function that determines whether the dropzone should be enabled.
+ * @param {any} targetRef
+ * @param {import("@odoo/owl").ComponentConstructor} dropzoneComponent
+ * @param {Object} dropzoneComponentProps
+ * @param {function} isDropzoneEnabled
  */
 export function useCustomDropzone(
     targetRef,
@@ -64,7 +64,7 @@ export function useCustomDropzone(
         }
     }
 
-    function onDragEnter(ev) {
+    function onDragEnter(/** @type {DragEvent} */ ev) {
         if (dragCount || (ev.dataTransfer && ev.dataTransfer.types.includes("Files"))) {
             dragCount++;
             updateDropzone();
@@ -95,10 +95,10 @@ export function useCustomDropzone(
 }
 
 /**
- * @param {any} targetRef - Element on which to place the dropzone.
- * @param {function} onDrop - Callback function called when the user drops a file on the dropzone.
- * @param {string} extraClass - Classes that will be added to the standard `Dropzone` component.
- * @param {function} isDropzoneEnabled - Function that determines whether the dropzone should be enabled.
+ * @param {any} targetRef
+ * @param {function} onDrop
+ * @param {string} [extraClass]
+ * @param {function} [isDropzoneEnabled]
  */
 export function useDropzone(
     targetRef,

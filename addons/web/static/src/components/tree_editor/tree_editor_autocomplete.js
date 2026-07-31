@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor_autocomplete - Record autocomplete variants for single and multi-value domain/expression editors */
+/** @module @web/components/tree_editor/tree_editor_autocomplete */
 
 import { MultiRecordSelector } from "@web/components/record_selectors/multi_record_selector";
 import { RecordSelector } from "@web/components/record_selectors/record_selector";
@@ -11,11 +11,14 @@ import { toPyValue } from "@web/core/py_js/py_utils";
 import { Expression } from "@web/core/tree/condition_tree";
 import { isId } from "@web/core/tree/utils";
 import { imageUrl } from "@web/core/utils/urls";
+
+/** @typedef {{ resIds: any[], [key: string]: any }} DomainSelectorMultiProps */
+/** @typedef {{ resId: any, [key: string]: any }} DomainSelectorSingleProps */
+
 /**
- * Formats a record value for display as a tag, with color coding for validity.
  * @param {number|import("@web/core/tree/condition_tree").Expression|any} val
  * @param {Record<number, string>} displayNames
- * @returns {{text: string, colorIndex: number}} display text and color (0=grey, 1=red, 2=orange)
+ * @returns {{text: string, colorIndex: number}}
  */
 const getFormat = (val, displayNames) => {
     let text;
@@ -44,15 +47,15 @@ export class DomainSelectorAutocomplete extends MultiRecordSelector {
     };
 
     /**
-     * @param {Object} [props]
-     * @returns {number[]} only valid record IDs from resIds
+     * @param {DomainSelectorMultiProps} [props]
+     * @returns {number[]}
      */
     getIds(props = this.props) {
         return props.resIds.filter((val) => isId(val));
     }
 
     /**
-     * @param {Object} props
+     * @param {DomainSelectorMultiProps} props
      * @param {Record<number, string>} displayNames
      * @returns {Array<{text: string, colorIndex: number, onDelete: Function, img: string|false}>}
      */
@@ -85,11 +88,11 @@ export class DomainSelectorSingleAutocomplete extends RecordSelector {
     };
 
     /**
-     * @param {Object} [props]
-     * @param {Record<number, string>} [displayNames]
+     * @param {DomainSelectorSingleProps} props
+     * @param {Record<number, string>} displayNames
      * @returns {string}
      */
-    getDisplayName(props = this.props, displayNames) {
+    getDisplayName(props, displayNames) {
         const { resId } = props;
         if (resId === false) {
             return "";
@@ -99,7 +102,7 @@ export class DomainSelectorSingleAutocomplete extends RecordSelector {
     }
 
     /**
-     * @param {Object} [props]
+     * @param {DomainSelectorSingleProps} [props]
      * @returns {number[]}
      */
     getIds(props = this.props) {

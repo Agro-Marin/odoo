@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/code_editor/code_editor - Ace-based code editor component with syntax highlighting and theme support */
+/** @module @web/components/code_editor/code_editor */
 
 import {
     Component,
@@ -15,9 +15,6 @@ import {
 import { loadBundle } from "@web/core/assets";
 import { browser } from "@web/core/browser/browser";
 /**
- * Ace-based code editor OWL component with syntax highlighting, themes,
- * multiple sessions, and read-only support.
- *
  * @typedef {{ row: number, column: number }} CursorPosition
  */
 export class CodeEditor extends Component {
@@ -54,12 +51,16 @@ export class CodeEditor extends Component {
         showLineNumbers: true,
     };
 
-    /** @type {string[]} Supported syntax highlighting modes */
+    /** @type {string[]} */
     static MODES = ["javascript", "xml", "qweb", "scss", "python"];
-    /** @type {string[]} Supported editor themes (empty string = default) */
+    /** @type {string[]} */
     static THEMES = ["", "monokai"];
 
-    /** Sets up the Ace editor instance, sessions, and theme/mode/readonly reactive effects. */
+    /** @type {import("@odoo/owl").Ref} */
+    editorRef;
+    /** @type {{ activeMode: string | undefined }} */
+    state;
+
     setup() {
         /** @type {import("@odoo/owl").Ref<HTMLElement>} */
         this.editorRef = useRef("editorRef");
@@ -153,15 +154,10 @@ export class CodeEditor extends Component {
         );
 
         useEffect(
-            (sessionId, mode, value) => {
+            (sessionId, mode) => {
                 let session = sessions[sessionId];
-                if (session) {
-                    if (session.getValue() !== value) {
-                        ignoredAceChange = true;
-                        session.setValue(value);
-                        ignoredAceChange = false;
-                    }
-                } else {
+                if (!session) {
+                    const value = this.props.value;
                     session = new window.ace.EditSession(value);
                     session.setUndoManager(new window.ace.UndoManager());
                     session.setOptions({
@@ -182,7 +178,19 @@ export class CodeEditor extends Component {
                 session.setMode(mode ? `ace/mode/${mode}` : "");
                 this.aceEditor.setSession(session);
             },
-            () => [this.props.sessionId, this.props.mode, this.props.value],
+            () => [this.props.sessionId, this.props.mode],
+        );
+
+        useEffect(
+            (sessionId, value) => {
+                const session = sessions[sessionId];
+                if (session && session.getValue() !== value) {
+                    ignoredAceChange = true;
+                    session.setValue(value);
+                    ignoredAceChange = false;
+                }
+            },
+            () => [this.props.sessionId, this.props.value],
         );
 
         const initialCursorPosition = this.props.initialCursorPosition;

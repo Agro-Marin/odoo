@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/time_picker/time_picker - Time input component with dropdown hour/minute selection and configurable rounding */
+/** @module @web/components/time_picker/time_picker */
 
 import { Component, onWillUpdateProps, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -10,6 +10,7 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { parseTime, Time } from "@web/core/l10n/time";
 import { mergeClasses } from "@web/core/utils/dom/classname";
+import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef } from "@web/core/utils/hooks";
 
 const HOURS = [...Array(24)].map((_, i) => i);
@@ -57,6 +58,7 @@ export class TimePicker extends Component {
     setup() {
         /** @type {{ el: HTMLInputElement | null }} */
         this.inputRef = /** @type {any} */ (useRef("inputRef"));
+        this.menuId = uniqueId("o_time_picker_menu_");
         this.menuRef = useChildRef();
         this.dropdownState = useDropdownState();
 
@@ -66,7 +68,7 @@ export class TimePicker extends Component {
             isValid: true,
         });
 
-        /**@type {Time[]}*/
+        /** @type {Time[]} */
         this.suggestions = [];
         this.isNavigating = false;
         this.navigationOptions = this.getNavigationOptions();
@@ -148,26 +150,16 @@ export class TimePicker extends Component {
      * @param {TimePickerProps} props
      */
     onPropsUpdated(props) {
-        if (
-            !this.suggestions.length ||
-            props.minutesRounding !== this.lastSuggestionsRounding ||
-            props.showSeconds !== this.lastSuggestionsShowSeconds
-        ) {
-            this.suggestions = this.getSuggestions(props);
-            this.lastSuggestionsRounding = props.minutesRounding;
-            this.lastSuggestionsShowSeconds = props.showSeconds;
+        const step = this.getSuggestionStep(props);
+        if (step !== this.suggestionsStep) {
+            this.suggestionsStep = step;
+            this.suggestions = this.getSuggestions(step);
         }
 
         this.updateStateValue(Time.from(props.value));
     }
 
     /**
-     * Step (in minutes) between two dropdown suggestions. Deliberately
-     * decoupled from `minutesRounding`: roundings of 5 minutes or less would
-     * generate an unusably long list (288+ entries), so suggestions fall back
-     * to a 15-minute grid while typed/selected values still honor the exact
-     * `minutesRounding`.
-     *
      * @param {TimePickerProps} props
      * @returns {number}
      */
@@ -176,12 +168,11 @@ export class TimePicker extends Component {
     }
 
     /**
-     * @param {TimePickerProps} props
+     * @param {number} step
      * @returns {Time[]}
      */
-    getSuggestions(props) {
+    getSuggestions(step) {
         const suggestions = [];
-        const step = this.getSuggestionStep(props);
         const minutes = MINUTES.filter((m) => !(m % step));
         for (const hour of HOURS) {
             for (const minute of minutes) {
@@ -192,10 +183,6 @@ export class TimePicker extends Component {
     }
 
     /**
-     * Index of the suggestion closest to `value`. As suggestions may use a
-     * coarser step than `minutesRounding` (see `getSuggestionStep`), a valid
-     * value is not always an exact suggestion: highlight the nearest one.
-     *
      * @param {Time|null} value
      * @returns {number}
      */
@@ -309,10 +296,16 @@ export class TimePicker extends Component {
         this.isNavigating = ["arrowup", "arrowdown"].includes(getActiveHotkey(event));
     }
 
-    ensureOpen() {
-        if (!this.dropdownState.isOpen) {
-            this.isNavigating = false;
-            this.dropdownState.open();
+    /**
+     * @param {{ selectAll?: boolean }} [options]
+     */
+    ensureOpen({ selectAll = false } = {}) {
+        if (this.dropdownState.isOpen) {
+            return;
+        }
+        this.isNavigating = false;
+        this.dropdownState.open();
+        if (selectAll) {
             this.inputRef.el.select();
         }
     }

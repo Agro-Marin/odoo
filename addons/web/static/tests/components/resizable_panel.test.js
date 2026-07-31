@@ -3,7 +3,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { drag, queryOne, queryRect, resize } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
-import { Component, reactive, xml } from "@odoo/owl";
+import { Component, reactive, useState, xml } from "@odoo/owl";
 import { mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
 
@@ -179,4 +179,89 @@ test("a window resize with a detached container does not throw", async () => {
     await resize({ width: 500 });
     await animationFrame();
     expect(".o_resizable_panel").toHaveCount(0);
+});
+
+test("a raised minWidth widens the panel already in place", async () => {
+    // Sizing props are configuration, not a mount-time seed: recording the new
+    // minimum without applying it left the panel narrower than its own minimum
+    // until the next drag or window resize.
+    const state = reactive({ minWidth: 200 });
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`
+            <div style="width: 1000px;">
+                <ResizablePanel minWidth="state.minWidth" initialWidth="300">
+                    <p>body</p>
+                </ResizablePanel>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState(state);
+        }
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+    expect(queryOne(".o_resizable_panel").style.width).toBe("300px");
+
+    state.minWidth = 600;
+    await animationFrame();
+    expect(queryOne(".o_resizable_panel").style.width).toBe("600px");
+});
+
+test("a changed initialWidth is applied after mount", async () => {
+    // Bound to live state by real consumers: the Discuss sidebar derives it
+    // from a compact flag synced across tabs through a `storage` event, so the
+    // other tab flipped to compact markup while keeping the wide width.
+    const state = reactive({ width: 400 });
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`
+            <div style="width: 1000px;">
+                <ResizablePanel minWidth="60" initialWidth="state.width">
+                    <p>body</p>
+                </ResizablePanel>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState(state);
+        }
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+    expect(queryOne(".o_resizable_panel").style.width).toBe("400px");
+
+    state.width = 68;
+    await animationFrame();
+    expect(queryOne(".o_resizable_panel").style.width).toBe("68px");
+});
+
+test("a props update that changes no size does not notify onResize", async () => {
+    // `onResize` feeds a consumer's own store (Discuss persists the width and
+    // bumps a counter its `initialWidth` derives from). Resizing on every
+    // props update would loop through that.
+    const state = reactive({ label: "a" });
+    let resizeCalls = 0;
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`
+            <div style="width: 1000px;">
+                <ResizablePanel minWidth="60" initialWidth="300" onResize="onResize">
+                    <p t-esc="state.label"/>
+                </ResizablePanel>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState(state);
+            this.onResize = () => resizeCalls++;
+        }
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+    const afterMount = resizeCalls;
+
+    state.label = "b";
+    await animationFrame();
+    state.label = "c";
+    await animationFrame();
+    expect(resizeCalls).toBe(afterMount);
 });

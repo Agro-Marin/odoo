@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/signature/name_and_signature - Signature pad component with draw, auto-generate, and load modes */
+/** @module @web/components/signature/name_and_signature */
 
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -9,10 +9,10 @@ import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { rpc } from "@web/core/network/rpc";
 import { KeepLast } from "@web/core/utils/concurrency";
+import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
 import { getDataURLFromFile } from "@web/core/utils/urls";
-let htmlId = 0;
 
 /** @type {Map<string, Promise<string[]>>} */
 const fontsCache = new Map();
@@ -37,7 +37,17 @@ export class NameAndSignature extends Component {
     static template = "web.NameAndSignature";
     static components = { Dropdown, DropdownItem };
     static props = {
-        signature: { type: Object },
+        /**
+         * The shared model this component reads the name from and writes the
+         * signature accessors back onto.
+         */
+        signature: {
+            type: Object,
+            shape: {
+                name: { type: [String, { value: null }], optional: true },
+                "*": true,
+            },
+        },
         defaultFont: { type: String, optional: true },
         displaySignatureRatio: { type: Number, optional: true },
         fontColor: { type: String, optional: true },
@@ -56,10 +66,13 @@ export class NameAndSignature extends Component {
     };
 
     setup() {
-        this.htmlId = htmlId++;
-        this.defaultName = this.props.signature.name || "";
+        this.htmlId = uniqueId();
+        // Callers hand over a name that can be absent (a portal template with
+        // no default_name renders it as null). Settle it once here rather than
+        // at every read.
+        this.props.signature.name ??= "";
+        this.defaultName = this.props.signature.name;
         this.currentFont = 0;
-        this.drawTimeout = null;
         this.printImageKeepLast = new KeepLast();
 
         this.state = useState({
@@ -95,37 +108,47 @@ export class NameAndSignature extends Component {
         this.signatureRef = useRef("signature");
         useEffect(
             (el) => {
-                if (el) {
-                    this.signaturePad = new this.SignaturePad(el, {
-                        penColor: this.props.fontColor,
-                        backgroundColor: "rgba(255,255,255,0)",
-                        minWidth: 2,
-                        maxWidth: 2,
-                    });
-                    this.signaturePad.addEventListener("endStroke", () => {
-                        this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
-                        this.props.onSignatureChange(this.state.signMode);
-                    });
-                    this.resetSignature();
-                    this.props.signature.getSignatureImage = () =>
-                        this.signaturePad.toDataURL();
-                    this.props.signature.resetSignature = () => this.resetSignature();
-                    if (this.state.signMode === "auto") {
-                        this.drawCurrentName();
-                    }
-                    if (this.props.signature.signatureImage) {
-                        this.clear();
-                        this.fromDataURL(this.props.signature.signatureImage);
-                    }
+                if (!el) {
+                    return;
                 }
+                // Capture from the object we are about to write into, so that a
+                // parent swapping `signature` between renders cannot make us
+                // restore one object's accessors onto another.
+                const signature = this.props.signature;
+                const callerAccessors = {
+                    getSignatureImage: signature.getSignatureImage,
+                    resetSignature: signature.resetSignature,
+                };
+                this.signaturePad = new this.SignaturePad(el, {
+                    penColor: this.props.fontColor,
+                    backgroundColor: "rgba(255,255,255,0)",
+                    minWidth: 2,
+                    maxWidth: 2,
+                });
+                this.signaturePad.addEventListener("endStroke", () => {
+                    this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
+                    this.props.onSignatureChange(this.state.signMode);
+                });
+                this.resetSignature();
+                this.props.signature.getSignatureImage = () =>
+                    this.signaturePad.toDataURL();
+                this.props.signature.resetSignature = () => this.resetSignature();
+                if (this.state.signMode === "auto") {
+                    this.drawCurrentName();
+                }
+                if (this.props.signature.signatureImage) {
+                    this.clear();
+                    this.fromDataURL(this.props.signature.signatureImage);
+                }
+                return () => {
+                    this.signaturePad.off();
+                    Object.assign(signature, callerAccessors);
+                };
             },
             () => [this.signatureRef.el],
         );
     }
 
-    /**
-     * Draws the current name with the current font in the signature field.
-     */
     async drawCurrentName() {
         const font = this.fonts[this.currentFont];
         const text = this.getCleanedName();
@@ -149,9 +172,6 @@ export class NameAndSignature extends Component {
         this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
     }
 
-    /**
-     * Loads a signature image from a base64 dataURL and updates the empty state.
-     */
     async fromDataURL(...args) {
         await this.signaturePad.fromDataURL(...args);
         this.props.signature.isSignatureEmpty = this.isSignatureEmpty;
@@ -159,18 +179,11 @@ export class NameAndSignature extends Component {
     }
 
     /**
-     * Returns the given name after cleaning it by removing characters that
-     * are not supposed to be used in a signature. If @see signatureType is set
-     * to 'initial', returns the first letter of each word, separated by dots.
-     *
-     * @returns {string} cleaned name
+     * @returns {string}
      */
     getCleanedName() {
         const text = this.props.signature.name.replaceAll("\u00a0", " ");
         if (this.props.signatureType === "initial" && text) {
-            // Drop empty words: a double or trailing space would otherwise
-            // contribute an undefined initial, rendering as a stray dot
-            // ("John  Doe" -> "J..D." instead of "J.D.").
             const initials = text
                 .split(" ")
                 .filter(Boolean)
@@ -181,15 +194,12 @@ export class NameAndSignature extends Component {
     }
 
     /**
-     * Gets an SVG matching the given parameters, output compatible with the
-     * src attribute of <img/>.
-     *
      * @private
-     * @param {string} font: base64 encoded font to use
-     * @param {string} text: the name to draw
-     * @param {number} width: the width of the resulting image in px
-     * @param {number} height: the height of the resulting image in px
-     * @returns {string} image = mimetype + image data
+     * @param {string} font
+     * @param {string} text
+     * @param {number} width
+     * @param {number} height
+     * @returns {string}
      */
     getSVGText(font, text, width, height) {
         const svg = renderToString("web.sign_svg_text", {
@@ -215,10 +225,6 @@ export class NameAndSignature extends Component {
     }
 
     /**
-     * Handles change on load file input: displays the loaded image if the
-     * format is correct, or displays an error otherwise.
-     *
-     * @see mode 'load'
      * @private
      * @param {Event} ev
      * @return bool|undefined
@@ -226,9 +232,6 @@ export class NameAndSignature extends Component {
     async onChangeSignLoadInput(ev) {
         const inputEl = /** @type {HTMLInputElement} */ (ev.target);
         const file = inputEl.files[0];
-        // Clear the input so picking the SAME file again still fires `change`:
-        // the browser only emits it when the selection differs, so without this
-        // a user who re-picks the file they just cleared gets nothing.
         inputEl.value = "";
         if (file === undefined) {
             return false;
@@ -278,10 +281,7 @@ export class NameAndSignature extends Component {
     }
 
     /**
-     * Displays the given image in the signature field.
-     * If needed, resizes the image to fit the existing area.
-     *
-     * @param {string} imgSrc - data of the image to display
+     * @param {string} imgSrc
      */
     async printImage(imgSrc) {
         this.clear();
@@ -312,14 +312,6 @@ export class NameAndSignature extends Component {
         this.props.onSignatureChange(this.state.signMode);
     }
 
-    /**
-     * (Re)initializes the signature area:
-     *  - set the correct width and height of the drawing based on the width
-     *      of the container and the ratio option
-     *  - empty any previous content
-     *  - correctly reset the empty state
-     *  - call @see setMode with reset
-     */
     resetSignature() {
         this.resizeSignature();
         this.clear();
@@ -338,16 +330,8 @@ export class NameAndSignature extends Component {
     }
 
     /**
-     * Changes the signature mode. Toggles the display of the relevant
-     * controls and resets the drawing.
-     *
-     * @param {string} mode - the mode to use. Can be one of the following:
-     *  - 'draw': the user draws the signature manually with the mouse
-     *  - 'auto': the signature is drawn automatically using a selected font
-     *  - 'load': the signature is loaded from an image file
-     * @param {boolean} [reset=false] - Set to true to reset the elements
-     *  even if the @see mode has not changed. By default nothing happens
-     *  if the @see mode is already selected.
+     * @param {string} mode
+     * @param {boolean} [reset=false]
      */
     setMode(mode, reset) {
         if (reset !== true && mode === this.state.signMode) {
@@ -365,7 +349,7 @@ export class NameAndSignature extends Component {
     }
 
     /**
-     * @returns {boolean} Whether the drawing area is currently empty.
+     * @returns {boolean}
      */
     get isSignatureEmpty() {
         return this.signaturePad.isEmpty();

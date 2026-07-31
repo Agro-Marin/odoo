@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/signature/signature_dialog - Dialog wrapper for capturing and uploading a signature */
+/** @module @web/components/signature/signature_dialog */
 
 import { Component, useState } from "@odoo/owl";
 import { Dialog } from "@web/ui/dialog/dialog";
@@ -20,6 +20,9 @@ export class SignatureDialog extends Component {
         defaultName: "",
     };
 
+    /** @type {{ name: any; isSignatureEmpty: boolean }} */
+    signature;
+
     setup() {
         this.signature = useState({
             name: this.props.defaultName,
@@ -27,7 +30,6 @@ export class SignatureDialog extends Component {
         });
     }
 
-    /** Upload the signature image on confirm. */
     async onClickConfirm() {
         await this.props.uploadSignature({
             name: this.signature.name,

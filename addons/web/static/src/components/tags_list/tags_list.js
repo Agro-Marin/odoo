@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tags_list/tags_list - Renders a list of colored tags with optional visibility limit and overflow counter */
+/** @module @web/components/tags_list/tags_list */
 
 import { Component } from "@odoo/owl";
 
@@ -16,11 +16,11 @@ export class TagsList extends Component {
         tags: { type: Array, element: Object },
     };
 
-    /** @returns {number} maximum number of tags shown before collapsing */
+    /** @returns {number} */
     get visibleTagsCount() {
         return this.props.visibleItemsLimit - 1;
     }
-    /** @returns {Object[]} tags visible within the limit */
+    /** @returns {Object[]} */
     get visibleTags() {
         if (
             this.props.visibleItemsLimit &&
@@ -30,7 +30,7 @@ export class TagsList extends Component {
         }
         return this.props.tags;
     }
-    /** @returns {Object[]} overflow tags hidden behind the "+N" badge */
+    /** @returns {Record<string, any>[]} */
     get otherTags() {
         if (
             this.props.visibleItemsLimit &&
@@ -40,7 +40,7 @@ export class TagsList extends Component {
         }
         return [];
     }
-    /** @returns {string} JSON-encoded tooltip payload for overflow tags */
+    /** @returns {string} */
     get tooltipInfo() {
         return JSON.stringify({
             tags: this.otherTags.map((tag) => ({

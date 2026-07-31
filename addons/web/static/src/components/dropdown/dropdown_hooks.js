@@ -1,13 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/dropdown_hooks - Reactive DropdownState class and hooks for open/close control */
+/** @module @web/components/dropdown/dropdown_hooks */
 
 import { useEnv, useState } from "@odoo/owl";
 import { DROPDOWN_NESTING } from "@web/components/dropdown/_behaviours/dropdown_nesting";
 import { SignalStore } from "@web/core/utils/reactive";
 /**
- * State of a dropdown; pass the instance to `<Dropdown state="dropdownState">`.
  * @param {{ onOpen?: Function, onClose?: Function }} [callbacks]
  */
 export class DropdownState extends SignalStore {
@@ -34,7 +33,6 @@ export class DropdownState extends SignalStore {
 }
 
 /**
- * Hook used to interact with the Dropdown state and to subscribe to changes.
  * @param {{ onOpen?: Function, onClose?: Function }} [callbacks]
  * @returns {DropdownState}
  */
@@ -42,7 +40,6 @@ export function useDropdownState({ onOpen, onClose } = /** @type {any} */ ({})) 
     return useState(new DropdownState({ onOpen, onClose }));
 }
 
-/** Lets a component control how and when a wrapping dropdown closes. */
 export function useDropdownCloser() {
     const env = useEnv();
     const dropdown = /** @type {any} */ (env)[DROPDOWN_NESTING];
