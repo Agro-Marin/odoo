@@ -52,6 +52,9 @@ const ARCH = `
         </field>
     </form>`;
 
+// Asserted through `.o_pager_counter`, which `web.Pager` renders under
+// `t-if="!env.isSmall"` — the counter does not exist on mobile.
+test.tags("desktop");
 test("an onchange shortening the relation while on page 2 does not blank the list", async () => {
     Partner._onChanges = { int_field: () => {} };
     onRpc("onchange", () => ({

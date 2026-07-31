@@ -821,6 +821,9 @@ test("action is removed while waiting for another action with selectMenu", async
     expect(".o_action_manager").toHaveText("My client action");
 });
 
+// Action 3 is a list+kanban window action, and mobile resolves it to the kanban
+// view, so the list controller this reproduces the bug through never mounts.
+test.tags("desktop");
 test("_getView answers null — not a throw — when the tip is not a window action", async () => {
     // "no such view on this action" and "this action is not a window action at
     // all" are the same answer to the caller, and the two callers already know

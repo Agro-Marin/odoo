@@ -72,4 +72,4 @@ class Partner(http.Controller):
                 ],
             )
 
-        return request.not_found()
+        raise request.not_found()

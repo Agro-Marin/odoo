@@ -39,6 +39,8 @@ cd addons/web/tooling/scripts
 ./hoot --watch '@web/core/domain'    # re-run on any web JS change
 ./hoot --watch --affected            # watch + re-select affected each change
 
+./hoot --preset mobile '@web/webclient'   # mobile-tagged tests (see below)
+
 ./hoot --status                      # status of ALL warm servers
 ./hoot --stop [--db hoot_mail]       # stop ONE warm server (keep its DB)
 ./hoot --clean [--db hoot_mail]      # stop ONE warm server AND drop its DB
@@ -47,6 +49,47 @@ cd addons/web/tooling/scripts
 ./hoot -v '@web/core/domain'         # verbose (server + browser logs)
 ./hoot --help
 ```
+
+### Presets (`--preset desktop|mobile`)
+
+Runs default to `desktop`. The preset is more than a URL flag: the runner also
+resizes Chrome (1366x768 / 375x667) and toggles touch emulation, because HOOT
+reads the real `innerWidth` and responsive components branch on it.
+
+Tests are selected by **tag**, not by directory, so the two presets execute
+different sets — overlapping, and neither a superset of the other. Measured on
+the same suite lists (2026-07-30): `@web/webclient` is 870 tests under desktop
+and 345 under mobile; `@web_enterprise/webclient @web_enterprise/views
+@web_enterprise/mobile` is 54 and 35. Verifying a change means running the same
+suite list under both. Re-measure after moving tests between addons rather than
+trusting these numbers — they drift, and a stale count reads as a regression.
+
+A suite contributing **zero** tests under the current preset is not an error:
+the run only fails closed when the *whole* selection matches nothing. So
+
+```bash
+./hoot '@web_enterprise/webclient' '@web_enterprise/mobile'   # desktop preset
+```
+
+reports PASS having never executed one of the two. Gate on the per-preset test
+count, not on the exit code alone.
+
+### Bundle scoping (`&module_scope=`)
+
+When every requested suite belongs to one addon, the runner passes
+`&module_scope=<addon>`, exactly as `web/tests/test_js.py` does, and
+`ir.asset._get_active_addons_list` narrows the bundle to that addon's manifest
+closure. This is not an optimisation: unscoped, the unit-test page executes the
+`src` of every *installed* addon, and those `patch()` calls are global and
+unconditional. A test asserting its own addon's RPCs then sees a step issued
+from outside its closure — `@web/views/fields/properties_field` failed here for
+exactly that reason (`html_editor` patches `PropertyValue` to call `has_group`,
+and `html_editor` depends on `web`, so the `web_js` gate never loads it) while
+passing under `odoo-bin`.
+
+Runs spanning several addons have no single closure and stay unscoped, so a
+cross-addon run can still see foreign `src`. If a failure appears here but not
+under `odoo-bin --test-tags '/web:WebSuite.test_<x>'`, suspect scope first.
 
 ### Any addon, not just web
 

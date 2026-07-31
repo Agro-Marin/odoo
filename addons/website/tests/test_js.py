@@ -44,6 +44,7 @@ ALL_WEBSITE_SUITE_PREFIXES = (
     "@website/core",
     "@website/interactions",
     "@website/new_content_systray_item",
+    "@website/page_dependencies",
     "@website/page_url_field",
     "@website/redirect_field",
 )
@@ -67,6 +68,7 @@ class WebsiteSuite(web_test_js.HOOTCommon):
         self._run_hoot(
             "@website/core",
             "@website/new_content_systray_item",
+            "@website/page_dependencies",
             "@website/page_url_field",
             "@website/redirect_field",
             preset="desktop",

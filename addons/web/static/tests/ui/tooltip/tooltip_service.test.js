@@ -581,3 +581,44 @@ test("clicking a child of the tooltipped element closes an OPEN tooltip", async 
     await animationFrame();
     expect(".o_popover").toHaveCount(0);
 });
+
+test.tags("desktop");
+test("tooltip info built from a t-set body survives the JSON round-trip", async () => {
+    // Callers assemble `data-tooltip-info` from `t-set` bodies, which are
+    // Markup rather than plain strings; the service JSON.parses the attribute,
+    // so the body has to serialise as text and keep its punctuation intact.
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`
+            <t t-set="body">on their friends' or followers' feed (Shares, Reposts...)</t>
+            <button
+                data-tooltip-template="my_tooltip_template"
+                t-att-data-tooltip-info="toJsonString({ title: 'Stories', content: body })">
+                Action
+            </button>
+        `;
+        toJsonString(obj) {
+            return JSON.stringify(obj);
+        }
+    }
+
+    await mountWithCleanup(MyComponent, {
+        templates: {
+            my_tooltip_template: `
+                <div><b t-esc="title"/><span t-esc="content"/></div>
+            `,
+        },
+    });
+
+    expect(() =>
+        JSON.parse(queryOne("button").getAttribute("data-tooltip-info")),
+    ).not.toThrow();
+
+    await hover("button");
+    await runAllTimers();
+
+    expect(".o-tooltip b").toHaveText("Stories");
+    expect(".o-tooltip span").toHaveText(
+        "on their friends' or followers' feed (Shares, Reposts...)",
+    );
+});
