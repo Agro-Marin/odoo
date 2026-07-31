@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/errors/visitor_error_handler - Error handler that swallows all tracebacks for non-internal (portal/public) users */
+/** @module @web/webclient/errors/visitor_error_handler */
 
 import { RPCError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
@@ -9,20 +9,10 @@ import { user } from "@web/services/user";
 import { session } from "@web/session";
 
 /**
- * Swallow errors for non-internal users (except in debug/test mode).
- *
- * What is being hidden is a traceback: a client-side crash a visitor can do
- * nothing with. A server exception the `error_notifications` registry knows
- * about is the opposite of that — a translated, deliberate message addressed to
- * whoever made the request, which is exactly what a public page's "this field
- * is invalid" comes back as. Swallowing those left a visitor filling a website
- * form with a submit that silently did nothing, so they pass through to
- * `rpcErrorHandler`, which renders them as a notification rather than a dialog.
- *
  * @param {import("@web/env").OdooEnv} env
- * @param {Error} error - The wrapped error
- * @param {Error} originalError - The original unwrapped error
- * @returns {true | undefined} `true` to swallow the error, `undefined` to pass through
+ * @param {Error} error
+ * @param {Error} originalError
+ * @returns {true | undefined}
  */
 export function swallowAllVisitorErrors(env, error, originalError) {
     if (user.isInternalUser || env.debug || session.test_mode) {

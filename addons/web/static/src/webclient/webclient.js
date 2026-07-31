@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/webclient - Root OWL component bootstrapping the action manager, navbar, and main components container */
+/** @module @web/webclient/webclient */
 
 import { Component, onMounted, useExternalListener, useState } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";
@@ -18,14 +18,6 @@ import { DebugMenu } from "@web/services/debug/debug_menu";
 import { ActionContainer } from "./actions/action_container.js";
 import { NavBar } from "./navbar/navbar.js";
 
-/**
- * Root OWL component of the Odoo web client.
- *
- * Bootstraps the action manager, navbar, and main components container.
- * Handles route changes, menu resolution, and the global ctrl-click
- * passthrough for anchor elements. (Service-worker registration moved to the
- * ``service_worker`` service — see ``service_worker_service.js``.)
- */
 export class WebClient extends Component {
     static template = "web.WebClient";
     static props = {};
@@ -34,6 +26,13 @@ export class WebClient extends Component {
         NavBar,
         MainComponentsContainer,
     };
+
+    /** @type {import("services").ServiceFactories["action"]} */
+    actionService;
+    /** @type {import("services").ServiceFactories["menu"]} */
+    menuService;
+    /** @type {{ fullscreen: boolean }} */
+    state;
 
     setup() {
         this.menuService = useService("menu");
@@ -54,17 +53,11 @@ export class WebClient extends Component {
             fullscreen: false,
         });
         useBus(routerBus, RouterEvent.ROUTE_CHANGE, () => this.loadRouterState());
-        useBus(
-            this.env.bus,
-            AppEvent.ACTION_MANAGER_UI_UPDATED,
-            /** @type {any} */ (
-                ({ detail: mode }) => {
-                    if (mode !== "new") {
-                        this.state.fullscreen = mode === "fullscreen";
-                    }
-                }
-            ),
-        );
+        useBus(this.env.bus, AppEvent.ACTION_MANAGER_UI_UPDATED, ({ detail: mode }) => {
+            if (mode !== "new") {
+                this.state.fullscreen = mode === "fullscreen";
+            }
+        });
         useBus(this.env.bus, AppEvent.WEBCLIENT_LOAD_DEFAULT_APP, this._loadDefaultApp);
         onMounted(() => {
             this.loadRouterState();
@@ -76,15 +69,8 @@ export class WebClient extends Component {
     }
 
     /**
-     * Resolve which app the current URL belongs to.
-     *
-     * Two spellings must be handled: a legacy ``menu_id`` query parameter, and
-     * (the normal case) the root action of the URL's action stack, which is
-     * mapped back to an app through the menu service's action index. When
-     * several apps expose the same action, the one the user was last in wins.
-     *
-     * @param {number} storedMenuId the app the user was last in (tie-breaker)
-     * @returns {number} the app id, or 0 when the URL names none
+     * @param {number} storedMenuId
+     * @returns {number}
      */
     _resolveMenuFromUrl(storedMenuId) {
         const menuId = Number(router.current.menu_id || 0);
@@ -100,22 +86,15 @@ export class WebClient extends Component {
         );
     }
 
-    /**
-     * Scroll to the URL's anchor, if it names one and it resolves. The hash is
-     * user-controlled, so an invalid selector is expected input, not an error.
-     */
     _scrollToUrlAnchor() {
         if (browser.location.hash === "") {
             return;
         }
         try {
             document.querySelector(browser.location.hash)?.scrollIntoView(true);
-        } catch {
-            // do nothing if the hash is not a correct selector.
-        }
+        } catch {}
     }
 
-    /** Resolve the current URL state to an action + menu, then load it. */
     async loadRouterState() {
         const storedMenuId = Number(browser.sessionStorage.getItem("menu_id"));
         let menuId = this._resolveMenuFromUrl(storedMenuId);
@@ -162,14 +141,6 @@ export class WebClient extends Component {
         }
     }
 
-    /**
-     * Navigate to the first app as a fallback.
-     *
-     * Through ``getApps()`` rather than ``getMenu("root").children[0]``: the
-     * menu tree can come from a ``localStorage`` copy that parses but names a
-     * menu id it does not define, and the raw spelling then landed the user on
-     * a dangling id — or threw outright when the payload had no ``root``.
-     */
     _loadDefaultApp() {
         const [firstApp] = this.menuService.getApps();
         if (firstApp) {

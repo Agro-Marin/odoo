@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/burger_menu/burger_user_menu/burger_user_menu - Mobile variant of the user menu shown inside the burger menu overlay */
+/** @module @web/webclient/burger_menu/burger_user_menu/burger_user_menu */
 
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
 
-/** Mobile variant of the user menu shown inside the burger menu overlay. */
 export class BurgerUserMenu extends UserMenu {
     static template = "web.BurgerUserMenu";
     static props = {
@@ -13,9 +12,8 @@ export class BurgerUserMenu extends UserMenu {
         onMenuClicked: { type: Function, optional: true },
     };
     /**
-     * Wrap item click callback to also notify the burger menu overlay.
-     * @param {Function} callback - Original menu item click handler
-     * @returns {(ev: Event) => void} Wrapped handler that calls both callback and onMenuClicked
+     * @param {Function} callback
+     * @returns {(ev: Event) => void}
      */
     _onItemClicked(callback) {
         return (ev) => {

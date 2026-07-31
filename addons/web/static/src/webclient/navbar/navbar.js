@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/navbar/navbar - Main navigation bar with app switcher, sub-menus, systray items, and mobile sidebar */
+/** @module @web/webclient/navbar/navbar */
 
 import {
     Component,
@@ -15,6 +15,7 @@ import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownGroup } from "@web/components/dropdown/dropdown_group";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { Transition } from "@web/components/transition";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
 import { ErrorHandler } from "@web/core/utils/components";
@@ -33,30 +34,14 @@ systrayRegistry.addValidation({
 
 const getBoundingClientRect = Element.prototype.getBoundingClientRect;
 
-/**
- * Width reserved for the overflow ("More") toggle when deciding how many
- * sections fit. Budgeted up front because the toggle only exists once at least
- * one section has overflowed — measuring it is impossible before the decision
- * that creates it.
- */
 const MORE_MENU_WIDTH = 46;
 
-/** Dropdown subclass for navbar sub-menus (enables enterprise/website patching). */
-export class MenuDropdown extends Dropdown {}
-
-/**
- * Main navigation bar at the top of the webclient.
- *
- * Renders the app switcher, current app's sub-menus (with overflow "More" menu),
- * systray items, and mobile sidebar. Re-measures on a debounced window resize.
- */
 export class NavBar extends Component {
     static template = "web.NavBar";
     static components = {
         Dropdown,
         DropdownItem,
         DropdownGroup,
-        MenuDropdown,
         ErrorHandler,
         Transition,
     };
@@ -107,21 +92,19 @@ export class NavBar extends Component {
 
     /**
      * @param {Error} error
-     * @param {Object} item - the systray item that errored
+     * @param {Object} item
      */
     handleItemError(error, item) {
         this.failedSystrayKeys.add(item.key);
-        Promise.resolve().then(() => {
-            throw error;
-        });
+        reportUncaught(error);
     }
 
-    /** @returns {Object | undefined} the currently active app menu item */
+    /** @returns {Object | undefined} */
     get currentApp() {
         return this.menuService.getCurrentApp();
     }
 
-    /** @returns {Object[]} sub-menu tree nodes for the current app */
+    /** @returns {Object[]} */
     get currentAppSections() {
         return (
             (this.currentApp &&
@@ -130,16 +113,13 @@ export class NavBar extends Component {
         );
     }
 
-    /**
-     * Deliberate no-op, and NOT dead code — see the note on {@link systrayItems}.
-     */
     set currentAppSections(_) {}
 
     get isScopedApp() {
         return this.pwa.isScopedApp;
     }
 
-    /** @returns {Object[]} visible systray items in display order */
+    /** @returns {Object[]} */
     get systrayItems() {
         return systrayRegistry
             .getEntries()
@@ -155,26 +135,10 @@ export class NavBar extends Component {
             .reverse();
     }
 
-    /**
-     * Deliberate no-op paired with the getter above: `website` patches
-     * `systrayItems` (and {@link currentAppSections}) as a getter with no
-     * setter, and `patch()` fills the missing half from the ancestor descriptor
-     * (`core/utils/patch.js`, the `Boolean(get) !== Boolean(set)` branch). Drop
-     * this and the patched property becomes getter-only, so any assignment
-     * throws inside another addon's patch.
-     */
     set systrayItems(_) {}
 
-    /**
-     * Compute the available width for app sections; if they overflow, move
-     * the minimum needed sections into a "more" menu.
-     *
-     * NB: requires an upfront render to measure section widths, and may
-     * trigger another render afterward depending on the outcome.
-     */
     adapt() {
         if (!this.root.el) {
-            /** @todo do we still need this check? */
             return;
         }
 
@@ -234,7 +198,7 @@ export class NavBar extends Component {
         return this.render();
     }
 
-    /** @param {Object} menu - the selected menu descriptor */
+    /** @param {Object} menu */
     onNavBarDropdownItemSelection(menu) {
         if (menu) {
             this.menuService.selectMenu(menu);
@@ -242,8 +206,8 @@ export class NavBar extends Component {
     }
 
     /**
-     * @param {Object} payload - menu item with actionPath or actionID
-     * @returns {string} the URL path for the menu item
+     * @param {Object} payload
+     * @returns {string}
      */
     getMenuItemHref(payload) {
         return `/odoo/${payload.actionPath || `action-${payload.actionID}`}`;

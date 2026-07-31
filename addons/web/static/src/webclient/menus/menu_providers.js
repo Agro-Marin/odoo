@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/menus/menu_providers - Command palette providers for app and menu item fuzzy search */
+/** @module @web/webclient/menus/menu_providers */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -11,7 +11,6 @@ import { DefaultCommandItem } from "@web/services/commands/command_palette";
 
 import { computeAppsAndMenuItems } from "./menu_helpers.js";
 
-/** Command palette item renderer that shows the app icon next to the label. */
 class AppIconCommand extends Component {
     static template = "web.AppIconCommand";
     static props = {

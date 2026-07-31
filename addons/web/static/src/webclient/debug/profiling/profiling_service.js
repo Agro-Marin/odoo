@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/profiling/profiling_service - Service managing Python profiling session state, collector toggles, and systray indicator */
+/** @module @web/webclient/debug/profiling/profiling_service */
 
 import { EventBus, reactive } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -11,12 +11,6 @@ import { profilingSystrayItem } from "./profiling_systray_item.js";
 
 const systrayRegistry = registry.category("systray");
 
-/**
- * Profile state (``profile_session``, ``profile_collectors``, ``profile_params``)
- * is fetched lazily via the ``lazy_session`` service after ``WEB_CLIENT_READY``;
- * until then the service runs with defaults — acceptable since profiling is
- * debug-only and the systray indicator just appears a moment after boot.
- */
 export const profilingService = {
     dependencies: ["action", "orm", "lazy_session"],
     start(env, { action, orm, lazy_session }) {
@@ -59,13 +53,8 @@ export const profilingService = {
         let stateGeneration = 0;
 
         /**
-         * Apply a boot-time lazy-session value into ``state[stateKey]`` unless
-         * the user changed state since the fetch started. Retries the fetch
-         * once on transient failure so a single hiccup can't strand profiling
-         * on defaults for the whole page.
-         *
-         * @param {string} sessionKey lazy_session key
-         * @param {string} stateKey reactive state slot
+         * @param {string} sessionKey
+         * @param {string} stateKey
          */
         async function loadLazyState(sessionKey, stateKey) {
             const bootGeneration = stateGeneration;
@@ -76,9 +65,7 @@ export const profilingService = {
                         state[stateKey] = value;
                     }
                     return;
-                } catch {
-                    // Transient failure: retry once, then give up (keep default).
-                }
+                } catch {}
             }
         }
         loadLazyState("profile_session", "session");

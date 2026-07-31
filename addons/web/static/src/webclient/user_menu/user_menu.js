@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/user_menu/user_menu - Systray dropdown displaying current user avatar and menu items from the user_menuitems registry */
+/** @module @web/webclient/user_menu/user_menu */
 
 import { Component } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -27,11 +27,6 @@ export class UserMenu extends Component {
         this.dbName = session.db;
     }
 
-    /**
-     * Avatar URL, built lazily. Returns "" while `user.partnerId` is not yet
-     * set, avoiding RPCs with `id=undefined` during the initial paint
-     * (before menus load).
-     */
     get source() {
         const { partnerId, writeDate } = user;
         if (!partnerId) {
@@ -42,13 +37,23 @@ export class UserMenu extends Component {
         });
     }
 
-    /** @returns {Object[]} sorted, visible user menu items */
+    /**
+     * Each element carries the registry key it was built from, so the menu can
+     * be keyed by identity: `show()` is re-evaluated on every render (the PWA
+     * entry appears once the browser offers an install prompt), and keying such
+     * a list by index makes OWL reconcile every entry after the insertion point
+     * against the wrong element.
+     *
+     * @returns {Object[]}
+     */
     getElements() {
         const sortedItems = userMenuRegistry
-            .getAll()
-            .map((element) =>
-                element(/** @type {import("@web/env").OdooEnv} */ (this.env)),
-            )
+            .getEntries()
+            .map(([key, element]) => ({
+                ...element(/** @type {import("@web/env").OdooEnv} */ (this.env)),
+                // Last, so the registry key always wins: `t-key` needs it unique.
+                key,
+            }))
             .filter(
                 (element) => !element.hide && (element.show ? element.show() : true),
             )

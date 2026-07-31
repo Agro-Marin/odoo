@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/errors/offline_fail_to_fetch_error_handler - Error handler converting browser "Failed to fetch" TypeErrors into ConnectionLostError */
+/** @module @web/webclient/errors/offline_fail_to_fetch_error_handler */
 
-import { lostConnectionHandler } from "@web/components/errors/error_handlers";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { ConnectionLostError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
+import { lostConnectionHandler } from "@web/services/error_handlers";
 const errorHandlerRegistry = registry.category("error_handlers");
 
 const fetchErrorMessages = [
@@ -28,11 +29,10 @@ export function offlineFailToFetchErrorHandler(env, error, originalError) {
         if (lostConnectionHandler(env, error, new ConnectionLostError(""))) {
             return true;
         }
-        Promise.resolve().then(() => {
-            throw new ConnectionLostError("");
-        });
+        reportUncaught(new ConnectionLostError(""));
         return true;
     }
+    return false;
 }
 errorHandlerRegistry.add(
     "offlineFailToFetchErrorHandler",

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/profiling/profiling_qweb - Field widget visualizing QWeb template profiling data as a flamegraph */
+/** @module @web/webclient/debug/profiling/profiling_qweb */
 
 import {
     Component,
@@ -27,17 +27,6 @@ class MenuItem extends Component {
     };
 }
 
-/**
- * Parse the stored profile JSON, normalizing every xpath to its fully
- * indexed form so it can be compared against the xpaths this widget derives
- * from the rendered arch.
- *
- * Returns ``null`` for anything unusable — the field is plain text on
- * ``ir.profile`` and may be empty or truncated, which {@link ProfilingQwebView#profile}
- * already degrades to an empty profile for. Parsing eagerly here used to
- * throw out of ``setup()`` and take the whole form view down with it, making
- * that fallback unreachable.
- */
 function processValue(value) {
     let data;
     try {
@@ -57,7 +46,6 @@ function processValue(value) {
     return data;
 }
 
-/** Text-field widget displaying QWeb XML/Python profiling data in an Ace editor. */
 export class ProfilingQwebView extends Component {
     static template = "web.ProfilingQwebView";
     static components = { Dropdown, DropdownItem, MenuItem };
@@ -99,8 +87,6 @@ export class ProfilingQwebView extends Component {
     }
 
     /**
-     * Return JSON values to render the view
-     *
      * @returns {{ archs: Object, data: Array<{template: string, xpath: string, directive: string, time: number, duration: number, query: number, view_id?: any, delay?: number}> }}
      */
     get profile() {
@@ -108,8 +94,6 @@ export class ProfilingQwebView extends Component {
     }
 
     /**
-     * Return association of view key, view name, query number and total delay
-     *
      * @private
      * @returns {Promise<viewObjects>}
      */
@@ -139,8 +123,6 @@ export class ProfilingQwebView extends Component {
     }
 
     /**
-     * Format delay to readable.
-     *
      * @private
      * @param {number} delay
      * @returns {string}
@@ -150,10 +132,8 @@ export class ProfilingQwebView extends Component {
     }
 
     /**
-     * Starts the ace library on the given DOM element, in readonly mode.
-     *
      * @private
-     * @param {Node} node - the DOM element the ace library must initialize on
+     * @param {Node} node
      */
     _startAce(node) {
         this.aceEditor = window.ace.edit(node);
@@ -185,22 +165,6 @@ export class ProfilingQwebView extends Component {
         );
     }
 
-    /**
-     * Drop the badges injected by the previous pass.
-     *
-     * Ace recycles its gutter cells as the editor scrolls, so a badge left on
-     * a cell is re-shown against whatever source line that cell is next used
-     * for. This ran as ``_unmoutInfo``, which never removed anything: it was
-     * gated on ``this.hover``/``this.info`` (never assigned anywhere) and
-     * looked for ``.o_ace_hover``/``.o_ace_info`` (present in no template or
-     * stylesheet in the codebase). The ``!node.querySelector(".o_info")``
-     * guards at the injection sites were what kept duplicates down — and they
-     * also suppressed the CORRECT badge for a recycled cell, so a scrolled
-     * editor showed another line's timings.
-     *
-     * Both badge templates root at ``.o_info``, so every match under the
-     * editor is exactly the previous pass's output.
-     */
     _clearInjectedBadges() {
         for (const badge of this.ace.el.querySelectorAll(".o_info")) {
             badge.remove();
@@ -211,7 +175,9 @@ export class ProfilingQwebView extends Component {
         this._clearInjectedBadges();
 
         const flat = {};
-        const arch = [{ xpath: "", children: [] }];
+        // Same shape as the nodes pushed below: a `t-*` directive reaching the
+        // root as its parent would otherwise push onto an undefined `directive`.
+        const arch = [{ xpath: "", children: [], directive: [] }];
         const rows = this.ace.el.querySelectorAll(".ace_gutter .ace_gutter-cell");
         const elems = this.ace.el.querySelectorAll(
             ".ace_tag-open, .ace_end-tag-close, .ace_end-tag-open, .ace_qweb",
@@ -317,8 +283,6 @@ export class ProfilingQwebView extends Component {
         });
     }
     /**
-     * Set the view ID and send atch to ACE.
-     *
      * @private
      */
     _renderView() {
@@ -367,6 +331,7 @@ export class ProfilingQwebView extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const profilingQwebView = {
     component: ProfilingQwebView,
 };

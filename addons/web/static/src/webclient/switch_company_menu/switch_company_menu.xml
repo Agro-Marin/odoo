@@ -31,8 +31,8 @@
  <div
  role="menuitemcheckbox"
  t-att-aria-checked="hasSelectedCompanies ? 'true' : 'false'"
- t-att-aria-label="hasSelectedCompanies ? 'Deselect all' : 'Select all'"
- t-att-title="hasSelectedCompanies ? 'Deselect all' : 'Select all'"
+ t-att-aria-label="selectAllTitle"
+ t-att-title="selectAllTitle"
  t-on-click="() => this.selectAll()"
  >
  <span class="btn border-0 pt-2 px-2" t-att-class="selectAllClass">

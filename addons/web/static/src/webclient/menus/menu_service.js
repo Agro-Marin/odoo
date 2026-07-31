@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/menus/menu_service - Service that loads, caches, and navigates the Odoo menu tree */
+/** @module @web/webclient/menus/menu_service */
 
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
@@ -11,25 +11,14 @@ import { menuStorage } from "./menu_storage.js";
 
 const loadMenusUrl = `/web/webclient/load_menus`;
 
-/** Minimal tree used when nothing could be loaded — beats an exception on the
- * first ``getAll()``/``getApps()`` call and a blanked webclient. */
 const EMPTY_MENUS = {
     root: { id: "root", children: [], name: "root", appID: "root" },
 };
 
 /**
- * Fetch the menu tree from the server.
- *
- * Conditional-fetch contract: when ``cachedHash`` (the value of the
- * ``X-Menus-Hash`` header persisted alongside the localStorage copy) is
- * passed, the server answers an empty ``304`` if the payload is unchanged —
- * resolved here as ``null`` — instead of re-sending the full payload (base64
- * app icons included) on every boot.
- *
- * @param {boolean} [reload] bypass the parse-time preload
+ * @param {boolean} [reload]
  * @param {string} [cachedHash]
- * @returns {Promise<{menus: Object, hash?: string} | null>} the menus and their
- *  server-side hash, or ``null`` when the cached copy is confirmed up-to-date
+ * @returns {Promise<{menus: Object, hash?: string} | null>}
  */
 async function fetchMenus(reload, cachedHash) {
     if (!reload && /** @type {any} */ (odoo).loadMenusPromise) {
@@ -51,17 +40,6 @@ async function fetchMenus(reload, cachedHash) {
     };
 }
 
-/**
- * The menu tree, plus the derived lookups the webclient needs.
- *
- * ``menusData`` is a flat map keyed by menu id (plus the ``"root"`` pseudo
- * entry), exactly as ``ir.ui.menu.load_web_menus`` builds it — the key IS the
- * ``id`` field, so ``getMenu(id)`` is the O(1) form of any ``id`` search.
- *
- * The action index is lazy and rebuilt whenever the tree is replaced: an app
- * lookup by action is what the URL→menu resolution needs on every route
- * change, and a full scan of ``getAll()`` per change does not scale.
- */
 class MenuTree {
     /** @param {Object} menusData */
     constructor(menusData) {
@@ -71,16 +49,6 @@ class MenuTree {
     }
 
     /**
-     * Replace the tree.
-     *
-     * A payload is only usable if it carries the ``root`` entry every lookup
-     * starts from. ``menu_storage`` guarantees the cached copy PARSES, not that
-     * it is well-formed, so a rootless one is a normal input here — and it used
-     * to make ``getMenuAsTree("root")`` answer ``undefined``, which the
-     * command-palette walk then dereferenced. Falling back to {@link
-     * EMPTY_MENUS} degrades to "no apps" instead, which the next revalidation
-     * repairs.
-     *
      * @param {Object} [menusData]
      */
     setData(menusData) {
@@ -88,8 +56,10 @@ class MenuTree {
             console.warn("Discarding a menu payload with no root entry");
         }
         this.menusData = menusData?.root ? menusData : EMPTY_MENUS;
-        /** @type {Map<number|string, Object> | null} lazy action -> app index */
+        /** @type {Map<number|string, Object> | null} */
         this._appByAction = null;
+        /** @type {Map<number|string, Object>} */
+        this._treeByMenuId = new Map();
     }
 
     /** @param {number|string} menuId */
@@ -106,16 +76,6 @@ class MenuTree {
     }
 
     /**
-     * The child menus of ``menu`` that actually exist.
-     *
-     * ``menusData`` is not always server-fresh: it is also read back from
-     * ``localStorage``, where ``menu_storage`` guarantees only that the payload
-     * PARSES. A payload that parses and still names a menu id it does not
-     * define used to yield ``undefined`` entries here, which every consumer
-     * then dereferenced — the command-palette tree walk and the navbar's app
-     * list among them. Dropping the dangling ids keeps a partially corrupt
-     * cache to a missing menu instead of a blank webclient.
-     *
      * @param {Object} [menu]
      * @returns {Object[]}
      */
@@ -127,31 +87,33 @@ class MenuTree {
         return this.currentAppId ? this.getMenu(this.currentAppId) : undefined;
     }
 
-    /** @param {number|string} menuID */
+    /**
+     * The resolved tree is memoized per menu id rather than written back onto
+     * the payload: `setData` would otherwise have to scrub a `childrenTree`
+     * left on menus it reuses, and consumers would see the cache as data.
+     *
+     * @param {number|string} menuID
+     */
     getMenuAsTree(menuID) {
         const menu = this.getMenu(menuID);
         if (!menu) {
             return;
         }
-        if (!menu.childrenTree) {
-            menu.childrenTree = this._resolveChildren(menu).map((child) =>
+        let tree = this._treeByMenuId.get(menuID);
+        if (!tree) {
+            tree = { ...menu, childrenTree: [] };
+            this._treeByMenuId.set(menuID, tree);
+            tree.childrenTree = this._resolveChildren(menu).map((child) =>
                 this.getMenuAsTree(child.id),
             );
         }
-        return menu;
+        return tree;
     }
 
     /**
-     * The app whose (sub)menu tree runs the given action.
-     *
-     * Matches an action id OR an action path, because the URL may carry
-     * either. When several menus point at the same action, ``preferredAppId``
-     * breaks the tie — the caller passes the app the user was last in, so
-     * reloading a shared action keeps them where they were.
-     *
-     * @param {number|string} action action id or action path
+     * @param {number|string} action
      * @param {number|string} [preferredAppId]
-     * @returns {number|string|undefined} the ``appID``, if any
+     * @returns {number|string|undefined}
      */
     getAppIdByAction(action, preferredAppId) {
         if (!this._appByAction) {
@@ -178,14 +140,6 @@ class MenuTree {
     }
 }
 
-/**
- * Service that loads, caches, and navigates the Odoo menu tree.
- *
- * Fetches menus from `/web/webclient/load_menus`, stores them in localStorage
- * for fast startup (see `menu_storage.js` for that trio's ordering rules), and
- * exposes methods to query apps, sub-menus, and trigger navigation via the
- * action service.
- */
 export const menuService = {
     dependencies: ["action"],
     async: ["selectMenu", "reload"],
@@ -233,7 +187,7 @@ export const menuService = {
             }
         }
 
-        /** @param {Object|number} menu - menu descriptor or menu ID */
+        /** @param {Object|number} menu */
         function setCurrentMenu(menu) {
             menu = typeof menu === "number" ? tree.getMenu(menu) : menu;
             if (menu && menu.appID !== tree.currentAppId) {

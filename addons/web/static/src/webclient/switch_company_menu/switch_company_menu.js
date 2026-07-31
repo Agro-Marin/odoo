@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/switch_company_menu/switch_company_menu - Company switcher systray dropdown with multi-select, search, and access-rights verification */
+/** @module @web/webclient/switch_company_menu/switch_company_menu */
 
 import { Component, useChildSubEnv, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -21,12 +21,6 @@ import {
 } from "@web/webclient/switch_company_menu/company_selector";
 import { SwitchCompanyItem } from "@web/webclient/switch_company_menu/switch_company_item";
 
-/**
- * Systray dropdown for switching between companies in a multi-company environment.
- *
- * Supports search filtering, keyboard navigation, select-all, and applies
- * company changes via the router (with access-rights verification).
- */
 export class SwitchCompanyMenu extends Component {
     static template = "web.SwitchCompanyMenu";
     static components = {
@@ -120,6 +114,11 @@ export class SwitchCompanyMenu extends Component {
         return this.visibleCompanies.some((c) =>
             this.companySelector.isCompanySelected(c.company.id),
         );
+    }
+
+    /** @returns {string} */
+    get selectAllTitle() {
+        return this.hasSelectedCompanies ? _t("Deselect all") : _t("Select all");
     }
 
     get selectAllClass() {
@@ -217,12 +216,6 @@ export class SwitchCompanyMenu extends Component {
     }
 
     confirm() {
-        // `apply()` is intentionally not awaited: it ends in a reloading
-        // `router.pushState`, and the dropdown must close now rather than after
-        // an access-rights round trip. It captures the selection synchronously,
-        // so the `close()` below (which resets the draft on desktop) cannot race
-        // it. Catch, because an unawaited rejection here would surface as an
-        // unhandled promise rejection with no context.
         Promise.resolve(this.companySelector.apply()).catch((error) => {
             console.warn("Failed to apply the company selection", error);
         });

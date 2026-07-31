@@ -2,7 +2,7 @@
 /** @odoo-module native */
 /* eslint-disable no-console -- QA automation bot; progress/results output to console is its purpose */
 
-/** @module @web/webclient/clickbot/clickbot - Automated UI testing bot that clicks through all apps, views, and filters to verify stability */
+/** @module @web/webclient/clickbot/clickbot */
 
 import { App, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -32,10 +32,6 @@ let actionCount;
 let env;
 let apps;
 
-/**
- * Hook on specific activities of the webclient to detect when to move forward.
- * This should be done only once.
- */
 function setup(light, currentState) {
     env = /** @type {any} */ (odoo).__WOWL_DEBUG__.root.env;
     const stopButton = document.createElement("button");
@@ -80,7 +76,6 @@ function onRPCRequest({ detail }) {
 }
 
 function onRPCResponse({ detail }) {
-    // global rpcBus from tests/synthetic fires; don't surface those as exceptions.
     if (!detail?.data) {
         return;
     }
@@ -103,8 +98,6 @@ function cleanup() {
 }
 
 /**
- * Returns a promise that resolves after the next animation frame.
- *
  * @returns {Promise}
  */
 async function waitForNextAnimationFrame() {
@@ -113,11 +106,9 @@ async function waitForNextAnimationFrame() {
 }
 
 /**
- * Simulate all of the mouse events triggered during a click action.
- *
- * @param {EventTarget} target the element on which to perform the click
- * @param {string} elDescription description of the item
- * @returns {Promise} resolved after next animation frame
+ * @param {EventTarget} target
+ * @param {string} elDescription
+ * @returns {Promise}
  */
 async function triggerClick(target, elDescription) {
     if (target) {
@@ -139,10 +130,8 @@ async function triggerClick(target, elDescription) {
 }
 
 /**
- * Wait a certain amount of time for a condition to occur
- *
- * @param {function} stopCondition a function that returns a boolean
- * @returns {Promise} that is rejected if the timeout is exceeded
+ * @param {function} stopCondition
+ * @returns {Promise}
  */
 async function waitForCondition(stopCondition) {
     const interval = 25;
@@ -203,9 +192,6 @@ async function waitForCondition(stopCondition) {
     }
 }
 
-/**
- * Make sure the home menu is open (enterprise only)
- */
 async function ensureHomeMenu() {
     const homeMenu = document.querySelector("div.o_home_menu");
     if (!homeMenu) {
@@ -218,9 +204,6 @@ async function ensureHomeMenu() {
     }
 }
 
-/**
- * Make sure the apps menu is open (community only)
- */
 async function ensureAppsMenu() {
     const apps = document.querySelectorAll(".o-dropdown--menu .o_app");
     if (!apps || !apps.length) {
@@ -233,8 +216,6 @@ async function ensureAppsMenu() {
 }
 
 /**
- * Return the next menu to test, and update the internal counters.
- *
  * @returns {Promise<Element | undefined>}
  */
 async function getNextMenu() {
@@ -257,8 +238,6 @@ async function getNextMenu() {
             return;
         }
         const items = dropdownMenu.querySelectorAll(".dropdown-item");
-        // A dropdown with nothing left to walk must advance menuIndex, not sit
-        // there incrementing subMenuIndex forever and returning undefined.
         if (state.subMenuIndex >= items.length) {
             state.menuIndex++;
             state.subMenuIndex = 0;
@@ -278,8 +257,6 @@ async function getNextMenu() {
 }
 
 /**
- * Return the next app to test, and update the internal counter.
- *
  * @returns {Promise<string | undefined>}
  */
 async function getNextApp() {
@@ -298,7 +275,6 @@ async function getNextApp() {
     return appName;
 }
 
-/** Enter Studio via its systray icon, then immediately leave it. */
 async function testStudio() {
     const studioIcon = document.querySelector(STUDIO_SYSTRAY_ICON_SELECTOR);
     if (!studioIcon) {
@@ -313,7 +289,6 @@ async function testStudio() {
     state.studioCount++;
 }
 
-/** Click each filter in the control panel. */
 async function testFilters() {
     if (state.light === true) {
         return;
@@ -368,7 +343,6 @@ async function testFilters() {
 }
 
 /**
- * Click each view-switch button in turn.
  * @returns {Promise}
  */
 async function testViews() {
@@ -383,11 +357,6 @@ async function testViews() {
             (cls) => cls !== "o_switch_view" && cls.startsWith("o_"),
         );
         if (!viewTypeClass) {
-            // Every switcher button is expected to carry an `o_<viewtype>`
-            // class alongside `o_switch_view`. One that does not is a control
-            // panel change, not a view to test — skipping beats the TypeError
-            // that `.slice(2)` on undefined used to raise, which aborted the
-            // whole app's run at whichever view happened to be first.
             browser.console.warn(
                 "Skipping a view switcher with no o_<viewtype> class:",
                 switchButton.className,
@@ -396,12 +365,6 @@ async function testViews() {
         }
         const viewType = viewTypeClass.slice(2);
         browser.console.log(`Testing view switch: ${viewType}`);
-        // The click is deferred so the control panel has settled before it
-        // lands, and re-queried rather than reusing `switchButton` because the
-        // previous iteration re-rendered the switcher. Awaiting it keeps the
-        // click INSIDE this iteration: it used to be a bare setTimeout whose
-        // triggerClick promise nobody held, so a rejection (element gone)
-        // surfaced as an unhandled rejection attributed to no particular menu.
         await new Promise((resolve) => browser.setTimeout(resolve, 250));
         const target = document.querySelector(
             `nav.o_cp_switch_buttons > button.o_switch_view.o_${viewType}`,
@@ -421,8 +384,7 @@ async function testViews() {
 }
 
 /**
- * Click a menu item, then orchestrate the view switch.
- * @param {Element} element the menu item
+ * @param {Element} element
  * @returns {Promise}
  */
 async function testMenuItem(element) {
@@ -467,8 +429,6 @@ async function testMenuItem(element) {
 }
 
 /**
- * Click an app's menu item, then each of its views, then each of its menus
- * (and their views).
  * @returns {Promise}
  */
 async function testApp() {
@@ -499,10 +459,6 @@ async function testApp() {
     if (state.light === true) {
         return;
     }
-    // Do NOT reset the cursor here: `state` may have been restored from
-    // localStorage after a mid-run page reload, and zeroing it makes the bot
-    // re-walk every menu of the current app. The cursor is reset when we MOVE
-    // to a new app, in _clickEverywhere.
     let menu = await getNextMenu();
     while (menu) {
         await testMenuItem(menu);
@@ -510,9 +466,6 @@ async function testApp() {
     }
 }
 
-/**
- * Main function that starts orchestration of tests
- */
 async function _clickEverywhere(xmlId, light, currentState) {
     setup(light, currentState);
     console.log("Starting ClickEverywhere test");

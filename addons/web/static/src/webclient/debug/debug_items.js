@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/debug_items - Debug menu items for running unit tests, opening views, and toggling technical data */
+/** @module @web/webclient/debug/debug_items */
 
 import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
@@ -11,8 +11,7 @@ import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog
 import { FieldWidgetsDialog } from "./field_widgets_dialog.js";
 
 /**
- * Debug menu item: open the unit test runner.
- * @returns {Object} debug menu item descriptor
+ * @returns {Object}
  */
 function runUnitTestsItem() {
     const href = "/web/tests?debug=assets";
@@ -27,9 +26,8 @@ function runUnitTestsItem() {
 }
 
 /**
- * Debug menu item: open any view by selecting it from a dialog.
  * @param {{ env: Object }} params
- * @returns {Object} debug menu item descriptor
+ * @returns {Object}
  */
 export function openViewItem({ env }) {
     async function onSelected(records) {
@@ -69,11 +67,8 @@ export function openViewItem({ env }) {
 }
 
 /**
- * Debug menu item: open a searchable dialog listing every registered field
- * widget — name, display name, supported types, component class, and
- * option count.  Read-only registry inspector.
  * @param {{ env: Object }} params
- * @returns {Object} debug menu item descriptor
+ * @returns {Object}
  */
 export function inspectFieldWidgetsItem({ env }) {
     return {

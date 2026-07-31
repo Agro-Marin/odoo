@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/density/density_toggle - Systray toggle that cycles through content density modes (default/compact/condensed) */
+/** @module @web/webclient/density/density_toggle */
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -10,7 +10,7 @@ import { useService } from "@web/core/utils/hooks";
 
 import { nextDensity } from "./density_service.js";
 
-/** Presentation only — the cycle order belongs to the service ({@link nextDensity}). */
+/** @type {Record<string, { icon: string, label: any }>} */
 const DENSITY_META = {
     default: {
         icon: "fa-solid fa-up-right-and-down-left-from-center",
@@ -23,35 +23,26 @@ const DENSITY_META = {
     condensed: { icon: "fa-solid fa-bars", label: _t("Condensed") },
 };
 
-/**
- * Systray toggle that cycles through content density modes.
- *
- * Cycles: default (cozy) → compact → condensed → default.
- * No page reload — CSS class toggle is instant.
- */
 export class DensityToggle extends Component {
     static template = "web.DensityToggle";
     static props = {};
 
     setup() {
         this.densityService = /** @type {any} */ (useService("density"));
-        // Subscribing to the service's own reactive state is what makes the
-        // icon and tooltip track a density set from anywhere, not just from
-        // this component's toggle().
         this.state = useState(this.densityService.state);
     }
 
-    /** @returns {string} the current density, always one of DENSITY_META's keys */
+    /** @returns {string} */
     get density() {
         return this.state.density in DENSITY_META ? this.state.density : "default";
     }
 
-    /** @returns {string} Font Awesome icon class for the current density. */
+    /** @returns {string} */
     get icon() {
         return DENSITY_META[this.density].icon;
     }
 
-    /** @returns {string} Tooltip text describing current density and next on click. */
+    /** @returns {string} */
     get title() {
         return _t("%(current)s density (click for %(next)s)", {
             current: DENSITY_META[this.density].label,
@@ -59,7 +50,6 @@ export class DensityToggle extends Component {
         });
     }
 
-    /** Cycle to the next density mode. */
     async toggle() {
         await this.densityService.cycle();
     }
