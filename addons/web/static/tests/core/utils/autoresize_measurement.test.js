@@ -40,17 +40,17 @@ function referenceTextWidth(el) {
     // cannot be represented comes back as the empty string -- which would
     // leave this reference span with no font at all.
     for (const property of [
-        "fontFamily",
-        "fontSize",
-        "fontStyle",
-        "fontWeight",
-        "fontStretch",
-        "fontVariant",
-        "fontVariantNumeric",
-        "letterSpacing",
-        "wordSpacing",
+        "font-family",
+        "font-size",
+        "font-style",
+        "font-weight",
+        "font-stretch",
+        "font-variant",
+        "font-variant-numeric",
+        "letter-spacing",
+        "word-spacing",
     ]) {
-        span.style[property] = style[property];
+        span.style.setProperty(property, style.getPropertyValue(property));
     }
     span.textContent = el.value;
     document.body.appendChild(span);

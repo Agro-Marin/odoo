@@ -22,8 +22,9 @@ const SET = 6;
 
 /** @returns {any} a partial StaticList, enough for applyCommands */
 function makeList() {
+    /** @type {any[]} */
     const loadedIds = [];
-    const list = {
+    const list = /** @type {any} */ ({
         _commands: [],
         records: [],
         _currentIds: [],
@@ -38,14 +39,14 @@ function makeList() {
         resModel: "line",
         evalContext: {},
         loadedIds,
-        _createRecordDatapoint(data) {
+        _createRecordDatapoint(/** @type {any} */ data) {
             const record = {
                 resId: data.id || false,
                 _virtualId: false,
                 activeFields: {},
                 data: { ...data },
                 complete: Boolean(data.name),
-                _applyValues(values) {
+                _applyValues(/** @type {any} */ values) {
                     Object.assign(this.data, values);
                     this.complete = true;
                 },
@@ -54,22 +55,25 @@ function makeList() {
             list._cache[data.id] = record;
             return record;
         },
-        _getResIdsToLoad: (ids) => ids.filter((id) => !list._cache[id]?.complete),
+        _getResIdsToLoad: (/** @type {any} */ ids) =>
+            ids.filter((/** @type {any} */ id) => !list._cache[id]?.complete),
         _bumpLimit() {},
         _clampOffset() {},
         model: {
             _patchConfig: () => {},
-            _loadRecords: ({ resIds }) => {
+            _loadRecords: (/** @type {any} */ { resIds }) => {
                 loadedIds.push(...resIds);
-                return Promise.resolve(resIds.map((id) => ({ id, name: `n${id}` })));
+                return Promise.resolve(
+                    resIds.map((/** @type {any} */ id) => ({ id, name: `n${id}` })),
+                );
             },
         },
-    };
+    });
     return list;
 }
 
 /** Seed the list with two fully-loaded records. */
-function seed(list) {
+function seed(/** @type {any} */ list) {
     for (const id of [1, 2]) {
         const record = list._createRecordDatapoint({ id, name: `n${id}` });
         list.records.push(record);

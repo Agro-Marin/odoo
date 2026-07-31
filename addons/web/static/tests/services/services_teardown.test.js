@@ -299,6 +299,7 @@ describe("async service protection", () => {
         /** @type {string[]} */
         const writes = [];
         class Consumer extends Component {
+            /** @type {string[]} */
             static props = [];
             static template = xml`<div class="consumer"/>`;
             setup() {
@@ -307,7 +308,7 @@ describe("async service protection", () => {
                     const manifest = await pwa.getManifest();
                     // Reached only if the call was NOT protected: by now the
                     // component is destroyed and this write targets dead state.
-                    writes.push(manifest.name);
+                    writes.push(/** @type {any} */ (manifest).name);
                 });
             }
         }

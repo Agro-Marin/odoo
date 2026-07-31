@@ -22,7 +22,12 @@ export const fileUploadService = {
     /**
      * @param {import("@web/env").OdooEnv} env
      * @param {{ notification: any }} services
-     * @returns {{ bus: EventBus, upload: Function, uploads: Record<number, Object> }}
+     * @returns {{
+     *  bus: EventBus,
+     *  upload: Function,
+     *  uploads: Record<number, Object>,
+     *  destroy: () => void,
+     * }}
      */
     start(env, { notification: notificationService }) {
         /** @type {Record<number, Object>} */

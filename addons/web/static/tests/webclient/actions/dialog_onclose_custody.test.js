@@ -40,7 +40,7 @@ defineActions([
 
 describe.current.tags("desktop");
 
-function slowDialog(tag) {
+function slowDialog(/** @type {string} */ tag) {
     const def = new Deferred();
     class SlowDialog extends Component {
         static template = xml`<div class="slow_dialog"/>`;
@@ -59,6 +59,7 @@ test("a pending dialog that dies hands the stolen onClose back to A", async () =
     const def = slowDialog("probe_dialog_1");
     await mountActionHost();
     const action = getService("action");
+    /** @type {string[]} */
     const calls = [];
 
     await action.doAction(1, { onClose: () => calls.push("A") });
@@ -86,6 +87,7 @@ test("when B commits it adopts the stolen onClose and runs it on close", async (
     const def = slowDialog("probe_dialog_2");
     await mountActionHost();
     const action = getService("action");
+    /** @type {string[]} */
     const calls = [];
 
     await action.doAction(1, { onClose: () => calls.push("A") });
@@ -115,6 +117,7 @@ test("a pending dialog that never mounts does not swallow the stolen onClose", a
     const def = slowDialog("probe_dialog_3");
     await mountActionHost();
     const action = getService("action");
+    /** @type {string[]} */
     const calls = [];
 
     await action.doAction(1, { onClose: () => calls.push("A") });

@@ -16,7 +16,7 @@ export const demoDataService = {
              */
             isDemoDataActive() {
                 isDemoDataActiveProm ??= rpc("/base_setup/demo_active").catch(
-                    (error) => {
+                    (/** @type {any} */ error) => {
                         isDemoDataActiveProm = undefined;
                         throw error;
                     },
