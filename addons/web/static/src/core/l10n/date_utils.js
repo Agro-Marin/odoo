@@ -1,16 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/date_utils - Pure date comparison, clamping, range checks, and locale-aware week helpers */
+/** @module @web/core/l10n/date_utils */
 
 import { localization } from "@web/core/l10n/localization";
 import { DateTime } from "@web/core/l10n/luxon";
 import { ensureArray } from "@web/core/utils/collections/arrays";
 
 /**
- * Checks whether 2 given dates or date ranges are equal. Both values are allowed
- * to be falsy or to not be of the same type (which will return false).
- *
  * @param {any} d1
  * @param {any} d2
  * @returns {boolean}
@@ -37,12 +34,10 @@ export function areDatesEqual(d1, d2) {
 }
 
 /**
- * Clamp a DateTime between min and max bounds.
- *
- * @param {any} desired - Luxon DateTime
- * @param {any} minDate - Luxon DateTime
- * @param {any} maxDate - Luxon DateTime
- * @returns {any} Luxon DateTime
+ * @param {any} desired
+ * @param {any} minDate
+ * @param {any} maxDate
+ * @returns {any}
  */
 export function clampDate(desired, minDate, maxDate) {
     if (maxDate < desired) {
@@ -55,10 +50,7 @@ export function clampDate(desired, minDate, maxDate) {
 }
 
 /**
- * Get the week year, week number, and start date of a given date's week,
- * respecting the user's locale `weekStart` setting.
- *
- * @param {any} date - JS Date or Luxon DateTime
+ * @param {any} date
  * @returns {{ year: number, week: number, startDate: any }}
  */
 export function getLocalYearAndWeek(date) {
@@ -89,10 +81,8 @@ export function getLocalYearAndWeek(date) {
 }
 
 /**
- * Get the start of the week for the given date, respecting the user's locale `weekStart`.
- *
- * @param {any} date - Luxon DateTime
- * @returns {any} Luxon DateTime
+ * @param {any} date
+ * @returns {any}
  */
 export function getStartOfLocalWeek(date) {
     const { weekStart } = localization;
@@ -101,20 +91,16 @@ export function getStartOfLocalWeek(date) {
 }
 
 /**
- * Get the end of the week for the given date, respecting the user's locale `weekStart`.
- *
- * @param {any} date - Luxon DateTime
- * @returns {any} Luxon DateTime
+ * @param {any} date
+ * @returns {any}
  */
 export function getEndOfLocalWeek(date) {
     return getStartOfLocalWeek(date).plus({ days: 6 }).endOf("day");
 }
 
 /**
- * Check whether a value (date or date range) falls within a given range.
- *
- * @param {any} value - DateTime, [DateTime, DateTime], or falsy
- * @param {[any, any]} range - [start, end] DateTime pair
+ * @param {any} value
+ * @param {[any, any]} range
  * @returns {boolean}
  */
 export function isInRange(value, range) {
@@ -136,7 +122,6 @@ export function isInRange(value, range) {
 }
 
 /**
- * Returns the start of the current day as a Luxon DateTime.
  * @returns {any}
  */
 export function today() {

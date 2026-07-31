@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/time - Time class for 24h time representation with locale-aware parsing */
+/** @module @web/core/l10n/time */
 
 import { localization } from "@web/core/l10n/localization";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -14,20 +14,8 @@ const NUMERAL_MAPS = [
     "零一二三四五六七八九",
 ];
 
-/**
- * A representation of a specific time in a 24 hour format
- */
 export class Time {
     /**
-     * This method will return a Time object contructed
-     * differently depending on the type of {value}
-     *
-     * - If value is already a Time object, it returns it.
-     * - If value is null, undefined or false, it returns null.
-     * - If value is a string, it will try to parse it, @see {parseTime}
-     * - If value is an object, it will use its [hour], [minute] and [second] properties
-     * - Otherwise, return a new Time with default values
-     *
      * @param {any} value
      * @returns {Time|null}
      */
@@ -49,11 +37,11 @@ export class Time {
      * @param {{ hour?: number, minute?: number, second?: number }} [params]
      */
     constructor({ hour = 0, minute = 0, second = 0 } = {}) {
-        /**@type {number} */
+        /** @type {number} */
         this.hour = hour;
-        /**@type {number} */
+        /** @type {number} */
         this.minute = minute;
-        /**@type {number} */
+        /** @type {number} */
         this.second = second;
     }
 
@@ -87,18 +75,15 @@ export class Time {
      * @returns {boolean}
      */
     equals(other, checkSeconds = false) {
-        return (
+        return Boolean(
             other &&
             this.hour === other.hour &&
             this.minute === other.minute &&
-            (!checkSeconds || this.second === other.second)
+            (!checkSeconds || this.second === other.second),
         );
     }
 
     /**
-     * Format the time in 24h or 12h (with meridiem) per the current
-     * localization time format.
-     *
      * @param {boolean} [showSeconds=false]
      * @returns {string}
      */
@@ -118,7 +103,6 @@ export class Time {
     }
 
     /**
-     * Returns the time as an Object
      * @returns {{hour: number, minute: number, second: number}}
      */
     toObject() {
@@ -131,9 +115,6 @@ export class Time {
 }
 
 /**
- * Returns whether the given format is a 24-hour format.
- * Falls back to localization time format if none is given.
- *
  * @param {string} [format]
  */
 export function is24HourFormat(format) {
@@ -141,9 +122,6 @@ export function is24HourFormat(format) {
 }
 
 /**
- * Returns whether the given format uses a meridiem suffix (AM/PM).
- * Falls back to localization time format if none is given.
- *
  * @param {string} [format]
  */
 function isMeridiemFormat(format) {
@@ -151,17 +129,6 @@ function isMeridiemFormat(format) {
 }
 
 /**
- * Tries to parse a Time object from a time string
- * representation such as:
- * "10:15"  -> 10:15:00
- * "2h5"    -> 02:50:00
- * "1015"   -> 10:15:00
- * "125"    -> 12:50:00
- * "315"    -> 03:15:00
- * "5:15pm" -> 17:15:00
- *
- * Returns null if the value could not be parsed.
- *
  * @param {string} value
  * @param {boolean} [parseSeconds]
  * @returns {Time | null}
@@ -266,10 +233,6 @@ export function parseTime(value, parseSeconds) {
 }
 
 /**
- * - Converts other languages numeral systems to western arabic numbers
- * - Replaces with ":" all chains of non-numeric characters between numbers
- * - Removes all trailing non-numeric characters
- *
  * @param {string} timeStr
  * @returns {string|false}
  */

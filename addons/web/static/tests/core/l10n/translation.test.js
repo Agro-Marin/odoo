@@ -19,9 +19,11 @@ import { luxon } from "@web/core/l10n/luxon";
 import {
     _pl,
     _t as basic_t,
+    TranslatedString,
     translatedTerms,
     translationLoaded,
 } from "@web/core/l10n/translation";
+import { isMarkup } from "@web/core/utils/dom/html";
 import { IndexedDB } from "@web/core/utils/indexed_db";
 import { session } from "@web/session";
 const { DateTime } = luxon;
@@ -107,7 +109,7 @@ test("[cache] write into the cache", async () => {
         async read() {
             return undefined;
         },
-        write(table, key, value) {
+        async write(table, key, value) {
             expect.step(`table: ${table}`);
             expect.step(`key: ${key}`);
             expect.step(`value: ${JSON.stringify(value)}`);
@@ -325,7 +327,7 @@ test("[cache] update the cache if hash are different - template", async () => {
                 hash: "30b",
             };
         },
-        write(table, key, value) {
+        async write(table, key, value) {
             expect.step(`table: ${table}`);
             expect.step(`key: ${key}`);
             expect.step(`value: ${JSON.stringify(value)}`);
@@ -394,7 +396,7 @@ test("[cache] update the cache if hash are different - js", async () => {
                 hash: "30b",
             };
         },
-        write(table, key, value) {
+        async write(table, key, value) {
             expect.step(`table: ${table}`);
             expect.step(`key: ${key}`);
             expect.step(`value: ${JSON.stringify(value)}`);
@@ -638,5 +640,44 @@ describe("_pl", () => {
     test("falls back to `other` when the matched category form is absent", () => {
         patchWithCleanup(localization, { code: "en_US" });
         expect(_pl(5, { other: "fallback" })).toBe("fallback");
+    });
+});
+
+describe("TranslatedString primitive conversion", () => {
+    // `Markup extends String`, so returning one from both `toString` and
+    // `valueOf` left `ToPrimitive` with no primitive to fall back on: every
+    // conversion of a lazy _t carrying a markup substitution — `String(x)`, a
+    // template literal, `x + ""`, and so `htmlEscape` — threw "Cannot convert
+    // object to primitive value".
+    test("a markup substitution still converts to a primitive", () => {
+        const ts = new TranslatedString("Hello %s", [markup`<b>x</b>`], "base");
+        ts.lazy = false;
+        expect(isMarkup(ts.translate())).toBe(true);
+        expect(typeof ts.valueOf()).toBe("string");
+        expect(typeof ts.toString()).toBe("string");
+        expect(String(ts)).toBe("Hello <b>x</b>");
+        expect(`${ts}`).toBe("Hello <b>x</b>");
+        expect(ts + "").toBe("Hello <b>x</b>");
+    });
+
+    test("a plain substitution is unaffected", () => {
+        const ts = new TranslatedString("Hello %s", ["world"], "base");
+        ts.lazy = false;
+        expect(isMarkup(ts.translate())).toBe(false);
+        expect(ts.valueOf()).toBe("Hello world");
+    });
+
+    // The eager path must keep handing back Markup, or the substitution would
+    // be escaped a second time on render.
+    test("_t keeps returning Markup once translations are loaded", () => {
+        const eager = basic_t("Could not save file %s", markup`<strong>a&b</strong>`);
+        expect(isMarkup(eager)).toBe(true);
+        expect(String(eager)).toBe("Could not save file <strong>a&b</strong>");
+    });
+
+    test("_t with a plain substitution stays a plain string", () => {
+        const eager = basic_t("Could not save file %s", "a&b");
+        expect(isMarkup(eager)).toBe(false);
+        expect(String(eager)).toBe("Could not save file a&b");
     });
 });

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/translation - Runtime i18n: _t() tagged-template translator with markup-safe interpolation */
+/** @module @web/core/l10n/translation */
 
 import { localization } from "@web/core/l10n/localization";
 import { formatList, pyToJsLocale } from "@web/core/l10n/utils";
@@ -14,9 +14,6 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 /** @typedef {any} Markup */
 
 /**
- * Returns true if the given value is a non-empty string, i.e. it contains other
- * characters than white spaces and zero-width spaces.
- *
  * @param {unknown} value
  * @returns {boolean}
  */
@@ -25,14 +22,6 @@ function isNotBlank(value) {
 }
 
 /**
- * Same behavior as sprintf, but doing two additional things:
- * - If any of the provided values is an iterable, it will format its items
- *   as a language-specific formatted string representing the elements of the
- *   list.
- * - If any of the provided values is a markup, it will escape all non-markup
- *   content before performing the interpolation, then wraps the result in a
- *   markup.
- *
  * @param {string} str
  * @param {Substitutions} substitutions
  * @returns {string | Markup | TranslatedString}
@@ -69,29 +58,6 @@ const DEFAULT_MODULE = "base";
 const R_BLANK = /^[\s\u200B]*$/;
 
 /**
- * Translates a term, or returns the term as it is if no translation can be
- * found.
- *
- * Extra positional arguments are inserted in place of %s placeholders.
- *
- * If the first extra argument is an object, the keys of that object are used to
- * map its entries to keyworded placeholders (%(kw_placeholder)s) for
- * replacement.
- *
- * If one or more of the extra arguments are iterables, they will be turned
- * into language-specific formatted strings representing the elements of the
- * list.
- *
- * If at least one of the extra arguments is a markup, the translation and
- * non-markup content are escaped, and the result is wrapped in a markup.
- *
- * @example
- * _t("Good morning"); // "Bonjour"
- * _t("Good morning %s", user.name); // "Bonjour Marc"
- * _t("Good morning %(newcomer)s, goodbye %(departer)s", { newcomer: Marc, departer: Mitchel }); // Bonjour Marc, au revoir Mitchel
- * _t("I love %s", markup`<blink>Minecraft</blink>`); // Markup {"J'adore <blink>Minecraft</blink>"}
- * _t("Good morning %s!", ["Mitchell", "Marc", "Louis"]); // Bonjour Mitchell, Marc et Louis !
- *
  * @param {string} source
  * @param {Substitutions} substitutions
  * @returns {string | Markup | TranslatedString}
@@ -104,25 +70,9 @@ export function _t(source, ...substitutions) {
 const _pluralRulesCache = new Map();
 
 /**
- * Pick the right singular/plural form for `count` under the current
- * locale's CLDR plural rules.
- *
- * Requires `localization.code` to be populated — i.e. must run after
- * `localization_service` has started, the same constraint `_t()` has.
- *
- * @example
- * _pl(count, {
- *   zero: _t("No records"),
- *   one: _t("1 record"),
- *   other: _t("%s records", count),
- * })
- *
  * @template {string | TranslatedString | Markup} T
  * @param {number} count
  * @param {Partial<Record<Intl.LDMLPluralRule, T>> & { other: T }} forms
- *   plural-form map keyed by CLDR category — zero, one, two, few, many, other.
- *   `other` is required as the fallback for any category the caller did
- *   not provide.
  * @returns {T}
  */
 export function _pl(count, forms) {
@@ -137,14 +87,9 @@ export function _pl(count, forms) {
 }
 
 /**
- * Wrapper for _t that the transpiler injects to attach the calling module's
- * context — avoids conflicting translations for the same term across
- * modules (e.g. "table": restaurant vs. spreadsheet).
- *
- * @param {string} source The term to translate
- * @param {string} [moduleName] The name of the module, used as a context key to
- * retrieve the translation.
- * @param  {Substitutions} substitutions The other arguments passed to _t.
+ * @param {string} source
+ * @param {string} [moduleName]
+ * @param {Substitutions} substitutions
  * @returns {string | Markup | TranslatedString}
  */
 export function appTranslateFn(source, moduleName, ...substitutions) {
@@ -162,16 +107,10 @@ export function appTranslateFn(source, moduleName, ...substitutions) {
             : translation;
     }
     const string = new TranslatedString(source, substitutions, moduleName);
-    return string.lazy ? string : string.valueOf();
+    return string.lazy ? string : string.translate();
 }
 
 /**
- * Load the installed languages long names and code
- *
- * The result of the call is put in cache.
- * If any new language is installed, a full page refresh will happen,
- * so there is no need invalidate it.
- *
  * @param {import("services").ServiceFactories["orm"]} orm
  */
 export async function loadLanguages(orm) {
@@ -180,7 +119,7 @@ export async function loadLanguages(orm) {
     }
     return loadLanguages.installedLanguages;
 }
-/** @type {any[] | null} Cached result — patchable by test helpers. */
+/** @type {any[] | null} */
 loadLanguages.installedLanguages = null;
 
 export class TranslatedString extends String {
@@ -191,7 +130,6 @@ export class TranslatedString extends String {
     substitutions;
 
     /**
-     *
      * @param {string} value
      * @param {Substitutions} substitutions
      * @param {string | null} [context]
@@ -209,18 +147,17 @@ export class TranslatedString extends String {
         this.context = context || DEFAULT_MODULE;
     }
 
-    /** @returns {string} */
-    toString() {
-        return this.valueOf();
-    }
-
-    /** @returns {string} Ensure JSON.stringify uses the translated value, not the source. */
-    toJSON() {
-        return this.valueOf();
-    }
-
-    /** @returns {string} */
-    valueOf() {
+    /**
+     * The translated value, which is ``Markup`` when any substitution was.
+     * Kept apart from ``valueOf``/``toString`` because those must hand back a
+     * primitive: ``Markup extends String``, so returning one from both left
+     * ``ToPrimitive`` with nothing to fall back on and every conversion of such
+     * an instance — ``String(x)``, a template literal, ``x + ""``, and hence
+     * ``htmlEscape`` — threw "Cannot convert object to primitive value".
+     *
+     * @returns {string | Markup}
+     */
+    translate() {
         const source = super.valueOf();
         if (this.lazy && !translatedTerms[translationLoaded]) {
             throw new Error(
@@ -237,12 +174,29 @@ export class TranslatedString extends String {
             return translation;
         }
     }
+
+    /** @returns {string} */
+    toString() {
+        return this.valueOf();
+    }
+
+    /** @returns {string} */
+    toJSON() {
+        return this.valueOf();
+    }
+
+    /** @returns {string} */
+    valueOf() {
+        return String(this.translate());
+    }
 }
 
 /** @type {symbol} */
 export const translationLoaded = Symbol.for("@web/core/l10n/translationLoaded");
 
-/** @type {{ translatedTerms: Record<string | symbol, any>, translatedTermsGlobal: Record<string, string>, translationIsReady: Deferred }} */
+/**
+ * @type {{ translatedTerms: Record<string | symbol, any>, translatedTermsGlobal: Record<string, string>, translationIsReady: Deferred }}
+ */
 const _state = globalSingleton("l10n", () => ({
     translatedTerms: { [translationLoaded]: false },
     translatedTermsGlobal: Object.create(null),
@@ -251,11 +205,6 @@ const _state = globalSingleton("l10n", () => ({
 
 /** @type {Record<string | symbol, any>} */
 export const translatedTerms = _state.translatedTerms;
-/**
- * Contains all the translated terms. Unlike "translatedTerms", there is no
- * "namespacing" by module. It is used as a fallback when no translation is
- * found within the module's context, or when the context is not known.
- */
 /** @type {Record<string, string>} */
 export const translatedTermsGlobal = _state.translatedTermsGlobal;
 /** @type {Deferred} */

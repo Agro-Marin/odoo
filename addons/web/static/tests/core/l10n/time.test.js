@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import { defineParams, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
-import { parseTime } from "@web/core/l10n/time";
+import { parseTime, Time } from "@web/core/l10n/time";
 
 const { Settings } = luxon;
 
@@ -163,4 +163,24 @@ test("parseTime (arabic numbers)", async () => {
             message: `"${input}" should parse to "${expected}" and got "${result}"`,
         });
     }
+});
+
+describe("Time.equals", () => {
+    test("returns a boolean, including for a nullish other", () => {
+        const t = new Time({ hour: 9, minute: 30 });
+        // `other && ...` handed back the falsy operand itself, so `equals(null)`
+        // was `null` and `equals(undefined)` was `undefined`, both of which fail
+        // a `=== false` check the @returns tag invites.
+        expect(t.equals(null)).toBe(false);
+        expect(t.equals(undefined)).toBe(false);
+        expect(t.equals(new Time({ hour: 9, minute: 30 }))).toBe(true);
+        expect(t.equals(new Time({ hour: 9, minute: 31 }))).toBe(false);
+    });
+
+    test("checkSeconds is honoured", () => {
+        const a = new Time({ hour: 1, minute: 2, second: 3 });
+        const b = new Time({ hour: 1, minute: 2, second: 4 });
+        expect(a.equals(b)).toBe(true);
+        expect(a.equals(b, true)).toBe(false);
+    });
 });
