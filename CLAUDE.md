@@ -34,6 +34,27 @@ and test tags. **When working on any module, check for `machine_doc_v*/` first a
 read it before doing anything else.** This eliminates redundant codebase
 exploration and provides immediate context.
 
+## Running JS (HOOT) tests — read before your first run
+
+Select **one file**, never a whole group. The suite path is a bracketed
+parameter, not a dotted path:
+
+```bash
+odoo-bin -d <db> --test-enable --stop-after-init \
+    --test-tags '/web:WebSuite.test_core[@web/core/domain]'      # 78 tests, ~6s
+```
+
+The bare `--test-tags '/web:WebSuite.test_core'` runs 1803 tests (~50 s), and
+the `web_js` tag runs for an hour. Do not add `-u web` — it changes nothing for
+JS and costs ~50%. A spec matching no test now exits non-zero, but still read
+`odoo.tests.result: … of N tests`.
+
+`addons/web/tooling/scripts/hoot` keeps a server warm and takes plain suite
+paths (`./hoot '@web/core/domain'`, `./hoot --affected`, `./hoot-shard`).
+Full recipes, preset/tag semantics and the stale-source caveat:
+`addons/web/machine_doc_v1/TEST_TAGS.md`. The *rule* for which tag a test
+carries is a coding standard, not a recipe: `doc/coding_guidelines.rst` §6.7.
+
 ## Coding Guidelines
 
 **Before writing or modifying any code in this repo, read and follow
@@ -42,8 +63,9 @@ source** for AgroMarin coding standards — built on Odoo 19.0 + OCA conventions
 and authoritative where it speaks; where it is silent, follow upstream Odoo 19 /
 OCA. It supersedes any other `coding_guidelines` file inside a code repo and is
 canonical for **all** AgroMarin repos in the workspace (`odoo`, `enterprise`,
-`agromarin`, `design-themes`, `knowledge`), which defer to it. Each rule carries
-an enforcement marker — 🔧 (linted by `ruff`) or 👁 (review-only).
+`agromarin`, `design-themes`, `knowledge`), which defer to it. Each rule names the
+gate that catches it — `[ruff CODE]`, `[test_lint CODE]`, `[fixer NAME]` or
+`[review]`; see *How rules are enforced* at the top of the guide.
 
 The guide is comprehensive — consult the relevant section for the work at hand:
 
@@ -55,8 +77,15 @@ document history)
 
 Related:
 
-- `ruff.toml` (repo root) — linter and formatter config, aligned with the
-  guidelines (§2.6 and §2.9). New/changed Python must pass `ruff check`
-  (see the linter-enforced items in §9 and §2.9.7).
+- `ruff.toml` (repo root) — linter and formatter config, with the rationale for
+  every suppression. Note `ruff check` is **not** expected to be clean: CI runs it
+  as a ratchet against a committed floor (`tooling/ratchet/baselines/`, scope
+  `odoo/` only). The ratchet runs in `exact` mode, so **lowering** the count fails
+  the build too — commit the new floor with
+  `python tooling/ratchet/ratchet.py ruff --count <N> --update` in the same PR.
+  See *The ratchets* in the guide.
+- `odoo/addons/test_lint/` — the fork's own AST checkers and registry gates. Not
+  wired into CI; run it yourself with
+  `odoo-bin -d <db> -i test_lint --test-enable --stop-after-init`.
 - Changes to the guidelines are made by editing `doc/coding_guidelines.rst`
   directly

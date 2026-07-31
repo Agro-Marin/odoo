@@ -25,7 +25,7 @@ watchdog = None
 if os.name == "posix":
     try:
         import inotify
-        from inotify.adapters import InotifyTrees
+        from inotify.adapters import InotifyTrees, TerminalEventException
         from inotify.constants import (
             IN_CREATE,
             IN_MODIFY,
@@ -56,6 +56,15 @@ _OBSERVER_JOIN_TIMEOUT_S = 5.0
 
 
 ASSET_SUFFIXES = (".js", ".xml", ".scss", ".css")
+
+OVERFLOW_WD = -1
+"""Watch descriptor the kernel reports on ``IN_Q_OVERFLOW``; matches no watch."""
+
+OVERFLOW_PATH = "<inotify-overflow>"
+"""Stand-in path for the overflow event, which names no file."""
+
+ASSET_BURST_PATH = "<asset-burst>"
+"""Stand-in path for a coalesced invalidation, which covers many files."""
 
 
 def inotify_watch_paths() -> list[str]:
@@ -221,33 +230,187 @@ class FSWatcherWatchdog(FSWatcherBase):
 class FSWatcherInotify(FSWatcherBase):
     """POSIX inotify backend — no polling, kernel-level events."""
 
+    _assets_dirty = False
+    _burst_active = False
+
+    def handle_asset_file(self, path: str) -> None:
+        """Signal once per burst instead of once per file.
+
+        The row is a monotonic counter that readers only ever compare, so N
+        identical inserts and one carry the same meaning — but the insert is a
+        database round-trip (measured 1.64 ms) *per file per database*, done on
+        this thread, which caps it near 610 events/s. A branch switch across a
+        few thousand assets therefore spends seconds here while the kernel keeps
+        queueing, and events past ``max_queued_events`` are discarded: the
+        watcher's own cost is what makes the overflow it must then recover from
+        reachable.
+
+        Leading edge fires immediately, so a single edit invalidates exactly as
+        promptly as before; everything else in the burst only sets a flag, and
+        :meth:`run` flushes it once the event stream goes idle — after every
+        queued event has been read, so no edit can be left unsignalled.
+
+        Only this backend coalesces: the flush needs an idle tick, and
+        ``watchdog`` dispatches with no equivalent, so it keeps the immediate
+        behaviour inherited from :class:`FSWatcherBase`.
+        """
+        self._assets_dirty = True
+        if not self._burst_active:
+            self._burst_active = True
+            self._flush_asset_invalidation()
+
+    def _flush_asset_invalidation(self) -> None:
+        """Insert the pending signal, if any. Called on the leading edge and
+        again once the stream goes idle."""
+        if not self._assets_dirty:
+            return
+        self._assets_dirty = False
+        super().handle_asset_file(ASSET_BURST_PATH)
+
+    def _end_burst(self) -> None:
+        self._flush_asset_invalidation()
+        self._burst_active = False
+
     def __init__(self) -> None:
         self.started = False
+        self._assets_dirty = False
+        self._burst_active = False
         self.thread: threading.Thread | None = None
         inotify.adapters._LOGGER.setLevel(logging.ERROR)
-        paths_to_watch = inotify_watch_paths()
-        _logger.info("Watching %d folder(s) for changes", len(paths_to_watch))
+        paths = inotify_watch_paths()
+        _logger.info("Watching %d folder(s) for changes", len(paths))
+        self._build_watcher(paths)
+
+    def _build_watcher(self, paths: list[str], block_duration_s: float = 0.5) -> None:
+        """Build the watch tree and make queue overflows reportable.
+
+        Kernel overflow events carry ``wd == -1``, which matches no watch, so
+        the library's dispatch drops them before anything can react: the queue
+        silently discards every event past ``fs.inotify.max_queued_events``
+        (16384 here — 30000 writes yielded exactly 16384 events) and the server
+        goes on believing it saw them. Naming that descriptor is what lets the
+        event reach :meth:`run`, which turns it into a resync.
+        """
+        self.roots = paths
         self.watcher = InotifyTrees(
-            paths_to_watch, mask=INOTIFY_LISTEN_EVENTS, block_duration_s=0.5
+            paths, mask=INOTIFY_LISTEN_EVENTS, block_duration_s=block_duration_s
         )
+        self.watcher._i._Inotify__watches_r[OVERFLOW_WD] = OVERFLOW_PATH
+
+    def _resync(self) -> None:
+        """Re-arm every watch and drop the asset caches after an event loss.
+
+        An overflow gives no clue as to *what* was missed, so nothing narrower
+        is sound: a directory created during the gap has no watch, and a file
+        edited during it left no trace. Re-walking the roots restores the first,
+        and one unconditional invalidation covers the second — expensive
+        (~5.8k watches) but bounded, and only on an event the kernel reports at
+        most once per burst.
+        """
+        _logger.warning(
+            "autoreload: inotify queue overflowed — events were lost; "
+            "re-arming watches and dropping the asset caches"
+        )
+        for root in self.roots:
+            root_path = Path(root)
+            if not root_path.is_dir():
+                continue
+            self._watch_directory(root_path)
+            for directory, _, _ in root_path.walk():
+                self._watch_directory(directory)
+        self.handle_asset_file(OVERFLOW_PATH)
+
+    def _watch_directory(self, directory: Path) -> None:
+        """Watch one directory of a subtree that appeared after startup.
+
+        ``_BaseTree.event_gen`` already re-watches the directory an
+        ``IN_CREATE`` / ``IN_MOVED_TO`` event names, so a tree that grows one
+        level at a time needs nothing more. A *rename* does: the kernel reports
+        a single event for the subtree root, and every directory nested inside
+        it arrives already-populated and unwatched. The walk below then visited
+        those files exactly once, which is why the breakage is invisible — the
+        first read after the move looks correct and every later edit is
+        silently dropped.
+
+        Under ``--dev=assets`` a dropped edit means the server goes on serving
+        the previous bundle with no error at all, so a green test run says
+        nothing about the code just written. Branch switches produce exactly
+        this shape, and a warm server 19h old was measured holding 5570 watches
+        against a fresh server's 5805, with edits under ``web/static/src`` no
+        longer invalidating the assets cache while ``web/static/tests`` still
+        did.
+
+        Re-uses the tree's own augmented mask rather than
+        :data:`INOTIFY_LISTEN_EVENTS`: ``_BaseTree`` adds ``IN_ISDIR |
+        IN_CREATE | IN_DELETE`` so watches can curate themselves, and a watch
+        missing those would not report its own subdirectories — reintroducing
+        the same gap one level down.
+
+        A path the library still lists is re-armed rather than trusted, because
+        that listing is not evidence of a live watch. ``IN_MOVED_FROM`` and
+        ``IN_IGNORED`` are both outside the effective mask, so the one branch
+        that would drop the bookkeeping never runs: the kernel removes the watch
+        when its directory goes away and the library goes on listing the path
+        forever. ``add_watch`` then returns ``None`` for "already watched" and
+        arms nothing, so a directory deleted and recreated at the same path —
+        a branch switch and back — stays unwatched permanently.
+        """
+        path = str(directory)
+        tree = self.watcher._i
+        try:
+            if tree.add_watch(path, self.watcher._mask) is not None:
+                return
+            # Listed but possibly dead. ``remove_watch`` drops the bookkeeping
+            # before its syscall, so it clears the entry even when that syscall
+            # fails on an already-reaped descriptor (``superficial`` is accepted
+            # and then ignored by the library).
+            try:
+                tree.remove_watch(path, superficial=True)
+            except Exception:
+                _logger.debug("autoreload: stale watch purge for %s", path)
+            tree.add_watch(path, self.watcher._mask)
+        except Exception:
+            _logger.warning(
+                "autoreload: cannot watch %s; edits below it will not be seen "
+                "(fs.inotify.max_user_watches exhausted?)",
+                directory,
+                exc_info=True,
+            )
 
     def run(self) -> None:
         _logger.info("AutoReload watcher running with inotify")
         dir_creation_events = {"IN_MOVED_TO", "IN_CREATE"}
         while self.started:
-            for event in self.watcher.event_gen(timeout_s=0, yield_nones=False):
-                _, type_names, path, filename = event
-                if "IN_ISDIR" not in type_names:
-                    if "IN_DELETE" not in type_names:
-                        full_path = str(Path(path, filename))
-                        if self.handle_file(full_path):
-                            return
-                elif dir_creation_events.intersection(type_names):
-                    full_path = Path(path, filename)
-                    for root, _, files in full_path.walk():
-                        for file in files:
-                            if self.handle_file(str(root / file)):
+            try:
+                for event in self.watcher.event_gen(timeout_s=0, yield_nones=False):
+                    _, type_names, path, filename = event
+                    if "IN_ISDIR" not in type_names:
+                        if "IN_DELETE" not in type_names:
+                            full_path = str(Path(path, filename))
+                            if self.handle_file(full_path):
                                 return
+                    elif dir_creation_events.intersection(type_names):
+                        full_path = Path(path, filename)
+                        for root, _, files in full_path.walk():
+                            self._watch_directory(root)
+                            for file in files:
+                                if self.handle_file(str(root / file)):
+                                    return
+            except TerminalEventException as exc:
+                # The library ends the generator on IN_Q_OVERFLOW / IN_UNMOUNT.
+                # Overflow is recoverable — the queue drains and delivery
+                # resumes — so resync and re-enter rather than leaving a live
+                # server with a watcher thread that quietly died.
+                if str(exc) != "IN_Q_OVERFLOW":
+                    raise
+                self._resync()
+            # ``timeout_s=0`` makes the generator return once the current poll
+            # cycle is drained, so this is the burst boundary: every event the
+            # kernel had ready has been read, and anything still pending can be
+            # signalled exactly once. Not ``yield_nones`` — that break happens
+            # before its ``yield None``, so the idle tick never arrives and a
+            # burst flag would latch on forever, suppressing every later signal.
+            self._end_burst()
 
     def start(self) -> None:
         self.started = True

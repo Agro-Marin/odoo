@@ -171,3 +171,46 @@ class TestWarnOnConnectionBudget:
             mod._warn_on_connection_budget()
         db_mock.db_connect.assert_not_called()
         logger.warning.assert_not_called()
+
+
+class TestNarrowingTestSpec:
+    """``_narrowing_test_spec()``: does the run fail when a spec matches nothing?
+
+    A ``--test-tags`` spec that selects no test used to collect zero tests and
+    exit ``0``, so a near-miss read as a clean run. The three near-misses
+    measured on this fork -- ``:WebSuite.test_core.@web/core/domain`` for
+    ``:WebSuite.test_core[@web/core/domain]``, an unknown method, an unknown
+    class -- all did exactly that.
+    """
+
+    @pytest.fixture()
+    def spec(self, mod):
+        return mod._narrowing_test_spec
+
+    def _with_tags(self, tags):
+        import odoo.tools
+
+        return patch.dict(odoo.tools.config.options, {"test_tags": tags})
+
+    @pytest.mark.parametrize("tags", ["", None, "+standard"])
+    def test_implicit_selection_is_not_narrowing(self, spec, tags):
+        """``--test-enable`` alone resolves to ``+standard``; a module that
+        ships no tests legitimately runs zero under it."""
+        with self._with_tags(tags):
+            assert spec() == ""
+
+    @pytest.mark.parametrize(
+        "tags",
+        [
+            "/web:WebSuite.test_core[@web/core/domain]",
+            "/base,-:TestReportsRendering",
+            "post_install",
+        ],
+    )
+    def test_explicit_selection_is_narrowing(self, spec, tags):
+        with self._with_tags(tags):
+            assert spec() == tags
+
+    def test_surrounding_whitespace_is_ignored(self, spec):
+        with self._with_tags("  +standard  "):
+            assert spec() == ""

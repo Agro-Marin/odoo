@@ -146,6 +146,24 @@ def _run_post_install_tests(registry: Registry, update_module: bool) -> None:
     registry._assertion_report.log_stats()
 
 
+def _narrowing_test_spec() -> str:
+    """Return the ``--test-tags`` spec when the user narrowed the run, else ``""``.
+
+    A selection that matches nothing has to fail the run: the spec grammar is
+    unforgiving (``odoo/tests/tag_selector.py``), and near-misses are the norm
+    rather than the exception -- ``:WebSuite.test_core.@web/core/domain`` instead
+    of ``:WebSuite.test_core[@web/core/domain]``, a renamed class, a method typo.
+    All three collected zero tests and exited ``0``, so the caller reads a clean
+    run as proof its change is green when nothing was executed at all.
+
+    Only an *explicit* narrowing counts. ``config`` fills ``test_tags`` with
+    ``+standard`` when only ``--test-enable`` is given, and installing a module
+    that ships no tests legitimately runs zero under it.
+    """
+    tags = (config["test_tags"] or "").strip()
+    return "" if tags in {"", "+standard"} else tags
+
+
 def preload_registries(dbnames: list[str] | None) -> int:
     """Preload registries for ``dbnames``, optionally running post-install tests."""
     dbnames = dbnames or []
@@ -190,10 +208,17 @@ def preload_registries(dbnames: list[str] | None) -> int:
 
                 if config["test_enable"]:
                     _run_post_install_tests(registry, update_module)
-                if (
-                    registry._assertion_report
-                    and not registry._assertion_report.wasSuccessful()
+                report = registry._assertion_report
+                if report and not report.wasSuccessful():
+                    rc += 1
+                elif (
+                    report and not report.testsRun and (spec := _narrowing_test_spec())
                 ):
+                    _logger.error(
+                        "--test-tags %r matched no test at all: nothing ran, "
+                        "yet the run would otherwise have reported success.",
+                        spec,
+                    )
                     rc += 1
         except Exception:
             _logger.critical(
