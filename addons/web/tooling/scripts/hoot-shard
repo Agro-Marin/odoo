@@ -310,6 +310,10 @@ def main() -> int:
     args = p.parse_args()
 
     suites = args.suites or default_web_suites()
+    if args.preset == "mobile" and not args.suites:
+        # Explicit suites are someone asking for exactly what they typed, as in
+        # MobileWebSuite._run_hoot; a bare whole-suite run must mirror CI.
+        suites = H.mobile_suites(suites)
     weights = load_weights()
 
     # Auto shard count: ~3 cores per shard (Chrome + threaded server), capped so
