@@ -343,6 +343,9 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
             "no-dupe-args": "error",
             "no-dupe-else-if": "error",
             "no-unsafe-negation": "error",
+            // Intentional error-swallowing is spelled `catch {}`; the rule
+            // otherwise only accepts it when a comment sits inside the block.
+            "no-empty": ["error", { allowEmptyCatch: true }],
             "no-duplicate-imports": "off",
             "simple-import-sort/imports": ["error", {
                 groups: [
@@ -491,8 +494,8 @@ export function makeConfig({ modules, ignores = [], noConsoleModules = [] }) {
     // =========================================================================
     // Node tooling scripts — build/typecheck helpers, not browser code
     //
-    // Files under a module's tooling/scripts/ (e.g. web/tooling/scripts/
-    // typecheck_gate.mjs) run under Node, so they legitimately use `process`,
+    // Files under a module's tooling/scripts/ run under Node, so they
+    // legitimately use `process`,
     // `console`, etc. They are matched by `js.configs.recommended` (no `files`
     // key → repo-wide, and eslint lints .mjs by default) but were never given
     // the main block's browser globals — which is correct, they aren't browser

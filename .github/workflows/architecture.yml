@@ -33,6 +33,11 @@ on:
       # The JS Feature-Sliced layering gate (js_layer_check.py) governs the
       # web addon's client source; re-run it when that source changes.
       - 'addons/web/static/src/**/*.js'
+      # The named-export gate reads EVERY addon's client source: a rename in
+      # one module breaks importers anywhere, so scoping this to `web` would
+      # miss the consumer half of the very drift it exists to catch.
+      - 'addons/**/static/src/**/*.js'
+      - 'odoo/addons/**/static/src/**/*.js'
       - 'tooling/architecture/**'
       - '.github/workflows/architecture.yml'
 
@@ -90,6 +95,27 @@ jobs:
           set -e
           python tooling/architecture/js_layer_check.py --check
 
+      - name: Run named-export coherence check
+        id: named_exports
+        # Blocking, and at zero from day one: an `import { x }` with no
+        # matching export is a LINK-time SyntaxError under native ESM, so it
+        # does not degrade one feature — it kills the whole asset bundle for
+        # every database installing that module. No JS suite can catch it
+        # either: the bundle never boots, so the run reports fewer tests
+        # rather than a failure.
+        #
+        # CI checks out this repo alone, so the cross-repo half (enterprise,
+        # agromarin, design-themes) only runs where those siblings are
+        # present — the pre-push hook that already drives
+        # cross_repo_coherence.py. Intra-repo drift is fully covered here.
+        run: |
+          set +e
+          python tooling/architecture/named_export_coherence.py \
+            | tee /tmp/named_exports.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set -e
+          python tooling/architecture/named_export_coherence.py --check
+
       - name: Summarise
         if: always()
         run: |
@@ -104,6 +130,11 @@ jobs:
             echo "### JavaScript (web addon, Feature-Sliced Design)"
             echo '```'
             cat /tmp/js_layers.log
+            echo '```'
+            echo ""
+            echo "### JavaScript (named-export coherence)"
+            echo '```'
+            cat /tmp/named_exports.log
             echo '```'
             echo ""
             echo "Contracts: \`odoo/ARCHITECTURE.md\` · Decisions: \`doc/adr/\`"

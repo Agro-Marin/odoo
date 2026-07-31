@@ -1,20 +1,46 @@
 name: TypeScript Check
 
-# TypeScript type-check gate, enforced as a DRIFT-ZERO RATCHET (tooling/ratchet):
-# the committed floor is tooling/ratchet/baselines/tsc.json. This gate BLOCKS
-# (no continue-on-error). The floor only moves one way — see
-# tooling/ratchet/README.md. To change it, run locally and commit:
-#   npx tsc --project tsconfig.json --noEmit 2>&1 | tee /tmp/tsc.log
-#   N=$(grep -c "error TS" /tmp/tsc.log)
-#   python tooling/ratchet/ratchet.py tsc --count "$N" --update
+# Three blocking type-check gates over the JS layer (none use continue-on-error):
 #
-# The floor's value and its history live in the baseline file itself; do not
-# restate the number here, or the two copies drift (they did: this comment read
-# 2002 while the baseline said 2274 and reality was 2155).
+#   1. tsc ratchet         — project-wide error COUNT, floor in
+#                            tooling/ratchet/baselines/tsc.json. Covers every
+#                            module; catches aggregate drift, names no file.
+#   2. strictNullChecks    — DEFAULT-DENY per-file lock over the web module.
+#   3. noImplicitAny       — same, and it is what makes (2) real: `any` is
+#                            null-safe by fiat, so an implicit-any value slips
+#                            through a strictNullChecks lock untouched.
+#
+# Gates 2 and 3 are default-deny (tooling/typecheck): every .js/.ts under
+# a gated module's static/{src,tests} must be clean unless it is listed in
+# tooling/typecheck/exceptions/<gate>/<module>.txt, and that list may only
+# shrink (currently one gated module: web). A new
+# or renamed file is therefore gated from its first commit — the allowlist model
+# this replaced enforced only what it happened to enumerate, which silently left
+# 448 already-clean files unlocked and let a rename delete a lock outright.
+#
+# Two properties those gates depend on, both easy to lose silently:
+#   - the gate configs set checkJs, so the lock covers every .js file rather
+#     than only the ones carrying a `// @ts-check` pragma. Without it the
+#     source files, not the gate, decide what is enforced.
+#   - both tsc runs pass --listFiles, and the gate REQUIRES it: the file list
+#     proves the compile happened, and it is what detects an in-scope file that
+#     is absent from the program (`unchecked`). A file nothing compiles reports
+#     no errors, and a default-deny gate would otherwise count that silence as
+#     a file locked at zero.
+#
+# To move a floor or a list, run locally and commit the result:
+#   npx tsc -p tsconfig.json --noEmit 2>&1 | tee /tmp/tsc.log
+#   python tooling/ratchet/ratchet.py tsc --count "$(grep -c 'error TS' /tmp/tsc.log)" --update
+#   npx tsc -p tsconfig.strict.json --noEmit --listFiles > /tmp/strict.log 2>&1 || true
+#   python tooling/typecheck/scope_gate.py strict --log /tmp/strict.log --update
+#
+# Do not restate a floor's value in this comment — two copies drift, and they
+# did: this header once read 2002 while the baseline said 2274 and reality was
+# 2155. The value and its history live in the baseline/exception files.
 
 on:
-  # Mainline re-verification: re-run the ratchet on every push to a protected
-  # branch so direct commits / merge-skew cannot silently drift the floor.
+  # Mainline re-verification: re-run the gates on every push to a protected
+  # branch so direct commits / merge-skew cannot silently drift them.
   push:
     branches: ['19.0-marin', '19.0']
   pull_request:
@@ -25,13 +51,12 @@ on:
       - '**/*.d.ts'
       - 'tsconfig.json'
       - 'tsconfig.strict.json'
-      - 'tooling/strict_allowlist.txt'
       - 'tsconfig.noimplicitany.json'
-      - 'tooling/noimplicitany_allowlist.txt'
       - 'jsconfig.json'
       - 'package.json'
       - 'package-lock.json'
       - 'tooling/ratchet/**'
+      - 'tooling/typecheck/**'
       - '.github/workflows/typecheck.yml'
 
 permissions:
@@ -39,9 +64,11 @@ permissions:
 
 jobs:
   typecheck:
-    name: tsc --noEmit (ratchet)
+    name: tsc --noEmit (ratchet + default-deny locks)
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Three full-program tsc runs over ~8200 files. Locally each is ~90s; the
+    # hosted runner is slower, so leave real headroom above the observed time.
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -61,13 +88,20 @@ jobs:
         with:
           python-version: '3.14'
 
-      - name: Self-test the ratchet
-        run: python tooling/ratchet/test_ratchet.py
+      - name: Self-test the gates
+        # Both gates are verified before any verdict is trusted, the same way
+        # architecture.yml self-tests its layering checker.
+        run: |
+          python tooling/ratchet/test_ratchet.py
+          python tooling/typecheck/test_scope_gate.py
 
       - name: Install dependencies
+        # npm ci, not npm install: the tsc version is pinned in package-lock and
+        # a different minor reports a different error set, which would drift
+        # every floor and exception list at once.
         run: npm ci
 
-      - name: Run tsc
+      - name: Run tsc (base config)
         id: tsc
         run: |
           set +e
@@ -76,62 +110,24 @@ jobs:
           ERR_COUNT=$(grep -c "error TS" /tmp/tsc-output.log || echo 0)
           echo "error_count=${ERR_COUNT}" >> "$GITHUB_OUTPUT"
 
-      - name: Enforce ratchet
+      - name: Enforce tsc ratchet
         run: |
           python tooling/ratchet/ratchet.py tsc --count "${{ steps.tsc.outputs.error_count }}" --json | tee /tmp/verdict.json
           python tooling/ratchet/ratchet.py tsc --count "${{ steps.tsc.outputs.error_count }}"
 
-      - name: strictNullChecks gate (allowlist post-filter, drift-zero)
-        # Full-program strictNullChecks run; FAIL iff a file on
-        # tooling/strict_allowlist.txt appears in the error output. The project
-        # is not strict-clean overall yet (that's the grind), so we post-filter
-        # to the locked set rather than requiring a global zero. The allowlist
-        # only grows; a regression on any locked file fails here. See the
-        # tsconfig.strict.json header for why this is full-program, not isolated.
+      - name: strictNullChecks gate (default-deny over the web module)
         run: |
           set +e
-          npx tsc --project tsconfig.strict.json --noEmit 2>&1 | tee /tmp/tsc-strict.log
+          npx tsc --project tsconfig.strict.json --noEmit --listFiles > /tmp/tsc-strict.log 2>&1
           set -e
-          # Distinct files that produced strict errors:
-          grep -oE 'addons/[^(]+\.(js|ts)' /tmp/tsc-strict.log | sort -u > /tmp/strict-errored.txt
-          # Allowlist without comments/blanks:
-          grep -vE '^[[:space:]]*#|^[[:space:]]*$' tooling/strict_allowlist.txt > /tmp/strict-allow.txt
-          # Violations = exact-line intersection (grep -Fxf: locale/sort-independent):
-          grep -Fxf /tmp/strict-allow.txt /tmp/strict-errored.txt > /tmp/strict-violations.txt || true
-          N=$(grep -c . /tmp/strict-violations.txt || true)
-          LOCKED=$(grep -c . /tmp/strict-allow.txt)
-          if [ "$N" -ne 0 ]; then
-            echo "::error::strictNullChecks: $N of $LOCKED locked file(s) regressed (must stay 0):"
-            cat /tmp/strict-violations.txt
-            exit 1
-          fi
-          echo "strictNullChecks allowlist clean: $LOCKED files locked at zero."
+          python tooling/typecheck/scope_gate.py strict --log /tmp/tsc-strict.log
 
-      - name: noImplicitAny gate (allowlist post-filter, drift-zero)
-        # Full-program noImplicitAny run; FAIL iff a file on
-        # tooling/noimplicitany_allowlist.txt appears in the error output.
-        # Implicit-any silently defeats the strictNullChecks gate (`any` is
-        # null-safe by fiat), so locking a file here makes its strict lock real.
-        # Same full-program + post-filter design as the strictNullChecks gate
-        # above; the allowlist only grows, a regression on any locked file fails.
+      - name: noImplicitAny gate (default-deny over the web module)
         run: |
           set +e
-          npx tsc --project tsconfig.noimplicitany.json --noEmit 2>&1 | tee /tmp/tsc-nia.log
+          npx tsc --project tsconfig.noimplicitany.json --noEmit --listFiles > /tmp/tsc-noimplicitany.log 2>&1
           set -e
-          # Distinct files that produced any error under base+noImplicitAny:
-          grep -oE 'addons/[^(]+\.(js|ts)' /tmp/tsc-nia.log | sort -u > /tmp/nia-errored.txt
-          # Allowlist without comments/blanks:
-          grep -vE '^[[:space:]]*#|^[[:space:]]*$' tooling/noimplicitany_allowlist.txt > /tmp/nia-allow.txt
-          # Violations = exact-line intersection (grep -Fxf: locale/sort-independent):
-          grep -Fxf /tmp/nia-allow.txt /tmp/nia-errored.txt > /tmp/nia-violations.txt || true
-          N=$(grep -c . /tmp/nia-violations.txt || true)
-          LOCKED=$(grep -c . /tmp/nia-allow.txt)
-          if [ "$N" -ne 0 ]; then
-            echo "::error::noImplicitAny: $N of $LOCKED locked file(s) regressed (must stay 0):"
-            cat /tmp/nia-violations.txt
-            exit 1
-          fi
-          echo "noImplicitAny allowlist clean: $LOCKED files locked at zero."
+          python tooling/typecheck/scope_gate.py noimplicitany --log /tmp/tsc-noimplicitany.log
 
       - name: Summarise
         if: always()
@@ -139,7 +135,9 @@ jobs:
           ERR_COUNT="${{ steps.tsc.outputs.error_count }}"
           BASELINE=$(python -c "import json;print(json.load(open('tooling/ratchet/baselines/tsc.json'))['count'])")
           {
-            echo "## TypeScript check (tsc ratchet)"
+            echo "## TypeScript checks"
+            echo ""
+            echo "### Project-wide count (ratchet)"
             echo ""
             echo "| Metric | Value |"
             echo "|--------|------:|"
@@ -147,5 +145,21 @@ jobs:
             echo "| Committed floor | ${BASELINE} |"
             echo "| Drift | $((ERR_COUNT - BASELINE)) |"
             echo ""
-            echo "Floor: \`tooling/ratchet/baselines/tsc.json\` · Config: \`tsconfig.json\`"
+            echo "### Web-module locks (default-deny)"
+            echo ""
+            echo "| Gate | Verdict |"
+            echo "|------|---------|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          for gate in strict noimplicitany; do
+            log="/tmp/tsc-${gate}.log"
+            if [ -f "$log" ]; then
+              line=$(python tooling/typecheck/scope_gate.py "$gate" --log "$log" 2>/dev/null | head -1)
+            else
+              line="not run"
+            fi
+            echo "| \`${gate}\` | ${line:-no verdict} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+          {
+            echo ""
+            echo "Floor: \`tooling/ratchet/baselines/tsc.json\` · Locks: \`tooling/typecheck/exceptions/\`"
           } >> "$GITHUB_STEP_SUMMARY"
