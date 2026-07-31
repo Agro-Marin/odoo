@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/export_all/export_all - Cog-menu item triggering direct XLSX export of all records */
+/** @module @web/views/list/export_all/export_all */
 
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -19,7 +19,6 @@ export class ExportAll extends Component {
     static components = { DropdownItem };
     static props = {};
 
-    /** Trigger a direct XLSX export of all records via the search model event bus. */
     async onDirectExportData() {
         this.env.searchModel.trigger(SearchModelEvent.DIRECT_EXPORT_DATA);
     }

@@ -1,17 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_grid_state - Pure state object materializing flat row arrays for index-based list view grid navigation */
-
-/**
- * Materializes a flat array of rows (groups + records interleaved), replacing
- * DOM-walking for arrow-key navigation. Zero framework dependency; testable
- * without a browser. Inspired by AG Grid's CellCtrl/RowCtrl separation.
- */
+/** @module @web/views/list/list_grid_state */
 
 /**
  * @typedef {"group" | "record" | "add-line"} FlatRowType
- *
  * @typedef {{
  *   type: FlatRowType,
  *   globalIndex: number,
@@ -22,13 +15,6 @@
  * }} FlatRow
  */
 
-/**
- * Constructor / {@link ListGridState#update} option name → backing field.
- * ``columns`` is deliberately absent: it needs {@link ListGridState#_setColumns}
- * to rebuild the id→index lookup, so it is handled explicitly by both callers.
- * Declaring the mapping once keeps ``update`` from drifting out of sync with
- * the constructor every time an option is added.
- */
 const OPTION_FIELDS = {
     list: "_list",
     hasSelectors: "_hasSelectors",
@@ -42,19 +28,14 @@ const OPTION_FIELDS = {
 export class ListGridState {
     /**
      * @param {object} options
-     * @param {object} options.list - Odoo list model (DynamicList/StaticList)
-     * @param {object[]} options.columns - Active column descriptors
-     * @param {boolean} options.hasSelectors - Whether checkbox column is present
-     * @param {boolean} options.hasOpenFormViewColumn - Whether "open form" column is present
-     * @param {boolean} options.hasActionsColumn - Whether actions column is present
-     * @param {boolean} options.isRTL - Right-to-left layout
-     * @param {boolean} options.showGroupAddLine - Whether each group's trailing
-     *  "Add a line" row should be materialized. Scoped to GROUPS on purpose: an
-     *  ungrouped list renders its create-controls row outside the virtualized
-     *  flow (after the bottom spacer, see ``web.ListRenderer.Rows``), so giving
-     *  it a flat row would reserve spacer height for a row that is also
-     *  rendered separately and leave the scroll extent one row too tall.
-     * @param {(col: object, rec: object) => boolean} options.isCellReadonly - Readonly check callback
+     * @param {object} options.list
+     * @param {object[]} options.columns
+     * @param {boolean} options.hasSelectors
+     * @param {boolean} options.hasOpenFormViewColumn
+     * @param {boolean} options.hasActionsColumn
+     * @param {boolean} options.isRTL
+     * @param {boolean} options.showGroupAddLine
+     * @param {(col: object, rec: object) => boolean} options.isCellReadonly
      */
     constructor({
         list,
@@ -84,31 +65,21 @@ export class ListGridState {
         /** @type {Map<string, FlatRow>} */
         this._addLineByGroupId = new Map();
 
-        /** Index tracking for cross-row navigation between group and data rows. */
         this._lastColIndex = 0;
 
         /**
-         * Bumped by every {@link rebuild}. Consumers that memoize a lookup into
-         * the flat rows (``ListRecordRow``'s ``record`` / ``group``) key on it:
-         * the renderer holds ONE instance for its whole life and rebuild
-         * mutates it in place, so object identity can never signal
-         * invalidation.
          * @type {number}
          */
         this._generation = 0;
-
-        this.rebuild();
     }
 
-    /** @returns {number} counter identifying the current flat-row materialization */
+    /** @returns {number} */
     get generation() {
         return this._generation;
     }
 
     /**
-     * Update constructor options before a rebuild (called each render cycle).
-     *
-     * @param {object} options - Same shape as constructor options (partial OK)
+     * @param {object} options
      */
     update(options) {
         for (const [name, field] of Object.entries(OPTION_FIELDS)) {
@@ -121,10 +92,6 @@ export class ListGridState {
         }
     }
 
-    /**
-     * Rebuild the flat row array from the current list/group state.
-     * Call after any structural change (group toggle, page, sort).
-     */
     rebuild() {
         this._generation++;
         this._flatRows = [];
@@ -144,14 +111,12 @@ export class ListGridState {
         return this._flatRows.length;
     }
 
-    /** @returns {boolean} whether the grid is laid out right-to-left */
+    /** @returns {boolean} */
     get isRTL() {
         return this._isRTL;
     }
 
     /**
-     * Flat row at a grid index, or ``undefined`` past either end.
-     *
      * @param {number} rowIndex
      * @returns {FlatRow | undefined}
      */
@@ -160,10 +125,6 @@ export class ListGridState {
     }
 
     /**
-     * Remember the column to return to when focus crosses a row that does not
-     * address columns (a group header, or the ``<thead>`` row — which the grid
-     * does not model at all, so the keyboard hook reports it from the DOM).
-     *
      * @param {number} colIndex
      */
     rememberColumn(colIndex) {
@@ -171,8 +132,6 @@ export class ListGridState {
     }
 
     /**
-     * Number of navigable columns (field columns + selector + form view + actions).
-     *
      * @returns {number}
      */
     get colCount() {
@@ -190,8 +149,6 @@ export class ListGridState {
     }
 
     /**
-     * Find a flat row by record ID.
-     *
      * @param {string} recordId
      * @returns {FlatRow | undefined}
      */
@@ -200,8 +157,6 @@ export class ListGridState {
     }
 
     /**
-     * Find a flat row by group ID.
-     *
      * @param {string} groupId
      * @returns {FlatRow | undefined}
      */
@@ -210,8 +165,6 @@ export class ListGridState {
     }
 
     /**
-     * Find the add-line flat row for a given group ID.
-     *
      * @param {string} groupId
      * @returns {FlatRow | undefined}
      */
@@ -220,11 +173,8 @@ export class ListGridState {
     }
 
     /**
-     * Get the column index for a field name (within the columns array, offset
-     * by the selector column if present).
-     *
      * @param {string} name
-     * @returns {number} -1 if not found
+     * @returns {number}
      */
     getColIndexByName(name) {
         const offset = this._hasSelectors ? 1 : 0;
@@ -233,23 +183,8 @@ export class ListGridState {
     }
 
     /**
-     * Canonical grid column index of a column descriptor.
-     *
-     * A row may render a per-record SUBSET of the grid's columns:
-     * ``ListRenderer.getColumns(record)`` is an override seam, and the section
-     * renderers (account/sale order lines, resource, survey, website_slides)
-     * use it to collapse a section row down to a handle + title pair. The
-     * position of a cell inside its own row is therefore NOT its position in
-     * the grid, while every index-based consumer here — ``moveFocus``,
-     * ``getColumnAt``, ``isCellEditable``, ``findNextEditableCell`` — addresses
-     * the grid. Resolving through the column's identity keeps the DOM's
-     * ``data-col-index`` in the one index space they all share.
-     *
      * @param {object} column
-     * @returns {number | undefined} ``undefined`` when the column is not part
-     *   of the grid, so the template omits ``data-col-index`` entirely and
-     *   ``findFocusMove`` falls back to the cell's DOM position rather than
-     *   trusting a bogus index.
+     * @returns {number | undefined}
      */
     getColIndexOfColumn(column) {
         const idx = this._colIndexById.get(column?.id);
@@ -260,15 +195,6 @@ export class ListGridState {
     }
 
     /**
-     * Store the active columns and (re)build the id → array-index lookup that
-     * backs {@link getColIndexOfColumn}. The map holds raw array indexes so it
-     * stays independent of the selector offset, which changes on its own.
-     *
-     * Rebuilt unconditionally rather than memoized on array identity: ``update``
-     * runs per render, but a list carries a handful of columns, and a reference
-     * check would go stale the moment a sub-renderer mutated its columns array
-     * in place — a silent wrong-column bug traded for an unmeasurable saving.
-     *
      * @param {object[]} columns
      */
     _setColumns(columns) {
@@ -277,8 +203,6 @@ export class ListGridState {
     }
 
     /**
-     * Index-based focus movement for arrow keys.
-     *
      * @param {number} rowIndex
      * @param {number} colIndex
      * @param {"up" | "down" | "left" | "right"} direction
@@ -300,11 +224,9 @@ export class ListGridState {
     }
 
     /**
-     * Find the next editable cell starting from (rowIndex, colIndex).
-     *
      * @param {number} rowIndex
      * @param {number} colIndex
-     * @param {boolean} forward - Search direction
+     * @param {boolean} forward
      * @returns {{ rowIndex: number, colIndex: number } | null}
      */
     findNextEditableCell(rowIndex, colIndex, forward = true) {
@@ -330,12 +252,9 @@ export class ListGridState {
     }
 
     /**
-     * Find the first editable cell starting from a column, wrapping around
-     * all columns on the same row. Used by focusCell() for edit-mode entry.
-     *
      * @param {number} rowIndex
-     * @param {number} startColIndex - Column to start searching from (inclusive)
-     * @param {boolean} forward - true: search right then wrap; false: search left then wrap
+     * @param {number} startColIndex
+     * @param {boolean} forward
      * @returns {{ rowIndex: number, colIndex: number, column: object } | null}
      */
     findEditableCellWrapping(rowIndex, startColIndex, forward = true) {
@@ -369,8 +288,6 @@ export class ListGridState {
     }
 
     /**
-     * Get the column descriptor at a given colIndex.
-     *
      * @param {number} colIndex
      * @returns {object | null}
      */
@@ -384,8 +301,6 @@ export class ListGridState {
     }
 
     /**
-     * Check whether a cell is editable.
-     *
      * @param {number} rowIndex
      * @param {number} colIndex
      * @returns {boolean}
@@ -405,8 +320,6 @@ export class ListGridState {
     }
 
     /**
-     * Recursively walk the list structure, building the flat row array.
-     *
      * @param {object} list
      * @param {number} depth
      * @param {object | null} parentGroup
@@ -454,8 +367,6 @@ export class ListGridState {
     }
 
     /**
-     * Swap left/right for RTL layouts.
-     *
      * @param {"up" | "down" | "left" | "right"} direction
      * @returns {"up" | "down" | "left" | "right"}
      */
@@ -473,18 +384,12 @@ export class ListGridState {
     }
 
     /**
-     * Move vertically between rows.
-     *
      * @param {number} rowIndex
      * @param {number} colIndex
-     * @param {number} step - +1 or -1
+     * @param {number} step
      * @returns {{ rowIndex: number, colIndex: number } | null}
      */
     _moveVertical(rowIndex, colIndex, step) {
-        // The caller's origin comes from the DOM (``data-row-index``), which can
-        // be one rebuild behind this state — or absent/malformed. Require it to
-        // name a live row, as ``_moveHorizontal`` already does, so a stale index
-        // yields "no move" instead of throwing out of a keydown handler.
         const currentRow = this._flatRows[rowIndex];
         if (!currentRow) {
             return null;
@@ -500,26 +405,19 @@ export class ListGridState {
             this._lastColIndex = colIndex;
         }
         if (nextRow.type === "group") {
-            // Group headers span the grid: only column 0 is addressable.
             return { rowIndex: nextRowIndex, colIndex: 0 };
         }
         const targetCol = currentIsRecord ? colIndex : this._lastColIndex || 0;
         return {
             rowIndex: nextRowIndex,
-            // Clamped at BOTH ends: `colCount` is 0 for a list rendered with no
-            // columns at all (every column optional-hidden, or a sub-renderer
-            // mid-reconfiguration), and `colCount - 1` alone would hand the
-            // caller -1 as a column index.
             colIndex: Math.max(0, Math.min(targetCol, this.colCount - 1)),
         };
     }
 
     /**
-     * Move horizontally between columns within the same row.
-     *
      * @param {number} rowIndex
      * @param {number} colIndex
-     * @param {number} step - +1 or -1
+     * @param {number} step
      * @returns {{ rowIndex: number, colIndex: number } | null}
      */
     _moveHorizontal(rowIndex, colIndex, step) {

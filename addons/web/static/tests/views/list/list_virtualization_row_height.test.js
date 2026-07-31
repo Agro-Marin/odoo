@@ -47,7 +47,7 @@ const DEFAULT_ROW_HEIGHT = 41;
  * Force a row height that is unambiguously different from DEFAULT_ROW_HEIGHT,
  * mirroring what `o-density-condensed` does to `td` padding.
  */
-function forceRowHeight(px) {
+function forceRowHeight(/** @type {number} */ px) {
     const style = document.createElement("style");
     style.textContent = `.o_list_table > tbody > tr.o_data_row > td {
         padding-top: 0 !important;

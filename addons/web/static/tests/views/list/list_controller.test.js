@@ -8,9 +8,11 @@ import {
     fields,
     models,
     mountView,
+    patchWithCleanup,
     webModels,
 } from "@web/../tests/web_test_helpers";
 import { registry } from "@web/core/registry";
+import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 
 const { ResCompany, ResPartner, ResUsers } = webModels;
 
@@ -101,4 +103,44 @@ test("onSelectionChanged fires for a cardinality-preserving selection swap", asy
     inputs[2].click(); // cardinality changes too
     await animationFrame();
     expect(seen.at(-1)).toBe("[2,3]");
+});
+
+test("onSelectionChanged ignores a superseded resId resolution", async () => {
+    const seen = [];
+    let releaseFirst = null;
+    let call = 0;
+    patchWithCleanup(DynamicRecordList.prototype, {
+        getResIds(selected) {
+            const result = super.getResIds(selected);
+            if (++call === 1) {
+                // the first lookup resolves LAST, carrying stale ids
+                return new Promise((resolve) => {
+                    releaseFirst = () => resolve(result);
+                });
+            }
+            return result;
+        },
+    });
+
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `<list><field name="name"/></list>`,
+        allowSelectors: true,
+        selectRecord: () => {},
+        onSelectionChanged: (resIds) => seen.push(JSON.stringify(resIds)),
+    });
+
+    const inputs = document.querySelectorAll(
+        `.o_data_row .o_list_record_selector input`,
+    );
+    inputs[0].click();
+    await animationFrame();
+    inputs[1].click();
+    await animationFrame();
+
+    releaseFirst?.();
+    await animationFrame();
+
+    expect(seen.at(-1)).toBe("[1,2]");
 });

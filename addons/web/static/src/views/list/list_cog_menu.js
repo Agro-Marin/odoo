@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_cog_menu - List-view cog menu that hides registry items when records are selected */
+/** @module @web/views/list/list_cog_menu */
 
-/** When records are selected, shows only action menus (print, action) and hides registry items (e.g. export). */
 import { CogMenu } from "@web/search/cog_menu/cog_menu";
 export class ListCogMenu extends CogMenu {
     static template = "web.ListCogMenu";
@@ -11,7 +10,10 @@ export class ListCogMenu extends CogMenu {
         ...CogMenu.props,
         hasSelectedRecords: { type: [Boolean, Number], optional: true },
     };
-    /** @override @returns {any} */
+    /**
+     * @override
+     * @returns {any}
+     */
     _registryItems() {
         return this.props.hasSelectedRecords ? [] : super._registryItems();
     }

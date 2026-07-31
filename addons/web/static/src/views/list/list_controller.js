@@ -1,9 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_controller - List view orchestrator: pagination, selection, inline editing, multi-edit, and export */
+/** @module @web/views/list/list_controller */
 
-import { onWillRender, status, useEffect, useState } from "@odoo/owl";
+import { status, useEffect, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useSetupAction } from "@web/core/action_hook";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
@@ -25,13 +25,6 @@ import { buildMultiRecordModelParams, handleBeforeUnload } from "@web/views/view
 import { ListCogMenu } from "./list_cog_menu.js";
 import { ListConfirmationDialog } from "./list_confirmation_dialog.js";
 
-/**
- * Controller for the list (tree) view.
- *
- * Extends {@link MultiRecordController} with list-specific behaviour: inline
- * editing, multi-edit confirmation, pager integration, record creation (inline
- * or form), optional fields toggling, and keyboard/mouse discard handling.
- */
 export class ListController extends MultiRecordController {
     static template = `web.ListView`;
     static components = {
@@ -68,25 +61,11 @@ export class ListController extends MultiRecordController {
     optionalActiveFields;
 
     /**
-     * Actions deferred until mouseup, so a click that would trigger a save can
-     * be replayed once the pointer is released elsewhere.
-     *
-     * Declared as a field purely so its type is `(() => void)[]` rather than
-     * `… | undefined`: TypeScript only credits the CONSTRUCTOR for definite
-     * assignment, and this is assigned in `setup()`. Safe for an OWL component
-     * because OWL constructs first and calls `setup()` afterwards
-     * (`owl.es.js`: `new C(...)` then `component.setup()`), so the field
-     * initialiser cannot clobber the value `setup()` assigns. That ordering is
-     * the OPPOSITE for `Model` subclasses, whose base constructor calls
-     * `this.setup(...)` itself — never use this pattern there.
-     * See `machine_doc_v1/JSDOC_TYPE_TIGHTENING.md` Pattern 7.
-     *
      * @type {(() => void)[]}
      */
     nextActionsAfterMouseup;
 
     /**
-     * Initialize list-specific state, model, pager, scroll restoration, and hooks.
      * @override
      */
     setup() {
@@ -109,11 +88,6 @@ export class ListController extends MultiRecordController {
         this.nextActionsAfterMouseup = [];
 
         this.optionalActiveFields = useState({});
-
-        this.editedRecord = null;
-        onWillRender(() => {
-            this.editedRecord = this.model.root.editedRecord;
-        });
 
         this.initMultiRecordBehavior();
 
@@ -184,12 +158,6 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Build the params object passed to the relational model constructor.
-     *
-     * Merges arch-extracted fields, groupBy info, limits, ordering, and hook
-     * callbacks; the shared skeleton is delegated to `buildMultiRecordModelParams`,
-     * this getter only adds list-specific bits (groupByInfo, multiEdit, limit fallbacks).
-     *
      * @returns {Record<string, any>}
      */
     get modelParams() {
@@ -240,17 +208,16 @@ export class ListController extends MultiRecordController {
         });
     }
 
+    get editedRecord() {
+        return this.model.root.editedRecord;
+    }
+
     get className() {
         return this.props.className;
     }
 
     /**
-     * Return the list of exportable field definitions for the current columns.
-     *
-     * Filters out optional-hidden, column-invisible, non-exportable, and
-     * properties-type columns, then deduplicates by field identity.
-     *
-     * @returns {any[]} unique exportable field objects
+     * @returns {any[]}
      */
     getExportableFields() {
         const { activeFields, fields } = this.model.root;
@@ -281,8 +248,6 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Hook called before navigating away. Leaves edit mode gracefully.
-     *
      * @param {Event} ev
      * @returns {Promise<any>}
      */
@@ -291,9 +256,6 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Hook called before the page unloads. Attempts an urgent save of the
-     * edited record and blocks unload if validation fails.
-     *
      * @param {BeforeUnloadEvent} ev
      */
     beforeUnload(ev) {
@@ -307,24 +269,16 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Called after a successful save; skipped if the record was invalid or the
-     * server raised an error.
      * @param {any} record
      */
     async onRecordSaved(record) {}
 
     /**
-     * Called before saving a valid record; returning false prevents the save.
      * @param {any} record
      */
     async onWillSaveRecord(record) {}
 
     /**
-     * Create a new record, either inline (editable list) or via form view.
-     *
-     * In editable non-grouped lists, adds a new row at top or bottom. In
-     * grouped or non-editable lists, delegates to the parent's createRecord.
-     *
      * @param {{ group?: any }} [options]
      */
     async createRecord({ group } = /** @type {any} */ ({})) {
@@ -351,12 +305,7 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Open a record, either via a custom action or by navigating to the form view.
-     *
-     * Saves dirty records first. Respects `archInfo.openAction` for custom
-     * action-on-click, otherwise delegates to `props.selectRecord`.
-     *
-     * @param {any} record - the record to open
+     * @param {any} record
      * @param {{ force?: boolean, newWindow?: boolean }} [options]
      */
     async openRecord(
@@ -396,21 +345,18 @@ export class ListController extends MultiRecordController {
         }
     }
 
-    /** Handle click on the "New" / "Create" button. */
     async onClickCreate() {
         return executeButtonCallback(/** @type {HTMLElement} */ (this.rootRef.el), () =>
             this.createRecord(),
         );
     }
 
-    /** Handle click on the "Discard" button — leaves edit mode without saving. */
     async onClickDiscard() {
         return executeButtonCallback(/** @type {HTMLElement} */ (this.rootRef.el), () =>
             this.model.root.leaveEditMode({ discard: true }),
         );
     }
 
-    /** Handle click on the "Save" button — saves the edited record and leaves edit mode. */
     async onClickSave() {
         return executeButtonCallback(
             /** @type {HTMLElement} */ (this.rootRef.el),
@@ -424,12 +370,6 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Track mousedown on "Discard" to defer multi-save until mouseup.
-     *
-     * Prevents saving when the user starts clicking on "Discard" but moves
-     * the cursor away before releasing — the deferred action fires on mouseup
-     * only if the target differs from the original mousedown target.
-     *
      * @param {MouseEvent} mouseDownEvent
      */
     onMouseDownDiscard(mouseDownEvent) {
@@ -453,22 +393,18 @@ export class ListController extends MultiRecordController {
         );
     }
 
-    /** The list renderer is the scroll container, not ``.o_content``. */
     get scrollSelector() {
         return ".o_content .o_list_renderer";
     }
 
     /**
-     * Evaluate a view modifier expression against the root list's eval context.
-     *
-     * @param {string} modifier - boolean expression string
+     * @param {string} modifier
      * @returns {boolean}
      */
     evalViewModifier(modifier) {
         return evaluateBooleanExpr(modifier, this.model.root.evalContext);
     }
 
-    /** Deselect all currently selected records. */
     discardSelection() {
         this.model.root.records.forEach((record) => {
             record.toggleSelection(false);
@@ -476,10 +412,8 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Save the edited record before executing a non-cancel action button.
-     *
      * @param {{ special?: string }} clickParams
-     * @returns {Promise<boolean | undefined>} false if save failed
+     * @returns {Promise<boolean | undefined>}
      */
     async beforeExecuteActionButton(clickParams) {
         if (clickParams.special !== "cancel" && this.editedRecord) {
@@ -488,14 +422,8 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Show a confirmation dialog before applying multi-edit changes.
-     *
-     * Opens {@link ListConfirmationDialog} when more than one record is
-     * selected and at least one is valid for the update. Returns a promise
-     * that resolves to `true` (confirmed) or `false` (cancelled).
-     *
-     * @param {Record<string, any>} changes - field name to new value mapping
-     * @param {any[]} validSelectedRecords - records eligible for the update
+     * @param {Record<string, any>} changes
+     * @param {any[]} validSelectedRecords
      * @returns {Promise<boolean> | boolean}
      */
     onAskMultiSaveConfirmation(changes, validSelectedRecords) {
@@ -542,11 +470,9 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Guard hook before multi-save. Defers save if "Discard" mousedown is active.
-     *
      * @param {any} editedRecord
      * @param {Record<string, any>} changes
-     * @returns {boolean} false to block the save
+     * @returns {boolean}
      */
     onWillSaveMulti(editedRecord, changes) {
         if (this.hasMousedownDiscard) {
@@ -559,11 +485,9 @@ export class ListController extends MultiRecordController {
     }
 
     /**
-     * Guard hook before marking a field invalid. Defers if "Discard" mousedown is active.
-     *
      * @param {any} record
      * @param {string} fieldName
-     * @returns {boolean} false to block the invalid notification
+     * @returns {boolean}
      */
     onWillSetInvalidField(record, fieldName) {
         if (this.hasMousedownDiscard) {

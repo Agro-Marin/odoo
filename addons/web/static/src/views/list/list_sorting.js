@@ -1,27 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_sorting - Column-sort + drag-and-drop helpers extracted from ListRenderer */
+/** @module @web/views/list/list_sorting */
 
-/**
- * Sorting cohort extracted from ``ListRenderer`` (mixin pattern, like
- * ``list_styling.js`` / ``list_group_rendering.js``): methods must stay on
- * the prototype since ~71 known subclasses across core/enterprise/agromarin
- * override them via ``super.xxx(...)``. Installed via
- * ``installListRendererMixin`` (see ``list_renderer.js``). OWL's
- * ``useSortable`` hook itself stays in the renderer (own lifecycle); only
- * its callback bodies (``sortDrop``/``sortStart``/``sortStop``) move here,
- * as does field init (``preventReorder``, ``tableRef``).
- */
-
-/**
- * Mixin applied to ``ListRenderer.prototype`` after class declaration.
- */
 export const listSortingMixin = {
     /**
-     * Whether the column displays numeric data; drives right-alignment
-     * via the ``o_list_number_th`` header class.
-     *
      * @param {{ name: string }} column
      * @returns {boolean}
      */
@@ -31,10 +14,6 @@ export const listSortingMixin = {
     },
 
     /**
-     * Whether the column responds to click-to-sort: requires the field to
-     * declare ``sortable`` (or the column ``options.allow_order``) AND a
-     * label — unlabeled columns (e.g. button groups) never sort.
-     *
      * @param {{ name: string, hasLabel?: boolean, options?: any }} column
      * @returns {boolean}
      */
@@ -45,11 +24,6 @@ export const listSortingMixin = {
     },
 
     /**
-     * FontAwesome class string for a column's sort icon: an
-     * ascending/descending arrow when it's the active sort key, a
-     * hidden-but-on-hover handle for other sortable columns, or
-     * ``d-none`` for non-sortable columns.
-     *
      * @param {{ name: string }} column
      * @returns {string}
      */
@@ -65,16 +39,10 @@ export const listSortingMixin = {
     },
 
     /**
-     * Header click handler. Consumes the one-shot ``preventReorder`` guard
-     * (set by the column-resize hook to suppress the click ending a resize
-     * drag), skips mid-edit/sample-data states, then dispatches to
-     * ``list.sortBy`` for sortable columns.
-     *
      * @param {{ name: string }} column
      */
     onClickSortColumn(column) {
-        if (this.preventReorder) {
-            this.preventReorder = false;
+        if (this.columnWidths.justResized) {
             return;
         }
         if (this.editedRecord || this.props.list.model.useSampleModel) {
@@ -88,12 +56,6 @@ export const listSortingMixin = {
     },
 
     /**
-     * Drop callback for OWL's ``useSortable`` (wired in ``setup()``).
-     * Reorders within the same group (``moveRecord``) or the flat list
-     * (``resequence``) depending on whether ``dataGroupId`` is supplied.
-     * Stores the in-flight promise on ``this.resequencePromise`` so other
-     * consumers (e.g. the no-content helper) can await it.
-     *
      * @param {string} dataRowId
      * @param {string | null} dataGroupId
      * @param {{ element: HTMLElement, previous: HTMLElement }} params
@@ -122,11 +84,6 @@ export const listSortingMixin = {
     },
 
     /**
-     * Start callback for ``useSortable``. Freezes per-cell widths to the
-     * corresponding header widths for the drag's duration, so the dragged
-     * row doesn't reflow while held. Colspan > 1 cells sum the spanned
-     * headers' widths.
-     *
      * @param {{ element: HTMLElement }} params
      */
     sortStart({ element }) {
@@ -150,15 +107,11 @@ export const listSortingMixin = {
     },
 
     /**
-     * Stop callback for ``useSortable``. Releases the per-cell widths
-     * frozen by ``sortStart`` so layout normalizes back to the table's
-     * auto/computed widths.
-     *
      * @param {{ element: HTMLElement }} params
      */
     sortStop({ element }) {
         for (const cell of element.querySelectorAll("td")) {
-            cell.style.width = null;
+            cell.style.width = "";
         }
     },
 };

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_aggregates - Hook computing column aggregates and multi-currency popovers for the list view */
+/** @module @web/views/list/list_aggregates */
 
 import { onWillStart, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -16,15 +16,11 @@ import { computeAggregatedValue } from "@web/views/view_measurements";
 const formatters = registry.category("formatters");
 
 /**
- * Determine which currency field is associated with a monetary column.
- *
  * @param {Record<string, object>} fields
  * @param {object} column
  * @returns {string}
  */
 function resolveCurrencyField(fields, column) {
-    // `column` comes from a `find()` over the ACTIVE columns, which can miss
-    // when an optional column is toggled off between render and click.
     return (
         column?.options?.currency_field ||
         fields[column?.name]?.currency_field ||
@@ -33,12 +29,10 @@ function resolveCurrencyField(fields, column) {
 }
 
 /**
- * Hook encapsulating aggregate computation and multi-currency popover for the list view.
- *
  * @param {object} options
- * @param {() => import("./list_renderer").Column[]} options.getColumns - active columns
- * @param {() => Record<string, object>} options.getFields - field definitions
- * @param {() => import("./list_renderer").ListRendererProps} options.getProps - component props
+ * @param {() => import("./list_renderer").Column[]} options.getColumns
+ * @param {() => Record<string, object>} options.getFields
+ * @param {() => import("./list_renderer").ListRendererProps} options.getProps
  * @param {() => Record<string, boolean>} options.getOptionalActiveFields
  * @returns {{
  *   computeAggregates: () => Record<string, object>,
@@ -84,9 +78,6 @@ export function useListAggregates({
         }
     });
 
-    /**
-     * Get the values list appropriate for aggregation (selection, groups, or all records).
-     */
     function getAggregationValues() {
         const { list } = getProps();
         if (list.selection.length) {
@@ -105,8 +96,6 @@ export function useListAggregates({
         state,
 
         /**
-         * Determine which currency field is associated with a monetary column.
-         *
          * @param {object} column
          * @returns {string}
          */
@@ -115,8 +104,6 @@ export function useListAggregates({
         },
 
         /**
-         * Collect the set of distinct currency IDs used for a given field.
-         *
          * @param {string} fieldName
          * @returns {Set}
          */
@@ -141,8 +128,6 @@ export function useListAggregates({
         },
 
         /**
-         * Compute aggregate values for all visible columns.
-         *
          * @returns {Record<string, object>}
          */
         computeAggregates() {
@@ -220,7 +205,7 @@ export function useListAggregates({
                                             : entry.record[currencyField]?.id;
                                         if (currency !== currencyId) {
                                             entry.value *= currency
-                                                ? (state.currencyRates[currency]
+                                                ? (state.currencyRates?.[currency]
                                                       ?.rate ?? 1)
                                                 : 1;
                                         }
@@ -297,8 +282,6 @@ export function useListAggregates({
         },
 
         /**
-         * Format aggregate value for a group row.
-         *
          * @param {object} group
          * @param {object} column
          * @returns {{ value: string, multiCurrency?: boolean, rawValue?: number }}
@@ -349,8 +332,6 @@ export function useListAggregates({
         },
 
         /**
-         * Open the multi-currency popover for an aggregated monetary field.
-         *
          * @param {Event} ev
          * @param {any} value
          * @param {string} fieldName

@@ -1,24 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_confirmation_dialog - Confirmation dialog for multi-record bulk edits showing affected records and changed values */
+/** @module @web/views/list/list_confirmation_dialog */
 
 import { Component } from "@odoo/owl";
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
 import { useAutofocus } from "@web/core/utils/hooks";
+import { Operation } from "@web/core/utils/operation";
 import { Field, fieldVisualFeedback } from "@web/fields/field";
-import { Operation } from "@web/model/relational_model/operation";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/** Confirmation dialog for multi-record bulk edits: shows affected record count, changed fields, and new values. */
 export class ListConfirmationDialog extends Component {
     static template = "web.ListView.ConfirmationModal";
     static components = { Dialog, Field, TagsList };
     static props = {
         close: Function,
         title: {
-            validate: (m) =>
+            validate: (/** @type {any} */ m) =>
                 typeof m === "string" ||
                 (typeof m === "object" && typeof m.toString === "function"),
             optional: true,
@@ -40,7 +39,7 @@ export class ListConfirmationDialog extends Component {
         useAutofocus();
     }
 
-    /** @returns {string} Translated text indicating how many selected records are valid. */
+    /** @returns {string} */
     get validRecordsText() {
         return _t(
             "Among the %(total)s selected records, %(valid_count)s are valid for this update.",
@@ -51,21 +50,20 @@ export class ListConfirmationDialog extends Component {
         );
     }
 
-    /** @returns {string} Translated confirmation prompt with the record count. */
+    /** @returns {string} */
     get updateConfirmationText() {
         return _t("Are you sure you want to update %(count)s records?", {
             count: this.props.nbValidRecords,
         });
     }
 
-    /** @returns {boolean} Whether to show a tip about numeric field operations. */
+    /** @returns {boolean} */
     get showTip() {
-        return this.props.fields.some((field) =>
+        return this.props.fields.some((/** @type {any} */ field) =>
             ["monetary", "integer", "float"].includes(field.fieldNode?.type),
         );
     }
 
-    /** Invoke the cancel callback (if provided) and close the dialog. */
     _cancel() {
         if (this.props.cancel) {
             this.props.cancel();
@@ -73,7 +71,6 @@ export class ListConfirmationDialog extends Component {
         this.props.close();
     }
 
-    /** Invoke the confirm callback (if provided) and close the dialog. */
     async _confirm() {
         if (this.props.confirm) {
             await this.props.confirm();
@@ -82,10 +79,8 @@ export class ListConfirmationDialog extends Component {
     }
 
     /**
-     * Build tag props for a many2many field displayed as a TagsList.
-     *
-     * @param {any[]} records - related records for the field
-     * @param {{ fieldNode: any }} field - field descriptor with its arch node
+     * @param {any[]} records
+     * @param {{ fieldNode: any }} field
      * @returns {{ id: any, resId: any, text: string, colorIndex: any }[]}
      */
     getTagProps(records, field) {
@@ -99,8 +94,6 @@ export class ListConfirmationDialog extends Component {
     }
 
     /**
-     * Check whether the field's current value should display as empty.
-     *
      * @param {{ fieldNode: any, name: string }} field
      * @returns {boolean}
      */
@@ -118,8 +111,6 @@ export class ListConfirmationDialog extends Component {
     }
 
     /**
-     * Check whether the change for this field is an Operation (e.g. increment).
-     *
      * @param {{ name: string }} field
      * @returns {boolean}
      */

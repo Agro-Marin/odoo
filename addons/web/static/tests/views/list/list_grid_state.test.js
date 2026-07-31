@@ -43,7 +43,7 @@ function makeGridState(options = {}) {
         mockColumn("phone"),
     ];
     const list = options.list || mockList(records);
-    return new ListGridState({
+    const gridState = new ListGridState({
         list,
         columns,
         hasSelectors: options.hasSelectors ?? false,
@@ -53,6 +53,8 @@ function makeGridState(options = {}) {
         showGroupAddLine: options.showGroupAddLine ?? false,
         isCellReadonly: options.isCellReadonly ?? (() => false),
     });
+    gridState.rebuild();
+    return gridState;
 }
 
 describe("flat row materialization", () => {

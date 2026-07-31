@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_arch_parser - Parses list view XML arch into column definitions, groupby configs, buttons, and decorations */
+/** @module @web/views/list/list_arch_parser */
 
 import { getDecoration } from "@web/core/utils/decorations";
 import { visitXML } from "@web/core/utils/dom/xml";
@@ -14,20 +14,12 @@ import { encodeObjectForTemplate } from "@web/views/view_compiler";
 import { getActiveActions } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
-/**
- * Arch parser for `<groupby>` sub-trees inside a list view.
- *
- * Extracts field nodes and buttons declared inside a `<groupby name="...">` element
- * so they can be rendered when the list is grouped by that field.
- */
 class GroupListArchParser {
     /**
-     * Parse a `<groupby>` XML node.
-     *
-     * @param {Element} arch - the `<groupby>` DOM element
-     * @param {Record<string, any>} models - model metadata keyed by model name
-     * @param {string} modelName - the co-model of the groupby field
-     * @param {string} [jsClass] - optional js_class override
+     * @param {Element} arch
+     * @param {Record<string, any>} models
+     * @param {string} modelName
+     * @param {string} [jsClass]
      * @returns {{ fieldNodes: Record<string, any>, buttons: any[] }}
      */
     parse(arch, models, modelName, jsClass) {
@@ -63,17 +55,8 @@ class GroupListArchParser {
     }
 }
 
-/**
- * Arch parser for the `<list>` (tree) view.
- *
- * Walks the XML arch and extracts columns (fields, buttons, widgets),
- * header buttons, `<control>` elements, `<groupby>` sub-parsers, decorations,
- * active actions, and all view-level attributes (editable, limit, etc.).
- */
 export class ListArchParser {
     /**
-     * Parse a `<field>` node into a field descriptor.
-     *
      * @param {Element} node
      * @param {Record<string, any>} models
      * @param {string} modelName
@@ -84,11 +67,9 @@ export class ListArchParser {
     }
 
     /**
-     * Parse a `<widget>` node into a widget descriptor.
-     *
      * @param {Element} node
-     * @param {Record<string, any>} [_models] - unused, kept for API symmetry
-     * @param {string} [_modelName] - unused
+     * @param {Record<string, any>} [_models]
+     * @param {string} [_modelName]
      * @returns {any}
      */
     parseWidgetNode(node, _models, _modelName) {
@@ -96,8 +77,6 @@ export class ListArchParser {
     }
 
     /**
-     * Extract button metadata from a `<button>` element.
-     *
      * @param {Element} node
      * @returns {any}
      */
@@ -106,15 +85,9 @@ export class ListArchParser {
     }
 
     /**
-     * Parse a complete `<list>` arch into a structured descriptor.
-     *
-     * The returned object contains columns (fields, buttons, widgets), header
-     * buttons, controls, groupBy info, decorations, active actions, and all
-     * view-level settings (editable, limit, defaultOrder, etc.).
-     *
-     * @param {Element} xmlDoc - the root `<list>` element
-     * @param {Record<string, any>} models - model metadata keyed by model name
-     * @param {string} modelName - the primary model name
+     * @param {Element} xmlDoc
+     * @param {Record<string, any>} models
+     * @param {string} modelName
      * @returns {{
      *   controls: any[],
      *   headerButtons: any[],

@@ -1,64 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_record_row - Per-record row component isolating row renders from ListRenderer */
-
-/**
- * ``ListRecordRow`` renders one ``<tr class="o_data_row">`` of the list view.
- *
- * Why a component and not the historical ``t-call``: a ``t-call`` re-evaluates
- * every cell expression of every visible row on ANY reactive change the
- * renderer is subscribed to (one checkbox toggle re-formats every cell of
- * every row). As a component with referentially-stable props for unchanged
- * rows, OWL's ``arePropsDifferent`` skips the whole row — only the row whose
- * own record changed re-renders (same pattern as ``ListAggregatesRow``,
- * pinned by test R4).
- *
- * COMPATIBILITY CONTRACT — invisible to the ~15 addons that customize record
- * rows (audited fork-wide 2026-07-02). Three patterns, all preserved:
- *
- * 1. ``static recordRowTemplate = "..."`` on a ``ListRenderer`` subclass, with
- *    a template inheriting ``web.ListRenderer.RecordRow`` (account, website,
- *    purchase_requisition, resource, sale, sale_management, hr_skills(+slides),
- *    documents, account_online_synchronization, account_accountant,
- *    web_studio). The row body stays at t-name ``web.ListRenderer.RecordRow``
- *    (byte-identical, xpath anchors intact); this component's own template
- *    just t-calls ``props.recordRowTemplate`` dynamically.
- *
- * 2. ``this.X`` / bare-name expressions in those templates historically
- *    resolved against the RENDERER's render context (methods, getters,
- *    instance state — e.g. ``isSection(record)``, ``this.rightPanelState``,
- *    ``this.comboColumns``, ``getPreviousRecords(record)``) plus template-scope
- *    vars (``record``, ``group``, ``groupId``, ``_canSelectRecord``). The
- *    component emulates that exactly: every renderer member is delegated
- *    lazily via accessors on the row class prototype; methods run with
- *    ``this`` proxied over the renderer (which also resolves
- *    ``record``/``group``/``groupId`` to this row's values, so ``super``
- *    chains and defaults like account's ``isSection(record = this.record)``
- *    still work); writes (``this.foo = x``) land on the renderer instance.
- *
- * 3. ``rowsTemplate`` overrides that still ``t-call``
- *    ``constructor.recordRowTemplate`` directly (project notebook tasks,
- *    hr_skills skills/resume) are untouched — no helper moved off the
- *    renderer, so they keep rendering fine with the renderer as ``this``.
- *
- * REACTIVITY DESIGN (subscriptions accrue to whichever component's reactive
- * proxy performs the read):
- *
- * - ``record``/``group`` exposed to the template are the RENDERER's reactive
- *   proxies (via ``gridState``), not the row-wrapped prop — this preserves
- *   proxy identity for renderer-side comparisons (``editedRecord``,
- *   ``list.records.indexOf(record)``, account's ``parentSectionMap``,
- *   documents' ``rightPanelState.focusedRecord``, selection ranges…), so
- *   renderer-level subscriptions are unaffected.
- * - The row subscribes itself through its own OWL-wrapped ``props.record``
- *   proxy in ``_touchRecordDependencies()`` (selection, edition, validity,
- *   field values, x2many content, eval context incl. ``parent.*``), so a
- *   change to this record re-renders only this row.
- * - Renderer state read from row templates (e.g. documents'
- *   ``rightPanelState``) is wrapped during render so the row also subscribes
- *   to it (shallow), while returned values keep renderer-proxy identity.
- */
+/** @module @web/views/list/list_record_row */
 
 import {
     Component,
@@ -70,10 +13,6 @@ import {
 } from "@odoo/owl";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 
-/**
- * Names that must never be delegated to the renderer: they belong to this
- * component instance (OWL internals + own props/env).
- */
 const SKIP_DELEGATION = new Set(["constructor", "props", "env", "__owl__"]);
 
 /** @extends Component */
@@ -81,6 +20,11 @@ export class ListRecordRow extends Component {
     static template = "web.ListRecordRow";
     static components = {};
     static props = ["*"];
+
+    /** @type {Map} */
+    _boundFns;
+    /** @type {Map} */
+    _dualCache;
 
     setup() {
         useRenderCounter("list.ListRecordRow");
@@ -91,17 +35,6 @@ export class ListRecordRow extends Component {
         /** @type {Map<string, {target: any, proxy: any}>} */
         this._dualCache = new Map();
         this._isRendering = false;
-        /**
-         * Render callback for shadow subscriptions of delegated renderer
-         * state. OWL only clears its OWN render callback's subscriptions on
-         * destroy (cleanupRenderAndReactives); custom ``reactive(target, cb)``
-         * callbacks stay registered until the observed key is next written.
-         * On a rarely-written key, a callback closing strongly over the row
-         * would retain the destroyed component (and its subtree) for as long
-         * as the renderer state lives — unbounded growth while scrolling a
-         * virtualized list. Closing over a WeakRef instead means a leaked
-         * subscription retains only this tiny closure.
-         */
         const weakRow = new WeakRef(this);
         this._shadowRender = () => {
             const liveRow = weakRow.deref();
@@ -109,14 +42,6 @@ export class ListRecordRow extends Component {
                 liveRow.render();
             }
         };
-        /**
-         * ``this`` emulation for delegated renderer members: behaves like the
-         * historical template render context — renderer members + this row's
-         * ``record``/``group``/``groupId``. Getters run with the proxy as
-         * receiver (so e.g. account's ``get hidePrices() { return
-         * this.record.data.… }`` sees this row's record); writes go through to
-         * the renderer instance.
-         */
         this._rendererCtx = new Proxy(renderer, {
             get(target, key) {
                 if (key === "record") {
@@ -152,51 +77,23 @@ export class ListRecordRow extends Component {
         });
     }
 
-    /**
-     * The record as the RENDERER's reactive proxy (identity-consistent with
-     * all renderer-side comparisons/collections). ``gridState`` materializes
-     * flat rows from the renderer's own ``props.list`` proxy, so the stored
-     * record IS the renderer-callback proxy.
-     */
     get record() {
         return resolveFlatRow(this)?.record ?? this.props.record;
     }
 
-    /**
-     * The enclosing group of this row (``undefined`` for ungrouped lists).
-     *
-     * Resolved unconditionally from the flat grid's ``parentGroup`` — the SAME
-     * source in both the virtualized and non-virtualized branches. Previously
-     * the virtualized branch short-circuited to ``undefined``, so a grouped
-     * list that crossed the virtualization threshold lost its group context:
-     * ``applyCellKeydownEditModeGroup`` never ran, Enter on a group's last
-     * dirty row created the new row in the wrong place, and
-     * ``onEditNextRecord(group=undefined)`` opened the form view instead of the
-     * next inline row — an invisible, row-count-dependent behavior flip. The
-     * flat rows carry ``parentGroup`` regardless of virtualization, and the
-     * renderer now also passes it as the ``group`` prop, so this is stable.
-     */
     get group() {
         return resolveFlatRow(this)?.parentGroup ?? this.props.group ?? undefined;
     }
 
-    /** Historical ``t-set`` scope var from the grouped rows recursion. */
     get groupId() {
         return this.props.groupId;
     }
 
-    /** Historical ``t-set`` scope var from the root ``web.ListRenderer`` template. */
     get _canSelectRecord() {
         return this.props.canSelectRecord;
     }
 
     /**
-     * Delegated member resolution (see class doc). Methods are wrapped so they
-     * run against ``_rendererCtx`` (virtual dispatch through the renderer's
-     * prototype chain, with this row's template vars available on ``this``).
-     * During render, reactive renderer state is wrapped to also subscribe this
-     * row (shallow) while preserving renderer-proxy identity of read values.
-     *
      * @param {string} name
      */
     _delegateGet(name) {
@@ -222,13 +119,8 @@ export class ListRecordRow extends Component {
     }
 
     /**
-     * Wrap a delegated reactive object so reads during this row's render also
-     * subscribe THIS row (via a shadow proxy on the row's render callback)
-     * while returning the untouched renderer-proxy values (identity-safe for
-     * ``===`` comparisons, e.g. documents' ``rightPanelState.focusedRecord``).
-     *
      * @param {string} name
-     * @param {any} value reactive (OWL-proxied) object owned by the renderer
+     * @param {any} value
      */
     _subscribingWrapper(name, value) {
         const cached = this._dualCache.get(name);
@@ -241,8 +133,13 @@ export class ListRecordRow extends Component {
                 if (typeof key !== "symbol") {
                     try {
                         void shadow[key];
-                    } catch {
-                        // best-effort subscription only
+                    } catch (error) {
+                        if (odoo.debug) {
+                            console.warn(
+                                `ListRecordRow: reading "${String(key)}" on "${name}" threw while subscribing`,
+                                error,
+                            );
+                        }
                     }
                 }
                 return Reflect.get(target, key);
@@ -252,16 +149,6 @@ export class ListRecordRow extends Component {
         return proxy;
     }
 
-    /**
-     * Subscribe this row to everything its DOM can depend on, through the
-     * row's own reactive proxy (``props.record`` is auto-wrapped by OWL for
-     * this component). This is what makes a single-record change re-render
-     * ONLY this row. Read set mirrors what the row template + styling helpers
-     * read: selection/edition/new state, per-field values (plus x2many
-     * content counters), per-field validity, and the eval context used by
-     * decoration/required/readonly/invisible expressions (including the
-     * ``parent.*`` chain for x2many rows).
-     */
     _touchRecordDependencies() {
         const record = this.props.record;
         void record.selected;
@@ -293,25 +180,6 @@ export class ListRecordRow extends Component {
 }
 
 /**
- * This row's entry in the renderer's flat grid, memoized until the grid is
- * rebuilt.
- *
- * ``record`` and ``group`` are read once per template expression AND once per
- * ``this.record`` / ``this.group`` inside every delegated renderer method (the
- * ``_rendererCtx`` Proxy routes both names here), so an un-memoized lookup paid
- * a ``String(id)`` allocation plus a Map lookup dozens of times per row per
- * render.
- *
- * A free function, not a method: the ``group`` getter is part of the row's
- * duck-typed contract and is invoked with a plain object as ``this`` (see
- * "row.group resolves the flat parentGroup even when virtualization is
- * active"), so it must not require anything else on the prototype.
- *
- * The cache key is ``(gridState.generation, record.id)`` and NOT the
- * ``gridState`` object: the renderer owns a single instance for its whole life
- * and ``rebuild()`` mutates it in place, so object identity would never
- * invalidate.
- *
  * @param {any} row
  * @returns {any}
  */
@@ -333,13 +201,8 @@ function resolveFlatRow(row) {
 }
 
 /**
- * Install lazy delegation accessors for every renderer member (own instance
- * fields + prototype chain up to, and excluding, ``Component.prototype``) that
- * the row class does not define itself. Installed once per (row class, name);
- * idempotent and shared by all instances of the same renderer class.
- *
- * @param {any} RowClass concrete row class (one per renderer class)
- * @param {any} renderer renderer instance (fully set up)
+ * @param {any} RowClass
+ * @param {any} renderer
  */
 function installRendererDelegation(RowClass, renderer) {
     if (!Object.hasOwn(RowClass, "_delegatedNames")) {
@@ -378,13 +241,6 @@ function installRendererDelegation(RowClass, renderer) {
 }
 
 /**
- * Debug-mode guard for the delegation blind spot: accessors are installed
- * from the renderer members that exist when a row runs its setup, so a
- * renderer instance field assigned later (e.g. a subclass setting a flag in
- * an event handler) has no accessor until some future row's setup re-scans —
- * meanwhile row templates reading that name silently get ``undefined``. Warn
- * (once per row class and name) so the gap is visible instead of silent.
- *
  * @param {any} RowClass
  * @param {any} renderer
  */
@@ -411,16 +267,10 @@ function warnUndelegatedRendererFields(RowClass, renderer) {
     }
 }
 
-/** @type {WeakMap<any, any>} renderer class → row component class */
+/** @type {WeakMap<any, any>} */
 const rowClassRegistry = new WeakMap();
 
 /**
- * Row component class for a given renderer class. Derived (and cached) per
- * renderer class so that sub-component resolution inside the row body uses the
- * RENDERER's ``static components`` — exactly what the historical ``t-call``
- * resolved against. Prototype patches on ``ListRecordRow`` (e.g. in tests)
- * are inherited by every derived class.
- *
  * @param {any} RendererClass
  * @returns {typeof ListRecordRow}
  */

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/list_keyboard_nav - Keyboard navigation hook for arrow, tab, and enter key traversal across list view cells */
+/** @module @web/views/list/list_keyboard_nav */
 
 import { ModelEvent, SearchModelEvent } from "@web/core/events";
 import { getTabableElements } from "@web/core/utils/dom/ui";
@@ -10,14 +10,6 @@ import { applyFieldDirtyPayload } from "@web/fields/field_dirty_signal";
 
 import { makeEditHandlers } from "./list_keyboard_edit.js";
 
-/**
- * Max onPatched cycles a virtualized-out focus latch is allowed to survive
- * unresolved. A virtualized scroll settles within a couple of patches, but a
- * heavy render (many reactive subscriptions) can split it across more; the
- * latch must outlive those so focus lands on the target row instead of
- * dropping to <body>. The cap bounds a pathological latch (target row that
- * never renders) so it cannot fire at an unrelated later patch and steal focus.
- */
 const MAX_VIRT_FOCUS_RETRIES = 20;
 
 /**
@@ -37,20 +29,6 @@ export function containsActiveElement(parent) {
 }
 
 /**
- * Whether the browser's own Tab handling will keep focus inside ``cell``, in
- * which case the list must let the event through instead of moving to another
- * cell.
- *
- * Answering that needs the active element's position in the cell's tab ring, so
- * an active element that is not IN the ring has no answer: ``indexOf`` returns
- * -1, which is "absent", not "before the first". Reading it as a position made
- * ``tab`` report a toggle whenever the cell held any tabable element at all —
- * and the ring genuinely excludes focused elements, by construction:
- * ``getTabableElements`` drops ``[tabindex="-1"]`` and never matches
- * ``contenteditable`` (an html field's editor), both of which are focusable.
- *
- * Pure DOM predicate, exported so it is testable without mounting a list.
- *
  * @param {string} hotkey
  * @param {HTMLTableCellElement} cell
  * @returns {boolean}
@@ -74,26 +52,9 @@ export function togglesFocusInsideCell(hotkey, cell) {
 }
 
 /**
- * Nearest cell of ``row`` whose grid column index is reachable from
- * ``colIndex``, used when the row does not render that column at all.
- *
- * Rows may render a SUBSET of the grid's columns (see
- * ``ListGridState#getColIndexOfColumn``): a section row carries, say, columns 0
- * and 2, so a horizontal step onto column 1 addresses a cell that does not
- * exist there, and the positional fallback dead-ends on the row's last cell —
- * the arrow key does nothing. Continuing past the hole is what the user asked
- * for.
- *
- * HORIZONTAL MOVES ONLY, deliberately. The trailing selector / open-form /
- * actions cells carry no ``data-col-index``, so for a vertical move onto one of
- * them this would answer with the nearest FIELD cell and quietly change where
- * ArrowDown lands from the delete column on ordinary rows; the positional
- * fallback already resolves those correctly.
- *
  * @param {Element} row
  * @param {number} colIndex
- * @param {"left" | "right"} [direction] index-space direction; absent for
- *  vertical moves, which do not use this path
+ * @param {"left" | "right"} [direction]
  * @returns {Element | null}
  */
 function nearestCellOnRow(row, colIndex, direction) {
@@ -119,12 +80,9 @@ function nearestCellOnRow(row, colIndex, direction) {
 }
 
 /**
- * Resolve a grid index pair to a focusable DOM element.
- *
  * @param {any} tableRef
  * @param {{ rowIndex: number, colIndex: number }} position
- * @param {"left" | "right"} [direction] index-space direction of a horizontal
- *  move; absent for vertical moves and for post-patch focus restoration
+ * @param {"left" | "right"} [direction]
  * @returns {HTMLElement | null}
  */
 function focusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
@@ -143,12 +101,7 @@ function focusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
 }
 
 /**
- * Hook encapsulating the keyboard navigation subsystem for the list view.
- *
- * Handles arrow/tab/enter/escape navigation in both read-only and edit modes,
- * including multi-edit, grouped lists, and focus management across rows and cells.
- *
- * @param {any} tableRef - ref to the <table> element
+ * @param {any} tableRef
  * @param {object} options
  * @param {() => import("./list_renderer").Column[]} options.getColumns
  * @param {() => import("./list_renderer").ListRendererProps} options.getProps
@@ -165,7 +118,7 @@ function focusAtPosition(tableRef, { rowIndex, colIndex }, direction) {
  * @param {(record: object) => boolean} options.isInlineEditable
  * @param {(column: any, record: object) => boolean} [options.isCellReadonly]
  * @param {(record: object, direction: string) => boolean} options.expandCheckboxes
- * @param {() => object} [options.getSel] - selection hook
+ * @param {() => object} [options.getSel]
  * @param {() => boolean} [options.getCanCreate]
  * @param {() => boolean} [options.getDisplayRowCreates]
  * @param {() => any[]} [options.getControls]
@@ -190,23 +143,11 @@ export function useListKeyboardNavigation(tableRef, options) {
     } = options;
 
     /**
-     * Move already resolved by the calling handler, consumed by the hook's
-     * ``findFocusFutureCell`` facade when the renderer override chain reaches
-     * it, so a vertical arrow key does not compute ``findFocusMove`` twice.
-     *
      * @type {{ cell: HTMLTableCellElement, direction: string, move: { el: HTMLElement } | { pending: true } | null } | null}
      */
     let latchedMove = null;
 
     /**
-     * Resolve the target cell for an arrow move, dispatching through the
-     * renderer-supplied (overridable) ``findFocusFutureCell`` when present so
-     * downstream renderer subclasses observe/redirect the move; falls back to
-     * the hook's internal facade otherwise. When the caller already computed
-     * the move, pass it as ``move`` — the facade then consumes it instead of
-     * recomputing (the latch only applies to the same cell/direction, so an
-     * override calling ``super`` with different arguments still recomputes).
-     *
      * @param {HTMLTableCellElement} cell
      * @param {boolean} cellIsInGroupRow
      * @param {"up" | "down" | "left" | "right"} direction
@@ -226,41 +167,19 @@ export function useListKeyboardNavigation(tableRef, options) {
         }
     };
 
-    /** Index tracking for cross-row navigation between group and data rows. */
     let lastKnownIndex = 0;
     /**
-     * Focus position to retry after virtualization scrolls the target into
-     * view. Carries the grid indexes, the target record id (to re-resolve the
-     * row index at resolution time if rows shifted meanwhile) and, for plain
-     * arrow moves, the origin cell/direction so the resolution dispatches
-     * through the renderer's overridable ``findFocusFutureCell``.
-     *
      * @type {{ rowIndex: number, colIndex: number, recordId?: string, retries?: number, origin?: { cell: HTMLTableCellElement, cellIsInGroupRow: boolean, direction: "up" | "down" | "left" | "right" } } | null}
      */
     let pendingVirtFocus = null;
 
     const self = {
-        /** The cell that was last edited — used to restore focus after patch. */
         lastEditedCell: null,
-        /** Cell to focus after the next patch (set before enterEditMode). */
         cellToFocus: null,
-        /** Whether the last field change marked the record as dirty. */
         lastIsDirty: false,
-        /** Pending virtualization focus — set when a row was virtualized out. */
         get pendingVirtFocus() {
             return pendingVirtFocus;
         },
-        /**
-         * Resolve focus for a pending virtualized-out position. Called from
-         * onPatched. A single edge arrow move scrolls the target row into the
-         * virtualization window, which can span several patches, and a patch
-         * that lands *after* focus was applied can re-create the focused cell
-         * node (dropping focus to <body>). The latch therefore stays sticky —
-         * it survives across patches and re-applies focus whenever it was lost
-         * — until focus rests on the target (settled) or the retry budget is
-         * spent. It is never re-applied over another live element, so it cannot
-         * steal focus the user moved elsewhere.
-         */
         resolvePendingVirtFocus() {
             if (!pendingVirtFocus) {
                 return;
@@ -319,23 +238,11 @@ export function useListKeyboardNavigation(tableRef, options) {
             pending.retries = (pending.retries || 0) + 1;
         },
 
-        /**
-         * Drop a latched pending virtualized focus. The renderer calls this on
-         * onPatched paths that must not resolve focus (active element owned by
-         * another UI part, e.g. a dialog): without it the latch survives and
-         * fires at a much later, unrelated patch with stale indexes — a focus
-         * steal.
-         */
         clearPendingVirtFocus() {
             pendingVirtFocus = null;
         },
 
         /**
-         * Attach the origin of a pending virtualized-out arrow move so its
-         * post-patch resolution dispatches through the renderer override
-         * chain (see ``resolvePendingVirtFocus``). No-op when nothing is
-         * pending.
-         *
          * @param {HTMLTableCellElement} cell
          * @param {boolean} cellIsInGroupRow
          * @param {"up" | "down" | "left" | "right"} direction
@@ -347,8 +254,6 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
 
         /**
-         * Focus an element, selecting its text content if applicable.
-         *
          * @param {HTMLElement} el
          */
         focus(el) {
@@ -369,17 +274,6 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
 
         /**
-         * Navigate from a cell to a neighbouring cell in the given direction (read-only mode).
-         *
-         * Uses index-based navigation via ListGridState when data-row-index attributes are
-         * present; falls back to DOM-walking for rows without index attributes (legacy path).
-         *
-         * Discriminates three outcomes: `{ el }` (target cell rendered, focus it),
-         * `{ pending: true }` (target row is virtualized out; scroll requested and
-         * focus scheduled for the next patch via `resolvePendingVirtFocus` — callers
-         * must treat the event as handled, not fall back to search-bar/scroll boundary
-         * behavior), or `null` (grid boundary, no target row/cell in that direction).
-         *
          * @param {HTMLTableCellElement} cell
          * @param {boolean} cellIsInGroupRow
          * @param {"up" | "down" | "left" | "right"} direction
@@ -399,10 +293,6 @@ export function useListKeyboardNavigation(tableRef, options) {
                     if (gridState.rowAt(next.rowIndex)?.type !== "group") {
                         lastKnownIndex = next.colIndex;
                     }
-                    // Index-space direction, derived from the move the grid
-                    // actually made rather than from ``direction`` — RTL swaps
-                    // left/right inside ``moveFocus``, so the key pressed does
-                    // not name the direction the index travelled.
                     const isHorizontal = direction === "left" || direction === "right";
                     const indexDirection =
                         isHorizontal && next.colIndex !== colIndex
@@ -525,15 +415,6 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
 
         /**
-         * Element-or-null facade over `findFocusMove`, kept because
-         * `ListRenderer.findFocusFutureCell` delegates here and downstream
-         * renderers (e.g. documents, account_accountant) override it expecting
-         * an element or null. Cannot distinguish a boundary from a pending
-         * virtualized focus — internal handlers use `findFocusMove` directly.
-         * When the calling handler already resolved the move (vertical arrows
-         * latch it through `dispatchFutureCell`), that resolution is consumed
-         * here instead of computing `findFocusMove` a second time.
-         *
          * @param {HTMLTableCellElement} cell
          * @param {boolean} cellIsInGroupRow
          * @param {"up" | "down" | "left" | "right"} direction
@@ -550,8 +431,6 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
 
         /**
-         * Find the next focusable cell to the right on the same row.
-         *
          * @param {HTMLElement} row
          * @param {HTMLTableCellElement} [cell]
          * @returns {HTMLElement | null}
@@ -582,8 +461,6 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
 
         /**
-         * Find the previous focusable cell to the left on the same row.
-         *
          * @param {HTMLElement} row
          * @param {HTMLTableCellElement} [cell]
          * @returns {HTMLElement | null}
@@ -614,8 +491,6 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
 
         /**
-         * Returns true if the focus was toggled inside the same cell (tab between inputs).
-         *
          * @param {string} hotkey
          * @param {HTMLTableCellElement} cell
          * @returns {boolean}
@@ -625,8 +500,6 @@ export function useListKeyboardNavigation(tableRef, options) {
         },
 
         /**
-         * Handle keyboard in read-only mode (navigation, selection, group toggle).
-         *
          * @param {string} hotkey
          * @param {HTMLTableCellElement} cell
          * @param {object | null} group
@@ -789,9 +662,6 @@ export function useListKeyboardNavigation(tableRef, options) {
 
     Object.assign(self, makeEditHandlers(self, tableRef, options));
 
-    // Aggregated over the set of fields reporting uncommitted input rather than
-    // taken from the last event: the signal is shared by every field of the
-    // record (see @web/fields/field_dirty_signal).
     const dirtyOwners = new Set();
     useBus(
         getProps().list.model.bus,

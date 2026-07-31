@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/list/column_width_hook - Column width calculation, min/max enforcement, and resize-freeze hook for list view */
+/** @module @web/views/list/column_width_hook */
 
 import {
     onMounted,
@@ -21,8 +21,6 @@ const OPEN_FORM_VIEW_BUTTON_WIDTH = 54;
 const DELETE_BUTTON_WIDTH = 12;
 
 /**
- * Compute ideal widths based on the rules described on top of this file.
- *
  * @params {Element} table
  * @params {Object} state
  * @params {Number} allowedWidth
@@ -58,7 +56,7 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
     if (state.hasActionsColumn) {
         _columnWidths[_columnWidths.length - 1] = DELETE_BUTTON_WIDTH;
     }
-    const columnWidthSpecs = getWidthSpecs(columns);
+    const columnWidthSpecs = getWidthSpecs(columns, allowedWidth);
     const columnOffset = state.hasSelectors ? 1 : 0;
     for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
         const thIndex = columnIndex + columnOffset;
@@ -135,27 +133,53 @@ function computeWidths(table, state, allowedWidth, startingWidths) {
             }
         }
         if (diff >= 1) {
+            const flexible = [];
             for (let columnIndex = 0; columnIndex < columns.length; columnIndex++) {
-                const thIndex = columnIndex + columnOffset;
-                _columnWidths[thIndex] += diff / columns.length;
+                if (!columnWidthSpecs[columnIndex].maxWidth) {
+                    flexible.push(columnIndex + columnOffset);
+                }
+            }
+            const targets = flexible.length
+                ? flexible
+                : columns.map((_, columnIndex) => columnIndex + columnOffset);
+            for (const thIndex of targets) {
+                _columnWidths[thIndex] += diff / targets.length;
             }
         }
     }
     return _columnWidths;
 }
 
+const WIDTH_ATTRIBUTE_REGEX = /^\s*(\d+(?:\.\d+)?)\s*(px|%)?\s*$/;
+
 /**
- * Returns for each column its minimal and (if any) maximal widths.
- *
- * @param {Object[]} columns
- * @returns {Object[]} each entry in this array has a minWidth and optionally a maxWidth key
+ * @param {string} value
+ * @param {Number} allowedWidth
+ * @returns {Number | null}
  */
-function getWidthSpecs(columns) {
+function parseWidthAttribute(value, allowedWidth) {
+    const match = WIDTH_ATTRIBUTE_REGEX.exec(value);
+    if (!match) {
+        return null;
+    }
+    const amount = Number.parseFloat(match[1]);
+    return match[2] === "%" ? (amount / 100) * allowedWidth : amount;
+}
+
+/**
+ * @param {Object[]} columns
+ * @param {Number} allowedWidth
+ * @returns {Object[]}
+ */
+function getWidthSpecs(columns, allowedWidth) {
     return columns.map((column) => {
         let minWidth;
         let maxWidth;
-        if (column.attrs && column.attrs.width) {
-            minWidth = maxWidth = Number.parseInt(column.attrs.width.split("px")[0]);
+        const declaredWidth = column.attrs?.width
+            ? parseWidthAttribute(column.attrs.width, allowedWidth)
+            : null;
+        if (declaredWidth) {
+            minWidth = maxWidth = declaredWidth;
         } else {
             let width;
             if (column.type === "field") {
@@ -186,8 +210,6 @@ function getWidthSpecs(columns) {
 }
 
 /**
- * Given an html element, returns the sum of its left and right padding.
- *
  * @param {HTMLElement} el
  * @returns {Number}
  */
@@ -204,18 +226,12 @@ export function useMagicColumnWidths(tableRef, getState) {
     let parentWidthFixed = false;
     let hash;
     let _resizing = false;
+    let _justResized = false;
     let parentWidth;
     let lastAppliedParentWidth = null;
     let cellPaddings = null;
     let cleanupResize = null;
 
-    /**
-     * Apply the column widths in the DOM. If necessary, compute them first (e.g. if they haven't
-     * been computed yet, or if columns have changed).
-     *
-     * Note: the following code manipulates the DOM directly to avoid having to wait for a
-     * render + patch which would occur on the next frame and cause flickering.
-     */
     function forceColumnWidths() {
         const table = tableRef.el;
         const headers = [...table.querySelectorAll("thead th")];
@@ -270,9 +286,6 @@ export function useMagicColumnWidths(tableRef, getState) {
         parentWidth = parentClientWidth;
     }
 
-    /**
-     * Unsets the widths. After next patch, ideal widths will be recomputed.
-     */
     function unsetWidths() {
         columnWidths = null;
         lastAppliedParentWidth = null;
@@ -280,16 +293,11 @@ export function useMagicColumnWidths(tableRef, getState) {
         tableRef.el.style.width = null;
         if (parentWidthFixed) {
             tableRef.el.parentElement.style.width = null;
-            // The pin is gone with the width that defined it. Leaving the flag
-            // raised makes every later unsetWidths() clear a parent width this
-            // hook did not set — clobbering whatever owns it by then.
             parentWidthFixed = false;
         }
     }
 
     /**
-     * Handles the resize feature on the column headers
-     *
      * @private
      * @param {MouseEvent} ev
      */
@@ -347,6 +355,7 @@ export function useMagicColumnWidths(tableRef, getState) {
                 return;
             }
             _resizing = false;
+            _justResized = true;
 
             const headers = [...table.querySelectorAll("thead th")];
             columnWidths = headers.map(
@@ -368,9 +377,6 @@ export function useMagicColumnWidths(tableRef, getState) {
         }
     }
 
-    /**
-     * Forces a recomputation of column widths
-     */
     function resetWidths() {
         unsetWidths();
         forceColumnWidths();
@@ -405,9 +411,21 @@ export function useMagicColumnWidths(tableRef, getState) {
 
     onWillUnmount(() => cleanupResize?.());
 
+    useExternalListener(
+        window,
+        "pointerdown",
+        () => {
+            _justResized = false;
+        },
+        { capture: true },
+    );
+
     return {
         get resizing() {
             return _resizing;
+        },
+        get justResized() {
+            return _justResized;
         },
         onStartResize,
         resetWidths,
