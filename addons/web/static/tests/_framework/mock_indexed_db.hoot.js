@@ -56,12 +56,13 @@ export function mockIndexedDBForTests() {
             return this.mockIndexedDB?.[table]?.[key];
         };
         proto.invalidate = async function (tables = null) {
-            this.mockIndexedDB ??= {};
+            /** @type {Record<string, any>} */
+            const store = (this.mockIndexedDB ??= {});
             if (tables) {
                 const tableList = typeof tables === "string" ? [tables] : tables;
                 for (const table of tableList) {
-                    if (table in this.mockIndexedDB) {
-                        this.mockIndexedDB[table] = {};
+                    if (table in store) {
+                        store[table] = {};
                     }
                 }
             } else {

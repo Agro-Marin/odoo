@@ -204,7 +204,7 @@ export function expectMarkup(value) {
 
 /**
  * @param {string} name
- * @param {SelectorOptions} options
+ * @param {SelectorOptions} [options]
  */
 export function fieldInput(name, options) {
     return contains(buildSelector(`.o_field_widget[name='${name}'] input`, options));
@@ -323,7 +323,7 @@ export async function editSelectMenu(
     selector,
     { value, index } = /** @type {EditSelectMenuParams} */ ({}),
 ) {
-    async function selectItem(value) {
+    async function selectItem(/** @type {string} */ value) {
         const elementToSelect = queryFirst(`.o_select_menu_item:contains(${value})`);
         if (elementToSelect) {
             await click(elementToSelect);
