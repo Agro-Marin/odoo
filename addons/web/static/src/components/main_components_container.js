@@ -1,18 +1,38 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/main_components_container - Renders all dynamically registered main_components from the registry */
+/** @module @web/components/main_components_container */
 
 import { Component, xml } from "@odoo/owl";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { localization } from "@web/core/l10n/localization";
 import { registry, useRegistry } from "@web/core/registry";
 import { ErrorHandler } from "@web/core/utils/components";
 const mainComponents = registry.category("main_components");
 
 mainComponents.addValidation({
-    Component: { validate: (c) => c.prototype instanceof Component },
+    Component: {
+        validate: (/** @type {import("@odoo/owl").ComponentConstructor} */ c) =>
+            c.prototype instanceof Component,
+    },
     props: { type: Object, optional: true },
 });
+
+/** @type {WeakMap<import("@odoo/owl").ComponentConstructor, import("registries").MainComponentsRegistryItemShape>} */
+const ENTRIES = new WeakMap();
+
+/**
+ * @param {import("@odoo/owl").ComponentConstructor} Component
+ * @returns {import("registries").MainComponentsRegistryItemShape}
+ */
+export function mainComponentEntry(Component) {
+    let entry = ENTRIES.get(Component);
+    if (!entry) {
+        entry = { Component };
+        ENTRIES.set(Component, entry);
+    }
+    return entry;
+}
 
 export class MainComponentsContainer extends Component {
     static components = { ErrorHandler };
@@ -27,21 +47,27 @@ export class MainComponentsContainer extends Component {
     </div>
     `;
 
+    /** @type {ReturnType<typeof useRegistry>} */
+    Components;
+
     setup() {
         this.Components = useRegistry(mainComponents);
         this.isRTL = localization.direction === "rtl";
     }
 
     /**
-     * Remove the faulty component from the registry snapshot and re-render.
-     * @param {Error} error - the error thrown by the child component
-     * @param {[string, {Component: typeof Component, props?: Object}]} C - registry entry
+     * @param {Error} error
+     * @param {[string, {Component: typeof Component, props?: Object}]} C
      */
     handleComponentError(error, C) {
-        this.Components.entries.splice(this.Components.entries.indexOf(C), 1);
-        this.render();
-        Promise.resolve().then(() => {
-            throw error;
-        });
+        const index = this.Components.entries.indexOf(C);
+        if (index !== -1) {
+            this.Components.entries.splice(index, 1);
+            this.render();
+        }
+        if (mainComponents.contains(C[0])) {
+            mainComponents.remove(C[0]);
+        }
+        reportUncaught(error);
     }
 }

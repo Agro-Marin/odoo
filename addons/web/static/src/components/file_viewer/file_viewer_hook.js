@@ -1,16 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_viewer/file_viewer_hook - Factory and hook for opening/closing a file viewer as a main component */
+/** @module @web/components/file_viewer/file_viewer_hook */
 
 import { onWillDestroy } from "@odoo/owl";
 import { registry } from "@web/core/registry";
+import { uniqueId } from "@web/core/utils/functions";
 
 import { FileViewer } from "./file_viewer.js";
-let id = 1;
 
 export function createFileViewer() {
-    const fileViewerId = `web.file_viewer${id++}`;
+    const fileViewerId = uniqueId("web.file_viewer");
     /**
      * @param {{ name: string, isViewable: boolean, [key: string]: any }} file
      * @param {{ name: string, isViewable: boolean, [key: string]: any }[]} files

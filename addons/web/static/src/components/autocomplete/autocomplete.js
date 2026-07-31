@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/autocomplete/autocomplete - Generic autocomplete dropdown with multi-source results, keyboard navigation, and debounced search */
+/** @module @web/components/autocomplete/autocomplete */
 
 import {
     Component,
@@ -12,10 +12,13 @@ import {
     useState,
 } from "@odoo/owl";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { usePosition } from "@web/core/position/position_hook";
 import { Deferred } from "@web/core/utils/concurrency";
 import { mergeClasses } from "@web/core/utils/dom/classname";
+import { useClickAway } from "@web/core/utils/dom/click_away";
 import { isScrollableY, scrollTo } from "@web/core/utils/dom/scrolling";
+import { uniqueId } from "@web/core/utils/functions";
 import { useAutofocus, useForwardRefToParent } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
 
@@ -79,6 +82,7 @@ export class AutoComplete extends Component {
     }
 
     setup() {
+        this.autoCompleteId = uniqueId("autocomplete_");
         this.nextSourceId = 0;
         this.nextOptionId = 0;
         this._loadId = 0;
@@ -102,25 +106,33 @@ export class AutoComplete extends Component {
         }
         this.root = useRef("root");
 
-        this.debouncedProcessInput = useDebounced(async () => {
-            const currentPromise = this.pendingPromise;
-            this.pendingPromise = null;
-            this.props.onInput({
-                inputValue: this.inputRef.el.value,
-            });
-            try {
-                await this.open(true);
-                currentPromise.resolve();
-            } catch (error) {
-                currentPromise.reject(error);
-            } finally {
-                if (currentPromise === this.loadingPromise) {
-                    this.loadingPromise = null;
+        this.debouncedProcessInput = useDebounced(
+            async () => {
+                const currentPromise = this.pendingPromise;
+                this.pendingPromise = null;
+                this.props.onInput({
+                    inputValue: this.inputRef.el.value,
+                });
+                try {
+                    await this.open(true);
+                    currentPromise.resolve();
+                } catch (error) {
+                    currentPromise.reject(error);
+                } finally {
+                    if (currentPromise === this.loadingPromise) {
+                        this.loadingPromise = null;
+                    }
                 }
-            }
-        }, this.timeout);
+            },
+            () => this.timeout,
+        );
 
-        this._externalClose = (/** @type {Event} */ ev) => this.externalClose(ev);
+        useClickAway((node) => this.externalClose(node), {
+            getAnchor: () => this.root.el,
+            getContentEl: () => this.listRef.el,
+        });
+        this._onScrollAway = (/** @type {Event} */ ev) =>
+            this.externalClose(/** @type {Node} */ (ev.target));
         this._onMouseMove = () => {
             this._mouseMoveCleanup = null;
             this.mouseSelectionActive = true;
@@ -157,13 +169,13 @@ export class AutoComplete extends Component {
         return this.inputRef.el;
     }
 
-    /**
-     * Loaded sources are reactive state: a source that resolves late (or fails)
-     * repaints by mutating its own `options` / `isLoading`, instead of relying
-     * on an unrelated `state` write happening to land in the same tick.
-     */
     get sources() {
         return this.state.sources;
+    }
+
+    /** @type {string} */
+    get idPrefix() {
+        return this.props.id || this.autoCompleteId;
     }
 
     get activeSourceOptionId() {
@@ -172,7 +184,7 @@ export class AutoComplete extends Component {
         }
         const [sourceIndex, optionIndex] = this.state.activeSourceOption;
         const source = this.sources[sourceIndex];
-        return `${this.props.id || "autocomplete"}_${sourceIndex}_${
+        return `${this.idPrefix}_${sourceIndex}_${
             source.isLoading ? "loading" : optionIndex
         }`;
     }
@@ -214,6 +226,10 @@ export class AutoComplete extends Component {
     close() {
         this.state.open = false;
         this.state.activeSourceOption = null;
+        // Tab only commits a suggestion the user actually browsed to. That is a
+        // fact about the open dropdown, so it dies with it.
+        this.state.navigationRev = 0;
+        this._loadId++;
         this.debouncedProcessInput.cancel();
         this.pendingPromise?.resolve();
         this.pendingPromise = null;
@@ -232,8 +248,7 @@ export class AutoComplete extends Component {
                 target.removeEventListener(event, handler, capture),
             );
         };
-        add(window, "scroll", this._externalClose, true);
-        add(window, "pointerdown", this._externalClose);
+        add(window, "scroll", this._onScrollAway, true);
         this._armMouseMove();
     }
 
@@ -246,7 +261,6 @@ export class AutoComplete extends Component {
         this._mouseMoveCleanup = null;
     }
 
-    /** Arm the one-shot mousemove latch: first move sets mouseSelectionActive then self-removes. */
     _armMouseMove() {
         if (this._mouseMoveCleanup) {
             return;
@@ -261,7 +275,6 @@ export class AutoComplete extends Component {
             });
     }
 
-    /** Turn off mouse hover selection and re-arm the mousemove latch. */
     _resetMouseSelection() {
         this.mouseSelectionActive = false;
         if (this.isOpened) {
@@ -276,21 +289,11 @@ export class AutoComplete extends Component {
                 this.props.onCancel();
             }
         }
-        // Escaping (or clicking away) ends the edit session, like blurring and
-        // selecting already do. Leaving `inEdition` set made `onWillUpdateProps`
-        // treat every later `value` prop as "the user is still typing" and
-        // refuse to sync it, so the input kept showing abandoned text forever.
         this.inEdition = false;
         this.close();
     }
 
     /**
-     * Never rejects: a source that fails is reported once (see
-     * {@link reportSourceError}) and then treated as having returned no
-     * options, so one broken source cannot strand the whole dropdown on a
-     * spinner nor turn the fire-and-forget `open()` call sites into unhandled
-     * rejections.
-     *
      * @param {boolean} useInput
      */
     async loadSources(useInput) {
@@ -342,17 +345,10 @@ export class AutoComplete extends Component {
     }
 
     /**
-     * Surfaces a source failure to the global error service without coupling it
-     * to whichever call site happened to trigger the load. A failing search is
-     * a real error and must stay visible; it just must not also break the
-     * dropdown.
-     *
      * @param {any} error
      */
     reportSourceError(error) {
-        Promise.resolve().then(() => {
-            throw error;
-        });
+        reportUncaught(error);
     }
     get displayOptions() {
         return !this.props.dropdown || (this.isOpened && this.hasOptions);
@@ -406,57 +402,59 @@ export class AutoComplete extends Component {
         this.close();
     }
 
-    navigate(direction) {
-        this._resetMouseSelection();
-        let step = Math.sign(direction);
-        if (!step) {
-            this.state.activeSourceOption = null;
-            step = 1;
-        } else {
-            this.state.navigationRev++;
-        }
-
-        let maxIterations = this.sources.reduce((n, s) => n + s.options.length, 0) + 1;
-        do {
-            if (this.state.activeSourceOption) {
-                let [sourceIndex, optionIndex] = this.state.activeSourceOption;
-                let source = this.sources[sourceIndex];
-
-                optionIndex += step;
-                if (0 > optionIndex || optionIndex >= source.options.length) {
-                    sourceIndex += step;
-                    source = this.sources[sourceIndex];
-
-                    while (source && (source.isLoading || !source.options.length)) {
-                        sourceIndex += step;
-                        source = this.sources[sourceIndex];
-                    }
-
-                    if (source) {
-                        optionIndex = step < 0 ? source.options.length - 1 : 0;
-                    }
-                }
-
-                this.state.activeSourceOption = source
-                    ? [sourceIndex, optionIndex]
-                    : null;
-            } else {
-                let sourceIndex = step < 0 ? this.sources.length - 1 : 0;
-                let source = this.sources[sourceIndex];
-
-                while (source && (source.isLoading || !source.options.length)) {
-                    sourceIndex += step;
-                    source = this.sources[sourceIndex];
-                }
-
-                if (source) {
-                    const optionIndex = step < 0 ? source.options.length - 1 : 0;
-                    if (optionIndex < source.options.length) {
-                        this.state.activeSourceOption = [sourceIndex, optionIndex];
-                    }
+    /**
+     * Every option the user can actually land on, in display order. Sources
+     * still loading contribute nothing: they have no options yet.
+     *
+     * @returns {Array<[number, number]>}
+     */
+    get selectablePositions() {
+        const positions = [];
+        for (const [sourceIndex, source] of this.sources.entries()) {
+            if (source.isLoading) {
+                continue;
+            }
+            for (const [optionIndex, option] of source.options.entries()) {
+                if (!option.unselectable) {
+                    positions.push([sourceIndex, optionIndex]);
                 }
             }
-        } while (this.activeOption?.unselectable && --maxIterations > 0);
+        }
+        return positions;
+    }
+
+    /**
+     * Moves the active option one selectable step, without wrapping: stepping
+     * off either end clears the selection, and the next step in the same
+     * direction re-enters from the opposite end. A direction of 0 resets to the
+     * first selectable option, which is what a fresh source load wants.
+     *
+     * @param {number} direction
+     */
+    navigate(direction) {
+        this._resetMouseSelection();
+        const positions = this.selectablePositions;
+        const step = Math.sign(direction);
+        if (!step) {
+            this.state.activeSourceOption = positions[0] ?? null;
+            return;
+        }
+        this.state.navigationRev++;
+
+        const active = this.state.activeSourceOption;
+        const activeIndex = active
+            ? positions.findIndex(
+                  ([sourceIndex, optionIndex]) =>
+                      sourceIndex === active[0] && optionIndex === active[1],
+              )
+            : -1;
+        let nextIndex;
+        if (activeIndex === -1) {
+            nextIndex = step > 0 ? 0 : positions.length - 1;
+        } else {
+            nextIndex = activeIndex + step;
+        }
+        this.state.activeSourceOption = positions[nextIndex] ?? null;
     }
 
     onInputBlur() {
@@ -464,20 +462,10 @@ export class AutoComplete extends Component {
             this.ignoreBlur = false;
             return;
         }
-        if (
-            this.props.selectOnBlur &&
-            !this.isOptionSelected &&
-            !this.loadingPromise &&
-            this.sources[0]
-        ) {
-            const firstOption = this.sources[0].options[0];
-            if (firstOption) {
-                this.state.activeSourceOption = firstOption.unselectable
-                    ? null
-                    : [0, 0];
-                if (this.activeOption) {
-                    this.selectOption(this.activeOption);
-                }
+        if (this.props.selectOnBlur && !this.isOptionSelected && !this.loadingPromise) {
+            this.state.activeSourceOption = this.selectablePositions[0] ?? null;
+            if (this.activeOption) {
+                this.selectOption(this.activeOption);
             }
         }
         this.props.onBlur({
@@ -547,9 +535,7 @@ export class AutoComplete extends Component {
 
             try {
                 await this.loadingPromise;
-            } catch {
-                // Sources failed to load: proceed as if there were no options.
-            }
+            } catch {}
         }
 
         switch (hotkey) {
@@ -626,9 +612,7 @@ export class AutoComplete extends Component {
         if (staleOptions) {
             try {
                 await this.loadingPromise;
-            } catch {
-                // Sources failed to load: proceed as if there were no options.
-            }
+            } catch {}
             this.inputRef.el.focus();
             return;
         }
@@ -643,8 +627,9 @@ export class AutoComplete extends Component {
         this.ignoreBlur = true;
     }
 
-    externalClose(/** @type {Event} */ ev) {
-        if (this.isOpened && !this.root.el.contains(/** @type {Node} */ (ev.target))) {
+    /** @param {Node} [node] */
+    externalClose(node) {
+        if (this.isOpened && !this.root.el?.contains(node ?? null)) {
             this.cancel();
         }
     }

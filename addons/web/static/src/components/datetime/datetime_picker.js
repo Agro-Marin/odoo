@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/datetime/datetime_picker - Calendar grid date/time picker with range selection and time input */
+/** @module @web/components/datetime/datetime_picker */
 
 import { Component, onWillRender, onWillUpdateProps, useState } from "@odoo/owl";
 import { TimePicker } from "@web/components/time_picker/time_picker";
@@ -27,13 +27,8 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
  * @property {string} label
  * @property {DateRange} range
  * @property {string} extraClass
- *
  * @typedef {"today" | NullableDateTime} DateLimit
- *
  * @typedef {[DateTime, DateTime]} DateRange
- *
- * @typedef {any} DateTime luxon DateTime instance
- *
  * @typedef DateTimePickerProps
  * @property {number} [focusedDateIndex=0]
  * @property {boolean} [showWeekNumbers=true]
@@ -46,26 +41,21 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
  * @property {(value: DateTime | DateRange, unit: "date" | "time") => any} [onSelect]
  * @property {() => any} [onToggleRange]
  * @property {boolean} [range]
- * @property {number} [rounding=5] the rounding in minutes, pass 0 to show seconds, pass 1 to avoid
- *  rounding minutes without displaying seconds.
+ * @property {number} [rounding=5]
  * @property {() => boolean} [showRangeToggler]
  * @property {{ buttons?: any }} [slots]
  * @property {"date" | "datetime"} [type]
  * @property {NullableDateTime | NullableDateRange} [value]
  * @property {(date: DateTime) => boolean} [isDateValid]
  * @property {(date: DateTime) => string} [dayCellClass]
- *
  * @typedef {DateItem | MonthItem} Item
- *
  * @typedef MonthItem
  * @property {[string, string][]} daysOfWeek
  * @property {string} id
  * @property {number} number
  * @property {WeekItem[]} weeks
- *
  * @typedef {import("@web/core/l10n/dates").NullableDateTime} NullableDateTime
  * @typedef {import("@web/core/l10n/dates").NullableDateRange} NullableDateRange
- *
  * @typedef PrecisionInfo
  * @property {(date: DateTime, params?: Partial<DateTimePickerProps>) => string} getTitle
  * @property {(date: DateTime, params: Partial<DateTimePickerProps>) => Item[]} getItems
@@ -73,11 +63,8 @@ import { ensureArray } from "@web/core/utils/collections/arrays";
  * @property {string} nextTitle
  * @property {string} prevTitle
  * @property {Record<string, number>} step
- *
  * @typedef {"days" | "months" | "years" | "decades"} PrecisionLevel
- *
  * @typedef {"short" | "narrow"} DaysOfWeekFormat
- *
  * @typedef WeekItem
  * @property {DateItem[]} days
  * @property {number} number
@@ -185,7 +172,8 @@ const PRECISION_LEVELS = new Map()
                     const dayItem = toDateItem({
                         isOutOfRange: !isInRange(day, monthRange),
                         isValid:
-                            isInRange(range, [minDate, maxDate]) && isDateValid?.(day),
+                            isInRange(range, [minDate, maxDate]) &&
+                            (isDateValid?.(day) ?? true),
                         label: "day",
                         range,
                         extraClass: dayCellClass?.(day) || "",
@@ -420,8 +408,9 @@ export class DateTimePicker extends Component {
         }
 
         if (this.maxDate < this.minDate) {
-            throw new Error(
-                `DateTimePicker error: given "maxDate" comes before "minDate".`,
+            console.error(
+                `DateTimePicker: given "maxDate" (${this.maxDate.toISO()}) comes before ` +
+                    `"minDate" (${this.minDate.toISO()}); no date can be selected.`,
             );
         }
 
@@ -437,15 +426,6 @@ export class DateTimePicker extends Component {
         const precision = this.activePrecisionLevel;
         const effShowWeekNumbers = showWeekNumbers ?? !range;
 
-        // The grid is cached across renders so hovering a day cell — which only
-        // moves `state.hoveredDate` — does not rebuild the whole 6x7 luxon grid.
-        // That is only sound while `getItems` is a pure function of the key
-        // below. `isDateValid` / `dayCellClass` break that: they are arbitrary
-        // caller closures that may read state the key cannot see, so keying on
-        // their IDENTITY froze the grid at whatever they returned the first
-        // time (a bound method over late-arriving data kept rendering the
-        // pre-arrival validity forever). Impure inputs opt out of the cache
-        // instead of silently invalidating it.
         const isPureGrid = !isDateValid && !dayCellClass;
         const gridKey = [
             focusDate?.ts,
@@ -518,16 +498,6 @@ export class DateTimePicker extends Component {
     }
 
     /**
-     * Returns flags indicating which ranges the current date item belongs to.
-     * Ranges differ by value mode (range vs. single date) to simplify CSS selectors.
-     * - Selected Range:
-     *      > range: current values with hovered date applied
-     *      > single date: just the hovered date
-     * - Highlighted Range:
-     *      > range: union of selection range and current values
-     *      > single date: just the current value
-     * - Current Range (range only):
-     *      > range: current start date or current end date.
      * @param {DateItem} item
      */
     getActiveRangeInfo({ range }) {
@@ -541,7 +511,7 @@ export class DateTimePicker extends Component {
         if (this.props.range) {
             if (result.isSelected) {
                 const [selectStart, selectEnd] = this.selectedRange.toSorted(
-                    (a, b) => (a?.ts ?? -Infinity) - (b?.ts ?? -Infinity),
+                    (a, b) => (a ? a.ts : -Infinity) - (b ? b.ts : -Infinity),
                 );
                 result.isSelectStart = !selectStart || isInRange(selectStart, range);
                 result.isSelectEnd = !selectEnd || isInRange(selectEnd, range);
@@ -558,17 +528,13 @@ export class DateTimePicker extends Component {
      */
     getTimeValues(props) {
         const timeValues = this.values.map((val, index) => {
-            // An end with no value defaults to one hour after the START, not
-            // one hour after now: `val` is the (falsy) end itself, so falling
-            // back to `DateTime.local()` here pre-filled the end of a range
-            // from the wall clock, unrelated to the date the user just picked.
             const isImplicitEnd = index === 1 && !this.values[1];
             const reference =
                 val || (isImplicitEnd && this.values[0]) || DateTime.local();
             return new Time({
                 hour: isImplicitEnd ? Math.min(reference.hour + 1, 23) : reference.hour,
-                minute: val?.minute ?? 0,
-                second: val?.second ?? 0,
+                minute: val ? val.minute : 0,
+                second: val ? val.second : 0,
             });
         });
 
@@ -589,8 +555,6 @@ export class DateTimePicker extends Component {
     }
 
     /**
-     * Goes to the next panel (e.g. next month if precision is "days").
-     * If an event is given it will be prevented.
      * @param {PointerEvent} ev
      */
     next(ev) {
@@ -600,8 +564,6 @@ export class DateTimePicker extends Component {
     }
 
     /**
-     * Goes to the previous panel (e.g. previous month if precision is "days").
-     * If an event is given it will be prevented.
      * @param {PointerEvent} ev
      */
     previous(ev) {
@@ -649,7 +611,6 @@ export class DateTimePicker extends Component {
     }
 
     /**
-     * Returns whether the zoom has occurred
      * @param {DateTime} date
      */
     zoomIn(date) {
@@ -662,9 +623,6 @@ export class DateTimePicker extends Component {
         return false;
     }
 
-    /**
-     * Returns whether the zoom has occurred
-     */
     zoomOut() {
         const index = this.allowedPrecisionLevels.indexOf(this.state.precision) + 1;
         if (index in this.allowedPrecisionLevels) {
@@ -675,9 +633,6 @@ export class DateTimePicker extends Component {
     }
 
     /**
-     * Happens when a date item is selected:
-     * - first tries to zoom in on the item
-     * - if could not zoom in: date is considered as final value and triggers a hard select
      * @param {DateItem} dateItem
      */
     zoomOrSelect(dateItem) {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/expression_editor_dialog/expression_editor_dialog - Modal dialog for editing Python expressions with validation preview */
+/** @module @web/components/expression_editor_dialog/expression_editor_dialog */
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { ExpressionEditor } from "@web/components/expression_editor/expression_editor";
@@ -21,6 +21,13 @@ export class ExpressionEditorDialog extends Component {
         expression: String,
         onConfirm: Function,
     };
+
+    /** @type {import("@odoo/owl").Ref} */
+    confirmButtonRef;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {{ expression: any }} */
+    state;
 
     setup() {
         this.notification = useService("notification");

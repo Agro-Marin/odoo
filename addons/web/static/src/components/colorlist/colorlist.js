@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/colorlist/colorlist - Expandable color swatch picker for selecting from predefined Odoo color indices */
+/** @module @web/components/colorlist/colorlist */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { useClickAway } from "@web/core/utils/dom/click_away";
 export class ColorList extends Component {
     static COLORS = [
         _t("No color"),
@@ -34,26 +35,18 @@ export class ColorList extends Component {
         selectedColor: { type: Number, optional: true },
     };
 
+    /** @type {import("@odoo/owl").Ref} */
+    colorlistRef;
+    /** @type {{ isExpanded: any }} */
+    state;
+
     setup() {
         this.colorlistRef = useRef("colorlist");
         this.state = useState({ isExpanded: this.props.isExpanded });
-        this.onOutsideClick = this.onOutsideClick.bind(this);
-        useEffect(
-            (isExpanded) => {
-                if (isExpanded) {
-                    window.addEventListener(
-                        "click",
-                        /** @type {EventListener} */ (this.onOutsideClick),
-                    );
-                    return () =>
-                        window.removeEventListener(
-                            "click",
-                            /** @type {EventListener} */ (this.onOutsideClick),
-                        );
-                }
-            },
-            () => [this.state.isExpanded],
-        );
+        useClickAway((node) => this.onOutsideClick(node), {
+            getAnchor: () => this.colorlistRef.el,
+            getContentEl: () => this.colorlistRef.el,
+        });
         useEffect(
             (isExpanded) => {
                 if (isExpanded) {
@@ -68,21 +61,25 @@ export class ColorList extends Component {
     get colors() {
         return /** @type {any} */ (this.constructor).COLORS;
     }
+    /** @param {number} id */
     onColorSelected(id) {
         this.props.onColorSelected(id);
         if (!this.props.forceExpanded) {
             this.state.isExpanded = false;
         }
     }
-    onOutsideClick(/** @type {MouseEvent} */ ev) {
+    /** @param {Node} [node] */
+    onOutsideClick(node) {
         if (
-            this.colorlistRef.el.contains(/** @type {Node} */ (ev.target)) ||
-            this.props.forceExpanded
+            !this.state.isExpanded ||
+            this.props.forceExpanded ||
+            this.colorlistRef.el?.contains(node ?? null)
         ) {
             return;
         }
         this.state.isExpanded = false;
     }
+    /** @param {MouseEvent} ev */
     onToggle(ev) {
         if (this.props.canToggle) {
             ev.preventDefault();

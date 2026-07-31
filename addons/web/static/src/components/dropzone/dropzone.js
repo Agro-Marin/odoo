@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropzone/dropzone - Visual drop target overlay that tracks drag enter/leave and fires onDrop */
+/** @module @web/components/dropzone/dropzone */
 
 import { Component, useEffect, useExternalListener, useRef, useState } from "@odoo/owl";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
@@ -14,6 +14,9 @@ export class Dropzone extends Component {
         slots: { type: Object, optional: true },
     };
     static template = "web.Dropzone";
+
+    /** @type {import("@odoo/owl").Ref} */
+    root;
 
     setup() {
         super.setup();

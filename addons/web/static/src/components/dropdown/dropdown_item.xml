@@ -8,7 +8,7 @@
       t-att-class="props.class"
       t-on-click.stop="onClick"
       t-on-mouseenter="() => this.dropdownControl.closeChildren()"
-      role="menuitem"
+      t-att-role="props.role"
       tabindex="0"
       t-att="props.attrs"
     >
@@ -17,8 +17,7 @@
   </t>
 
   <t t-name="web.CheckboxItem" t-inherit="web.DropdownItem" t-inherit-mode="primary">
-    <xpath expr="//t[@role='menuitem']" position="attributes">
-      <attribute name="role">menuitemcheckbox</attribute>
+    <xpath expr="//t[@t-att-role]" position="attributes">
       <attribute name="t-att-aria-checked">props.checked ? 'true' : 'false'</attribute>
     </xpath>
   </t>

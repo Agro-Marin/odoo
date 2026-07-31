@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/transition - CSS transition helpers for mount/unmount animations with configurable class names */
+/** @module @web/components/transition */
 
 import {
     Component,
@@ -18,25 +18,13 @@ export const config = {
     disabled: false,
 };
 /**
- * Creates a transition to be used within the current component. Usage:
- *  --- in JS:
- *  this.transition = useTransition({ name: "myClass" });
- *  --- in XML:
- *  <div t-if="transition.shouldMount" t-att-class="transition.className"/>
- *
  * @param {Object} options
- * @param {string} options.name the prefix to use for the transition classes
- * @param {boolean} [options.initialVisibility=true] whether to start the
- *  transition in the on or off state
- * @param {boolean} [options.immediate=false] (only relevant when initialVisibility
- *  is true) set to true to animate initially. By default, there's no animation
- *  if the element is initially visible.
- * @param {number} [options.leaveDuration] the leaveDuration of the transition
- * @param {Function} [options.onLeave] a function that will be called when the
- *  element will be removed in the next render cycle
- * @returns {{ shouldMount: boolean, className: string, stage: string }} an object
- *  containing fields that indicate whether an element on which the transition is
- *  applied should be mounted and the class string that should be put on it
+ * @param {string} options.name
+ * @param {boolean} [options.initialVisibility=true]
+ * @param {boolean} [options.immediate=false]
+ * @param {number} [options.leaveDuration]
+ * @param {Function} [options.onLeave]
+ * @returns {{ shouldMount: boolean, className: string, stage: string }}
  */
 export function useTransition({
     name,
@@ -123,10 +111,6 @@ export function useTransition({
 }
 
 /**
- * HOC version of useTransition for its default slot. Unlike the hook, it can
- * be spawned during render (e.g. in a t-foreach) without knowing at setup
- * time how many transitions are needed.
- *
  * @see useTransition
  */
 export class Transition extends Component {
@@ -139,6 +123,9 @@ export class Transition extends Component {
         onLeave: { type: Function, optional: true },
         slots: Object,
     };
+
+    /** @type {ReturnType<typeof useTransition>} */
+    transition;
 
     setup() {
         const { immediate, visible, leaveDuration, name, onLeave } = this.props;

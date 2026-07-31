@@ -1,17 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor - Recursive tree editor component for visually building domain and expression conditions */
+/** @module @web/components/tree_editor/tree_editor */
 
-/** Local aliases widened to `any` because the canonical types are
- * discriminated unions narrowed at runtime via `.type` checks; TS can't
- * track narrowing through component method boundaries. */
 /** @typedef {any} Condition */
 /** @typedef {any} Connector */
 /** @typedef {any} Tree */
 /** @typedef {any} Value */
-/** @import { ValueEditorInfo } from "@web/components/tree_editor/tree_editor_value_editors" */
-/** @import { OperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor" */
+/**
+ * @import { ValueEditorInfo } from "@web/components/tree_editor/tree_editor_value_editors"
+ */
+/**
+ * @import { OperatorEditorInfo } from "@web/components/tree_editor/tree_editor_operator_editor"
+ */
 
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -26,6 +27,13 @@ import { getResModel } from "@web/core/tree/utils";
 import { areEquivalentTrees } from "@web/core/tree/virtual_operators";
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { useService } from "@web/core/utils/hooks";
+
+/**
+ * @type {WeakMap<object, string>}
+ */
+const NODE_KEYS = new WeakMap();
+let nextNodeKey = 0;
+
 export class TreeEditor extends Component {
     static template = "web.TreeEditor";
     static components = {
@@ -56,7 +64,6 @@ export class TreeEditor extends Component {
         isSubTree: false,
     };
 
-    /** Initializes services and lifecycle hooks for tree processing. */
     setup() {
         this.isTree = isTree;
         this.fieldService = useService("field");
@@ -66,7 +73,6 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Clones the incoming tree, normalizes it to a connector, and prepares editor info.
      * @param {Object} props
      */
     async onPropsUpdated(props) {
@@ -89,7 +95,6 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Loads field definitions and builds getFieldDef / condition description helpers.
      * @param {Object} props
      */
     async prepareInfo(props) {
@@ -111,7 +116,20 @@ export class TreeEditor extends Component {
         }
     }
 
-    /** @returns {string} CSS class based on readonly mode */
+    /**
+     * @param {Tree} node
+     * @returns {string}
+     */
+    getNodeKey(node) {
+        let key = NODE_KEYS.get(node);
+        if (key === undefined) {
+            key = `node_${++nextNodeKey}`;
+            NODE_KEYS.set(node, key);
+        }
+        return key;
+    }
+
+    /** @returns {string} */
     get className() {
         return `${this.props.readonly ? "o_read_mode" : "o_edit_mode"}`;
     }
@@ -123,13 +141,11 @@ export class TreeEditor extends Component {
             : !!this.env.debug;
     }
 
-    /** Propagates the current tree state to the parent via the update prop. */
     notifyChanges() {
         this.props.update(this.tree);
     }
 
     /**
-     * Toggles a connector between "&" and "|", resetting negate.
      * @param {Connector} node
      */
     _updateConnector(node) {
@@ -166,9 +182,8 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Creates a new condition node, cloning from a reference or the default.
      * @param {Connector} parent
-     * @param {Condition} [condition] - reference condition to clone
+     * @param {Condition} [condition]
      * @returns {Tree}
      */
     makeCondition(parent, condition) {
@@ -178,14 +193,11 @@ export class TreeEditor extends Component {
 
     /**
      * @param {Connector} parent
-     * @param {Tree} [node] - sibling to insert after; appends if omitted
+     * @param {Tree} [node]
      */
     _addNewCondition(parent, node) {
         const index = node ? parent.children.indexOf(node) : -1;
         if (index === -1) {
-            // No sibling given, or one that is not (or no longer) a child of
-            // `parent`: append. Splicing at `indexOf(...) + 1` would silently
-            // insert at position 0 for a stale node.
             parent.children.push(this.makeCondition(parent, node));
         } else {
             parent.children.splice(index + 1, 0, this.makeCondition(parent, node));
@@ -201,7 +213,6 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Inserts a new sub-connector (with opposite type) after the given node.
      * @param {Connector} parent
      * @param {Tree} node
      */
@@ -227,8 +238,7 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Removes a node from its parent; recursively removes empty parents.
-     * @param {Connector[]} ancestors - parent chain (innermost last)
+     * @param {Connector[]} ancestors
      * @param {Tree} node
      */
     _delete(ancestors, node) {
@@ -238,8 +248,6 @@ export class TreeEditor extends Component {
         const parent = ancestors.at(-1);
         const index = parent.children.indexOf(node);
         if (index === -1) {
-            // `splice(-1, 1)` would drop the LAST child instead of the one
-            // asked for. Nothing to remove is the only safe reading here.
             return;
         }
         parent.children.splice(index, 1);
@@ -260,7 +268,7 @@ export class TreeEditor extends Component {
 
     /**
      * @param {Condition} node
-     * @returns {string|null} related model name for relational fields
+     * @returns {string|null}
      */
     getResModel(node) {
         const fieldDef = this.getFieldDef(node.path);
@@ -268,7 +276,7 @@ export class TreeEditor extends Component {
         return resModel;
     }
 
-    /** @returns {Object} path editor info for the current model */
+    /** @returns {Object} */
     getPathEditorInfo() {
         return this.props.getPathEditorInfo(this.props.resModel, this.defaultCondition);
     }
@@ -292,7 +300,6 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Updates a condition's path and resets its operator/value to defaults.
      * @param {Condition} node
      * @param {string} path
      */
@@ -354,13 +361,16 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Applies an operation to a node, re-renders if tree is equivalent, and notifies parent.
      * @param {Tree} node
      * @param {() => void|Promise<void>} operation
      */
     async updateNode(node, operation) {
         const previousNode = cloneTree(node);
         await operation();
+        // An edit that leaves the tree semantically equivalent (toggling a
+        // redundant negation, retyping the same value) serialises to the domain
+        // the parent already holds, so notifyChanges yields no new props and no
+        // re-render. The display still changed, so force one here.
         if (areEquivalentTrees(node, previousNode)) {
             await this.prepareInfo(this.props);
             this.render();
@@ -369,9 +379,8 @@ export class TreeEditor extends Component {
     }
 
     /**
-     * Toggles hover highlight on the closest tree editor node element.
      * @param {HTMLElement} target
-     * @param {boolean} force - whether to add or remove the highlight
+     * @param {boolean} force
      */
     highlightNode(target, force) {
         target

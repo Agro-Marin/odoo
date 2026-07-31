@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/color_picker/tabs/color_picker_custom_tab - Color picker tab for custom color input with gradient support */
+/** @module @web/components/color_picker/tabs/color_picker_custom_tab */
 
 import { Component } from "@odoo/owl";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
@@ -39,12 +39,11 @@ export class ColorPickerCustomTab extends Component {
     }
 
     /**
-     * Check whether a color is valid for the custom palette (non-transparent, non-gradient).
-     * @param {string} color - hex color string
+     * @param {string} color
      * @returns {boolean}
      */
     isValidCustomColor(color) {
-        return color && color.slice(7, 9) !== "00" && !isColorGradient(color);
+        return Boolean(color) && color.slice(7, 9) !== "00" && !isColorGradient(color);
     }
 }
 

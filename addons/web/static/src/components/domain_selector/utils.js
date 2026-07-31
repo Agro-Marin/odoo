@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/domain_selector/utils - Default condition and domain builders for the domain selector */
+/** @module @web/components/domain_selector/utils */
 
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 import { getDefaultValue } from "@web/components/tree_editor/tree_editor_value_editors";
@@ -10,8 +10,8 @@ import { domainFromTree } from "@web/core/tree/domain_from_tree";
 import { getDefaultPath } from "@web/core/tree/utils";
 import { useService } from "@web/core/utils/hooks";
 /**
- * @param {Record<string, Object>} fieldDefs - map of field name to field definition
- * @returns {Object} a condition node with the default path, operator, and value
+ * @param {Record<string, Record<string, any>>} fieldDefs
+ * @returns {import("@web/core/tree/condition_tree").Condition}
  */
 export function getDefaultCondition(fieldDefs) {
     const defaultPath = getDefaultPath(fieldDefs);
@@ -22,15 +22,15 @@ export function getDefaultCondition(fieldDefs) {
 }
 
 /**
- * @param {Record<string, Object>} fieldDefs - map of field name to field definition
- * @returns {string} serialized domain string for the default condition
+ * @param {Record<string, Record<string, any>>} fieldDefs
+ * @returns {string}
  */
 export function getDefaultDomain(fieldDefs) {
     return domainFromTree(getDefaultCondition(fieldDefs));
 }
 
 /**
- * @returns {(resModel: string) => Promise<string>} async function that loads fields and returns the default domain
+ * @returns {(resModel: string) => Promise<string>}
  */
 export function useGetDefaultLeafDomain() {
     const fieldService = useService("field");

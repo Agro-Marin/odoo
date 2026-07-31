@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/color_picker/custom_color_picker/custom_color_picker - HSL/RGB color picker with canvas gradient, sliders, and hex input */
+/** @module @web/components/color_picker/custom_color_picker/custom_color_picker */
 
 import {
     Component,
@@ -21,7 +21,7 @@ import {
 } from "@web/core/utils/format/colors";
 import { clamp } from "@web/core/utils/format/numbers";
 import { uniqueId } from "@web/core/utils/functions";
-import { debounce, useThrottleForAnimation } from "@web/core/utils/timing";
+import { useDebounced, useThrottleForAnimation } from "@web/core/utils/timing";
 
 const ARROW_KEYS = ["arrowup", "arrowdown", "arrowleft", "arrowright"];
 const SLIDER_KEYS = [...ARROW_KEYS, "pageup", "pagedown", "home", "end"];
@@ -75,11 +75,11 @@ export class CustomColorPicker extends Component {
         this.shouldSetSelectedColor = false;
         this.lastFocusedSliderEl = undefined;
         this.selectedColor = this.props.selectedColor || this.defaultColor;
-        this.debouncedOnChangeInputs = debounce(
-            this.onChangeInputs.bind(this),
-            10,
-            true,
-        );
+        // Enter in a component input fires both keydown and change; the leading
+        // debounce collapses them into one apply.
+        this.debouncedOnChangeInputs = useDebounced(this.onChangeInputs, 10, {
+            immediate: true,
+        });
 
         this.elRef = useRef("el");
         this.hexInputRef = useRef("hexInput");
@@ -90,12 +90,6 @@ export class CustomColorPicker extends Component {
         this.opacitySliderRef = useRef("opacitySlider");
         this.opacitySliderPointerRef = useRef("opacitySliderPointer");
 
-        // Dragging a slider must keep tracking the pointer even once it leaves
-        // the picker, including into a same-origin editor iframe — hence the
-        // top window and every reachable frame. `props.document` is the anchor
-        // for that walk rather than a hard-coded `window`: it used to be read
-        // only in the cross-origin fallback below, so the declared (and
-        // defaulted) prop had no effect on the path everyone actually takes.
         const baseDocument = this.props.document ?? document;
         let documents;
         try {
@@ -171,7 +165,7 @@ export class CustomColorPicker extends Component {
     }
 
     /**
-     * @param {string} color rgb[a]
+     * @param {string} color
      */
     setSelectedColor(color) {
         const rgba = convertCSSColorToRgba(color);
@@ -185,7 +179,7 @@ export class CustomColorPicker extends Component {
     }
     /**
      * @param {string[]} allowedKeys
-     * @returns {string[]} allowed keys + modifiers
+     * @returns {string[]}
      */
     getAllowedHotkeys(allowedKeys) {
         return allowedKeys.flatMap((key) => [key, `control+${key}`]);
@@ -201,6 +195,32 @@ export class CustomColorPicker extends Component {
     get el() {
         return this.elRef.el;
     }
+
+    /**
+     * @param {PointerEvent} ev
+     * @returns {{ x: number, y: number }}
+     */
+    getLocalPoint(ev) {
+        const point = { x: ev.clientX, y: ev.clientY };
+        const ownerView = this.elRef.el?.ownerDocument?.defaultView;
+        let view =
+            /** @type {any} */ (ev.view) ??
+            /** @type {any} */ (ev.target)?.ownerDocument?.defaultView;
+        if (!ownerView || !view) {
+            return point;
+        }
+        try {
+            while (view && view !== ownerView && view.frameElement) {
+                const rect = view.frameElement.getBoundingClientRect();
+                point.x += rect.left;
+                point.y += rect.top;
+                view = view.parent === view ? null : view.parent;
+            }
+        } catch {
+            return { x: ev.clientX, y: ev.clientY };
+        }
+        return point;
+    }
     /**
      * @param {string} hotkey
      * @param {number} value
@@ -208,9 +228,9 @@ export class CustomColorPicker extends Component {
      * @param {number} [options.min=0]
      * @param {number} [options.max=100]
      * @param {number} [options.defaultStep=10]
-     * @param {number} [options.modifierStep=1] - step when holding ctrl+key
-     * @param {number} [options.leap=20] - step for pageup / pagedown
-     * @returns {number} updated and clamped value
+     * @param {number} [options.modifierStep=1]
+     * @param {number} [options.leap=20]
+     * @returns {number}
      */
     handleRangeKeydownValue(
         hotkey,
@@ -237,8 +257,6 @@ export class CustomColorPicker extends Component {
         return clamp(value, min, max);
     }
     /**
-     * Selects and applies a currently previewed color if "Enter" was pressed.
-     *
      * @param {String} hotkey
      */
     selectColorOnEnter(hotkey) {
@@ -251,8 +269,6 @@ export class CustomColorPicker extends Component {
     }
 
     /**
-     * Updates input values, color preview, picker and slider pointer positions.
-     *
      * @private
      */
     _updateUI() {
@@ -265,9 +281,6 @@ export class CustomColorPicker extends Component {
             : this.opacitySliderRef.el;
         const opacitySliderHeight = opacitySlider ? opacitySlider.clientHeight : 0;
 
-        // Never overwrite the hex field while the user is typing in it: `hex`
-        // is now canonical (alpha-inclusive), so echoing it back mid-entry
-        // would rewrite a just-typed 6-digit value and move the caret.
         if (this.hexInputRef.el && this.hexInputRef.el !== document.activeElement) {
             /** @type {HTMLInputElement} */ (this.hexInputRef.el).value =
                 this.colorComponents.hex;
@@ -308,10 +321,8 @@ export class CustomColorPicker extends Component {
         }
     }
     /**
-     * Updates colors according to given hex value. Opacity is left unchanged.
-     *
      * @private
-     * @param {string} hex - hexadecimal code
+     * @param {string} hex
      */
     _updateHex(hex) {
         const rgb = convertCSSColorToRgba(hex);
@@ -327,12 +338,6 @@ export class CustomColorPicker extends Component {
             rgbToApply,
             convertRgbToHsl(rgb.red, rgb.green, rgb.blue),
         );
-        // Re-derive `hex` from the resulting rgba rather than storing the typed
-        // string: consumers read `colorComponents.hex` as the canonical colour
-        // (see ColorPicker.onColorPreview), and a 6-digit entry typed while the
-        // opacity slider is below 100% would otherwise silently drop the alpha
-        // channel, disagreeing with `cssColor`. Every other `_update*` already
-        // keeps `hex` alpha-inclusive.
         this.colorComponents.hex = convertRgbaToCSSColor(
             this.colorComponents.red,
             this.colorComponents.green,
@@ -342,8 +347,6 @@ export class CustomColorPicker extends Component {
         this._updateCssColor();
     }
     /**
-     * Updates colors according to given RGB values.
-     *
      * @private
      * @param {number} r
      * @param {number} g
@@ -370,8 +373,6 @@ export class CustomColorPicker extends Component {
         this._updateCssColor();
     }
     /**
-     * Updates colors according to given HSL values.
-     *
      * @private
      * @param {number} h
      * @param {number} s
@@ -423,8 +424,6 @@ export class CustomColorPicker extends Component {
         this._updateCssColor();
     }
     /**
-     * Trigger an event to annonce that the widget value has changed
-     *
      * @private
      */
     _colorSelected() {
@@ -490,9 +489,6 @@ export class CustomColorPicker extends Component {
         }
     }
     /**
-     * Removes the close callback on Escape, so that a preview is cancelled with
-     * escape instead of being applied.
-     *
      * @param {KeyboardEvent} ev
      */
     onEscapeKeydown(ev) {
@@ -502,8 +498,6 @@ export class CustomColorPicker extends Component {
         }
     }
     /**
-     * Updates color when the user starts clicking on the picker.
-     *
      * @private
      * @param {PointerEvent} ev
      */
@@ -514,8 +508,6 @@ export class CustomColorPicker extends Component {
         this.setLastFocusedSliderEl(this.colorPickerPointerRef.el);
     }
     /**
-     * Updates saturation and lightness values on pointer drag over picker.
-     *
      * @private
      * @param {PointerEvent} ev
      */
@@ -526,8 +518,9 @@ export class CustomColorPicker extends Component {
 
         const colorPickerArea = this.colorPickerAreaRef.el;
         const rect = colorPickerArea.getClientRects()[0];
-        const top = ev.clientY - rect.top;
-        const left = ev.clientX - rect.left;
+        const { x, y } = this.getLocalPoint(ev);
+        const top = y - rect.top;
+        const left = x - rect.left;
         let saturation = Math.round((100 * left) / colorPickerArea.clientWidth);
         let lightness = Math.round(
             (100 * (colorPickerArea.clientHeight - top)) / colorPickerArea.clientHeight,
@@ -539,8 +532,6 @@ export class CustomColorPicker extends Component {
         this._updateUI();
     }
     /**
-     * Updates saturation and lightness values on arrow keydown over picker.
-     *
      * @private
      * @param {KeyboardEvent} ev
      */
@@ -574,8 +565,6 @@ export class CustomColorPicker extends Component {
         this.shouldSetSelectedColor = true;
     }
     /**
-     * Updates color when user starts clicking on slider.
-     *
      * @private
      * @param {PointerEvent} ev
      */
@@ -586,8 +575,6 @@ export class CustomColorPicker extends Component {
         this.setLastFocusedSliderEl(this.colorSliderPointerRef.el);
     }
     /**
-     * Updates hue value on pointer drag over slider.
-     *
      * @private
      * @param {PointerEvent} ev
      */
@@ -598,7 +585,9 @@ export class CustomColorPicker extends Component {
 
         const colorSlider = this.colorSliderRef.el;
         const colorSliderRects = colorSlider.getClientRects();
-        const y = colorSliderRects[0].height - (ev.clientY - colorSliderRects[0].top);
+        const y =
+            colorSliderRects[0].height -
+            (this.getLocalPoint(ev).y - colorSliderRects[0].top);
         let hue = Math.round((360 * y) / colorSlider.clientHeight);
         hue = clamp(hue, 0, 360);
 
@@ -610,8 +599,6 @@ export class CustomColorPicker extends Component {
         this._updateUI();
     }
     /**
-     * Updates hue value on arrow keydown on slider.
-     *
      * @param {KeyboardEvent} ev
      */
     onSliderKeydown(ev) {
@@ -634,8 +621,6 @@ export class CustomColorPicker extends Component {
         this.shouldSetSelectedColor = true;
     }
     /**
-     * Updates opacity when user starts clicking on opacity slider.
-     *
      * @private
      * @param {PointerEvent} ev
      */
@@ -646,8 +631,6 @@ export class CustomColorPicker extends Component {
         this.setLastFocusedSliderEl(this.opacitySliderPointerRef.el);
     }
     /**
-     * Updates opacity value on pointer drag over opacity slider.
-     *
      * @private
      * @param {PointerEvent} ev
      */
@@ -657,7 +640,7 @@ export class CustomColorPicker extends Component {
         }
 
         const opacitySlider = this.opacitySliderRef.el;
-        const y = ev.clientY - opacitySlider.getClientRects()[0].top;
+        const y = this.getLocalPoint(ev).y - opacitySlider.getClientRects()[0].top;
         let opacity = Math.round(100 * (1 - y / opacitySlider.clientHeight));
         opacity = clamp(opacity, 0, 100);
 
@@ -665,8 +648,6 @@ export class CustomColorPicker extends Component {
         this._updateUI();
     }
     /**
-     * Updates opacity value on arrow keydown on opacity slider.
-     *
      * @param {KeyboardEvent} ev
      */
     onOpacitySliderKeydown(ev) {
@@ -685,9 +666,6 @@ export class CustomColorPicker extends Component {
         this.shouldSetSelectedColor = true;
     }
     /**
-     * Called when input value is changed -> Updates UI: Set picker and slider
-     * position and set colors.
-     *
      * @private
      * @param {Event} ev
      */
@@ -700,8 +678,6 @@ export class CustomColorPicker extends Component {
         this._colorSelected();
     }
     /**
-     * Called when the hex color input's input event is triggered.
-     *
      * @private
      * @param {Event} ev
      */

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/record_autocomplete - Autocomplete search for records with name_search and "Search More" dialog */
+/** @module @web/components/record_selectors/record_autocomplete */
 
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
@@ -30,6 +30,13 @@ export class RecordAutocomplete extends Component {
     static components = { AutoComplete };
     static template = "web.RecordAutocomplete";
 
+    /** @type {ReturnType<typeof useOwnedDialogs>} */
+    addDialog;
+    /** @type {import("services").ServiceFactories["name"]} */
+    nameService;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+
     setup() {
         this.orm = useService("orm");
         this.nameService = useService("name");
@@ -43,6 +50,9 @@ export class RecordAutocomplete extends Component {
         ];
     }
 
+    /**
+     * @param {Array<[number, any]>} options
+     */
     addNames(options) {
         const displayNames = Object.fromEntries(options);
         this.nameService.addDisplayNames(this.props.resModel, displayNames);
@@ -52,13 +62,10 @@ export class RecordAutocomplete extends Component {
         return this.props.getIds();
     }
 
+    /**
+     * @param {string} name
+     */
     async loadOptionsSource(name) {
-        // Abort WITH rejection. `abort(false)` leaves the promise pending
-        // forever (see rpc.js), which stranded the superseded `loadSources`
-        // call -- its `Promise.all` never settled, leaking that load and its
-        // pending Deferred for the rest of the session. Rejecting lets the
-        // superseded invocation unwind here; AutoComplete's own `_loadId`
-        // generation guard is what actually discards the stale result.
         /** @type {any} */ (this.lastProm)?.abort(true);
         const prom = (this.lastProm = this.search(name, SEARCH_LIMIT + 1));
         let records;
@@ -70,11 +77,15 @@ export class RecordAutocomplete extends Component {
             }
             throw error;
         }
-        const nameGets = records.map(([id, label]) => [
-            id,
-            label ? label.split("\n")[0] : _t("Unnamed"),
-        ]);
+        const nameGets = records.map(
+            ([id, label]) =>
+                /** @type {[number, any]} */ ([
+                    id,
+                    label ? label.split("\n")[0] : _t("Unnamed"),
+                ]),
+        );
         this.addNames(nameGets);
+        /** @type {Array<Record<string, any>>} */
         const options = nameGets.slice(0, SEARCH_LIMIT).map(([id, label]) => ({
             data: {
                 record: { id, display_name: label },
@@ -95,6 +106,9 @@ export class RecordAutocomplete extends Component {
         return options;
     }
 
+    /**
+     * @param {string} name
+     */
     async onSearchMore(name) {
         const { fieldString, multiSelect, resModel } = this.props;
         let operator;
@@ -129,7 +143,7 @@ export class RecordAutocomplete extends Component {
             noCreate: true,
             multiSelect,
             context: this.props.context || {},
-            onSelected: (resId) => {
+            onSelected: (/** @type {number|number[]} */ resId) => {
                 const resIds = Array.isArray(resId) ? resId : [resId];
                 this.props.update([...resIds]);
             },
@@ -144,6 +158,11 @@ export class RecordAutocomplete extends Component {
         return domainIds.toList();
     }
 
+    /**
+     * @param {string} name
+     * @param {number} limit
+     * @returns {Promise<Array<[number, string]>>} the server's (id, display_name) pairs
+     */
     search(name, limit) {
         const domain = this.getDomain();
         return this.orm.call(this.props.resModel, "name_search", [], {
@@ -154,6 +173,9 @@ export class RecordAutocomplete extends Component {
         });
     }
 
+    /**
+     * @param {{ inputValue: string }} param0
+     */
     onChange({ inputValue }) {
         if (!inputValue.length) {
             this.props.update([]);

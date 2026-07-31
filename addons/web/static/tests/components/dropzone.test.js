@@ -45,7 +45,7 @@ test("dropzone overlay is removed when its owner is destroyed mid-drag", async (
     await animationFrame();
     expect(".o-Dropzone").toHaveCount(1);
 
-    parent.state.show = false;
+    /** @type {any} */ (parent.state).show = false;
     await animationFrame();
     await animationFrame();
     expect(".o-Dropzone").toHaveCount(0);

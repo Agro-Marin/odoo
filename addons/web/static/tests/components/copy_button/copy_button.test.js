@@ -48,6 +48,7 @@ test("copies a string via a function to the clipboard", async () => {
 });
 
 test("copies an object via a function to the clipboard", async () => {
+    /** @type {Record<string, string>} */
     let contentToCopy = { oneKey: "oneValue" };
     const content = () => contentToCopy;
     await mountWithCleanup(CopyButton, { props: { content } });

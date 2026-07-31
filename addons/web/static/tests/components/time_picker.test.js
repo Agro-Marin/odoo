@@ -7,6 +7,7 @@ import {
     edit,
     press,
     queryAllTexts,
+    queryOne,
     runAllTimers,
 } from "@odoo/hoot-dom";
 import { mockDate } from "@odoo/hoot-mock";
@@ -480,4 +481,103 @@ test("add a custom input class", async () => {
 
     await mountWithCleanup(Parent);
     expect(".o_time_picker_input").toHaveClass("o_custom_class");
+});
+
+test("typing after the dropdown was closed does not select the whole input", async () => {
+    // `onInput` reopens the dropdown, and reopening used to `select()` the
+    // input -- but `input` fires AFTER the character landed, so the field ended
+    // up fully selected and the NEXT keystroke replaced it. Measured in a
+    // browser from "10:30": typing "1" selected all six characters, typing "2"
+    // left "2".
+    await mountWithCleanup(TimePicker, { props: { value: "10:30" } });
+
+    await click(".o_time_picker_input");
+    await animationFrame();
+    expect(".o_time_picker_dropdown").toHaveCount(1);
+
+    await press("Escape");
+    await animationFrame();
+    expect(".o_time_picker_dropdown").toHaveCount(0);
+    expect(".o_time_picker_input").toBeFocused();
+
+    const input = /** @type {HTMLInputElement} */ (queryOne(".o_time_picker_input"));
+    input.setSelectionRange(input.value.length, input.value.length);
+    await press("1");
+    await animationFrame();
+    expect(input.selectionStart).toBe(input.value.length);
+    expect(input.selectionEnd).toBe(input.value.length);
+
+    await press("2");
+    await animationFrame();
+    expect(input).toHaveValue("10:3012");
+});
+
+test("focusing or clicking the input still selects it whole", async () => {
+    // The other half of the contract: landing on a filled time field and typing
+    // must overwrite it rather than append.
+    await mountWithCleanup(TimePicker, { props: { value: "10:30" } });
+    await click(".o_time_picker_input");
+    await animationFrame();
+
+    const input = /** @type {HTMLInputElement} */ (queryOne(".o_time_picker_input"));
+    expect(input.selectionStart).toBe(0);
+    expect(input.selectionEnd).toBe(input.value.length);
+});
+
+test("the input exposes combobox semantics and stays out of the tab order", async () => {
+    // Deliberately NOT tabbable: see the comment in the template. Announceable
+    // is the goal here, not reachable -- the owning field is what the user tabs
+    // to.
+    await mountWithCleanup(TimePicker, { props: { value: "10:30" } });
+    const input = queryOne(".o_time_picker_input");
+    expect(input).toHaveAttribute("tabindex", "-1");
+    expect(input).toHaveAttribute("role", "combobox");
+    expect(input).toHaveAttribute("aria-expanded", "false");
+
+    await click(".o_time_picker_input");
+    await animationFrame();
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(input).toHaveAttribute(
+        "aria-controls",
+        queryOne(".o_time_picker_dropdown").id,
+    );
+    expect(".o_time_picker_dropdown").toHaveAttribute("role", "listbox");
+    expect(".o_time_picker_option:first").toHaveAttribute("role", "option");
+});
+
+test("suggestions are rebuilt only when the rounding that shapes them changes", async () => {
+    let picker;
+    class Probe extends TimePicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+    }
+    class Parent extends Component {
+        static components = { TimePicker: Probe };
+        static props = ["*"];
+        static template = xml`<TimePicker value="'08:00'" showSeconds="state.showSeconds" minutesRounding="state.minutesRounding"/>`;
+        setup() {
+            this.state = useState({ showSeconds: false, minutesRounding: 5 });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    const initial = picker.suggestions;
+    expect(initial.length).toBe(96);
+
+    // showSeconds never reaches getSuggestions: same list, same identity.
+    parent.state.showSeconds = true;
+    await animationFrame();
+    expect(picker.suggestions).toBe(initial);
+
+    // Roundings that collapse to the same step are the same list too.
+    parent.state.minutesRounding = 1;
+    await animationFrame();
+    expect(picker.suggestions).toBe(initial);
+
+    // A rounding that changes the step rebuilds.
+    parent.state.minutesRounding = 30;
+    await animationFrame();
+    expect(picker.suggestions).not.toBe(initial);
+    expect(picker.suggestions.length).toBe(48);
 });

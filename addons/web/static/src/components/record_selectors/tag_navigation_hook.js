@@ -1,18 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/tag_navigation_hook - Keyboard navigation hook for moving between and deleting tags in record selectors */
+/** @module @web/components/record_selectors/tag_navigation_hook */
 
 import { useRef } from "@odoo/owl";
 import { useNavigation } from "@web/services/navigation/navigation";
 /**
- * Navigate between tags in a record selector with arrow keys and delete them
- * with backspace. Used in components containing both `Autocomplete` and `TagList`.
- *
- * @param {string} refName Name of the t-ref which contains the `Autocomplete` and `TagList` components.
+ * @param {string} refName
  * @param {object} [options]
  * @param {() => boolean} [options.isEnabled]
- * @param {(index: number) => void} [options.delete] Function to be called when a tag is deleted. It should take the index of the tag to delete as parameter.
+ * @param {(index: number) => void} [options.delete]
  */
 export function useTagNavigation(refName, options = {}) {
     const tagsContainerRef = useRef(refName);

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/_behaviours/dropdown_popover - Popover content renderer for dropdown menus with item list and slot support */
+/** @module @web/components/dropdown/_behaviours/dropdown_popover */
 
 import {
     Component,
@@ -54,9 +54,9 @@ export class DropdownPopover extends Component {
     }
 
     /**
-     * @param {Object} item - dropdown item, may have an `id` property
-     * @param {number} index - positional index used as fallback key
-     * @returns {string | number} unique key for the item
+     * @param {Record<string, any>} item
+     * @param {number} index
+     * @returns {string | number}
      */
     getKey(item, index) {
         return "id" in item ? item.id : index;

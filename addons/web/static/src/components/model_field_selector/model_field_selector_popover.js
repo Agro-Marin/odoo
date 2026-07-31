@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/model_field_selector/model_field_selector_popover - Searchable field browser popover with pagination through relational field chains */
+/** @module @web/components/model_field_selector/model_field_selector_popover */
 
 import { Component, onWillStart, useEffect, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -12,14 +12,14 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { useDebounced } from "@web/core/utils/timing";
 class Page {
     /**
-     * @param {string} resModel - model technical name
-     * @param {Record<string, Object>} fieldDefs - filtered field definitions
+     * @param {string} resModel
+     * @param {Record<string, Object>} fieldDefs
      * @param {Object} [options]
-     * @param {Page | null} [options.previousPage] - parent page in the breadcrumb chain
-     * @param {string | null} [options.selectedName] - currently selected field name
+     * @param {Page | null} [options.previousPage]
+     * @param {string | null} [options.selectedName]
      * @param {boolean} [options.isDebugMode]
-     * @param {boolean} [options.readProperty] - whether to use property accessor syntax
-     * @param {(fieldDefs: Record<string, Object>) => string[]} [options.sortFn] - custom sort for field names
+     * @param {boolean} [options.readProperty]
+     * @param {(fieldDefs: Record<string, Object>) => string[]} [options.sortFn]
      */
     constructor(resModel, fieldDefs, options = {}) {
         this.resModel = resModel;
@@ -43,7 +43,7 @@ class Page {
         this.resetFocusedFieldName();
     }
 
-    /** @returns {string} dot-separated field path from root to current selection */
+    /** @returns {string} */
     get path() {
         const previousPath = this.previousPage?.path || "";
         const name = this.selectedName;
@@ -63,12 +63,12 @@ class Page {
         return previousPath;
     }
 
-    /** @returns {Object | undefined} field definition for the selected name */
+    /** @returns {Object | undefined} */
     get selectedField() {
         return this.fieldDefs[this.selectedName];
     }
 
-    /** @returns {string} breadcrumb title for this page */
+    /** @returns {string} */
     get title() {
         const prefix = this.previousPage?.previousPage ? "... > " : "";
         const title = this.previousPage?.selectedField?.string || "";
@@ -79,7 +79,7 @@ class Page {
     }
 
     /**
-     * @param {"previous" | "next"} direction - direction to move focus
+     * @param {"previous" | "next"} direction
      */
     focus(direction) {
         if (!this.fieldNames.length) {
@@ -101,7 +101,6 @@ class Page {
         }
     }
 
-    /** Reset focus to the selected field or the first available field. */
     resetFocusedFieldName() {
         if (this.selectedName && this.fieldNames.includes(this.selectedName)) {
             this.focusedFieldName = this.selectedName;
@@ -111,7 +110,7 @@ class Page {
     }
 
     /**
-     * @param {string} [query] - search string for fuzzy filtering
+     * @param {string} [query]
      */
     searchFields(query = "") {
         this.query = query;
@@ -165,10 +164,6 @@ export class ModelFieldSelectorPopover extends Component {
         });
 
         const rootRef = useRef("root");
-        // Keyed on the focused field (and its page): a dependency-less effect
-        // re-runs after EVERY patch -- owl defaults the deps to `[NaN]`, which
-        // never compares equal -- so this queried the DOM and scrolled on every
-        // keystroke, not just when the focus actually moved.
         useEffect(
             () => {
                 const focusedElement = rootRef.el?.querySelector(
@@ -202,8 +197,8 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * @param {Object} fieldDef - field definition to check
-     * @returns {boolean | string} truthy if the field can be followed into a related model
+     * @param {Object} fieldDef
+     * @returns {boolean | string}
      */
     canFollowRelationFor(fieldDef) {
         if (fieldDef.type === "properties") {
@@ -216,10 +211,10 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * @param {Record<string, Object>} fieldDefs - all field definitions for the model
-     * @param {string} path - current field path
-     * @param {string} resModel - model technical name
-     * @returns {Record<string, Object>} filtered field definitions
+     * @param {Record<string, Object>} fieldDefs
+     * @param {string} path
+     * @param {string} resModel
+     * @returns {Record<string, Object>}
      */
     filter(fieldDefs, path, resModel) {
         const filteredKeys = Object.keys(fieldDefs).filter((k) =>
@@ -229,7 +224,7 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * @param {Object} fieldDef - relational field definition to navigate into
+     * @param {Object} fieldDef
      * @returns {Promise<void>}
      */
     async followRelation(fieldDef) {
@@ -251,14 +246,13 @@ export class ModelFieldSelectorPopover extends Component {
         );
     }
 
-    /** Navigate back to the parent page in the breadcrumb chain. */
     goToPreviousPage() {
-        this.keepLast.add(Promise.resolve());
+        this.keepLast.cancel();
         this.openPage(this.state.page.previousPage);
     }
 
     /**
-     * @param {string} path - dot-separated field path to load
+     * @param {string} path
      * @returns {Promise<void>}
      */
     async loadNewPath(path) {
@@ -269,9 +263,9 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * @param {string} resModel - model technical name
-     * @param {string} [path] - dot-separated field path to resolve into nested pages
-     * @returns {Promise<Page>} leaf page of the resolved path chain
+     * @param {string} resModel
+     * @param {string} [path]
+     * @returns {Promise<Page>}
      */
     async loadPages(resModel, path) {
         if (typeof path !== "string" || !path.length) {
@@ -317,7 +311,7 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * @param {Page} page - page to display and notify the parent about
+     * @param {Page} page
      */
     openPage(page) {
         this.state.page = page;
@@ -326,20 +320,20 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * @param {string} [query] - search string to filter visible fields
+     * @param {string} [query]
      */
     searchFields(query) {
         this.state.page.searchFields(query);
     }
 
     /**
-     * @param {Object} field - field definition to select or follow into
+     * @param {Object} field
      */
     selectField(field) {
         if (field.type === "properties") {
             return this.followRelation(field);
         }
-        this.keepLast.add(Promise.resolve());
+        this.keepLast.cancel();
         this.state.page.selectedName = field.name;
         this.props.update(this.state.page.path, field);
         this.props.close(true);
@@ -362,11 +356,6 @@ export class ModelFieldSelectorPopover extends Component {
     }
 
     /**
-     * Bound on the popover root so Escape always closes it, but virtual-focus
-     * nav (arrows/Enter) applies only within the search input — bubbling
-     * keydowns from the debug input or a field button must not be
-     * reinterpreted as nav, or goToPreviousPage/selectField could double-fire.
-     *
      * @param {KeyboardEvent} ev
      * @returns {Promise<void>}
      */

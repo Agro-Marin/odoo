@@ -101,7 +101,7 @@
     </t>
 
     <t t-name="web.TreeEditor.connector.children">
-        <t t-foreach="node.children" t-as="child" t-key="child.type + '_' + child_index">
+        <t t-foreach="node.children" t-as="child" t-key="getNodeKey(child)">
             <div class="o_tree_editor_node" t-att-class="{ 'ps-4': addPadding || props.isSubTree }">
                 <t t-call="web.TreeEditor.{{ child.type }}">
                     <t t-set="ancestors" t-value="[...ancestors, node]" />

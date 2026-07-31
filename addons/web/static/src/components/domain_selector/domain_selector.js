@@ -1,9 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/domain_selector/domain_selector - Visual domain builder that converts between string domains and tree editors */
+/** @module @web/components/domain_selector/domain_selector */
 
-import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
+import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { getDomainDisplayedOperators } from "@web/components/domain_selector/domain_selector_operator_editor";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
@@ -47,13 +47,20 @@ export class DomainSelector extends Component {
         update: () => {},
     };
 
+    /** @type {import("services").ServiceFactories["field"]} */
+    fieldService;
+    /** @type {{ includeArchived: boolean }} */
+    state;
+    /** @type {import("services").ServiceFactories["tree_processor"]} */
+    treeProcessor;
+
     setup() {
         this.fieldService = useService("field");
         this.treeProcessor = useService("tree_processor");
 
         this.tree = null;
         this.showArchivedCheckbox = false;
-        this.includeArchived = false;
+        this.state = useState({ includeArchived: false });
 
         onWillStart(() => this.onPropsUpdated(this.props));
         onWillUpdateProps((np) => this.onPropsUpdated(np));
@@ -70,7 +77,7 @@ export class DomainSelector extends Component {
         if (!isSupported) {
             this.tree = null;
             this.showArchivedCheckbox = false;
-            this.includeArchived = false;
+            this.state.includeArchived = false;
             return;
         }
 
@@ -89,12 +96,12 @@ export class DomainSelector extends Component {
             p,
         );
 
-        this.includeArchived = false;
+        this.state.includeArchived = false;
         if (this.showArchivedCheckbox) {
             if (this.tree.type === "connector" && this.tree.value === "&") {
                 this.tree.children = this.tree.children.filter((child) => {
                     if (areEqualTrees(child, ARCHIVED_CONDITION)) {
-                        this.includeArchived = true;
+                        this.state.includeArchived = true;
                         return false;
                     }
                     return true;
@@ -103,7 +110,7 @@ export class DomainSelector extends Component {
                     this.tree = this.tree.children[0];
                 }
             } else if (areEqualTrees(this.tree, ARCHIVED_CONDITION)) {
-                this.includeArchived = true;
+                this.state.includeArchived = true;
                 this.tree = connector("&");
             }
         }
@@ -145,7 +152,7 @@ export class DomainSelector extends Component {
     }
 
     toggleIncludeArchived() {
-        this.includeArchived = !this.includeArchived;
+        this.state.includeArchived = !this.state.includeArchived;
         this.update(this.tree);
     }
 
@@ -163,7 +170,7 @@ export class DomainSelector extends Component {
         this.props.update(domain, true);
     }
     update(tree) {
-        const archiveDomain = this.includeArchived ? ARCHIVED_DOMAIN : `[]`;
+        const archiveDomain = this.state.includeArchived ? ARCHIVED_DOMAIN : `[]`;
         const domain = tree
             ? Domain.and([domainFromTree(tree), archiveDomain]).toString()
             : archiveDomain;

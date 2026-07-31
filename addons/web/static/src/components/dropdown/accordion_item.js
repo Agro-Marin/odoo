@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/accordion_item - Collapsible accordion panel with animated expand/collapse transitions */
+/** @module @web/components/dropdown/accordion_item */
 
 import { Component, onPatched, useState } from "@odoo/owl";
 

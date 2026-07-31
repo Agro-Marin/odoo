@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/record_selectors/record_selector - Single-value record picker with avatar display and autocomplete */
+/** @module @web/components/record_selectors/record_selector */
 
 import { useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -23,23 +23,26 @@ export class RecordSelector extends BaseRecordSelector {
     static components = { RecordAutocomplete };
     static template = "web.RecordSelector";
 
+    /** @type {{ displayName: string }} */
+    state;
+
     setup() {
         super.setup();
         this.state = useState({ displayName: "" });
     }
 
-    /** @returns {boolean} whether the current record should show an avatar */
+    /** @returns {boolean} */
     get hasAvatarImg() {
         return this.isAvatarModel && isId(this.props.resId);
     }
 
-    /** @returns {string} reactive display name of the selected record */
+    /** @returns {string} */
     get displayName() {
         return this.state.displayName;
     }
 
     /**
-     * @param {Object} props
+     * @param {Record<string, any>} props
      * @param {Record<number, string>} displayNames
      */
     applyDisplayNames(props, displayNames) {
@@ -47,10 +50,9 @@ export class RecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * Resolve the display name for the selected record.
-     * @param {Object} props
+     * @param {Record<string, any>} props
      * @param {Record<number, string>} displayNames
-     * @returns {string} display name or empty string if no record selected
+     * @returns {string}
      */
     getDisplayName(props, displayNames) {
         props ??= this.props;
@@ -64,7 +66,7 @@ export class RecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * @param {Object} [props]
+     * @param {Record<string, any>} [props]
      * @returns {number[]}
      */
     getIds(props = this.props) {
@@ -75,8 +77,7 @@ export class RecordSelector extends BaseRecordSelector {
     }
 
     /**
-     * Set the selected record to the first ID in the list, or false if empty.
-     * @param {number[]} resIds - selected record IDs from autocomplete
+     * @param {number[]} resIds
      */
     update(resIds) {
         this.props.update(resIds[0] || false);

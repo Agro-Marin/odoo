@@ -489,3 +489,51 @@ test("updateTotal props: click previous", async () => {
     expect(".o_pager_limit").toHaveText("23");
     expect(".o_pager_limit").not.toHaveClass("o_pager_limit_fetch");
 });
+
+test("parse returns a plain object, not a promise", async () => {
+    // It was declared `async` while awaiting nothing, so every caller paid a
+    // microtask hop for a pure computation.
+    let pager;
+    patchWithCleanup(Pager.prototype, {
+        setup() {
+            super.setup();
+            pager = this;
+        },
+    });
+    await mountWithCleanup(PagerController, {
+        props: { offset: 0, limit: 10, total: 50, onUpdate: () => {} },
+    });
+    const parsed = /** @type {any} */ (pager).parse("2-4");
+    expect(parsed instanceof Promise).toBe(false);
+    expect(parsed).toEqual({ minimum: 1, maximum: 4 });
+});
+
+test.tags("desktop");
+test("previous does not resolve the total twice on a double click", async () => {
+    const def = new Deferred();
+    await mountWithCleanup(PagerController, {
+        props: {
+            offset: 0,
+            limit: 5,
+            total: 10,
+            onUpdate() {
+                expect.step("update");
+            },
+            async updateTotal() {
+                expect.step("updateTotal");
+                await def;
+                return 18;
+            },
+        },
+    });
+
+    // Resolving the real total is a round trip; the pager must stay disabled
+    // across it instead of starting a second one.
+    await click(".o_pager_previous");
+    await click(".o_pager_previous");
+    expect.verifySteps(["updateTotal"]);
+
+    def.resolve(18);
+    await animationFrame();
+    expect.verifySteps(["update"]);
+});

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/model_selector/model_selector - Autocomplete component for searching and selecting Odoo model names */
+/** @module @web/components/model_selector/model_selector */
 
 import { Component, onWillStart } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
@@ -21,6 +21,9 @@ export class ModelSelector extends Component {
         autofocus: { type: Boolean, optional: true },
         autoSelect: { type: Boolean, optional: true },
     };
+
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
 
     setup() {
         this.orm = useService("orm");
@@ -49,17 +52,17 @@ export class ModelSelector extends Component {
         });
     }
 
-    /** @returns {Object[]} autocomplete source descriptors */
+    /** @returns {Object[]} */
     get sources() {
         return [this.optionsSource];
     }
 
-    /** @returns {string} input placeholder text */
+    /** @returns {string} */
     get placeholder() {
         return this.props.placeholder || _t("Type a model here...");
     }
 
-    /** @returns {{ placeholder: string, options: Function }} source descriptor with lazy option loading */
+    /** @returns {{ placeholder: string, options: Function }} */
     get optionsSource() {
         return {
             placeholder: _t("Loading..."),
@@ -67,14 +70,14 @@ export class ModelSelector extends Component {
         };
     }
 
-    /** @returns {number} maximum models shown before "Start typing..." prompt */
+    /** @returns {number} */
     get nbVisibleModels() {
         return this.props.nbVisibleModels || 8;
     }
 
     /**
-     * @param {string} name - search query to fuzzy-match against model names
-     * @returns {Object[]} matching model options, possibly with a "Start typing..." hint
+     * @param {string} name
+     * @returns {Object[]}
      */
     filterModels(name) {
         if (!name) {
@@ -95,8 +98,8 @@ export class ModelSelector extends Component {
     }
 
     /**
-     * @param {string} request - user input text for filtering
-     * @returns {Object[]} model options or a "No records" fallback
+     * @param {string} request
+     * @returns {Object[]}
      */
     loadOptionsSource(request) {
         const options = this.filterModels(request);
@@ -111,7 +114,6 @@ export class ModelSelector extends Component {
     }
 
     /**
-     * Fetch the list of the models that can be selected for the relational properties.
      * @returns {Promise<Array<{model: string, display_name: string}>>}
      */
     async _fetchAvailableModels() {

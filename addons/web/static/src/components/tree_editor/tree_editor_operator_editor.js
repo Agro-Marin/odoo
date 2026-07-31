@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/tree_editor/tree_editor_operator_editor - Operator editor info for domain/expression tree conditions */
+/** @module @web/components/tree_editor/tree_editor_operator_editor */
 
 import { Select } from "@web/components/tree_editor/tree_editor_components";
 import { _t } from "@web/core/l10n/translation";
@@ -25,8 +25,8 @@ export { getOperatorLabel };
  */
 
 /**
- * @param {string[]} operators - list of operator strings to offer
- * @param {Object} [fieldDef] - field definition with `type` property
+ * @param {string[]} operators
+ * @param {Object} [fieldDef]
  * @returns {OperatorEditorInfo}
  */
 export function getOperatorEditorInfo(operators, fieldDef) {

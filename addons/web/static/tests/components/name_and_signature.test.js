@@ -105,7 +105,7 @@ test("test name_and_signature widget update signmode with onSignatureChange prop
     let currentSignMode = "";
     const props = {
         signature: { name: "Test Owner" },
-        onSignatureChange: function (signMode) {
+        onSignatureChange: function (/** @type {string} */ signMode) {
             if (currentSignMode !== signMode) {
                 currentSignMode = signMode;
             }
@@ -157,4 +157,16 @@ test("printImage serializes concurrent calls with KeepLast (only the last draws)
     expect(secondResolved).toBe(true);
     expect(firstResolved).toBe(false);
     void p1;
+});
+
+test("a signature model handed over without a name is normalised, not crashed on", async () => {
+    // A portal template that defines no default_name serialises it as null.
+    for (const name of [null, undefined, ""]) {
+        /** @type {any} */
+        const signature = { name };
+        await mountWithCleanup(NameAndSignature, { props: { signature } });
+        await animationFrame();
+        expect(signature.name).toBe("");
+        expect(".o_web_sign_name_input").toHaveValue("");
+    }
 });

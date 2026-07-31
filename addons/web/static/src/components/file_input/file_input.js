@@ -1,19 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/file_input/file_input - Customizable file upload input with route-based server upload and multi-file support */
+/** @module @web/components/file_input/file_input */
 
 import { Component, onMounted, useRef, useState } from "@odoo/owl";
 import { useFileUploader } from "@web/core/utils/files";
 /**
- * Customizable file input; the default t-slot content is the trigger that
- * opens the file upload prompt.
  * @extends Component
- * @param {string} [props.acceptedFileExtensions='*'] Comma-separated list of authorized file extensions (default to all).
- * @param {string} [props.route='/web/binary/upload_attachment'] Route called when a file is uploaded.
+ * @param {string} [props.acceptedFileExtensions='*']
+ * @param {string} [props.route='/web/binary/upload_attachment']
  * @param {string} [props.resId]
  * @param {string} [props.resModel]
- * @param {string} [props.multiUpload=false] Whether to allow uploading multiple files at once.
+ * @param {string} [props.multiUpload=false]
  */
 export class FileInput extends Component {
     static template = "web.FileInput";
@@ -55,6 +53,7 @@ export class FileInput extends Component {
 
     get httpParams() {
         const { resId, resModel } = this.props;
+        /** @type {Record<string, any>} */
         const params = {
             csrf_token: odoo.csrf_token,
             ufile: [.../** @type {HTMLInputElement} */ (this.fileInputRef.el).files],
@@ -68,7 +67,6 @@ export class FileInput extends Component {
         return params;
     }
 
-    /** Upload the input's files to `route`, tagged with the record's model/id if set. */
     async onFileInputChange() {
         this.state.isDisable = true;
         const httpParams = this.httpParams;

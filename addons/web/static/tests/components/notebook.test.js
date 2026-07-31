@@ -394,3 +394,62 @@ test("icons can be given for each page tab", async () => {
     expect(".nav-item:nth-child(3) i").toHaveClass("fa-pencil");
     expect(".nav-item:nth-child(3)").toHaveText("page3");
 });
+
+test("invalid pages come from the isFieldInvalid prop, not from env.model", async () => {
+    class Page extends Component {
+        static props = ["*"];
+        static template = xml`<div class="page-body"/>`;
+    }
+    class Parent extends Component {
+        static components = { Notebook };
+        static props = {};
+        static template = xml`<Notebook pages="pages" isFieldInvalid="(f) => f === 'bar'"/>`;
+        get pages() {
+            return [
+                {
+                    id: "p1",
+                    title: "P1",
+                    Component: Page,
+                    props: {},
+                    fieldNames: ["foo"],
+                },
+                {
+                    id: "p2",
+                    title: "P2",
+                    Component: Page,
+                    props: {},
+                    fieldNames: ["bar"],
+                },
+            ];
+        }
+    }
+    await mountWithCleanup(Parent);
+    expect(".o_notebook .nav-link.o_page_invalid").toHaveCount(1);
+    expect(".o_notebook .nav-link.o_page_invalid").toHaveText("P2");
+});
+
+test("no isFieldInvalid prop means no page is flagged", async () => {
+    class Page extends Component {
+        static props = ["*"];
+        static template = xml`<div class="page-body"/>`;
+    }
+    class Parent extends Component {
+        static components = { Notebook };
+        static props = {};
+        static template = xml`<Notebook pages="pages"/>`;
+        get pages() {
+            return [
+                {
+                    id: "p1",
+                    title: "P1",
+                    Component: Page,
+                    props: {},
+                    fieldNames: ["foo"],
+                },
+            ];
+        }
+    }
+    await mountWithCleanup(Parent);
+    expect(".o_notebook .nav-link").toHaveCount(1);
+    expect(".o_notebook .nav-link.o_page_invalid").toHaveCount(0);
+});

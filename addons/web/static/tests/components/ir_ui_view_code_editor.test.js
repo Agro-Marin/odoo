@@ -10,7 +10,7 @@ import {
     preloadBundle,
     preventResizeObserverError,
 } from "@web/../tests/web_test_helpers";
-import { IrUiViewCodeEditor } from "@web/components/ir_ui_view_code_editor/code_editor";
+import { IrUiViewCodeEditor } from "@web/fields/specialized/ir_ui_view_ace/ir_ui_view_code_editor";
 
 preloadBundle("web.ace_lib");
 preventResizeObserverError();

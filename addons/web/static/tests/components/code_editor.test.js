@@ -339,3 +339,75 @@ test("code editor can take an initial cursor position", async () => {
         },
     ]);
 });
+
+test("a value change does not re-attach the session", async () => {
+    // The session-attach effect used to depend on `props.value` too, so a
+    // controlled parent echoing the value back re-ran `setSession()` -- and Ace
+    // answers a session swap by resetting the cursor and the scroll. Attaching
+    // a session is a function of WHICH session, nothing else.
+    let editor;
+    patchWithCleanup(CodeEditor.prototype, {
+        setup() {
+            super.setup();
+            editor = this;
+        },
+    });
+    class Parent extends Component {
+        static components = { CodeEditor };
+        static template = xml`<CodeEditor mode="'python'" value="state.value" onChange="() => {}"/>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState({ value: "a = 1\n" });
+            Parent.last = this;
+        }
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+
+    let setSessionCalls = 0;
+    const origSetSession = editor.aceEditor.setSession.bind(editor.aceEditor);
+    editor.aceEditor.setSession = (...args) => {
+        setSessionCalls++;
+        return origSetSession(...args);
+    };
+
+    Parent.last.state.value = "a = 2\n";
+    await animationFrame();
+
+    expect(setSessionCalls).toBe(0, {
+        message: `setSession ran ${setSessionCalls}x for a pure value change`,
+    });
+    expect(editor.aceEditor.getValue()).toBe("a = 2\n");
+});
+
+test("a mode change does re-attach the session", async () => {
+    let editor;
+    patchWithCleanup(CodeEditor.prototype, {
+        setup() {
+            super.setup();
+            editor = this;
+        },
+    });
+    class Parent extends Component {
+        static components = { CodeEditor };
+        static template = xml`<CodeEditor mode="state.mode" value="'a = 1'" onChange="() => {}"/>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState({ mode: "python" });
+            Parent.last = this;
+        }
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+
+    let setSessionCalls = 0;
+    const origSetSession = editor.aceEditor.setSession.bind(editor.aceEditor);
+    editor.aceEditor.setSession = (...args) => {
+        setSessionCalls++;
+        return origSetSession(...args);
+    };
+
+    Parent.last.state.mode = "xml";
+    await animationFrame();
+    expect(setSessionCalls).toBe(1);
+});

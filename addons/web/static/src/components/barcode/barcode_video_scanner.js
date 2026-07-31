@@ -1,10 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/barcode/barcode_video_scanner - Camera-based barcode scanner using BarcodeDetector API with ZXing fallback */
-
-/* global BarcodeDetector -- polyfilled at runtime */
-/* eslint no-redeclare: ["error", { builtinGlobals: false }] */
+/** @module @web/components/barcode/barcode_video_scanner */
 
 import {
     Component,
@@ -147,9 +144,7 @@ export class BarcodeVideoScanner extends Component {
     }
 
     /**
-     * Check for camera preview element readiness
-     *
-     * @returns {Promise} resolves when the video element is ready
+     * @returns {Promise}
      */
     async isVideoReady() {
         while (!isVideoElementReady(this.videoPreviewRef.el)) {
@@ -174,9 +169,6 @@ export class BarcodeVideoScanner extends Component {
         }
     }
 
-    /**
-     * Attempt to detect codes in the current camera preview's frame
-     */
     async detectCode() {
         let barcodeDetected = false;
         let codes = [];
@@ -247,12 +239,6 @@ export class BarcodeVideoScanner extends Component {
     }
 
     /**
-     * Publishes the track's zoom capability as state so the slider is rendered
-     * by the template. It used to be an `<input>` built by hand and appended
-     * into the CropOverlay's DOM: OWL never owned it, so it survived unmount
-     * (accumulating one slider per scanner session) and its listener was never
-     * removed.
-     *
      * @param {MediaStreamTrack} track
      * @param {MediaTrackSettings} settings
      */
@@ -274,8 +260,6 @@ export class BarcodeVideoScanner extends Component {
      * @param {Event} ev
      */
     onZoomInput(ev) {
-        // `MediaTrackConstraints.zoom` is a ConstrainDouble: an
-        // `HTMLInputElement.value` string is silently rejected by the UA.
         const value = Number(/** @type {HTMLInputElement} */ (ev.target).value);
         this.state.zoom.value = value;
         this.zoomTrack?.applyConstraints({ advanced: [{ zoom: value }] });
@@ -283,7 +267,6 @@ export class BarcodeVideoScanner extends Component {
 }
 
 /**
- * Check for BarcodeScanner support
  * @returns {boolean}
  */
 export function isBarcodeScannerSupported() {

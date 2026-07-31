@@ -1,12 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/barcode/crop_overlay - Draggable and resizable crop region overlay for barcode scanning area */
+/** @module @web/components/barcode/crop_overlay */
 
-import { Component, onPatched, useRef } from "@odoo/owl";
+import { Component, useEffect, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { isIOS } from "@web/core/browser/feature_detection";
 import { clamp } from "@web/core/utils/format/numbers";
+
+const AREA_KEYS = ["x", "y", "width", "height"];
+
 export class CropOverlay extends Component {
     static template = "web.CropOverlay";
     static props = {
@@ -29,20 +32,36 @@ export class CropOverlay extends Component {
             x: 0,
             y: 0,
         };
-        onPatched(() => {
-            this.setupCropRect();
-        });
+        this.hasInitialPosition = false;
+        /** @type {{x: number, y: number, width: number, height: number} | null} */
+        this.notifiedArea = null;
+        useEffect(
+            (el, isReady) => {
+                if (!el || !isReady) {
+                    this.hasInitialPosition = false;
+                    return;
+                }
+                this.setupCropRect();
+                const observer = new ResizeObserver(() => this.setupCropRect());
+                observer.observe(el);
+                return () => observer.disconnect();
+            },
+            () => [this.cropContainerRef.el, this.props.isReady],
+        );
         this.isIOS = isIOS();
     }
 
     setupCropRect() {
-        if (!this.props.isReady) {
+        if (!this.props.isReady || !this.cropContainerRef.el) {
             return;
         }
-        this.computeDefaultPoint();
+        if (!this.hasInitialPosition) {
+            this.computeDefaultPoint();
+            this.hasInitialPosition = true;
+        }
         this.computeOverlayPosition();
         this.calculateAndSetTransparentRect();
-        this.executeOnResizeCallback();
+        this.notifyResize();
     }
 
     boundPoint(pointValue, boundaryRect) {
@@ -74,20 +93,33 @@ export class CropOverlay extends Component {
         this.boundaryOverlay = cropOverlayElement.getBoundingClientRect();
     }
 
-    executeOnResizeCallback() {
+    notifyResize() {
         const transparentRec = this.getTransparentRec(
             this.relativePosition,
             this.boundaryOverlay,
         );
-        browser.localStorage.setItem(
-            this.localStorageKey,
-            JSON.stringify(transparentRec),
-        );
-        this.props.onResize({
+        const area = {
             ...transparentRec,
             width: this.boundaryOverlay.width - 2 * transparentRec.x,
             height: this.boundaryOverlay.height - 2 * transparentRec.y,
-        });
+        };
+        if (
+            this.notifiedArea &&
+            AREA_KEYS.every((key) => this.notifiedArea[key] === area[key])
+        ) {
+            return;
+        }
+        this.notifiedArea = area;
+        this.props.onResize(area);
+    }
+
+    persistPosition() {
+        browser.localStorage.setItem(
+            this.localStorageKey,
+            JSON.stringify(
+                this.getTransparentRec(this.relativePosition, this.boundaryOverlay),
+            ),
+        );
     }
 
     computeDefaultPoint() {
@@ -159,9 +191,7 @@ export class CropOverlay extends Component {
             this.isMoving = true;
             try {
                 event.currentTarget.setPointerCapture(event.pointerId);
-            } catch {
-                // no active pointer to capture (synthetic event)
-            }
+            } catch {}
         }
     }
 
@@ -185,7 +215,11 @@ export class CropOverlay extends Component {
     }
 
     pointerUp(event) {
+        if (!this.isMoving) {
+            return;
+        }
         this.isMoving = false;
-        this.executeOnResizeCallback();
+        this.persistPosition();
+        this.notifyResize();
     }
 }

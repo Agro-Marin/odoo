@@ -12,11 +12,13 @@ export class FileUploadProgressBar extends Component {
         fileUpload: { type: Object },
     };
 
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialogService;
+
     setup() {
         this.dialogService = useService("dialog");
     }
 
-    /** Prompt user for confirmation, then abort the active XMLHttpRequest. */
     onCancel() {
         if (!this.props.fileUpload.xhr) {
             return;

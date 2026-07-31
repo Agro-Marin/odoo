@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/dropdown/dropdown - Core dropdown component with popover positioning, nesting, and keyboard navigation */
+/** @module @web/components/dropdown/dropdown */
 
 import {
     Component,
@@ -22,11 +22,19 @@ import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { deepMerge } from "@web/core/utils/collections/objects";
 import { mergeClasses } from "@web/core/utils/dom/classname";
+import { uniqueId } from "@web/core/utils/functions";
 import { useChildRef, useService } from "@web/core/utils/hooks";
 import { disposableEffect } from "@web/core/utils/reactive";
 import { useNavigation } from "@web/services/navigation/navigation";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { utils } from "@web/ui/viewport";
+
+const DIRECTION_CLASSES = {
+    bottom: "dropdown",
+    top: "dropup",
+    left: "dropstart",
+    right: "dropend",
+};
 
 /**
  * @param {any} node
@@ -53,10 +61,6 @@ export function getFirstElementOfNode(node) {
     return null;
 }
 
-/**
- * A menu that shows itself when a target is toggled. Items are DropdownItems;
- * dropdowns can be nested as items to build nested menus.
- */
 export class Dropdown extends Component {
     static template = xml`<t t-slot="default"/>`;
     static components = {};
@@ -94,7 +98,7 @@ export class Dropdown extends Component {
         onOpened: { type: Function, optional: true },
         onStateChanged: { type: Function, optional: true },
 
-        /** Manual state handling, @see useDropdownState */
+        /** @see useDropdownState */
         state: {
             type: Object,
             shape: {
@@ -107,12 +111,14 @@ export class Dropdown extends Component {
         },
         manual: { type: Boolean, optional: true },
 
-        /** When true, do not add optional styling css classes on the target*/
         noClasses: { type: Boolean, optional: true },
 
-        /** Override the internal navigation hook options */
         navigationOptions: { type: Object, optional: true },
         bottomSheet: { type: Boolean, optional: true },
+
+        role: { type: String, optional: true },
+
+        menuId: { type: String, optional: true },
     };
     static defaultProps = {
         disabled: false,
@@ -123,6 +129,7 @@ export class Dropdown extends Component {
         noClasses: false,
         navigationOptions: {},
         bottomSheet: true,
+        role: "menu",
     };
 
     /** @type {any} */
@@ -138,6 +145,7 @@ export class Dropdown extends Component {
 
     setup() {
         this.menuRef = this.props.menuRef || useChildRef();
+        this.menuId = this.props.menuId || uniqueId("o-dropdown-menu-");
         this._boundHandleClick = this.handleClick.bind(this);
         this._boundHandleMouseEnter = this.handleMouseEnter.bind(this);
 
@@ -177,14 +185,15 @@ export class Dropdown extends Component {
             onClose: () => this.state.close(),
             onPositioned: (el, { direction }) =>
                 this.setTargetDirectionClass(direction),
-            role: "menu",
+            get role() {
+                return self.props.role;
+            },
+            id: this.menuId,
             get position() {
                 return getPosition();
             },
             ref: this.menuRef,
             setActiveElement: false,
-            // Re-read on every open: `isBottomSheet` follows a media query, and
-            // a breakpoint change does not remount this component.
             useBottomSheet: () => this.isBottomSheet,
             get class() {
                 return self.isBottomSheet
@@ -278,22 +287,6 @@ export class Dropdown extends Component {
         }
     }
 
-    /**
-     * Snapshot the element to restore focus to on close, taken at the opening
-     * gesture — BEFORE state.open() kicks off the dropdown-nesting reactive
-     * cascade. Opening this dropdown closes any open sibling, and that sibling
-     * restores its own focus first; reading document.activeElement later (in
-     * openPopover) would capture the sibling's restored element and land focus
-     * there on close instead of on our toggler.
-     *
-     * An already-open dropdown captures nothing: `state.open()` is a no-op
-     * then, so `openPopover` never runs to consume the snapshot and it survives
-     * to hijack the NEXT open. A `mouseenter` on an open nested/grouped
-     * dropdown is enough to strand one, and an open driven by `state.open()`
-     * alone — the SelectMenu / TimePicker pattern — never re-captures, so
-     * closing it restored focus to whatever happened to be focused during that
-     * unrelated hover.
-     */
     _captureFocusBeforeOpen() {
         if (this.state.isOpen) {
             return;
@@ -357,10 +350,11 @@ export class Dropdown extends Component {
             }
         }
 
-        target.classList.add(...requiredClasses);
-        if (!this.props.noClasses) {
-            target.classList.add(...optionalClasses);
-        }
+        const applied = this.props.noClasses
+            ? requiredClasses
+            : [...requiredClasses, ...optionalClasses];
+        const added = applied.filter((cls) => !target.classList.contains(cls));
+        target.classList.add(...added);
 
         this.defaultDirection = this.position.split("-")[0];
         this.setTargetDirectionClass(this.defaultDirection);
@@ -368,31 +362,29 @@ export class Dropdown extends Component {
         if (!this.props.manual) {
             target.addEventListener("click", this._boundHandleClick);
             target.addEventListener("mouseenter", this._boundHandleMouseEnter);
-
-            return () => {
-                target.removeEventListener("click", this._boundHandleClick);
-                target.removeEventListener("mouseenter", this._boundHandleMouseEnter);
-            };
         }
+
+        // The target is a slotted element this dropdown does not own: when the
+        // slot swaps it for another one, everything written here has to come
+        // back off, or the abandoned element keeps advertising a menu it no
+        // longer toggles.
+        return () => {
+            target.removeEventListener("click", this._boundHandleClick);
+            target.removeEventListener("mouseenter", this._boundHandleMouseEnter);
+            target.classList.remove(...added, ...Object.values(DIRECTION_CLASSES));
+            target.removeAttribute("aria-expanded");
+        };
     }
 
     setTargetDirectionClass(direction) {
         if (!this.target || this.props.noClasses) {
             return;
         }
-        const directionClasses = {
-            bottom: "dropdown",
-            top: "dropup",
-            left: "dropstart",
-            right: "dropend",
-        };
-        this.target.classList.remove(...Object.values(directionClasses));
-        this.target.classList.add(directionClasses[direction]);
+        this.target.classList.remove(...Object.values(DIRECTION_CLASSES));
+        this.target.classList.add(DIRECTION_CLASSES[direction]);
     }
 
     openPopover() {
-        // Consumed before the early returns: an open that does not happen must
-        // not leave the snapshot behind for a later one to pick up.
         const captured =
             this._pendingFocusEl !== undefined
                 ? this._pendingFocusEl

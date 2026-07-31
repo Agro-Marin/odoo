@@ -394,3 +394,24 @@ test("should mark default color as selected when it is selected", async () => {
     });
     expect(".o_color_button[data-color='900']").toHaveClass("selected");
 });
+
+test("the used-custom-colours list follows what has been applied", async () => {
+    const used = [];
+    const picker = await mountWithCleanup(ColorPicker, {
+        props: {
+            state: { selectedColor: "", defaultTab: "" },
+            getUsedCustomColors: () => [...used],
+            applyColor(color) {
+                used.push(color);
+            },
+            applyColorPreview() {},
+            applyColorResetPreview() {},
+            colorPrefix: "",
+        },
+    });
+    expect(picker.usedCustomColors).toEqual([]);
+
+    // Applying a colour is exactly what makes it "used".
+    picker.selectColor("#FF0000");
+    expect(picker.usedCustomColors).toEqual(["#FF0000"]);
+});

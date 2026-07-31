@@ -1,12 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/datetime/datetime_picker_hook - Hook that wires input refs to the datetime picker service */
+/** @module @web/components/datetime/datetime_picker_hook */
 
 import { useRef } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 /**
- * @typedef {import("./datetime_picker_service").DateTimePickerServiceParams & {
+ * @typedef {import("@web/services/datetime_picker_service").DateTimePickerServiceParams & {
  *  endDateRefName?: string;
  *  startDateRefName?: string;
  * }} DateTimePickerHookParams

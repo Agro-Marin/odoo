@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/action_swiper/action_swiper - Touch swipe component that triggers actions on left/right swipe gestures */
+/** @module @web/components/action_swiper/action_swiper */
 
 import {
     Component,
@@ -12,9 +12,15 @@ import {
     useState,
 } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { localization } from "@web/core/l10n/localization";
 import { Deferred } from "@web/core/utils/concurrency";
 import { clamp } from "@web/core/utils/format/numbers";
+const BOUNCE_ACTION_DELAY = 500;
+const FORWARDS_ACTION_DELAY = 100;
+const FORWARDS_RESET_DELAY = 100;
+const SCROLL_LOCK_THRESHOLD = 40;
+
 const isScrollSwipable = (scrollables) => ({
     left: !scrollables.filter((e) => e.scrollLeft !== 0).length,
     right: !scrollables.filter(
@@ -25,8 +31,6 @@ const isScrollSwipable = (scrollables) => ({
 });
 
 /**
- * Performs an action once the user completes a touch swipe (left, right, or
- * both), optionally gated by a condition.
  * @extends Component
  */
 export class ActionSwiper extends Component {
@@ -73,7 +77,6 @@ export class ActionSwiper extends Component {
             isSwiping: false,
             width: undefined,
         };
-        this.root = useRef("root");
         this.targetContainer = useRef("targetContainer");
         this.state = useState({ ...this.defaultState });
         this.scrollables = undefined;
@@ -84,16 +87,6 @@ export class ActionSwiper extends Component {
             if (this.targetContainer.el) {
                 this.state.width =
                     this.targetContainer.el.getBoundingClientRect().width;
-            }
-            if (this.props.onLeftSwipe || this.props.onRightSwipe) {
-                const classes = new Set(this.root.el.classList);
-                classes.delete("o_actionswiper");
-                for (const className of classes) {
-                    /** @type {HTMLElement} */ (
-                        this.targetContainer.el.firstChild
-                    ).classList.add(className);
-                    this.root.el.classList.remove(className);
-                }
             }
         });
         onWillUnmount(() => {
@@ -115,10 +108,6 @@ export class ActionSwiper extends Component {
     }
 
     /**
-     * The browser cancelled the touch sequence (incoming call, system
-     * gesture, scroll reclaim): touchend will never fire, so the swipe state
-     * must be reset here or the row stays stuck mid-translation.
-     *
      * @private
      */
     _onTouchCancelSwipe() {
@@ -166,7 +155,7 @@ export class ActionSwiper extends Component {
                 onLeftSwipe ? -this.state.width : 0,
                 onRightSwipe ? this.state.width : 0,
             );
-            if (Math.abs(this.swipedDistance) > 40) {
+            if (Math.abs(this.swipedDistance) > SCROLL_LOCK_THRESHOLD) {
                 ev.preventDefault();
             }
             if (
@@ -224,27 +213,42 @@ export class ActionSwiper extends Component {
         this.isScrollValidated = false;
     }
 
+    /**
+     * A rejecting action must still leave the swiper in a usable state, and the
+     * failure must reach the global error handler rather than dying inside the
+     * timeout callback as an unhandled rejection.
+     *
+     * @param {any} error
+     */
+    reportActionError(error) {
+        reportUncaught(error);
+    }
+
     handleSwipe(action) {
         browser.clearTimeout(this.actionTimeoutId);
         browser.clearTimeout(this.resetTimeoutId);
         if (this.props.animationType === "bounce") {
             this.state.containerStyle = `transform: translateX(${this.swipedDistance}px)`;
             this.actionTimeoutId = browser.setTimeout(async () => {
-                await action(Promise.resolve());
+                try {
+                    await action(Promise.resolve());
+                } catch (error) {
+                    this.reportActionError(error);
+                }
                 if (status(this) === "destroyed") {
                     return;
                 }
                 this._reset();
-            }, 500);
+            }, BOUNCE_ACTION_DELAY);
         } else if (this.props.animationType === "forwards") {
             this.state.containerStyle = `transform: translateX(${this.swipedDistance}px)`;
             this.actionTimeoutId = browser.setTimeout(async () => {
                 const prom = new Deferred();
-                await action(prom);
-                // The action can outlive the swiper (it usually reloads the
-                // list that owns it). `onWillUnmount` already ran, so anything
-                // scheduled past this point escapes teardown entirely — but the
-                // deferred still has to settle or its awaiter hangs forever.
+                try {
+                    await action(prom);
+                } catch (error) {
+                    this.reportActionError(error);
+                }
                 if (status(this) === "destroyed") {
                     prom.resolve();
                     return;
@@ -254,8 +258,8 @@ export class ActionSwiper extends Component {
                 this.resetTimeoutId = browser.setTimeout(() => {
                     prom.resolve();
                     this._reset();
-                }, 100);
-            }, 100);
+                }, FORWARDS_RESET_DELAY);
+            }, FORWARDS_ACTION_DELAY);
         } else {
             return action(Promise.resolve());
         }

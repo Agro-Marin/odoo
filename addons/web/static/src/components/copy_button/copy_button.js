@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/copy_button/copy_button - Clipboard copy button with success tooltip feedback */
+/** @module @web/components/copy_button/copy_button */
 
 import { Component, onWillUnmount, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -31,7 +31,6 @@ export class CopyButton extends Component {
         onWillUnmount(() => browser.clearTimeout(this.tooltipCloseTimer));
     }
 
-    /** Show a temporary success tooltip on the button for 800ms. */
     showTooltip() {
         this.popover.open(/** @type {HTMLElement} */ (this.button.el), {
             tooltip: this.props.successText,
@@ -40,7 +39,6 @@ export class CopyButton extends Component {
         this.tooltipCloseTimer = browser.setTimeout(this.popover.close, 800);
     }
 
-    /** Copy content to the clipboard, resolving function props if needed. */
     async onClick() {
         let write, content;
         if (typeof this.props.content === "function") {
@@ -49,9 +47,11 @@ export class CopyButton extends Component {
             content = this.props.content;
         }
         if (typeof content === "string" || content instanceof String) {
-            write = (value) => browser.navigator.clipboard.writeText(value);
+            write = (/** @type {string} */ value) =>
+                browser.navigator.clipboard.writeText(value);
         } else {
-            write = (value) => browser.navigator.clipboard.write(value);
+            write = (/** @type {ClipboardItems} */ value) =>
+                browser.navigator.clipboard.write(value);
         }
         try {
             await write(content);

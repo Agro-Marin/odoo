@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/pager/pager_indicator - Floating toast indicator showing current page position on pager updates */
+/** @module @web/components/pager/pager_indicator */
 
 import { Component, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
@@ -16,16 +16,21 @@ export class PagerIndicator extends Component {
     static components = { Transition };
     static props = {};
 
+    /** @type {number | undefined} */
+    startShowTimer;
+    /** @type {{ show: boolean; value: string; total: number }} */
+    state;
+
     setup() {
         this.state = useState({
             show: false,
             value: "-",
             total: 0,
         });
-        this.startShowTimer = null;
-        useBus(pagerBus, PAGER_UPDATED_EVENT, /** @type {any} */ (this.pagerUpdate));
+        useBus(pagerBus, PAGER_UPDATED_EVENT, this.pagerUpdate);
     }
 
+    /** @param {CustomEvent<{ value: string, total: number }>} ev */
     pagerUpdate({ detail }) {
         this.state.value = detail.value;
         this.state.total = detail.total;

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/color_picker/color_picker - Full-featured color picker with preset palette, custom colors, and gradient support */
+/** @module @web/components/color_picker/color_picker */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { CustomColorPicker } from "@web/components/color_picker/custom_color_picker/custom_color_picker";
@@ -224,7 +224,7 @@ export class ColorPicker extends Component {
         return color;
     }
     /**
-     * @param {Object} cbs - callbacks
+     * @param {Object} cbs
      * @param {Function} [cbs.onApplyCallback]
      * @param {Function} [cbs.onPreviewRevertCallback]
      * @param {Function} [cbs.getPreviewColor]
@@ -248,6 +248,8 @@ export class ColorPicker extends Component {
         this.state.currentCustomColor = color;
         this.props.applyColor(color);
         this.defaultColorSet = this.getDefaultColorSet();
+        // Applying a colour is exactly what makes it "used".
+        this.usedCustomColors = this.props.getUsedCustomColors();
         this.onApplyCallback();
     }
 
@@ -397,11 +399,6 @@ export function useColorPicker(refName, props, options = {}) {
         ...options,
         onClose: () => {
             const callback = onCloseCallback;
-            // Scoped to ONE picker session. Only the custom tab registers a
-            // callback, so a session that never mounts it would otherwise
-            // replay the previous session's commit against a destroyed
-            // component -- currently inert only because `onApplyCallback`
-            // happens to clear that instance's flag first.
             onCloseCallback = () => {};
             callback();
             userOnClose?.();

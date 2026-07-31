@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/components/errors/error_dialogs - Error dialog components for RPC, client, network, and validation errors */
+/** @module @web/components/errors/error_dialogs */
 
-import { Component, markup, useRef, useState } from "@odoo/owl";
+import { Component, markup, useState } from "@odoo/owl";
+import { CopyButton } from "@web/components/copy_button/copy_button";
 import { browser } from "@web/core/browser/browser";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
@@ -11,8 +12,6 @@ import { registry } from "@web/core/registry";
 import { capitalize } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
-import { usePopover } from "@web/ui/popover/popover_hook";
-import { Tooltip } from "@web/ui/tooltip/tooltip";
 
 /**
  * @typedef {Object} StandardErrorDialogProps
@@ -63,13 +62,14 @@ export const odooExceptionTitleMap = new Map(
         "odoo.exceptions.UserError": _t("Invalid Operation"),
         "odoo.exceptions.ValidationError": _t("Validation Error"),
         "odoo.exceptions.AccessError": _t("Access Error"),
+        "werkzeug.exceptions.Forbidden": _t("Access Denied"),
         "odoo.exceptions.Warning": _t("Warning"),
     }),
 );
 
 export class ErrorDialog extends Component {
     static template = "web.ErrorDialog";
-    static components = { Dialog };
+    static components = { CopyButton, Dialog };
     static title = _t("Odoo Error");
     static showTracebackButtonText = _t("See technical details");
     static hideTracebackButtonText = _t("Hide technical details");
@@ -79,8 +79,6 @@ export class ErrorDialog extends Component {
         this.state = useState({
             showTraceback: false,
         });
-        this.copyButtonRef = useRef("copyButton");
-        this.popover = usePopover(Tooltip);
         this.contextDetails = "Occurred ";
         if (this.props.serverHost) {
             this.contextDetails += `on ${this.props.serverHost} `;
@@ -93,18 +91,16 @@ export class ErrorDialog extends Component {
             .toFormat("yyyy-MM-dd HH:mm:ss")} GMT`;
     }
 
-    /** Show a brief "Copied" tooltip on the copy button. */
-    showTooltip() {
-        this.popover.open(this.copyButtonRef.el, { tooltip: _t("Copied") });
-        browser.setTimeout(this.popover.close, 800);
+    /**
+     * @returns {string}
+     */
+    get clipboardReport() {
+        return `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.props.traceback}`;
     }
 
-    /** Copy error name, message, context, and traceback to clipboard. */
-    onClickClipboard() {
-        browser.navigator.clipboard.writeText(
-            `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.props.traceback}`,
-        );
-        this.showTooltip();
+    /** @returns {string} */
+    get copiedText() {
+        return _t("Copied");
     }
 }
 
@@ -128,7 +124,6 @@ export class RPCErrorDialog extends ErrorDialog {
             this.traceback = `${this.props.data.debug}\nThe above server error caused the following client error:\n${this.traceback}`;
         }
     }
-    /** Set this.title from exception name or error type. */
     inferTitle() {
         if (
             this.props.exceptionName &&
@@ -153,12 +148,9 @@ export class RPCErrorDialog extends ErrorDialog {
         }
     }
 
-    /** Copy error name, message, context, and combined server/client traceback to clipboard. */
-    onClickClipboard() {
-        browser.navigator.clipboard.writeText(
-            `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.traceback}`,
-        );
-        this.showTooltip();
+    /** @returns {string} */
+    get clipboardReport() {
+        return `${this.props.name}\n\n${this.props.message}\n\n${this.contextDetails}\n\n${this.traceback}`;
     }
 }
 
@@ -180,7 +172,7 @@ export class WarningDialog extends Component {
         }
     }
     /**
-     * @returns {string} dialog title from exception name map, props, or default
+     * @returns {string}
      */
     inferTitle() {
         if (
@@ -201,15 +193,18 @@ export class RedirectWarningDialog extends Component {
     setup() {
         this.actionService = useService("action");
         const { data, subType } = this.props;
-        const [message, actionId, buttonText, additionalContext] = data.arguments;
+        const [message, actionId, buttonText, additionalContext] =
+            data?.arguments || [];
         this.title = capitalize(subType) || _t("Odoo Warning");
         this.message = message;
         this.actionId = actionId;
         this.buttonText = buttonText;
         this.additionalContext = additionalContext;
     }
-    /** Execute the redirect action and close the dialog. */
     async onClick() {
+        if (!this.actionId) {
+            return this.props.close();
+        }
         const options = { forceLeave: true };
         if (this.additionalContext) {
             options.additionalContext = this.additionalContext;
@@ -233,7 +228,6 @@ export class SessionExpiredDialog extends Component {
     static components = { Dialog };
     static props = { ...standardErrorDialogProps };
 
-    /** Reload the page to re-authenticate. */
     onClick() {
         browser.location.reload();
     }
@@ -257,5 +251,5 @@ registry
     .add("odoo.exceptions.ValidationError", WarningDialog)
     .add("odoo.exceptions.RedirectWarning", RedirectWarningDialog)
     .add("odoo.http.SessionExpiredException", SessionExpiredDialog)
-    .add("werkzeug.exceptions.Forbidden", SessionExpiredDialog)
+    .add("werkzeug.exceptions.Forbidden", WarningDialog)
     .add("504", Error504Dialog);
