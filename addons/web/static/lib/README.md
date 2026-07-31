@@ -21,7 +21,7 @@ unmarked is one the next bump silently discards.
 
 Do not keep a parallel `.patch` file alongside a library: a copy of a diff can disagree
 with the file it describes, and nothing reads it at build time. Keep reshaping tooling
-in `web/tooling/scripts/`, not inside the vendored tree.
+in `tooling/vendored/`, not inside the vendored tree.
 
 `versions.json` in this directory is the **single source of truth** for what is vendored
 and at which version. It is machine-checked — see [Verification](#verification) — so the
@@ -90,7 +90,7 @@ legacy build bundles the core-js polyfill, in both `build/pdf.js` and
 against the bundle files, which is the only place it can be gated — a browser that
 ships the method natively satisfies any runtime check whatever build is vendored.
 `pdfjs-<v>-legacy-dist.zip` does not match the vendored layout:
-`addons/web/tooling/scripts/mechanise_pdfjs.sh <unzipped-dir>`
+`tooling/vendored/mechanise_pdfjs.sh <unzipped-dir>`
 reshapes it (`.mjs` to `.js`, source-map references stripped, scripting sandbox and
 sample assets dropped), and its header explains each choice. Run it first, then
 re-apply the 12 `AgroMarin:` markers in `web/viewer.js`.
@@ -134,10 +134,10 @@ cosmetic diff — is in the file's banner comment. Only browsers without a nativ
 
 ```bash
 # offline: every pinned version re-derived from the shipped bytes
-addons/web/tooling/scripts/check_vendored_libs.py --drift
+tooling/vendored/check_vendored_libs.py --drift
 
 # network: OSV advisories against the pinned versions
-addons/web/tooling/scripts/check_vendored_libs.py --audit
+tooling/vendored/check_vendored_libs.py --audit
 ```
 
 Both exit non-zero on failure and belong in CI. `--audit` reports (and does not

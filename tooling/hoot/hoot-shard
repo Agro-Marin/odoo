@@ -2,12 +2,18 @@
 ''':'
 # Self-locating trampoline (sh/python polyglot): re-exec this file with the
 # workspace venv interpreter so no venv path is ever hardcoded. Mirrors the
-# sibling ``hoot`` runner. The workspace root is 6 levels up
-# (<ws>/addons/odoo/addons/web/tooling/scripts). Override with
+# sibling ``hoot`` runner. The checkout root is found by walking up for
+# `odoo-bin` rather than counting directories. Override with
 # $ODOO_VENV_PYTHON when the workspace holds several venvs.
 # NB: no `set --` in here — it would clobber "$@" (the real CLI arguments).
 here="$(cd "$(dirname "$0")" && pwd)"
-ws="$(cd "$here/../../../../../.." && pwd)"
+root="$here"
+while [ "$root" != "/" ] && [ ! -f "$root/odoo-bin" ]; do root="$(dirname "$root")"; done
+if [ ! -f "$root/odoo-bin" ]; then
+    echo "$(basename "$0"): no odoo-bin above $here; cannot locate the checkout" >&2
+    exit 1
+fi
+ws="$(cd "$root/../.." && pwd)"
 py="${ODOO_VENV_PYTHON:-}"
 if [ -z "$py" ]; then
     for cand in "$ws"/venv/*/bin/python; do
@@ -35,8 +41,8 @@ auto-picks a free port and auto-creates/installs ``web`` per DB, and its
 lifecycle is explicitly per-DB so concurrent warm servers never collide). On a
 many-core box this turns a ~10 min full-web run into a ~2-3 min one.
 
-Balancing uses a per-suite runtime table (``hoot_shard_weights.json`` next to
-this script, seeded from observed timings) and longest-processing-time (LPT)
+Balancing uses a per-suite runtime table (``data/hoot_shard_weights.json``
+beside this script, seeded from observed timings) and longest-processing-time (LPT)
 bin-packing, so the slowest suites are spread across shards instead of piling
 onto one.
 
@@ -73,7 +79,7 @@ HOOT = HERE / "hoot"
 
 sys.path.insert(0, str(HERE))
 import hoot_lib as H  # noqa: E402  (needs HERE on the path)
-WEIGHTS_PATH = HERE / "hoot_shard_weights.json"
+WEIGHTS_PATH = HERE / "data" / "hoot_shard_weights.json"
 
 C_GREEN, C_RED, C_YEL, C_DIM, C_RST = (
     "\033[32m", "\033[31m", "\033[33m", "\033[2m", "\033[0m"

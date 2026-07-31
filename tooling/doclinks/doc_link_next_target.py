@@ -61,11 +61,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-# parents[4] is this repo's root whether it is checked out as
-# `<workspace>/addons/odoo` or alone; anchoring on the workspace breaks the
-# repo-alone case. Same fix as doc_link_gate.py.
-ODOO_ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_BASELINE_PATH = ODOO_ROOT / "addons/web/tooling/scripts/doc_link_baseline.json"
+DEFAULT_BASELINE_PATH = (
+    Path(__file__).resolve().parent / "baselines" / "doc_link_baseline.json"
+)
 
 AUTHORITATIVE_PATHS = (
     "addons/odoo/addons/web/machine_doc_v1/",

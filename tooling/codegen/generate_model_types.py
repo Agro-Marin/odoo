@@ -13,19 +13,25 @@ unknown ``record.data`` shape.
 USAGE
 -----
 
-From a running Odoo shell (preferred — fields_get reflects the live
-inheritance chain):
+All paths below are relative to the odoo checkout root (the directory
+holding ``odoo-bin``); nothing here assumes a particular machine.
 
-    cd /home/marin/Odoo
-    ./addons/odoo/odoo-bin shell -c conf/odoo.conf -d $DB <<'PY'
-    from addons.core.addons.web.tooling.scripts.generate_model_types import generate
+Via the wrapper (preferred — discovers the venv and config itself):
+
+    DB=<db> ./tooling/codegen/regen_model_types.sh sale,sale_management,stock
+
+From a running Odoo shell (fields_get reflects the live inheritance chain):
+
+    ./odoo-bin shell -c <config> -d <db> <<'PY'
+    import sys; sys.path.insert(0, "tooling/codegen")
+    from generate_model_types import generate
     generate(env, modules=["sale", "sale_management", "stock"])
     PY
 
 Standalone (bootstraps Odoo internally — slower but self-contained):
 
-    python tooling/scripts/generate_model_types.py \\
-        --config conf/odoo.conf --db marin190 \\
+    python tooling/codegen/generate_model_types.py \\
+        --config <config> --db <db> \\
         --modules sale,sale_management,stock
 
 Output goes to ``addons/odoo/addons/web/static/src/@types/models/`` by
@@ -82,8 +88,12 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[6]
-DEFAULT_OUTPUT_DIR = REPO_ROOT / "addons/odoo/addons/web/static/src/@types/models"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from _repo_root import find_odoo_root
+
+# See generate_service_types.py: anchored on the checkout root, not the workspace.
+ODOO_ROOT = find_odoo_root(Path(__file__).resolve(), tool="generate_model_types")
+DEFAULT_OUTPUT_DIR = ODOO_ROOT / "addons/web/static/src/@types/models"
 
 _SELECTION_KEY_CAP = 32
 
@@ -210,7 +220,7 @@ def _model_to_dts(model_name: str, fields: dict[str, dict], module: str) -> str:
         f" * Source: ``{model_name}.fields_get()`` "
         f"(module ``{module}``).\n"
         f" * Re-run: "
-        f"``tooling/scripts/generate_model_types.py "
+        f"``tooling/codegen/generate_model_types.py "
         f"--modules={module}``.\n"
         f" */\n"
     )
@@ -307,7 +317,7 @@ def generate(
         written[model_name] = target_path
         if not quiet:
             try:
-                rel = target_path.relative_to(REPO_ROOT)
+                rel = target_path.relative_to(ODOO_ROOT)
             except ValueError:
                 rel = target_path
             print(f"  emit: {model_name:<40s} → {rel}")
@@ -321,7 +331,7 @@ def generate(
 
 def _bootstrap_odoo(config_path: str, db: str) -> Any:
     """Initialise Odoo and return an Environment for ``db``."""
-    sys.path.insert(0, str(REPO_ROOT / "addons/odoo"))
+    sys.path.insert(0, str(ODOO_ROOT))
     import odoo  # type: ignore[import-not-found]
     from odoo.tools import config  # type: ignore[import-not-found]
 

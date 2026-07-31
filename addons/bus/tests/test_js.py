@@ -20,7 +20,7 @@ per-directory suite list to keep in sync (unlike ``web``, which fans out across
 many prefixes and needs ``test_suite_filters_cover_every_test_file``).
 
 Fast local runs use the warm-server runner instead:
-``addons/web/tooling/scripts/hoot --db hoot_bus '@bus'`` (see its README).
+``tooling/hoot/hoot --db hoot_bus '@bus'`` (see its README).
 """
 
 import odoo.tests

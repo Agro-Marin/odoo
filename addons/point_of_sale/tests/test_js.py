@@ -16,7 +16,7 @@ Only ``static/tests/unit`` is bundled into ``web.assets_unit_tests``; other tree
 selected here — the coverage walk below therefore scopes itself to ``unit``.
 
 Fast local runs use the warm-server runner instead:
-``addons/web/tooling/scripts/hoot --db hoot_pos '@point_of_sale/unit'`` (any suite
+``tooling/hoot/hoot --db hoot_pos '@point_of_sale/unit'`` (any suite
 or test path; see its README).
 """
 

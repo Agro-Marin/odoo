@@ -28,7 +28,7 @@ pid/port/db) and `.hoot_logs/` (server + init logs). Both are throwaway.
 ## Usage
 
 ```bash
-cd addons/web/tooling/scripts
+cd tooling/hoot
 
 ./hoot '@web/core/domain'            # run one file's suite
 ./hoot '@web/services' '@web/model'  # several suites

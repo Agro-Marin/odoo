@@ -32,7 +32,7 @@ generate(env, models=["res.partner"])
 PY
 
 # Standalone (slower — bootstraps Odoo internally):
-python addons/odoo/addons/web/tooling/scripts/generate_model_types.py \
+python addons/odoo/tooling/codegen/generate_model_types.py \
     --config conf/odoo.conf --db $DB --modules sale,stock
 ```
 

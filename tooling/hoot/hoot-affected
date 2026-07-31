@@ -1,12 +1,19 @@
 #!/bin/sh
 ''':'
 # Self-locating trampoline (sh/python polyglot): re-exec this file with the
-# workspace venv interpreter so no venv path is ever hardcoded. The workspace
-# root is 6 levels up (<ws>/addons/odoo/addons/web/tooling/scripts). Override
+# workspace venv interpreter so no venv path is ever hardcoded. The checkout
+# root is found by walking up for `odoo-bin` rather than counting directories,
+# so moving this script cannot silently point it at the wrong tree. Override
 # with $ODOO_VENV_PYTHON when the workspace holds several venvs.
 # NB: no `set --` in here — it would clobber "$@" (the real CLI arguments).
 here="$(cd "$(dirname "$0")" && pwd)"
-ws="$(cd "$here/../../../../../.." && pwd)"
+root="$here"
+while [ "$root" != "/" ] && [ ! -f "$root/odoo-bin" ]; do root="$(dirname "$root")"; done
+if [ ! -f "$root/odoo-bin" ]; then
+    echo "$(basename "$0"): no odoo-bin above $here; cannot locate the checkout" >&2
+    exit 1
+fi
+ws="$(cd "$root/../.." && pwd)"
 py="${ODOO_VENV_PYTHON:-}"
 if [ -z "$py" ]; then
     for cand in "$ws"/venv/*/bin/python; do

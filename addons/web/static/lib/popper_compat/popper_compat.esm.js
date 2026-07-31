@@ -5,7 +5,7 @@
  * GENERATED -- do not edit. Rebuild with:
  *     addons/web/static/lib/popper_compat/build.sh
  * Its freshness is enforced by:
- *     addons/web/tooling/scripts/check_vendored_libs.py --drift
+ *     tooling/vendored/check_vendored_libs.py --drift
  *
  * @license LGPL-3 (this is first-party Odoo code, not a vendored library)
  */

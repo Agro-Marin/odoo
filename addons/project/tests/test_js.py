@@ -10,7 +10,7 @@ filter, ``_run_hoot`` warm navigation) is reused from ``web`` via
 does not collect ``web``'s base meta-tests a second time under ``project``.
 
 Fast local runs use the warm-server runner instead:
-``addons/web/tooling/scripts/hoot --db hoot_project '@project'`` (any suite or
+``tooling/hoot/hoot --db hoot_project '@project'`` (any suite or
 test path; see its README).
 """
 

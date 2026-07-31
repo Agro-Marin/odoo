@@ -22,7 +22,7 @@ under the mobile preset, so the mobile pass runs the ``mobile``-tagged files
 plus every preset-agnostic test against the small-screen layout.
 
 Fast local runs use the warm-server runner instead:
-``addons/web/tooling/scripts/hoot --db hoot_bus_mail '@mail/discuss'`` (any
+``tooling/hoot/hoot --db hoot_bus_mail '@mail/discuss'`` (any
 suite path; see its README).
 """
 
