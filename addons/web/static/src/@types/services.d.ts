@@ -4,6 +4,7 @@ declare module "services" {
     import { publicInteractionService } from "@web/public/interaction_service";
 
     import { commandService } from "@web/services/commands/command_service";
+    import { connectionRecoveryService } from "@web/services/error_handlers";
     import { errorService } from "@web/services/error_service";
     import { fieldService } from "@web/services/field_service";
     import { fileUploadService } from "@web/services/file_upload_service";
@@ -59,6 +60,7 @@ declare module "services" {
         allowed_qweb_expressions: typeof allowedQwebExpressionsService;
         bottom_sheet: typeof bottomSheetService;
         command: typeof commandService;
+        connection_recovery: typeof connectionRecoveryService;
         currency: typeof currencyService;
         datetime_picker: typeof datetimePickerService;
         demo_data: typeof demoDataService;

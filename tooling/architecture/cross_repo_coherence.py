@@ -41,8 +41,11 @@ Usage::
     python tooling/architecture/cross_repo_coherence.py --json
     python tooling/architecture/cross_repo_coherence.py --from A --to B
 
-Known limitation: a removed *named export* inside a file that still exists is
-not detected — only whole-module removals (deleted / renamed / re-homed files).
+Scope: whole-module removals (deleted / renamed / re-homed files). A removed
+*named export* inside a file that still exists is the complementary failure,
+and is covered by the sibling gate ``named_export_coherence.py`` — which is
+not diff-scoped, so it also catches the case where the consumer, rather than
+the removal, is the side that drifted.
 """
 
 import argparse
@@ -70,14 +73,22 @@ DEFAULT_TO_REF = "HEAD"
 
 
 def default_consumer_repos() -> list[Path]:
-    """Workspace sibling repos that consume core JS, in scan order."""
+    """Workspace sibling repos that consume core JS, in scan order.
+
+    The siblings sit BESIDE this repo (``WORKSPACE/<repo>``), not under a
+    nested ``WORKSPACE/addons/``. Two of the three entries carried that extra
+    segment (and ``agromarin-addons`` a name the checkout does not use), so
+    they resolved to directories that have never existed and ``find_dangling``
+    skipped them silently -- the gate has only ever checked ``enterprise``
+    while reporting a clean bill of health for all three.
+    """
     env = os.environ.get("AGROMARIN_CONSUMER_REPOS")
     if env:
         return [Path(p) for p in env.split(":") if p.strip()]
     return [
         WORKSPACE / "enterprise",
-        WORKSPACE / "addons" / "agromarin-addons",
-        WORKSPACE / "addons" / "design-themes",
+        WORKSPACE / "agromarin",
+        WORKSPACE / "design-themes",
     ]
 
 
@@ -167,12 +178,19 @@ def find_dangling(
     dangling: list[Dangling] = []
     for repo in consumer_repos:
         if not (repo / ".git").exists() and not repo.is_dir():
+            # Loud, because silence here is indistinguishable from "checked it
+            # and it was clean" -- which is exactly how a typo in the default
+            # paths hid two of the three consumer repos from this gate.
+            print(
+                f"cross_repo_coherence: consumer repo not found, NOT checked: {repo}",
+                file=sys.stderr,
+            )
             continue
         for spec, old_path in removed.items():
             for path in _consumer_js_files_importing(repo, spec):
                 try:
                     src = path.read_text(encoding="utf-8")
-                except (UnicodeDecodeError, OSError):  # pragma: no cover
+                except UnicodeDecodeError, OSError:  # pragma: no cover
                     continue
                 for imp, lineno in collect_imports(src):
                     if imp in (spec, f"{spec}.js"):
@@ -229,7 +247,9 @@ def main(argv: list[str] | None = None) -> int:
         print("Cross-repo symbol-coherence check (core -> consumers)")
         print("=" * 64)
         print(f"Range: {from_ref}..{to_ref}")
-        print(f"Consumer repos: {', '.join(r.name for r in consumer_repos) or '(none)'}")
+        print(
+            f"Consumer repos: {', '.join(r.name for r in consumer_repos) or '(none)'}"
+        )
         print(f"Core JS modules removed in range: {len(removed)}")
         for spec, old in removed.items():
             print(f"  - {spec}  ({old})")

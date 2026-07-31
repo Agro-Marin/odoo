@@ -38,6 +38,7 @@ Examples
 --------
   hoot-affected
   hoot-affected addons/web/static/src/core/domain.js
+  hoot-affected --downstream   # include suites in OTHER addons that import it
   hoot --affected      # run them
 """
 
@@ -52,12 +53,13 @@ import hoot_lib as H
 
 
 def main() -> int:
+    flags = {a for a in sys.argv[1:] if a.startswith("-")}
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     changed = H.changed_web_js(args or None)
     if not changed:
         print("# no changed JS files under a static/ tree", file=sys.stderr)
         return 0
-    suites = H.affected_suites(changed)
+    suites = H.affected_suites(changed, downstream="--downstream" in flags)
     if not suites:
         print("# no affected suites detected", file=sys.stderr)
         return 0

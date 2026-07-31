@@ -1,31 +1,49 @@
 {
-  // Incremental strictNullChecks enforcement — FULL-PROGRAM run + post-filter.
+  // strictNullChecks enforcement — FULL-PROGRAM run, scoped verdict.
   //
   // The base tsconfig.json runs with strictNullChecks OFF, so the project-wide
-  // gate cannot catch null/undefined bugs (TS18047/18048/2532/2531 — ~4500
-  // latent across the project). This config is the base config with ONLY
+  // gate cannot catch null/undefined bugs (TS18047/18048/2532/2531 — ~7400
+  // latent across the program). This config is the base config with ONLY
   // strictNullChecks flipped on, over the SAME full program — so every ambient
   // (`@odoo/owl`, the `odoo` global, registries.d.ts / services.d.ts / models/)
   // resolves exactly as in the real build, and the errors reported are REAL.
   //
-  // It is NOT expected to reach zero project-wide yet. Enforcement is by
-  // POST-FILTER against tooling/strict_allowlist.txt: CI runs
+  // It is NOT expected to reach zero project-wide yet. Enforcement is
+  // DEFAULT-DENY over the web module: every .js/.ts under
+  // addons/web/static/{src,tests} must be clean unless it is listed in
+  // tooling/typecheck/exceptions/strict/web.txt, and that list may only
+  // shrink. CI:
   //
-  //     npx tsc -p tsconfig.strict.json --noEmit
+  //     npx tsc -p tsconfig.strict.json --noEmit --listFiles > /tmp/strict.log 2>&1 || true
+  //     python tooling/typecheck/scope_gate.py strict --log /tmp/strict.log
   //
-  // and fails iff any ALLOWLISTED file appears in the error output. The
-  // allowlist is the set of files already proven null-safe; it only grows.
-  // Adding a file requires it to be strict-clean in this full run first.
+  // Everything outside that scope is covered by the project-wide count ratchet
+  // (tooling/ratchet/baselines/tsc.json) instead.
   //
-  // Why full-program + post-filter instead of an isolated `files` allowlist:
+  // Why full-program + scoped verdict instead of an isolated `files` program:
   // an isolated program can only include the two self-contained ambients
   // (owl.d.ts, odoo.d.ts) without dragging hundreds of source files in via the
   // type-importing .d.ts (registries/services/models). That under-resolves the
   // framework types, so any file using `useService`/registry/view types shows
-  // *artifact* errors. The full program resolves them correctly, so the
-  // allowlist can lock real framework-integrated files, not just pure leaves.
+  // *artifact* errors. The full program resolves them correctly, so the lock
+  // covers real framework-integrated files, not just pure leaves.
+  //
+  // Sibling of tsconfig.noimplicitany.json; same design (see that file's
+  // header). The two locks advance the same foundation together: noImplicitAny
+  // makes the strictNullChecks guarantee REAL on a file, so prefer locking a
+  // file in BOTH. See tooling/typecheck/README.md.
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    // Without this, tsc only checks a .js file that opts in with `// @ts-check`
+    // — which makes the lock's reach a property of the source files, not of the
+    // gate, and re-creates the allowlist hole this gate exists to close: a new
+    // file without the pragma is silently unchecked yet counts as locked. In
+    // `web` the pragma is near-universal (1271 of 1273 files), so this only
+    // pulls in module_loader.js and service_worker.js; for every other module
+    // it is the difference between a real gate and a decorative one (mail,
+    // bus, html_editor, html_builder, website and point_of_sale carry the
+    // pragma on 1 file out of 2052 between them).
+    "checkJs": true
   }
 }

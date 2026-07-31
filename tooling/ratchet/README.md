@@ -54,6 +54,14 @@ move its floor in the same commit.
 All four count gates are blocking. `freethreading.yml` is a pass/fail
 correctness run, not a count, so it is not a ratchet.
 
+A count is the right unit for aggregate drift across a whole repo, but it names
+no file and lets one file's fix pay for another's regression. Where a gate can
+name files instead, `tooling/typecheck` applies the same drift-zero philosophy
+per file: the web module's `strictNullChecks` / `noImplicitAny` locks are
+default-deny, so the *exception* list shrinks rather than a floor falling. The
+two compose — `typecheck.yml` runs the `tsc` count ratchet over every module and
+the per-file locks over `web`.
+
 ## Self-test
 
 `python tooling/ratchet/test_ratchet.py` — stdlib `unittest`, no Odoo, no DB. CI

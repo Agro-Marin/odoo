@@ -16,6 +16,7 @@ test case (``_logger``, ``browser_size``, ``touch_enabled``) plus a
 
 from __future__ import annotations
 
+import ast
 import contextlib
 import fcntl
 import getpass
@@ -92,6 +93,28 @@ def generate_hash(test_string: str) -> str:
         hash_val = (hash_val << 5) - hash_val + ord(char)
         hash_val &= 0xFFFFFFFF
     return f"{hash_val:08x}"
+
+
+def module_scope_param(suite_names: list[str]) -> str:
+    """Return the ``&module_scope=`` param for a run, or ``""``.
+
+    Mirrors ``HOOTCommon._get_module_scope_param``: every suite name starts
+    with the addon that owns it (``@web/search`` -> ``web``), and the param
+    narrows the unit-test bundle to that addon's dependency closure. Suites
+    spanning several addons carry no single closure, so they stay unscoped.
+
+    Omitting it made this runner load EVERY installed addon's ``src``, so a
+    broken import anywhere in the workspace took down runs that had nothing to
+    do with it — ``web_gantt`` importing a symbol ``web`` no longer exports
+    reduced ``hoot '@web/search'`` to "0 failed / 0 passed" with a bundle-level
+    SyntaxError, while CI, which sends the param, stayed green. A fast runner
+    that fails differently from CI is worse than a slow one.
+    """
+    addons = {name.partition("/")[0].removeprefix("@") for name in suite_names}
+    if len(addons) != 1:
+        return ""
+    addon = addons.pop()
+    return f"&module_scope={addon}" if addon else ""
 
 
 PG_USER = os.environ.get("PGUSER") or getpass.getuser()
@@ -610,8 +633,8 @@ def run_suites(
     id_filters = "".join(f"&id={generate_hash(s)}" for s in suites)
     url = (
         f"http://{HOST}:{port}/web/tests?headless&loglevel=2"
-        f"&preset={preset}&timeout={hoot_timeout_ms}{id_filters}"
-        f"{module_scope_param(suites)}{extra}"
+        f"&preset={preset}&timeout={hoot_timeout_ms}"
+        f"{id_filters}{module_scope_param(suites)}{extra}"
     )
 
     def unit_test_error_checker(message: str) -> bool:
@@ -678,6 +701,26 @@ def run_suites(
     return result
 
 
+def _addons_roots() -> list[Path]:
+    """Every addons directory on the config's ``addons_path``.
+
+    Scanning only ``addons/odoo/addons`` made ``affected_suites`` return an
+    empty list — read as "nothing to run" — for a changed ``src`` file in any
+    of the 84 enterprise and 4 agromarin modules that ship HOOT tests, because
+    none of their test files were in the import graph.
+    """
+    roots: list[Path] = []
+    with contextlib.suppress(OSError):
+        for line in CONF.read_text().splitlines():
+            key, sep, value = line.partition("=")
+            if sep and key.strip() == "addons_path":
+                roots = [Path(p.strip()) for p in value.split(",") if p.strip()]
+                break
+    roots = [r for r in roots if r.is_dir()]
+    return roots or [ODOO_ROOT / "addons"]
+
+
+ADDONS_ROOTS = _addons_roots()
 WEB_ADDONS_ROOT = ODOO_ROOT / "addons"
 RE_IMPORT = re.compile(
     r"""(?:import|export)\s+(?:.+?\s+from\s+)?["']([^"']+)["']""",
@@ -731,22 +774,126 @@ def specifier_to_suite(spec: str) -> str | None:
     return f"{m[1]}/{m[2]}" if m else None
 
 
-def _iter_test_files() -> list[Path]:
+def iter_addon_dirs() -> list[Path]:
+    """Every addon directory across the whole addons path."""
+    dirs: list[Path] = []
+    for root in ADDONS_ROOTS:
+        with contextlib.suppress(OSError):
+            dirs.extend(d for d in root.iterdir() if d.is_dir())
+    return dirs
+
+
+def _iter_static_files(kind: str, pattern: str) -> list[Path]:
     files: list[Path] = []
-    for addon_dir in WEB_ADDONS_ROOT.iterdir():
-        tdir = addon_dir / "static" / "tests"
-        if tdir.is_dir():
-            files.extend(tdir.rglob("*.test.js"))
+    for addon_dir in iter_addon_dirs():
+        d = addon_dir / "static" / kind
+        if d.is_dir():
+            files.extend(d.rglob(pattern))
     return files
+
+
+def _iter_test_files() -> list[Path]:
+    return _iter_static_files("tests", "*.test.js")
 
 
 def _iter_src_files() -> list[Path]:
-    files: list[Path] = []
-    for addon_dir in WEB_ADDONS_ROOT.iterdir():
-        sdir = addon_dir / "static" / "src"
-        if sdir.is_dir():
-            files.extend(sdir.rglob("*.js"))
-    return files
+    return _iter_static_files("src", "*.js")
+
+
+def ci_runner_suites(addon: str | None = None) -> set[str]:
+    """Suite prefixes the CI runners pass to ``_run_hoot``.
+
+    Read from the runners rather than restated, because a hand-kept copy
+    drifts: ``hoot-shard``'s list carried a "KEEP IN SYNC" comment and had
+    still lost ``@html_editor`` (4766 tests, 494 s — a third of the desktop
+    suite) and ``@web/libs``, so its "full web" run silently covered 66% of
+    the tests. Module-level tuple/list constants are resolved first so a
+    ``*SUITES`` splat inside the call expands.
+    """
+    prefixes: set[str] = set()
+    for addon_dir in iter_addon_dirs():
+        if addon and addon_dir.name != addon:
+            continue
+        runner = addon_dir / "tests" / "test_js.py"
+        if not runner.is_file():
+            continue
+        with contextlib.suppress(OSError, SyntaxError):
+            prefixes |= _run_hoot_args(ast.parse(runner.read_text()))
+    return prefixes
+
+
+def _run_hoot_args(tree: ast.Module) -> set[str]:
+    constants: dict[str, tuple[str, ...]] = {}
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and isinstance(node.value, ast.Tuple | ast.List)
+        ):
+            values: list[str] = []
+            for elt in node.value.elts:
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                    values.append(elt.value)
+                elif isinstance(elt, ast.Starred) and isinstance(elt.value, ast.Name):
+                    values.extend(constants.get(elt.value.id, ()))
+            constants[node.targets[0].id] = tuple(values)
+    prefixes: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_run_hoot"
+        ):
+            for arg in node.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    prefixes.add(arg.value)
+                elif isinstance(arg, ast.Starred) and isinstance(arg.value, ast.Name):
+                    prefixes.update(constants.get(arg.value.id, ()))
+    return prefixes
+
+
+def suite_test_files(suite: str) -> list[Path]:
+    """The ``*.test.js`` files a ``&id=`` filter for ``suite`` can select."""
+    addon, _, rel = suite.lstrip("@").partition("/")
+    for addon_dir in iter_addon_dirs():
+        if addon_dir.name != addon:
+            continue
+        tests_root = addon_dir / "static" / "tests"
+        if not tests_root.is_dir():
+            continue
+        target = tests_root / rel if rel else tests_root
+        if target.is_dir():
+            return sorted(target.rglob("*.test.js"))
+        leaf = target.with_name(target.name + ".test.js")
+        if leaf.is_file():
+            return [leaf]
+    return []
+
+
+def child_suites(suite: str) -> list[str]:
+    """Split ``suite`` into the child suites one level down, or ``[]``.
+
+    A whole-addon id like ``@html_editor`` is one serial page load however
+    long it runs, so a shard runner cannot balance around it without
+    descending into the directory that backs it.
+    """
+    addon, _, rel = suite.lstrip("@").partition("/")
+    for addon_dir in iter_addon_dirs():
+        if addon_dir.name != addon:
+            continue
+        tests_root = addon_dir / "static" / "tests"
+        target = tests_root / rel if rel else tests_root
+        if not target.is_dir():
+            return []
+        children = []
+        for entry in sorted(target.iterdir()):
+            if entry.is_dir() and any(entry.rglob("*.test.js")):
+                children.append(f"{suite}/{entry.name}")
+            elif entry.name.endswith(".test.js"):
+                children.append(f"{suite}/{entry.name[: -len('.test.js')]}")
+        return children
+    return []
 
 
 def _imports_of(path: Path) -> set[str]:
@@ -759,40 +906,69 @@ def _imports_of(path: Path) -> set[str]:
     return {s for s in specs if s.startswith("@")}
 
 
+def _git_toplevels() -> list[Path]:
+    """The distinct git repositories backing the addons path."""
+    tops: list[Path] = []
+    for root in ADDONS_ROOTS:
+        out = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        top = Path(out.stdout.strip()) if out.returncode == 0 else None
+        if top and top not in tops:
+            tops.append(top)
+    return tops
+
+
 def changed_web_js(paths: list[str] | None = None) -> list[Path]:
-    """Default set of changed JS files: ``git diff --name-only`` in addons/odoo,
-    filtered to files under an addon ``static/`` tree.
+    """Changed JS files under an addon ``static/`` tree.
+
+    With no explicit paths this is ``git diff --name-only HEAD`` in every
+    repository on the addons path, not just ``addons/odoo`` — each ``addons/*``
+    directory is its own checkout, so a one-repo diff silently ignored changes
+    in the other three.
     """
     if paths:
         return [Path(p).resolve() for p in paths]
-    out = subprocess.run(
-        ["git", "-C", str(ODOO_ROOT), "diff", "--name-only", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    names = out.stdout.splitlines()
-    return [
-        (ODOO_ROOT / name).resolve()
-        for name in names
-        if name.endswith(".js") and "/static/" in name
-    ]
+    changed: list[Path] = []
+    for top in _git_toplevels():
+        out = subprocess.run(
+            ["git", "-C", str(top), "diff", "--name-only", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        changed.extend(
+            (top / name).resolve()
+            for name in out.stdout.splitlines()
+            if name.endswith(".js") and "/static/" in name
+        )
+    return changed
 
 
-def affected_suites(changed: list[Path]) -> list[str]:
-    """Return the minimal set of ``@web/...`` suite paths to run.
+def affected_suites(changed: list[Path], *, downstream: bool = False) -> list[str]:
+    """Return the minimal set of suite paths to run.
 
     Strategy (conservative import-scan, direct + one hop through src):
       * a changed *.test.js file -> its own suite;
       * a changed src file -> every test file importing it directly, plus test
         files importing a src file that imports the changed src (one hop).
+
+    The scan spans every addon on the addons path, so a core file legitimately
+    reaches ~100 suites across a dozen addons. ``downstream=False`` keeps only
+    the suites owned by the addons you actually edited — the ones a warm DB can
+    install without pulling half the ERP — and leaves the rest to CI.
     """
     changed_specs: set[str] = set()
     suites: set[str] = set()
+    changed_addons: set[str] = set()
     for path in changed:
         spec = file_to_specifier(path)
         if spec is None:
             continue
+        changed_addons.add(spec.lstrip("@").partition("/")[0])
         if "/../tests/" in spec:
             suite = specifier_to_suite(spec)
             if suite:
@@ -800,8 +976,13 @@ def affected_suites(changed: list[Path]) -> list[str]:
         else:
             changed_specs.add(spec)
 
+    def keep(names: set[str]) -> list[str]:
+        if downstream:
+            return sorted(names)
+        return sorted(n for n in names if n.lstrip("@").partition("/")[0] in changed_addons)
+
     if not changed_specs:
-        return sorted(suites)
+        return keep(suites)
 
     hop_specs: set[str] = set()
     for src in _iter_src_files():
@@ -818,4 +999,4 @@ def affected_suites(changed: list[Path]) -> list[str]:
             suite = specifier_to_suite(spec) if spec else None
             if suite:
                 suites.add(suite)
-    return sorted(suites)
+    return keep(suites)
