@@ -5,9 +5,11 @@ import { press, queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";
+import { browser } from "@web/core/browser/browser";
+import { AppEvent } from "@web/core/events";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { useActiveElement } from "@web/ui/ui_service";
-import { MEDIAS_BREAKPOINTS } from "@web/ui/viewport";
+import { SIZES } from "@web/ui/viewport";
 
 import {
     getService,
@@ -319,7 +321,11 @@ test("the service releases its breakpoint listeners on destroy", async () => {
     await makeMockEnv();
 
     let attached = 0;
-    patchWithCleanup(window, {
+    // `browser`, not `window`: `viewport.js` goes through the same indirection
+    // as the rest of the codebase, and `browser.matchMedia` is bound to
+    // `window.matchMedia` once at module load — so patching `window` after
+    // that point no longer reaches it.
+    patchWithCleanup(browser, {
         matchMedia: () => ({
             matches: false,
             addEventListener: () => attached++,
@@ -328,7 +334,7 @@ test("the service releases its breakpoint listeners on destroy", async () => {
     });
 
     const env = await makeMockEnv();
-    expect(attached).toBe(MEDIAS_BREAKPOINTS.length);
+    expect(attached).toBe(SIZES.XXL);
 
     /** @type {any} */ (env.services.ui).destroy();
     expect(attached).toBe(0);
@@ -375,4 +381,99 @@ test("the blocking overlay announces its message politely", async () => {
 
     getService("ui").unblock();
     await animationFrame();
+});
+
+// BREAKPOINT-COVERAGE-BLOCK
+/**
+ * Evaluates a width media query the way a browser does, whatever bounds the
+ * implementation chose to express -- so these tests check the invariant rather
+ * than assuming the very query shape they exist to verify.
+ *
+ * @param {() => number} getWidth
+ */
+function mockMatchMediaAtWidth(getWidth) {
+    /** @type {any[]} */
+    const medias = [];
+    patchWithCleanup(browser, {
+        matchMedia: (/** @type {string} */ query) => {
+            const min = query.match(/min-width:\s*([\d.]+)px/)?.[1];
+            const max = query.match(/max-width:\s*([\d.]+)px/)?.[1];
+            /** @type {any[]} */
+            const listeners = [];
+            const media = {
+                get matches() {
+                    if (min === undefined && max === undefined) {
+                        // Not a width query (`prefers-reduced-motion`, ...):
+                        // claiming a match would answer for the whole codebase.
+                        return false;
+                    }
+                    const width = getWidth();
+                    return (
+                        (min === undefined || width >= Number(min)) &&
+                        (max === undefined || width <= Number(max))
+                    );
+                },
+                addEventListener: (/** @type {any} */ _, /** @type {any} */ cb) =>
+                    listeners.push(cb),
+                removeEventListener: () => {},
+                notify: () =>
+                    listeners.forEach((cb) =>
+                        cb({ matches: media.matches, target: media }),
+                    ),
+            };
+            medias.push(media);
+            return media;
+        },
+    });
+    return { notifyAll: () => medias.forEach((m) => m.notify()) };
+}
+
+test("every viewport width maps to a size, including between breakpoints", async () => {
+    // Sizes used to be `(min-width) and (max-width)` pairs, which cover the
+    // integers and nothing between them: at a fractional device scale factor a
+    // 575px viewport is 575.xx, matched no query, and `findIndex` returned -1.
+    // `isSmall` then said true while `ui.size` indexed past every size table --
+    // `button_box` read `undefined` and fell back to its widest layout.
+    for (const width of [575.5, 767.5, 991.5, 1199.5, 1399.5]) {
+        mockMatchMediaAtWidth(() => width);
+        const env = await makeMockEnv(undefined, { makeNew: true });
+        const ui = /** @type {any} */ (env.services.ui);
+        expect(ui.size).toBeWithin(SIZES.XS, SIZES.XXL + 1);
+        expect(Number.isInteger(ui.size)).toBe(true);
+        expect(ui.isSmall).toBe(ui.size <= SIZES.SM);
+    }
+});
+
+test("the size at a boundary width is the band that starts there", async () => {
+    for (const [width, expected] of [
+        [575, SIZES.XS],
+        [576, SIZES.SM],
+        [767, SIZES.SM],
+        [768, SIZES.MD],
+        [1399, SIZES.XL],
+        [1400, SIZES.XXL],
+    ]) {
+        mockMatchMediaAtWidth(() => width);
+        const env = await makeMockEnv(undefined, { makeNew: true });
+        expect(/** @type {any} */ (env.services.ui).size).toBe(expected);
+    }
+});
+
+test("a resize that does not change the size does not broadcast", async () => {
+    let width = 1000;
+    const { notifyAll } = mockMatchMediaAtWidth(() => width);
+    const env = await makeMockEnv(undefined, { makeNew: true });
+    const ui = /** @type {any} */ (env.services.ui);
+    ui.bus.addEventListener(AppEvent.RESIZE, () => expect.step("resize"));
+    expect(ui.size).toBe(SIZES.LG);
+
+    width = 1100; // still LG
+    notifyAll();
+    expect.verifySteps([]);
+    expect(ui.size).toBe(SIZES.LG);
+
+    width = 1300; // now XL
+    notifyAll();
+    expect.verifySteps(["resize"]);
+    expect(ui.size).toBe(SIZES.XL);
 });

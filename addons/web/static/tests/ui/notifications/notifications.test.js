@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, onError, test } from "@odoo/hoot";
-import { click, hover, leave, waitFor } from "@odoo/hoot-dom";
+import { click, hover, leave, queryOne, waitFor } from "@odoo/hoot-dom";
 import { advanceTime, animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, markup, xml } from "@odoo/owl";
 import {
@@ -382,6 +382,8 @@ test("a subclassed container still receives its own extra props", async () => {
         };
     }
     class CustomContainer extends NotificationContainer {
+        static serviceName = "custom_notification";
+        static notificationComponent = CustomNotification;
         static components = {
             ...NotificationContainer.components,
             Notification: CustomNotification,
@@ -401,4 +403,149 @@ test("a subclassed container still receives its own extra props", async () => {
     await animationFrame();
     expect(".o_custom_notif").toHaveCount(1);
     expect(".o_custom_notif").toHaveText("mango");
+});
+
+test("a second env's notifications reach that env's own container", async () => {
+    // `main_components` has ONE entry per key for every env on the page. When
+    // the entry carried `props: { notifications }`, that map was the first
+    // env's, every container rendered it, and a second env's toasts went into
+    // a map nothing was showing — lost with no error anywhere.
+    const firstEnv = await makeMockEnv();
+    const secondEnv = await makeMockEnv();
+    expect(firstEnv.services.notification.notifications).not.toBe(
+        secondEnv.services.notification.notifications,
+    );
+
+    await mountWithCleanup(MainComponentsContainer, { env: secondEnv });
+    secondEnv.services.notification.add("from the second env");
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+    expect(".o_notification_content").toHaveText("from the second env");
+});
+
+test("the main_components entry is the same object across env starts", async () => {
+    // Re-registering a fresh entry per start has to pick a loser: without
+    // `force` the first env wins and later ones warn, with `force` the last one
+    // wins and an addon's override of the key is silently dropped.
+    await makeMockEnv();
+    const entry = registry.category("main_components").get("NotificationContainer");
+    await makeMockEnv();
+    expect(registry.category("main_components").get("NotificationContainer")).toBe(
+        entry,
+    );
+    expect(entry.props).toBe(undefined);
+});
+
+test("a container whose service is not started says so", async () => {
+    // A subclass that forgets `serviceName` would otherwise render some other
+    // service's toasts, or none, with nothing anywhere to say why.
+    class OrphanContainer extends NotificationContainer {
+        static serviceName = "not_a_service";
+    }
+    const container = Object.create(OrphanContainer.prototype);
+    container.env = await makeMockEnv();
+    let message = "";
+    try {
+        void container.serviceNotifications;
+    } catch (error) {
+        message = error.message;
+    }
+    expect(message).toInclude("OrphanContainer");
+    expect(message).toInclude("not_a_service");
+});
+
+test("destroy() runs the onClose of every still-open notification", async () => {
+    // `onClose` is how a caller learns its toast is gone -- it releases a
+    // spinner, resolves a deferred, re-enables a button. Dropping the env
+    // without running them leaves those callers waiting forever.
+    const env = await makeMockEnv();
+    env.services.notification.add("sticky one", {
+        sticky: true,
+        onClose: () => expect.step("closed:1"),
+    });
+    env.services.notification.add("sticky two", {
+        sticky: true,
+        onClose: () => expect.step("closed:2"),
+    });
+    expect(Object.keys(env.services.notification.notifications)).toHaveLength(2);
+
+    env.services.notification.destroy();
+
+    expect.verifySteps(["closed:1", "closed:2"]);
+    expect(Object.keys(env.services.notification.notifications)).toHaveLength(0);
+});
+
+// PAUSE-BLOCK
+// The countdown paused on hover only, so a keyboard user tabbing to the close
+// or action button lost the notification mid-interaction (WCAG 2.2.1).
+test("focusing a notification pauses its auto-close", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    getService("notification").add("hello");
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+
+    queryOne(".o_notification .o_notification_close").focus();
+    await advanceTime(6000);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+
+    queryOne(".o_notification .o_notification_close").blur();
+    await advanceTime(6000);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(0);
+});
+
+test("releasing the pointer does not resume a notification still focused", async () => {
+    // Hover and focus hold the countdown independently: releasing one while
+    // the other still holds must not restart it.
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    getService("notification").add("hello");
+    await animationFrame();
+
+    await hover(".o_notification");
+    queryOne(".o_notification .o_notification_close").focus();
+    await leave();
+    await advanceTime(6000);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+});
+
+test("moving focus inside a notification keeps it paused", async () => {
+    await makeMockEnv();
+    await mountWithCleanup(MainComponentsContainer);
+    getService("notification").add("hello", {
+        buttons: [{ name: "Undo", onClick: () => {} }],
+    });
+    await animationFrame();
+
+    queryOne(".o_notification .o_notification_close").focus();
+    queryOne(".o_notification_buttons button").focus();
+    await advanceTime(6000);
+    await animationFrame();
+    expect(".o_notification").toHaveCount(1);
+});
+
+// CONTAINER-CONTRACT-BLOCK
+test("a container must declare the component it renders notifications with", async () => {
+    // The accepted options were read off whatever was keyed `Notification` in
+    // `components`, which a subclass inherits. A container rendering something
+    // else was validated against the wrong component and forwarded props that
+    // one rejects, crashing the render.
+    class Orphan extends NotificationContainer {
+        static serviceName = "orphan_notification";
+        static notificationComponent = undefined;
+    }
+    let message = "";
+    try {
+        notificationService.start.call({
+            ...notificationService,
+            notificationContainer: Orphan,
+            notificationContainerKey: "OrphanNotificationContainer",
+        });
+    } catch (error) {
+        message = error.message;
+    }
+    expect(message).toInclude("notificationComponent");
 });

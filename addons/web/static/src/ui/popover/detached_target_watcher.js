@@ -1,22 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/popover/detached_target_watcher - Shared observer closing overlays whose anchor left the DOM */
+/** @module @web/ui/popover/detached_target_watcher */
 
 /**
- * One `MutationObserver` per root node, shared by every watcher registered on
- * it, instead of one per open overlay.
- *
- * A subtree observer on the document is not free: it turns every DOM insertion
- * anywhere in the app into a `MutationRecord` allocation, and measurably slows
- * bulk rendering (~+45% on 20k insertions, measured on Chrome 150). Popovers
- * are opened by hovering — the tooltip service opens one after 400ms on any
- * `data-tooltip` element — so the naive "one observer per popover" arms and
- * disarms whole-document observers during ordinary mouse travel across a list.
- *
- * Every watcher wants the same single fact: did my anchor leave the DOM. One
- * observer per root answers that for all of them.
- *
  * @type {Map<Node, { observer: MutationObserver, watchers: Map<Node, Set<() => void>> }>}
  */
 const watchersByRoot = new Map();
@@ -30,10 +17,6 @@ function checkRoot(root) {
         return;
     }
     /**
-     * Scanned without copying: this runs on EVERY mutation batch in the app,
-     * and the overwhelmingly common outcome is "nothing detached". Only the
-     * rare batch that actually detaches a target pays for an array — the copy
-     * is what makes it safe to run callbacks that unregister themselves.
      * @type {Node[] | undefined}
      */
     let detached;
@@ -57,11 +40,9 @@ function checkRoot(root) {
 }
 
 /**
- * Call `onDetached` once `target` is no longer connected to the document.
- *
  * @param {Node} target
  * @param {() => void} onDetached
- * @returns {() => void} disposer
+ * @returns {() => void}
  */
 export function watchForDetachedTarget(target, onDetached) {
     const root = target.getRootNode();
@@ -90,14 +71,13 @@ export function watchForDetachedTarget(target, onDetached) {
             current.watchers.delete(target);
         }
         if (!current.watchers.size) {
-            // Nothing left to watch: stop taxing every DOM mutation in the app.
             current.observer.disconnect();
             watchersByRoot.delete(root);
         }
     };
 }
 
-/** @returns {number} live observers (test/debug aid) */
+/** @returns {number} */
 export function getDetachedTargetObserverCount() {
     return watchersByRoot.size;
 }

@@ -14,6 +14,7 @@ import {
 import { advanceTime, animationFrame, mockTouch, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
+    getService,
     makeMockEnv,
     mockService,
     mountWithCleanup,
@@ -621,4 +622,108 @@ test("tooltip info built from a t-set body survives the JSON round-trip", async 
     expect(".o-tooltip span").toHaveText(
         "on their friends' or followers' feed (Shares, Reposts...)",
     );
+});
+
+test.tags("mobile");
+test("a touch cancelled before the tooltip opens restores the native title", async () => {
+    // `openTooltip` strips `title` and arms a detach watcher as soon as the
+    // open is merely *pending*. `onTouchEnd` cancelled the timer and nothing
+    // else, so both stayed that way until some later tooltip cycle ran
+    // `cleanup` for its own reasons — leaving the element with no accessible
+    // name (screen readers fall back to `title`) and a live `MutationObserver`
+    // in between. A plain release hides this behind the `click` that follows
+    // it; `touchcancel` (the user started scrolling mid-hold) has no click.
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" title="native help" data-tooltip="custom help">Action</button>`;
+    }
+
+    await mountWithCleanup(MyComponent);
+    const btn = queryOne(".mybtn");
+    const observersBefore = getDetachedTargetObserverCount();
+
+    await pointerDown(".mybtn");
+    await advanceTime(SHOW_AFTER_DELAY);
+    expect(btn).not.toHaveAttribute("title");
+    expect(".o_popover").toHaveCount(0);
+
+    btn.dispatchEvent(new TouchEvent("touchcancel", { bubbles: true }));
+    await animationFrame();
+    expect(btn).toHaveAttribute("title", "native help");
+    expect(getDetachedTargetObserverCount()).toBe(observersBefore);
+
+    // The cancelled open must not fire late either.
+    await runAllTimers();
+    expect(".o_popover").toHaveCount(0);
+    expect(btn).toHaveAttribute("title", "native help");
+});
+
+// SERVICE-TEARDOWN-BLOCK
+test.tags("desktop");
+test("destroying the service restores what an open tooltip borrowed", async () => {
+    // `destroy` duplicated part of `cleanup` and skipped exactly the steps with
+    // effects outside the service: the target kept a suppressed `title`, an
+    // `aria-describedby` pointing at a removed node, and the popover itself.
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn" title="native tip" data-tooltip="rich tip">Action</button>`;
+    }
+    await mountWithCleanup(MyComponent);
+    const btn = queryOne(".mybtn");
+
+    await hover(".mybtn");
+    await runAllTimers();
+    expect(".o_popover").toHaveCount(1);
+    expect(btn).not.toHaveAttribute("title");
+    expect(btn).toHaveAttribute("aria-describedby");
+
+    getService("tooltip").destroy();
+    await animationFrame();
+
+    expect(btn).toHaveAttribute("title", "native tip");
+    expect(btn).not.toHaveAttribute("aria-describedby");
+    expect(".o_popover").toHaveCount(0);
+});
+
+// REOPEN-GUARD-BLOCK
+// Re-entering a target that already shows its tooltip must be a no-op. The
+// guard only covered tooltips declared with `data-tooltip`; one registered
+// through `tooltip.add()` fell through to `openTooltip`, whose first act is
+// `cleanup()` -- so the tooltip closed and restarted its delay.
+test.tags("desktop");
+test("a service-registered tooltip survives a repeated mouseenter", async () => {
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn">Action</button>`;
+    }
+    await mountWithCleanup(MyComponent);
+    const btn = queryOne(".mybtn");
+    getService("tooltip").add(btn, { tooltip: "hello" });
+
+    await hover(".mybtn");
+    await runAllTimers();
+    expect(".o_popover").toHaveCount(1);
+
+    btn.dispatchEvent(new MouseEvent("mouseenter", { bubbles: false }));
+    await animationFrame();
+    expect(".o_popover").toHaveCount(1);
+});
+
+test.tags("desktop");
+test("a service-registered tooltip survives the target taking focus", async () => {
+    class MyComponent extends Component {
+        static props = ["*"];
+        static template = xml`<button class="mybtn">Action</button>`;
+    }
+    await mountWithCleanup(MyComponent);
+    const btn = queryOne(".mybtn");
+    getService("tooltip").add(btn, { tooltip: "hello" });
+
+    await hover(".mybtn");
+    await runAllTimers();
+    expect(".o_popover").toHaveCount(1);
+
+    btn.focus();
+    await animationFrame();
+    expect(".o_popover").toHaveCount(1);
 });

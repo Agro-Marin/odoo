@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/effects/effect_service - Service that triggers visual effects (rainbow man) via the effects registry */
+/** @module @web/ui/effects/effect_service */
 
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -12,16 +12,13 @@ import { RainbowMan } from "./rainbow_man.js";
 const effectRegistry = registry.category("effects");
 
 /**
- * Handles effect of type "rainbow_man": returns the RainbowMan component and
- * props to instantiate, or (if effects are disabled) shows a notification.
- *
  * @param {import("@web/env").OdooEnv} env
  * @param {Object} [params={}]
- * @param {string} [params.message="Well Done!"] Notice text (or HTML string) the rainbowman holds, or the notification content if effects are disabled.
- * @param {string} [params.img_url="/web/static/img/smile.svg"] Image shown inside the rainbow.
- * @param {"slow"|"medium"|"fast"|"no"} [params.fadeout="medium"] Delay before the rainbowman disappears; "no" keeps it until the user clicks outside it.
- * @param {import("@odoo/owl").ComponentConstructor} [params.Component] Custom component to instantiate inside the Rainbow Man.
- * @param {Object} [params.props] Props for `params.Component`, if given.
+ * @param {string} [params.message="Well Done!"]
+ * @param {string} [params.img_url="/web/static/img/smile.svg"]
+ * @param {"slow"|"medium"|"fast"|"no"} [params.fadeout="medium"]
+ * @param {import("@odoo/owl").ComponentConstructor} [params.Component]
+ * @param {Object} [params.props]
  */
 function rainbowMan(env, params = {}) {
     let message = params.message;
@@ -50,7 +47,6 @@ effectRegistry.add("rainbow_man", rainbowMan);
 
 effectRegistry.addValidation((v) => typeof v === "function");
 
-/** Service for triggering visual effects (e.g. rainbow man) via the effects registry. */
 export const effectService = {
     dependencies: ["overlay"],
     /**
@@ -59,8 +55,8 @@ export const effectService = {
      */
     start(env, { overlay }) {
         /**
-         * @param {Object} [params] various params depending on the type of effect
-         * @param {string} [params.type="rainbow_man"] the effect to display
+         * @param {Object} [params]
+         * @param {string} [params.type="rainbow_man"]
          */
         const add = (params = {}) => {
             const type = params.type || "rainbow_man";

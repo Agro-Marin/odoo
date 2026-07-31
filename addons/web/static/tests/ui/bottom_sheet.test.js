@@ -4,7 +4,11 @@ import { expect, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
 import { Component, xml } from "@odoo/owl";
-import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import {
+    defineStyle,
+    mountWithCleanup,
+    patchWithCleanup,
+} from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { router, routerBus } from "@web/core/browser/router";
 import { RouterEvent } from "@web/core/events";
@@ -324,4 +328,66 @@ test("dragging the rail below the threshold dismisses the sheet", async () => {
 
     expect(sheet.state.isDismissing).toBe(true);
     expect.verifySteps(["closed"]);
+});
+
+test("the sheet re-measures smaller when its content shrinks", async () => {
+    // `measureDimensions` removed the INLINE `min-height`/`height`, which were
+    // never set. The constraint it meant to lift is the stylesheet's
+    // `min-height: var(--sheet-height)`, written from the PREVIOUS measurement,
+    // so each re-measure was clamped to the size it was re-deriving and the
+    // sheet could only grow. Unit tests load no stylesheet, which is exactly
+    // why this survived -- so the real rule is injected here.
+    defineStyle(`
+        .o_bottom_sheet_sheet { min-height: var(--sheet-height); }
+    `);
+    class Child extends Component {
+        static props = ["*"];
+        static template = xml`<div class="sheet-child" t-attf-style="height: {{props.h}}px"/>`;
+    }
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, componentProps: { h: 600 }, close: () => {} },
+    });
+    await animationFrame();
+    const tall = sheet.measurements.naturalHeight;
+    expect(tall).toBeGreaterThan(400);
+
+    queryOne(".sheet-child").style.height = "40px";
+    sheet.updateDimensions();
+
+    expect(sheet.measurements.naturalHeight).toBeLessThan(tall, {
+        message: `natural height stayed at ${sheet.measurements.naturalHeight}`,
+    });
+});
+
+test("snapping is really suppressed while the sheet is re-measured", async () => {
+    // `state.isSnappingEnabled = false; ...; = true` around a synchronous
+    // re-layout is a no-op: Owl coalesces both writes into one render, so the
+    // class never left the DOM and the browser stayed free to re-snap the rail
+    // against snap points that were being rewritten underneath it.
+    class Child extends Component {
+        static props = ["*"];
+        static template = xml`<div class="sheet-child" style="height:300px"/>`;
+    }
+    const sheet = await mountWithCleanup(BottomSheet, {
+        props: { component: Child, close: () => {} },
+    });
+    await animationFrame();
+
+    const seen = [];
+    patchWithCleanup(sheet, {
+        measureDimensions() {
+            seen.push(this.scrollRailRef.el.style.getPropertyValue("scroll-snap-type"));
+            return super.measureDimensions();
+        },
+    });
+
+    sheet.updateDimensions();
+
+    expect(seen).toEqual(["none"], {
+        message: "snapping must be off at the moment the layout is forced",
+    });
+    // ...and restored afterwards, so the class-driven rule takes over again.
+    expect(
+        queryOne(".o_bottom_sheet_rail").style.getPropertyValue("scroll-snap-type"),
+    ).toBe("");
 });

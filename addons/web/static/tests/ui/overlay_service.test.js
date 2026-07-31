@@ -271,3 +271,61 @@ test("mounting a second container does not transiently mount foreign overlays", 
     expect(steps).toEqual(["mounted"]);
     app.destroy();
 });
+
+test("destroy() does not leak an unhandled rejection from onRemove", async () => {
+    // `remove` drops the entry in its `finally` either way, so a rejecting
+    // `onClose` has nothing left to do but surface as an unhandled rejection
+    // and fail whatever unrelated thing runs next.
+    const env = await makeMockEnv();
+    class Boom extends Component {
+        static props = ["*"];
+        static template = xml`<div class="boom"/>`;
+    }
+    env.services.overlay.add(
+        Boom,
+        {},
+        { onRemove: () => Promise.reject(new Error("onClose blew up")) },
+    );
+
+    let unhandled = null;
+    const onUnhandled = (ev) => {
+        unhandled = ev.reason?.message ?? String(ev.reason);
+        ev.preventDefault();
+    };
+    window.addEventListener("unhandledrejection", onUnhandled);
+    try {
+        env.services.overlay.destroy();
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    } finally {
+        window.removeEventListener("unhandledrejection", onUnhandled);
+    }
+    expect(unhandled).toBe(null);
+});
+
+test("click-away containment spans sub-overlays without allocating per sibling", async () => {
+    // `contains` runs for every open overlay on every pointerdown in the app.
+    // The behaviour it encodes: an overlay contains its own subtree and that of
+    // anything stacked above it, and nothing below.
+    await mountWithCleanup(MainComponentsContainer);
+    class Layer extends Component {
+        static props = ["*"];
+        static template = xml`<div t-att-class="props.name"/>`;
+    }
+    const overlay = getService("overlay");
+    overlay.add(Layer, { name: "low" }, { sequence: 10 });
+    overlay.add(Layer, { name: "high" }, { sequence: 90 });
+    await animationFrame();
+
+    const low = document.querySelector(".low");
+    const high = document.querySelector(".high");
+    expect(low).not.toBe(null);
+    expect(high).not.toBe(null);
+
+    // Both live in the same container, so the stack is shared; the low one
+    // must see the high one as "inside", and the high one must not see the low.
+    const items = [...document.querySelectorAll(".o-overlay-item")];
+    expect(items).toHaveLength(2);
+    expect(items[0].contains(low)).toBe(true);
+    expect(items[1].contains(high)).toBe(true);
+    expect(items[1].contains(low)).toBe(false);
+});

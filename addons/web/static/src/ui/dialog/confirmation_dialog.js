@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/dialog/confirmation_dialog - Standard confirm/cancel dialog with async button handling */
+/** @module @web/ui/dialog/confirmation_dialog */
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -15,12 +15,6 @@ It will be gone forever!
 Think twice before you click that 'Delete' button!`,
 );
 
-/**
- * Standard confirmation dialog with confirm/cancel/dismiss actions.
- *
- * If a callback returns `false`, the dialog stays open. Buttons are
- * disabled during async execution to prevent double-clicks.
- */
 export class ConfirmationDialog extends Component {
     static template = "web.ConfirmationDialog";
     static components = { Dialog };
@@ -51,15 +45,10 @@ export class ConfirmationDialog extends Component {
         this.env.dialogData.dismiss = () => this._dismiss();
         /** @type {any} */
         this.modalRef = useChildRef();
-        /**
-         * Reactive rather than a DOM walk over `.modal-footer button`: the
-         * buttons are declared in this component's own template, so the state
-         * that disables them belongs next to them and survives any re-render.
-         */
         this.state = useState({ isProcess: false });
     }
 
-    /** @returns {boolean} whether a button callback is currently running */
+    /** @returns {boolean} */
     get isProcess() {
         return this.state.isProcess;
     }
@@ -73,51 +62,52 @@ export class ConfirmationDialog extends Component {
     }
 
     async _dismiss() {
-        return this.execButton(this.props.dismiss || this.props.cancel, {
-            dismiss: true,
-        });
+        return this.runButton(this.props.dismiss || this.props.cancel);
     }
 
-    /** @param {boolean} disabled - whether to disable all footer buttons */
+    /** @param {boolean} disabled */
     setButtonsDisabled(disabled) {
         this.state.isProcess = disabled;
     }
 
     /**
-     * Execute a button callback; close dialog unless callback returns `false`.
+     * Runs a button's callback and reports whether the dialog may close. Does
+     * not close it: on the dismiss path `Dialog` owns the single close, so
+     * closing here too would fire it twice and override a refusal.
      *
-     * `closeParams` must carry `{ dismiss: true }` on the dismissal path: this
-     * close runs first and, being the one that owns the removal, is the only
-     * one whose params reach `onClose`. `Dialog.dismiss` still calls
-     * `close({ dismiss: true })` afterwards, but the overlay service ignores
-     * that second call, so dropping the flag here loses it for good.
-     *
+     * @param {Function} [callback]
+     * @returns {Promise<boolean>}
+     */
+    async runButton(callback) {
+        if (this.state.isProcess) {
+            return false;
+        }
+        this.setButtonsDisabled(true);
+        if (callback && (await callback()) === false) {
+            this.setButtonsDisabled(false);
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * @param {Function} [callback]
      * @param {any} [closeParams]
      */
     async execButton(callback, closeParams) {
-        if (this.state.isProcess) {
-            return;
+        let shouldClose;
+        try {
+            shouldClose = await this.runButton(callback);
+        } catch (e) {
+            this.props.close(closeParams);
+            throw e;
         }
-        this.setButtonsDisabled(true);
-        if (callback) {
-            let shouldClose;
-            try {
-                shouldClose = await callback();
-            } catch (e) {
-                this.props.close(closeParams);
-                throw e;
-            }
-            if (shouldClose === false) {
-                this.setButtonsDisabled(false);
-                return;
-            }
+        if (shouldClose) {
+            this.props.close(closeParams);
         }
-        this.props.close(closeParams);
     }
 }
 
-/** Alert dialog variant — displays an informational message with OK button only. */
 export class AlertDialog extends ConfirmationDialog {
     static template = "web.AlertDialog";
     static props = {

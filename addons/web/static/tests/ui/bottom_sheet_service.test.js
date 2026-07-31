@@ -157,6 +157,42 @@ test("escape closes a dropdown menu rendered as a bottom sheet", async () => {
     expect(".ditem").toHaveCount(0);
 });
 
+// `id` is in OVERLAY_PRESENTER_OPTIONS and the popover renders it, so a caller
+// naming the overlay from outside -- `Dropdown` publishes its `menuId` this way
+// and every combobox toggler points `aria-controls` at it -- must not have the
+// reference dissolve just because the viewport crossed the breakpoint.
+test.tags("mobile");
+test("a sheet renders the `id` option, like the popover does", async () => {
+    await mountWithCleanup(MainComponentsContainer);
+
+    class MyComp extends Component {
+        static template = xml`<div class="sheet-content"/>`;
+        static props = ["*"];
+    }
+
+    getService("bottom_sheet").add(getFixture(), MyComp, {}, { id: "o-sheet-id" });
+    await animationFrame();
+    await animationFrame();
+
+    const owner = document.getElementById("o-sheet-id");
+    expect(owner).not.toBe(null);
+    expect(owner.querySelector(".sheet-content")).not.toBe(null);
+});
+
+test.tags("mobile");
+test("a dropdown's menuId survives being rendered as a bottom sheet", async () => {
+    await mountWithCleanup(DropdownParent);
+    await click(".toggler");
+    await runAllTimers();
+    await animationFrame();
+
+    const menu = /** @type {HTMLElement} */ (
+        document.querySelector(".o-dropdown--menu")
+    );
+    expect(menu.id).not.toBe("");
+    expect(document.getElementById(menu.id)).toBe(menu);
+});
+
 test.tags("desktop");
 test("escape closes a dropdown menu rendered as a popover", async () => {
     await mountWithCleanup(DropdownParent);

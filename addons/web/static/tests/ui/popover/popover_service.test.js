@@ -267,6 +267,7 @@ test("close params reach onClose, as they do for a dialog", async () => {
     // `makeOverlayPresenter` used to bind `close` as a zero-arg thunk, so that
     // reason was unobservable from the popover and the bottom sheet while the
     // dialog service forwarded it.
+    /** @type {any} */
     let received = "NEVER CALLED";
     class Comp extends Component {
         static template = xml`<div id="comp">in popover</div>`;

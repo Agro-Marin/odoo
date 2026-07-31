@@ -1,11 +1,25 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/popover/popover_service - Service for programmatically attaching popover components to target elements */
+/** @module @web/ui/popover/popover_service */
 
 import { registry } from "@web/core/registry";
-import { asPredicate, makeOverlayPresenter } from "@web/ui/overlay/presenter";
+import {
+    asPredicate,
+    declarePresenterOptions,
+    makeOverlayPresenter,
+} from "@web/ui/overlay/presenter";
 import { Popover } from "@web/ui/popover/popover";
+
+declarePresenterOptions([
+    "animation",
+    "arrow",
+    "extendedFlipping",
+    "fixedPosition",
+    "holdOnHover",
+    "onPositioned",
+    "position",
+]);
 
 /**
  * @typedef {{
@@ -15,10 +29,11 @@ import { Popover } from "@web/ui/popover/popover";
  *   closeOnEscape?: boolean;
  *   env?: object;
  *   fixedPosition?: boolean;
- *   onClose?: () => void;
+ *   onClose?: (removeParams?: any) => void;
  *   onPositioned?: import("@web/core/position/position_hook").UsePositionOptions["onPositioned"];
  *   popoverClass?: string;
  *   role?: string;
+ *   id?: string;
  *   position?: import("@web/core/position/position_hook").UsePositionOptions["position"];
  *   ref?: Function;
  *   extendedFlipping?: boolean;
@@ -26,7 +41,6 @@ import { Popover } from "@web/ui/popover/popover";
  *   setActiveElement?: boolean;
  *   sequence?: number;
  * }} PopoverServiceAddOptions
- *
  * @typedef {ReturnType<popoverService["start"]>["add"]} PopoverServiceAddFunction
  */
 
@@ -38,8 +52,6 @@ export const popoverService = {
      */
     start(_, { overlay }) {
         /**
-         * Signals the manager to add a popover.
-         *
          * @type {(target: HTMLElement, component: import("@odoo/owl").ComponentConstructor, props?: object, options?: PopoverServiceAddOptions) => () => void}
          */
         const add = makeOverlayPresenter({
@@ -54,6 +66,7 @@ export const popoverService = {
                 extendedFlipping: options.extendedFlipping,
                 fixedPosition: options.fixedPosition,
                 holdOnHover: options.holdOnHover,
+                id: options.id,
                 onPositioned: options.onPositioned,
                 position: options.position,
                 ref: options.ref,

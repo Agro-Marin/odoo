@@ -10,6 +10,7 @@ import {
     mountWithCleanup,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { Deferred } from "@web/core/utils/concurrency";
 import { Popover } from "@web/ui/popover/popover";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
@@ -622,4 +623,77 @@ test("closeOnClickAway is not consulted for clicks inside the popover", async ()
     await animationFrame();
     expect(asked).toEqual([]);
     expect("#popover").toHaveCount(1);
+});
+
+test("holdOnHover survives a resize of the popover content", async () => {
+    // `usePosition`'s lock is one boolean, so the ResizeObserver's unconditional
+    // unlock spoke for the hover lock too — the walking-out-from-under-the-
+    // pointer that `holdOnHover` exists to prevent. Latent rather than live:
+    // `Dropdown` exposes the option but nothing in this tree passes `true`.
+    const popover = await mountWithCleanup(Popover, {
+        props: {
+            close: () => {},
+            target: getFixture(),
+            component: Content,
+            holdOnHover: true,
+        },
+    });
+    await animationFrame();
+
+    let unlocks = 0;
+    patchWithCleanup(popover.position, { unlock: () => (unlocks += 1) });
+    const el = queryOne(".o_popover");
+
+    popover.onResized();
+    expect(unlocks).toBe(1, { message: "a resize repositions an unheld popover" });
+
+    el.dispatchEvent(new PointerEvent("pointerenter"));
+    popover.onResized();
+    popover.onResized();
+    expect(unlocks).toBe(1, { message: "…but never while the pointer holds it" });
+
+    el.dispatchEvent(new PointerEvent("pointerleave"));
+    expect(unlocks).toBe(2);
+});
+
+test("holdOnHover survives the opening animation finishing", async () => {
+    // The pointer is normally already over the popover well before the 200ms
+    // animation ends — clicking a dropdown toggle leaves it right where the
+    // menu appears — so the animation's unlock used to cancel the hover lock
+    // before the user had moved at all.
+    const animationDone = new Deferred();
+    patchWithCleanup(Popover.prototype, {
+        animate: () => ({ finished: animationDone }),
+    });
+    const popover = await mountWithCleanup(Popover, {
+        props: {
+            close: () => {},
+            target: getFixture(),
+            component: Content,
+            animation: true,
+            holdOnHover: true,
+        },
+    });
+    await animationFrame();
+
+    let unlocks = 0;
+    patchWithCleanup(popover.position, { unlock: () => (unlocks += 1) });
+    queryOne(".o_popover").dispatchEvent(new PointerEvent("pointerenter"));
+
+    animationDone.resolve();
+    await animationDone;
+    await animationFrame();
+    expect(unlocks).toBe(0, { message: "hover outlives the opening animation" });
+
+    queryOne(".o_popover").dispatchEvent(new PointerEvent("pointerleave"));
+    expect(unlocks).toBe(1);
+});
+
+test("an unanimated, unheld popover is never locked", async () => {
+    const popover = await mountWithCleanup(Popover, {
+        props: { close: () => {}, target: getFixture(), component: Content },
+    });
+    await animationFrame();
+    expect(popover.isPositionFrozen).toBe(false);
+    expect(popover.positionLocked).toBe(false);
 });

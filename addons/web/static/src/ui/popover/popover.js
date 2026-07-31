@@ -1,142 +1,29 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/popover/popover - Positioned popover component with click-away close, hotkey escape, and arrow rendering */
+/** @module @web/ui/popover/popover */
 
 import { Component, onMounted, onWillDestroy, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { usePosition } from "@web/core/position/position_hook";
 import { reverseForRTL } from "@web/core/position/utils";
 import { mergeClasses } from "@web/core/utils/dom/classname";
+import { useClickAway } from "@web/core/utils/dom/click_away";
 import { useForwardRefToParent } from "@web/core/utils/hooks";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { OVERLAY_SYMBOL } from "@web/ui/overlay/overlay_container";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
 import { useActiveElement } from "@web/ui/ui_service";
 
-/**
- * @param {EventTarget} target
- * @param {string} eventName
- * @param {(ev: Event) => any} handler
- * @param {AddEventListenerOptions} [eventParams]
- */
-function useEarlyExternalListener(target, eventName, handler, eventParams) {
-    target.addEventListener(eventName, handler, eventParams);
-    onWillDestroy(() => target.removeEventListener(eventName, handler, eventParams));
-}
-
-/**
- * Trigger the callback with the clicked element when the window is clicked,
- * including from within an iframe. Iframes are (re-)scanned whenever focus
- * moves into one, so iframes added after the popover opened (dashboards,
- * html field editors) and iframe reloads are covered too.
- *
- * @param {Popover} popover
- * @param {(node?: Node) => any} callback
- */
-function useClickAway(popover, callback) {
-    /** @type {(() => void)[]} */
-    const iframeDisposers = [];
-    /**
-     * Windows whose pointerdown listener is currently attached. Keyed by
-     * Window (not iframe element): a reload swaps the iframe's Window and
-     * drops the old listener with it, so the new one must be re-armed.
-     * @type {WeakSet<Window>}
-     */
-    const armedWindows = new WeakSet();
-
-    function armIframe(/** @type {HTMLIFrameElement} */ iframeEl) {
-        const win = iframeEl.contentWindow;
-        if (!win || armedWindows.has(win)) {
-            return;
-        }
-        const handler = () => {
-            const popupEl = popover.popoverRef.el;
-            let checkEl = iframeEl.parentElement;
-            while (checkEl) {
-                if (checkEl === popupEl) {
-                    return;
-                }
-                checkEl = checkEl.parentElement;
-            }
-            callback(iframeEl);
-        };
-        try {
-            win.addEventListener("pointerdown", handler, { capture: true });
-            armedWindows.add(win);
-            iframeDisposers.push(() =>
-                win.removeEventListener("pointerdown", handler, { capture: true }),
-            );
-        } catch (e) {
-            if (e.name !== "SecurityError") {
-                throw e;
-            }
-        }
-    }
-
-    function scanIframes() {
-        for (const iframeEl of document.querySelectorAll("iframe")) {
-            armIframe(/** @type {HTMLIFrameElement} */ (iframeEl));
-        }
-    }
-
-    function blurHandler(/** @type {Event} */ ev) {
-        const target =
-            /** @type {FocusEvent} */ (ev).relatedTarget || document.activeElement;
-        if (/** @type {Element} */ (target)?.tagName === "IFRAME") {
-            scanIframes();
-            return callback(/** @type {Node} */ (target));
-        }
-    }
-
-    /**
-     * Only a `popstate` that actually moves the page counts as navigating away.
-     * Transient layers stack an entry on the current URL so hardware Back
-     * dismisses them (see `router.pushEphemeral`); popping one of those must
-     * not also collapse every popover on the page.
-     */
-    let lastHref = browser.location.href;
-    function navigationHandler() {
-        if (browser.location.href === lastHref) {
-            return;
-        }
-        lastHref = browser.location.href;
-        callback(document.documentElement);
-    }
-
-    function pointerDownHandler(/** @type {Event} */ ev) {
-        callback(/** @type {Node} */ (ev.composedPath()[0]));
-    }
-
-    useEarlyExternalListener(window, "pointerdown", pointerDownHandler, {
-        capture: true,
-    });
-    useEarlyExternalListener(window, "blur", blurHandler, { capture: true });
-    useEarlyExternalListener(window, "popstate", navigationHandler, {
-        capture: true,
-    });
-    scanIframes();
-    onWillDestroy(() => {
-        for (const dispose of iframeDisposers) {
-            dispose();
-        }
-    });
-}
-
 const POPOVERS = new WeakMap();
 /**
- * Can be used to retrieve the popover element for a given target.
  * @param {HTMLElement} target
- * @returns {HTMLElement | undefined} the popover element if it exists
+ * @returns {HTMLElement | undefined}
  */
 export function getPopoverForTarget(target) {
     return POPOVERS.get(target);
 }
 
-/**
- * Generic popover component with auto-positioning, click-away closing,
- * arrow rendering, opening animation, and optional fixed position.
- */
 export class Popover extends Component {
     static template = "web.Popover";
     static defaultProps = {
@@ -162,6 +49,7 @@ export class Popover extends Component {
         arrow: { optional: true, type: Boolean },
         class: { optional: true },
         role: { optional: true, type: String },
+        id: { optional: true, type: String },
 
         fixedPosition: { optional: true, type: Boolean },
         extendedFlipping: { optional: true, type: Boolean },
@@ -188,6 +76,10 @@ export class Popover extends Component {
     };
     static animationTime = 200;
 
+    isHovered = false;
+    positionLocked = false;
+    animationDone = false;
+
     setup() {
         if (this.props.setActiveElement) {
             useActiveElement("ref");
@@ -195,6 +87,7 @@ export class Popover extends Component {
 
         useForwardRefToParent("ref");
         this.popoverRef = useRef("ref");
+        this.arrowRef = useRef("arrow");
         this.position = usePosition(
             "ref",
             () => this.props.target,
@@ -205,11 +98,7 @@ export class Popover extends Component {
             this.animationDone = true;
         }
 
-        const resizeObserver = new ResizeObserver(() => {
-            if (!this.props.fixedPosition && this.animationDone) {
-                this.position.unlock();
-            }
-        });
+        const resizeObserver = new ResizeObserver(() => this.onResized());
 
         onMounted(() => {
             POPOVERS.set(this.props.target, this.popoverRef.el);
@@ -223,7 +112,10 @@ export class Popover extends Component {
         });
 
         if (this.props.target.isConnected) {
-            useClickAway(this, this.onClickAway.bind(this));
+            useClickAway(this.onClickAway.bind(this), {
+                getAnchor: () => this.props.target,
+                getContentEl: () => this.popoverRef.el,
+            });
 
             if (this.props.closeOnEscape) {
                 useHotkey("escape", () => this.props.close());
@@ -237,7 +129,7 @@ export class Popover extends Component {
         }
     }
 
-    /** @returns {Object} merged CSS class object for the popover root element */
+    /** @returns {Object} */
     get defaultClassObj() {
         return mergeClasses(
             "o_popover popover mw-100 bs-popover-auto",
@@ -245,7 +137,7 @@ export class Popover extends Component {
         );
     }
 
-    /** @returns {Object} options passed to `usePosition` */
+    /** @returns {Object} */
     get positioningOptions() {
         return {
             extendedFlipping: this.props.extendedFlipping,
@@ -263,8 +155,7 @@ export class Popover extends Component {
     }
 
     /**
-     * Play the opening slide+fade animation.
-     * @param {string} direction - "top" | "right" | "bottom" | "left"
+     * @param {string} direction
      * @returns {Animation}
      */
     animate(direction) {
@@ -283,7 +174,7 @@ export class Popover extends Component {
 
     /**
      * @param {EventTarget} target
-     * @returns {boolean} whether target is inside the popover or its trigger
+     * @returns {boolean}
      */
     isInside(target) {
         return (
@@ -294,32 +185,47 @@ export class Popover extends Component {
     }
 
     /**
-     * Hovering the popover pins it in place, so a menu does not walk out from
-     * under the pointer when the content behind it reflows.
+     * @returns {boolean}
      */
-    onPointerEnter() {
-        if (this.props.holdOnHover) {
-            this.position.lock();
-        }
+    get isPositionFrozen() {
+        return Boolean(
+            this.props.fixedPosition ||
+            (this.props.holdOnHover && this.isHovered) ||
+            !this.animationDone,
+        );
     }
 
-    /**
-     * Releasing the hover lock must not release a `fixedPosition` lock: that
-     * one is the caller pinning the popover for its whole lifetime, and
-     * unlocking it here let the popover jump on the first pointer that
-     * crossed it.
-     */
-    onPointerLeave() {
-        if (this.props.holdOnHover && !this.props.fixedPosition) {
+    syncPositionLock() {
+        const frozen = this.isPositionFrozen;
+        if (frozen === this.positionLocked) {
+            return;
+        }
+        this.positionLocked = frozen;
+        if (frozen) {
+            this.position.lock();
+        } else {
             this.position.unlock();
         }
     }
 
-    /** @param {Node} target - the click target to test for click-away */
+    onResized() {
+        if (!this.isPositionFrozen) {
+            this.position.unlock();
+        }
+    }
+
+    onPointerEnter() {
+        this.isHovered = true;
+        this.syncPositionLock();
+    }
+
+    onPointerLeave() {
+        this.isHovered = false;
+        this.syncPositionLock();
+    }
+
+    /** @param {Node} target */
     onClickAway(target) {
-        // Containment first: `closeOnClickAway` answers "should this click-away
-        // close me", so asking it about a click on the popover's own content is
-        // asking about something that is not a click-away at all.
         if (!this.isInside(target) && this.props.closeOnClickAway(target)) {
             this.props.close();
         }
@@ -336,28 +242,22 @@ export class Popover extends Component {
             this.updateArrow(direction, variant, variantOffset);
         }
 
-        if (this.props.animation && !this.animationDone) {
-            this.position.lock();
+        const startsAnimation = this.props.animation && !this.animationDone;
+        this.syncPositionLock();
+        if (startsAnimation) {
             this.animate(direction).finished.then(
                 () => {
                     this.animationDone = true;
-                    if (!this.props.fixedPosition) {
-                        this.position.unlock();
-                    }
+                    this.syncPositionLock();
                 },
                 () => {},
             );
         }
-
-        if (this.props.fixedPosition) {
-            this.position.lock();
-        }
     }
 
     /**
-     * Update arrow position and CSS based on positioning solution.
-     * @param {string} direction - "top" | "right" | "bottom" | "left"
-     * @param {string} variant - "start" | "middle" | "end" | "fit"
+     * @param {string} direction
+     * @param {string} variant
      * @param {number} variantOffset
      */
     updateArrow(direction, variant, variantOffset) {
@@ -378,9 +278,10 @@ export class Popover extends Component {
             fit: "--position-center",
             end: "--position-max",
         }[variant];
-        const arrowEl = /** @type {HTMLElement} */ (
-            el.querySelector(":scope > .popover-arrow")
-        );
+        const arrowEl = /** @type {HTMLElement} */ (this.arrowRef.el);
+        if (!arrowEl) {
+            return;
+        }
         Object.assign(arrowEl.style, {
             top: "",
             left: "",

@@ -1,7 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/viewport - Responsive breakpoints and the service-free size helpers built on them */
+/** @module @web/ui/viewport */
+
+import { browser } from "@web/core/browser/browser";
 
 export const SIZES = { XS: 0, SM: 1, MD: 2, LG: 3, XL: 4, XXL: 5 };
 
@@ -15,39 +17,56 @@ export const MEDIAS_BREAKPOINTS = [
 ];
 
 /**
- * Build the `MediaQueryList`s matching `MEDIAS_BREAKPOINTS`.
- *
+ * Lower bound of every size above XS, ascending. A viewport's size is how many
+ * of these it clears. Pairing each band's own `min-width` with its `max-width`
+ * instead leaves the reals between them matching nothing -- a 575px viewport at
+ * a fractional device scale factor is 575.xx and clears neither `max-width:
+ * 575px` nor `min-width: 576px` -- which yielded a size of -1.
+ * @type {number[]}
+ */
+const SIZE_THRESHOLDS = MEDIAS_BREAKPOINTS.map(({ minWidth }) => minWidth).filter(
+    (minWidth) => minWidth !== undefined,
+);
+
+/**
  * @returns {MediaQueryList[]}
  */
 export function getMediaQueryLists() {
-    // `=== undefined`, not falsiness: a breakpoint bound of 0 is a legitimate
-    // value that truthiness would read as "no bound".
-    return MEDIAS_BREAKPOINTS.map(({ minWidth, maxWidth }) => {
-        if (maxWidth === undefined) {
-            return window.matchMedia(`(min-width: ${minWidth}px)`);
-        }
-        if (minWidth === undefined) {
-            return window.matchMedia(`(max-width: ${maxWidth}px)`);
-        }
-        return window.matchMedia(
-            `(min-width: ${minWidth}px) and (max-width: ${maxWidth}px)`,
-        );
-    });
+    return SIZE_THRESHOLDS.map((minWidth) =>
+        browser.matchMedia(`(min-width: ${minWidth}px)`),
+    );
 }
 
 /**
- * Breakpoint list backing the service-free `utils.getSize()`, used by the ~40
- * call sites (`Dropdown.isBottomSheet`, snippets, view components, …) that need
- * the current size without holding an env. Built on first use and never
- * listened to: `uiService` owns its own list and its own listeners.
- * @type {MediaQueryList[] | null}
+ * @param {MediaQueryList[]} medias
+ * @returns {number}
  */
-let sharedMedias = null;
+export function sizeOf(medias) {
+    let size = SIZES.XS;
+    for (const media of medias) {
+        if (media.matches) {
+            size++;
+        }
+    }
+    return size;
+}
+
+/**
+ * @type {MediaQueryList[]}
+ */
+let sharedMedias = [];
+/**
+ * @type {((query: string) => MediaQueryList) | null}
+ */
+let sharedMatchMedia = null;
 
 export const utils = {
     getSize() {
-        sharedMedias ??= getMediaQueryLists();
-        return sharedMedias.findIndex((media) => media.matches);
+        if (sharedMatchMedia !== browser.matchMedia) {
+            sharedMatchMedia = browser.matchMedia;
+            sharedMedias = getMediaQueryLists();
+        }
+        return sizeOf(sharedMedias);
     },
     isSmall(/** @type {{ size?: number }} */ ui = {}) {
         return (ui.size ?? utils.getSize()) <= SIZES.SM;

@@ -1,37 +1,44 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/overlay/overlay_container - Renders overlay entries (popovers, dialogs, effects) with nested click-away tracking */
+/** @module @web/ui/overlay/overlay_container */
 
 import {
     Component,
     onWillDestroy,
     useChildSubEnv,
+    useComponent,
     useEffect,
     useRef,
     useState,
 } from "@odoo/owl";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { sortBy } from "@web/core/utils/collections/arrays";
 import { ErrorHandler } from "@web/core/utils/components";
 
 export const OVERLAY_SYMBOL = Symbol("Overlay");
 
-/**
- * Env key holding the stack of `OverlayItem`s belonging to one
- * `OverlayContainer`. Scoped per container rather than module-global: several
- * containers coexist (main document plus one per shadow root), and an overlay
- * in one root is not "inside" an overlay in another, so mixing their stacks
- * would keep click-away from closing unrelated popovers.
- */
 const OVERLAY_ITEMS = Symbol("OverlayItems");
 
 /**
- * Wrapper for a single overlay entry (popover, dialog, bottom sheet, etc.).
+ * Gives descendants `baseEnv` extended with `extension`, where `baseEnv`
+ * replaces the inherited environment rather than extending it.
  *
- * Registers itself in its container's stack for nested click-away containment
- * checks. Injects an `OVERLAY_SYMBOL` into child env so descendants can test
- * whether a click target is "inside" the overlay tree.
+ * Owl has no API for replacing it, so this writes `childEnv` and then extends
+ * it, in that order. Doing so in one call keeps the order from being an
+ * unstated precondition of the caller: reversed, the extension is silently
+ * dropped.
+ *
+ * @param {object | undefined} baseEnv
+ * @param {object} extension
  */
+function useHostedSubEnv(baseEnv, extension) {
+    if (baseEnv) {
+        /** @type {any} */ (useComponent()).__owl__.childEnv = baseEnv;
+    }
+    useChildSubEnv(extension);
+}
+
 class OverlayItem extends Component {
     static template = "web.OverlayContainer.Item";
     static props = {
@@ -45,7 +52,9 @@ class OverlayItem extends Component {
     setup() {
         this.rootRef = useRef("rootRef");
 
-        this.siblings = /** @type {OverlayItem[]} */ (this.env[OVERLAY_ITEMS]);
+        this.siblings = /** @type {OverlayItem[]} */ (
+            /** @type {Record<symbol, any>} */ (this.env)[OVERLAY_ITEMS]
+        );
         this.siblings.push(this);
         onWillDestroy(() => {
             const index = this.siblings.indexOf(this);
@@ -54,51 +63,48 @@ class OverlayItem extends Component {
             }
         });
 
-        if (this.props.env) {
-            this.__owl__.childEnv = this.props.env;
-        }
-
-        useChildSubEnv({
+        useHostedSubEnv(this.props.env, {
             [OVERLAY_SYMBOL]: {
                 contains: (/** @type {EventTarget} */ target) => this.contains(target),
             },
         });
     }
 
-    /** @returns {[number, number]} stacking key: sequence first, then insertion id */
-    get stackKey() {
-        return [this.props.sequence ?? 50, this.props.id ?? 0];
+    /** @returns {number} */
+    get stackSequence() {
+        return this.props.sequence ?? 50;
+    }
+
+    /** @returns {number} */
+    get stackId() {
+        return this.props.id ?? 0;
     }
 
     /**
-     * This overlay and all overlays stacked above it. Every click-away check
-     * runs through here, so it stays a filter over the container's stack
-     * rather than sorting a copy of it on each call.
-     *
-     * @returns {OverlayItem[]}
+     * @param {OverlayItem} other
+     * @returns {boolean}
      */
-    get subOverlays() {
-        const [sequence, id] = this.stackKey;
-        return this.siblings.filter((oi) => {
-            const [otherSequence, otherId] = oi.stackKey;
-            return (
-                otherSequence > sequence ||
-                (otherSequence === sequence && otherId >= id)
-            );
-        });
+    isAtOrBelow(other) {
+        const sequence = this.stackSequence;
+        const otherSequence = other.stackSequence;
+        return (
+            otherSequence > sequence ||
+            (otherSequence === sequence && other.stackId >= this.stackId)
+        );
     }
 
     /**
      * @param {EventTarget} target
-     * @returns {boolean} whether target is inside this overlay or any sub-overlay
+     * @returns {boolean}
      */
     contains(target) {
         const node = /** @type {Node} */ (target);
-        return this.subOverlays.some((oi) => oi.rootRef.el?.contains(node));
+        return this.siblings.some(
+            (oi) => this.isAtOrBelow(oi) && oi.rootRef.el?.contains(node),
+        );
     }
 }
 
-/** Renders all active overlays sorted by sequence, scoped to a shadow root. */
 export class OverlayContainer extends Component {
     static template = "web.OverlayContainer";
     static components = { ErrorHandler, OverlayItem };
@@ -127,17 +133,6 @@ export class OverlayContainer extends Component {
     }
 
     /**
-     * This container's own overlays, by ascending sequence.
-     *
-     * Filtered BEFORE sorting: every container on the page re-runs this on
-     * each render, and a shadow-rooted one would otherwise sort the whole
-     * cross-root set only to discard most of it.
-     *
-     * A container inside a shadow root should declare its `rootId` prop: until
-     * the root element is mounted it cannot tell its own host id apart from
-     * `undefined` (= the main document), and would mount every main-document
-     * overlay for one frame before dropping it again.
-     *
      * @returns {Object[]}
      */
     get sortedOverlays() {
@@ -154,8 +149,6 @@ export class OverlayContainer extends Component {
      */
     handleError(overlay, error) {
         overlay.remove();
-        Promise.resolve().then(() => {
-            throw error;
-        });
+        reportUncaught(error);
     }
 }

@@ -1,20 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/block/block_ui - Full-screen overlay component that blocks UI during long-running operations */
+/** @module @web/ui/block/block_ui */
 
 import { Component, onWillDestroy, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { useBus, useService } from "@web/core/utils/hooks";
-/**
- * Full-screen overlay that blocks UI interaction during long-running operations.
- *
- * Listens to BLOCK/UNBLOCK on the bus of the ui service in ITS OWN env, so
- * several envs on one page each block their own container. Displays
- * progressively more encouraging messages as the user waits.
- */
 export class BlockUI extends Component {
     static props = {};
 
@@ -68,7 +61,7 @@ export class BlockUI extends Component {
         });
     }
 
-    /** @param {number} index - message index in `messagesByDuration` */
+    /** @param {number} index */
     replaceMessage(index) {
         const message = this.messagesByDuration[index];
         this.state.line1 = message.l1;
@@ -80,7 +73,7 @@ export class BlockUI extends Component {
         }
     }
 
-    /** @param {{ detail?: { delay?: number, message?: string } }} ev */
+    /** @param {CustomEvent<{ delay?: number, message?: string } | undefined>} ev */
     block(ev) {
         const showBlockedUI = () => {
             this.state.blockState = this.BLOCK_STATES.VISIBLY_BLOCKED;
@@ -100,7 +93,6 @@ export class BlockUI extends Component {
         }
     }
 
-    /** Reset state and clear all pending timers. */
     unblock() {
         this.state.blockState = this.BLOCK_STATES.UNBLOCKED;
         browser.clearTimeout(this.showBlockedUITimer);

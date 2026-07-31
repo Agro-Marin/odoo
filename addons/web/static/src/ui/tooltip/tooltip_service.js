@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/tooltip/tooltip_service - Service for data-tooltip attribute-driven tooltips with hover/touch support */
+/** @module @web/ui/tooltip/tooltip_service */
 
 import { whenReady } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -9,40 +9,6 @@ import { hasTouch } from "@web/core/browser/feature_detection";
 import { registry } from "@web/core/registry";
 import { watchForDetachedTarget } from "@web/ui/popover/detached_target_watcher";
 import { Tooltip } from "@web/ui/tooltip/tooltip";
-
-/**
- * The tooltip service allows to display custom tooltips on every elements with
- * a "data-tooltip" attribute. This attribute can be set on elements for which
- * we prefer a custom tooltip instead of the native one displaying the value of
- * the "title" attribute.
- *
- * Usage:
- *   <button data-tooltip="This is a tooltip">Do something</button>
- *
- * The ideal position of the tooltip can be specified thanks to the attribute
- * "data-tooltip-position":
- *   <button data-tooltip="This is a tooltip" data-tooltip-position="left">Do something</button>
- *
- * The opening delay can be modified with the "data-tooltip-delay" attribute (default: 400):
- *   <button data-tooltip="This is a tooltip" data-tooltip-delay="0">Do something</button>
- *
- * The default behaviour on touch devices to open the tooltip can be modified from "hold-to-show"
- * to "tap-to-show" "with the data-tooltip-touch-tap-to-show" attribute:
- *  <button data-tooltip="This is a tooltip" data-tooltip-touch-tap-to-show="true">Do something</button>
- *
- * For advanced tooltips containing dynamic and/or html content, the
- * "data-tooltip-template" and "data-tooltip-info" attributes can be used.
- * For example, let's suppose the following qweb template:
- *   <t t-name="some_template">
- *     <ul>
- *       <li>info.x</li>
- *       <li>info.y</li>
- *     </ul>
- *   </t>
- * This template can then be used in a tooltip as follows:
- *   <button data-tooltip-template="some_template" data-tooltip-info="info">Do something</button>
- * with "info" being a stringified object with two keys "x" and "y".
- */
 
 export const OPEN_DELAY = 400;
 export const SHOW_AFTER_DELAY = 250;
@@ -63,19 +29,10 @@ export const tooltipService = {
         /** @type {HTMLElement | null} */
         let target = null;
         /**
-         * `title` of the current target, suppressed while a custom tooltip is
-         * pending or open so the native one does not show alongside it. Screen
-         * readers fall back to `title` for the accessible name, so it must be
-         * put back on cleanup instead of being destroyed by the first hover.
          * @type {string | null}
          */
         let suppressedTitle = null;
         /**
-         * The `aria-describedby` the target carried before the open tooltip
-         * appended itself to it, or `null` when we have not touched it. The
-         * tooltip is *appended* rather than substituted so an element that
-         * already documents itself (a field with its help text) keeps that
-         * description while the hover help is up.
          * @type {string | null}
          */
         let previousDescribedBy = null;
@@ -83,7 +40,6 @@ export const tooltipService = {
         let nextTooltipId = 1;
         const elementsWithTooltips = new WeakMap();
 
-        /** Point the target at the tooltip for assistive technology. */
         function describeTarget(/** @type {string} */ tooltipId) {
             previousDescribedBy = target.getAttribute("aria-describedby");
             isDescribing = true;
@@ -93,7 +49,6 @@ export const tooltipService = {
             );
         }
 
-        /** Undo `describeTarget`, leaving any pre-existing description in place. */
         function undescribeTarget() {
             if (!isDescribing) {
                 return;
@@ -108,7 +63,6 @@ export const tooltipService = {
         }
 
         /**
-         * Detect if the current node is the `sup` tooltip node
          * @param {HTMLElement} el
          * @return {boolean}
          */
@@ -120,9 +74,6 @@ export const tooltipService = {
             );
         }
 
-        /**
-         * Closes the currently opened tooltip if any, or prevent it from opening.
-         */
         function cleanup() {
             if (target) {
                 if (suppressedTitle !== null) {
@@ -145,16 +96,6 @@ export const tooltipService = {
         /** @type {(() => void) | null} */
         let unwatchTarget = null;
 
-        /**
-         * Close the tooltip once its target leaves the DOM.
-         *
-         * Driven by the shared `MutationObserver` the popover already arms for
-         * the very same anchor, not by a timer: the previous 200ms poll woke
-         * the main thread 5 times a second for the whole time any tooltip was
-         * pending or open — which, on a list of `data-tooltip` cells, is most
-         * of the time the pointer is moving — to recompute a fact the observer
-         * reports for free and without the up-to-200ms lag.
-         */
         function startWatchingTarget() {
             stopWatchingTarget();
             unwatchTarget = watchForDetachedTarget(target, cleanup);
@@ -166,20 +107,13 @@ export const tooltipService = {
         }
 
         /**
-         * Checks whether there is a tooltip registered on the event target, and
-         * if there is, creates a timeout to open the corresponding tooltip
-         * after a delay.
-         *
-         * @param {HTMLElement} el the element on which to add the tooltip
+         * @param {HTMLElement} el
          * @param {object} param1
-         * @param {string} [param1.tooltip] the string to add as a tooltip, if
-         *  no tooltip template is specified
-         * @param {string} [param1.template] the name of the template to use for
-         *  tooltip, if any
-         * @param {object} [param1.info] info for the tooltip template
+         * @param {string} [param1.tooltip]
+         * @param {string} [param1.template]
+         * @param {object} [param1.info]
          * @param {'top'|'bottom'|'left'|'right'} param1.position
-         * @param {number} [param1.delay] delay after which the popover should
-         *  open
+         * @param {number} [param1.delay]
          */
         function openTooltip(
             el,
@@ -198,9 +132,6 @@ export const tooltipService = {
             }
             const timeoutDelay = isHelpNode(el) ? 0 : delay;
             openTooltipTimeout = browser.setTimeout(() => {
-                // Cleared, not left dangling: `onClick` reads this to tell a
-                // still-pending tooltip from an open one, and a fired timeout
-                // id stays truthy forever.
                 openTooltipTimeout = null;
                 if (target.isConnected) {
                     const tooltipId = `o_tooltip_${nextTooltipId++}`;
@@ -224,7 +155,6 @@ export const tooltipService = {
         }
 
         /**
-         * If a tooltip is registered on the element, schedule it to open after a delay.
          * @param {HTMLElement} el
          */
         function openElementsTooltip(el) {
@@ -234,7 +164,7 @@ export const tooltipService = {
             const element = /** @type {HTMLElement | null} */ (
                 el.closest("[data-tooltip], [data-tooltip-template]")
             );
-            if (element && element === target) {
+            if (target && (target === el || target === element)) {
                 return;
             }
             if (elementsWithTooltips.has(el)) {
@@ -250,9 +180,7 @@ export const tooltipService = {
                 if (dataset.tooltipInfo) {
                     try {
                         params.info = JSON.parse(dataset.tooltipInfo);
-                    } catch {
-                        // Malformed tooltip data attribute — skip info
-                    }
+                    } catch {}
                 }
                 if (dataset.tooltipDelay) {
                     params.delay = Number.parseInt(dataset.tooltipDelay, 10);
@@ -262,34 +190,20 @@ export const tooltipService = {
         }
 
         /**
-         * Schedule opening a tooltip registered on the event target, if any.
-         * @param {MouseEvent} ev a "mouseenter" event
+         * @param {MouseEvent} ev
          */
         function onMouseenter(ev) {
             openElementsTooltip(/** @type {HTMLElement} */ (ev.target));
         }
 
         /**
-         * Schedule opening a tooltip when a tooltipped element receives keyboard
-         * focus, so keyboard/screen-reader users get the same help hover exposes
-         * (WCAG 1.4.13 — content on hover must also be available on focus).
-         * @param {FocusEvent} ev a "focusin" event
+         * @param {FocusEvent} ev
          */
         function onFocusin(ev) {
             openElementsTooltip(/** @type {HTMLElement} */ (ev.target));
         }
 
         /**
-         * Whether `el` sits inside a tooltip holder that opted into
-         * "tap-to-show". Such a holder deliberately opens its tooltip from the
-         * tap itself, so the `click` that ends the tap must not cancel it.
-         *
-         * Only ever true where a tap is possible, which is exactly where the
-         * `touchstart` handler granting the exemption is registered. Without
-         * that guard a mouse got the exemption too, and since a mouse opens the
-         * very same tooltip from `mouseenter`, clicking a form label's "?" left
-         * its hover help up on top of the dropdown the click had just opened.
-         *
          * @param {HTMLElement} el
          * @returns {boolean}
          */
@@ -304,29 +218,16 @@ export const tooltipService = {
         }
 
         /**
-         * Close the tooltip of the clicked element, and cancel any tooltip that
-         * is still only pending. A click means the user is done reading the
-         * hover help, wherever inside the tooltipped element it landed — the
-         * previous "outside the target only" test let a click on a *child* of
-         * the target (the label inside a button, an icon inside a cell) leave
-         * the timeout armed, so the tooltip popped up on top of whatever the
-         * click had just triggered.
-         *
-         * @param {MouseEvent} ev a "click" event
+         * @param {MouseEvent} ev
          */
         function onClick(ev) {
             const el = /** @type {HTMLElement} */ (ev.target);
             if (isHelpNode(el)) {
                 ev.preventDefault();
             }
-            if (!target || isTapToShow(el)) {
+            if (!target || (hasTouch() && isTapToShow(el))) {
                 return;
             }
-            // `target.contains(el)`, not `target === ev.target`: the click
-            // lands on the deepest node, so a button's inner <span> is the
-            // common case, and identity left the tooltip up on top of whatever
-            // the click had just triggered. A click anywhere else still
-            // cancels a tooltip that is only pending, for the same reason.
             if (target.contains(el) || openTooltipTimeout) {
                 cleanup();
             }
@@ -338,8 +239,7 @@ export const tooltipService = {
             }
         }
         /**
-         * Schedule opening a tooltip registered on the event target, if any.
-         * @param {TouchEvent} ev a "touchstart" event
+         * @param {TouchEvent} ev
          */
         function onTouchStart(ev) {
             cleanup();
@@ -351,8 +251,7 @@ export const tooltipService = {
         }
 
         /**
-         * Cancels a pending tooltip when a touch ends or is cancelled.
-         * @param {TouchEvent} ev a "touchend" or "touchcancel" event
+         * @param {TouchEvent} ev
          */
         function onTouchEnd(ev) {
             const el = /** @type {HTMLElement} */ (ev.target);
@@ -363,10 +262,10 @@ export const tooltipService = {
             const holder = /** @type {HTMLElement | null} */ (
                 el.closest("[data-tooltip], [data-tooltip-template]")
             );
-            if (holder) {
-                if (!holder.dataset.tooltipTouchTapToShow) {
-                    browser.clearTimeout(showTimer);
-                    browser.clearTimeout(openTooltipTimeout);
+            if (holder && !holder.dataset.tooltipTouchTapToShow) {
+                browser.clearTimeout(showTimer);
+                if (openTooltipTimeout) {
+                    cleanup();
                 }
             }
         }
@@ -419,9 +318,7 @@ export const tooltipService = {
             },
             destroy() {
                 destroyed = true;
-                stopWatchingTarget();
-                browser.clearTimeout(openTooltipTimeout);
-                browser.clearTimeout(showTimer);
+                cleanup();
                 for (const dispose of listenerDisposers) {
                     dispose();
                 }
