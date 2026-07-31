@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/debug/debug_menu_basic - Base debug menu dropdown grouped by section (Record, UI, Security, etc.) */
+/** @module @web/services/debug/debug_menu_basic */
 
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -27,10 +27,6 @@ debugSectionRegistry
     .add("testing", { label: _t("Tours & Testing"), sequence: 40 })
     .add("tools", { label: _t("Tools"), sequence: 50 });
 
-/**
- * Base debug menu component that renders debug items grouped by section.
- * Subclassed by `DebugMenu` which adds command palette integration.
- */
 export class DebugMenuBasic extends Component {
     static template = "web.DebugMenu";
     static components = {
@@ -45,8 +41,6 @@ export class DebugMenuBasic extends Component {
     }
 
     /**
-     * Load debug items from the debug context and group them by section.
-     * Sets `this.sectionEntries` as sorted [section, items[]] pairs.
      * @returns {Promise<void>}
      */
     async loadGroupedItems() {

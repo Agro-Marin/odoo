@@ -9,9 +9,12 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
+import { cookie } from "@web/core/browser/cookie";
 import { localization } from "@web/core/l10n/localization";
 import { Settings } from "@web/core/l10n/luxon";
 import { IndexedDB } from "@web/core/utils/indexed_db";
+import { applyLuxonLocale } from "@web/services/localization_service";
+import { session } from "@web/session";
 
 describe.current.tags("headless");
 
@@ -147,6 +150,7 @@ test("the localStorage cache marker is set only after the IndexedDB write lands"
     browser.localStorage.removeItem("webclient_translations_version");
     /** @type {string[]} */
     const order = [];
+    /** @type {any} */
     let releaseWrite;
     const writeLanded = new Promise((resolve) => {
         releaseWrite = resolve;
@@ -172,4 +176,93 @@ test("the localStorage cache marker is set only after the IndexedDB write lands"
     expect(browser.localStorage.getItem("webclient_translations_version")).not.toBe(
         null,
     );
+});
+
+test("applyLuxonLocale moves the locale and its numbering system together", () => {
+    // luxon takes the digits from `defaultNumberingSystem` and everything else
+    // from `defaultLocale`: a caller that re-points one without the other — as
+    // the public boot did when overriding the session language with the
+    // frontend one — renders an English page's dates in Arabic-Indic digits.
+    patchWithCleanup(Settings, {
+        defaultLocale: "ar-001",
+        defaultNumberingSystem: "arab",
+    });
+    applyLuxonLocale("fr-BE");
+    expect(Settings.defaultLocale).toBe("fr-BE");
+    expect(Settings.defaultNumberingSystem).toBe("latn");
+
+    applyLuxonLocale("ar-SA");
+    expect(Settings.defaultLocale).toBe("ar-SA");
+    expect(Settings.defaultNumberingSystem).toBe("arab");
+});
+
+/**
+ * Pins the language the service resolves, by intercepting the request it makes.
+ *
+ * @param {{ isFrontend?: boolean, cookieLang?: string, htmlLang?: string }} setup
+ * @returns {Promise<void>}
+ */
+async function bootWith({ isFrontend, cookieLang, htmlLang }) {
+    mockLocalizationDB();
+    patchWithCleanup(session, { is_frontend: isFrontend });
+    // the browser language is deliberately one that is neither the cookie's nor
+    // the <html lang>'s, and whose numbering system is not latn
+    patchWithCleanup(browser, {
+        navigator: { ...browser.navigator, language: "ar-SA" },
+    });
+    patchWithCleanup(Settings, { defaultLocale: "xx", defaultNumberingSystem: "xx" });
+    if (cookieLang) {
+        cookie.set("frontend_lang", cookieLang);
+        after(() => cookie.delete("frontend_lang"));
+    }
+    const html = document.documentElement;
+    const previousLang = html.getAttribute("lang");
+    html.removeAttribute("lang");
+    if (htmlLang) {
+        html.setAttribute("lang", htmlLang);
+    }
+    after(() => {
+        html.removeAttribute("lang");
+        if (previousLang !== null) {
+            html.setAttribute("lang", previousLang);
+        }
+    });
+    onRpc("/web/webclient/translations", (request) => {
+        expect.step(`lang=${new URL(request.url).searchParams.get("lang")}`);
+        return makeTranslationsResult({ hash: "h" });
+    });
+    await makeMockEnv();
+}
+
+describe("the language a page is rendered in", () => {
+    test("a frontend page follows the frontend_lang cookie, not the browser", async () => {
+        await bootWith({ isFrontend: true, cookieLang: "en_US" });
+        // used to fall through to navigator.language on the login/portal pages,
+        // which render no <html lang> and carry no user_context: an English page
+        // fetched — and cached under — the visitor's browser language
+        expect.verifySteps(["lang=en_US"]);
+        expect(localization.code).toBe("en_US");
+        expect(Settings.defaultLocale).toBe("en-US");
+        expect(Settings.defaultNumberingSystem).toBe("latn");
+    });
+
+    test("a frontend page without a cookie falls back to <html lang>", async () => {
+        await bootWith({ isFrontend: true, htmlLang: "fr-BE" });
+        expect.verifySteps(["lang=fr_BE"]);
+        expect(Settings.defaultLocale).toBe("fr-BE");
+    });
+
+    test("a frontend page with neither falls back to en-US, never the browser", async () => {
+        await bootWith({ isFrontend: true });
+        expect.verifySteps(["lang=en_US"]);
+        expect(Settings.defaultLocale).toBe("en-US");
+        expect(Settings.defaultNumberingSystem).toBe("latn");
+    });
+
+    test("the backend ignores the frontend_lang cookie", async () => {
+        // the cookie is set on the same host by any frontend visit; the backend
+        // must keep following the session user's language
+        await bootWith({ isFrontend: false, cookieLang: "fr_FR" });
+        expect.verifySteps(["lang=en"]);
+    });
 });

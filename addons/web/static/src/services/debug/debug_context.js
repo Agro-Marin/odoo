@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/debug/debug_context - Debug context manager that collects and merges debug menu items by category */
+/** @module @web/services/debug/debug_context */
 
 import { useEffect, useEnv, useSubEnv } from "@odoo/owl";
 import { Registry, registry } from "@web/core/registry";
@@ -18,7 +18,6 @@ debugRegistry.addValidation((entry) => entry instanceof Registry);
  */
 
 /**
- * Fetch the current user's debug-relevant access rights.
  * @returns {Promise<AccessRights>}
  */
 const getAccessRights = async () => {
@@ -36,23 +35,17 @@ const getAccessRights = async () => {
     return accessRights;
 };
 
-/**
- * Manages debug menu categories and their associated context data.
- * Each category maps to a set of context objects that are merged when
- * generating debug menu items.
- */
 class DebugContext {
-    /** @param {string[]} defaultCategories - initial category names to register */
+    /** @param {string[]} defaultCategories */
     constructor(defaultCategories) {
         /** @type {Map<string, any>} */
         this.categories = new Map(defaultCategories.map((cat) => [cat, new Set([{}])]));
     }
 
     /**
-     * Activate a debug category with context data. Returns a cleanup function.
-     * @param {string} category - the category key (e.g. "default", "form")
-     * @param {Object} context - contextual data passed to debug item factories
-     * @returns {() => void} deactivation function
+     * @param {string} category
+     * @param {Object} context
+     * @returns {() => void}
      */
     activateCategory(category, context) {
         const contexts = this.categories.get(category) || new Set();
@@ -68,8 +61,6 @@ class DebugContext {
     }
 
     /**
-     * Collect all debug menu items from all active categories.
-     * Calls each registered factory with the merged context and access rights.
      * @param {import("@web/env").OdooEnv} env
      * @returns {Promise<Array<import("./debug_menu_items").DebugMenuItemDescriptor>>}
      */
@@ -82,15 +73,6 @@ class DebugContext {
                         .category(category)
                         .getAll()
                         .map((factory) =>
-                            // INNERMOST context wins, spelled out rather than
-                            // emerging from the key order of a merge. Spreading
-                            // every active context of a category into one object
-                            // only behaved correctly because today's activators
-                            // ("action", "view", "form") all pass the same key
-                            // shape, so the last one overwrote the others whole.
-                            // The moment two differ, the outer one's keys leak
-                            // into the inner one's descriptor and the debug menu
-                            // acts on a record that was never active.
                             factory({
                                 env,
                                 accessRights,
@@ -110,9 +92,8 @@ class DebugContext {
 
 const debugContextSymbol = Symbol("debugContext");
 /**
- * Create a debug context object to be injected into the OWL environment.
  * @param {{ categories?: string[] }} [options]
- * @returns {Object} env extension containing the debug context under a private symbol
+ * @returns {Object}
  */
 export function createDebugContext({ categories = [] } = {}) {
     return /** @type {any} */ ({
@@ -121,7 +102,6 @@ export function createDebugContext({ categories = [] } = {}) {
 }
 
 /**
- * OWL hook: create and inject a new debug context into the component's sub-environment.
  * @param {{ categories?: string[] }} [options]
  */
 export function useOwnDebugContext({ categories = [] } = {}) {
@@ -129,9 +109,8 @@ export function useOwnDebugContext({ categories = [] } = {}) {
 }
 
 /**
- * OWL hook: retrieve the debug context from the current environment.
  * @returns {DebugContext}
- * @throws {Error} if no debug context is available
+ * @throws {Error}
  */
 export function useEnvDebugContext() {
     const debugContext = /** @type {any} */ (useEnv())[debugContextSymbol];
@@ -144,10 +123,8 @@ export function useEnvDebugContext() {
 }
 
 /**
- * OWL hook: register a debug category for the current component's lifetime.
- * The category is automatically deactivated when the component is destroyed.
- * @param {string} category - the category to activate (e.g. "form", "list")
- * @param {Object} [context={}] - contextual data for debug item factories
+ * @param {string} category
+ * @param {Object} [context={}]
  */
 export function useDebugCategory(category, context = {}) {
     const env = useEnv();

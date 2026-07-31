@@ -34,7 +34,7 @@ beforeEach(() => {
     delete session.feature_flags;
 });
 
-function _stubLocation(href) {
+function _stubLocation(/** @type {string} */ href) {
     patchWithCleanup(browser, {
         location: { ...browser.location, href },
     });

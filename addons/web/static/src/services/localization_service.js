@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/localization_service - Fetches translations and configures Luxon locale, numbering system, and date/number formats */
+/** @module @web/services/localization_service */
 
 import { browser } from "@web/core/browser/browser";
+import { cookie } from "@web/core/browser/cookie";
 import { strftimeToLuxonFormat } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { Settings } from "@web/core/l10n/luxon";
@@ -13,7 +14,7 @@ import {
     translationIsReady,
     translationLoaded,
 } from "@web/core/l10n/translation";
-import { jsToPyLocale } from "@web/core/l10n/utils";
+import { jsToPyLocale, pyToJsLocale } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
 import { l10nLog } from "@web/core/utils/asset_log";
 import { IndexedDB } from "@web/core/utils/indexed_db";
@@ -32,11 +33,30 @@ const NUMBERING_SYSTEMS = [
 ];
 
 /**
- * Last-resort `lang_parameters` (en-US-like) applied when the very first
- * translation fetch fails with nothing cached: without them `localization`
- * stays empty and every date/number formatter on the page throws or renders
- * garbage. Terms remain untranslated (English source strings).
+ * @param {string} locale
+ * @returns {void}
  */
+export function applyLuxonLocale(locale) {
+    Settings.defaultLocale = locale;
+    for (const [re, numberingSystem] of NUMBERING_SYSTEMS) {
+        if (re.test(locale)) {
+            Settings.defaultNumberingSystem = numberingSystem;
+            break;
+        }
+    }
+}
+
+/**
+ * @returns {string}
+ */
+function getPageLocale() {
+    const htmlLang = document.documentElement.getAttribute("lang");
+    if (session.is_frontend) {
+        return pyToJsLocale(cookie.get("frontend_lang") ?? "") || htmlLang || "en-US";
+    }
+    return user.lang || htmlLang || browser.navigator.language;
+}
+
 const FALLBACK_LANG_PARAMETERS = {
     date_format: "%m/%d/%Y",
     time_format: "%H:%M:%S",
@@ -47,37 +67,14 @@ const FALLBACK_LANG_PARAMETERS = {
     week_start: 7,
 };
 
-/**
- * Service that fetches translations from the server and configures the Luxon
- * locale, numbering system, and Odoo localization settings (date/time formats,
- * decimal point, thousands separator, etc.).
- *
- * Uses IndexedDB for caching translations across page loads.
- */
 export const localizationService = {
     /** @returns {Promise<typeof import("@web/core/l10n/localization").localization>} */
     start: async () => {
         const localizationDB = new IndexedDB("localization", session.registry_hash);
         const translationURL = session.translationURL || "/web/webclient/translations";
-        const locale =
-            user.lang ||
-            document.documentElement.getAttribute("lang") ||
-            browser.navigator.language;
+        const locale = getPageLocale();
         const lang = jsToPyLocale(locale);
 
-        /**
-         * Synchronous localStorage mirror of the (asynchronous) IndexedDB
-         * translations cache, consumed by the parse-time preload script in
-         * `web.webclient_bootstrap` (webclient_templates.xml). The inline
-         * script cannot await an IndexedDB read, so it checks this marker
-         * instead: when it equals `${registry_hash}/${lang}` the IndexedDB
-         * read will (almost certainly) hit and no early fetch is started;
-         * otherwise (first visit, deploy that bumped registry_hash, language
-         * change) the fetch starts at parse time and is adopted below.
-         * A stale/lost marker is always safe: it only costs one redundant
-         * prefetch (marker stale) or a later fetch (marker lost with IDB
-         * intact — same as before this optimization).
-         */
         const translationsCacheMarker = `${session.registry_hash}/${lang}`;
         const markTranslationsCached = () => {
             try {
@@ -85,16 +82,11 @@ export const localizationService = {
                     "webclient_translations_version",
                     translationsCacheMarker,
                 );
-            } catch {
-                // localStorage unavailable/full: only disables the cold-boot
-                // preload optimization, never breaks translations.
-            }
+            } catch {}
         };
 
         /**
-         * Fetch translations from the server. If the hash matches the cached
-         * version, no update is performed.
-         * @param {string | undefined} hash - hash of the currently cached translations
+         * @param {string | undefined} hash
          */
         const fetchTranslations = async (hash) => {
             let queryString = objectToUrlEncodedString({ hash, lang });
@@ -135,22 +127,10 @@ export const localizationService = {
             }
             const result = await response.json();
             if (result.hash !== hash) {
-                // Apply first (nothing below blocks the UI on storage), then
-                // mark ONLY once the IndexedDB write has actually landed. The
-                // marker used to be set next to a fire-and-forget write, which
-                // can produce the one combination the marker contract does not
-                // cover: marker present, IndexedDB empty. The parse-time preload
-                // script in `web.webclient_bootstrap` then trusts the marker and
-                // skips its early fetch, so the next cold boot pays a fully
-                // serialized translation fetch — the exact cost this cache
-                // exists to avoid.
                 updateTranslations(result);
                 localizationDB
                     .write(translationURL, JSON.stringify({ lang }), result)
-                    .then(markTranslationsCached, () => {
-                        // Storage unavailable/full: leave the marker unset so the
-                        // next boot prefetches instead of trusting a phantom cache.
-                    });
+                    .then(markTranslationsCached, () => {});
                 l10nLog(
                     "fetch",
                     "fetchTranslations cached + applied",
@@ -160,8 +140,6 @@ export const localizationService = {
         };
 
         /**
-         * Apply translation data to the global `translatedTerms` and configure
-         * the `localization` object with date/time formats and number settings.
          * @param {{
          *     hash: string,
          *     modules: Record<string, { messages: { id: string, string: string }[] }>,
@@ -252,13 +230,7 @@ export const localizationService = {
         translatedTerms[translationLoaded] = true;
         translationIsReady.resolve(true);
 
-        Settings.defaultLocale = locale;
-        for (const [re, numberingSystem] of NUMBERING_SYSTEMS) {
-            if (re.test(locale)) {
-                Settings.defaultNumberingSystem = numberingSystem;
-                break;
-            }
-        }
+        applyLuxonLocale(locale);
         localization.code = lang;
         return localization;
     },

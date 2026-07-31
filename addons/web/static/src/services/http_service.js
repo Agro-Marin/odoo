@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/http_service - Simple HTTP GET/POST helpers with status checking and FormData support */
+/** @module @web/services/http_service */
 
 import { browser } from "@web/core/browser/browser";
 import {
@@ -13,26 +13,8 @@ import {
 import { registry } from "@web/core/registry";
 
 /**
- * Throw a classified error (rpc.js hierarchy, so callers and error handlers
- * can branch on it) for non-ok statuses instead of falling through to an
- * opaque body-parse failure on HTML error pages.
- *
- * A 2xx response with an HTML content-type is classified too, in two cases:
- * ``fetch`` follows redirects, so a session-expired request lands on the HTML
- * login page with a 200.
- * - ``readMethod === "json"``: ``response.json()`` would otherwise die on the
- *   login page with a raw ``SyntaxError`` (ClientErrorDialog).
- * - ``rejectHtml`` opt-in: for non-JSON callers that must NOT swallow the login
- *   page as legitimate content — file downloads (``core/utils/files.js`` reads
- *   ``"text"``) and the PWA manifest fetch would otherwise hand the login-page
- *   HTML back as the file/manifest body with no re-auth prompt. It is opt-in so
- *   the deliberate "an explicit non-json readMethod still reads HTML bodies"
- *   contract (see ``http_service.test.js``) is preserved for other callers.
- * ``InvalidResponseError`` matches rpc.js's handling of the same response, so
- * the connection-lost handler routes it to the session-expired flow instead.
- *
  * @param {Response} response
- * @param {string} [readMethod] the body-read method the caller will use
+ * @param {string} [readMethod]
  * @param {{ rejectHtml?: boolean }} [options]
  */
 function checkResponseStatus(response, readMethod, { rejectHtml = false } = {}) {
@@ -62,9 +44,7 @@ function checkResponseStatus(response, readMethod, { rejectHtml = false } = {}) 
 /**
  * @param {string} route
  * @param {string} [readMethod="json"]
- * @param {{ rejectHtml?: boolean }} [options] ``rejectHtml``: throw
- *   ``InvalidResponseError`` (→ session-expired flow) on a 2xx HTML body, for
- *   non-JSON callers that must not accept the login page as content.
+ * @param {{ rejectHtml?: boolean }} [options]
  * @returns {Promise<any>}
  */
 export async function get(route, readMethod = "json", options = {}) {
@@ -77,9 +57,7 @@ export async function get(route, readMethod = "json", options = {}) {
  * @param {string} route
  * @param {Record<string, any> | FormData} [params={}]
  * @param {string} [readMethod="json"]
- * @param {{ rejectHtml?: boolean }} [options] ``rejectHtml``: throw
- *   ``InvalidResponseError`` (→ session-expired flow) on a 2xx HTML body, for
- *   non-JSON callers that must not accept the login page as content.
+ * @param {{ rejectHtml?: boolean }} [options]
  * @returns {Promise<any>}
  */
 export async function post(route, params = {}, readMethod = "json", options = {}) {

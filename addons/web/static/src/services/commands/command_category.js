@@ -2,9 +2,6 @@
 /** @odoo-module native */
 
 /**
- * Registers the default command palette categories with their display sequence.
- * Categories control the ordering of commands in the command palette (Ctrl+K).
- *
  * @module @web/services/commands/command_category
  */
 

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/field_service - Service for loading field definitions, paths, and property definitions from the ORM */
+/** @module @web/services/field_service */
 
 /**
  * @typedef {Object} LoadFieldsOptions
@@ -18,6 +18,16 @@
 
 import { Domain } from "@web/core/domain";
 import { registry } from "@web/core/registry";
+
+/**
+ * @param {Record<string, any> | null | undefined} fieldDefs
+ * @param {string} name
+ * @returns {Record<string, any> | undefined}
+ */
+function getOwnFieldDef(fieldDefs, name) {
+    return fieldDefs && Object.hasOwn(fieldDefs, name) ? fieldDefs[name] : undefined;
+}
+
 /**
  * @param {Record<string, any>} fieldDef
  * @param {boolean} [followRelationalProperties=false]
@@ -75,28 +85,25 @@ export const fieldService = {
             name,
             domain = [],
         ) {
+            const fieldDef = getOwnFieldDef(fieldDefs, name);
+            if (!fieldDef) {
+                throw new Error(`Model "${resModel}" has no field "${name}"`);
+            }
             const {
                 definition_record: definitionRecord,
                 definition_record_field: definitionRecordField,
-            } = fieldDefs[name];
-            const definitionRecordModel = fieldDefs[definitionRecord].relation;
+            } = fieldDef;
+            const definitionRecordDef = getOwnFieldDef(fieldDefs, definitionRecord);
+            if (!definitionRecordField || !definitionRecordDef) {
+                throw new Error(
+                    `Field "${resModel}.${name}" is not a properties field ` +
+                        `(no definition record to read its definitions from)`,
+                );
+            }
+            const definitionRecordModel = definitionRecordDef.relation;
 
             let result;
             if (definitionRecordModel === "properties.base.definition") {
-                // `domain` is deliberately NOT forwarded, and that is correct
-                // rather than an oversight. It exists for the branch below,
-                // where definitions hang off a real parent record and the only
-                // caller (`search_properties_mixin`) narrows to
-                // `["id", "=", active_id]`. Base definitions have no such
-                // parent: the server resolves them by (model, field) alone
-                // (web/models/properties_base_definition.py), and `active_id`
-                // is an id of the ACTION's model, so applying it here would
-                // filter `properties.base.definition` by an unrelated id and
-                // return nothing.
-                //
-                // No `.cache()` on purpose either: property definitions are
-                // edited in-app and this call has no invalidation hook the way
-                // `fields_get` (immutable per registry hash) does.
                 result = await orm
                     .retry(1)
                     .call(
@@ -119,7 +126,7 @@ export const fieldService = {
             }
 
             /** @type {Record<string, any>} */
-            const definitions = {};
+            const definitions = Object.create(null);
             for (const record of result.records) {
                 for (const definition of record[definitionRecordField]) {
                     definitions[definition.name] = {
@@ -147,7 +154,7 @@ export const fieldService = {
         }
 
         /**
-         * @param {string|null} resModel valid model name or null (case virtual)
+         * @param {string|null} resModel
          * @param {Record<string, any>|null} fieldDefs
          * @param {string[]} names
          * @param {boolean} [followRelationalProperties=false]
@@ -169,7 +176,7 @@ export const fieldService = {
                 return { isInvalid: "path", names, modelsInfo };
             }
 
-            const fieldDef = fieldDefs[name];
+            const fieldDef = getOwnFieldDef(fieldDefs, name);
             if (
                 (name !== "*" && !fieldDef) ||
                 (name === "*" && remainingNames.length)
@@ -219,8 +226,6 @@ export const fieldService = {
         }
 
         /**
-         * Note: the symbol * can be used at the end of path (e.g path="*" or path="user_id.*").
-         * It says to load the fields of the appropriate model.
          * @param {string} resModel
          * @param {string} path
          * @returns {Promise<LoadPathResult>}
@@ -259,7 +264,7 @@ export const fieldService = {
             const modelInfo = modelsInfo[modelsInfo.length - 1];
             return {
                 resModel: modelInfo.resModel,
-                fieldDef: modelInfo.fieldDefs[name] ?? null,
+                fieldDef: getOwnFieldDef(modelInfo.fieldDefs, name) ?? null,
             };
         }
 
@@ -293,8 +298,10 @@ export const fieldService = {
             };
             if (!isInvalid) {
                 const lastName = names[names.length - 1];
-                const lastFieldDef =
-                    modelsInfo[modelsInfo.length - 1].fieldDefs[lastName];
+                const lastFieldDef = getOwnFieldDef(
+                    modelsInfo[modelsInfo.length - 1].fieldDefs,
+                    lastName,
+                );
                 if (
                     !lastFieldDef ||
                     ["properties", "properties_definition"].includes(lastFieldDef.type)
@@ -304,7 +311,7 @@ export const fieldService = {
             }
             for (let index = 0; index < names.length; index++) {
                 const name = names[index];
-                const fieldDef = modelsInfo[index]?.fieldDefs[name];
+                const fieldDef = getOwnFieldDef(modelsInfo[index]?.fieldDefs, name);
                 result.displayNames.push(fieldDef?.string || makeString(name));
             }
             return result;

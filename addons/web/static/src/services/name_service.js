@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/name_service - Batched and cached display_name lookups across arbitrary models */
-
-/** Sentinel value indicating a record ID that is inaccessible or does not exist. */
+/** @module @web/services/name_service */
 
 import { AppEvent, UserEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -14,20 +12,9 @@ export const ERROR_INACCESSIBLE_OR_MISSING = Symbol(
     "INACCESSIBLE OR MISSING RECORD ID",
 );
 
-/**
- * Max number of display-name entries kept across ALL models before the
- * least-recently-used one is evicted. The cache is otherwise only cleared
- * wholesale on the two visibility events, so without a cap a long-lived action
- * that scrolls large lists / m2o autocompletes accumulates one entry per unique
- * id for the whole time it is displayed. Eviction only ever forces a re-fetch
- * (never serves stale data), so it is safe alongside the miss-cache invariant.
- */
 export const NAME_CACHE_LIMIT = 20000;
 
 /**
- * Flat cache key for a (model, id) pair. ``\x00`` cannot appear in a model
- * technical name, and template coercion makes numeric and string ids collide on
- * the same key (as the previous nested plain-object cache did).
  * @param {string} resModel
  * @param {number|string} resId
  * @returns {string}
@@ -37,7 +24,6 @@ function cacheKey(resModel, resId) {
 }
 
 /**
- * Check whether a value is a valid Odoo record ID (positive integer).
  * @param {any} val
  * @returns {boolean}
  */
@@ -49,10 +35,6 @@ function isId(val) {
  * @typedef {Record<string, (string|ERROR_INACCESSIBLE_OR_MISSING)>} DisplayNames
  */
 
-/**
- * Service that batches and caches `display_name` lookups for arbitrary models.
- * Requests within the same microtask are automatically merged into a single RPC.
- */
 export const nameService = {
     dependencies: ["orm"],
     async: ["loadDisplayNames"],
@@ -64,15 +46,13 @@ export const nameService = {
      *   clearCache: Function,
      *   loadDisplayNames: Function,
      *   destroy: () => void,
-     * }} ``destroy`` detaches the ``env.bus`` and ``userBus`` cache-clear
-     *   listeners; the service registry calls it on env teardown.
+     * }}
      */
     start(env, { orm }) {
         /** @type {Map<string, import("@web/core/utils/concurrency").Deferred>} */
         let cache = new Map();
 
         /**
-         * LRU read: return the entry (if any), moving it to the warm end.
          * @param {string} key
          * @returns {import("@web/core/utils/concurrency").Deferred | undefined}
          */
@@ -86,10 +66,6 @@ export const nameService = {
         }
 
         /**
-         * LRU write: insert/refresh ``key`` at the warm end, evicting the
-         * coldest entry once the cache exceeds ``NAME_CACHE_LIMIT``. Eviction
-         * only drops an entry, forcing a later re-fetch — it never serves stale
-         * data, so the miss-cache invariant below is unaffected.
          * @param {string} key
          * @param {import("@web/core/utils/concurrency").Deferred} deferred
          */
@@ -101,19 +77,10 @@ export const nameService = {
             }
         }
         /**
-         * Pending fetches per model, each entry owning its Deferred (not read
-         * through `cache`): `clearCache` may swap the cache mid-flight, and this
-         * decoupling ensures post-swap joiners are still settled by the
-         * in-flight batch instead of orphaned.
          * @type {Record<string, { resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]>}
          */
         const batches = Object.create(null);
 
-        /**
-         * Invalidate the display name cache (on action manager updates).
-         * In-flight batches are untouched: their Deferreds settle pre-clear
-         * callers, while the swapped cache forces post-clear callers to re-fetch.
-         */
         function clearCache() {
             cache = new Map();
         }
@@ -122,7 +89,7 @@ export const nameService = {
         userBus.addEventListener(UserEvent.ACTIVE_COMPANIES_CHANGED, clearCache);
 
         /**
-         * @param {string} resModel valid resModel name
+         * @param {string} resModel
          * @param {DisplayNames} displayNames
          */
         function addDisplayNames(resModel, displayNames) {
@@ -136,21 +103,6 @@ export const nameService = {
         }
 
         /**
-         * @param {string} resModel valid resModel name
-         * @param {number[]} resIds valid ids
-         * @returns {Promise<DisplayNames>}
-         */
-        /**
-         * Evict an entry whose fetch FAILED, so a later lookup re-fetches.
-         *
-         * A record the server did not return is NOT evicted: that negative
-         * result is cached deliberately, and stays valid until one of the two
-         * visibility events clears the whole cache (see the service's INVARIANT
-         * — an inaccessible/missing id must not re-fetch on every render).
-         *
-         * Only evict if the current cache still holds this very Deferred: after
-         * a `clearCache` the slot may be absent or already repopulated by a
-         * newer epoch's fetch.
          * @param {string} resModel
          * @param {number} resId
          * @param {import("@web/core/utils/concurrency").Deferred} deferred
@@ -162,6 +114,11 @@ export const nameService = {
             }
         }
 
+        /**
+         * @param {string} resModel
+         * @param {number[]} resIds
+         * @returns {Promise<DisplayNames>}
+         */
         async function loadDisplayNames(resModel, resIds) {
             const proms = [];
             /** @type {{ resId: number, deferred: import("@web/core/utils/concurrency").Deferred }[]} */

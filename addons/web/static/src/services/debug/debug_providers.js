@@ -2,10 +2,6 @@
 /** @odoo-module native */
 
 /**
- * Command palette provider that offers debug mode toggle commands.
- * Commands are contextual: when debug is active, shows "deactivate" and "run tests";
- * when inactive, shows "activate" only if the user types "debug" in the palette.
- *
  * @module @web/services/debug/debug_providers
  */
 

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/commands/command_palette - Command palette dialog with fuzzy search, namespaces, and keyboard navigation */
+/** @module @web/services/commands/command_palette */
 
 import {
     Component,
@@ -31,13 +31,6 @@ const DEFAULT_PLACEHOLDER = _t("Search...");
 const DEFAULT_EMPTY_MESSAGE = _t("No result found");
 const FUZZY_NAMESPACES = ["default"];
 
-/**
- * Upper bound on rendered commands. Every command mounts its own OWL
- * component, so an unbounded provider result would stall the palette on each
- * keystroke. The overflow is REPORTED (see ``state.hiddenCount``) rather than
- * dropped silently: a bare ``slice(0, 100)`` reads to the user as "that is all
- * there is", which is how a 150-result search looked like a 100-result one.
- */
 export const MAX_DISPLAYED_COMMANDS = 100;
 
 /**
@@ -73,23 +66,17 @@ export const MAX_DISPLAYED_COMMANDS = 100;
  */
 
 /**
- * Bucket every command under the category it renders in, in ``categories``
- * order, with commands whose category is unknown falling back to "default"
- * (always present in ``categories`` — see {@link CommandPalette.setCommands}).
- *
- * Replaces a per-category ``filter`` pass. Equivalent for every input except a
- * ``categories`` list containing DUPLICATES, where the old code emitted the
- * category twice — rendering each of its commands twice under two groups
- * sharing one ``t-key``. Unreachable in practice: the list is built from
- * ``command_categories`` registry keys, which are unique.
- *
  * @param {CommandItem[]} commands
  * @param {string[]} categories
- * @returns {Map<string, CommandItem[]>} keyed in ``categories`` order
+ * @returns {Map<string, CommandItem[]>}
  */
 function groupCommandsByCategory(commands, categories) {
     /** @type {Map<string, CommandItem[]>} */
-    const byCategory = new Map(categories.map((category) => [category, []]));
+    const byCategory = new Map(
+        categories.map(
+            (category) => /** @type {[string, CommandItem[]]} */ ([category, []]),
+        ),
+    );
     for (const command of commands) {
         const bucket =
             byCategory.get(/** @type {string} */ (command.category)) ??
@@ -99,7 +86,6 @@ function groupCommandsByCategory(commands, categories) {
     return byCategory;
 }
 
-/** Default rendering component for a command palette item (plain text with highlight). */
 export class DefaultCommandItem extends Component {
     static template = "web.DefaultCommandItem";
     static props = {
@@ -112,11 +98,6 @@ export class DefaultCommandItem extends Component {
     };
 }
 
-/**
- * Modal command palette (Ctrl+K) that aggregates commands from multiple
- * providers, supports namespace switching via prefix characters, and
- * provides fuzzy search within the "default" namespace.
- */
 export class CommandPalette extends Component {
     static template = "web.CommandPalette";
     static components = { Dialog };
@@ -127,6 +108,56 @@ export class CommandPalette extends Component {
         config: Object,
         closeMe: { type: Function, optional: true },
     };
+
+    // Declared here, assigned in setup() or in the methods below. Definite
+    // assignment analysis credits only the constructor, so without these every
+    // read would be `T | undefined`. Safe on an OWL Component, whose setup()
+    // runs after construction — NOT on a Model, which calls setup() from its
+    // own constructor and would be clobbered by a field initialiser.
+    /** @type {number} */
+    keyId;
+    /** @type {Race<any>} */
+    race;
+    /** @type {KeepLast<PromiseSettledResult<CommandItem[]>[]>} */
+    keepLast;
+    /** @type {number} */
+    _sessionId;
+    /** @type {typeof DefaultCommandItem} */
+    DefaultCommandItem;
+    /** @type {Document | HTMLElement} */
+    activeElement;
+    /** @type {ReturnType<typeof useAutofocus>} */
+    inputRef;
+    /**
+     * @type {{ commands: CommandItem[],
+     *          emptyMessage: string,
+     *          FooterComponent?: Component,
+     *          hiddenCount: number,
+     *          isLoading: boolean,
+     *          namespace: string,
+     *          placeholder: string,
+     *          searchValue: string,
+     *          selectedIndex: number }}
+     */
+    state;
+    /** @type {ReturnType<typeof useRef>} */
+    root;
+    /** @type {ReturnType<typeof useRef>} */
+    listboxRef;
+    /** @type {Record<string, any>} */
+    configByNamespace;
+    /** @type {Record<string, Provider[]>} */
+    providersByNamespace;
+    /** @type {Promise<any> | null} */
+    searchValuePromise;
+    /** @type {string[]} */
+    categoryKeys;
+    /** @type {Record<string, string>} */
+    categoryNames;
+    /** @type {boolean} */
+    mouseSelectionActive;
+    /** @type {ReturnType<typeof debounce>} */
+    lastDebounceSearch;
 
     setup() {
         if (this.props.bus) {
@@ -166,17 +197,6 @@ export class CommandPalette extends Component {
         });
         useExternalListener(window, "mousedown", this.onWindowMouseDown);
 
-        /**
-         * @type {{ commands: CommandItem[],
-         *          emptyMessage: string,
-         *          FooterComponent: Component,
-         *          hiddenCount: number,
-         *          isLoading: boolean,
-         *          namespace: string,
-         *          placeholder: string,
-         *          searchValue: string,
-         *          selectedIndex: number }}
-         */
         this.state = useState(/** @type {any} */ ({}));
 
         this.root = useRef("root");
@@ -210,7 +230,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Apply the new config to the command pallet
      * @param {CommandPaletteConfig} config
      */
     async setCommandPaletteConfig(config) {
@@ -239,20 +258,13 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Compute the commands to display for namespace/options; select the first one.
      * @param {string} namespace
      * @param {{ searchValue?: string, activeElement?: Element, sessionId?: number }} [options]
      */
     async setCommands(namespace, options = {}) {
         let categoryKeys = ["default"];
+        /** @type {Record<string, string>} */
         let categoryNames = {};
-        // `Promise.allSettled` only contains REJECTIONS. A provider that throws
-        // synchronously throws out of this `map` before any promise exists, so
-        // it escaped the containment below entirely and took down the whole
-        // palette mount (`setCommands` -> `search` -> `setCommandPaletteConfig`
-        // -> `onWillStart`), losing every other provider's commands with it.
-        // Both built-in providers (`default_providers`, `debug_providers`) are
-        // synchronous and do DOM work, so this was reachable.
         const proms = this.providersByNamespace[namespace].map(async (provider) =>
             provider.provide(this.env, options),
         );
@@ -303,7 +315,7 @@ export class CommandPalette extends Component {
                 index,
                 keyId: this.keyId++,
                 text: highlightText(
-                    options.searchValue,
+                    options.searchValue ?? "",
                     command.name,
                     "fw-bolder text-primary",
                 ),
@@ -317,15 +329,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Select a command by its index in the current list.
-     * @param {number} index - -1 to deselect
-     */
-    /**
-     * The highlighted command, derived from `state.selectedIndex` rather than
-     * stored beside it. Keeping a second copy of it in state meant the index
-     * that drives keyboard navigation lived on that copy, so a stale snapshot
-     * could feed an index back into a list it no longer belonged to.
-     *
      * @returns {CommandItem | null}
      */
     get selectedCommand() {
@@ -333,11 +336,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Highlight the command at `index`, or nothing when there is no such
-     * command. Anything that is not a position in the current list — `-1`, a
-     * stale index from a longer list, `undefined` from a caller that computed
-     * no branch — means "no selection"; there is no other way to spell it.
-     *
      * @param {number} index
      */
     selectCommand(index) {
@@ -347,7 +345,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Move selection up or down and scroll the listbox to keep it visible.
      * @param {"PREV" | "NEXT"} type
      */
     selectCommandAndScrollTo(type) {
@@ -356,16 +353,21 @@ export class CommandPalette extends Component {
         if (index === -1) {
             return;
         }
-        let nextIndex;
-        if (type === "NEXT") {
-            nextIndex = index < this.state.commands.length - 1 ? index + 1 : 0;
-        } else if (type === "PREV") {
-            nextIndex = index > 0 ? index - 1 : this.state.commands.length - 1;
-        }
+        const nextIndex =
+            type === "NEXT"
+                ? index < this.state.commands.length - 1
+                    ? index + 1
+                    : 0
+                : index > 0
+                  ? index - 1
+                  : this.state.commands.length - 1;
         this.selectCommand(nextIndex);
 
-        const command = this.listboxRef.el.querySelector(`#o_command_${nextIndex}`);
-        scrollTo(command, { scrollable: this.listboxRef.el });
+        const listbox = this.listboxRef.el;
+        const command = listbox?.querySelector(`#o_command_${nextIndex}`);
+        if (listbox instanceof HTMLElement && command instanceof HTMLElement) {
+            scrollTo(command, { scrollable: listbox });
+        }
     }
 
     /**
@@ -380,8 +382,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Execute the action related to the order. If it returns a config, use it
-     * in the command palette; otherwise close the palette.
      * @param {CommandItem} command
      */
     async executeCommand(command) {
@@ -393,10 +393,6 @@ export class CommandPalette extends Component {
             throw error;
         }
         if (config) {
-            // Awaited: an unawaited reconfiguration swallowed its own failure,
-            // leaving the palette showing the PREVIOUS namespace's commands with
-            // no error anywhere. The rejection now propagates to the caller and
-            // on to `error_service` via `unhandledrejection`.
             await this.setCommandPaletteConfig(config);
         } else {
             this.props.close();
@@ -404,8 +400,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Execute the currently highlighted command. If Ctrl is held and the
-     * command has an href, open it in a new tab instead.
      * @param {boolean} [ctrlKey]
      */
     async executeSelectedCommand(ctrlKey) {
@@ -432,7 +426,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Trigger a search with the given value in the current namespace.
      * @param {string} searchValue
      */
     async search(searchValue) {
@@ -452,9 +445,7 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Process raw input: detect namespace prefix, update state, and schedule
-     * a debounced search.
-     * @param {string} value - raw input value
+     * @param {string} value
      */
     debounceSearch(value) {
         const { namespace, searchValue } = this.processSearchValue(value);
@@ -492,18 +483,15 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Close the palette on outside click.
      * @param {Event} ev
      */
     onWindowMouseDown(ev) {
-        if (!this.root.el.contains(/** @type {Node} */ (ev.target))) {
+        if (this.root.el && !this.root.el.contains(/** @type {Node} */ (ev.target))) {
             this.props.close();
         }
     }
 
     /**
-     * Switch to a new command namespace, resetting the debounce timer and
-     * updating the placeholder text.
      * @param {string} namespace
      */
     switchNamespace(namespace) {
@@ -523,7 +511,6 @@ export class CommandPalette extends Component {
     }
 
     /**
-     * Split a search string into namespace prefix and search text.
      * @param {string} searchValue
      * @returns {{ namespace: string, searchValue: string }}
      */

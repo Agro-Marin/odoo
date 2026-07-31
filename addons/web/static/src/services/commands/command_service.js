@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/commands/command_service - Service that registers, manages, and opens the command palette */
+/** @module @web/services/commands/command_service */
 
 import { Component, EventBus } from "@odoo/owl";
 import { CommandPaletteEvent } from "@web/core/events";
@@ -91,23 +91,22 @@ export const commandService = {
         const registeredCommands = new Map();
         let nextToken = 0;
         let isPaletteOpened = false;
-        /** @type {Function | undefined} the latest opener/reconfigurer's onClose */
+        /** @type {Function | undefined} */
         let currentOnClose;
         const bus = new EventBus();
 
-        // NOT `openMainPalette` directly: a hotkey callback is invoked with
-        // `{ area, target }`, which would land in `openMainPalette`'s `config`
-        // parameter and get merged into the palette config — polluting it and
-        // retaining a DOM node for the palette's lifetime.
-        hotkeyService.add("control+k", () => openMainPalette(), {
-            bypassEditableProtection: true,
-            global: true,
-        });
+        const removeMainPaletteHotkey = hotkeyService.add(
+            "control+k",
+            () => openMainPalette(),
+            {
+                bypassEditableProtection: true,
+                global: true,
+            },
+        );
 
         /**
-         * @param {CommandPaletteConfig} config command palette config merged with default config
-         * @param {Function} onClose called when the command palette is closed
-         * @returns the actual command palette config if the command palette is already open
+         * @param {CommandPaletteConfig} [config]
+         * @param {Function} [onClose]
          */
         function openMainPalette(config = /** @type {any} */ ({}), onClose) {
             /** @type {Record<string, any>} */
@@ -161,7 +160,7 @@ export const commandService = {
 
         /**
          * @param {CommandPaletteConfig} config
-         * @param {Function} onClose called when the command palette is closed
+         * @param {Function} [onClose]
          */
         function openPalette(config, onClose) {
             if (isPaletteOpened) {
@@ -201,7 +200,7 @@ export const commandService = {
         /**
          * @param {Command} command
          * @param {CommandOptions} options
-         * @returns {number} token
+         * @returns {number}
          */
         function registerCommand(command, options) {
             if (
@@ -258,8 +257,6 @@ export const commandService = {
         }
 
         /**
-         * Unsubscribes the token corresponding subscription.
-         *
          * @param {number} token
          */
         function unregisterCommand(token) {
@@ -284,7 +281,7 @@ export const commandService = {
                 };
             },
             /**
-             * @param {HTMLElement} activeElement
+             * @param {Document | HTMLElement} activeElement
              * @returns {Command[]}
              */
             getCommands(activeElement) {
@@ -292,6 +289,7 @@ export const commandService = {
                     (command) =>
                         command.activeElement === activeElement || command.global,
                 );
+                /** @type {Map<string, CommandRegistration[]>} */
                 const byName = new Map();
                 for (const command of commands) {
                     if (command.identifier) {
@@ -320,6 +318,14 @@ export const commandService = {
             },
             openMainPalette,
             openPalette,
+            destroy() {
+                removeMainPaletteHotkey();
+                for (const token of [...registeredCommands.keys()]) {
+                    unregisterCommand(token);
+                }
+                currentOnClose = undefined;
+                isPaletteOpened = false;
+            },
         };
     },
 };

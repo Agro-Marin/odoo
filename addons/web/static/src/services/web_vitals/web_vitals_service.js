@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/web_vitals/web_vitals_service - Real User Monitoring (RUM) for Core Web Vitals via sendBeacon on pagehide */
+/** @module @web/services/web_vitals/web_vitals_service */
 
 import { browser } from "@web/core/browser/browser";
 import { registry } from "@web/core/registry";
@@ -11,19 +11,7 @@ const ENDPOINT = "/web/observability/cwv";
 
 let _pageviewCounter = 0;
 
-/**
- * Service that captures Core Web Vitals via PerformanceObserver and beacons
- * them to the server when the page is hidden or unloaded.  Reuses the
- * ``pagehide`` + ``navigator.sendBeacon`` pattern proven in
- * ``record_save.js`` (``save()``) for urgent saves.
- *
- * Captures: LCP (Largest Contentful Paint), FCP (First Contentful Paint),
- * CLS (Cumulative Layout Shift), TTFB (Time To First Byte), and INP
- * (Interaction to Next Paint — reported as the worst-observed interaction
- * duration; see the P100-vs-P98 note near the INP observer below).
- */
 export const webVitalsService = {
-    /** Service has no dependencies; runs once at startup, then passively observes. */
     start() {
         if (!browser.PerformanceObserver) {
             return;
@@ -57,9 +45,7 @@ export const webVitalsService = {
                 const activationStart = nav.activationStart || 0;
                 metrics.ttfb = Math.max(0, nav.responseStart - activationStart);
             }
-        } catch {
-            // ignore — browser without nav-timing v2 (very rare)
-        }
+        } catch {}
 
         try {
             const fcpObserver = new browser.PerformanceObserver((entries) => {
@@ -73,9 +59,7 @@ export const webVitalsService = {
             });
             fcpObserver.observe({ type: "paint", buffered: true });
             observers.push(fcpObserver);
-        } catch {
-            // ignore — browser without paint timing
-        }
+        } catch {}
 
         try {
             const lcpObserver = new browser.PerformanceObserver((entries) => {
@@ -90,18 +74,9 @@ export const webVitalsService = {
                 buffered: true,
             });
             observers.push(lcpObserver);
-        } catch {
-            // ignore
-        }
+        } catch {}
 
         try {
-            // CLS is the LARGEST session window, not the lifetime total: a
-            // window is a burst of shifts each within 1s of the previous and
-            // spanning at most 5s. Summing every shift instead (what this did)
-            // is unbounded in a single-page app whose session lasts hours, and
-            // the server-side `_clamp_cls` in `controllers/observability.py`
-            // DROPS anything above 5.0 — so a long session silently stopped
-            // reporting CLS at all, while shorter ones over-reported it.
             let clsValue = 0;
             let windowValue = 0;
             let windowFirstMs = 0;
@@ -125,24 +100,12 @@ export const webVitalsService = {
                     windowLastMs = e.startTime;
                     clsValue = Math.max(clsValue, windowValue);
                 }
-                // Assigned unconditionally, not only when the max grows: a page
-                // whose every shift was input-triggered must still report
-                // `cls: 0` ("measured, and it was perfect") rather than omit the
-                // key, which reads downstream as "not measured".
                 metrics.cls = clsValue;
             });
             clsObserver.observe({ type: "layout-shift", buffered: true });
             observers.push(clsObserver);
-            // Seed the metric the moment the observer is live, because a
-            // buffered PerformanceObserver never invokes its callback when no
-            // entry matches. A page that produced no layout shift at all would
-            // otherwise omit `cls` entirely — indistinguishable downstream from
-            // "CLS was not measured here", which is the exact confusion the
-            // unconditional assignment in the callback exists to prevent.
             metrics.cls = 0;
-        } catch {
-            // ignore
-        }
+        } catch {}
 
         try {
             const inpObserver = new browser.PerformanceObserver((entries) => {
@@ -164,10 +127,7 @@ export const webVitalsService = {
                 }),
             );
             observers.push(inpObserver);
-        } catch {
-            // ignore — Safari ≤16 ships event-timing without ``interactionId``
-            // (lands in 16.4); pre-Chromium-96 lacks the entry type entirely.
-        }
+        } catch {}
 
         let lastSentSignature = "";
         function flush() {
@@ -191,9 +151,7 @@ export const webVitalsService = {
                     type: "application/json",
                 });
                 browser.navigator.sendBeacon(ENDPOINT, blob);
-            } catch {
-                // RUM must never throw into user code.  Drop silently.
-            }
+            } catch {}
         }
 
         const onPagehide = (/** @type {PageTransitionEvent} */ ev) => {
@@ -213,12 +171,6 @@ export const webVitalsService = {
         browser.addEventListener("visibilitychange", onVisibilityChange);
 
         return {
-            /**
-             * Release the window listeners and the PerformanceObservers. The
-             * page-lived production env is never torn down, but an embedded or
-             * sub-app env is: without this, its observers keep collecting and
-             * its `pagehide` handler keeps beaconing a dead env's metrics.
-             */
             destroy() {
                 browser.removeEventListener("pagehide", onPagehide);
                 browser.removeEventListener("visibilitychange", onVisibilityChange);

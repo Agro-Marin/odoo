@@ -31,7 +31,8 @@ function fireResponse(method, model = "res.partner") {
 function captureClearCaches() {
     /** @type {any[]} */
     const captured = [];
-    const listener = (ev) => captured.push(ev.detail);
+    const listener = (/** @type {Event} */ ev) =>
+        captured.push(/** @type {CustomEvent} */ (ev).detail);
     rpcBus.addEventListener(RpcEvent.CLEAR_CACHES, listener);
     return {
         captured,

@@ -1,18 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/debug/debug_utils - Opens a form view action for a given model/record in debug mode */
+/** @module @web/services/debug/debug_utils */
 
 /**
- * Open a form view for the given model/record in debug mode.
  * @param {import("@web/env").OdooEnv} env
- * @param {string} title - window title for the action
- * @param {string} model - technical model name (e.g. "res.partner")
- * @param {number} id - record ID to edit
+ * @param {string} title
+ * @param {string} model
+ * @param {number} id
  * @returns {Promise<void>}
  */
-export function editModelDebug(env, title, model, id) {
-    return env.services.action.doAction({
+export async function editModelDebug(env, title, model, id) {
+    await env.services.action.doAction({
         res_model: model,
         res_id: id,
         name: title,

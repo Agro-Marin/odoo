@@ -2,9 +2,6 @@
 /** @odoo-module native */
 
 /**
- * Debug menu item factories for the default debug category.
- * Each factory receives `{ env }` and returns a debug menu item descriptor or false.
- *
  * @module @web/services/debug/debug_menu_items
  */
 
@@ -17,15 +14,14 @@ import { user } from "@web/services/user";
 /**
  * @typedef {Object} DebugMenuItemDescriptor
  * @property {"item"} type
- * @property {string} description - display label in the debug menu
+ * @property {string} description
  * @property {() => void | Promise<void>} callback
- * @property {string} [href] - optional link URL
- * @property {number} [sequence] - ordering within the section
- * @property {string} [section] - section grouping key
+ * @property {string} [href]
+ * @property {number} [sequence]
+ * @property {string} [section]
  */
 
 /**
- * Activate the tests+assets debug mode.
  * @param {{ env: import("@web/env").OdooEnv }} params
  * @returns {DebugMenuItemDescriptor | void}
  */
@@ -46,7 +42,6 @@ function activateTestsAssetsDebugging({ env }) {
 }
 
 /**
- * Regenerate all asset bundles and reload the page.
  * @param {{ env: import("@web/env").OdooEnv }} params
  * @returns {DebugMenuItemDescriptor}
  */
@@ -64,7 +59,6 @@ export function regenerateAssets({ env }) {
 }
 
 /**
- * Navigate to the superuser endpoint. Only visible to admin users.
  * @param {{ env: import("@web/env").OdooEnv }} params
  * @returns {DebugMenuItemDescriptor | false}
  */
@@ -86,7 +80,6 @@ export function becomeSuperuser({ env }) {
 }
 
 /**
- * Leave debug mode by resetting the debug URL parameter.
  * @returns {DebugMenuItemDescriptor}
  */
 function leaveDebugMode() {

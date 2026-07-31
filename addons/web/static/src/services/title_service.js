@@ -1,14 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/title_service - Manages the document title with named parts and notification counters */
+/** @module @web/services/title_service */
 
 /**
  * @typedef {Object} TitleServiceAPI
- * @property {string} current - the current document.title value (readonly)
- * @property {() => Record<string, string>} getParts - get a copy of the title parts
- * @property {(counters: Record<string, number>) => void} setCounters - set notification counters
- * @property {(parts: Record<string, string | null>) => void} setParts - set title segments
+ * @property {string} current
+ * @property {() => Record<string, string>} getParts
+ * @property {(counters: Record<string, number>) => void} setCounters
+ * @property {(parts: Record<string, string | null>) => void} setParts
  */
 
 import { registry } from "@web/core/registry";
@@ -21,7 +21,6 @@ export const titleService = {
         const titleParts = {};
 
         /**
-         * Return a shallow copy of the current title parts.
          * @returns {Record<string, string>}
          */
         function getParts() {
@@ -56,7 +55,7 @@ export const titleService = {
             updateTitle();
         }
 
-        /** @returns {string} the title this service's state describes */
+        /** @returns {string} */
         function computeTitle() {
             const counter = Object.values(titleCounters).reduce(
                 (acc, count) => acc + count,
@@ -66,12 +65,8 @@ export const titleService = {
             return counter ? `(${counter}) ${name}` : name;
         }
 
-        /** Recompute document.title from parts and counters. */
         function updateTitle() {
             const title = computeTitle();
-            // Assigning document.title unconditionally re-enters the browser's
-            // title machinery (and fires a DOM mutation observed by tooling) on
-            // every setParts/setCounters call, most of which are no-ops.
             if (document.title !== title) {
                 document.title = title;
             }
@@ -79,12 +74,6 @@ export const titleService = {
 
         return {
             /**
-             * The title this service's own parts and counters describe.
-             *
-             * Reads the computed value, NOT ``document.title``: anything else on
-             * the page that writes the DOM title (a third-party script, a tour,
-             * a stray `document.title =`) used to make `current` contradict
-             * `getParts()` with no way for a caller to tell which was authoritative.
              * @returns {string}
              */
             get current() {

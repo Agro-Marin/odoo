@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/navigation/navigation - Keyboard arrow-key navigation hook for selectable item lists */
+/** @module @web/services/navigation/navigation */
 
 import { onWillDestroy, reactive, useEffect, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -11,13 +11,6 @@ import { useService } from "@web/core/utils/hooks";
 import { throttleForAnimation } from "@web/core/utils/timing";
 export const ACTIVE_ELEMENT_CLASS = "focus";
 
-/**
- * Roles for which ARIA defines ``aria-selected`` (ARIA 1.2, "Supported States
- * and Properties"). It is NOT supported on ``menuitem``, which is what every
- * ``web.DropdownItem`` carries — so stamping it there produced markup assistive
- * technology is required to ignore, and the highlighted item was announced by
- * nothing at all.
- */
 const ARIA_SELECTED_ROLES = new Set([
     "columnheader",
     "gridcell",
@@ -28,12 +21,6 @@ const ARIA_SELECTED_ROLES = new Set([
     "treeitem",
 ]);
 
-/**
- * Composite roles that own an ``aria-activedescendant``. This is the attribute
- * that actually conveys "the keyboard is on this item" when DOM focus stays
- * elsewhere — the whole premise of ``virtualFocus``, used by the search bar,
- * the select menu and the time picker.
- */
 const ARIA_ACTIVEDESCENDANT_ROLES = new Set([
     "application",
     "combobox",
@@ -64,19 +51,15 @@ function supportsAriaSelected(el) {
 let navigationItemId = 0;
 
 class NavigationItem {
-    /**@type {number} */
+    /** @type {number} */
     index = -1;
 
     /**
-     * The container element
      * @type {HTMLElement}
      */
     el = undefined;
 
     /**
-     * The actual "clicked" element, it can be the same
-     * as @see el but will be the closest child input if
-     * options.shouldFocusChildInput is true
      * @type {HTMLElement}
      */
     target = undefined;
@@ -87,7 +70,7 @@ class NavigationItem {
     constructor({ index, el, options, navigator }) {
         this.index = index;
 
-        /**@private */
+        /** @private */
         this._options = options;
 
         /**
@@ -148,13 +131,6 @@ class NavigationItem {
     }
 
     /**
-     * Publish the selected state on the element that CARRIES THE ROLE, which is
-     * always the ``.o-navigable`` element itself. ``target`` may be a descendant
-     * input/button (``shouldFocusChildInput``), and writing the state there
-     * while the constructor seeded it on ``el`` left the two disagreeing at the
-     * same time — measured on a wrapper item: container ``aria-selected=false``,
-     * inner button ``aria-selected=true``.
-     *
      * @private
      * @param {"true" | "false"} value
      */
@@ -179,12 +155,17 @@ class NavigationItem {
 }
 
 export class Navigator {
-    /**@type {Array<NavigationItem>}*/
+    /** @type {Array<NavigationItem>} */
     items = [];
 
-    /**@private @type {Array<() => void>}*/ _hotkeyRemoves = [];
-    /**@private @type {import("@web/services/hotkeys/hotkey_service").HotkeyService}*/ _hotkeyService =
-        undefined;
+    /**
+     * @private
+     * @type {Array<() => void>}
+     */ _hotkeyRemoves = [];
+    /**
+     * @private
+     * @type {import("@web/services/hotkeys/hotkey_service").HotkeyService}
+     */ _hotkeyService = undefined;
 
     /**
      * @param {NavigationOptions} options
@@ -192,20 +173,19 @@ export class Navigator {
      */
     constructor(options, hotkeyService) {
         this._hotkeyService = hotkeyService;
-        /**@private*/
+        /** @private */
         this._throttledFocus = throttleForAnimation((/** @type {HTMLElement} */ el) =>
             el?.focus(),
         );
         this.state = reactive({
-            /**@type {number}*/
+            /** @type {number} */
             activeItemIndex: -1,
-            /**@type {HTMLElement | null}*/
+            /** @type {HTMLElement | null} */
             activeItemEl: null,
-            /**Bumped whenever {@link items} is rebuilt.*/
             itemsRevision: 0,
         });
 
-        /**@private*/
+        /** @private */
         this._options = deepMerge(
             {
                 isNavigationAvailable: (
@@ -260,7 +240,7 @@ export class Navigator {
         }
     }
 
-    /**@type {number}*/
+    /** @type {number} */
     get activeItemIndex() {
         return this.state.activeItemIndex;
     }
@@ -268,24 +248,13 @@ export class Navigator {
         this.state.activeItemIndex = value;
     }
 
-    /**@type {NavigationItem | null}*/
+    /** @type {NavigationItem | null} */
     get activeItem() {
         const idx = this.state.activeItemIndex;
         return idx >= 0 ? (this.items[idx] ?? null) : null;
     }
-    /**
-     * Keeps both halves of the reactive active-item state in step. The setter
-     * used to write only `activeItemEl` while the getter reads `activeItemIndex`,
-     * so `nav.activeItem = item` did not survive a read back — it happened to
-     * work only because `_setActiveItem` assigned the index separately first.
-     */
-    set activeItem(item) {
-        this.state.activeItemEl = item?.el ?? null;
-        this.state.activeItemIndex = item ? this.items.indexOf(item) : -1;
-    }
 
     /**
-     * Returns true if the current active item is not null and still inside the DOM
      * @type {boolean}
      */
     get hasActiveItem() {
@@ -293,7 +262,6 @@ export class Navigator {
     }
 
     /**
-     * Returns true if the focus is on any of the navigable items
      * @type {boolean}
      */
     get isFocused() {
@@ -445,34 +413,46 @@ export class Navigator {
     }
 
     /**
-     * Point the container's ``aria-activedescendant`` at the active item.
-     *
-     * Without it the active item reached assistive technology through nothing
-     * but a CSS class — and under ``virtualFocus`` (search bar, select menu,
-     * time picker) DOM focus never moves either, so there was no signal at all.
-     * Guarded on the container's role: the attribute is only meaningful on a
-     * composite widget, and emitting it elsewhere would trade one piece of
-     * invalid markup for another.
-     *
+     * @private
+     * @returns {HTMLElement | null}
+     */
+    _getAriaOwner() {
+        const container = this._options.getContainer?.() ?? null;
+        const hasCompositeRole = (/** @type {Element | null} */ el) =>
+            Boolean(el) &&
+            ARIA_ACTIVEDESCENDANT_ROLES.has(el.getAttribute("role") ?? "");
+        if (this._options.virtualFocus) {
+            const focused = /** @type {HTMLElement | null} */ (
+                container?.ownerDocument.activeElement ?? null
+            );
+            if (focused && focused !== container && hasCompositeRole(focused)) {
+                return focused;
+            }
+        }
+        return hasCompositeRole(container) ? container : null;
+    }
+
+    /**
      * @private
      */
     _syncActiveDescendant() {
-        const container = this._options.getContainer?.();
-        if (
-            !container ||
-            !ARIA_ACTIVEDESCENDANT_ROLES.has(container.getAttribute("role") ?? "")
-        ) {
+        const owner = this._getAriaOwner();
+        if (this._ariaOwner && this._ariaOwner !== owner) {
+            this._ariaOwner.removeAttribute("aria-activedescendant");
+        }
+        this._ariaOwner = owner;
+        if (!owner) {
             return;
         }
         const activeEl = this.state.activeItemEl;
         if (!activeEl) {
-            container.removeAttribute("aria-activedescendant");
+            owner.removeAttribute("aria-activedescendant");
             return;
         }
         if (!activeEl.id) {
             activeEl.id = `o-navigation-item-${++navigationItemId}`;
         }
-        container.setAttribute("aria-activedescendant", activeEl.id);
+        owner.setAttribute("aria-activedescendant", activeEl.id);
     }
 
     /**
@@ -480,12 +460,9 @@ export class Navigator {
      */
     _setActiveItem(index) {
         this.activeItem?.setInactive(false);
-        // `this.items[index]` can be absent for a non-negative index when the
-        // caller holds a NavigationItem whose element left the DOM between an
-        // `update()` and the activation. The setter then stores index -1, so
-        // reading `this.activeItem.el` back would throw on a null.
         const item = index >= 0 ? this.items[index] : undefined;
-        this.activeItem = item ?? null;
+        this.state.activeItemEl = item?.el ?? null;
+        this.state.activeItemIndex = item ? index : -1;
         this._syncActiveDescendant();
         if (item) {
             this._options.onItemActivated?.(item.el);
@@ -493,10 +470,6 @@ export class Navigator {
     }
 
     /**
-     * True when ``el`` is the currently-active navigable item. Reads through
-     * the reactive `state` so callers wrapped in `useState(navigator.state)`
-     * re-render on change. Used internally by {@link useNavigatorActive}.
-     *
      * @param {HTMLElement | undefined | null} el
      * @returns {boolean}
      */
@@ -507,10 +480,7 @@ export class Navigator {
     /**
      * @private
      * @param {number} index
-     * @param {boolean} [mayFocus=true] When false, the item is activated
-     *   visually only — DOM focus stays where it is. Used by ``update()`` to
-     *   avoid stealing focus into the menu on a reconcile when the user's focus
-     *   is legitimately outside it.
+     * @param {boolean} [mayFocus=true]
      */
     _updateActiveItemIndex(index, mayFocus = true) {
         if (this.items[index]) {
@@ -545,21 +515,16 @@ export class Navigator {
 /**
  * @typedef {Object} NavigationOptions
  * @property {() => HTMLElement[]} [getItems]
- * @property {() => HTMLElement | null} [getContainer] - the composite element
- * owning the items; used to publish `aria-activedescendant`. Defaulted by
- * {@link useNavigation} to the hook's container ref.
+ * @property {() => HTMLElement | null} [getContainer]
  * @property {(info: { navigator: Navigator, target: HTMLElement }) => boolean} [isNavigationAvailable]
  * @property {Record<string, any>} [hotkeys]
  * @property {Function} [onUpdated]
  * @property {Function} [onItemActivated]
  * @property {Function} [onMouseEnter]
- * @property {boolean} [virtualFocus] - If true, items are only visually
- * focused so the actual focus can be kept on another input.
- * @property {boolean} [shouldFocusChildInput] - If true, elements like inputs or buttons
- * inside of the items are focused instead of the items themselves.
- * @property {boolean} [shouldFocusFirstItem] - If true, the first item is auto-focused.
- * @property {boolean} [shouldRegisterHotkeys] - If true, registers all hotkeys directly when
- * the hook is called.
+ * @property {boolean} [virtualFocus]
+ * @property {boolean} [shouldFocusChildInput]
+ * @property {boolean} [shouldFocusFirstItem]
+ * @property {boolean} [shouldRegisterHotkeys]
  */
 
 /**
@@ -571,24 +536,11 @@ export class Navigator {
  */
 
 /**
- * Callback used to override the behaviour of a specific
- * key input.
- *
  * @callback hotkeyHandler
  * @param {Navigator} navigator
  */
 
 /**
- * This hook adds keyboard navigation to items contained in an element.
- * It's purpose is to improve navigation in constrained context such
- * as dropdown and menus.
- *
- * This hook also has the following features:
- * - Hotkeys override and customization
- * - Navigation between inputs elements
- * - Optional virtual focus
- * - Focus on mouse enter
- *
  * @param {string|Object} containerRef
  * @param {NavigationOptions} options
  * @returns {Navigator}
@@ -635,28 +587,6 @@ export function useNavigation(containerRef, options = {}) {
 }
 
 /**
- * Subscribe an OWL component to a navigator's active-item state.
- *
- * Returns an object whose ``isActive`` getter is OWL-reactive: any template
- * reading it re-renders when ``elGetter()`` becomes (or stops being) the
- * navigator's active element. Use when focus styling must be co-managed by
- * OWL (``t-att-class``) — the declarative path survives parent re-renders
- * that would otherwise wipe the imperative ``classList.add("focus")`` in
- * {@link NavigationItem.setActive}.
- *
- * Example — DropdownItem template:
- * ```xml
- * <span t-att-class="{ focus: nav.isActive }">…</span>
- * ```
- * setup:
- * ```js
- * this.itemRef = useRef("root");
- * this.nav = useNavigatorActive(this.env.navigation, () => this.itemRef.el);
- * ```
- *
- * Opt-in: consumers that skip it keep relying on ``NavigationItem``'s
- * imperative class management — this refactor is additive.
- *
  * @param {Navigator | undefined} navigator
  * @param {() => HTMLElement | null | undefined} elGetter
  * @returns {{ readonly isActive: boolean }}

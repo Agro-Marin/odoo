@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/debug/debug_menu - Extended debug menu with command palette integration */
+/** @module @web/services/debug/debug_menu */
 
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -12,11 +12,6 @@ import { DebugMenuBasic } from "@web/services/debug/debug_menu_basic";
 
 import { useEnvDebugContext } from "./debug_context.js";
 
-/**
- * Extended debug menu that also registers debug tools as a command palette
- * command (Ctrl+K → "Debug tools..."). When invoked from the palette, it
- * loads all debug items and presents them as selectable commands.
- */
 export class DebugMenu extends DebugMenuBasic {
     static components = { Dropdown, DropdownItem };
     static props = {};

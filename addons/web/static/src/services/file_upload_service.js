@@ -1,23 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/services/file_upload_service - XHR-based file upload service with progress tracking and event bus */
+/** @module @web/services/file_upload_service */
 
 import { EventBus, reactive } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { FileUploadEvent } from "@web/core/events";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-/**
- * Service for uploading files via XHR with progress tracking and error handling.
- * Exposes an EventBus that emits FILE_UPLOAD_ADDED, FILE_UPLOAD_LOADED, and
- * FILE_UPLOAD_ERROR events.
- */
 export const fileUploadService = {
     dependencies: ["notification"],
+    async: ["upload"],
     /**
-     * Overridden during tests to return a mocked XHR.
-     *
      * @private
      * @returns {XMLHttpRequest}
      */
@@ -35,13 +29,16 @@ export const fileUploadService = {
         const uploads = reactive({});
         let nextId = 1;
         const bus = new EventBus();
+        /** @type {Set<XMLHttpRequest>} */
+        const inFlight = new Set();
+        let destroyed = false;
 
         /**
-         * @param {string}                          route
-         * @param {FileList|Array<File>}            files
-         * @param {Object}                          [params]
-         * @param {function(FormData): void}        [params.buildFormData]
-         * @param {Boolean}                         [params.displayErrorNotification]
+         * @param {string} route
+         * @param {FileList|Array<File>} files
+         * @param {Object} [params]
+         * @param {function(FormData): void} [params.buildFormData]
+         * @param {Boolean} [params.displayErrorNotification]
          * @returns {Promise<{xhr: XMLHttpRequest, data: FormData, progress: number, loaded: number, total: number, title: string, type: string|undefined, id: number, state: string}>}
          */
         const upload = async (route, files, params = {}) => {
@@ -75,6 +72,7 @@ export const fileUploadService = {
                 upload.state = "loading";
             });
             xhr.addEventListener("load", () => {
+                inFlight.delete(xhr);
                 try {
                     handleResponse();
                 } catch (e) {
@@ -87,14 +85,6 @@ export const fileUploadService = {
             });
 
             /**
-             * Whether the request was redirected away from `route` — the
-             * signature of an expired session, which lands on the login page.
-             *
-             * The content-type cannot be used to detect this: measured against
-             * a live server, a SUCCESSFUL `/web/binary/upload_attachment` also
-             * answers `200 text/html` (it is a `type="http"` route returning a
-             * JSON string, so werkzeug labels it html). Both outcomes are
-             * `200 text/html`; only the final URL differs.
              * @returns {boolean}
              */
             function wasRedirected() {
@@ -114,10 +104,8 @@ export const fileUploadService = {
             }
 
             /**
-             * Parse the XHR response and throw if it indicates an error.
-             * Handles JSON-RPC error objects and HTML error pages.
              * @returns {true}
-             * @throws {Error} if the response indicates a server error
+             * @throws {Error}
              */
             function handleResponse() {
                 const resp = xhr.responseText ?? xhr.response;
@@ -126,11 +114,6 @@ export const fileUploadService = {
                 if (!(xhr.status >= 200 && xhr.status < 300)) {
                     error = true;
                 }
-                // XHR follows redirects, so an expired session answers 200 with
-                // the login page. That HTML parses into a Document, which
-                // satisfies `instanceof Object` below, carries no `.error`, and
-                // the upload is reported LOADED — a silent failure that loses
-                // the user's file.
                 if (!error && wasRedirected()) {
                     error = true;
                     errorMessage = _t("Your session expired. Please log in again.");
@@ -146,15 +129,10 @@ export const fileUploadService = {
                                     content,
                                     "text/html",
                                 );
-                            } catch {
-                                /** pass */
-                            }
+                            } catch {}
                         }
                     }
                     if (error && content instanceof Document) {
-                        // A parsed Document is not guaranteed to have a body
-                        // (empty/malformed response), and `new Error(null)`
-                        // renders as the literal "null" in the toast.
                         errorMessage =
                             content.body?.textContent?.trim() || errorMessage;
                     } else if (content instanceof Object) {
@@ -175,15 +153,15 @@ export const fileUploadService = {
             }
 
             /**
-             * Handle upload failure: remove from tracker, show notification,
-             * and emit FILE_UPLOAD_ERROR event.
              * @param {Error} [error]
              */
             function onError(error) {
                 const defaultErrorMessage = _t("An error occurred while uploading.");
+                inFlight.delete(xhr);
                 delete uploads[upload.id];
                 upload.state = "error";
-                const displayError = params.displayErrorNotification ?? true;
+                const displayError =
+                    !destroyed && (params.displayErrorNotification ?? true);
                 if (displayError) {
                     notificationService.add(error?.message || defaultErrorMessage, {
                         type: "danger",
@@ -194,16 +172,29 @@ export const fileUploadService = {
             }
             xhr.addEventListener("error", () => onError());
             xhr.addEventListener("abort", () => {
+                inFlight.delete(xhr);
                 delete uploads[upload.id];
                 upload.state = "abort";
                 bus.trigger(FileUploadEvent.ERROR, { upload });
             });
+            inFlight.add(xhr);
             xhr.send(formData);
             bus.trigger(FileUploadEvent.ADDED, { upload });
             return upload;
         };
 
-        return { bus, upload, uploads };
+        return {
+            bus,
+            upload,
+            uploads,
+            destroy() {
+                destroyed = true;
+                for (const xhr of [...inFlight]) {
+                    inFlight.delete(xhr);
+                    xhr.abort();
+                }
+            },
+        };
     },
 };
 
