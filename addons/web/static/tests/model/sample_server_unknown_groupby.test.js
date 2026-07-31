@@ -23,6 +23,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { SampleServer } from "@web/model/sample_server";
 
+describe.current.tags("headless");
+
 const fields = {
     id: { string: "ID", type: "integer" },
     name: { string: "Name", type: "char" },

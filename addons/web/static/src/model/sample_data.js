@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/sample_data - Sample data constants and text arrays for fake record generation */
+/** @module @web/model/sample_data */
 
 export const MAIN_RECORDSET_SIZE = 16;
 export const SUB_RECORDSET_SIZE = 5;
@@ -12,7 +12,6 @@ export const MAX_FLOAT = 100;
 export const MAX_INTEGER = 50;
 export const MAX_COLOR_INT = 7;
 export const MAX_MONETARY = 100000;
-/** Delta in hours — spread across 60 days. */
 export const DATE_DELTA = 24 * 60;
 export const FLOAT_PRECISION = 2;
 
@@ -68,8 +67,6 @@ export const PEOPLE_MODELS = [
 ];
 
 /**
- * Returns a regex matching a term as a word boundary in a field name.
- * `fieldNameRegex('abc')` matches "abc", "field_abc__def" but not "aabc".
  * @param {...string} terms
  * @returns {RegExp}
  */
@@ -90,7 +87,6 @@ export const PHONE_REGEX = fieldNameRegex("phone");
 export const URL_REGEX = fieldNameRegex("url");
 
 /**
- * Returns the sample value corresponding to a record ID (cyclic).
  * @param {number} id
  * @param {any[]} sampleTexts
  * @returns {any}

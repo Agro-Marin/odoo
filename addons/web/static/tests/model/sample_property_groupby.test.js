@@ -37,6 +37,7 @@ class Partner extends models.Model {
         definition_record_field: "definitions",
     });
     parent_id = fields.Many2one({ relation: "parent" });
+    /** @type {any[]} */
     _records = [];
 }
 
@@ -44,7 +45,7 @@ class Parent extends models.Model {
     _name = "parent";
     name = fields.Char();
     definitions = fields.PropertiesDefinition();
-    _records = [{ id: 1, name: "P", definitions: [] }];
+    _records = [{ id: 1, name: "P", definitions: /** @type {any[]} */ ([]) }];
 }
 
 defineModels([Partner, Parent, ResCompany, ResPartner, ResUsers]);

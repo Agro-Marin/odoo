@@ -1,20 +1,19 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { SampleServer } from "@web/model/sample_server";
-
-const {
+import {
     MAIN_RECORDSET_SIZE,
-    SEARCH_READ_LIMIT,
-    SAMPLE_COUNTRIES,
-    SAMPLE_PEOPLE,
-    SAMPLE_TEXTS,
     MAX_COLOR_INT,
     MAX_FLOAT,
     MAX_INTEGER,
     MAX_MONETARY,
+    SAMPLE_COUNTRIES,
+    SAMPLE_PEOPLE,
+    SAMPLE_TEXTS,
+    SEARCH_READ_LIMIT,
     SUB_RECORDSET_SIZE,
-} = SampleServer;
+} from "@web/model/sample_data";
+import { SampleServer } from "@web/model/sample_server";
 
 /**
  * Transforms random results into deterministic ones.

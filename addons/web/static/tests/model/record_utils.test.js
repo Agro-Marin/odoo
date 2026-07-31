@@ -14,6 +14,8 @@ import {
     isFieldRequired,
 } from "@web/model/relational_model/record_utils";
 
+describe.current.tags("headless");
+
 describe("evaluateFieldAttr", () => {
     test("returns false for falsy expression", () => {
         expect(evaluateFieldAttr(false, {})).toBe(false);
