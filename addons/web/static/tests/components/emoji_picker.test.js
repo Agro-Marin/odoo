@@ -317,3 +317,47 @@ test("an externally driven search brings the keyboard selection back in range", 
     await animationFrame();
     expect.verifySteps([picker.getEmojisFromSearch()[0].codepoints]);
 });
+
+test("the keyboard grid is rebuilt when the picker is resized", async () => {
+    /** @type {any} */
+    let picker;
+    class Probe extends EmojiPicker {
+        setup() {
+            super.setup();
+            picker = this;
+        }
+    }
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Probe };
+        static template = xml`
+            <div t-attf-style="width: {{state.width}}px">
+                <Probe onSelect="() => {}"/>
+            </div>
+        `;
+        setup() {
+            this.state = useState({ width: 400 });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await animationFrame();
+
+    // The true first row, read back from the layout.
+    const domRow = () => {
+        const els = queryAll(".o-EmojiPicker-content .o-Emoji");
+        const top = els[0]?.offsetTop;
+        return els
+            .filter((el) => el.offsetTop === top)
+            .map((el) => Number.parseInt(el.dataset.index, 10));
+    };
+
+    expect(picker.emojiMatrix[0]).toEqual(domRow());
+    const widthBefore = picker.emojiMatrix[0].length;
+
+    parent.state.width = 180;
+    await animationFrame();
+    await animationFrame();
+
+    expect(picker.emojiMatrix[0].length).not.toBe(widthBefore);
+    expect(picker.emojiMatrix[0]).toEqual(domRow());
+});

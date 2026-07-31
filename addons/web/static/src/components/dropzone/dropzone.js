@@ -39,6 +39,12 @@ export class Dropzone extends Component {
             return;
         }
         const { top, left, width, height } = this.props.ref.el.getBoundingClientRect();
-        this.root.el.style.cssText = `top:${top}px;left:${left}px;width:${width}px;height:${height}px;`;
+        // Set the four properties rather than cssText, which would also drop
+        // anything else the element was styled with.
+        const style = this.root.el.style;
+        style.setProperty("top", `${top}px`);
+        style.setProperty("left", `${left}px`);
+        style.setProperty("width", `${width}px`);
+        style.setProperty("height", `${height}px`);
     }
 }

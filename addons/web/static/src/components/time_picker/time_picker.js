@@ -7,7 +7,6 @@ import { Component, onPatched, onWillUpdateProps, useRef, useState } from "@odoo
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
-import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { parseTime, Time } from "@web/core/l10n/time";
 import { mergeClasses } from "@web/core/utils/dom/classname";
 import { uniqueId } from "@web/core/utils/functions";
@@ -70,7 +69,12 @@ export class TimePicker extends Component {
 
         /** @type {Time[]} */
         this.suggestions = [];
-        this.isNavigating = false;
+        // The suggestion the arrow keys walked to, if any. It is only written
+        // into the box, and a programmatic write leaves the input's dirty flag
+        // clear, so the browser fires no `change` on the way out: every exit
+        // route has to commit it explicitly or it is lost.
+        /** @type {Time | null} */
+        this.navigatedValue = null;
         this.isDirty = false;
         this.navigationOptions = this.getNavigationOptions();
         this.onPropsUpdated(this.props);
@@ -107,6 +111,7 @@ export class TimePicker extends Component {
         const handleArrow = (navigator) => {
             const value = this.suggestions[navigator.activeItemIndex];
             if (value) {
+                this.navigatedValue = value;
                 this.state.inputValue = value.toString(this.props.showSeconds);
             }
         };
@@ -117,26 +122,25 @@ export class TimePicker extends Component {
             hotkeys: {
                 enter: {
                     bypassEditableProtection: true,
-                    callback: (navigator) => {
-                        if (!this.isNavigating) {
-                            const value = parseTime(
-                                this.inputRef.el.value,
-                                this.props.showSeconds,
-                            );
-                            if (value) {
-                                this.setValue(value);
-                                this.close();
-                            }
-                        } else if (navigator.activeItem) {
-                            /** @type {any} */ (navigator.activeItem).select();
+                    callback: () => {
+                        if (this.commitNavigatedValue()) {
+                            this.close();
+                            return;
+                        }
+                        const value = parseTime(
+                            this.inputRef.el.value,
+                            this.props.showSeconds,
+                        );
+                        if (value) {
+                            this.setValue(value);
+                            this.close();
                         }
                     },
                 },
                 tab: {
                     bypassEditableProtection: true,
-                    callback: (navigator) => {
-                        if (this.isNavigating && navigator.activeItemIndex >= 0) {
-                            this.setValue(this.suggestions[navigator.activeItemIndex]);
+                    callback: () => {
+                        if (this.commitNavigatedValue()) {
                             this.close();
                         }
                     },
@@ -279,11 +283,32 @@ export class TimePicker extends Component {
     }
 
     /**
+     * @returns {boolean} whether a browsed suggestion was committed
+     */
+    commitNavigatedValue() {
+        const value = this.navigatedValue;
+        if (!value) {
+            return false;
+        }
+        this.navigatedValue = null;
+        this.setValue(value);
+        return true;
+    }
+
+    onBlur() {
+        // Typing already commits through `change`; only an arrowed suggestion
+        // is still uncommitted by the time focus leaves.
+        this.commitNavigatedValue();
+    }
+
+    /**
      * @param {InputEvent} event
      */
     onInput(event) {
         this.ensureOpen();
         this.isDirty = true;
+        // Typing supersedes wherever the arrows had got to.
+        this.navigatedValue = null;
 
         const value = parseTime(this.inputRef.el.value, this.props.showSeconds);
         this.state.isValid = value !== null;
@@ -309,6 +334,7 @@ export class TimePicker extends Component {
         this.state.isValid = value !== null;
         // The edit is over either way: from here the box shows the value.
         this.isDirty = false;
+        this.navigatedValue = null;
         if (this.state.isValid) {
             this.setValue(value);
             this.close();
@@ -318,20 +344,13 @@ export class TimePicker extends Component {
     }
 
     /**
-     * @param {KeyboardEvent} event
-     */
-    onKeydown(event) {
-        this.isNavigating = ["arrowup", "arrowdown"].includes(getActiveHotkey(event));
-    }
-
-    /**
      * @param {{ selectAll?: boolean }} [options]
      */
     ensureOpen({ selectAll = false } = {}) {
         if (this.dropdownState.isOpen) {
             return;
         }
-        this.isNavigating = false;
+        this.navigatedValue = null;
         this.dropdownState.open();
         if (selectAll) {
             this.inputRef.el.select();

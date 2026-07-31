@@ -189,3 +189,25 @@ test("dragging an image measures the layout once per frame, not once per event",
     expect(viewer.translate.dx).toBe(0);
     expect(viewer.translate.dy).toBe(0);
 });
+
+test("the viewer recovers when the file list empties and refills", async () => {
+    const other = { ...IMAGE_FILE, name: "other.png" };
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { FileViewer };
+        static template = xml`<FileViewer files="state.files" startIndex="0"/>`;
+        setup() {
+            this.state = useState({ files: [IMAGE_FILE] });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect(".o-FileViewer").toHaveCount(1);
+
+    parent.state.files = [];
+    await animationFrame();
+    expect(".o-FileViewer").toHaveCount(0);
+
+    parent.state.files = [other];
+    await animationFrame();
+    expect(".o-FileViewer").toHaveCount(1);
+});

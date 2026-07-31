@@ -3,14 +3,7 @@
 
 /** @module @web/components/select_menu/select_menu */
 
-import {
-    Component,
-    onWillRender,
-    onWillUpdateProps,
-    useEffect,
-    useRef,
-    useState,
-} from "@odoo/owl";
+import { Component, onWillRender, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
 import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -141,7 +134,11 @@ export class SelectMenu extends Component {
         this.state = useState({
             choices: [],
             displayedOptions: [],
+            // What is in the box, updated on every keystroke, versus the search
+            // the menu is actually derived from, which only moves once the
+            // debounce fires. Conflating the two would filter on each keystroke.
             searchValue: null,
+            appliedSearch: "",
             isFocused: false,
         });
         this.inputRef = useRef("inputRef");
@@ -159,36 +156,29 @@ export class SelectMenu extends Component {
         }, DEBOUNCED_DELAY);
         this.dropdownState = useDropdownState();
 
-        onWillRender(() => {
-            this._selectedValueSet = null;
-        });
-
-        this.selectedChoice = this.getSelectedChoice(this.props);
+        /** @type {Map<any, any>} */
+        this._choiceMemory = new Map();
+        /** @type {any[] | null} */
+        this._choiceRefs = null;
+        this.choicesRevision = 0;
+        /** @type {any} */
+        this.selectedChoice = undefined;
         /** @type {WeakMap<any[], { source: any[], sorted: any[] }>} */
         this._sortedChoicesCache = new WeakMap();
-        onWillUpdateProps((nextProps) => {
-            // Grouped choices carry labels too, so a value whose choice only
-            // exists under `groups` resolves to nothing until they are read.
-            if (
-                this.props.choices !== nextProps.choices ||
-                this.props.groups !== nextProps.groups ||
-                this.props.value !== nextProps.value
-            ) {
-                this.selectedChoice = this.getSelectedChoice(nextProps);
+
+        onWillRender(() => {
+            this._selectedValueSet = null;
+            this.syncChoicesRevision();
+            this.selectedChoice = this.getSelectedChoice(this.props);
+            // The menu is derived from props that callers mutate in place, so it
+            // has to be re-derived in the same pass that reads them. A
+            // post-patch effect would leave the previous list on screen for a
+            // frame, and would miss the mutation altogether whenever it did not
+            // also change the identity of the array it happened in.
+            if (this.dropdownState.isOpen && this._derivedKey !== this.derivationKey) {
+                this.filterOptions(this.state.appliedSearch);
             }
         });
-        useEffect(
-            () => {
-                if (this.dropdownState.isOpen) {
-                    const groups = [
-                        { choices: this.props.choices },
-                        ...this.props.groups,
-                    ];
-                    this.filterOptions(this.state.searchValue, groups);
-                }
-            },
-            () => [this.props.choices, this.props.groups],
-        );
 
         this.navigationOptions = {
             shouldFocusFirstItem: !hasTouch(),
@@ -357,10 +347,12 @@ export class SelectMenu extends Component {
             this.loadMoreObserver?.disconnect();
             this.loadMoreObserver = null;
             this.state.searchValue = null;
+            this.state.appliedSearch = "";
             // Up to SCROLL_SETTINGS.defaultCount options were sliced out for a
             // menu that is gone; opening rebuilds them from the props.
             this.state.choices = [];
             this.state.displayedOptions = [];
+            this._derivedKey = null;
             this.props.onClosed();
         }
     }
@@ -398,7 +390,9 @@ export class SelectMenu extends Component {
     }
 
     async onInput(searchString) {
-        this.filterOptions(searchString);
+        // Moving the applied search is what makes the render below re-derive the
+        // menu; filtering here too would just do the same work a second time.
+        this.state.appliedSearch = searchString;
         if (this.props.onInput) {
             await this.onInputKeepLast.add(
                 Promise.resolve(this.props.onInput(searchString)),
@@ -406,7 +400,40 @@ export class SelectMenu extends Component {
         }
     }
 
+    /**
+     * Callers mutate the arrays they hand over in place, so neither `choices`
+     * nor `groups` nor `value` can be trusted to change identity when their
+     * contents do. Reading every entry here does two jobs: it subscribes this
+     * component to those mutations, and it turns them into a scalar the effect
+     * below can compare -- owl's useEffect diffs its dependencies with
+     * `newDeps.some((v, i) => v !== oldDeps[i])`, which never fires for a
+     * dependency array that only got shorter.
+     */
+    syncChoicesRevision() {
+        const refs = [];
+        for (const choice of this.props.choices) {
+            refs.push(choice);
+        }
+        for (const group of this.props.groups) {
+            refs.push(group);
+            for (const choice of group.choices || []) {
+                refs.push(choice);
+            }
+        }
+        const previous = this._choiceRefs;
+        if (
+            !previous ||
+            previous.length !== refs.length ||
+            previous.some((ref, index) => ref !== refs[index])
+        ) {
+            this._choiceRefs = refs;
+            this.choicesRevision++;
+        }
+    }
+
     getSelectedChoice(props) {
+        // Grouped choices carry labels too, so a value whose choice only exists
+        // under `groups` resolves to nothing until they are read.
         const choices = [
             ...props.choices,
             ...props.groups.flatMap((g) => g.choices || []),
@@ -415,16 +442,25 @@ export class SelectMenu extends Component {
             return choices.find((c) => c.value === props.value);
         }
 
-        const valueSet = new Set(props.value ?? []);
-        const choiceByValue = new Map();
-        for (const choice of [...(this.selectedChoice || []), ...choices]) {
-            if (valueSet.has(choice.value) && !choiceByValue.has(choice.value)) {
-                choiceByValue.set(choice.value, choice);
+        const values = /** @type {any[]} */ (props.value ?? []);
+        const valueSet = new Set(values);
+        // Searching narrows `choices` to what the server matched, so a value the
+        // user already picked can drop out of it; remembering its choice is what
+        // keeps the tag readable. Refreshing from the current choices first is
+        // what lets a choice edited or replaced in place win over the memory.
+        const refreshed = new Set();
+        for (const choice of choices) {
+            if (valueSet.has(choice.value) && !refreshed.has(choice.value)) {
+                refreshed.add(choice.value);
+                this._choiceMemory.set(choice.value, choice);
             }
         }
-        return /** @type {any[]} */ (props.value ?? [])
-            .map((value) => choiceByValue.get(value))
-            .filter(Boolean);
+        for (const value of this._choiceMemory.keys()) {
+            if (!valueSet.has(value)) {
+                this._choiceMemory.delete(value);
+            }
+        }
+        return values.map((value) => this._choiceMemory.get(value)).filter(Boolean);
     }
 
     onItemSelected(value) {
@@ -445,10 +481,21 @@ export class SelectMenu extends Component {
     }
 
     /**
+     * Everything the displayed menu is derived from: the contents of the choices
+     * (see syncChoicesRevision) and the search that has actually been applied.
+     *
+     * @returns {string}
+     */
+    get derivationKey() {
+        return `${this.choicesRevision}\x00${this.state.appliedSearch}`;
+    }
+
+    /**
      * @param {String} searchString
      */
     filterOptions(searchString = "", groups) {
         this._selectedValueSet = null;
+        this._derivedKey = `${this.choicesRevision}\x00${searchString}`;
         const groupsList = groups || [
             { choices: this.props.choices, section: "" },
             ...this.props.groups,
