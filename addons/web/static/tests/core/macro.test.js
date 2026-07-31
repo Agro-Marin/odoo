@@ -386,3 +386,48 @@ test("waitUntil rejects when the predicate throws inside the rAF loop", async ()
     expect(caught).toBeInstanceOf(Error);
     expect(caught.message).toBe("predicate boom");
 });
+
+test("a long macro runs every step without nesting a frame per step", async () => {
+    const seen = [];
+    const steps = [];
+    for (let i = 0; i < 300; i++) {
+        steps.push({
+            action: () => {
+                seen.push(i);
+            },
+        });
+    }
+    new Macro({ steps }).start();
+    await waitForMacro();
+    expect(macro.isComplete).toBe(true);
+    expect(seen.length).toBe(300);
+    expect(seen[0]).toBe(0);
+    expect(seen.at(-1)).toBe(299);
+});
+
+test("stop() from a mid-macro step halts the remaining steps", async () => {
+    const seen = [];
+    new Macro({
+        steps: [
+            {
+                action: () => {
+                    seen.push("a");
+                },
+            },
+            {
+                action: () => {
+                    seen.push("b");
+                    return Macro.STOP;
+                },
+            },
+            {
+                action: () => {
+                    seen.push("c");
+                },
+            },
+        ],
+    }).start();
+    await waitForMacro();
+    expect(seen).toEqual(["a", "b"]);
+    expect(macro.isComplete).toBe(true);
+});

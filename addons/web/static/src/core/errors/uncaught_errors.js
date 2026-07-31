@@ -1,15 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/errors/uncaught_errors - Base classes for uncaught errors intercepted by the error service */
+/** @module @web/core/errors/uncaught_errors */
 
 import { getErrorTechnicalName } from "./error_utils.js";
 
-/**
- * Base class for all uncaught errors intercepted by the error service.
- * Has `traceback` and `originalError` properties populated by error handlers
- * (originalError isn't necessarily an Error instance, e.g. `throw "boom"`).
- */
 export class UncaughtError extends Error {
     /** @param {string} message */
     constructor(message) {
@@ -20,7 +15,6 @@ export class UncaughtError extends Error {
     }
 }
 
-/** Uncaught synchronous JavaScript error (from window "error" event). */
 export class UncaughtClientError extends UncaughtError {
     /** @param {string} [message] */
     constructor(message = "Uncaught Javascript Error") {
@@ -28,7 +22,6 @@ export class UncaughtClientError extends UncaughtError {
     }
 }
 
-/** Uncaught rejected Promise (from window "unhandledrejection" event). */
 export class UncaughtPromiseError extends UncaughtError {
     /** @param {string} [message] */
     constructor(message = "Uncaught Promise") {
@@ -38,7 +31,6 @@ export class UncaughtPromiseError extends UncaughtError {
     }
 }
 
-/** Error originating from a third-party script (cross-origin, redacted details). */
 export class ThirdPartyScriptError extends UncaughtError {
     /** @param {string} [message] */
     constructor(message = "Third-Party Script Error") {

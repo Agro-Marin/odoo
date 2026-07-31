@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/download - File download via RPC with content-disposition filename extraction */
+/** @module @web/core/network/download */
 
 import { browser } from "@web/core/browser/browser";
 import {
@@ -13,13 +13,6 @@ import {
 import { parse } from "./content_disposition.js";
 
 /**
- * Trigger a browser file download.
- *
- * Accepts three call patterns:
- *  1. _download(blob, filename)       — download a Blob/File with the given name
- *  2. _download(blob, filename, mime) — same, explicit MIME (used by configureBlobDownloadXHR)
- *  3. _download(url)                  — fetch a same-origin URL as a blob and download it
- *
  * @param {Blob | File | string} data
  * @param {string} [filename]
  * @param {string} [mimetype]
@@ -61,21 +54,15 @@ function _download(data, filename, mimetype) {
     document.body.appendChild(anchor);
     anchor.click();
     document.body.removeChild(anchor);
-    setTimeout(() => URL.revokeObjectURL(objectUrl), 250);
+    browser.setTimeout(() => URL.revokeObjectURL(objectUrl), 250);
     return true;
 }
 
 /**
- * Download data as a file.
- *
  * @param {string | Blob | File} data
  * @param {String} filename
  * @param {String} mimetype
  * @returns {boolean | Promise<any>}
- *
- * The indirection through ``downloadFile._download`` exists so tests can
- * patch the implementation (``_download`` returns ``Promise<any>``; test
- * patches historically return ``true``).
  */
 export function downloadFile(data, filename, mimetype) {
     return downloadFile._download(data, filename, mimetype);
@@ -83,11 +70,6 @@ export function downloadFile(data, filename, mimetype) {
 downloadFile._download = _download;
 
 /**
- * Call a controller with some data (from a form or a server url) and download
- * the response.
- *
- * Indirection through ``download._download`` exists so tests can patch it.
- *
  * @param {*} options
  * @returns {Promise<any>}
  */
@@ -122,10 +104,6 @@ download._download = (/** @type {any} */ options) =>
     });
 
 /**
- * Setup a download xhr request response handling
- * (onload, onerror, responseType), with hooks when the download succeeds or
- * fails.
- *
  * @param {XMLHttpRequest} xhr
  * @param {object} [options]
  * @param {(filename: string) => void} [options.onSuccess]
@@ -148,9 +126,7 @@ function configureBlobDownloadXHR(
             try {
                 filename = /** @type {Record<string, any>} */ (parse(header).parameters)
                     .filename;
-            } catch {
-                // Malformed Content-Disposition — fall back to no filename.
-            }
+            } catch {}
         }
         if (xhr.status === 200 && (mimetype !== "text/html" || filename)) {
             const downloadBlob = new Blob([xhr.response], {
@@ -172,11 +148,6 @@ function configureBlobDownloadXHR(
                 let error;
                 try {
                     const node = nodes[1] || nodes[0];
-                    // "" (not "null") for a node with no text: JSON.parse("")
-                    // throws, which routes an empty body to the catch below —
-                    // the same place a non-JSON body goes. Parsing "null"
-                    // instead would yield a null `error` that the caller then
-                    // has to special-case.
                     error = JSON.parse(node.textContent ?? "");
                 } catch {
                     if (

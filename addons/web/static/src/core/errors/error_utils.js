@@ -1,17 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/errors/error_utils - Traceback formatting, source-map annotation, and error chain utilities */
+/** @module @web/core/errors/error_utils */
 
 import { mapFramesToSource, parseStackFrames } from "./stack_frames.js";
 
 /** @typedef {import("./uncaught_errors").UncaughtError} UncaughtError */
 
 /**
- * An Error with optional custom properties used by the Odoo error pipeline.
- * `annotatedTraceback` caches the annotated traceback string once computed.
- * `errorEvent` holds the original browser ErrorEvent/PromiseRejectionEvent.
- *
  * @typedef {Error & {
  *     annotatedTraceback?: string,
  *     errorEvent?: ErrorEvent | PromiseRejectionEvent,
@@ -34,8 +30,6 @@ function combineErrorNames(uncaughtError, originalError) {
 }
 
 /**
- * Returns the full traceback for an error chain based on error causes
- *
  * @param {Error} error
  * @returns {string}
  */
@@ -54,10 +48,9 @@ export function fullTraceback(error) {
 }
 
 /**
- * Returns the full annotated traceback for an error chain based on error causes
- *
  * @param {AnnotatedError} error
  * @returns {Promise<string>}
+ * @throws {AnnotatedError}
  */
 export async function fullAnnotatedTraceback(error) {
     if (error.annotatedTraceback) {
@@ -126,9 +119,21 @@ export function getErrorTechnicalName(error) {
 }
 
 /**
- * Format the traceback of an error, adding the error message if the
- * browser's stack doesn't already include it (Chrome does by default).
+ * Hands an error to the global handlers from a context that cannot let it
+ * propagate — a timeout callback, a rejection the caller already recovered
+ * from, an error boundary that has finished repairing itself. Swallowing it
+ * there would lose the error entirely; rethrowing it in place would abort work
+ * that is deliberately continuing.
  *
+ * @param {any} error
+ */
+export function reportUncaught(error) {
+    Promise.resolve().then(() => {
+        throw error;
+    });
+}
+
+/**
  * @param {Error} error
  * @returns {string}
  */
@@ -143,13 +148,10 @@ function formatTraceback(error) {
 }
 
 /**
- * Annotate a traceback with source-mapped file/line info (async: fetches
- * sourcemaps for each script involved in the error).
- *
  * @param {Error} error
  * @returns {Promise<string>}
  */
-export async function annotateTraceback(error) {
+async function annotateTraceback(error) {
     const traceback = formatTraceback(error);
     const stack = (error.stack ?? "").replace(/ line (\d*) > (Function):(\d*)/g, `:$1`);
     let frames;

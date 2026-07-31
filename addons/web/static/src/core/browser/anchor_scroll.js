@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/anchor_scroll - Prevents default scroll on bare "#" anchor clicks */
+/** @module @web/core/browser/anchor_scroll */
 
 import { browser } from "./browser.js";
 

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/template_inheritance - XPath-based QWeb template inheritance (apply, validate, deep clone) */
+/** @module @web/core/template_inheritance */
 
 const RSTRIP_REGEXP = /(?=\n[ \t]*$)/;
 
@@ -11,8 +11,7 @@ let translationContext = null;
 const TCTX = "t-translation-context";
 
 /**
- * @param {Node | null} node ``parentElement`` at the top of the chain, hence
- *   nullable — the guard below already accounted for it.
+ * @param {Node | null} node
  */
 function getTranslationContext(node) {
     if (!node || node.nodeType !== Node.ELEMENT_NODE) {
@@ -57,6 +56,19 @@ export function applyContextToTextNode() {
 }
 
 /**
+ * Drop the text nodes collected so far without wrapping them.
+ *
+ * ``contextByTextNode`` holds strong references and spans the whole
+ * inheritance chain of one template, so it can only be drained once the chain
+ * is complete. A chain that throws half-way never reaches
+ * ``applyContextToTextNode``, which both retains the discarded tree and leaks
+ * its nodes into the *next* template's drain.
+ */
+export function discardPendingTranslationContexts() {
+    contextByTextNode.clear();
+}
+
+/**
  * @param {Node} node
  * @returns {Node}
  */
@@ -69,11 +81,6 @@ export function deepClone(node) {
 }
 
 /**
- * Copy `contextByTextNode` entries from the text nodes of `original` onto the
- * matching text nodes of `clone`. `original` and `clone` are structurally
- * identical (clone is a deep clone of original), so a parallel in-order walk
- * of their text nodes lines them up one-to-one.
- *
  * @param {Node} original
  * @param {Node} clone
  */
@@ -99,9 +106,6 @@ function remapTextNodeContexts(original, clone) {
 }
 
 /**
- * The child nodes of operation are new content to create before target, or
- * elements to move before target from the tree target belongs to. Text nodes
- * are normalized accordingly. Assumes target has a parent element.
  * @param {Element} target
  * @param {Element} operation
  */
@@ -119,7 +123,6 @@ function addBefore(target, operation) {
         if (text2 && nodes.some((n) => n.nodeType !== Node.TEXT_NODE)) {
             const textNode = document.createTextNode(text2);
             target.before(textNode);
-            // `previousSibling` is null when `target` was the first child.
             const inserted = textNode.previousSibling;
             if (inserted?.nodeType === Node.TEXT_NODE) {
                 const sibText = /** @type {Text} */ (inserted);
@@ -130,8 +133,6 @@ function addBefore(target, operation) {
 }
 
 /**
- * Return the root element of the tree element belongs to. Not necessarily
- * the documentElement of element's ownerDocument.
  * @param {Element} element
  * @returns {Element}
  */
@@ -263,6 +264,153 @@ function splitAndTrim(str, separator) {
     return str.split(separator).map((s) => s.trim());
 }
 
+const EXPRESSION_ATTRIBUTES = new Set([
+    "column_invisible",
+    "invisible",
+    "readonly",
+    "required",
+    "t-elif",
+    "t-if",
+]);
+
+const EXPRESSION_SEPARATORS = new Set(["and", "or", "&&", "||"]);
+
+/**
+ * @param {string} attributeName
+ * @param {string} separator
+ * @returns {string | null}
+ */
+function expressionOperator(attributeName, separator) {
+    if (
+        !EXPRESSION_ATTRIBUTES.has(attributeName) &&
+        !attributeName.startsWith("decoration-")
+    ) {
+        return null;
+    }
+    const operator = separator.trim();
+    return EXPRESSION_SEPARATORS.has(operator) ? operator : null;
+}
+
+const WORD_CHAR_REGEXP = /[\w$]/;
+
+/**
+ * Split ``value`` on the occurrences of ``operator`` that join its operands:
+ * those at bracket depth 0 and outside string literals.
+ *
+ * @param {string} value
+ * @param {string} operator
+ * @returns {string[]}
+ */
+function splitOperands(value, operator) {
+    const wordOperator = WORD_CHAR_REGEXP.test(operator[0]);
+    const operands = [];
+    let depth = 0;
+    let quote = "";
+    let start = 0;
+    for (let i = 0; i < value.length; i++) {
+        const char = value[i];
+        if (quote) {
+            if (char === "\\") {
+                i++;
+            } else if (char === quote) {
+                quote = "";
+            }
+        } else if (char === "'" || char === '"') {
+            quote = char;
+        } else if ("([{".includes(char)) {
+            depth++;
+        } else if (")]}".includes(char)) {
+            depth--;
+        } else if (depth === 0 && value.startsWith(operator, i)) {
+            const after = value[i + operator.length];
+            if (
+                !wordOperator ||
+                (!WORD_CHAR_REGEXP.test(value[i - 1] ?? " ") &&
+                    !WORD_CHAR_REGEXP.test(after ?? " "))
+            ) {
+                operands.push(value.slice(start, i));
+                i += operator.length - 1;
+                start = i + 1;
+            }
+        }
+    }
+    operands.push(value.slice(start));
+    return operands;
+}
+
+/**
+ * @param {string} operand
+ * @returns {string}
+ */
+function normalizeOperand(operand) {
+    let result = operand.trim();
+    while (result.startsWith("(") && result.endsWith(")")) {
+        let depth = 0;
+        let wraps = true;
+        for (let i = 0; i < result.length - 1 && wraps; i++) {
+            depth += result[i] === "(" ? 1 : result[i] === ")" ? -1 : 0;
+            wraps = depth > 0;
+        }
+        if (!wraps) {
+            break;
+        }
+        result = result.slice(1, -1).trim();
+    }
+    return result;
+}
+
+/**
+ * Remove ``remove`` from ``value``, an ``operator``-joined expression.
+ *
+ * Matching is done on whole operands, not on substrings: removing ``a`` from
+ * ``"ba and c"`` used to find ``"a and "`` inside ``"ba and c"`` and yield the
+ * silently wrong -- but still syntactically valid -- expression ``"bc"``.
+ *
+ * @param {string} value
+ * @param {string} remove
+ * @param {string} operator
+ * @returns {string}
+ */
+function removeFromExpression(value, remove, operator) {
+    const operands = splitOperands(value, operator);
+    const normalized = operands.map(normalizeOperand);
+    const target = splitOperands(remove, operator).map(normalizeOperand);
+    for (let i = 0; i + target.length <= normalized.length; i++) {
+        if (target.every((part, j) => part === normalized[i + j])) {
+            const kept = [
+                ...operands.slice(0, i),
+                ...operands.slice(i + target.length),
+            ];
+            return kept.map((operand) => operand.trim()).join(` ${operator} `);
+        }
+    }
+    return value;
+}
+
+const ATTRIBUTE_ELEMENT_KEYS = new Set(["name", "add", "remove", "separator"]);
+
+/**
+ * @param {Element} child
+ */
+function warnUnknownAttributeKeys(child) {
+    const unknown = [...child.attributes]
+        .map(({ name }) => name)
+        .filter(
+            (name) =>
+                !ATTRIBUTE_ELEMENT_KEYS.has(name) &&
+                !name.startsWith("data-oe-") &&
+                !name.startsWith(TCTX),
+        );
+    if (unknown.length) {
+        console.warn(
+            `Ignored attribute(s) ${unknown.map((n) => `"${n}"`).join(", ")} on ` +
+                `${child.outerHTML} — an <attribute> element only acts on ` +
+                `"name", "add", "remove" and "separator". The operation is still ` +
+                `applied, without them.`,
+        );
+    }
+}
+
 /**
  * @param {Element} target
  * @param {Element} operation
@@ -282,20 +430,40 @@ function modifyAttributes(target, operation) {
                 ? /** @type {Text} */ (firstNode).data
                 : "";
 
+        warnUnknownAttributeKeys(child);
         const add = child.getAttribute("add") || "";
         const remove = child.getAttribute("remove") || "";
         if (add || remove) {
             if (firstNode?.nodeType === Node.TEXT_NODE) {
                 throw new Error(
-                    `Useless element content ${/** @type {Element} */ (firstNode).outerHTML}`,
+                    `Element <attribute name="${attributeName}"> with 'add' or 'remove' cannot contain text ${JSON.stringify(/** @type {Text} */ (firstNode).data)}`,
                 );
             }
             const separator = child.getAttribute("separator") || ",";
+            const operator = expressionOperator(attributeName, separator);
+            if (operator) {
+                let expression = target.getAttribute(attributeName) || "";
+                if (remove) {
+                    expression = removeFromExpression(expression, remove, operator);
+                }
+                if (add) {
+                    expression = expression
+                        ? `(${expression}) ${operator} (${add})`
+                        : add;
+                }
+                value = expression;
+                if (value) {
+                    target.setAttribute(attributeName, value);
+                } else {
+                    target.removeAttribute(attributeName);
+                }
+                continue;
+            }
             const toRemove = new Set(splitAndTrim(remove, separator));
             const values = splitAndTrim(
                 target.getAttribute(attributeName) || "",
                 separator,
-            ).filter((s) => !toRemove.has(s));
+            ).filter((s) => s && !toRemove.has(s));
             values.push(...splitAndTrim(add, separator).filter((s) => s));
             value = values.join(separator);
         }
@@ -315,8 +483,6 @@ function modifyAttributes(target, operation) {
 }
 
 /**
- * Remove node and normalize surrounding text nodes (if any).
- * Assumes node has a parent element.
  * @param {Node} node
  */
 function removeNode(node) {
@@ -370,9 +536,6 @@ function replace(root, target, operation) {
                     }
                 }
                 if (!operationContent) {
-                    // A root-replacing operation with no element child has
-                    // nothing to become; `deepClone(null)` would have failed
-                    // one frame later with no mention of the template.
                     throw new Error(
                         `Replacing the root requires an element, got ${operation.outerHTML}`,
                     );
@@ -402,9 +565,9 @@ function replace(root, target, operation) {
 
 /**
  * @param {Element} root
- * @param {Element} operations is a single element whose children represent operations to perform on root
+ * @param {Element} operations
  * @param {string} [url=""]
- * @returns {Element} root modified (in place) by the operations
+ * @returns {Element}
  */
 export function applyInheritance(root, operations, url = "") {
     translationContext = url.split("/")[1] ?? "";

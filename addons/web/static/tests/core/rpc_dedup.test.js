@@ -5,6 +5,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { buildKey } from "@web/core/network/rpc_dedup";
 
+describe.current.tags("headless");
+
 describe("buildKey", () => {
     test("produces identical keys for identical inputs", () => {
         const k1 = buildKey("/web/dataset/call_kw", { model: "res.partner" });

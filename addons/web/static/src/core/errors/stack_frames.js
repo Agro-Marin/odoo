@@ -1,20 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/errors/stack_frames - Native error-stack parsing and sourcemap resolution */
+/** @module @web/core/errors/stack_frames */
 
-/**
- * Replaces the vendored stacktrace.js UMD build (the last consumer of the
- * ``loadJS`` + global pattern in core error handling).
- *
- *   * {@link parseStackFrames} — parses ``error.stack`` into structured
- *     frames (V8 and Firefox/Safari formats, see the regexes below).
- *   * {@link mapFramesToSource} — best-effort sourcemap resolution: decodes
- *     a script's ``//# sourceMappingURL=`` map and rewrites frames to their
- *     original file/line; scripts without one pass through unchanged.
- *     Fetches are cheap since bundle URLs are content-addressed/immutable,
- *     so requests hit the HTTP disk cache, not the network.
- */
+import { browser } from "@web/core/browser/browser";
 
 /**
  * @typedef {{
@@ -29,10 +18,6 @@ const V8_FRAME_RE = /^\s*at\s+(?:(.*?)\s+\()?(.+?):(\d+):(\d+)\)?\s*$/;
 const GECKO_FRAME_RE = /^\s*(?:(.*?)@)?(.+?):(\d+):(\d+)\s*$/;
 
 /**
- * Parse an ``error.stack`` string into structured frames.  Lines carrying
- * no ``:line:col`` location (the message line, ``[native code]`` frames)
- * are skipped — mirroring the alignment rule ``annotateTraceback`` uses.
- *
  * @param {string} stack
  * @returns {StackFrame[]}
  */
@@ -61,11 +46,6 @@ const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz012345
 const BASE64_VALUES = new Map([...BASE64_CHARS].map((c, i) => [c, i]));
 
 /**
- * Decode one sourcemap ``mappings`` string into an array (indexed by
- * generated line) of segment arrays ``[genCol, srcIdx, origLine, origCol]``
- * sorted by generated column.  Fields are delta-encoded: generated column
- * resets per line, the other three run across the whole string.
- *
  * @param {string} mappings
  * @returns {number[][][]}
  */
@@ -115,9 +95,6 @@ export function decodeMappings(mappings) {
     return lines;
 }
 
-/**
- * A decoded sourcemap bound to its ``sources`` list.
- */
 class SourceMapConsumer {
     /**
      * @param {{ sources: string[], mappings: string, sourceRoot?: string }} map
@@ -130,11 +107,8 @@ class SourceMapConsumer {
     }
 
     /**
-     * Map a 1-based generated position to the original source, or ``null``
-     * when the position precedes every mapping on its line.
-     *
-     * @param {number} line 1-based generated line
-     * @param {number} column 1-based generated column
+     * @param {number} line
+     * @param {number} column
      * @returns {{ source: string, line: number, column: number } | null}
      */
     originalPositionFor(line, column) {
@@ -168,7 +142,6 @@ class SourceMapConsumer {
 /** @type {Map<string, Promise<SourceMapConsumer | null>>} */
 const consumerCache = new Map();
 
-/** Test seam: drop the per-URL consumer cache. */
 export function clearSourceMapCache() {
     consumerCache.clear();
 }
@@ -176,38 +149,35 @@ export function clearSourceMapCache() {
 const SOURCE_MAPPING_URL_RE = /\/\/# sourceMappingURL=(\S+)\s*$/;
 
 /**
- * Resolve the sourcemap consumer for one script URL, or ``null`` when the
- * script has no (reachable, parsable) map.  Cached per URL — error dialogs
- * repeatedly annotate frames from the same handful of bundles.
- *
  * @param {string} scriptUrl
  * @returns {Promise<SourceMapConsumer | null>}
  */
 function getConsumer(scriptUrl) {
     let promise = consumerCache.get(scriptUrl);
     if (!promise) {
-        promise = (async () => {
-            const scriptText = await (await fetch(scriptUrl)).text();
-            const directiveIndex = scriptText.lastIndexOf("//# sourceMappingURL=");
-            const tail = directiveIndex === -1 ? "" : scriptText.slice(directiveIndex);
-            const match = SOURCE_MAPPING_URL_RE.exec(tail);
-            if (!match) {
-                return null;
+        promise = (
+            /** @returns {Promise<SourceMapConsumer | null>} */
+            async () => {
+                const scriptText = await (await browser.fetch(scriptUrl)).text();
+                const directiveIndex = scriptText.lastIndexOf("//# sourceMappingURL=");
+                const tail =
+                    directiveIndex === -1 ? "" : scriptText.slice(directiveIndex);
+                const match = SOURCE_MAPPING_URL_RE.exec(tail);
+                if (!match) {
+                    return null;
+                }
+                const scriptHref = new URL(scriptUrl, globalThis.location.href);
+                const mapUrl = new URL(match[1], scriptHref).href;
+                const map = await (await browser.fetch(mapUrl)).json();
+                return new SourceMapConsumer(map);
             }
-            const scriptHref = new URL(scriptUrl, globalThis.location.href);
-            const mapUrl = new URL(match[1], scriptHref).href;
-            const map = await (await fetch(mapUrl)).json();
-            return new SourceMapConsumer(map);
-        })().catch(() => null);
+        )().catch(/** @returns {SourceMapConsumer | null} */ () => null);
         consumerCache.set(scriptUrl, promise);
     }
     return promise;
 }
 
 /**
- * Rewrite frames to their original source positions where a sourcemap is
- * available; frames without one pass through unchanged.
- *
  * @param {StackFrame[]} frames
  * @returns {Promise<StackFrame[]>}
  */

@@ -233,3 +233,18 @@ test("SessionExpiredDialog", async () => {
     await animationFrame();
     expect.verifySteps(["location reload"]);
 });
+
+test("RedirectWarningDialog survives a payload without data", async () => {
+    await makeDialogMockEnv();
+    await mountWithCleanup(RedirectWarningDialog, {
+        props: {
+            data: null,
+            subType: "warning",
+            message: "no action here",
+            close: () => {},
+        },
+    });
+    expect(".o_error_dialog").toHaveCount(1);
+    expect(".o_error_dialog p").toHaveText("");
+    expect(".modal-footer button").toHaveCount(2);
+});

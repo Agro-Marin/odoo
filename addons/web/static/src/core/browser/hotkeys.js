@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/hotkeys - Pure keyboard event utilities (no service dependencies) */
+/** @module @web/core/browser/hotkeys */
 
 import { isMacOS } from "@web/core/browser/feature_detection";
 
@@ -24,11 +24,25 @@ const NAV_KEYS = [
 export const MODIFIERS = ["alt", "control", "shift"];
 export const AUTHORIZED_KEYS = [...ALPHANUM_KEYS, ...NAV_KEYS, "escape", "<", ">"];
 
+const MODIFIER_KEYS = new Set([
+    ...MODIFIERS,
+    "meta",
+    "altgraph",
+    "capslock",
+    "numlock",
+    "scrolllock",
+    "fn",
+    "fnlock",
+    "hyper",
+    "super",
+    "symbol",
+    "symbollock",
+    "os",
+]);
+
 /**
- * Get the actual hotkey being pressed.
- *
  * @param {KeyboardEvent} ev
- * @returns {string} the active hotkey, in lowercase
+ * @returns {string}
  */
 export function getActiveHotkey(ev) {
     if (!ev.key) {
@@ -62,7 +76,7 @@ export function getActiveHotkey(ev) {
             key = ev.code.slice(-1).toLowerCase();
         }
     }
-    if (!MODIFIERS.includes(key)) {
+    if (!MODIFIER_KEYS.has(key)) {
         hotkey.push(key);
     }
 
@@ -70,18 +84,6 @@ export function getActiveHotkey(ev) {
 }
 
 /**
- * Take native ``[accesskey]`` attributes over as Odoo ``[data-hotkey]``.
- *
- * Both are the same shortcut, but the browser owns ``accesskey`` and fires its
- * own activation on the modifier chord, competing with the hotkey service's
- * dispatch and overlay. Rewriting the attribute hands the binding to Odoo while
- * keeping the element's declared key.
- *
- * Idempotent: an element that has already been converted no longer matches
- * ``[accesskey]``. Both call sites (the hotkey service, on a keydown carrying
- * the overlay modifier, and the ``data-hotkeys`` command provider, when
- * enumerating palette commands) ran byte-identical copies of this loop.
- *
  * @param {ParentNode} root
  */
 export function adoptAccessKeys(root) {

@@ -1,13 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/colors/colors - Predefined color palettes for charts and graph visualizations */
+/** @module @web/core/colors/colors */
 
 import { clamp } from "@web/core/utils/format/numbers";
-/**
- * Lists of colors that contrast well with each other to be used in various
- * visualizations (eg. graphs/charts), both in bright and dark themes.
- */
 
 const COLORS_ENT_BRIGHT = ["#875A7B", "#A5D8D7", "#DCD0D9"];
 const COLORS_ENT_DARK = ["#6B3E66", "#147875", "#5A395A"];
@@ -108,12 +104,10 @@ export function getColors(colorScheme, paletteName) {
 }
 
 /**
- * Return a single color from the appropriate palette.
- * @param {number} index - Color index (wraps around if > palette length)
- * @param {string} colorScheme - "dark" or "light"
+ * @param {number} index
+ * @param {string} colorScheme
  * @param {number | "odoo" | "sm" | "md" | "lg" | "xl"} paletteSizeOrName
- *   Either a dataset size (auto-selects sm/md/lg/xl) or an explicit palette name.
- * @returns {string} Hex color
+ * @returns {string}
  */
 export function getColor(index, colorScheme, paletteSizeOrName) {
     let paletteName;
@@ -136,7 +130,7 @@ export function getColor(index, colorScheme, paletteSizeOrName) {
 export const DEFAULT_BG = "#d3d3d3";
 
 /**
- * @param {string} colorScheme - "dark" or "light"
+ * @param {string} [colorScheme] omit (or pass anything but "dark") for light
  */
 export function getBorderWhite(colorScheme) {
     return colorScheme === "dark" ? "rgba(38, 42, 54, .2)" : "rgba(249,250,251, .2)";
@@ -146,9 +140,8 @@ const HEX6_REGEX = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i;
 const HEX3_REGEX = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
 
 /**
- * Parse a 3- or 6-digit hex color string into its RGB components.
- * @param {string} hex - Color string like "#ff00aa", "ff00aa", "#f0a", or "f0a"
- * @returns {[number, number, number] | null} RGB tuple or null if invalid
+ * @param {string} hex
+ * @returns {[number, number, number] | null}
  */
 function parseHex(hex) {
     let m = HEX6_REGEX.exec(hex);
@@ -171,7 +164,6 @@ function parseHex(hex) {
 }
 
 /**
- * Format RGB components back to a hex color string.
  * @param {number} r
  * @param {number} g
  * @param {number} b
@@ -182,12 +174,10 @@ function rgbToHex(r, g, b) {
 }
 
 /**
- * Linearly interpolate each RGB channel toward a target value.
- * Used internally by {@link lightenColor} (target=255) and {@link darkenColor} (target=0).
- * @param {string} hex - Hex color string
- * @param {number} factor - Interpolation factor (0 = no change, 1 = full target)
- * @param {number} target - Target value per channel (0–255)
- * @returns {string} Adjusted hex color
+ * @param {string} hex
+ * @param {number} factor
+ * @param {number} target
+ * @returns {string}
  */
 function adjustColor(hex, factor, target) {
     factor = clamp(factor, 0, 1);
@@ -203,10 +193,8 @@ function adjustColor(hex, factor, target) {
 }
 
 /**
- * Convert a hex color to an rgba() CSS string.
- * Falls back to transparent black if ``hex`` is not a valid 6-digit hex color.
  * @param {string} hex
- * @param {number} opacity - Alpha value (0–1)
+ * @param {number} opacity
  * @returns {string}
  */
 export function hexToRGBA(hex, opacity) {
@@ -218,10 +206,9 @@ export function hexToRGBA(hex, opacity) {
 }
 
 /**
- * Return a color based on the active color scheme.
- * @param {string} colorScheme - "dark" or "light"
+ * @param {string} colorScheme
  * @param {string} brightModeColor
- * @param {string} [darkModeColor] - If omitted, ``brightModeColor`` is used for both schemes
+ * @param {string} [darkModeColor]
  * @returns {string}
  */
 export function getCustomColor(colorScheme, brightModeColor, darkModeColor) {
@@ -232,9 +219,8 @@ export function getCustomColor(colorScheme, brightModeColor, darkModeColor) {
 }
 
 /**
- * Lighten a hex color by interpolating each channel toward white (255).
- * @param {string} color - Hex color string
- * @param {number} factor - 0 = no change, 1 = pure white
+ * @param {string} color
+ * @param {number} factor
  * @returns {string}
  */
 export function lightenColor(color, factor) {
@@ -242,9 +228,8 @@ export function lightenColor(color, factor) {
 }
 
 /**
- * Darken a hex color by interpolating each channel toward black (0).
- * @param {string} color - Hex color string
- * @param {number} factor - 0 = no change, 1 = pure black
+ * @param {string} color
+ * @param {number} factor
  * @returns {string}
  */
 export function darkenColor(color, factor) {

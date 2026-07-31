@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/registry - Hierarchical key-value store for services, components, fields, and actions */
+/** @module @web/core/registry */
 
 import { EventBus, onWillDestroy, useState, validate } from "@odoo/owl";
 import { reportJsError } from "@web/core/errors/error_beacon";
@@ -13,11 +13,6 @@ const log = makeAssetLog("registry");
 export class KeyNotFoundError extends Error {}
 
 /**
- * Report a registry-integrity anomaly (e.g. a quarantined invalid entry).
- * Routed through ``error_beacon`` so it lands in the same observability
- * endpoint as JS errors; ``console.warn`` is the always-on signal, the
- * beacon a best-effort upgrade (``reportJsError`` never throws).
- *
  * @param {string} message
  */
 function reportRegistryAnomaly(message) {
@@ -26,22 +21,11 @@ function reportRegistryAnomaly(message) {
 }
 
 /**
- * Validate a candidate entry against the registry's schema.
- *
- * - valid (or no schema)     → ``true`` (caller inserts).
- * - invalid + ``odoo.debug`` → throws (fail-fast, never inserted).
- * - invalid + production     → ``false`` (quarantined, not inserted) and
- *   an anomaly is reported. Previously an invalid entry was inserted
- *   anyway and merely warned; quarantining keeps the invariant "every
- *   stored entry satisfies the schema" intact everywhere, and a consumer
- *   of a quarantined key gets a clear ``KeyNotFoundError`` instead of
- *   corrupt data.
- *
  * @param {string | undefined} name
  * @param {string} key
  * @param {any} value
  * @param {object | ((value: any) => boolean | void)} schema
- * @returns {boolean} true if the entry should be inserted
+ * @returns {boolean}
  */
 const validateSchema = (name, key, value, schema) => {
     let error;
@@ -89,9 +73,6 @@ const validateSchema = (name, key, value, schema) => {
  */
 
 /**
- * Ordered key-value store with change events, a chainable ``add`` API, and
- * an error on missing ``get``.
- *
  * @template T
  */
 export class Registry extends EventBus {
@@ -101,35 +82,20 @@ export class Registry extends EventBus {
     constructor(name) {
         super();
         /**
-         * Null-prototype object prevents false positives from inherited
-         * keys like "constructor" or "toString" in contains()/get().
-         * Each entry is ``[sequence, value, insertionIndex]``; the trailing
-         * insertion index is the deterministic tiebreaker for equal sequences
-         * (see {@link add}).
          * @type {Record<string, [number, GetRegistryItemShape<T>, number]>}
          */
         this.content = Object.create(null);
         /**
-         * Monotonic counter stamped onto each inserted entry so equal-sequence
-         * entries order by insertion regardless of key shape. Object key
-         * enumeration alone is not insertion order — integer-like keys ("2",
-         * "10") enumerate in ascending numeric order BEFORE string keys — so
-         * a registry keyed by numeric ids would otherwise reorder ties
-         * unpredictably.
-         *
-         * A key's ordinal is stamped at FIRST registration and preserved by a
-         * ``force`` override (see {@link add}), which is the whole point: a
-         * ``{ force: true }`` re-add is how an addon overrides an existing
-         * entry, and re-stamping would silently move that entry behind its
-         * equal-sequence peers — reordering first-match-wins registries such
-         * as ``error_handlers``. @type {number}
+         * @type {number}
          */
         this._insertionIndex = 0;
-        /** @type {{ [P in keyof GetRegistryCategories<T>]?: Registry<GetRegistryCategories<T>[P]> }} */
-        this.subRegistries = {};
-        /** @type {GetRegistryItemShape<T>[] | null}*/
+        /**
+         * @type {{ [P in keyof GetRegistryCategories<T>]?: Registry<GetRegistryCategories<T>[P]> }}
+         */
+        this.subRegistries = Object.create(null);
+        /** @type {GetRegistryItemShape<T>[] | null} */
         this.elements = null;
-        /** @type {[string, GetRegistryItemShape<T>][] | null}*/
+        /** @type {[string, GetRegistryItemShape<T>][] | null} */
         this.entries = null;
         this.name = name;
         this.validationSchema = null;
@@ -141,9 +107,6 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Add an entry (key, value), replacing any existing one if ``force`` is
-     * set. Returns the registry for chaining.
-     *
      * @param {string} key
      * @param {GetRegistryItemShape<T>} value
      * @param {{force?: boolean, sequence?: number}} [options]
@@ -198,8 +161,6 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Get an item from the registry
-     *
      * @param {string} key
      * @param {GetRegistryItemShape<T>} [defaultValue]
      * @returns {GetRegistryItemShape<T>}
@@ -215,8 +176,6 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Check the presence of a key in the registry
-     *
      * @param {string} key
      * @returns {boolean}
      */
@@ -225,12 +184,6 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Get a list of all elements in the registry, ordered by sequence
-     * number.
-     *
-     * Returns a frozen cached array — callers that need a mutable copy
-     * should spread it: ``[...registry.getAll()]``.
-     *
      * @returns {ReadonlyArray<GetRegistryItemShape<T>>}
      */
     getAll() {
@@ -247,11 +200,6 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Return a list of all entries, ordered by sequence numbers.
-     *
-     * Returns a frozen cached array — callers that need a mutable copy
-     * should spread it: ``[...registry.getEntries()]``.
-     *
      * @returns {ReadonlyArray<[string, GetRegistryItemShape<T>]>}
      */
     getEntries() {
@@ -270,9 +218,6 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Remove an item from the registry.
-     * No-op if the key does not exist.
-     *
      * @param {string} key
      */
     remove(key) {
@@ -286,14 +231,12 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Open a sub registry (and create it if necessary)
-     *
      * @template {keyof GetRegistryCategories<T> & string} K
      * @param {K} subcategory
      * @returns {Registry<GetRegistryCategories<T>[K]>}
      */
     category(subcategory) {
-        if (!(subcategory in this.subRegistries)) {
+        if (!Object.hasOwn(this.subRegistries, subcategory)) {
             this.subRegistries[subcategory] = new Registry(subcategory);
             log("category-open", subcategory, "parent=", this.name || "(root)");
         }
@@ -303,22 +246,15 @@ export class Registry extends EventBus {
     }
 
     /**
-     * Set a validation schema for this registry; existing and future
-     * entries are validated against it.
-     *
-     * Two forms: an **object**, passed to OWL's ``validate(value, schema)``
-     * (for shaped entries like ``{ component, extractProps, ... }``), or a
-     * **function predicate** ``schema(value)`` returning ``false`` to flag
-     * an entry invalid (for registries of bare functions where OWL's
-     * object-shape validator doesn't apply, e.g. ``formatters``, ``parsers``).
-     *
-     * ``odoo.debug`` throws on invalid entries; production quarantines them
-     * (see ``validateSchema``).
-     *
      * @param {object | ((value: any) => boolean | void)} schema
      */
     addValidation(schema) {
         if (this.validationSchema) {
+            if (this.validationSchema !== schema) {
+                reportRegistryAnomaly(
+                    `Ignored a second validation schema for the "${this.name || "(root)"}" registry; the first one stays in force.`,
+                );
+            }
             return;
         }
         this.validationSchema = schema;
@@ -336,16 +272,6 @@ export const registry = /** @type {any} */ (
 );
 
 /**
- * OWL hook that provides a reactive view of a registry's entries.
- * Re-renders the component when entries are added or removed.
- *
- * The returned ``entries`` array is a mutable reactive copy — callers like
- * {@link MainComponentsContainer.handleComponentError} may splice it directly
- * to remove faulty entries without touching the underlying registry.
- *
- * Uses incremental updates (not full replacement) so that entries removed
- * locally by error handlers are not restored by subsequent registry changes.
- *
  * @template T
  * @param {Registry<T>} registry
  * @returns {{ entries: [string, GetRegistryItemShape<T>][] }}

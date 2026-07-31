@@ -406,3 +406,71 @@ test("xpath with hasclass", async () => {
         }
     }
 });
+
+test("attribute remove= matches whole operands, not substrings", async () => {
+    // `remove="a"` used to find "a and " inside "ba and c" and leave "bc" --
+    // a different, still syntactically valid, modifier.
+    const toTest = [
+        {
+            arch: `<t t-name="web.A"><div invisible="ba and c"/></t>`,
+            remove: "a",
+            expected: "ba and c",
+        },
+        {
+            arch: `<t t-name="web.A"><div invisible="a and c"/></t>`,
+            remove: "a",
+            expected: "c",
+        },
+        {
+            arch: `<t t-name="web.A"><div invisible="c and a"/></t>`,
+            remove: "a",
+            expected: "c",
+        },
+        {
+            arch: `<t t-name="web.A"><div invisible="(a) and (b)"/></t>`,
+            remove: "a",
+            expected: "(b)",
+        },
+        {
+            arch: `<t t-name="web.A"><div invisible="a and b and c"/></t>`,
+            remove: "a and b",
+            expected: "c",
+        },
+        {
+            arch: `<t t-name="web.A"><div invisible="brand and c"/></t>`,
+            remove: "brand",
+            expected: "c",
+        },
+        {
+            arch: `<t t-name="web.A"><div invisible="x == 'a and b' and c"/></t>`,
+            remove: "c",
+            expected: "x == 'a and b'",
+        },
+    ];
+    for (const { arch, remove, expected } of toTest) {
+        const operations = `
+            <t>
+                <xpath expr="./div" position="attributes">
+                    <attribute name="invisible" remove="${remove}" separator="and"/>
+                </xpath>
+            </t>`;
+        expect(_applyInheritance(arch, operations)).toBe(
+            `<t t-name="web.A" t-translation-context="from_target"><div invisible="${expected}"/></t>`,
+        );
+    }
+});
+
+test("attribute remove= drops the attribute when nothing is left", async () => {
+    const operations = `
+        <t>
+            <xpath expr="./div" position="attributes">
+                <attribute name="invisible" remove="a" separator="and"/>
+            </xpath>
+        </t>`;
+    expect(
+        _applyInheritance(`<t t-name="web.A"><div invisible="a"/></t>`, operations),
+    ).toBe(`<t t-name="web.A" t-translation-context="from_target"><div/></t>`);
+    expect(
+        _applyInheritance(`<t t-name="web.A"><div invisible="((a))"/></t>`, operations),
+    ).toBe(`<t t-name="web.A" t-translation-context="from_target"><div/></t>`);
+});

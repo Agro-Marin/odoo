@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/router - URL routing: parse, serialize, and push browser history state */
+/** @module @web/core/browser/router */
 
 import { EventBus } from "@odoo/owl";
 import { isDisplayStandalone } from "@web/core/browser/feature_detection";
@@ -9,21 +9,51 @@ import { RouterEvent } from "@web/core/events";
 import { slidingWindow } from "@web/core/utils/collections/arrays";
 import { deepEqual, omit, pick } from "@web/core/utils/collections/objects";
 import { isNumeric } from "@web/core/utils/format/strings";
+import { globalSingleton } from "@web/core/utils/global_singleton";
 import { compareUrls, objectToUrlEncodedString } from "@web/core/utils/urls";
 
 import { browser } from "./browser.js";
 
 export const PATH_KEYS = ["resId", "action", "active_id", "model"];
 
-export const routerBus = new EventBus();
+/**
+ * Anchored on the global store like `rpc`, `registry`, `templates` and
+ * `assets`. Evaluating this module twice otherwise gives two buses and two
+ * current routes -- half the application listening to one and half pushing to
+ * the other -- and registers its three window listeners a second time, so every
+ * `popstate` is handled twice.
+ *
+ * @type {{
+ *  bus: EventBus,
+ *  started: boolean,
+ *  state: Record<string, any>,
+ *  pushTimeout: any,
+ *  pushArgs: { replace: boolean, reload: boolean, state: Record<string, any>, mode: "push" | "replace", title?: string },
+ *  lockedKeys: Set<string>,
+ *  hiddenKeysFromUrl: Set<string>,
+ *  ephemeralStack: (object | null)[],
+ *  unwindingEphemerals: boolean,
+ * }}
+ */
+const _router = globalSingleton("router", () => ({
+    bus: new EventBus(),
+    started: false,
+    state: {},
+    pushTimeout: null,
+    pushArgs: { replace: false, reload: false, state: {}, mode: "replace" },
+    lockedKeys: new Set(),
+    hiddenKeysFromUrl: new Set(),
+    ephemeralStack: [],
+    unwindingEphemerals: false,
+}));
+
+export const routerBus = _router.bus;
 
 function isScopedApp() {
     return browser.location.href.includes("/scoped_app") && isDisplayStandalone();
 }
 
 /**
- * Casts the given string to a number if possible.
- *
  * @param {string} value
  * @returns {string|number}
  */
@@ -41,11 +71,6 @@ function cast(value) {
  */
 
 /**
- * Decodes a URI component, returning the raw string when it contains
- * malformed percent-encoding (e.g. "%E0%A4%A" or a lone "%"). This module
- * parses the location at evaluation time — an unguarded URIError here
- * would blank the whole app on boot.
- *
  * @param {string} s
  * @returns {string}
  */
@@ -77,13 +102,14 @@ function parseString(/** @type {string} */ str) {
     return result;
 }
 /**
- * @param {object} values An object with the values of the new state
- * @param {boolean} replace whether the values should replace the state or be
- *  layered on top of the current state
- * @returns {object} the next state of the router
+ * @param {object} values
+ * @param {boolean} replace
+ * @returns {object}
  */
 function computeNextState(values, replace) {
-    const nextState = replace ? pick(state, ..._lockedKeys) : { ...state };
+    const nextState = replace
+        ? pick(_router.state, ..._router.lockedKeys)
+        : { ..._router.state };
     Object.assign(nextState, values);
     if (nextState.actionStack?.length) {
         Object.assign(nextState.actionStack.at(-1), pick(nextState, ...PATH_KEYS));
@@ -157,11 +183,10 @@ export function startUrl() {
 
 /**
  * @param {{ [key: string]: any }} state
- * @returns
  */
 function stateToUrl(state) {
     let path = "";
-    const keysToOmit = new Set(_hiddenKeysFromUrl);
+    const keysToOmit = new Set(_router.hiddenKeysFromUrl);
     const actionStack = (state.actionStack || [state]).map(
         (/** @type {Record<string, any>} */ a) => ({ ...a }),
     );
@@ -274,138 +299,85 @@ function urlToState(/** @type {URL} */ urlObj) {
     return state;
 }
 
-/** @type {Record<string, any>} */
-let state;
-/** @type {any} */
-let pushTimeout;
-/** @type {{ replace: boolean, reload: boolean, state: Record<string, any>, mode: "push" | "replace", title?: string }} */
-let pushArgs;
-
 /**
- * Fresh aggregation bucket for debounced push/replace. `mode` starts at the
- * weakest intent ("replace"); a "push" call upgrades it so batched calls never
- * silently downgrade an intended new history entry.
  * @returns {{ replace: boolean, reload: boolean, state: Record<string, any>, mode: "push" | "replace" }}
  */
 function makePushArgs() {
     return { replace: false, reload: false, state: {}, mode: "replace" };
 }
-/** @type {Set<string>} */
-let _lockedKeys;
-let _hiddenKeysFromUrl = new Set();
-
-/**
- * Markers for the ephemeral history entries currently stacked above the real
- * route, deepest first. A released-but-still-buried entry keeps its slot as
- * `null`: browsers cannot drop an entry from the middle of the stack, so the
- * run is unwound in one `go()` once the topmost entry is released too.
- * @type {(object | null)[]}
- */
-let ephemeralStack = [];
-/**
- * Set while a `history.go()` we issued ourselves is in flight, so the
- * resulting `popstate` is recognised as our own unwind rather than a user
- * navigation. `go()` produces exactly one `popstate` however far it rewinds.
- */
-let unwindingEphemerals = false;
 
 export function startRouter() {
     const url = new URL(/** @type {any} */ (browser.location));
-    state = router.urlToState(url);
+    _router.state = router.urlToState(url);
     if (browser.location.pathname === "/web") {
         browser.history.replaceState(browser.history.state, "", url.href);
     }
-    pushTimeout = null;
-    pushArgs = makePushArgs();
-    ephemeralStack = [];
-    unwindingEphemerals = false;
-    _lockedKeys = new Set(["debug", "lang"]);
-    _hiddenKeysFromUrl = new Set([...PATH_KEYS, "actionStack"]);
+    _router.pushTimeout = null;
+    _router.pushArgs = makePushArgs();
+    _router.ephemeralStack = [];
+    _router.unwindingEphemerals = false;
+    _router.lockedKeys = new Set(["debug", "lang"]);
+    _router.hiddenKeysFromUrl = new Set([...PATH_KEYS, "actionStack"]);
 }
 
-/** Drop every trailing released slot and rewind the browser past them. */
 function unwindReleasedEphemerals() {
     let count = 0;
-    while (ephemeralStack.length && ephemeralStack.at(-1) === null) {
-        ephemeralStack.pop();
+    while (_router.ephemeralStack.length && _router.ephemeralStack.at(-1) === null) {
+        _router.ephemeralStack.pop();
         count++;
     }
     if (count) {
-        // The stack is already trimmed; the flag tells the handler the coming
-        // `popstate` is ours, so it neither reports a dismissal (the owners
-        // closed themselves) nor a route change (the route never moved).
-        unwindingEphemerals = true;
+        _router.unwindingEphemerals = true;
         browser.history.go(-count);
     }
 }
 
-/**
- * When the user navigates history using the back/forward button, the browser
- * dispatches a popstate event with the state that was in the history for the
- * corresponding history entry. We adopt that state directly so the webclient
- * can reuse it without a full page reload.
- */
-browser.addEventListener("popstate", (ev) => {
-    browser.clearTimeout(pushTimeout);
-    pushArgs = makePushArgs();
-    if (unwindingEphemerals) {
-        unwindingEphemerals = false;
-        state = ev.state?.nextState || state;
+function onPopState(/** @type {any} */ ev) {
+    browser.clearTimeout(_router.pushTimeout);
+    _router.pushArgs = makePushArgs();
+    if (_router.unwindingEphemerals) {
+        _router.unwindingEphemerals = false;
+        _router.state = ev.state?.nextState || _router.state;
         return;
     }
     const ephemeralDepth = ev.state?.ephemeralDepth ?? 0;
-    if (ephemeralDepth < ephemeralStack.length) {
-        // Back/forward dismissed one or more transient UI layers. Their entries
-        // carry the route state untouched, so the route itself did not change:
-        // adopt the state and tell the layers, but never reload the action.
-        const markers = ephemeralStack.splice(ephemeralDepth);
-        state = ev.state?.nextState || state;
+    if (ephemeralDepth < _router.ephemeralStack.length) {
+        const markers = _router.ephemeralStack.splice(ephemeralDepth);
+        _router.state = ev.state?.nextState || _router.state;
         routerBus.trigger(RouterEvent.EPHEMERAL_POPPED, { markers });
         return;
     }
-    ephemeralStack.length = ephemeralDepth;
+    _router.ephemeralStack.length = Math.min(
+        ephemeralDepth,
+        _router.ephemeralStack.length,
+    );
     if (!ev.state) {
-        browser.history.replaceState({ nextState: state }, "", browser.location.href);
+        browser.history.replaceState(
+            { nextState: _router.state },
+            "",
+            browser.location.href,
+        );
         return;
     }
-    const previousState = state;
-    state =
+    const previousState = _router.state;
+    _router.state =
         ev.state?.nextState ||
         router.urlToState(new URL(/** @type {any} */ (browser.location)));
-    // Landing back on the state we are already on is not a navigation: it pops
-    // a *synthetic* entry someone stacked on top of ours (BottomSheet pushes one
-    // so the Back gesture closes the sheet instead of leaving the page, then
-    // pops it again when the sheet closes by any other means). Reloading there
-    // is never merely redundant — `loadState` re-enters `doAction`, whose
-    // KeepLast supersedes whatever action is still loading, so a tap that both
-    // closes a sheet and opens an action cancels the action and re-renders the
-    // controller already on screen. `skipRouteChange` cannot express this: it
-    // is read off the entry we land *on*, not the synthetic one we left.
-    const routeChanged = !deepEqual(previousState, state);
+    const routeChanged = !deepEqual(previousState, _router.state);
     if (!ev.state?.skipRouteChange && !router.skipLoad && routeChanged) {
         routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
     router.skipLoad = false;
-});
+}
 
-/**
- * Safari (iOS and macOS) can restore the page from the `bfcache` on back/forward
- * navigation (especially when returning from an external website). Odoo isn't
- * compatible with this cache, so when it's used to restore a page, reload it to
- * ensure everything is rendered correctly.
- */
-browser.addEventListener("pageshow", (ev) => {
+function onPageShow(/** @type {any} */ ev) {
     if (ev.persisted) {
         router.cancelPushes();
         routerBus.trigger(RouterEvent.ROUTE_CHANGE);
     }
-});
+}
 
-/**
- * When clicking internal links, do a loadState instead of a full page reload.
- * This also allows the mobile app to not open an in-app browser for them.
- */
-browser.addEventListener("click", (ev) => {
+function onClick(/** @type {any} */ ev) {
     if (ev.button !== 0 || ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.altKey) {
         return;
     }
@@ -441,20 +413,21 @@ browser.addEventListener("click", (ev) => {
         ) {
             ev.preventDefault();
             router.cancelPushes();
-            state = router.urlToState(url);
+            _router.state = router.urlToState(url);
             if (url.pathname.startsWith(prefix) && url.hash) {
-                browser.history.pushState({ nextState: state }, "", url.href);
+                browser.history.pushState({ nextState: _router.state }, "", url.href);
             }
             browser.setTimeout(() => routerBus.trigger(RouterEvent.ROUTE_CHANGE), 0);
         }
     }
-});
+}
 
 /**
  * @param {string} mode
  */
 function makeDebouncedPush(mode) {
     function doPush() {
+        const pushArgs = _router.pushArgs;
         const nextState = computeNextState(pushArgs.state, pushArgs.replace);
         const url = browser.location.origin + router.stateToUrl(nextState);
         if (!compareUrls(url + browser.location.hash, browser.location.href)) {
@@ -469,7 +442,7 @@ function makeDebouncedPush(mode) {
         } else {
             browser.history.replaceState({ nextState }, "", browser.location.href);
         }
-        state = nextState;
+        _router.state = nextState;
         if (pushArgs.reload) {
             browser.location.reload();
         }
@@ -479,6 +452,7 @@ function makeDebouncedPush(mode) {
      * @param {{ replace?: boolean, reload?: boolean, sync?: boolean }} [options]
      */
     return function pushOrReplaceState(state, options = {}) {
+        const pushArgs = _router.pushArgs;
         pushArgs.replace ||= /** @type {boolean} */ (options.replace);
         pushArgs.reload ||= /** @type {boolean} */ (options.reload);
         if (mode === "push") {
@@ -486,16 +460,16 @@ function makeDebouncedPush(mode) {
         }
         pushArgs.title = document.title;
         Object.assign(pushArgs.state, state);
-        browser.clearTimeout(pushTimeout);
+        browser.clearTimeout(_router.pushTimeout);
         const push = () => {
             doPush();
-            pushTimeout = null;
-            pushArgs = makePushArgs();
+            _router.pushTimeout = null;
+            _router.pushArgs = makePushArgs();
         };
         if (options.sync) {
             push();
         } else {
-            pushTimeout = browser.setTimeout(() => {
+            _router.pushTimeout = browser.setTimeout(() => {
                 push();
             });
         }
@@ -504,41 +478,29 @@ function makeDebouncedPush(mode) {
 
 export const router = {
     get current() {
-        return state;
+        return _router.state;
     },
     stateToUrl,
     urlToState,
     pushState: makeDebouncedPush("push"),
     replaceState: makeDebouncedPush("replace"),
     cancelPushes: () => {
-        browser.clearTimeout(pushTimeout);
-        pushArgs = makePushArgs();
+        browser.clearTimeout(_router.pushTimeout);
+        _router.pushArgs = makePushArgs();
     },
-    addLockedKey: (/** @type {string} */ key) => _lockedKeys.add(key),
-    hideKeyFromUrl: (/** @type {string} */ key) => _hiddenKeysFromUrl.add(key),
+    addLockedKey: (/** @type {string} */ key) => _router.lockedKeys.add(key),
+    hideKeyFromUrl: (/** @type {string} */ key) => _router.hiddenKeysFromUrl.add(key),
     skipLoad: false,
 
     /**
-     * Stack a history entry that exists only so hardware Back dismisses a
-     * transient UI layer (bottom sheet, mobile menu) instead of leaving the
-     * page. The entry keeps the current URL *and* the current router state, so
-     * nothing downstream sees the route as having changed while it is on top.
-     *
-     * The layer learns it was dismissed through `RouterEvent.EPHEMERAL_POPPED`
-     * on `routerBus`, and must call `releaseEphemeral` when it closes for any
-     * other reason. Components must not call `history.pushState` themselves:
-     * an entry without `nextState` hides the route state from every later
-     * `popstate`, and one without a depth marker makes its own dismissal
-     * indistinguishable from a real navigation.
-     *
-     * @param {object} marker identity token, given back on pop
+     * @param {object} marker
      */
     pushEphemeral: (marker) => {
-        ephemeralStack.push(marker);
+        _router.ephemeralStack.push(marker);
         browser.history.pushState(
             {
                 ...browser.history.state,
-                ephemeralDepth: ephemeralStack.length,
+                ephemeralDepth: _router.ephemeralStack.length,
                 skipRouteChange: true,
             },
             "",
@@ -547,24 +509,30 @@ export const router = {
     },
 
     /**
-     * Give up an ephemeral entry closed by its owner rather than by Back. The
-     * browser entry survives until it reaches the top of the stack.
-     *
-     * @param {object} marker the token passed to `pushEphemeral`
+     * @param {object} marker
      */
     releaseEphemeral: (marker) => {
-        const index = ephemeralStack.indexOf(marker);
+        const index = _router.ephemeralStack.indexOf(marker);
         if (index === -1) {
             return;
         }
-        ephemeralStack[index] = null;
+        _router.ephemeralStack[index] = null;
         unwindReleasedEphemerals();
     },
 
-    /** @returns {number} ephemeral entries currently stacked (test/debug aid) */
+    /** @returns {number} */
     get ephemeralDepth() {
-        return ephemeralStack.length;
+        return _router.ephemeralStack.length;
     },
 };
 
-startRouter();
+// Guarded, not because the module is expected to be evaluated twice, but
+// because if it is, a second `startRouter()` would wipe the route the first
+// one is serving and each listener would run twice per event.
+if (!_router.started) {
+    _router.started = true;
+    browser.addEventListener("popstate", onPopState);
+    browser.addEventListener("pageshow", onPageShow);
+    browser.addEventListener("click", onClick);
+    startRouter();
+}
