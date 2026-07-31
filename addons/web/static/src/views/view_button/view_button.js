@@ -5,7 +5,7 @@
 
 import { Component } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
-import { registry } from "@web/core/registry";
+import { sharedComponents } from "@web/core/shared_components";
 import { pick } from "@web/core/utils/collections/objects";
 import { debounce as debounceFn } from "@web/core/utils/timing";
 const explicitRankClasses = [
@@ -197,4 +197,4 @@ export class ViewButton extends Component {
     }
 }
 
-registry.category("shared_components").add("ViewButton", ViewButton);
+sharedComponents.add("ViewButton", ViewButton);

@@ -8,6 +8,7 @@ import { WarningDialog } from "@web/components/errors/error_dialogs";
 import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
+import { sharedComponents } from "@web/core/shared_components";
 import { omit } from "@web/core/utils/collections/objects";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useService } from "@web/core/utils/hooks";
@@ -356,10 +357,4 @@ export function makeModelUIHooks({
     };
 }
 
-registry
-    .category("shared_components")
-    .add("computeViewClassName", computeViewClassName);
-
-registry
-    .category("shared_components")
-    .addValidation((entry) => typeof entry === "function");
+sharedComponents.add("computeViewClassName", computeViewClassName);
