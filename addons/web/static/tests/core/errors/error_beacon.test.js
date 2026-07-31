@@ -77,16 +77,23 @@ test("reportJsError: same message on a different line/col is a distinct beacon",
 
 test("reportJsError: kind passes through for every kind the server accepts", async () => {
     const { calls } = spyBeacon();
+    reportJsError({ message: "beacon-kind-err", kind: "error" });
     reportJsError({ message: "beacon-kind-rej", kind: "unhandledrejection" });
     reportJsError({ message: "beacon-kind-svc", kind: "service_start" });
+    reportJsError({ message: "beacon-kind-asset", kind: "asset_load_error" });
     reportJsError({ message: "beacon-kind-rebind", kind: "module_rebind" });
     reportJsError({ message: "beacon-kind-bogus", kind: /** @type {any} */ ("weird") });
-    expect((await payloadOf(calls[0].blob)).kind).toBe("unhandledrejection");
-    expect((await payloadOf(calls[1].blob)).kind).toBe("service_start");
-    expect((await payloadOf(calls[2].blob)).kind).toBe("module_rebind");
+    // All five the server accepts (observability.py::js_error), so the title
+    // stays true as the set grows — asset_load_error was added to KINDS and
+    // this case did not follow.
+    expect((await payloadOf(calls[0].blob)).kind).toBe("error");
+    expect((await payloadOf(calls[1].blob)).kind).toBe("unhandledrejection");
+    expect((await payloadOf(calls[2].blob)).kind).toBe("service_start");
+    expect((await payloadOf(calls[3].blob)).kind).toBe("asset_load_error");
+    expect((await payloadOf(calls[4].blob)).kind).toBe("module_rebind");
     // The fallback still guards typos — widening the set must not make it a
     // pass-through, or a misspelled kind becomes a category of its own.
-    expect((await payloadOf(calls[3].blob)).kind).toBe("error");
+    expect((await payloadOf(calls[5].blob)).kind).toBe("error");
 });
 
 test("reportJsError: line/col are coerced to integers, filename defaults to ''", async () => {
