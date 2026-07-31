@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_renderer - Renders the pivot table HTML with expandable row/column headers, measures dropdown, and XLSX export */
+/** @module @web/views/pivot/pivot_renderer */
 
 import { Component, onWillRender, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -98,18 +98,13 @@ export class PivotRenderer extends Component {
         this.fields = sortBy(fields, "string");
     }
     /**
-     * Precompute the codec and base format options for each active measure.
-     *
-     * `getFormattedValue` runs once per body cell per render; rebuilding the
-     * fieldInfo + codec + options there would repeat the same derivation for
-     * every cell (cf. the memoization in view_utils.getFormattedValue). Only
-     * per-cell bits (e.g. currencyId) are resolved per cell.
-     *
      * @private
      */
     computeMeasureFormatters() {
         const { fieldAttrs, measures, widgets, activeMeasures } = this.model.metaData;
-        /** @type {Map<string, { codec: any, formatType: string, baseOptions: Record<string, any> }>} */
+        /**
+         * @type {Map<string, { codec: any, formatType: string, baseOptions: Record<string, any> }>}
+         */
         this.measureFormatters = new Map();
         for (const measure of activeMeasures) {
             const field = measures[measure];
@@ -134,15 +129,7 @@ export class PivotRenderer extends Component {
         }
     }
     /**
-     * Left/right padding (px) applied to a row header cell to indent it by its
-     * depth in the row-group tree.
-     *
-     * Kept as an overridable method (rather than inlined in the template) so
-     * downstream addons can adjust the per-level indent — web_enterprise's
-     * mobile pivot patches this to shrink the step so deep trees stay on
-     * screen. Inlining orphaned that patch; template calls this instead.
-     *
-     * @param {Object} cell - row header cell with an ``indent`` depth
+     * @param {Object} cell
      * @returns {number}
      */
     getPadding(cell) {
@@ -177,10 +164,6 @@ export class PivotRenderer extends Component {
         });
     }
     /**
-     * Full-precision tooltip for humanized cells: when the formatter
-     * shortens the value (options.human_readable), expose the plain
-     * formatted value as the cell's data-tooltip.
-     *
      * @private
      * @param {Object} cell
      * @param {any} codec
@@ -254,8 +237,6 @@ export class PivotRenderer extends Component {
     }
 
     /**
-     * Handle the adding of a custom groupby (inside the view, not the searchview).
-     *
      * @param {string} fieldName
      */
     onAddCustomGroupBy(fieldName) {
@@ -317,8 +298,6 @@ export class PivotRenderer extends Component {
         });
     }
     /**
-     * Hover the column in which the mouse is.
-     *
      * @param {MouseEvent} ev
      */
     onMouseEnter(ev) {
@@ -342,10 +321,6 @@ export class PivotRenderer extends Component {
         this.hoveredCells = null;
     }
 
-    /**
-     * Exports the current pivot table data in a xls file. For this, we have to
-     * serialize the current state, then call the server /web/pivot/export_xlsx.
-     */
     onDownloadButtonClicked() {
         if (this.model.getTableWidth() > 16384) {
             this.notification.add(
@@ -373,8 +348,6 @@ export class PivotRenderer extends Component {
         this.model.flip();
     }
     /**
-     * Toggles the given measure
-     *
      * @param {Object} param0
      * @param {string} param0.measure
      */
@@ -391,8 +364,6 @@ export class PivotRenderer extends Component {
         }
     }
     /**
-     * Execute the action to open the view on the current model.
-     *
      * @param {Array} domain
      * @param {Array} views
      * @param {Object} context

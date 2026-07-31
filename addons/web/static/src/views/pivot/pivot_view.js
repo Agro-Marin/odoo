@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_view - Pivot view descriptor registered in the view registry */
+/** @module @web/views/pivot/pivot_view */
 
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -14,10 +14,6 @@ import { PivotSearchModel } from "./pivot_search_model.js";
 
 const viewRegistry = registry.category("views");
 
-/**
- * Pivot view descriptor. The `props` factory parses the arch and builds
- * `modelParams` (with `metaData` and optional `data`) consumed by `PivotModel`.
- */
 export const pivotView = {
     type: "pivot",
     Controller: PivotController,
@@ -29,9 +25,9 @@ export const pivotView = {
     buttonTemplate: "web.PivotView.Buttons",
 
     /**
-     * @param {Object} genericProps - standard view props (arch, fields, resModel, state)
-     * @param {Object} view - view descriptor with Model, Renderer, ArchParser
-     * @returns {Object} controller props including modelParams with metaData and optional data
+     * @param {Record<string, any>} genericProps
+     * @param {Record<string, any>} view
+     * @returns {Record<string, any>}
      */
     props: (genericProps, view) => {
         const modelParams = {};

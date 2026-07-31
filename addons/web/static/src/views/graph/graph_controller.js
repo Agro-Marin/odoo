@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/graph/graph_controller - Controller wiring GraphModel to GraphRenderer with search bar and sample data support */
+/** @module @web/views/graph/graph_controller */
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
@@ -14,11 +14,6 @@ import { ActionHelper } from "@web/views/action_helper";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { computeModelOptions } from "@web/views/view_utils";
 
-/**
- * Wires the GraphModel (with sample data support) to the GraphRenderer inside
- * a Layout shell with search bar integration; persists graph-specific context
- * (measure, mode, groupBy, order, stacked, cumulated) for favorites.
- */
 export class GraphController extends Component {
     static template = "web.GraphView";
     static components = { Layout, SearchBar, CogMenu, ActionHelper };
@@ -50,12 +45,12 @@ export class GraphController extends Component {
         this.searchBarToggler = useSearchBarToggler();
     }
 
-    /** @returns {Object} model options derived from env and display props */
+    /** @returns {Object} */
     get modelOptions() {
         return /** @type {any} */ (computeModelOptions(this.env, this.props.display));
     }
 
-    /** @returns {Object} graph-specific context for persistence in favorites */
+    /** @returns {Object} */
     getContext() {
         const { measure, groupBy, mode } = this.model.metaData;
         const context = {

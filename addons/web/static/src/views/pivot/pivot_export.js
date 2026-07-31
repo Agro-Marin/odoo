@@ -1,11 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_export - Pure formatting of pivot table data for Excel/spreadsheet export */
+/** @module @web/views/pivot/pivot_export */
 
 /**
- * Format a single header cell for export.
- *
  * @param {Object} header
  * @returns {{ title: string, width: number, height: number, is_bold: boolean }}
  */
@@ -20,16 +18,8 @@ function processHeader(header) {
 }
 
 /**
- * Number of columns the exported XLSX sheet contains.
- *
- * The export controller (/web/pivot/export_xlsx) writes, per data row: the
- * row title in column 0, then one value cell per entry of the measures row.
- * The measures row holds one cell per active measure for each leaf column
- * group, plus one cell per active measure for the "Total" column group —
- * the latter only when there is more than one leaf (see getTableHeaders).
- *
- * @param {number} leafCount - number of leaves of the column group tree
- * @param {number} measureCount - number of active measures
+ * @param {number} leafCount
+ * @param {number} measureCount
  * @returns {number}
  */
 export function computeExportedTableWidth(leafCount, measureCount) {
@@ -38,10 +28,7 @@ export function computeExportedTableWidth(leafCount, measureCount) {
 }
 
 /**
- * Transform a pivot table (headers + rows) into a flat structure suitable
- * for encoding in Excel.
- *
- * @param {Object} table - Result of PivotModel.getTable()
+ * @param {Object} table
  * @param {Object} metaData
  * @param {string[]} metaData.activeMeasures
  * @param {string} metaData.resModel

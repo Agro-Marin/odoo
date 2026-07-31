@@ -1,12 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_measurements - Builds measure specs (fieldName:aggregator) and data comparison logic for the pivot model */
+/** @module @web/views/pivot/pivot_measurements */
 
 /**
- * Returns the list of measure specs associated with active measures.
- * A measure 'fieldName' becomes 'fieldName:aggregator'.
- *
  * @param {Object} config
  * @returns {string[]}
  */
@@ -42,8 +39,6 @@ export function getMeasureSpecs(config) {
 }
 
 /**
- * Returns the group sanitized measure values for the active measures.
- *
  * @param {Object} group
  * @param {Object} config
  * @param {string[]} measureSpecs
@@ -79,8 +74,6 @@ export function getMeasurements(group, config, measureSpecs) {
 }
 
 /**
- * Returns the group sanitized currency id values for monetary measures.
- *
  * @param {Object} group
  * @param {Object} config
  * @param {string[]} measureSpecs
@@ -104,13 +97,8 @@ export function getCurrencyIds(group, config, measureSpecs) {
 }
 
 /**
- * Key under which a cell's values are stored in ``data.measurements`` /
- * ``data.currencyIds``. Equivalent to ``JSON.stringify([rowValues,
- * colValues])`` but callers pass pre-stringified parts to avoid
- * re-serializing per cell.
- *
- * @param {string} rowKey ``JSON.stringify(rowValues)``
- * @param {string} colKey ``JSON.stringify(colValues)``
+ * @param {string} rowKey
+ * @param {string} colKey
  * @returns {string}
  */
 export function makeCellKey(rowKey, colKey) {
@@ -118,7 +106,7 @@ export function makeCellKey(rowKey, colKey) {
 }
 
 /**
- * @param {string} cellKey see ``makeCellKey``
+ * @param {string} cellKey
  * @param {string} measure
  * @param {Object} data
  * @returns {number|undefined}
@@ -131,7 +119,7 @@ export function getCellValue(cellKey, measure, data) {
 }
 
 /**
- * @param {string} cellKey see ``makeCellKey``
+ * @param {string} cellKey
  * @param {string} measure
  * @param {Object} data
  * @returns {number|undefined}
@@ -144,8 +132,6 @@ export function getCellCurrency(cellKey, measure, data) {
 }
 
 /**
- * Returns a description of the measures row of the pivot table.
- *
  * @param {Object[]} columns
  * @param {Object} metaData
  * @returns {Object[]}

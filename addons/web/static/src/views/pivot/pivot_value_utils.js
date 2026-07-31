@@ -1,11 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_value_utils - GroupBy normalization, value sanitization, and header cell computation for the pivot model */
+/** @module @web/views/pivot/pivot_value_utils */
 
 /**
- * Normalize a groupBy specification, adding default interval for date fields.
- *
  * @param {string} gb
  * @param {Object} fields
  * @returns {string}
@@ -22,8 +20,6 @@ function normalize(gb, fields) {
 }
 
 /**
- * Extract from a groupBy value the raw value (discarding a label if any).
- *
  * @param {any} value
  * @returns {any}
  */
@@ -35,8 +31,6 @@ function sanitizeValue(value) {
 }
 
 /**
- * Extract from a groupBy value a display label.
- *
  * @param {any} value
  * @param {string} groupBy
  * @param {Object} config
@@ -76,9 +70,6 @@ function sanitizeLabel(value, groupBy, config) {
 }
 
 /**
- * Make sure that the labels of different many2one values are distinguished
- * by numbering them if necessary.
- *
  * @param {Array} label
  * @param {string} fieldName
  * @param {Object} config
@@ -96,8 +87,6 @@ function getNumberedLabel(label, fieldName, config) {
 }
 
 /**
- * Returns the group sanitized labels.
- *
  * @param {Object} group
  * @param {string[]} groupBys
  * @param {Object} config
@@ -112,8 +101,6 @@ export function getGroupLabels(group, groupBys, config, fields) {
 }
 
 /**
- * Returns the group sanitized values.
- *
  * @param {Object} group
  * @param {string[]} groupBys
  * @param {Object} fields
@@ -127,8 +114,6 @@ export function getGroupValues(group, groupBys, fields) {
 }
 
 /**
- * Deduplicate and merge row and col groupBy specifications.
- *
  * @param {string[]} rowGroupBy
  * @param {string[]} colGroupBy
  * @param {Object} fields
@@ -143,8 +128,6 @@ export function getGroupBySpecs(rowGroupBy, colGroupBy, fields) {
 }
 
 /**
- * Returns a domain representation of a group.
- *
  * @param {Object} group
  * @param {Object} config
  * @returns {Array[]}

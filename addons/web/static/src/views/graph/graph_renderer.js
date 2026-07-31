@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/graph/graph_renderer - Chart.js integration for rendering bar, line, pie, and scatter charts with tooltips and legends */
+/** @module @web/views/graph/graph_renderer */
 
 import { Component, onWillStart, onWillUnmount, useEffect, useRef } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -67,10 +67,8 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Remove enough tooltip lines to keep it reasonably visible, appending a
-     * "..." indicator if any were removed.
      * @param {HTMLElement} tooltip
-     * @param {number} maxTooltipHeight this the max height in pixels of the tooltip
+     * @param {number} maxTooltipHeight
      */
     adjustTooltipHeight(tooltip, maxTooltipHeight) {
         const sizeOneLine = tooltip.querySelector("tbody tr").clientHeight;
@@ -98,10 +96,9 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Creates a custom HTML tooltip.
      * @param {Object} data
      * @param {Object} metaData
-     * @param {Object} context see chartjs documentation
+     * @param {Object} context
      */
     customTooltip(data, metaData, context) {
         const tooltipModel = context.tooltip;
@@ -162,7 +159,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Sets best left position of a tooltip approaching the proposal x.
      * @param {HTMLElement} tooltip
      * @param {number} x
      */
@@ -185,7 +181,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Returns the bar chart data
      * @returns {Object}
      */
     getBarChartData() {
@@ -197,7 +192,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Returns the chart config.
      * @returns {Object}
      */
     getChartConfig() {
@@ -253,7 +247,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Returns line chart data.
      * @returns {Object}
      */
     getLineChartData() {
@@ -261,7 +254,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Returns pie chart data.
      * @returns {Object}
      */
     getPieChartData() {
@@ -269,7 +261,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Returns scatter chart data (line chart with showLine:false).
      * @returns {Object}
      */
     getScatterChartData() {
@@ -277,7 +268,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Returns the options used to generate the chart axes.
      * @returns {Object}
      */
     getScaleOptions() {
@@ -289,7 +279,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Returns the options used to generate chart tooltips.
      * @returns {Object}
      */
     getTooltipOptions() {
@@ -320,7 +309,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * If a group has been clicked on, display a view of its records.
      * @param {MouseEvent} ev
      */
     onGraphClicked(ev, isMiddleClick) {
@@ -345,8 +333,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Overrides the default legend 'onClick' behaviour. This is done to
-     * remove all existing tooltips right before updating the chart.
      * @param {Event} ev
      * @param {Object} legendItem
      */
@@ -360,18 +346,12 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Show a tooltip with the legend item's full text when its shortened text
-     * is hovered (event type is actually mousemove).
      * @param {Event} ev
      * @param {Object} legendItem
      */
     onLegendHover(ev, legendItem) {
         ev = /** @type {any} */ (ev).native;
         this.canvasRef.el.style.cursor = "pointer";
-        /**
-         * legendItem.text is a prefix of legendItem.fullText; skip if they
-         * match (nothing to show) or a tooltip already exists (already correct).
-         */
         const { fullText, text } = legendItem;
         if (this.legendTooltip || text === fullText) {
             return;
@@ -391,13 +371,11 @@ export class GraphRenderer extends Component {
         this.legendTooltip = legendTooltip;
     }
 
-    /** Remove the legend tooltip when the mouse leaves the legend item. */
     onLegendLeave() {
         this.canvasRef.el.style.cursor = "";
         this.removeLegendTooltip();
     }
 
-    /** Build chart instantiation options for the current mode (chart type). */
     prepareOptions() {
         const { mode, stacked } = this.model.metaData;
         const options = {
@@ -432,7 +410,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Adapt Pie chart layout on mobile
      * @param {Object} context
      */
     resizeChart(context) {
@@ -448,7 +425,6 @@ export class GraphRenderer extends Component {
         }
     }
 
-    /** Remove the legend tooltip, if any. */
     removeLegendTooltip() {
         if (this.legendTooltip) {
             this.legendTooltip.remove();
@@ -456,7 +432,6 @@ export class GraphRenderer extends Component {
         }
     }
 
-    /** Remove all existing tooltips, if any. */
     removeTooltips() {
         if (this.tooltip) {
             this.tooltip.remove();
@@ -465,7 +440,6 @@ export class GraphRenderer extends Component {
         this.removeLegendTooltip();
     }
 
-    /** Instantiate or update the Chart.js chart from the current config. */
     renderChart() {
         this.removeTooltips();
         if (!this.canvasRef.el) {
@@ -489,8 +463,6 @@ export class GraphRenderer extends Component {
     }
 
     /**
-     * Execute the action to open the view on the current model.
-     *
      * @param {Array} domain
      * @param {Array} views
      * @param {Object} context
@@ -514,7 +486,7 @@ export class GraphRenderer extends Component {
         );
     }
     /**
-     * @param {any[]} domain the domain of the clicked area
+     * @param {any[]} domain
      */
     onGraphClickedFinal(domain, isMiddleClick = false) {
         const context = { ...this.model.metaData.context };

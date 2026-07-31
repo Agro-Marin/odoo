@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/graph/graph_arch_parser - Parses graph view XML arch into chart mode, measures, groupBy, and display flags */
+/** @module @web/views/graph/graph_arch_parser */
 
 import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
@@ -10,13 +10,10 @@ import { GROUPABLE_TYPES } from "@web/search/utils/misc";
 const MODES = ["bar", "line", "pie", "scatter"];
 const ORDERS = ["ASC", "DESC", "asc", "desc", null];
 
-/** Parser for `<graph>` view architecture definitions. */
 export class GraphArchParser {
     /**
-     * Parse a `<graph>` arch element into a structured descriptor.
-     *
-     * @param {Element} arch - the root `<graph>` XML element
-     * @param {Object} [fields={}] - field definitions keyed by field name
+     * @param {Element} arch
+     * @param {Object} [fields={}]
      * @returns {{
      *   fields: Object,
      *   fieldAttrs: Object,

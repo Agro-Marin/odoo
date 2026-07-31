@@ -692,3 +692,76 @@ describe("PivotRenderer.getPadding — row indentation seam", () => {
         expect(PivotRenderer.prototype.getPadding.call(self, { indent: 3 })).toBe(95);
     });
 });
+
+describe("PivotModel.toggleMeasure — batching across concurrent toggles", () => {
+    /**
+     * Minimal `this` for toggleMeasure: it only touches metaData.activeMeasures,
+     * loads, _buildMetaData, _loadData and notify.
+     */
+    function makeModel(loadData) {
+        return {
+            metaData: { activeMeasures: ["__count"] },
+            data: {},
+            loads: { isBusy: false, whenIdle: async () => {} },
+            nextActiveMeasures: null,
+            measureToggleEpoch: 0,
+            notified: 0,
+            _buildMetaData() {
+                return { activeMeasures: [...this.metaData.activeMeasures] };
+            },
+            async _loadData(config) {
+                const ok = await loadData(config);
+                if (ok) {
+                    this.metaData = config.metaData;
+                }
+                return ok;
+            },
+            notify() {
+                this.notified++;
+            },
+        };
+    }
+
+    test("a superseded load releases the pending batch", async () => {
+        const model = makeModel(async () => false);
+
+        await PivotModel.prototype.toggleMeasure.call(model, "foo");
+
+        expect(model.notified).toBe(0);
+        expect(model.metaData.activeMeasures).toEqual(["__count"]);
+        expect(model.nextActiveMeasures).toBe(null);
+    });
+
+    test("a measure abandoned by a superseded load does not come back", async () => {
+        let superseded = true;
+        const model = makeModel(async () => !superseded);
+
+        await PivotModel.prototype.toggleMeasure.call(model, "foo");
+        superseded = false;
+        await PivotModel.prototype.toggleMeasure.call(model, "bar");
+
+        expect(model.metaData.activeMeasures).toEqual(["__count", "bar"]);
+    });
+
+    test("concurrent toggles still batch into a single measure set", async () => {
+        let release;
+        const gate = new Promise((resolve) => (release = resolve));
+        let first = true;
+        const model = makeModel(async () => {
+            if (first) {
+                first = false;
+                await gate;
+                return false;
+            }
+            return true;
+        });
+
+        const pendingFoo = PivotModel.prototype.toggleMeasure.call(model, "foo");
+        const pendingBar = PivotModel.prototype.toggleMeasure.call(model, "bar");
+        release();
+        await Promise.all([pendingFoo, pendingBar]);
+
+        expect(model.metaData.activeMeasures).toEqual(["__count", "foo", "bar"]);
+        expect(model.nextActiveMeasures).toBe(null);
+    });
+});

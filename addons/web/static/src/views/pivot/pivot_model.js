@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_model - Pivot table data loading, group tree expansion, measure aggregation, and cell computation */
+/** @module @web/views/pivot/pivot_model */
 
 import {
     cartesian,
@@ -31,258 +31,6 @@ import {
 import { getCellValue, getMeasureSpecs, makeCellKey } from "./pivot_measurements.js";
 import { getTableHeaders, getTableRows } from "./pivot_table.js";
 import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
-
-/**
- * Pivot Model
- *
- * The pivot model keeps an in-memory representation of the pivot table shown on
- * screen. A pivot table is at its core a 2-dimensional object with a 'list'
- * component: rows/cols can be expanded to zoom into the structure. It presents
- * aggregated values for various groups of records in one domain.
- *
- * Let us consider a simple example and let us fix the vocabulary:
- * __________________________________________________________________________
- * |                    |   Total                                           |
- * |                    |___________________________________________________|
- * |                    |   Sale Team 1   |  Sale Team 2   |                |
- * |                    |_________________|________________|________________|
- * |                    |   Sales total   |  Sales total   |  Sales total   |
- * |____________________|_________________|________________|________________|
- * | Total              |      110        |       30       |      140       |
- * |    Europe          |       35        |       30       |       65       |
- * |        Brussels    |       15        |       30       |       45       |
- * |        Paris       |       20        |        0       |       20       |
- * |    North America   |       75        |                |       75       |
- * |        Washington  |       75        |                |       75       |
- * |____________________|_________________|________________|________________|
- *
- *
- * META DATA:
- *
- * In the above pivot table, the records have been grouped using the fields
- *
- *      continent_id, city_id
- *
- * for rows and
- *
- *      sale_team_id
- *
- * for columns.
- *
- * The measure is the field 'sales_total'.
- *
- * The domain considered is 'sale_date in June 2020'.
- *
- * In the model,
- *
- *      - rowGroupBys is the list [continent_id, city_id]
- *      - colGroupBys is the list [sale_team_id]
- *      - measures is the list [sales_total]
- *      - domain is the domain expression for say sale_date in June 2020:
- *          [['sale_date', >=, 2020-06-01], ['sale_date', '<=', 2020-06-30]]
- *
- * DATA:
- *
- * Recall that a group is constituted by records that have the same (raw) values
- * for a list of fields. Thus the group itself is identified by this list.
- *
- * In the above table, the following groups are found:
- *
- *      the 'row groups'
- *      - Total
- *      - Europe
- *      - America
- *      - Europe, Brussels
- *      - Europe, Paris
- *      - America, Washington
- *
- *      the 'col groups'
- *
- *      - Total
- *      - Sale Team 1
- *      - Sale Team 2
- *
- *      and all non trivial combinations of row groups and col groups
- *
- *      - Europe, Sale Team 1
- *      - Europe, Brussels, Sale Team 2
- *      - America, Washington, Sale Team 1
- *      - ...
- *
- * The list of fields is created from the concatenation of two lists of fields, the first in
- *
- * [], [f1], [f1, f2], ... [f1, f2, ..., fn]  for [f1, f2, ..., fn] the full list of groupbys
- * (called rowGroupBys) used to create row groups
- *
- * In the example: [], [continent_id], [continent_id, city_id].
- *
- * and the second in
- * [], [g1], [g1, g2], ... [g1, g2, ..., gm]  for [g1, g2, ..., gm] the full list of groupbys
- * (called colGroupBys) used to create col groups.
- *
- * In the example: [], [sale_team_id].
- *
- * Thus there are (n+1)*(m+1) lists of fields possible.
- *
- * In the example: 6 lists possible, namely [],
- *                                          [continent_id], [sale_team_id],
- *                                          [continent_id, sale_team_id], [continent_id, city_id],
- *                                          [continent_id, city_id, sale_team_id]
- *
- * A given list is thus of the form [f1,..., fi, g1,..., gj] or better [[f1,...,fi], [g1,...,gj]]
- *
- * For each list of fields possible, one read_group is done
- * and gives results of the form (an exception for list [])
- *
- * g = {
- *  f1: v1, ..., fi: vi,
- *  g1: w1, ..., gj: wj,
- *  m1: x1, ..., mk: xk,
- *  __count: c,
- *  __domain: d
- * }
- *
- * where v1,...,vi,w1,...,Wj are 'values' for the corresponding fields and
- * m1,...,mk are the fields selected as measures.
- *
- * For example, g = {
- *      continent_id: [1, 'Europe']
- *      sale_team_id: [1, 'Sale Team 1']
- *      sales_count: 25,
- *      __count: 4
- *      __domain: [
- *                  ['sale_date', >=, 2020-06-01], ['sale_date', '<=', 2020-06-30],
- *                  ['continent_id', '=', 1],
- *                  ['sale_team_id', '=', 1]
- *                ]
- * }
- *
- * Thus the above group g is fully determined by [[v1,...,vi], [w1,...,wj]].
- *
- * When j=0, g corresponds to a row group (or also row header) and is of the form [[v1,...,vi], []] or [v1,...vi]
- * (not forgetting the list [v1,...vi] comes from left).
- * When i=0, g corresponds to a col group (or col header) and is of the form [[], [w1,...,wj]] or [w1,...,wj].
- *
- * A generic group g as above [[v1,...,vi], [w1,...,wj]] corresponds to the two headers [[v1,...,vi], []]
- * and [[], [w1,...,wj]].
- *
- * Here is a description of the data structure manipulated by the pivot model.
- *
- * Five objects contain all the data from the read_groups
- *
- *      - rowGroupTree: contains information on row headers
- *             the nodes correspond to the groups of the form [[v1,...,vi], []]
- *             The root is [[], []].
- *             A node [[v1,...,vl], []] has as direct children the nodes of the form [[v1,...,vl,v], []],
- *             this means that a direct child is obtained by grouping records using the single field fi+1
- *
- *             The structure at each level is of the form
- *
- *             {
- *                  root: {
- *                      values: [v1,...,vl],
- *                      labels: [label1,...,labedll]
- *                  },
- *                  directSubTrees: {
- *                      v => {
- *                              root: {
- *                                  values: [v1,...,vl,v]
- *                                  labels: [label1,...,labell,label]
- *                              },
- *                              directSubTrees: {...}
- *                          },
- *                      v' => {...},
- *                      ...
- *                  }
- *             }
- *
- *             (directSubTrees is a Map instance)
- *
- *             In the example, the rowGroupTree is:
- *
- *             {
- *                  root: {
- *                      values: [],
- *                      labels: []
- *                  },
- *                  directSubTrees: {
- *                      1 => {
- *                              root: {
- *                                  values: [1],
- *                                  labels: ['Europe'],
- *                              },
- *                              directSubTrees: {
- *                                  1 => {
- *                                          root: {
- *                                              values: [1, 1],
- *                                              labels: ['Europe', 'Brussels'],
- *                                          },
- *                                          directSubTrees: new Map(),
- *                                  },
- *                                  2 => {
- *                                          root: {
- *                                              values: [1, 2],
- *                                              labels: ['Europe', 'Paris'],
- *                                          },
- *                                          directSubTrees: new Map(),
- *                                  },
- *                              },
- *                          },
- *                      2 => {
- *                              root: {
- *                                  values: [2],
- *                                  labels: ['America'],
- *                              },
- *                              directSubTrees: {
- *                                  3 => {
- *                                          root: {
- *                                              values: [2, 3],
- *                                              labels: ['America', 'Washington'],
- *                                          }
- *                                          directSubTrees: new Map(),
- *                                  },
- *                              },
- *                      },
- *                  },
- *             }
- *
- *      - colGroupTree: contains information on col headers
- *              The same as above with right instead of left
- *
- *      - measurements: contains information on measure values for all the groups
- *
- *              the object keys are of the form JSON.stringify([[v1,...,vi], [w1,...,wj]])
- *              and objects values are of the form {m1: x1,...,mk: xk}
- *              The structure looks like
- *
- *              {
- *                  JSON.stringify([[], []]): {m1: x1,...,mk: xk}
- *                  ....
- *                  JSON.stringify([[v1,...,vi], [w1,...,wj]]): {m1: y1,...,mk: yk},
- *                  ....
- *                  JSON.stringify([[v1,...,vn], [w1,...,wm]]): {m1: z1,...,mk: zk},
- *              }
- *              Thus the structure contains all information for all groups on measure values.
- *
- *
- *              this.measurments["[[], []]"]['foo'] gives the value of the measure 'foo' for the group 'Total'.
- *
- *              In the example:
- *                  {
- *                      "[[], []]": {'sales_total': 140}           (total/total)
- *                      ...
- *                      "[[1, 2], [2]]": {'sales_total': 0}        (Europe/Paris/Sale Team 2)
- *                      ...
- *                  }
- *
- *      - counts: contains information on the number of records in each groups
- *              The structure is similar to the above but the values are numbers (counts)
- *      - groupDomains:
- *              The structure is similar to the above but the values are domains
- *
- *      With this light data structures, all manipulation done by the model are eased and redundancies are limited.
- *      Each time a rendering or an export of the data has to be done, the pivot table is generated by the getTable function.
- */
 
 /**
  * @typedef Meta
@@ -324,10 +72,6 @@ import { getGroupBySpecs, getGroupDomain } from "./pivot_value_utils.js";
  * @property {any} data
  */
 
-/**
- * Sentinel resolved by ``_keepLastAdd`` when the awaited request was
- * superseded by a newer one (see the concurrency policy on PivotModel).
- */
 const SUPERSEDED = Symbol("superseded");
 
 export class PivotModel extends Model {
@@ -350,7 +94,7 @@ export class PivotModel extends Model {
      * @param {string[]} [params.metaData.expandedColGroupBys=[]]
      * @param {string[]} [params.metaData.expandedRowGroupBys=[]]
      * @param {Object|null} [params.metaData.sortedColumn=null]
-     * @param {Object} [params.data] previously exported data
+     * @param {Object} [params.data]
      */
     setup(params) {
         this.keepLast = new KeepLast();
@@ -361,10 +105,6 @@ export class PivotModel extends Model {
         /** @type {(...args: any[]) => any} */
         const _loadData = this._loadData.bind(this);
         /**
-         * Was a shared ``Race``, which broke both jobs it was doing here — see
-         * {@link InFlight}: callers got whichever load finished first instead of
-         * their own result, and the "a load is running" guard went idle while
-         * later loads were still pending.
          * @type {any}
          */
         this._loadData = (...args) => this.loads.track(_loadData(...args));
@@ -405,11 +145,10 @@ export class PivotModel extends Model {
         this.reload = false;
         this.lastPivotMeasuresKey = undefined;
         this.nextActiveMeasures = null;
+        this.measureToggleEpoch = 0;
     }
 
     /**
-     * Add a groupBy to rowGroupBys or colGroupBys according to provided type.
-     *
      * @param {Object} params
      * @param {Array[]} params.groupId
      * @param {string} params.fieldName
@@ -468,8 +207,6 @@ export class PivotModel extends Model {
         });
     }
     /**
-     * Close the group with id given by groupId.
-     *
      * @param {Array[]} groupId
      * @param {'row'|'col'} type
      */
@@ -544,9 +281,6 @@ export class PivotModel extends Model {
             this.notify();
         });
     }
-    /**
-     * Reload the view with the current rowGroupBys and colGroupBys.
-     */
     async expandAll() {
         if (this.loads.isBusy) {
             return;
@@ -557,8 +291,6 @@ export class PivotModel extends Model {
         }
     }
     /**
-     * Expand a group by using groupBy to split it and trigger a re-rendering.
-     *
      * @param {string} groupId
      * @param {'row'|'col'} type
      */
@@ -578,17 +310,11 @@ export class PivotModel extends Model {
         });
     }
     /**
-     * Export model data in a form suitable for an easy encoding of the pivot
-     * table in Excel.
-     *
      * @returns {Object}
      */
     exportData() {
         return formatPivotForExport(this.getTable(), this.metaData);
     }
-    /**
-     * Swap the pivot columns and the rows.
-     */
     async flip() {
         await this.loads.whenIdle();
         await this.expandMutex.exec(async () => {
@@ -630,8 +356,6 @@ export class PivotModel extends Model {
         });
     }
     /**
-     * Returns a domain representation of a group.
-     *
      * @param {Object} group
      * @returns {Array[]}
      */
@@ -640,8 +364,6 @@ export class PivotModel extends Model {
         return getGroupDomain(group, config);
     }
     /**
-     * Returns a description of the pivot table.
-     *
      * @returns {Object}
      */
     getTable() {
@@ -657,11 +379,6 @@ export class PivotModel extends Model {
         };
     }
     /**
-     * Returns the total number of columns of the pivot table, as exported to
-     * XLSX: the row-title column, one column per leaf column group and per
-     * active measure, and the "Total" column group (one column per active
-     * measure) when there is more than one leaf.
-     *
      * @returns {number}
      */
     getTableWidth() {
@@ -674,7 +391,7 @@ export class PivotModel extends Model {
         );
     }
     /**
-     * @returns {boolean} true iff there's no data in the table
+     * @returns {boolean}
      */
     hasData() {
         return hasData(this.data);
@@ -689,7 +406,6 @@ export class PivotModel extends Model {
         const pivotMeasuresKey = JSON.stringify(rawPivotMeasures ?? null);
         let processedMeasures = null;
         if (pivotMeasuresKey !== this.lastPivotMeasuresKey) {
-            this.lastPivotMeasuresKey = pivotMeasuresKey;
             processedMeasures = processMeasure(rawPivotMeasures);
         }
         const activeMeasures = processedMeasures || this.metaData.activeMeasures;
@@ -701,7 +417,6 @@ export class PivotModel extends Model {
                         ? searchParams.groupBy
                         : metaData.rowGroupBys)),
             ];
-            this.reload = true;
         } else {
             metaData.rowGroupBys = [
                 ...(searchParams.groupBy.length
@@ -748,11 +463,12 @@ export class PivotModel extends Model {
             metaData.fields,
             new Set([...metaData.rowGroupBys, ...metaData.colGroupBys]),
         );
-        return this._loadData(config);
+        if (await this._loadData(config)) {
+            this.reload = true;
+            this.lastPivotMeasuresKey = pivotMeasuresKey;
+        }
     }
     /**
-     * Sort the rows, depending on the values of a given column.
-     *
      * @param {Object} sortedColumn
      */
     sortRows(sortedColumn) {
@@ -766,9 +482,6 @@ export class PivotModel extends Model {
         this.notify();
     }
     /**
-     * Toggle the active state for a given measure, then reload the data
-     * if this turns out to be necessary.
-     *
      * @param {string} fieldName
      * @returns {Promise}
      */
@@ -777,32 +490,36 @@ export class PivotModel extends Model {
             ...this.metaData.activeMeasures,
         ];
         const activeMeasures = this.nextActiveMeasures;
+        const epoch = ++this.measureToggleEpoch;
         const index = activeMeasures.indexOf(fieldName);
-        if (index !== -1) {
-            activeMeasures.splice(index, 1);
-            while (this.loads.isBusy) {
-                await this.loads.whenIdle();
+        try {
+            if (index !== -1) {
+                activeMeasures.splice(index, 1);
+                while (this.loads.isBusy) {
+                    await this.loads.whenIdle();
+                }
+                const metaData = this._buildMetaData();
+                metaData.activeMeasures = activeMeasures;
+                this.metaData = metaData;
+            } else {
+                activeMeasures.push(fieldName);
+                const metaData = this._buildMetaData();
+                metaData.activeMeasures = activeMeasures;
+                const config = { metaData, data: this.data };
+                if (!(await this._loadData(config))) {
+                    return;
+                }
+                this.useSampleModel = false;
             }
-            const metaData = this._buildMetaData();
-            metaData.activeMeasures = activeMeasures;
-            this.metaData = metaData;
-        } else {
-            activeMeasures.push(fieldName);
-            const metaData = this._buildMetaData();
-            metaData.activeMeasures = activeMeasures;
-            const config = { metaData, data: this.data };
-            if (!(await this._loadData(config))) {
-                return;
+            this.notify();
+        } finally {
+            if (epoch === this.measureToggleEpoch) {
+                this.nextActiveMeasures = null;
             }
-            this.useSampleModel = false;
         }
-        this.nextActiveMeasures = null;
-        this.notify();
     }
 
     /**
-     * Return a copy of this.metaData, extended with optional params.
-     *
      * @protected
      * @param {Object} params
      * @returns {Object}
@@ -832,14 +549,11 @@ export class PivotModel extends Model {
         return metaData;
     }
     /**
-     * Expand a group by using groupBy to split it.
-     *
      * @protected
      * @param {Array[]} groupId
      * @param {'row'|'col'} type
      * @param {Config} config
-     * @returns {Promise<boolean>} false when the expansion was superseded by
-     *   a newer request and its result discarded
+     * @returns {Promise<boolean>}
      */
     async _expandGroup(groupId, type, config) {
         const { metaData } = config;
@@ -870,16 +584,9 @@ export class PivotModel extends Model {
     }
 
     /**
-     * Register ``promise`` on the shared ``this.keepLast``, but always
-     * settle: ``KeepLast.add``'s wrapper never resolves once superseded,
-     * which would leave a mutexed caller (expandGroup/addGroupBy) pending
-     * forever and wedge every queued mutation behind it. Instead, resolve
-     * with the SUPERSEDED sentinel as soon as a newer request is registered,
-     * so callers can discard their stale result and release the mutex.
-     *
      * @protected
      * @param {Promise<any>} promise
-     * @returns {Promise<any>} the promise result, or SUPERSEDED
+     * @returns {Promise<any>}
      */
     _keepLastAdd(promise) {
         for (const notifySuperseded of this._supersessionWatchers) {
@@ -908,18 +615,10 @@ export class PivotModel extends Model {
     }
 
     /**
-     * Initialize/Reinitialize data and subdivide the group 'Total'.
-     *
      * @protected
      * @param {Config} config
      * @param {boolean} prune
-     * @returns {Promise<boolean>} false when the fetch was superseded by a newer
-     *   request and this load's result discarded — same contract as
-     *   ``_subdivideGroup`` / ``_expandGroup``, so callers skip their follow-up
-     *   (notify, flag updates) instead of acting on data that never landed.
-     *   This used to return a promise that never settled, which left the
-     *   awaiting caller — and any mutation queued behind it — pending forever
-     *   whenever the shared ``race`` did not happen to settle it first.
+     * @returns {Promise<boolean>}
      */
     async _loadData(config, prune = true) {
         config.data = /** @type {any} */ ({});
@@ -969,9 +668,6 @@ export class PivotModel extends Model {
         return true;
     }
     /**
-     * Extract the information in the read_group results and develop
-     * rowGroupTree, colGroupTree, measurements, counts, and groupDomains.
-     *
      * @protected
      * @param {Object} group
      * @param {Object[]} groupSubdivisions
@@ -983,14 +679,11 @@ export class PivotModel extends Model {
         });
     }
     /**
-     * Get all partitions of a given group and enrich data structures.
-     *
      * @protected
      * @param {Object} group
      * @param {Array[]} divisors
      * @param {Config} config
-     * @returns {Promise<boolean>} false when the fetch was superseded by a
-     *   newer request and its result discarded
+     * @returns {Promise<boolean>}
      */
     async _subdivideGroup(group, divisors, config) {
         const { data } = config;
@@ -1052,8 +745,6 @@ export class PivotModel extends Model {
         return true;
     }
     /**
-     * Sort the rows, depending on the values of a given column.
-     *
      * @protected
      * @param {Object} sortedColumn
      * @param {Config} config

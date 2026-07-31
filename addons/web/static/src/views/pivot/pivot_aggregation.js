@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_aggregation - Walks groupSubdivisions and writes measurements/currencies/counts/domains into the in-memory pivot data tree */
+/** @module @web/views/pivot/pivot_aggregation */
 
 import { Domain } from "@web/core/domain";
 
@@ -14,24 +14,11 @@ import {
 import { getGroupLabels, getGroupValues } from "./pivot_value_utils.js";
 
 /**
- * @typedef {object} PivotAggregateDeps
+ * @typedef {Record<string, any>} PivotAggregateDeps
  * @property {(sortedColumn: any, config: any) => void} sortRows
- *   Renderer-supplied row sort, called after new measurements land when
- *   `metaData.sortedColumn` is set. Kept on the model so subclass overrides
- *   of `_sortRows` still apply.
  */
 
 /**
- * Fold `groupSubdivisions` into the pivot's in-memory `data` tree: concatenates
- * row/col values+labels with the parent group's coordinates, inserts the node
- * into `rowGroupTree`/`colGroupTree` only for the single-axis case (dual-axis
- * cells share an existing branch and are never double-inserted), and writes
- * measurements/currencyIds/counts/groupDomains keyed by (rowValues, colValues).
- * A missing `__domain` maps to `Domain.FALSE` so clicking that cell opens an
- * empty list instead of erroring server-side.
- *
- * MUTATES `config.data` — same contract as the original `PivotModel._prepareData`.
- *
  * @param {{ rowValues: any[]; colValues: any[] }} group
  * @param {Array<{ subGroups: any[]; rowGroupBy: any; colGroupBy: any }>} groupSubdivisions
  * @param {any} config
