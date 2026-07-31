@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/group_postprocessor - Recursive postprocessor for web_read_group responses */
+/** @module @web/model/relational_model/group_postprocessor */
 
 import { Domain } from "@web/core/domain";
 
@@ -12,39 +12,14 @@ import { extractInfoFromGroupData } from "./field_values.js";
 
 /**
  * @typedef {object} PostprocessReadGroupDeps
- * @property {(config: RelationalModelConfig, propertyFullName: string) => Promise<void>}
- *   getPropertyDefinition Forwarded to ``RelationalModel._getPropertyDefinition``
- *   to lazily fetch the property arch the first time the user groups by it.
+ * @property {(config: RelationalModelConfig, propertyFullName: string) => Promise<void>} getPropertyDefinition
  * @property {Record<string, { activeFields: Record<string, any>; fields: Record<string, any> }>} groupByInfo
- *   Per-groupBy record-spec overrides, same shape as {@link buildWebReadGroupParams};
- *   passed in so the postprocessor stays decoupled from the model class.
- * @property {number} initialLimit Per-group default record limit at
- *   the deepest groupBy level.
- * @property {number} initialGroupsLimit Per-group default group limit
- *   when there are still nested groupBy axes below this level.
- * @property {number} defaultGroupLimit Fallback when
- *   ``initialGroupsLimit`` is unset; mirrors
- *   ``RelationalModel.DEFAULT_GROUP_LIMIT``.
+ * @property {number} initialLimit
+ * @property {number} initialGroupsLimit
+ * @property {number} defaultGroupLimit
  */
 
 /**
- * Postprocess a ``web_read_group`` response into the shape the client model
- * expects. Two responsibilities:
- *
- *   1. **Per-group config seeding** — every server group is mapped back to a
- *      cached ``config.groups[<value>]`` entry, seeded fresh or patched in
- *      place so reload doesn't reset pagination state the user opened
- *      manually.
- *
- *   2. **Sticky-empty insertion** — if the same query re-runs and a group
- *      drops out of the response (e.g. records moved out via kanban drag),
- *      re-insert it with empty records / zeroed aggregates so the column
- *      doesn't vanish mid-flow. Gated on the ``params`` hash matching — a
- *      fresh filter/sort starts clean.
- *
- * MUTATES ``config.groups`` and ``config.currentGroups`` (same contract as
- * the original method); returns the public ``{ groups, length }`` shape.
- *
  * @param {RelationalModelConfig} config
  * @param {{ groups: any[]; length: number }} response
  * @param {PostprocessReadGroupDeps} deps
@@ -97,6 +72,7 @@ export async function postprocessReadGroup(config, response, deps) {
                 currentConfig.groupBy,
                 currentConfig.fields,
                 currentConfig.domain,
+                currentConfig.fieldsToAggregate,
             );
             if (!currentConfig.groups[group.value]) {
                 currentConfig.groups[group.value] = {
@@ -175,25 +151,17 @@ export async function postprocessReadGroup(config, response, deps) {
         config.orderBy,
     ]);
     if (config.currentGroups && config.currentGroups.params === params) {
-        const currentGroups = config.currentGroups.groups;
-        const newGroupIndex = new Map();
-        groups.forEach((g, i) => {
-            const key = JSON.stringify(g.value);
-            if (!newGroupIndex.has(key)) {
-                newGroupIndex.set(key, i);
-            }
-        });
+        const currentGroups = /** @type {any[]} */ (config.currentGroups.groups);
+        const mergedKeys = groups.map((g) => JSON.stringify(g.value));
+        const survivingKeys = new Set(mergedKeys);
         let cursor = 0;
         for (const group of currentGroups) {
             const key = JSON.stringify(group.value);
-            if (newGroupIndex.has(key)) {
-                const index = newGroupIndex.get(key);
-                if (index >= cursor) {
-                    cursor = index + 1;
-                }
+            if (survivingKeys.has(key)) {
+                cursor = Math.max(cursor, mergedKeys.indexOf(key) + 1);
                 continue;
             }
-            if (config.groups[group.value]) {
+            if (/** @type {Record<string, any>} */ (config.groups)[group.value]) {
                 const aggregates = { ...group.aggregates };
                 for (const aggKey of Object.keys(aggregates)) {
                     aggregates[aggKey] = Array.isArray(aggregates[aggKey]) ? [] : 0;
@@ -206,6 +174,7 @@ export async function postprocessReadGroup(config, response, deps) {
                     groups: [],
                     aggregates,
                 });
+                mergedKeys.splice(cursor, 0, key);
                 cursor++;
             }
         }

@@ -18,6 +18,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred, mockSendBeacon } from "@odoo/hoot-mock";
 import { markRaw } from "@odoo/owl";
+import { RECORD_STATE_TRANSITIONS } from "@web/../tests/model/relational_model/record_doubles";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { FetchRecordError } from "@web/model/relational_model/errors";
 import { RelationalRecord } from "@web/model/relational_model/record";
@@ -71,6 +72,7 @@ function makeRecord({
         _values: markRaw({}),
         _checkValidity: () => validity,
         _getChanges: () => ({ ...changes }),
+        ...RECORD_STATE_TRANSITIONS,
         _clearChanges() {
             this._changes = markRaw({});
             this.dirty = false;
@@ -403,6 +405,7 @@ describe("urgent save (sendBeacon path)", () => {
             _checkValidity: () => true,
             _getChanges: () => ({ lines: list._getCommands() }),
             clearChangesCalls: 0,
+            ...RECORD_STATE_TRANSITIONS,
             _clearChanges() {
                 this.clearChangesCalls++;
                 this._changes = markRaw({});

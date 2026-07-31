@@ -1,18 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_validator - Validation orchestration: unset-required scan, invalid-field set management, and notification routing */
-
-/**
- * Validation logic for Record field values. {@link findUnsetRequiredFields} is
- * a pure scan (exported for unit testing); the orchestration helpers below
- * (checkValidity, setInvalidField, resetFieldValidity, removeInvalidFields,
- * displayInvalidFieldNotification) take the RelationalRecord as first arg
- * and mutate its `_invalidFields` / `_unsetRequiredFields` /
- * `_closeInvalidFieldsNotification` state. RelationalRecord's own methods
- * remain thin delegators so sibling files (dynamic_list.js, record_save.js,
- * static_list.js) can still call `record._checkValidity(...)`.
- */
+/** @module @web/model/relational_model/record_validator */
 
 import { toRaw } from "@odoo/owl";
 
@@ -21,20 +10,14 @@ import { isX2Many } from "./field_context.js";
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
- * Determine which required fields are unset or invalid (empty string for
- * html, zero count for x2many, etc.), skipping invisible and
- * property-derived fields.
- *
  * @param {Object} activeFields
- * @param {Object} fields - field definitions
- * @param {Object} data - current record data
+ * @param {Object} fields
+ * @param {Object} data
  * @param {Object} callbacks
  * @param {(fieldName: string) => boolean} callbacks.isInvisible
  * @param {(fieldName: string) => boolean} callbacks.isRequired
  * @param {(fieldName: string, list: Object) => boolean} callbacks.isChildListValid
- *     Validates x2many child records (field name + StaticList datapoint);
- *     true if all children are valid.
- * @returns {Set<string>} field names of unset required fields
+ * @returns {Set<string>}
  */
 export function findUnsetRequiredFields(
     activeFields,
@@ -109,30 +92,9 @@ export function findUnsetRequiredFields(
 }
 
 /**
- * Run validation on a record and update its invalid-field state in place.
- * Optionally surface a UI notification when invalid fields are detected.
- *
- * Three mutually exclusive modes:
- *   - **silent**: scan only, no mutation; returns whether no required field
- *     is unset.
- *   - **removeInvalidOnly**: prune stale entries from `_unsetRequiredFields`
- *     (and matching `_invalidFields`) without touching invalid-input flags
- *     set by {@link setInvalidField}. Used by `_applyChanges` to re-validate
- *     after edits. Since it only prunes, the scan is scoped to
- *     currently-flagged fields (further narrowed by `scopedFields` when
- *     given) — safe because unset-required status is per-field-local, and
- *     x2many fields are always re-checked (a child's validity can depend on
- *     an invisible `parent.*` reference).
- *   - **default**: replace `_unsetRequiredFields` with a fresh full scan;
- *     invalid-input flags (set via {@link setInvalidField}) survive since
- *     they live in `_invalidFields` but aren't tracked there.
- *
- * Child x2many validation recurses through each child's own
- * `_checkValidity`, so per-class overrides still apply.
- *
  * @param {RelationalRecord} record
  * @param {{ silent?: boolean, displayNotification?: boolean, removeInvalidOnly?: boolean, scopedFields?: Set<string> }} [options]
- * @returns {boolean} `true` when the record has no invalid fields after the scan
+ * @returns {boolean}
  */
 export function checkValidity(
     record,
@@ -147,7 +109,7 @@ export function checkValidity(
                 if (!membership.has(r.resId || r._virtualId)) {
                     return true;
                 }
-                if (!r.dirty) {
+                if (!r.hasPendingChanges) {
                     return true;
                 }
                 if (removeInvalidOnly && r.isValid) {
@@ -227,16 +189,6 @@ export function checkValidity(
 }
 
 /**
- * Flag a field invalid after user input failed type validation. In
- * multi-edit, if the record is part of the selection and isn't the one
- * being actively discarded, surfaces the notification, discards the
- * record, and forces it back to readonly so the cohort stays coherent.
- *
- * Invariant I2 (synchronous dirty mark) is preserved at the class-method
- * call site, not here — this helper assumes `record.dirty` is already set.
- * Idempotent (no-op if already invalid) and respects the
- * `onWillSetInvalidField` lifecycle hook's veto.
- *
  * @param {RelationalRecord} record
  * @param {string} fieldName
  * @returns {Promise<void>}
@@ -265,12 +217,6 @@ export async function setInvalidField(record, fieldName) {
 }
 
 /**
- * Clear a single field's invalid flag — typically called by field
- * widgets after the user corrects an input that previously failed
- * type validation (e.g. domain editor accepting an edit). Does not
- * touch ``_unsetRequiredFields``: a field can be invalid AND unset
- * simultaneously; this helper only removes the invalid-input flag.
- *
  * @param {RelationalRecord} record
  * @param {string} fieldName
  */
@@ -279,11 +225,6 @@ export function resetFieldValidity(record, fieldName) {
 }
 
 /**
- * Bulk variant of {@link resetFieldValidity}: clear invalid flags for
- * an arbitrary number of field names. Used by ``_applyChanges`` to mark
- * changed fields as valid before re-running ``checkValidity`` in
- * ``removeInvalidOnly`` mode.
- *
  * @param {RelationalRecord} record
  * @param {...string} fieldNames
  */
@@ -294,14 +235,8 @@ export function removeInvalidFields(record, ...fieldNames) {
 }
 
 /**
- * Surface the "invalid fields" UI notification via the model's
- * ``hooks.ui.onDisplayInvalidFields`` hook. Returns the hook's close
- * callback so the caller (or a later ``discard`` / ``_setData``
- * lifecycle event) can dismiss the toast when the invalid state is
- * resolved.
- *
  * @param {RelationalRecord} record
- * @returns {() => void} close callback for the displayed notification
+ * @returns {() => void}
  */
 export function displayInvalidFieldNotification(record) {
     return record.model.hooks.ui.onDisplayInvalidFields();

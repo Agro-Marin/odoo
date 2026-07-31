@@ -1,17 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/dynamic_list - Abstract paginated list with sorting, domain filtering, and drag-and-drop resequencing */
+/** @module @web/model/relational_model/dynamic_list */
 
 import { _t } from "@web/core/l10n/translation";
 import { unique } from "@web/core/utils/collections/arrays";
+import { Operation } from "@web/core/utils/operation";
 
 import { x2ManyCommands } from "./commands.js";
 import { buildKnownValuesKwargs } from "./concurrency_baseline.js";
 import { DataPoint } from "./datapoint.js";
-import { getBasicEvalContext, isX2Many } from "./field_context.js";
+import { getSpecEvalContext, isX2Many } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
-import { Operation } from "./operation.js";
 import { RelationalRecord } from "./record.js";
 import { resequence } from "./resequence.js";
 import { computeNextOrderBy } from "./static_list_utils.js";
@@ -36,7 +36,27 @@ export class DynamicList extends DataPoint {
             this.handleField = DEFAULT_HANDLE_FIELD;
         }
         this.isDomainSelected = false;
-        this.evalContext = this.context;
+    }
+
+    /**
+     * Same shape as `StaticList#evalContext` and `RelationalRecord#evalContext`:
+     * a modifier written against `uid` or `allowed_company_ids` must evaluate
+     * the same way in a top-level list as it does inside an x2many.
+     *
+     * @returns {Record<string, any>}
+     */
+    get evalContext() {
+        return getSpecEvalContext(this.config);
+    }
+
+    /**
+     * @param {string} name
+     * @returns {never}
+     */
+    _abstract(name) {
+        throw new Error(
+            `${this.constructor.name} must implement DynamicList#${name}()`,
+        );
     }
 
     /**
@@ -47,13 +67,17 @@ export class DynamicList extends DataPoint {
      * @param {import("@web/core/domain").DomainListRepr} _domain
      * @returns {Promise<any>}
      */
-    async _load(_offset, _limit, _orderBy, _domain) {}
+    async _load(_offset, _limit, _orderBy, _domain) {
+        this._abstract("_load");
+    }
 
     /**
      * @abstract
      * @param {(string | number)[]} _recordIds
      */
-    _removeRecords(_recordIds) {}
+    _removeRecords(_recordIds) {
+        this._abstract("_removeRecords");
+    }
 
     /**
      * @abstract
@@ -61,7 +85,7 @@ export class DynamicList extends DataPoint {
      * @returns {number}
      */
     _getDPresId(_dp) {
-        return 0;
+        return this._abstract("_getDPresId");
     }
 
     /**
@@ -70,12 +94,11 @@ export class DynamicList extends DataPoint {
      * @param {string} _handleField
      * @returns {any}
      */
-    _getDPFieldValue(_dp, _handleField) {}
+    _getDPFieldValue(_dp, _handleField) {
+        this._abstract("_getDPFieldValue");
+    }
 
     /**
-     * List of records. Subclasses must override with their own getter:
-     * - DynamicRecordList: backed by `_records` field
-     * - DynamicGroupList: computed from groups
      * @abstract
      * @returns {RelationalRecord[]}
      */
@@ -95,10 +118,6 @@ export class DynamicList extends DataPoint {
         return this.config.domain;
     }
 
-    /**
-     * Be careful that this getter is costly, as it iterates over the whole list
-     * of records. This property should not be accessed in a loop.
-     */
     get editedRecord() {
         return this.records.find((record) => record.isInEdition);
     }
@@ -108,14 +127,6 @@ export class DynamicList extends DataPoint {
     }
 
     /**
-     * Number of records matching the domain.
-     *
-     * For a flat list this is simply ``count``, but ``DynamicGroupList``
-     * overrides ``count`` to mean the number of GROUPS (see its ``_setData``).
-     * Any bulk-operation guard that reasons about how many *records* the user
-     * selected must read this getter, never ``count`` directly — otherwise the
-     * comparison silently degrades to "records vs groups" on a grouped list.
-     *
      * @returns {number}
      */
     get recordCount() {
@@ -130,10 +141,6 @@ export class DynamicList extends DataPoint {
         return this.config.offset;
     }
 
-    /**
-     * Be careful that this getter is costly, as it iterates over the whole list
-     * of records. This property should not be accessed in a loop.
-     */
     get selection() {
         return this.records.filter((record) => record.selected);
     }
@@ -208,24 +215,6 @@ export class DynamicList extends DataPoint {
                 await this.model._askChanges();
             }
             if (!discard && this.editedRecord) {
-                // SECOND flush, and it is load-bearing — not a copy-paste. It
-                // mirrors the historical two-stage prelude (public
-                // ``checkValidity()`` then public ``save()``, each of which ran
-                // ``model._askChanges``), and buys two things the first flush
-                // cannot:
-                //   - reactions the FIRST flush triggered settle in between
-                //     (multi-edit ``setInvalidField`` → notification → discard
-                //     → switch to readonly, which is why the guard re-reads
-                //     ``this.editedRecord`` instead of reusing the snapshot);
-                //   - a commit that failed validation during the first flush is
-                //     re-committed here, so it re-raises its invalid-field
-                //     reaction — browsers can fire an input's ``change`` after
-                //     focus has already left the row.
-                // ``_askChanges`` settles compound updates to a fixed point but
-                // does NOT re-run the bus round, so it cannot subsume this.
-                // The call counts are pinned by
-                // dynamic_list_ask_changes_calls.test.js; this comment was lost
-                // once already and the bare duplicate reads as dead code.
                 await this.model._askChanges();
             }
             return await this.model.mutex.exec(() => this._leaveEditMode({ discard }));
@@ -339,14 +328,8 @@ export class DynamicList extends DataPoint {
     }
 
     /**
-     * Core of {@link leaveEditMode}. Runs under ``model.mutex`` (or directly
-     * on the urgent tab-close path), so it must only use ``_``-prefixed
-     * record internals — the public ``save``/``discard``/``checkValidity``
-     * re-take the mutex. Pending edits are flushed by the caller's
-     * ``_askChanges`` prelude, mirroring ``StaticList.leaveEditMode``.
-     *
      * @param {{ discard?: boolean }} [options]
-     * @returns {Promise<boolean>} whether edit mode was left
+     * @returns {Promise<boolean>}
      */
     async _leaveEditMode({ discard } = {}) {
         let editedRecord = this.editedRecord;
@@ -473,16 +456,10 @@ export class DynamicList extends DataPoint {
         const resIds = unique(validRecords.map((r) => r.resId));
         const kwargs = {
             context: this.context,
-            // Same eval context as the single-record read-back in
-            // ``record_save.save``: ``evalPartialContext`` drops any spec
-            // context key whose free names it can't resolve, so omitting it
-            // silently stripped ``uid`` / ``allowed_company_ids``-dependent
-            // field contexts here but not there — the two paths re-read the
-            // same records and must do it under the same context.
             specification: getFieldsSpec(
                 editedRecord.activeFields,
                 editedRecord.fields,
-                getBasicEvalContext(editedRecord.config),
+                getSpecEvalContext(editedRecord.config),
             ),
         };
         let save;
@@ -598,10 +575,6 @@ export class DynamicList extends DataPoint {
     }
 
     /**
-     * Whether the given record is the one currently being discarded through
-     * ``leaveEditMode({ discard: true })``. Used by the multi-edit validation
-     * flow to skip selection side-effects on a deliberate discard.
-     *
      * @param {RelationalRecord} record
      * @returns {boolean}
      */
@@ -609,10 +582,6 @@ export class DynamicList extends DataPoint {
         return this._recordToDiscard === record;
     }
 
-    /**
-     * Called by a record when it is deselected: a partial deselection
-     * invalidates the "whole domain selected" state.
-     */
     _onRecordDeselected() {
         if (this.isDomainSelected) {
             this._selectDomain(false);

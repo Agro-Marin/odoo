@@ -1,23 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/read_group_builder - Pure assembly of the kwargs payload sent to web_read_group */
+/** @module @web/model/relational_model/read_group_builder */
 
 import { orderByToString } from "@web/core/utils/order_by";
 
-import { getBasicEvalContext } from "./field_context.js";
+import { getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { getAggregateSpecifications, getGroupServerValue } from "./field_values.js";
 
 /** @import { RelationalModelConfig } from "./relational_model.js" */
 
 /**
- * Walk the cached ``config.groups`` tree and emit the ``opening_info``
- * descriptor the server uses to decide which groups to expand and how many
- * records to fetch per group, mirroring each group's last known
- * limit/offset/folded state. Recursive: nested groups produce nested
- * ``groups: [...]`` arrays.
- *
  * @param {Record<string, any>} groups
  * @returns {Array<Record<string, any>>}
  */
@@ -45,18 +39,11 @@ function buildOpeningInfo(groups) {
 /**
  * @typedef {object} WebReadGroupBuilderDeps
  * @property {Record<string, { activeFields: Record<string, any>; fields: Record<string, any> }>} groupByInfo
- *   Per-groupBy override map; when set for an axis, its nested record is
- *   read via the override's spec instead of the parent config's.
- * @property {number} initialLimit Per-group record limit sent server-side
- *   as ``unfold_read_default_limit``.
+ * @property {number} initialLimit
  */
 
 /**
- * Assemble the ``aggregates`` array and ``kwargs`` dict for a
- * ``web_read_group`` RPC, piped by the caller into
- * ``orm.webReadGroup(model, domain, groupBy, aggregates, params)``.
- * Pure function: ``config`` supplies every per-call value, ``deps`` injects
- * the two model-level properties this assembly depends on.
+ * `config.groups` is established by `_loadGroupedList` before this runs.
  *
  * @param {RelationalModelConfig} config
  * @param {WebReadGroupBuilderDeps} deps
@@ -68,11 +55,14 @@ export function buildWebReadGroupParams(config, deps) {
         config.fields,
         config.fieldsToAggregate,
     );
-    const currentGroupInfos = buildOpeningInfo(config.groups);
+    const currentGroupInfos = buildOpeningInfo(
+        /** @type {Record<string, any>} */ (config.groups),
+    );
     const { activeFields, fields } = config;
-    const evalContext = getBasicEvalContext(config);
+    const evalContext = getSpecEvalContext(config);
     const unfoldReadSpecification = getFieldsSpec(activeFields, fields, evalContext);
 
+    /** @type {Record<string, any>} */
     const groupByReadSpecification = {};
     for (const groupBy of config.groupBy) {
         const groupInfo = groupByInfo[groupBy];

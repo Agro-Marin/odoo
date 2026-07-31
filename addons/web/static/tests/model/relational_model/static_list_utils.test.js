@@ -14,6 +14,8 @@ import {
     computeNextOrderBy,
 } from "@web/model/relational_model/static_list_utils";
 
+describe.current.tags("headless");
+
 const charFields = {
     name: { type: "char" },
     code: { type: "char" },
@@ -23,6 +25,7 @@ const m2oFields = {
     partner_id: { type: "many2one" },
 };
 
+/** @param {any} data */
 function makeRecord(data) {
     return { resId: data.id, data };
 }

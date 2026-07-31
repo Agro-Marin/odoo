@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/dynamic_record_list - Server-backed flat record list with pagination, CRUD, and domain-based selection */
+/** @module @web/model/relational_model/dynamic_record_list */
 
 import { DynamicList } from "./dynamic_list.js";
 
@@ -37,7 +37,7 @@ export class DynamicRecordList extends DynamicList {
     /**
      * @param {number} resId
      * @param {boolean} [atFirstPosition]
-     * @returns {Promise<RelationalRecord>} the newly created record
+     * @returns {Promise<RelationalRecord>}
      */
     addExistingRecord(resId, atFirstPosition) {
         return this.model.mutex.exec(async () => {
@@ -59,10 +59,6 @@ export class DynamicRecordList extends DynamicList {
         });
     }
 
-    /**
-     * search_count with the current domain, since web_search_read caps the
-     * count for performance and may undercount the real total.
-     **/
     async fetchCount() {
         this.count = await this.model._updateCount(this.config);
         this.hasLimitedCount = false;

@@ -16,6 +16,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
+import { ListMembership } from "@web/model/relational_model/list_membership";
 import { StaticList } from "@web/model/relational_model/static_list";
 import { sort } from "@web/model/relational_model/static_list_sort";
 
@@ -24,6 +25,8 @@ describe("extendRecord fields identity", () => {
         const listFields = { display_name: { type: "char", name: "display_name" } };
         const list = Object.create(StaticList.prototype);
         Object.assign(list, {
+            // Membership owner first: the keys below write through its accessors.
+            _membership: new ListMembership(),
             _config: {
                 activeFields: { display_name: makeActiveField() },
                 fields: listFields,
@@ -77,6 +80,8 @@ class FakeRecord {
 function makeBareList() {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
+        // Membership owner first: the keys below write through its accessors.
+        _membership: new ListMembership(),
         _config: {
             activeFields: {},
             fields: { name: { type: "char" } },
@@ -99,6 +104,7 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
             resId: 1,
             _virtualId: null,
             dirty: true,
+            hasPendingChanges: true,
             _changes: { child_ids: "PENDING_UPDATE" },
             appliedWith: null,
             _applyValues(data) {
@@ -123,6 +129,7 @@ describe("_createRecordDatapoint dirty-merge guard", () => {
         const clean = {
             resId: 2,
             dirty: false,
+            hasPendingChanges: false,
             _changes: {},
             _applyValues() {
                 throw new Error("clean records must be replaced, not merged");
@@ -142,6 +149,8 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
     test("dirty record keeps its _changes across a sort reload", async () => {
         const list = Object.create(StaticList.prototype);
         Object.assign(list, {
+            // Membership owner first: the keys below write through its accessors.
+            _membership: new ListMembership(),
             _config: {
                 activeFields: { name: makeActiveField(), other: makeActiveField() },
                 fields: { name: { type: "char" }, other: { type: "char" } },
@@ -166,6 +175,7 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
             resId: 1,
             _virtualId: null,
             dirty: true,
+            hasPendingChanges: true,
             _changes: { other: "PENDING_UPDATE" },
             data: { name: "" },
             _applyValues(data) {
@@ -192,7 +202,12 @@ describe("sort restricted-field reload preserves dirty datapoint", () => {
  */
 function makeBareStaticList({ records = [], handleField = "sequence" } = {}) {
     const list = Object.create(StaticList.prototype);
-    Object.assign(list, { records, handleField });
+    Object.assign(list, {
+        // Membership owner first: the keys below write through its accessors.
+        _membership: new ListMembership(),
+        records,
+        handleField,
+    });
     return list;
 }
 

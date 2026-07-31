@@ -1,14 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/field_metadata - ActiveField construction with visibility, readonly, and required modifiers */
+/** @module @web/model/relational_model/field_metadata */
 
 /**
- * @param {boolean | string} value boolean or string encoding a python expression
- * @returns {string} string encoding a python expression
+ * @param {boolean | string} value
+ * @returns {string}
  */
 
 import { omit } from "@web/core/utils/collections/objects";
+
+import { invalidateAggregateSpecs } from "./field_values.js";
+import { invalidateModifierDependencies } from "./record_utils.js";
+
 function convertBoolToPyExpr(value) {
     if (value === true || value === false) {
         return value ? "True" : "False";
@@ -27,6 +31,38 @@ function convertBoolToPyExpr(value) {
  *   isHandle?: boolean;
  * }} ActiveFieldOptions
  */
+
+/**
+ * Registry validation for a `fieldDependencies` declaration, shared by the
+ * `fields` and `view_widgets` registries so the two cannot drift.
+ *
+ * Only `name` is required: {@link addFieldDependencies} reads `optional` and
+ * `readonly`, uses `type` solely to bootstrap an x2many `related` bucket, and
+ * forwards the rest to {@link makeActiveField}. Modifiers are python
+ * expressions as often as booleans, hence `[Boolean, String]`.
+ *
+ * The element schema must nest under `element`; a `shape` sibling of `element`
+ * is silently ignored by owl's validator (it checks `element` first).
+ */
+export const FIELD_DEPENDENCIES_VALIDATION = {
+    type: [
+        Function,
+        {
+            type: Array,
+            element: {
+                type: Object,
+                shape: {
+                    name: String,
+                    type: { type: String, optional: true },
+                    optional: { type: Boolean, optional: true },
+                    readonly: { type: [Boolean, String], optional: true },
+                    "*": true,
+                },
+            },
+        },
+    ],
+    optional: true,
+};
 
 /**
  * @param {ActiveFieldOptions} [options]
@@ -52,7 +88,32 @@ export function makeActiveField({
     };
 }
 
+/**
+ * @param {Record<string, any>} activeFields
+ * @returns {Record<string, any>}
+ */
+export function cloneActiveFields(activeFields) {
+    /** @type {Record<string, any>} */
+    const cloned = {};
+    for (const [fieldName, activeField] of Object.entries(activeFields)) {
+        const copy = { ...activeField };
+        if (copy.related) {
+            copy.related = {
+                ...copy.related,
+                activeFields: cloneActiveFields(copy.related.activeFields || {}),
+                fields: { ...(copy.related.fields || {}) },
+            };
+        }
+        cloned[fieldName] = copy;
+    }
+    return cloned;
+}
+
 export function addFieldDependencies(activeFields, fields, fieldDependencies = []) {
+    if (fieldDependencies.length) {
+        invalidateModifierDependencies(activeFields);
+        invalidateAggregateSpecs(fields);
+    }
     for (const field of fieldDependencies) {
         if (field.optional && !fields[field.name]) {
             continue;
@@ -90,6 +151,8 @@ export function addFieldDependencies(activeFields, fields, fieldDependencies = [
 
 function completeActiveField(activeField, extra) {
     if (extra.related) {
+        invalidateModifierDependencies(activeField.related.activeFields);
+        invalidateAggregateSpecs(activeField.related.fields);
         for (const fieldName of Object.keys(extra.related.activeFields)) {
             if (fieldName in activeField.related.activeFields) {
                 completeActiveField(
@@ -107,6 +170,7 @@ function completeActiveField(activeField, extra) {
 }
 
 export function completeActiveFields(activeFields, extraActiveFields) {
+    invalidateModifierDependencies(activeFields);
     for (const fieldName of Object.keys(extraActiveFields)) {
         const extraActiveField = {
             ...extraActiveFields[fieldName],
@@ -140,6 +204,20 @@ export function createPropertyActiveField(property) {
 }
 
 export function combineModifiers(mod1, mod2, operator) {
+    if (operator !== "AND" && operator !== "OR") {
+        throw new Error(
+            `Operator provided to "combineModifiers" must be "AND" or "OR", received ${operator}`,
+        );
+    }
+    if (
+        mod1 === mod2 &&
+        typeof mod1 === "string" &&
+        mod1 !== "True" &&
+        mod1 !== "False" &&
+        mod1 !== ""
+    ) {
+        return mod1;
+    }
     if (operator === "AND") {
         if (!mod1 || mod1 === "False" || !mod2 || mod2 === "False") {
             return "False";
@@ -163,9 +241,6 @@ export function combineModifiers(mod1, mod2, operator) {
         }
         return `(${mod1}) or (${mod2})`;
     }
-    throw new Error(
-        `Operator provided to "combineModifiers" must be "AND" or "OR", received ${operator}`,
-    );
 }
 
 export function patchActiveFields(activeField, patch) {
@@ -185,6 +260,8 @@ export function patchActiveFields(activeField, patch) {
     activeField.isHandle = activeField.isHandle || patch.isHandle;
     if (patch.related) {
         const related = activeField.related;
+        invalidateModifierDependencies(related.activeFields);
+        invalidateAggregateSpecs(related.fields);
         for (const fieldName of Object.keys(patch.related.activeFields)) {
             if (fieldName in related.activeFields) {
                 patchActiveFields(
@@ -306,23 +383,12 @@ export function extractFieldsFromArchInfo({ fieldNodes, widgetNodes }, fields) {
             addFieldDependencies(activeFields, fields, fieldDependencies);
         }
 
-        // `placeholder_field` is the one field-naming option consumed
-        // GENERICALLY — by `Field.fieldComponentProps` (@web/fields/field), for
-        // any widget that accepts a placeholder — so it needs a generic
-        // declaration too. Widget descriptors declare their own field-naming
-        // options through `fieldDependencies` above; this one has no descriptor
-        // to declare it, and eight widgets advertise it in `supportedOptions`.
-        // Without this it read `undefined` off a record that never loaded it and
-        // silently fell back to the static `placeholder` attribute.
         if (fieldNode.options?.placeholder_field) {
             addFieldDependencies(activeFields, fields, [
                 {
                     name: fieldNode.options.placeholder_field,
                     type: fields[fieldNode.options.placeholder_field]?.type,
                     readonly: true,
-                    // The option is authored by hand and may name a field this
-                    // model does not have; skip rather than inject a bogus name
-                    // into the read spec, which the server would reject.
                     optional: true,
                 },
             ]);

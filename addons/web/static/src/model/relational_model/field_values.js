@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/field_values - Server value parsing, aggregation constants, and default value helpers */
+/** @module @web/model/relational_model/field_values */
 
 import { markup } from "@odoo/owl";
 /** @import { Field } from "@web/model/types" */
@@ -30,13 +30,6 @@ const granularityToInterval = {
 
 export const AGGREGATABLE_FIELD_TYPES = ["float", "integer", "monetary"];
 
-/**
- * Per-type server→client value deserializers, keyed by field type.
- * Single source shared with the value codec (``@web/core/field_codec``), whose
- * ``deserialize`` reads this same registry, so model and UI never diverge.
- * Entry signature: ``(value, field) => clientValue``; types with no entry pass
- * through unchanged (see {@link parseServerValue}).
- */
 const deserializers = registry.category("deserializers");
 deserializers
     .add("char", (value) => value || "")
@@ -110,33 +103,11 @@ export function parseServerValue(field, value) {
 }
 
 /**
- * Memoised specs, keyed on the field container and then on the requested
- * subset. The second level exists because the read-group REQUEST asks only for
- * ``config.fieldsToAggregate`` while the RESPONSE is decoded against the whole
- * ``config.fields`` — two different scopes over one long-lived container. The
- * subset key is the field NAMES, not the array holding them: the kanban
- * controller rebuilds ``fieldsToAggregate`` with ``.map()`` on every config, so
- * an identity key would never match.
- *
  * @type {WeakMap<object, Map<string, string[]>>}
  */
 const aggregateSpecCache = new WeakMap();
 
 /**
- * Drop the memoised aggregate specs for ``fields``. MUST be called whenever a
- * ``fields`` container is mutated IN PLACE after the memo may have been built
- * — property axes spliced in by ``RelationalModel._getPropertyDefinition`` and
- * ``record_properties.processProperties``, form-view fields merged by
- * ``StaticList.extendRecord``.
- *
- * No mutation reachable today introduces an ``aggregator``-bearing field (a
- * property definition is a user-authored JSONB blob that carries no
- * ``aggregator``), so this closes an invariant gap rather than a live bug. It
- * exists because the sibling memo in ``record_utils.js`` keyed on the same
- * mutable containers DOES have {@link invalidateModifierDependencies}, and a
- * cache whose key can change under it without an invalidation hook is a trap
- * for the next person who adds a field def with an aggregator.
- *
  * @param {Record<string, any> | any[]} fields
  */
 export function invalidateAggregateSpecs(fields) {
@@ -144,12 +115,8 @@ export function invalidateAggregateSpecs(fields) {
 }
 
 /**
- * Build the ``aggregates`` list for a read-group: ``field:aggregator`` per
- * aggregatable field, plus the currency companions monetary sums need.
- *
- * @param {Record<string, any> | any[]} fields field defs, by name or as a list
- * @param {string[]} [fieldNames] restrict to these fields (default: all of
- *  ``fields``). Deduplicated, and names absent from ``fields`` are skipped.
+ * @param {Record<string, any> | any[]} fields
+ * @param {string[]} [fieldNames]
  * @returns {string[]}
  */
 export function getAggregateSpecifications(fields, fieldNames) {
@@ -159,13 +126,6 @@ export function getAggregateSpecifications(fields, fieldNames) {
         aggregateSpecCache.set(fields, byScope);
     }
     const scope = fieldNames && [...new Set(fieldNames)];
-    // Tagged, not bare: an EMPTY ``fieldNames`` array is truthy and also joins
-    // to "", so "aggregate nothing" and "aggregate everything" shared one memo
-    // slot and each poisoned the other. A kanban with a progressbar but no
-    // ``sum_field`` passes exactly that empty scope (kanban_controller's
-    // ``progressBarAggregateFields`` is then ``[]``), against the same
-    // long-lived ``config.fields`` the response decoding reads back with no
-    // scope at all.
     const scopeKey = scope ? `s:${scope.join(",")}` : "*";
     let specs = byScope.get(scopeKey);
     if (specs) {
@@ -195,38 +155,41 @@ export function getAggregateSpecifications(fields, fieldNames) {
 }
 
 /**
- * The domain-independent part of {@link extractInfoFromGroupData}: a group's
- * aggregate values and its server-side value.
- *
- * Consumers that only bucket aggregates per group (the kanban progress bars)
- * use this instead, so they stop paying for a per-group ``__domain`` — two
- * Domain constructions plus an AST evaluation each — that they discard.
- *
  * @param {Object} groupData
  * @param {string[]} groupBy
  * @param {Object} fields
+ * @param {string[]} [fieldsToAggregate] the scope the request was built with
  * @returns {{ aggregates: Object, serverValue: any }}
  */
-export function extractAggregatesFromGroupData(groupData, groupBy, fields) {
+export function extractAggregatesFromGroupData(
+    groupData,
+    groupBy,
+    fields,
+    fieldsToAggregate,
+) {
     const groupByField = fields[groupBy[0].split(":")[0]];
     const value = getValueFromGroupData(groupByField, groupData[groupBy[0]]);
     return {
-        aggregates: getAggregatesFromGroupData(groupData, fields),
+        aggregates: getAggregatesFromGroupData(groupData, fields, fieldsToAggregate),
         serverValue: getGroupServerValue(groupByField, value),
     };
 }
 
 /**
- * Extract useful information from a group data returned by a call to webReadGroup.
- *
  * @param {Object} groupData
  * @param {string[]} groupBy
  * @param {Object} fields
- * @param {any} domain search domain the groups were read under; combined with
- *   each group's ``__extra_domain`` into ``info.domain``
+ * @param {any} domain
+ * @param {string[]} [fieldsToAggregate] the scope the request was built with
  * @returns {Object}
  */
-export function extractInfoFromGroupData(groupData, groupBy, fields, domain) {
+export function extractInfoFromGroupData(
+    groupData,
+    groupBy,
+    fields,
+    domain,
+    fieldsToAggregate,
+) {
     const info = {};
     const groupByField = fields[groupBy[0].split(":")[0]];
     info.count = groupData.__count;
@@ -243,18 +206,20 @@ export function extractInfoFromGroupData(groupData, groupBy, fields, domain) {
     }
     info.displayName = getDisplayNameFromGroupData(groupByField, info.rawValue);
     info.serverValue = getGroupServerValue(groupByField, info.value);
-    info.aggregates = getAggregatesFromGroupData(groupData, fields);
+    info.aggregates = getAggregatesFromGroupData(groupData, fields, fieldsToAggregate);
     info.values = groupData.__values;
     return info;
 }
 
 /**
  * @param {Object} groupData
+ * @param {Object} fields
+ * @param {string[]} [fieldsToAggregate]
  * @returns {Object}
  */
-function getAggregatesFromGroupData(groupData, fields) {
+function getAggregatesFromGroupData(groupData, fields, fieldsToAggregate) {
     const aggregates = {};
-    for (const keyAggregate of getAggregateSpecifications(fields)) {
+    for (const keyAggregate of getAggregateSpecifications(fields, fieldsToAggregate)) {
         if (keyAggregate in groupData) {
             const [fieldName, aggregate] = keyAggregate.split(":");
             if (aggregate === "sum_currency") {
@@ -348,10 +313,6 @@ function getValueFromGroupData(field, rawValue) {
 }
 
 /**
- * Onchanges may reference records we never loaded (e.g. a page not yet fetched);
- * we still must resend their update commands on save, translated from "unity
- * read" format to the server write format (e.g. many2one
- * { id: 3, display_name: "Marc" } => 3).
  * @param {Record<string, unknown>} values
  * @param {Record<string, object>} fields
  * @param {Record<string, object>} activeFields
@@ -371,12 +332,6 @@ export function fromUnityToServerValues(
         const field = fields[fieldName];
         const activeField = activeFields[fieldName];
         if (!field) {
-            // These payloads come from onchange commands for records the client
-            // never loaded, so the field universe they name is the SERVER's,
-            // not this view's. Pass an unknown field through untransformed
-            // rather than dereferencing ``undefined``: dropping it would lose
-            // a value the server asked us to write, and ``_mockRead`` in
-            // sample_server takes the same "unknown field is not fatal" line.
             serverValues[fieldName] = value;
             continue;
         }
@@ -388,27 +343,13 @@ export function fromUnityToServerValues(
                 if (evaluateExpr(activeField?.readonly, context)) {
                     continue;
                 }
-            } catch {
-                // if the readonly expression depends on other fields, we can't evaluate it as we
-                // didn't read the record, so we ignore it
-            }
+            } catch {}
         }
         switch (field.type) {
             case "one2many":
             case "many2many":
                 value = value.map((c) => {
                     if (c[0] === CREATE || c[0] === UPDATE) {
-                        // No sub-schema to convert the nested values against:
-                        // ``fields`` is the view's FULL field set while
-                        // ``activeFields`` holds only what the arch mentions, so
-                        // an x2many can be known here yet have no activeField —
-                        // and the command engine deliberately stashes slices for
-                        // exactly those ("this record hasn't been extended"),
-                        // which serializeCommands feeds back through here. Pass
-                        // the command on untouched, same line the ``!field``
-                        // branch above takes: guessing at a conversion without
-                        // the schema would corrupt the payload, and throwing
-                        // took down the save.
                         const related = activeField?.related;
                         if (!related) {
                             return c;

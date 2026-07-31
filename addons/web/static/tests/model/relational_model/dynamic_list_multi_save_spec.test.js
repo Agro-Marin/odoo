@@ -40,8 +40,9 @@ class Foo extends models.Model {
 
 defineModels([Foo, ResCompany, ResPartner, ResUsers]);
 
-// Mass-edit is driven from the row selectors, and `ListRenderer.hasSelectors`
-// is `allowSelectors && !env.isSmall` — there is no selector to click on mobile.
+// Mass-edit is reached through the record selectors, and `hasSelectors` is
+// `allowSelectors && !env.isSmall` — there is no way into `_multiSave` from a
+// small-screen list.
 test.tags("desktop");
 test("the mass-edit read-back spec resolves uid-dependent field contexts", async () => {
     /** @type {any} */

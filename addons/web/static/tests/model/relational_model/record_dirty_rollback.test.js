@@ -18,6 +18,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 
+describe.current.tags("headless");
+
 function makeRecord(data = {}) {
     const model = {
         _patchConfig: (config, patch) => Object.assign(config, patch),
@@ -49,7 +51,12 @@ function makeRecord(data = {}) {
             },
         },
     };
-    return new RelationalRecord(model, config, { id: 1, ...data }, {});
+    return new RelationalRecord(
+        /** @type {any} */ (model),
+        config,
+        { id: 1, ...data },
+        {},
+    );
 }
 
 describe("dirty rollback", () => {

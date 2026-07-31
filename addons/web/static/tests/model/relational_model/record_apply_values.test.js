@@ -17,6 +17,8 @@ import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
 
+describe.current.tags("headless");
+
 const LINK = 4;
 
 function makeRecord({ lines = [] } = {}) {

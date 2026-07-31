@@ -1,26 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_utils - Pure utility functions for field attribute evaluation (invisible, readonly, required) */
-
-/**
- * Pure utility functions extracted from Record — no OWL reactivity dependency,
- * so they're testable with plain assert in <1ms.
- *
- * @see record_value_transforms.js for value formatting and context building
- * @see record_validator.js for field validation logic
- */
+/** @module @web/model/relational_model/record_utils */
 
 import { evaluateBooleanExpr, getExprFreeVariables } from "@web/core/py_js/py";
 
 import { formatServerValue } from "./record_value_transforms.js";
 
 /**
- * Evaluate a field attribute expression (invisible, readonly, required).
- * Pure core of Record._isInvisible, _isReadonly, _isRequired.
- *
- * @param {string|false} expr - Python boolean expression (e.g. "state == 'done'")
- * @param {Object} evalContext - record data context for expression evaluation
+ * @param {string|false} expr
+ * @param {Object} evalContext
  * @returns {boolean}
  */
 export function evaluateFieldAttr(expr, evalContext) {
@@ -28,9 +17,7 @@ export function evaluateFieldAttr(expr, evalContext) {
 }
 
 /**
- * Check if a field is invisible given its active field definition and eval context.
- *
- * @param {Object} activeField - the activeFields[fieldName] entry
+ * @param {Object} activeField
  * @param {Object} evalContext
  * @returns {boolean}
  */
@@ -39,9 +26,7 @@ export function isFieldInvisible(activeField, evalContext) {
 }
 
 /**
- * Check if a field is readonly given its active field definition and eval context.
- *
- * @param {Object} activeField - the activeFields[fieldName] entry
+ * @param {Object} activeField
  * @param {Object} evalContext
  * @returns {boolean}
  */
@@ -50,9 +35,7 @@ export function isFieldReadonly(activeField, evalContext) {
 }
 
 /**
- * Check if a field is required given its active field definition and eval context.
- *
- * @param {Object} activeField - the activeFields[fieldName] entry
+ * @param {Object} activeField
  * @param {Object} evalContext
  * @returns {boolean}
  */
@@ -61,24 +44,13 @@ export function isFieldRequired(activeField, evalContext) {
 }
 
 /**
- * Sentinel returned by {@link extractFieldNamesFromExpr} when the expression
- * cannot be statically analysed (parse failure). Callers must treat it as
- * "depends on everything" and fall back to unconditional re-validation.
  * @type {null}
  */
 const UNKNOWN_DEPENDENCIES = null;
 
 /**
- * Extract the field-name root identifiers referenced by a modifier expression
- * (``invisible`` / ``required`` / ``readonly``). Thin wrapper around
- * {@link getExprFreeVariables}: also returns non-field names (``parent``,
- * ``context``, ``uid``, builtins) — the caller filters those against the real
- * field universe. Returns {@link UNKNOWN_DEPENDENCIES}
- * (``null``) when the expression is falsy or fails to parse, signalling the
- * field must be re-validated on every commit (airtight fallback).
- *
  * @param {string|false|undefined} expr
- * @returns {Set<string>|null} free-variable root names, or ``null`` if unknown
+ * @returns {Set<string>|null}
  */
 export function extractFieldNamesFromExpr(expr) {
     if (!expr || typeof expr !== "string") {
@@ -95,24 +67,11 @@ export function extractFieldNamesFromExpr(expr) {
 }
 
 /**
- * Per-``activeFields`` cache of the modifier-dependency inverse map, keyed on
- * the (arch-stable) ``activeFields`` object so extraction runs once per view.
- * ``WeakMap`` lets the entry be collected when the view is torn down.
- *
  * @type {WeakMap<object, { dependents: Map<string, Set<string>>, always: Set<string> }>}
  */
 const _modifierDependencyCache = new WeakMap();
 
 /**
- * Drop the memoised dependency map for ``activeFields``. MUST be called
- * whenever an ``activeFields`` object is mutated IN PLACE after the map may
- * have been built (splicing property fields in ``record_properties.js``,
- * ``completeActiveFields`` in ``static_list.extendRecord``) — otherwise
- * {@link getModifierDependencies} keeps returning the pre-mutation map and a
- * newly added field's modifier dependencies are missed by the scoped
- * re-validation. (A wholesale-replaced ``activeFields`` object needs no
- * invalidation: it's a fresh key with no cache entry.)
- *
  * @param {Object} activeFields
  */
 export function invalidateModifierDependencies(activeFields) {
@@ -120,18 +79,6 @@ export function invalidateModifierDependencies(activeFields) {
 }
 
 /**
- * Build (and memoise) the inverse dependency map for a view's ``activeFields``:
- * for each field ``X``, the fields ``B`` whose ``invisible``/``required``/
- * ``readonly`` modifier references ``X``. ``readonly`` doesn't itself drive
- * {@link findUnsetRequiredFields} but is included as a safe over-approximation
- * (extra dependents only cost a redundant re-check, never a missed one).
- *
- * ``parent``/``context``/``uid``/builtins are non-field free variables and
- * create no same-record dependency here — parent changes are covered by the
- * parent-triggered re-validation path (see x2many handling in
- * ``checkValidity``). An unparseable modifier ({@link UNKNOWN_DEPENDENCIES})
- * adds the field to ``always``, re-validated on every commit as a fallback.
- *
  * @param {Object} activeFields
  * @returns {{ dependents: Map<string, Set<string>>, always: Set<string> }}
  */
@@ -182,12 +129,6 @@ export function getModifierDependencies(activeFields) {
 }
 
 /**
- * Compute the set of fields whose unset-required status could change from
- * committing ``changedFieldNames``: the changed fields, every field whose
- * modifier references one of them, plus fields with an unparseable modifier.
- * Passed as scope to the ``removeInvalidOnly`` re-validation so it can skip
- * fields that provably cannot have changed status.
- *
  * @param {string[]} changedFieldNames
  * @param {Object} activeFields
  * @returns {Set<string>}
@@ -210,23 +151,17 @@ export function computeRevalidationScope(changedFieldNames, activeFields) {
 }
 
 /**
- * Compute the minimal changeset to send to the server from pending changes.
- * Pure core of Record._getChanges. Skips readonly fields (unless forceSave)
- * and property fields; formats values for the server. For x2many fields, the
- * caller provides `getCommands` to retrieve ORM commands from the StaticList.
- *
  * @param {Object} params
- * @param {Object} params.changes - pending field changes (Record._changes)
- * @param {Object} params.values - server-confirmed values (Record._values)
- * @param {boolean} params.isNew - whether the record has no resId
- * @param {Object} params.fields - field definitions
- * @param {Object} params.activeFields - active field metadata
- * @param {Object} params.evalContext - for evaluating readonly expressions
+ * @param {Object} params.changes
+ * @param {Object} params.values
+ * @param {boolean} params.isNew
+ * @param {Object} params.fields
+ * @param {Object} params.activeFields
+ * @param {Object} params.evalContext
  * @param {Object} [params.options]
- * @param {boolean} [params.options.withReadonly] - include readonly fields
+ * @param {boolean} [params.options.withReadonly]
  * @param {(fieldName: string, value: any, withReadonly: boolean) => any[]} params.getCommands
- *     Callback to get ORM commands for x2many fields.
- * @returns {Object} changeset keyed by field name, values in server format
+ * @returns {Object}
  */
 export function computeChangeset({
     changes,

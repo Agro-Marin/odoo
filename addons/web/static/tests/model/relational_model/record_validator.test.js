@@ -861,6 +861,7 @@ function makeChildRecord({ valid, dirty = true }) {
     let checkValidityCalls = 0;
     const child = {
         dirty,
+        hasPendingChanges: dirty,
         resId: false,
         _virtualId: `virtual_${nextVirtualId++}`,
         get isValid() {

@@ -1,31 +1,21 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_save - Save logic extracted from RelationalRecord */
+/** @module @web/model/relational_model/record_save */
 
-/**
- * Record persistence logic: web_save RPC, sendBeacon for urgent saves,
- * creation flow, reload, and error handling.
- * Receives the RelationalRecord instance as first argument (delegation pattern).
- */
-
-import { markRaw, markup } from "@odoo/owl";
+import { markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { RequestEntityTooLargeError } from "@web/core/network/rpc";
 import { modelLog } from "@web/core/utils/asset_log";
 
 import { buildConcurrencyBaseline } from "./concurrency_baseline.js";
 import { FetchRecordError } from "./errors.js";
-import { getBasicEvalContext, getId, isX2Many } from "./field_context.js";
+import { getId, getSpecEvalContext, isX2Many } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
- * Collect the pending floating-commands promises (``_commandsPromise``, see
- * ``StaticList._trackCommandsPromise``) of every x2many list reachable from
- * ``record``, including lists held by cached sub-records.
- *
  * @param {RelationalRecord} record
  * @param {Promise<void>[]} proms
  * @param {Set<any>} seen
@@ -53,27 +43,11 @@ function collectPendingCommandsPromises(record, proms, seen) {
     }
 }
 
+const PENDING_COMMANDS_MAX_ITERATIONS = 100;
+
 /**
- * Barrier: wait until every x2many list reachable from ``record`` has
- * finished applying floating commands. Command application can be async
- * (``applyCommands`` fetches the values of linked/page-fill records); its
- * callers in sync chains (``_setData`` → ``parseServerValues``) cannot await
- * it, so a save started right after could serialize commands from — and,
- * worse, have its post-save state clean-up (``_clearCommands``/``_setData``)
- * raced by — a load that is still in flight. Sequencing the save after the
- * pending work removes that race.
- *
- * A settling load can replay deferred commands that trigger a further fetch
- * (tracked on the list again), so re-collect until quiescent — capped: a
- * pathological replay chain (e.g. a server that keeps returning fewer rows
- * than requested) must degrade into a best-effort save with a warning, not
- * hang silently inside the mutex and wedge every later model operation.
- * The tracked promises never reject (rejections are surfaced separately,
- * see ``StaticList._trackCommandsPromise``).
- *
  * @param {RelationalRecord} record
  */
-const PENDING_COMMANDS_MAX_ITERATIONS = 100;
 async function waitForPendingCommands(record) {
     for (let i = 0; i < PENDING_COMMANDS_MAX_ITERATIONS; i++) {
         /** @type {Promise<void>[]} */
@@ -92,14 +66,6 @@ async function waitForPendingCommands(record) {
 }
 
 /**
- * Every x2many list ``record`` owns, as ``[fieldName, list]``.
- *
- * Read off ``record.data``, NOT ``record._changes``: the save paths used to
- * walk the change bag, which silently skipped any list the user had not staged
- * an edit into — and a list seeded by the creation onchange lives in
- * ``_values`` only, so the one list that most needed re-baselining was the one
- * never visited.
- *
  * @param {RelationalRecord} record
  * @returns {Generator<[string, any]>}
  */
@@ -117,26 +83,21 @@ function* x2manyLists(record) {
 }
 
 /**
- * Minimal read-back specification letting a ``reload: false`` save re-baseline
- * the x2many lists it just wrote.
- *
- * A bare ``{}`` under a field name asks ``web_read`` for that relation's raw id
- * list (``fields_to_read = list(specification)`` in ``web_read.py``, and an
- * empty sub-spec leaves the ids untouched) — enough to map the virtual ids of
- * the rows just created onto their real ones. A nested ``{ fields: ... }`` is
- * emitted only when a child list ALSO has staged commands, so the payload stays
- * empty for the overwhelmingly common save that touched no relation at all.
- *
  * @param {RelationalRecord} record
+ * @param {Set<any>} [seen]
  * @returns {Record<string, any>}
  */
-function buildX2manyCommitSpec(record) {
+function buildX2manyCommitSpec(record, seen = new Set()) {
     /** @type {Record<string, any>} */
     const spec = {};
+    if (seen.has(record)) {
+        return spec;
+    }
+    seen.add(record);
     for (const [fieldName, list] of x2manyLists(record)) {
         const nested = {};
         for (const child of Object.values(list._cache)) {
-            Object.assign(nested, buildX2manyCommitSpec(child));
+            Object.assign(nested, buildX2manyCommitSpec(child, seen));
         }
         const hasNested = Object.keys(nested).length > 0;
         if (!list._commands.length && !hasNested) {
@@ -148,18 +109,15 @@ function buildX2manyCommitSpec(record) {
 }
 
 /**
- * Hand every x2many list under ``record`` the server's post-save value so it
- * can adopt it as its new baseline. Lists the spec did not cover (nothing was
- * staged on them) only get their pending log cleared, as before.
- *
- * Recursion runs AFTER the parent list committed: ``_commitSave`` re-keys a
- * created row from its virtual id to its real one, which is what makes the
- * ``list._cache[row.id]`` lookup below resolve.
- *
  * @param {RelationalRecord} record
- * @param {Record<string, any>} [values] server row for ``record``
+ * @param {Record<string, any>} [values]
+ * @param {Set<any>} [seen]
  */
-function commitX2manyLists(record, values) {
+function commitX2manyLists(record, values, seen = new Set()) {
+    if (seen.has(record)) {
+        return;
+    }
+    seen.add(record);
     for (const [fieldName, list] of x2manyLists(record)) {
         const serverValue = values?.[fieldName];
         if (serverValue === undefined) {
@@ -171,7 +129,7 @@ function commitX2manyLists(record, values) {
             if (row && typeof row === "object") {
                 const child = list._cache[row.id];
                 if (child) {
-                    commitX2manyLists(child, row);
+                    commitX2manyLists(child, row, seen);
                 }
             }
         }
@@ -179,8 +137,6 @@ function commitX2manyLists(record, values) {
 }
 
 /**
- * Persist a record via web_save. Handles creation, sendBeacon for urgent saves,
- * field spec computation, and post-save reload.
  * @param {RelationalRecord} record
  * @param {{ reload?: boolean, onError?: (e: Error, actions: { discard: () => void, retry: () => any }) => any, nextId?: number }} [options]
  * @returns {Promise<boolean>}
@@ -221,10 +177,7 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         for (const [, list] of x2manyLists(record)) {
             list._clearCommands();
         }
-        record._clearChanges();
-        record.data = { ...record._values };
-        record._textValues = markRaw({ ...record._initialTextValues });
-        record._setEvalContext();
+        record._discardChanges();
         return true;
     }
     if (
@@ -252,14 +205,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         const succeeded = navigator.sendBeacon(route, blob);
         if (succeeded) {
             record._urgentBeaconFired = true;
-            record._values = markRaw({ ...record._values, ...record._changes });
             for (const [, list] of x2manyLists(record)) {
                 list._clearCommands();
             }
-            record._clearChanges();
-            record.data = { ...record._values };
-            record._setEvalContext();
-            record._initialTextValues = markRaw({ ...record._textValues });
+            record._commitChanges();
         } else {
             record.model._closeUrgentSaveNotification =
                 record.model.hooks.ui.onDisplayUrgentSave(
@@ -304,14 +253,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             fieldSpec = getFieldsSpec(
                 record.activeFields,
                 record.fields,
-                getBasicEvalContext(record.config),
+                getSpecEvalContext(record.config),
                 { orderBys },
             );
         } else {
-            // Not a reload: just enough to re-baseline the relations this save
-            // wrote (see buildX2manyCommitSpec). Empty — hence byte-identical
-            // to the previous payload — for any save that staged no x2many
-            // command, which is the overwhelming majority.
             fieldSpec = buildX2manyCommitSpec(record);
         }
         const kwargs = {
@@ -367,15 +312,10 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
             }
             record._setData(records[0], { orderBys });
         } else {
-            record._values = markRaw({ ...record._values, ...record._changes });
-            if ("id" in record.activeFields) {
-                record._values.id = records[0].id;
-            }
             commitX2manyLists(record, records[0]);
-            record._clearChanges();
-            record.data = { ...record._values };
-            record._setEvalContext();
-            record._initialTextValues = markRaw({ ...record._textValues });
+            record._commitChanges(
+                "id" in record.activeFields ? { id: records[0].id } : undefined,
+            );
         }
     } finally {
         record._saveInFlight = false;

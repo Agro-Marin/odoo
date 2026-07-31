@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/dynamic_group_list - Server-backed grouped list with expand/collapse, cross-group record moves, and progress bars */
+/** @module @web/model/relational_model/dynamic_group_list */
 
 import { Domain } from "@web/core/domain";
 
@@ -30,7 +30,6 @@ export class DynamicGroupList extends DynamicList {
         this.isGrouped = true;
         /** @type {number | null} */
         this._nbRecordsMatchingDomain = null;
-        /** Serialized domain ``_nbRecordsMatchingDomain`` was counted under. */
         this._countedDomainKey = undefined;
         this._setData(/** @type {any} */ (data));
     }
@@ -39,20 +38,6 @@ export class DynamicGroupList extends DynamicList {
      * @param {{ groups: any[], length: number, [key: string]: any }} data
      */
     _setData(data) {
-        // ``_nbRecordsMatchingDomain`` caches a ``search_count`` of ONE domain,
-        // but nothing tied it to that domain: ``recordCount`` returns it
-        // verbatim whenever non-null and ``isRecordCountTrustable`` reports
-        // ``true`` for the same reason, so ``_ensureCorrectRecordCount``
-        // short-circuits forever after the first call. A reload that changes
-        // the domain on THIS instance then keeps answering for the previous
-        // one, to the delete/archive truncation warnings and
-        // ``Group.applyFilter``.
-        //
-        // Scoped to an actual domain change rather than dropped on every
-        // ``_setData``: a same-domain reload (``sortBy``, the pager) would
-        // otherwise re-issue the ``search_count`` for a number it already knows.
-        // ``_reloadWithConfig`` commits the new config before calling this, so
-        // ``this.domain`` is already the reloaded one here.
         if (
             this._nbRecordsMatchingDomain !== null &&
             JSON.stringify(this.domain) !== this._countedDomainKey
@@ -82,7 +67,6 @@ export class DynamicGroupList extends DynamicList {
     }
 
     /**
-     * List of loaded records inside groups.
      * @returns {RelationalRecord[]}
      */
     get records() {
@@ -103,8 +87,7 @@ export class DynamicGroupList extends DynamicList {
 
     /**
      * @param {string} groupName
-     * @param {string} [foldField] if given, will write true on this field to
-     *   make the group folded by default
+     * @param {string} [foldField]
      */
     async createGroup(groupName, foldField) {
         if (!this.groupByField || this.groupByField.type !== "many2one") {
@@ -119,18 +102,6 @@ export class DynamicGroupList extends DynamicList {
     }
 
     /**
-     * Drag-and-drop a card to another column (or reorder within one).
-     *
-     * DELIBERATELY NOT wrapped in ``model.mutex``, unlike every other public
-     * list mutator. The optimistic splice below must land the instant the card
-     * is dropped: serializing the whole method makes a second drag queue behind
-     * the first drag's still-pending ``web_save``, so the card visibly stays
-     * put until the network answers. Only the persistence step takes the mutex,
-     * via ``record.update({ save: true })``, which is what serializes the
-     * writes. Pinned by kanban_view.test.js "drag and drop records and quickly
-     * open a record" (two drags against unresolved saves) — that test fails
-     * with counts 1/3 instead of 0/4 the moment this is serialized.
-     *
      * @param {string} dataRecordId
      * @param {string} dataGroupId
      * @param {string} refId
@@ -169,9 +140,6 @@ export class DynamicGroupList extends DynamicList {
 
         const sourceGroupValue = sourceGroup.value;
         const targetGroupValue = targetGroup.value;
-        // Groups are re-resolved rather than captured: the save may have
-        // reloaded the tree, replacing the Group datapoints this closure was
-        // built with.
         const revert = () =>
             this.model.mutex.exec(() => {
                 const currentTargetGroup = this.groups.find(
@@ -378,13 +346,6 @@ export class DynamicGroupList extends DynamicList {
             this._nbRecordsMatchingDomain = await this.model.orm.searchCount(
                 this.resModel,
                 this.domain,
-                // ``context`` is load-bearing, not decoration: ``orm.call``
-                // merges only ``user.context`` when kwargs carries none, so
-                // omitting it dropped every action-level key — notably
-                // ``active_test: False`` (set by ~29 actions/views), which
-                // makes this count disagree with the list the user is looking
-                // at. ``RelationalModel._updateCount`` passes it on the same
-                // call.
                 { limit: this.model.initialCountLimit, context: this.context },
             );
         }

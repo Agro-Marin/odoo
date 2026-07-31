@@ -11,6 +11,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 
+describe.current.tags("headless");
+
 describe("RelationalModel._patchConfig", () => {
     test("is synchronous: patch is visible immediately, no await", () => {
         const config = {

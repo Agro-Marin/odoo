@@ -13,7 +13,9 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
 
-function makeList(groups = []) {
+describe.current.tags("headless");
+
+function makeList(/** @type {any[]} */ groups = []) {
     const list = Object.create(DynamicGroupList.prototype);
     list.groups = [...groups];
     list.count = groups.length;
@@ -39,7 +41,7 @@ function makeList(groups = []) {
         orm: { call: async () => [42], write: async () => {} },
         _patchConfig: () => {},
     };
-    list._createGroupDatapoint = (data) => ({
+    list._createGroupDatapoint = (/** @type {any} */ data) => ({
         id: `g-${data.value}`,
         value: data.value,
     });

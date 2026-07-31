@@ -18,6 +18,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 
+describe.current.tags("headless");
+
 /**
  * @param {any} definitionResponse what ``get_property_definition`` answers
  */
@@ -33,7 +35,7 @@ async function resolve(definitionResponse) {
     };
     await RelationalModel.prototype._getPropertyDefinition.call(
         model,
-        config,
+        /** @type {any} */ (config),
         "props.my_prop",
     );
     return config;

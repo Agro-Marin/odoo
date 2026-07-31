@@ -16,6 +16,8 @@ import { Deferred } from "@odoo/hoot-mock";
 import { Mutex } from "@web/core/utils/concurrency";
 import { DynamicList } from "@web/model/relational_model/dynamic_list";
 
+describe.current.tags("headless");
+
 function makeRec(
     id,
     steps,

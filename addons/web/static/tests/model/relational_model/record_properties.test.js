@@ -19,6 +19,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { processProperties } from "@web/model/relational_model/record_properties";
 
+describe.current.tags("headless");
+
 /**
  * Build a minimal record mock for processProperties tests.
  *

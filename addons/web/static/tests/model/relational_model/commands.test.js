@@ -3,6 +3,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 
+describe.current.tags("headless");
+
 describe("x2ManyCommands constants", () => {
     test("has correct numeric values", () => {
         expect(x2ManyCommands.CREATE).toBe(0);

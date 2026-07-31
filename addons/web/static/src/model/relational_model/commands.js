@@ -1,15 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/commands - x2many ORM command constants and factory functions */
+/** @module @web/model/relational_model/commands */
 
-/**
- * One2many/Many2many fields use a 3-element command tuple to describe a
- * mutation on the relation: [command, id_or_0, values_or_ids_or_0].
- * - id_or_0: record id for update/delete/unlink/link, else 0 (create/clear/set)
- * - values_or_ids_or_0: values to write (create/update), new ids list (set),
- *   else 0 (delete/unlink/link/clear)
- */
 export const x2ManyCommands = {
     CREATE: 0,
     create(virtualID, values) {

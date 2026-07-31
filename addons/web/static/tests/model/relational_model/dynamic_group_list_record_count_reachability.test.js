@@ -51,7 +51,7 @@ async function mountGrouped() {
     patchWithCleanup(ListController.prototype, {
         setup() {
             super.setup(...arguments);
-            model = this.model;
+            model = /** @type {any} */ (this).model;
         },
     });
     await mountView({

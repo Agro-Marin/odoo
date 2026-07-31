@@ -13,6 +13,7 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
+import { ListMembership } from "@web/model/relational_model/list_membership";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { StaticList } from "@web/model/relational_model/static_list";
@@ -121,6 +122,8 @@ describe("_discard restores the savepoint's page limit", () => {
     function makeList() {
         const list = Object.create(StaticList.prototype);
         Object.assign(list, {
+            // Membership owner first: the keys below write through its accessors.
+            _membership: new ListMembership(),
             _config: {
                 limit: 2,
                 offset: 0,

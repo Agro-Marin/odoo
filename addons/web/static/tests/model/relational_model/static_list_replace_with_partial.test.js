@@ -22,6 +22,8 @@ import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { StaticList } from "@web/model/relational_model/static_list";
 
+describe.current.tags("headless");
+
 const SERVER_ROWS = {
     1: { id: 1, display_name: "Rec 1" },
     2: { id: 2, display_name: "Rec 2" },

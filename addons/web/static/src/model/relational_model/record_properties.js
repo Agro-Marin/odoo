@@ -1,40 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_properties - Dynamic property-field expansion: splice per-property definitions into the record schema and shape per-property values */
-
-/**
- * Properties-field expansion logic.
- *
- * The server returns an array of property definitions for a "properties"
- * field (name, type, value, optional comodel/selection/tags, etc.). This
- * helper walks it and, for each property:
- *
- *   1. Splices the field into ``record.fields`` under
- *      ``${parentFieldName}.${property.name}``, with the
- *      ``relatedPropertyField`` back-pointer and ``sortable: false`` for
- *      relational/tag types (the UI hides sorting for those columns).
- *   2. Registers the activeField via
- *      {@link field_metadata.createPropertyActiveField}, patching in the
- *      parent m2o's id/display_name so the view can render the breadcrumb
- *      back to the definition record.
- *   3. Shapes the value by type: m2m builds a StaticList datapoint (or, on
- *      change-driven calls, reconciles the cached list's membership with the
- *      incoming value via LINK/UNLINK — see the inline comment), m2o
- *      handles the "No Access" placeholder (server sends ``null``
- *      ``display_name`` when the id is readable but the record isn't),
- *      scalars pass through unchanged.
- *
- * Returns a flat ``{ "<parentFieldName>.<propertyName>": value, ... }``
- * bag merged into the parsed values by the caller (``parseServerValues``
- * or ``preprocessPropertiesChanges``).
- *
- * ``hasCurrentValues`` gates whether the field/activeField entries are
- * rewritten: on a *change*-driven call (non-empty ``record.data``) the
- * server may have sent revised definitions that must replace the
- * registered schema, so they're always rewritten; on *initial-load* they're
- * only created if absent, preserving any patches applied since last load.
- */
+/** @module @web/model/relational_model/record_properties */
 
 import { _t } from "@web/core/l10n/translation";
 
@@ -46,24 +13,12 @@ import { invalidateModifierDependencies } from "./record_utils.js";
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
- * Extract all property values for a properties field, registering each
- * property as a synthetic field/activeField on the record.
- *
  * @param {RelationalRecord} record
- * @param {Object[]} properties array of property definitions sent by
- *  the server. Each entry must carry ``name`` and ``type``; relational
- *  types additionally carry ``comodel`` and ``value`` shaped per type.
- * @param {string} fieldName the parent properties-field name (the value
- *  the view's ``<field name="...">`` binds to)
- * @param {{ id?: number; display_name?: string } | false} parent the
- *  parsed m2o value at the ``definition_record`` field (the record that
- *  owns the property schema). May be ``false`` when the parent has not
- *  been set yet — the per-property ``relatedPropertyField`` will then
- *  carry ``id: undefined`` and ``displayName: undefined``.
- * @param {Object} [currentValues={}] existing parsed values; non-empty
- *  toggles the schema-rewrite path (see the module docstring's
- *  "Why ``hasCurrentValues`` toggles" note)
- * @returns {Object} flat bag keyed by ``${fieldName}.${property.name}``
+ * @param {Object[]} properties
+ * @param {string} fieldName
+ * @param {{ id?: number; display_name?: string } | false} parent
+ * @param {Object} [currentValues={}]
+ * @returns {Object}
  */
 export function processProperties(
     record,
@@ -99,8 +54,8 @@ export function processProperties(
         if (!record.activeFields[propertyFieldName].relatedPropertyField) {
             record.activeFields[propertyFieldName].relatedPropertyField = {
                 name: fieldName,
-                id: parent?.id,
-                displayName: parent?.display_name,
+                id: parent ? parent.id : undefined,
+                displayName: parent ? parent.display_name : undefined,
             };
         }
 
