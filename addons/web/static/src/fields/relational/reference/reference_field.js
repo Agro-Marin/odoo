@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/reference/reference_field - Reference field widget combining a model selector with a Many2one picker */
+/** @module @web/fields/relational/reference/reference_field */
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { KeepLast } from "@web/core/utils/concurrency";
+import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
@@ -21,20 +22,6 @@ import {
  * @property {string} displayName
  */
 
-/**
- * Widget for a reference field (or a char field acting as one). The
- * res_model of the relation comes from the field itself or from the
- * model_field prop.
- *
- * 1) Reference field is a char field
- * Fetch the display name (name_get) of the referenced record.
- *
- * 2) Reference widget has model_field prop
- * Fetch the technical name of the co model.
- *
- * 3) Standard case
- * The value is already in record.data[fieldName]
- */
 export class ReferenceField extends Component {
     static template = "web.ReferenceField";
     static components = { Many2One };
@@ -51,9 +38,9 @@ export class ReferenceField extends Component {
             modelName: undefined,
             currentRelation: undefined,
         });
+        this.nameService = useService("name");
         const keepLast = new KeepLast();
         if (this._isCharField(this.props)) {
-            /** Fetch the display name of the record referenced by the field */
             let currentValue = undefined;
             useRecordObserver(async (record, props) => {
                 if (currentValue !== record.data[props.name]) {
@@ -63,7 +50,6 @@ export class ReferenceField extends Component {
                 }
             });
         } else if (this.props.modelField) {
-            /** Fetch the technical name of the co model */
             useRecordObserver(async (record, props) => {
                 if (this.currentModelId !== record.data[props.modelField]?.id) {
                     /** @type {any} */ (this.state).modelName = await keepLast.add(
@@ -78,7 +64,7 @@ export class ReferenceField extends Component {
         }
     }
 
-    /** @returns {Object} Props for the inner Many2One component */
+    /** @returns {Object} */
     get m2oProps() {
         const value = this.getValue();
         return {
@@ -91,7 +77,7 @@ export class ReferenceField extends Component {
             update: this.updateM2O.bind(this),
         };
     }
-    /** @returns {Array<[string, string]>} Model selection choices, empty if hidden */
+    /** @returns {Array<[string, string]>} */
     get selection() {
         if (!this._isCharField(this.props) && !this.hideModelSelector) {
             return this.props.record.fields[this.props.name].selection;
@@ -99,12 +85,12 @@ export class ReferenceField extends Component {
         return [];
     }
 
-    /** @returns {boolean|string} Whether the model selector dropdown is hidden */
+    /** @returns {boolean|string} */
     get hideModelSelector() {
         return this.props.hideModel || this.props.modelField;
     }
 
-    /** @returns {string|undefined} Technical model name for the current relation */
+    /** @returns {string|undefined} */
     getRelation() {
         const modelName = this.getModelName();
         if (modelName) {
@@ -137,7 +123,7 @@ export class ReferenceField extends Component {
         return this.hideModelSelector && this.state.modelName;
     }
 
-    /** @param {string} value - Technical model name selected from the dropdown */
+    /** @param {string} value */
     updateModel(value) {
         /** @type {any} */ (this.state).currentRelation = value;
         this.props.record.update({ [this.props.name]: false });
@@ -166,8 +152,6 @@ export class ReferenceField extends Component {
     }
 
     /**
-     * Fetch the display name of the referenced record (char-field case).
-     *
      * @returns {Promise<{ resId: number, resModel: string, displayName: string }|false>}
      */
     async _fetchReferenceCharData(props) {
@@ -177,29 +161,18 @@ export class ReferenceField extends Component {
         }
         const [resModel, _resId] = recordData.split(",");
         const resId = Number.parseInt(_resId, 10);
-        if (resModel && resId) {
-            const { specialDataCaches, orm } = props.record.model;
-            const key = `__reference__name_get-${recordData}`;
-            if (!specialDataCaches.has(key)) {
-                specialDataCaches.set(
-                    key,
-                    orm.read(resModel, [resId], ["display_name"]).catch((e) => {
-                        specialDataCaches.delete(key);
-                        throw e;
-                    }),
-                );
-            }
-            const result = await specialDataCaches.get(key);
-            if (!result[0]) {
-                return false;
-            }
-            return {
-                resId,
-                resModel,
-                displayName: result[0].display_name,
-            };
+        if (!resModel || !resId) {
+            return false;
         }
-        return false;
+        // The name service batches every reference on the page into one read,
+        // and drops its cache when the action changes -- a bespoke cache here
+        // held a renamed record's old name for the whole session.
+        const displayNames = await this.nameService.loadDisplayNames(resModel, [resId]);
+        const displayName = displayNames[resId];
+        if (typeof displayName !== "string") {
+            return false;
+        }
+        return { resId, resModel, displayName };
     }
 
     _assertMany2OneToIrModel(props) {
@@ -212,9 +185,6 @@ export class ReferenceField extends Component {
     }
 
     /**
-     * Fetch the technical name of the model which is selected in the modelField
-     * props
-     *
      * @returns {Promise<string|false>}
      */
     async _fetchModelTechnicalName(props) {
@@ -240,6 +210,7 @@ export class ReferenceField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const referenceField = {
     component: ReferenceField,
     displayName: _t("Reference"),
@@ -257,7 +228,6 @@ export const referenceField = {
         },
     ],
     supportedTypes: ["reference", "char"],
-    // Same-record field named by an option; see progressbar for the rationale.
     fieldDependencies: ({ options }) =>
         options.model_field
             ? [{ name: options.model_field, optional: true, readonly: true }]

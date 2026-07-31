@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one_barcode/many2one_barcode_field - Many2one field with barcode scanner support */
+/** @module @web/fields/relational/many2one_barcode/many2one_barcode_field */
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";

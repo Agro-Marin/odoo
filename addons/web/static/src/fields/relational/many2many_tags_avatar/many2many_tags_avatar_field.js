@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field - Avatar tag list field for Many2many relations with user images */
+/** @module @web/fields/relational/many2many_tags_avatar/many2many_tags_avatar_field */
 
 import { TagsList } from "@web/components/tags_list/tags_list";
 import { _t } from "@web/core/l10n/translation";
@@ -21,12 +21,15 @@ export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
         withCommand: { type: Boolean, optional: true },
     };
 
-    /** @returns {Object} Empty spec — avatar fields fetch no extra related fields */
+    /** @returns {Object} */
     get specification() {
         return {};
     }
 
-    /** @override */
+    /**
+     * @override
+     * @param {any} record
+     */
     getTagProps(record) {
         return {
             ...super.getTagProps(record),
@@ -38,7 +41,7 @@ export class Many2ManyTagsAvatarField extends Many2ManyTagsField {
 export const many2ManyTagsAvatarField = {
     ...many2ManyTagsField,
     component: Many2ManyTagsAvatarField,
-    extractProps: (fieldInfo, dynamicInfo) => ({
+    extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         ...many2ManyTagsField.extractProps(fieldInfo, dynamicInfo),
         withCommand: ["form", "list"].includes(fieldInfo.viewType),
         domain: dynamicInfo.domain,
@@ -68,26 +71,31 @@ export class Many2ManyTagsAvatarFieldPopover extends Many2ManyTagsAvatarField {
         close: { type: Function },
     };
 
-    /** @override */
+    /**
+     * @override
+     * @param {any} recordList
+     */
     async update(recordList) {
         await super.update(recordList);
         await this._saveUpdate();
     }
 
-    /** @override */
+    /**
+     * @override
+     * @param {string} id
+     */
     async deleteTag(id) {
         await super.deleteTag(id);
         await this._saveUpdate();
     }
 
-    /** Persists changes and re-renders the popover dropdown */
     async _saveUpdate() {
         await this.props.record.save({ reload: false });
         this.render();
         this.autoCompleteRef.el?.querySelector("input")?.click();
     }
 
-    /** @returns {Array<Object>} Tags in reverse order (newest first) */
+    /** @returns {Array<Object>} */
     get tags() {
         return super.tags.toReversed();
     }
@@ -141,7 +149,7 @@ export class KanbanMany2ManyTagsAvatarField extends Many2ManyTagsAvatarField {
     };
     visibleItemsLimit = 3;
 
-    /** @returns {Object} Props forwarded to the popover (without isEditable) */
+    /** @returns {Object} */
     get popoverProps() {
         const props = {
             ...this.props,
@@ -150,7 +158,7 @@ export class KanbanMany2ManyTagsAvatarField extends Many2ManyTagsAvatarField {
         delete props.isEditable;
         return props;
     }
-    /** @returns {Array<Object>} Tags in reverse order (newest first) */
+    /** @returns {Array<Object>} */
     get tags() {
         return super.tags.toReversed();
     }
@@ -159,7 +167,7 @@ export class KanbanMany2ManyTagsAvatarField extends Many2ManyTagsAvatarField {
 export const kanbanMany2ManyTagsAvatarField = {
     ...many2ManyTagsAvatarField,
     component: KanbanMany2ManyTagsAvatarField,
-    extractProps: (fieldInfo, dynamicInfo) => ({
+    extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         ...many2ManyTagsAvatarField.extractProps(fieldInfo, dynamicInfo),
         isEditable: !dynamicInfo.readonly,
     }),

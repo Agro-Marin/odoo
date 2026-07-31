@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one_avatar/many2one_avatar_field - Many2one field variant that displays the related record avatar */
+/** @module @web/fields/relational/many2one_avatar/many2one_avatar_field */
 
 import { registerField } from "@web/fields/_registry";
 import {
@@ -14,6 +14,7 @@ export class Many2OneAvatarField extends Many2OneField {
     static template = "web.Many2OneAvatarField";
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const many2OneAvatarField = {
     ...buildM2OFieldDescription(Many2OneAvatarField),
     extractProps(staticInfo, dynamicInfo) {

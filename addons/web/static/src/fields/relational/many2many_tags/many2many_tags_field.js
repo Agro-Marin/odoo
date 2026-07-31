@@ -1,14 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2many_tags/many2many_tags_field - Colored tag list field with autocomplete for Many2many relations */
+/** @module @web/fields/relational/many2many_tags/many2many_tags_field */
 
 import { Component, useRef } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { ColorList } from "@web/components/colorlist/colorlist";
 import { useTagNavigation } from "@web/components/record_selectors/tag_navigation_hook";
 import { TagsList } from "@web/components/tags_list/tags_list";
-import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { Mutex } from "@web/core/utils/concurrency";
@@ -24,17 +23,6 @@ import { Many2XAutocomplete, useOpenMany2XRecord } from "../many2x_autocomplete.
 import { useActiveActions } from "../relational_active_actions.js";
 import { useX2ManyCrud } from "../x2many_crud.js";
 
-/**
- * Colour picker shown when a tag is clicked.
- *
- * It takes the colour to display and two callbacks, and knows nothing about
- * which tag it is editing. It used to receive the tag's datapoint id and hand
- * it back on every callback, which forced the field to re-resolve the record
- * by id at the moment the user picked — long after the popover opened, by
- * which time a reload of the x2many could have replaced the datapoints and
- * the lookup would miss. The field now closes over the record instead, so
- * there is no identity to go stale.
- */
 class Many2ManyTagsFieldColorListPopover extends Component {
     static template = "web.Many2ManyTagsFieldColorListPopover";
     static components = {
@@ -102,11 +90,10 @@ export class Many2ManyTagsField extends Component {
         this.autoCompleteRef = useRef("autoComplete");
         this.mutex = new Mutex();
 
-        const { linkRecords: maybeLinkRecords, removeRecord } = useX2ManyCrud(
+        const { linkRecords, removeRecord } = useX2ManyCrud(
             () => this.props.record.data[this.props.name],
             true,
         );
-        const linkRecords = /** @type {Function} */ (maybeLinkRecords);
         this.linkRecords = linkRecords;
 
         this.activeActions = useActiveActions({
@@ -155,25 +142,12 @@ export class Many2ManyTagsField extends Component {
     }
 
     /**
-     * Links the given records (not already linked) to the many2many.
-     *
      * @param {Array<{ id: number }>|false} recordList
      */
     update(recordList) {
-        // Not ``!recordList?.length``: ``?.`` short-circuits on nullish only, so
-        // for the ``false`` this parameter documents it still evaluates
-        // ``false.length`` — which happens to answer ``undefined`` through
-        // boxing rather than throwing. Testing the sentinel explicitly says what
-        // is meant and lets ``recordList`` narrow to the array below.
         if (!recordList || !recordList.length) {
             return;
         }
-        // Membership test against the datapoints, not against `this.tags`:
-        // that getter maps EVERY linked record through `getTagProps` and it
-        // was re-evaluated once per candidate, so linking 5 records into a
-        // 40-tag field ran getTagProps 200 times (measured) — each one an
-        // object allocation, and an `imageUrl()` build in the avatar variant.
-        // `isSelected` below already did it this way.
         const linkedResIds = new Set(
             this.props.record.data[this.props.name].records.map((r) => r.resId),
         );
@@ -186,15 +160,15 @@ export class Many2ManyTagsField extends Component {
         return this.linkRecords(resIds);
     }
 
-    /** @returns {string} Co-model name for the relation */
+    /** @returns {string} */
     get relation() {
         return this.props.record.fields[this.props.name].relation;
     }
-    /** @returns {Object} Current record's evaluation context */
+    /** @returns {Object} */
     get evalContext() {
         return this.props.record.evalContext;
     }
-    /** @returns {string} Human-readable field label */
+    /** @returns {string} */
     get string() {
         return (
             this.props.string || this.props.record.fields[this.props.name].string || ""
@@ -202,7 +176,7 @@ export class Many2ManyTagsField extends Component {
     }
 
     /**
-     * @param {Object} record - A relational record from the many2many list
+     * @param {Object} record
      * @returns {{ id: string, resId: number, text: string, colorIndex: number|undefined, canEdit?: boolean, onDelete: Function|undefined }}
      */
     getTagProps(record) {
@@ -217,7 +191,7 @@ export class Many2ManyTagsField extends Component {
         };
     }
 
-    /** @returns {Array<Object>} Tag props for each linked record */
+    /** @returns {Array<Object>} */
     get tags() {
         return this.props.record.data[this.props.name].records.map((record) =>
             this.getTagProps(record),
@@ -229,7 +203,7 @@ export class Many2ManyTagsField extends Component {
         return !this.props.readonly;
     }
 
-    /** @param {number} index - Zero-based index of the tag to delete */
+    /** @param {number} index */
     async deleteTagByIndex(index) {
         return this.mutex.exec(() => {
             const tag = this.tags[index];
@@ -239,17 +213,13 @@ export class Many2ManyTagsField extends Component {
         });
     }
 
-    /** @param {string} id - Datapoint ID of the tag record to remove */
+    /** @param {string} id */
     async deleteTag(id) {
         return this.mutex.exec(() => this._forgetTag(id));
     }
 
     /**
-     * Forgets the tag record with the given id, guarding against a missing
-     * record: a double delete can reach here twice for the same id, and after
-     * the first removal `find` misses — `forget(undefined)` would throw.
-     *
-     * @param {string} id - Datapoint ID of the tag record to remove
+     * @param {string} id
      */
     _forgetTag(id) {
         const list = this.props.record.data[this.props.name];
@@ -260,16 +230,14 @@ export class Many2ManyTagsField extends Component {
         return list.forget(tagRecord);
     }
 
-    /** @returns {Array} Evaluated domain for the many2many autocomplete search */
+    /** @returns {Array} */
     getDomain() {
-        return Domain.and([
-            getFieldDomain(this.props.record, this.props.name, this.props.domain),
-        ]).toList(this.props.context);
+        return getFieldDomain(this.props.record, this.props.name, this.props.domain);
     }
 
     /**
-     * @param {{ id: number }} record - Candidate record to check
-     * @returns {boolean} Whether the record is already linked
+     * @param {{ id: number }} record
+     * @returns {boolean}
      */
     isSelected(record) {
         const records = this.props.record.data[this.props.name].records;
@@ -309,7 +277,10 @@ export const many2ManyTagsField = {
         }
         return relatedFields;
     },
-    extractProps({ attrs, options, string, placeholder }, dynamicInfo) {
+    extractProps(
+        /** @type {any} */ { attrs, options, string, placeholder },
+        /** @type {any} */ dynamicInfo,
+    ) {
         const hasCreatePermission = attrs.can_create
             ? evaluateBooleanExpr(attrs.can_create)
             : true;
@@ -344,7 +315,6 @@ registerField(
     many2ManyTagsField,
 );
 
-/** Specialization that allows editing the tag color via the colorpicker (form view). */
 export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
     static props = {
         ...super.props,
@@ -362,10 +332,6 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
 
     setup() {
         super.setup();
-        // The colour picker belongs to this variant only. The base class used
-        // to run `usePopover(this.constructor.components.Popover)`, which
-        // resolved to `undefined` for every widget except this one — a base
-        // class carrying a subclass's dependency.
         this.popover = usePopover(Many2ManyTagsFieldColorListPopover);
     }
 
@@ -379,7 +345,7 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
 
     /**
      * @param {MouseEvent} ev
-     * @param {Object} record - The tag's relational record
+     * @param {Object} record
      */
     onTagClick(ev, record) {
         if (this.props.canEditTags) {
@@ -398,10 +364,6 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
             this.popover.open(/** @type {HTMLElement} */ (ev.currentTarget), {
                 colors: /** @type {any} */ (this.constructor).RECORD_COLORS,
                 colorIndex: record.data[this.props.colorField],
-                // Bind the record itself rather than its datapoint id: the
-                // callbacks fire whenever the user picks, and the record the
-                // colour belongs to must not be re-derived from a list that
-                // may have been reloaded in between.
                 switchTagColor: (colorIndex) => this.switchTagColor(colorIndex, record),
                 onTagVisibilityChange: (isHidden) =>
                     this.onTagVisibilityChange(isHidden, record),
@@ -410,8 +372,8 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
     }
 
     /**
-     * @param {boolean} isHidden - Whether to hide (color=0) or restore the tag
-     * @param {Object} tagRecord - The tag's relational record
+     * @param {boolean} isHidden
+     * @param {Object} tagRecord
      */
     async onTagVisibilityChange(isHidden, tagRecord) {
         if (tagRecord.data[this.props.colorField] !== 0) {
@@ -429,8 +391,8 @@ export class Many2ManyTagsFieldColorEditable extends Many2ManyTagsField {
     }
 
     /**
-     * @param {number} colorIndex - New color index to assign
-     * @param {Object} tagRecord - The tag's relational record
+     * @param {number} colorIndex
+     * @param {Object} tagRecord
      */
     async switchTagColor(colorIndex, tagRecord) {
         await tagRecord.update({ [this.props.colorField]: colorIndex });
@@ -458,7 +420,7 @@ export const many2ManyTagsFieldColorEditable = {
             ),
         },
     ],
-    extractProps: (fieldInfo, dynamicInfo) => {
+    extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => {
         const { attrs, options } = fieldInfo;
         const hasEditPermission = attrs.can_write
             ? evaluateBooleanExpr(attrs.can_write)

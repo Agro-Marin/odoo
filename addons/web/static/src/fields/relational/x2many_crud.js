@@ -1,19 +1,29 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/x2many_crud - OWL hook providing CRUD operations (save, update, remove) for x2many fields */
+/** @module @web/fields/relational/x2many_crud */
 
 /**
- * Hook providing CRUD operations for x2many fields.
- *
- * @param {Function} getList - Returns the current x2many list
- * @param {boolean} isMany2Many - Whether the field is many2many (vs one2many)
+ * @overload
+ * @param {Function} getList
+ * @param {true} isMany2Many
+ * @returns {{linkRecords: Function, saveAndLink: Function, updateRecord: Function, removeRecord: Function}}
+ */
+/**
+ * @overload
+ * @param {Function} getList
+ * @param {boolean} isMany2Many
  * @returns {{linkRecords: Function|undefined, saveAndLink: Function, updateRecord: Function, removeRecord: Function}}
  */
+/**
+ * @param {Function} getList
+ * @param {boolean} isMany2Many
+ * @returns {any} Overload-implementation signature; callers see the two above.
+ */
 export function useX2ManyCrud(getList, isMany2Many) {
-    /** Links existing records by id (many2many only). @type {Function|undefined} */
+    /** @type {Function|undefined} */
     let linkRecords;
-    /** Persists a Record datapoint and adds it to the list. @type {Function} */
+    /** @type {Function} */
     let saveAndLink;
     if (isMany2Many) {
         linkRecords = (resIds) => getList().addAndRemove({ add: resIds });
@@ -49,11 +59,9 @@ export function useX2ManyCrud(getList, isMany2Many) {
 }
 
 /**
- * Hook to add an inline record to an x2many list, with debounce protection.
- *
  * @param {Object} params
- * @param {Function} params.addNew - Function to add a new record to the list
- * @returns {Function} addInlineRecord
+ * @param {Function} params.addNew
+ * @returns {Function}
  */
 export function useAddInlineRecord({ addNew }) {
     let creatingRecord = false;

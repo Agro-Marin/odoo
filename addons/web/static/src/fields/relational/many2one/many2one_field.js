@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2one/many2one_field - Standard Many2one field with autocomplete, create, and open actions */
+/** @module @web/fields/relational/many2one/many2one_field */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -75,9 +75,9 @@ export function buildM2OFieldDescription(component) {
 }
 
 /**
- * @param {Object} staticInfo - Arch-parsed field info (attrs, options, etc.)
- * @param {Object} dynamicInfo - Runtime info (context, domain, readonly)
- * @returns {Object} Props for the Many2OneField component
+ * @param {Record<string, any>} staticInfo
+ * @param {Record<string, any>} dynamicInfo
+ * @returns {Record<string, any>}
  */
 export function extractM2OFieldProps(staticInfo, dynamicInfo) {
     const { attrs, context, decorations, options, string, placeholder } = staticInfo;
@@ -128,12 +128,13 @@ export class Many2OneField extends Component {
         string: { type: String, optional: true },
     };
 
-    /** @returns {Object} Computed Many2One component props from field props */
+    /** @returns {Record<string, any>} */
     get m2oProps() {
         return computeM2OProps(this.props);
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const many2OneField = {
     ...buildM2OFieldDescription(Many2OneField),
 };

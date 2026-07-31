@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/x2many_dialog - Form dialog component for creating and editing x2many inline records */
+/** @module @web/fields/relational/x2many_dialog */
 
 import { Component, useComponent, useEffect, useEnv, useSubEnv } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
@@ -37,6 +37,7 @@ export class X2ManyFieldDialog extends Component {
         addNew: Function,
         save: Function,
         title: String,
+        newRecordTitle: { type: String, optional: true },
         delete: { optional: true },
         deleteButtonLabel: { optional: true },
         config: Object,
@@ -45,6 +46,9 @@ export class X2ManyFieldDialog extends Component {
     static defaultProps = {
         controls: [],
     };
+    /** @type {import("services").ServiceFactories["action"]} */
+    actionService;
+
     setup() {
         this.actionService = useService("action");
         this.archInfo = this.props.archInfo;
@@ -120,19 +124,12 @@ export class X2ManyFieldDialog extends Component {
         shared.get("useFormViewInDialog")();
     }
 
-    /**
-     * (Re)computes readonly/canCreate from the CURRENT record. Called at setup
-     * and again after "Save & New" swaps in a fresh record, otherwise both keep
-     * the initial record's values. Boolean-coerce readonly: the raw
-     * `resId && !edit` expression yields the resId number (truthy) when not
-     * editable, but it feeds a Boolean FormRenderer prop.
-     */
     _computePermissions() {
         this.readonly = Boolean(this.record.resId && !this.archInfo.activeActions.edit);
         this.canCreate = !this.record.resId;
     }
 
-    /** @returns {Object} Props for the Dialog component */
+    /** @returns {Object} */
     get dialogProps() {
         const props = {
             title: this.title,
@@ -154,7 +151,7 @@ export class X2ManyFieldDialog extends Component {
         return props;
     }
 
-    /** @returns {boolean} Whether the delete button should be visible */
+    /** @returns {boolean} */
     get displayDeleteButton() {
         const deleteControl = this.props.controls.find(
             (control) => control.type === "delete",
@@ -172,7 +169,6 @@ export class X2ManyFieldDialog extends Component {
         }
     }
 
-    /** Discards unsaved changes and closes the dialog */
     async discard() {
         if (this.record.isInEdition) {
             await this.record.discard();
@@ -210,29 +206,23 @@ export class X2ManyFieldDialog extends Component {
         );
     }
 
-    /** Deletes the record and closes the dialog */
     async remove() {
         await this.props.delete();
         this.props.close();
     }
 
-    /** Saves the current record and creates a new blank one in the dialog */
     async saveAndNew() {
         const saved = await this.save({ saveAndNew: true });
         if (saved) {
-            if (this.title) {
-                this.title = this.title.replace(_t("Open:"), _t("New:"));
-            }
+            this.title = this.props.newRecordTitle || this.title;
             this.render(true);
         }
     }
 }
 
 /**
- * Loads form view information for an x2many inline dialog.
- *
  * @param {Object} params
- * @param {Object} params.list - The x2many list
+ * @param {Object} params.list
  * @param {Object} params.context
  * @param {Object} params.activeField
  * @param {Object} params.viewService
@@ -272,8 +262,6 @@ async function getFormViewInfo({ list, context, activeField, viewService, env })
 }
 
 /**
- * Hook to open an x2many record in an inline dialog with form view.
- *
  * @param {Object} params
  * @param {Object} params.activeField
  * @param {Object} params.activeActions
@@ -281,7 +269,7 @@ async function getFormViewInfo({ list, context, activeField, viewService, env })
  * @param {Function} params.updateRecord
  * @param {Function} params.saveRecord
  * @param {boolean} params.isMany2Many
- * @returns {Function} openRecord
+ * @returns {Function}
  */
 export function useOpenX2ManyRecord({
     activeField,
@@ -299,10 +287,12 @@ export function useOpenX2ManyRecord({
     const viewMode = activeField.viewMode;
 
     async function openRecord({ record, readonly, context, title, controls, onClose }) {
+        let newRecordTitle;
         if (!title) {
             title = record
                 ? _t("Open: %s", activeField.string)
                 : _t("Create %s", activeField.string);
+            newRecordTitle = _t("New: %s", activeField.string);
         }
         const list = getList();
         let { archInfo, fields: _fields } = await getFormViewInfo({
@@ -366,6 +356,7 @@ export function useOpenX2ManyRecord({
                     }
                 },
                 title,
+                newRecordTitle,
                 delete: deleteRecord,
                 deleteButtonLabel: deleteButtonLabel,
             },

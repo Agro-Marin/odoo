@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/many2x_autocomplete - Autocomplete component for many2one/many2many fields with search, quick-create, and dialog creation */
+/** @module @web/fields/relational/many2x_autocomplete */
 
 import { Component } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
@@ -19,18 +19,14 @@ import {
 } from "@web/core/utils/hooks";
 
 /**
- * Opens a SelectCreateDialog for linking/creating records on a many2x field.
- *
  * @param {Object} params
  * @param {string} params.resModel
  * @param {Object} params.activeActions
  * @param {Function} params.onSelected
  * @param {Function} params.onCreateEdit
  * @param {Function} [params.onUnselect]
- * @param {boolean} [params.isToMany] - Drives multi-selection in the dialog.
- *  When omitted (legacy callers), multi-selection falls back to the presence
- *  of an explicit `link` active action.
- * @returns {Function} selectCreate
+ * @param {boolean} [params.isToMany]
+ * @returns {Function}
  */
 export function useSelectCreate({
     resModel,
@@ -116,14 +112,6 @@ export class Many2XAutocomplete extends Component {
     /** @type {any} */
     selectCreate;
     /**
-     * Backing store for lastEmptySearch. A container object is required
-     * because template getters (autoCompleteProps → sources) bind their
-     * callbacks to a derived render context (an Object.create() of the
-     * component), so a plain instance property assigned from search() would
-     * be shadowed on that derived object and stay invisible to the
-     * invalidation hooks running on the component itself. Mutating a shared
-     * container keeps a single storage for every `this`.
-     *
      * @type {{ value: { context: Object, domain: any[], name: string } | null }}
      */
     emptySearchMemo = { value: null };
@@ -182,7 +170,7 @@ export class Many2XAutocomplete extends Component {
         });
     }
 
-    /** @returns {Object} Props forwarded to the AutoComplete sub-component */
+    /** @returns {Object} */
     get autoCompleteProps() {
         return {
             autocomplete: "off",
@@ -201,7 +189,7 @@ export class Many2XAutocomplete extends Component {
         };
     }
 
-    /** @returns {Array<Object>} Autocomplete data sources */
+    /** @returns {Array<Object>} */
     get sources() {
         return [this.optionsSource, ...this.props.otherSources];
     }
@@ -220,7 +208,7 @@ export class Many2XAutocomplete extends Component {
         return this.props.activeActions || {};
     }
 
-    /** @returns {import("@odoo/owl").ComponentConstructor} Dialog component for record creation */
+    /** @returns {import("@odoo/owl").ComponentConstructor} */
     get createDialog() {
         return registry.category("dialogs").get("form_view");
     }
@@ -231,7 +219,7 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @param {string} value - User-typed text for prefilling default fields
+     * @param {string} value
      * @returns {Object}
      */
     getCreationContext(value) {
@@ -246,12 +234,11 @@ export class Many2XAutocomplete extends Component {
             this.props.setInputFloats(true);
         }
     }
-    /** Resets floating state when autocomplete is cancelled */
     onCancel() {
         this.props.setInputFloats(false);
     }
 
-    /** @returns {Object} web_name_search specification including display_name */
+    /** @returns {Object} */
     get searchSpecification() {
         return {
             display_name: {},
@@ -260,20 +247,9 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * The component's single name-search entry point.
-     *
-     * Both places that search this relation go through here, because they are
-     * the same question asked twice: the dropdown and "Search more" differ only
-     * in limit and in how much of each record they need. They used to call
-     * DIFFERENT server methods — ``web_name_search`` for the dropdown,
-     * ``name_search`` for "Search more" — so the two disagreed about the reply
-     * shape (record objects vs ``[id, name]`` pairs) and about which server-side
-     * formatting applied, and a subclass overriding one silently left the other
-     * on the old contract.
-     *
      * @param {{ name: string, limit: number, domain: any[], context: Object,
      *           specification?: Object }} params
-     * @returns {Promise<Array<Object>>} records, each carrying at least ``id``
+     * @returns {Promise<Array<Object>>}
      */
     nameSearch({ name, limit, domain, context, specification }) {
         return this.orm.call(this.props.resModel, "web_name_search", [], {
@@ -287,8 +263,8 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @param {string} name - Search text
-     * @returns {Promise<Array<Object>>} Matching records from web_name_search
+     * @param {string} name
+     * @returns {Promise<Array<Object>>}
      */
     async search(name) {
         const domain = this.props.getDomain();
@@ -319,14 +295,6 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * Last (domain, context, name) triple of a web_name_search call that
-     * returned no records; search() then skips the RPC for an exact repeat of
-     * that same query (not for narrower/prefixed queries — see search()).
-     * Reset through invalidateEmptySearch() whenever a record may have come
-     * into existence or the searchable set may have changed. Prototype
-     * accessors over emptySearchMemo so that reads and writes share one
-     * storage whatever object `this` is bound to (see emptySearchMemo).
-     *
      * @returns {{ context: Object, domain: any[], name: string } | null}
      */
     get lastEmptySearch() {
@@ -337,21 +305,11 @@ export class Many2XAutocomplete extends Component {
         this.emptySearchMemo.value = memo;
     }
 
-    /**
-     * Drops the empty-search memoization so the next search() call hits the
-     * server again. Must be called whenever a record may have come into
-     * existence (quick create, create-and-edit dialog) or the searchable set
-     * may have changed.
-     */
     invalidateEmptySearch() {
         this.lastEmptySearch = null;
     }
 
     /**
-     * Relays a value change to the parent field. Any update may create a
-     * record or change the searchable set, so the empty-search memoization
-     * is invalidated first.
-     *
      * @param {Array<Object>|false} [values]
      * @returns {any}
      */
@@ -360,7 +318,7 @@ export class Many2XAutocomplete extends Component {
         return this.props.update(values);
     }
 
-    /** @param {string} request - User input to prefill the creation form */
+    /** @param {string} request */
     slowCreate(request) {
         return this.openMany2X({
             context: this.getCreationContext(request),
@@ -370,7 +328,7 @@ export class Many2XAutocomplete extends Component {
 
     /**
      * @param {Error} error
-     * @param {string} request - Original user input to fall back to slow create
+     * @param {string} request
      */
     onQuickCreateError(error, request) {
         if (
@@ -384,8 +342,8 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @param {string} request - Current autocomplete input value
-     * @returns {Promise<Array<Object>>} Dropdown suggestions
+     * @param {string} request
+     * @returns {Promise<Array<Object>>}
      */
     async loadOptionsSource(request) {
         await this.keepLast.add(Promise.resolve());
@@ -393,9 +351,9 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @param {string} request - Search input text
-     * @param {Function} lock - KeepLast lock function
-     * @returns {Promise<Array<Object>>} Ordered list of suggestion objects
+     * @param {string} request
+     * @param {Function} lock
+     * @returns {Promise<Array<Object>>}
      */
     async suggest(request, lock) {
         const suggestions = [];
@@ -434,7 +392,7 @@ export class Many2XAutocomplete extends Component {
         return suggestions;
     }
 
-    /** @returns {Array<{ enabled?: Function, build: Function }>} Action suggestion descriptors */
+    /** @returns {Array<{ enabled?: Function, build: Function }>} */
     get actionSuggestions() {
         return [
             {
@@ -472,10 +430,6 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * Only reached once a search has already come back empty, so it needs no
-     * information about the request or the results — it just asks whether any
-     * creation affordance would already be offered in their place.
-     *
      * @returns {boolean}
      */
     addNoRecordsSuggestion() {
@@ -483,10 +437,10 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @param {{ records: Array|null, request: string, hasMore: boolean }} params
+     * @param {{ request: string, hasMore: boolean }} params
      * @returns {boolean}
      */
-    addSearchMoreSuggestion({ records, request, hasMore }) {
+    addSearchMoreSuggestion({ request, hasMore }) {
         return request.length < this.props.searchThreshold || !!hasMore;
     }
 
@@ -502,7 +456,7 @@ export class Many2XAutocomplete extends Component {
 
     /**
      * @param {string} request
-     * @returns {Object} Dropdown option for quick-creating a record
+     * @returns {Object}
      */
     buildCreateSuggestion(request) {
         return {
@@ -522,7 +476,7 @@ export class Many2XAutocomplete extends Component {
 
     /**
      * @param {string} request
-     * @returns {Object} Dropdown option for creating via a form dialog
+     * @returns {Object}
      */
     buildCreateEditSuggestion(request) {
         return {
@@ -533,7 +487,7 @@ export class Many2XAutocomplete extends Component {
         };
     }
 
-    /** @returns {Object} Dropdown placeholder when no records match */
+    /** @returns {Object} */
     buildNoRecordsSuggestion() {
         return {
             cssClass: "o_m2o_no_result",
@@ -543,9 +497,9 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @param {string} request - Search text for highlighting
-     * @param {Object} record - Matching record from web_name_search
-     * @returns {Object} Dropdown option representing an existing record
+     * @param {string} request
+     * @param {Object} record
+     * @returns {Object}
      */
     buildRecordSuggestion(request, record) {
         const label = record.__formatted_display_name || record.display_name;
@@ -560,18 +514,18 @@ export class Many2XAutocomplete extends Component {
 
     /**
      * @param {string} request
-     * @returns {Object} Dropdown option that opens the SelectCreateDialog
+     * @returns {Object}
      */
     buildSearchMoreSuggestion(request) {
         return {
             cssClass: "o_m2o_dropdown_option o_m2o_dropdown_option_search_more",
             data: { slotName: "searchMoreItem" },
-            label: this.SearchMoreButtonLabel,
+            label: this.searchMoreButtonLabel,
             onSelect: this.onSearchMore.bind(this, request),
         };
     }
 
-    /** @returns {Object} Dropdown hint prompting the user to start typing */
+    /** @returns {Object} */
     buildStartTypingSuggestion() {
         return {
             cssClass: "o_m2o_start_typing",
@@ -584,11 +538,10 @@ export class Many2XAutocomplete extends Component {
     }
 
     /** @returns {string} */
-    get SearchMoreButtonLabel() {
+    get searchMoreButtonLabel() {
         return this.props.searchMoreLabel ?? _t("Search more...");
     }
 
-    /** Triggers a "Search More" action using the current barcode input value */
     async onBarcodeSearch() {
         const autoCompleteInput = /** @type {HTMLInputElement | null} */ (
             this.autoCompleteContainer.el?.querySelector("input")
@@ -599,17 +552,13 @@ export class Many2XAutocomplete extends Component {
         return this.onSearchMore(autoCompleteInput.value);
     }
 
-    /** @param {string} request - Search text to pre-filter the SelectCreateDialog */
+    /** @param {string} request */
     async onSearchMore(request) {
         const { getDomain, context, fieldString } = this.props;
 
         const domain = getDomain();
         let dynamicFilters = [];
         if (request.length) {
-            // Only the ids matter here — they become an `id in [...]` filter —
-            // so the specification is empty rather than the dropdown's
-            // display_name one: at `searchMoreLimit` (320) records, computing
-            // formatted display names that nothing reads is pure waste.
             const records = await this.nameSearch({
                 name: request,
                 limit: this.props.searchMoreLimit,
@@ -638,7 +587,7 @@ export class Many2XAutocomplete extends Component {
         });
     }
 
-    /** @param {{ inputValue: string }} params - Clears the value when input is emptied */
+    /** @param {{ inputValue: string }} params */
     onChange({ inputValue }) {
         if (!inputValue.length) {
             this.update(false);
@@ -647,8 +596,6 @@ export class Many2XAutocomplete extends Component {
 }
 
 /**
- * Hook to open a many2x record in a FormViewDialog.
- *
  * @param {Object} params
  * @param {string} params.resModel
  * @param {Function} params.onRecordSaved
@@ -659,7 +606,7 @@ export class Many2XAutocomplete extends Component {
  * @param {Function} [params.onClose]
  * @param {import("@odoo/owl").ComponentConstructor | null} [params.component]
  * @param {string} [params.size]
- * @returns {Function} openDialog
+ * @returns {Function}
  */
 export function useOpenMany2XRecord({
     resModel,

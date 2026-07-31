@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/relational/x2many/x2many_field - Full-featured x2many field with embedded list/kanban sub-views and CRUD controls */
+/** @module @web/fields/relational/x2many/x2many_field */
 
 import { Component } from "@odoo/owl";
 import { Pager } from "@web/components/pager/pager";
@@ -73,7 +73,13 @@ export class X2ManyField extends Component {
             this.isMany2Many,
         );
 
-        this.archInfo = this.props.views?.[this.props.viewMode] || {};
+        // loadSubViews guarantees the arch for `viewMode` is loaded before the
+        // field renders, and rendererProps dereferences archInfo.activeActions
+        // unconditionally -- so an absent arch is a bug to surface here, not a
+        // case to paper over.
+        this.archInfo = this.props.viewMode
+            ? this.props.views[this.props.viewMode]
+            : {};
         const classes = this.props.viewMode
             ? ["o_field_x2many", `o_field_x2many_${this.props.viewMode}`]
             : ["o_field_x2many"];
@@ -201,7 +207,9 @@ export class X2ManyField extends Component {
         };
     }
 
-    /** @returns {{ offset: number, limit: number, total: number, onUpdate: Function, withAccessKey: boolean }} */
+    /**
+     * @returns {{ offset: number, limit: number, total: number, onUpdate: Function, withAccessKey: boolean }}
+     */
     get pagerProps() {
         const list = this.list;
         return {
@@ -228,30 +236,6 @@ export class X2ManyField extends Component {
     }
 
     /**
-     * The kanban renderer, resolved at RENDER time rather than through
-     * ``constructor.components``.
-     *
-     * ``components`` above is a static *getter* so the renderers can be read
-     * from the ``views`` registry lazily — the kanban view is not registered
-     * yet when this module is evaluated. Subclasses, however, almost always
-     * write:
-     *
-     *     static components = { ...super.components, ListRenderer: MyRenderer };
-     *
-     * A static *field* replaces the inherited getter with a plain data
-     * property, and its initializer runs once at module-load time — while
-     * ``views`` still lacks "kanban". That freezes ``KanbanRenderer:
-     * undefined`` forever (~40 subclasses do this).
-     *
-     * Nothing notices on desktop, where an x2many renders through the
-     * ``ListRenderer`` branch. On small screens it renders as a kanban, hits
-     * the frozen ``undefined`` and throws "Cannot find the definition of
-     * component KanbanRenderer", killing the whole form — e.g. the sale order
-     * form on mobile, whose lines are a kanban there.
-     *
-     * An explicit subclass override still wins; the registry is only the
-     * fallback for the frozen-undefined case.
-     *
      * @returns {typeof import("@odoo/owl").Component | undefined}
      */
     get kanbanRenderer() {
@@ -262,7 +246,7 @@ export class X2ManyField extends Component {
         );
     }
 
-    /** @returns {Object} Props for the ListRenderer or KanbanRenderer sub-component */
+    /** @returns {Object} */
     get rendererProps() {
         const { archInfo } = this;
         const props = {
@@ -308,7 +292,7 @@ export class X2ManyField extends Component {
     }
 
     /**
-     * @param {string} invisible - Boolean expression string to evaluate
+     * @param {string} invisible
      * @returns {boolean}
      */
     evalInvisible(invisible) {
@@ -316,7 +300,7 @@ export class X2ManyField extends Component {
     }
 
     /**
-     * @param {Object} record - The x2many record to open in form view
+     * @param {Object} record
      * @param {{ newWindow?: boolean }} options
      */
     async switchToForm(record, options) {
@@ -363,7 +347,7 @@ export class X2ManyField extends Component {
         );
     }
 
-    /** @returns {Object} Context passed to the form action when switching views */
+    /** @returns {Object} */
     getFormActionContext() {
         return this.props.context;
     }
