@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/setting/setting - Individual setting row with label, help text, and company-dependent icon */
+/** @module @web/views/form/setting/setting */
 
 import { Component } from "@odoo/owl";
 import { exprToBoolean } from "@web/core/utils/format/strings";
@@ -9,7 +9,6 @@ import { user } from "@web/services/user";
 import { FormLabel } from "@web/views/form/form_label";
 import { DocumentationLink } from "@web/views/widgets/documentation_link/documentation_link";
 
-/** Individual setting row inside a form view, with label, help text, and company-dependent icon. */
 export class Setting extends Component {
     static template = "web.Setting";
     static components = {
@@ -42,7 +41,7 @@ export class Setting extends Component {
         }
     }
 
-    /** @returns {Record<string, boolean>} CSS class map for the setting box container */
+    /** @returns {Record<string, boolean>} */
     get classNames() {
         const { class: _class } = this.props;
         const classNames = {
@@ -55,7 +54,7 @@ export class Setting extends Component {
         return classNames;
     }
 
-    /** @returns {boolean} whether to show the company-dependent icon */
+    /** @returns {boolean} */
     get displayCompanyDependentIcon() {
         return (
             this.labelString &&
@@ -64,7 +63,7 @@ export class Setting extends Component {
         );
     }
 
-    /** @returns {string} display label from props or field metadata */
+    /** @returns {string} */
     get labelString() {
         if (this.props.string) {
             return this.props.string;

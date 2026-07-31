@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_compiler - Compiles form view XML arch into OWL template AST with layout, notebook, and field handling */
+/** @module @web/views/form/form_compiler */
 
 import { registry } from "@web/core/registry";
 import {
@@ -118,9 +118,6 @@ export class FormCompiler extends ViewCompiler {
             fieldName: toStringExpression(fieldName),
             record: `__comp__.props.record`,
             fieldInfo: `__comp__.props.archInfo.fieldNodes[${toStringExpression(fieldId)}]`,
-            // `class` is free text and lands inside a generated JS literal, so
-            // it must be escaped like every other arch string — an unescaped
-            // quote here made OWL fail to tokenize the whole form template.
             className: toStringExpression(label.className),
             string: labelText,
         });
@@ -198,11 +195,7 @@ export class FormCompiler extends ViewCompiler {
             append(buttonBox, mainSlot);
         }
 
-        return hasContent ? buttonBox : /** @type {any} */ ("");
-    }
-
-    compileButton(el, params) {
-        return super.compileButton(el, params);
+        return hasContent ? buttonBox : undefined;
     }
 
     /**
@@ -228,11 +221,7 @@ export class FormCompiler extends ViewCompiler {
                     currentFieldArchNode: el,
                 },
             );
-            if (formLabel) {
-                label.replaceWith(formLabel);
-            } else {
-                label.remove();
-            }
+            label.replaceWith(formLabel);
             return formLabel;
         };
         for (const label of labels) {
@@ -537,11 +526,12 @@ export class FormCompiler extends ViewCompiler {
         let slotId = 0;
         const statusBarButtons = createElement("StatusBarButtons");
         for (const button of buttons) {
+            const buttonEl = /** @type {Element} */ (button);
             const slot = createElement("t", {
                 "t-set-slot": `button_${slotId++}`,
-                isVisible:
-                    /** @type {Element} */ (button).getAttribute("t-if") || "true",
+                isVisible: buttonEl.getAttribute("t-if") || "true",
             });
+            buttonEl.removeAttribute("t-if");
             append(slot, button);
             append(statusBarButtons, slot);
         }
@@ -607,6 +597,10 @@ export class FormCompiler extends ViewCompiler {
             "onWillActivatePage",
             `(page) => __comp__.onWillChangeNotebookPage?.(${noteBookId}, page)`,
         );
+        noteBook.setAttribute(
+            "isFieldInvalid",
+            `(fieldName) => __comp__.props.record.isFieldInvalid(fieldName)`,
+        );
 
         for (const child of el.children) {
             if (getTag(child, true) !== "page") {
@@ -633,7 +627,7 @@ export class FormCompiler extends ViewCompiler {
             pageSlot.setAttribute("title", pageTitle);
             pageSlot.setAttribute("name", pageNodeName);
             if (child.className) {
-                pageSlot.setAttribute("className", `"${child.className}"`);
+                pageSlot.setAttribute("className", toStringExpression(child.className));
             }
 
             if (child.getAttribute("autofocus") === "autofocus") {
@@ -727,11 +721,7 @@ export class FormCompiler extends ViewCompiler {
     /**
      * @param {Element} el
      * @param {Record<string, any>} params
-     * @returns {Element | undefined} `undefined` when the separator is
-     *   statically invisible — `applyInvisible` drops the node entirely, and
-     *   `ViewCompiler.compileNode` already guards its result for exactly that
-     *   (`if (… && compiledNode)`, twice). The annotation said `Element`, which
-     *   was narrower than both this body and its consumer.
+     * @returns {Element | undefined}
      */
     compileSeparator(el, params = {}) {
         const separator = makeSeparator(el.getAttribute("string"));

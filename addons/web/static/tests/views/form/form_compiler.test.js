@@ -146,7 +146,7 @@ test("properly compile notebook", () => {
     const expected = `
         <t t-translation="off">
             <div class="o_form_renderer o_form_nosheet" t-att-class="__comp__.props.class" t-attf-class="{{__comp__.props.record.isInEdition ? 'o_form_editable' : 'o_form_readonly'}} d-block {{ __comp__.hasUnsavedEdits() ? 'o_form_dirty' : !__comp__.props.record.isNew ? 'o_form_saved' : '' }}" t-ref="compiled_view_root">
-                <Notebook defaultPage="__comp__.props.record.isNew ? undefined : __comp__.props.activeNotebookPages[0]" onPageUpdate="(page) =&gt; __comp__.props.onNotebookPageChange(0, page)" onWillActivatePage="(page) =&gt; __comp__.onWillChangeNotebookPage?.(0, page)">
+                <Notebook defaultPage="__comp__.props.record.isNew ? undefined : __comp__.props.activeNotebookPages[0]" onPageUpdate="(page) =&gt; __comp__.props.onNotebookPageChange(0, page)" onWillActivatePage="(page) =&gt; __comp__.onWillChangeNotebookPage?.(0, page)" isFieldInvalid="(fieldName) =&gt; __comp__.props.record.isFieldInvalid(fieldName)">
                     <t t-set-slot="page_1" title="\`Page1\`" name="\`p1\`" isVisible="true" fieldnames="[&quot;charfield&quot;]">
                         <Field id="\`charfield\`" name="\`charfield\`" record="__comp__.props.record" fieldInfo="__comp__.props.archInfo.fieldNodes[\`charfield\`]" readonly="__comp__.props.readonly"/>
                     </t>
@@ -523,4 +523,20 @@ test("appendToExpr wraps a bare string when there is no existing expression", ()
 test("appendToExpr preserves literal text surrounding an interpolation", () => {
     expect(appendToExpr("foo {{bar}}", "baz")).toBe("foo {{bar}} {{baz }}");
     expect(appendToExpr("a {{b}} c", "d")).toBe("a {{b}} c {{d }}");
+});
+
+test("notebook page class is escaped like every other arch string", () => {
+    const compiled = compileTemplate(
+        `<form><notebook><page string="P" class='a&quot;b'><div/></page></notebook></form>`,
+    ).outerHTML;
+    expect(compiled).toInclude('className="`a&quot;b`"');
+});
+
+test("a statusbar button modifier is evaluated once, on the slot", () => {
+    const compiled = compileTemplate(
+        `<form><header><button name="b" type="object" string="B" invisible="bar == 'x'"/></header></form>`,
+    ).outerHTML;
+    expect(compiled.match(/evaluateBooleanExpr/g)).toHaveLength(1);
+    expect(compiled).toInclude("isVisible=");
+    expect(compiled).not.toInclude("t-if=");
 });

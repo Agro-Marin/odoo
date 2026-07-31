@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_group/form_group - OuterGroup and InnerGroup components for form view column layout */
+/** @module @web/views/form/form_group/form_group */
 
 import { Component } from "@odoo/owl";
 import { sortBy } from "@web/core/utils/collections/arrays";
-/** Base class for form view `<group>` elements, handling slot-based layout. */
 class Group extends Component {
     static template = "";
     static props = ["class?", "slots?", "maxCols?", "style?"];
@@ -29,16 +28,18 @@ class Group extends Component {
     }
 }
 
-/** Outer `<group>` — distributes items into Bootstrap columns by their `itemSpan`. */
 export class OuterGroup extends Group {
     static template = "web.Form.OuterGroup";
     static defaultProps = {
         ...Group.defaultProps,
-        slots: [],
+        slots: /** @type {any[]} */ ([]),
         hasOuterTemplate: true,
     };
 
-    /** @override @returns {any} */
+    /**
+     * @override
+     * @returns {any}
+     */
     getItems() {
         const nbCols = this.props.maxCols;
         const colSize = Math.max(1, Math.round(12 / nbCols));
@@ -59,9 +60,9 @@ export class OuterGroup extends Group {
     }
 }
 
-/** Inner `<group>` — distributes items into HTML table rows, respecting `maxCols`. */
 export class InnerGroup extends Group {
     static template = "web.Form.InnerGroup";
+    /** @param {string} subType */
     getTemplate(subType) {
         const templates = /** @type {any} */ (this.constructor).templates;
         return templates[subType] || templates.default;
@@ -75,7 +76,7 @@ export class InnerGroup extends Group {
 
         const items = this.getItems();
         while (items.length) {
-            const [slotName, slot] = items.shift();
+            const [slotName, slot] = /** @type {[string, any]} */ (items.shift());
             if ("isVisible" in slot && !slot.isVisible) {
                 continue;
             }

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_arch_parser - Parses form view XML arch into field/widget descriptors, active actions, and autofocus targets */
+/** @module @web/views/form/form_arch_parser */
 
 import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
@@ -9,17 +9,11 @@ import { parseFieldNode } from "@web/views/field_arch";
 import { getActiveActions } from "@web/views/view_utils";
 import { Widget } from "@web/views/widgets/widget";
 
-/**
- * Arch parser for the form view.
- *
- * Walks the arch XML, extracts field/widget node descriptors, active actions,
- * autofocus targets, and the js_class identifier.
- */
 export class FormArchParser {
     /**
-     * @param {Element} xmlDoc - the parsed form arch XML document
-     * @param {Object} models - related model field definitions
-     * @param {string} modelName - the model's technical name
+     * @param {Element} xmlDoc
+     * @param {Object} models
+     * @param {string} modelName
      * @returns {{ activeActions: Object, autofocusFieldIds: string[], disableAutofocus: boolean, fieldNodes: Object, widgetNodes: Object, xmlDoc: Element }}
      */
     parse(xmlDoc, models, modelName) {

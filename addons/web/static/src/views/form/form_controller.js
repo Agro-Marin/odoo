@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_controller - Form view lifecycle: record save, discard, duplicate, archive, pager navigation, and error recovery */
+/** @module @web/views/form/form_controller */
 
 import {
     Component,
@@ -59,22 +59,10 @@ import { FormStatusIndicator } from "./form_status_indicator/form_status_indicat
 import { loadSubViews, useFormViewInDialog } from "./form_utils.js";
 
 /**
- * Per-``props.archInfo`` memo of the footer-stripped arch clone (+ the extracted
- * footer arch). Keyed by the shared arch object's identity so repeated
- * controller instantiations with identical props reuse the SAME stripped
- * Element, letting the view compiler's Element-keyed ``archKeyCache`` hit
- * instead of re-serializing the arch on every dialog open.
  * @type {WeakMap<object, { footerArchInfo: object, strippedArchInfo: object }>}
  */
 const footerArchInfoCache = new WeakMap();
 
-/**
- * Controller for the form view.
- *
- * Manages a single record: loading, saving, discarding, duplicating, archiving,
- * deleting, pager navigation, and error recovery (including company-switching
- * on AccessError). Sub-views for x2many fields are loaded on first render.
- */
 export class FormController extends Component {
     static template = `web.FormView`;
     static components = {
@@ -374,17 +362,11 @@ export class FormController extends Component {
         };
     }
 
-    /**
-     * Called before (re)loading the root record datapoint. ``this.model.root``
-     * may not exist yet at this point, if this is the first load.
-     */
     onWillLoadRoot() {
         this.duplicateId = undefined;
     }
 
     /**
-     * Called after a successful save; skipped if the record was invalid, a
-     * server error was thrown, or there were no changes to save.
      * @param {any} record
      */
     async onRecordSaved(record, changes) {
@@ -405,31 +387,12 @@ export class FormController extends Component {
         }
     }
 
-    /**
-     * Called before saving the record, if it is valid. Returning false
-     * prevents the save.
-     */
     async onWillSaveRecord() {}
 
     /**
-     * Render the save-error dialog UX (``FormErrorDialog`` with discard /
-     * redirect / stay choices). Wired into the coordinator's ``onSaveError``
-     * hook; called only when ``recoverFromSaveError`` already returned false.
-     *
-     * Contract: ``error.data`` (an ``RPCError``) is always present —
-     * payload-less errors (``ConnectionLostError``, timeouts) are rethrown
-     * earlier by the coordinator's dialog-mode ``onError`` (see
-     * ``_buildOnError``) and never reach here.
-     *
-     * Historical: replaces the old tri-mode ``onSaveError(error, opts,
-     * showErrorDialog)``, whose semantics drifted across 5+ call sites
-     * (renamed 2026-05); the coordinator now owns dispatch, so this method
-     * is single-purpose.
-     *
-     * @param {Object} error - the RPC error
+     * @param {Object} error
      * @param {{ discard: Function, retry: Function }} callbacks
-     * @returns {Promise<boolean>} true if user chose discard (caller may
-     *     proceed); false if user chose redirect or stay (caller blocks)
+     * @returns {Promise<boolean>}
      */
     _renderSaveErrorDialog(error, { discard, retry }) {
         return new Promise((resolve) => {
@@ -455,17 +418,9 @@ export class FormController extends Component {
         });
     }
 
-    /**
-     * Coordinator hook: invoked when the urgent (sendBeacon) save path
-     * fails — typically because the payload exceeded the browser's
-     * sendBeacon budget.  The caller (``beforeUnload``) is also informed
-     * via the false return value of ``requestUrgentSave``, so it can
-     * ``ev.preventDefault()`` on the unload event.  No-op here for now;
-     * left as an extension point for future telemetry / notifications.
-     */
     _onUrgentSaveFailed() {}
 
-    /** @returns {string} the display name for the breadcrumb (record name or "New") */
+    /** @returns {string} */
     displayName() {
         const displayName = this.model.root.data.display_name;
         if (displayName) {
@@ -475,8 +430,6 @@ export class FormController extends Component {
     }
 
     /**
-     * Navigate to a different record via the pager. Saves dirty records first.
-     *
      * @param {{ offset: number, resIds: number[] }} params
      */
     async onPagerUpdate({ offset, resIds }) {
@@ -601,7 +554,9 @@ export class FormController extends Component {
     }
 
     get archiveEnabled() {
-        return computeArchiveEnabled(this.props.fields, this.model.root.activeFields);
+        return computeArchiveEnabled(this.props.fields, {
+            presentIn: this.model.root.activeFields,
+        });
     }
 
     async shouldExecuteAction(item) {
@@ -629,7 +584,7 @@ export class FormController extends Component {
         };
     }
 
-    async deleteRecord() {
+    deleteRecord() {
         this.deleteRecordsWithConfirmation(this.deleteConfirmationDialogProps, [
             this.model.root,
         ]);
@@ -674,16 +629,8 @@ export class FormController extends Component {
     }
 
     /**
-     * Save the current record. Delegates to `props.saveRecord` if provided,
-     * otherwise routes through the save coordinator.
-     *
-     * Historical note: prior to the FormSaveCoordinator extraction this
-     * method assembled its own ``record.save({onError, ...params})`` call
-     * with the rethrow-mode error handler.  The coordinator's
-     * ``errorMode: "rethrow"`` produces the same observable behavior.
-     *
-     * @param {Object} [params] - save options (e.g. { reload: false })
-     * @returns {Promise<boolean>} whether the save succeeded
+     * @param {Object} [params]
+     * @returns {Promise<boolean>}
      */
     async save(params) {
         const record = this.model.root;

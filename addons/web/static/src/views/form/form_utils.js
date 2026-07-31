@@ -1,12 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_utils - Utility functions for form views (sub-view loading, discard hooks, toolbar setup) */
-
-/**
- * Extracted from form_controller.js to reduce file complexity; public API
- * preserved via re-exports.
- */
+/** @module @web/views/form/form_utils */
 
 import { onWillDestroy } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
@@ -19,14 +14,12 @@ import { isX2Many } from "@web/views/view_utils";
 const viewRegistry = registry.category("views");
 
 /**
- * Fetch the list/kanban sub-view arch for each x2many field that needs one.
- *
- * @param {Object} fieldNodes - field node descriptors from the arch
- * @param {Object} fields - field definitions
- * @param {Object} context - current action context
- * @param {string} resModel - the parent model name
- * @param {Object} viewService - the view service instance
- * @param {boolean} isSmall - whether the screen is small (selects kanban over list)
+ * @param {Object} fieldNodes
+ * @param {Object} fields
+ * @param {Object} context
+ * @param {string} resModel
+ * @param {Object} viewService
+ * @param {boolean} isSmall
  */
 export async function loadSubViews(
     fieldNodes,
@@ -103,10 +96,6 @@ export async function loadSubViews(
     );
 }
 
-/**
- * Registers/unregisters a form-in-dialog with `form_dialog_stack` so the parent
- * FormController can suppress auto-save while a child form-in-dialog is open.
- */
 export function useFormViewInDialog() {
     const formDialogStack = useService("form_dialog_stack");
     formDialogStack.push();

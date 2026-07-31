@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/button_box/button_box - Responsive stat-button container with overflow dropdown for form views */
+/** @module @web/views/form/button_box/button_box */
 
 import { Component, onWillRender } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -18,6 +18,13 @@ export class ButtonBox extends Component {
     static defaultProps = {
         class: "",
     };
+
+    /** @type {string[]} */
+    visibleButtons;
+    /** @type {string[]} */
+    additionalButtons;
+    /** @type {boolean} */
+    isFull;
 
     setup() {
         const ui = useService("ui");
@@ -40,27 +47,15 @@ export class ButtonBox extends Component {
     }
 
     /**
-     * @param {{ isVisible?: boolean }} slot - slot descriptor from props.slots
-     * @returns {boolean} whether the slot should be rendered
+     * @param {{ isVisible?: boolean }} slot
+     * @returns {boolean}
      */
     isSlotVisible(slot) {
-        return !("isVisible" in slot) || slot.isVisible;
+        return !("isVisible" in slot) || Boolean(slot.isVisible);
     }
 
     /**
-     * Selection handler for an overflow ("More") DropdownItem.
-     *
-     * Each additional stat button is a self-contained ViewButton that owns its
-     * own action AND closes the dropdown (via its onClick's beforeExecute). The
-     * wrapping DropdownItem's onClick stops at ``onSelected`` + closeAll, so it
-     * only ever wins the click when the pointer resolves to the wrapper rather
-     * than the inner button — which happens on touch (notably Android Chrome),
-     * where the resulting "sheet closes, no action" is the whole bug. Forward
-     * the selection to the wrapped button so activating the row anywhere runs
-     * the action. A direct hit on the button stops propagation before reaching
-     * here, so there is no double activation.
-     *
-     * @param {MouseEvent} ev - click event from the DropdownItem
+     * @param {MouseEvent} ev
      */
     activateStatButton(ev) {
         const item = /** @type {HTMLElement} */ (ev.currentTarget);
