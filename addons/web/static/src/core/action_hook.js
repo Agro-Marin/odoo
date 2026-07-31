@@ -1,31 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/action_hook - CallbackRecorder utility and useSetupAction hook for persisting view state across action switches */
+/** @module @web/core/action_hook */
 
 import { onMounted, useComponent, useEffect, useExternalListener } from "@odoo/owl";
 
-/** Symbol key used to store scroll position in local action state. */
 export const scrollSymbol = Symbol("scroll");
 
-/** CSS selector for the scrollable content area within a view (with or without search panel). */
 const CONTENT_SELECTOR =
     ".o_component_with_search_panel > .o_renderer_with_searchpanel," +
     ".o_component_with_search_panel > .o_renderer";
 
-/**
- * Registry of owner-keyed callbacks used by the action system to collect
- * state (context, orderBy, globalState, localState) from nested components
- * during action switches; each callback is removable via its owner.
- */
 export class CallbackRecorder {
     /**
-     * Declared as a field as well as being (re)initialised by `setup()`: a
-     * property a JS class only ever assigns outside its constructor widens to
-     * `T | undefined` for the checker, so every read below reported as
-     * possibly-undefined. Field initialisers run before the constructor body,
-     * so `setup()` — which subclasses may override — still has the last word.
-     *
      * @type {{ owner: any, callback: Function }[]}
      */
     _callbacks = [];
@@ -75,19 +62,15 @@ export function useCallbackRecorder(callbackRecorder, callback) {
 }
 
 /**
- * OWL hook that wires a component into the action lifecycle: registers
- * callbacks on the matching env CallbackRecorders and handles scroll
- * position save/restore when `rootRef` is provided.
- *
  * @param {Object} [params]
- * @param {Function} [params.beforeVisibilityChange] - called on document visibilitychange
- * @param {Function} [params.beforeUnload] - called on window beforeunload
- * @param {Function} [params.beforeLeave] - called before navigating away from the action
- * @param {Function} [params.getGlobalState] - returns state to persist across action switches
- * @param {Function} [params.getLocalState] - returns state to persist for browser back/forward
- * @param {import("@odoo/owl").Ref} [params.rootRef] - component root ref for scroll tracking
- * @param {Function} [params.getContext] - returns additional context for the action
- * @param {Function} [params.getOrderBy] - returns orderBy for the action
+ * @param {Function} [params.beforeVisibilityChange]
+ * @param {Function} [params.beforeUnload]
+ * @param {Function} [params.beforeLeave]
+ * @param {Function} [params.getGlobalState]
+ * @param {Function} [params.getLocalState]
+ * @param {import("@odoo/owl").Ref} [params.rootRef]
+ * @param {Function} [params.getContext]
+ * @param {Function} [params.getOrderBy]
  * @returns {{ setScrollFromState: Function }}
  */
 export function useSetupAction(params = {}) {
@@ -162,11 +145,6 @@ export function useSetupAction(params = {}) {
             if (getLocalState) {
                 Object.assign(state, getLocalState());
             }
-            // `rootRef.el`, not just `rootRef`: the ref OBJECT always exists,
-            // its `el` is null whenever the component is not mounted. This
-            // callback fires on state export, which is not guaranteed to happen
-            // while mounted, and every read below would have thrown on the
-            // null.
             const rootEl = rootRef?.el;
             if (rootEl) {
                 if (component.env.isSmall) {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/feature_detection - Browser and device capability checks (Chrome, mobile, touch, PWA) */
+/** @module @web/core/browser/feature_detection */
 
 import { browser } from "./browser.js";
 
@@ -12,9 +12,7 @@ let _cachedUA;
 let _uaResults;
 
 /**
- * Compute all UA-based detection results from a single pass.
- *
- * @param {string} ua - navigator.userAgent value
+ * @param {string} ua
  */
 function _computeUAResults(ua) {
     const chrome = /Chrome/i.test(ua);
@@ -33,11 +31,6 @@ function _computeUAResults(ua) {
     };
 }
 
-/**
- * Return the cached UA results, recomputing if the user agent has changed.
- * In production this computes once; in tests it recomputes when browser.navigator
- * is patched to a different UA string.
- */
 function _getUA() {
     const ua = browser.navigator.userAgent || "";
     if (ua !== _cachedUA) {
@@ -48,8 +41,6 @@ function _getUA() {
 }
 
 /**
- * True if the browser is based on Chromium (Google Chrome, Opera, Edge).
- *
  * @returns {boolean}
  */
 export function isBrowserChrome() {
@@ -57,8 +48,6 @@ export function isBrowserChrome() {
 }
 
 /**
- * True if the browser is Firefox.
- *
  * @returns {boolean}
  */
 export function isBrowserFirefox() {
@@ -66,8 +55,6 @@ export function isBrowserFirefox() {
 }
 
 /**
- * True if the browser is Microsoft Edge.
- *
  * @returns {boolean}
  */
 export function isBrowserMicrosoftEdge() {
@@ -75,8 +62,6 @@ export function isBrowserMicrosoftEdge() {
 }
 
 /**
- * True if the browser is based on Safari (Safari, Epiphany).
- *
  * @returns {boolean}
  */
 export function isBrowserSafari() {

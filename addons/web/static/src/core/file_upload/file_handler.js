@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/file_upload/file_handler - FileUploader component for handling file input, validation, and base64 conversion */
+/** @module @web/core/file_upload/file_handler */
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -33,11 +33,6 @@ export class FileUploader extends Component {
         createObjectUrl: false,
     };
 
-    // Declared as fields: a property a JS class assigns only in `setup()`
-    // widens to `T | undefined` for the checker. Safe here — owl's `Component`
-    // constructor does NOT call `setup()` (the framework calls it afterwards),
-    // so these initialisers cannot clobber what `setup()` stores. NOT safe in
-    // a `Model` subclass, whose base constructor does call `setup()`.
     /** @type {import("services").ServiceFactories["notification"]} */
     notification;
     /** @type {{ el: HTMLInputElement | null }} */
@@ -58,8 +53,6 @@ export class FileUploader extends Component {
      */
     async onFileChange(ev) {
         const inputEl = /** @type {HTMLInputElement} */ (ev.target);
-        // `files` is null on an input that has never held a selection; the
-        // spread would have thrown rather than taking the empty-set path below.
         const files = [...(inputEl.files ?? [])].filter((file) =>
             this.validFileType(file),
         );
@@ -113,17 +106,13 @@ export class FileUploader extends Component {
     }
 
     /**
-     * `allowedMIMETypes` restricts selectable types; `acceptedFileExtensions`
-     * is only a browser hint and isn't enforced.
-     *
      * @param {File} file
-     * @returns Whether the upload file's type is in the whitelist (`allowedMIMETypes`).
      */
     validFileType(file) {
         if (this.props.allowedMIMETypes) {
             const allowed = this.props.allowedMIMETypes
                 .split(",")
-                .map((type) => type.trim())
+                .map((/** @type {string} */ type) => type.trim())
                 .filter(Boolean);
             if (!file.type || !allowed.includes(file.type)) {
                 this.notification.add(
@@ -143,6 +132,7 @@ export class FileUploader extends Component {
         return true;
     }
 
+    /** @param {MouseEvent} ev */
     async onSelectFileButtonClick(ev) {
         if (this.props.onClick) {
             const ok = await this.props.onClick(ev);

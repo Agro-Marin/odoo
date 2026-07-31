@@ -49,7 +49,7 @@ const UA_BLACKBERRY =
  */
 function patchUA(ua, extra = {}) {
     patchWithCleanup(browser, {
-        navigator: { userAgent: ua, maxTouchPoints: 0, ...extra },
+        navigator: /** @type {any} */ ({ userAgent: ua, maxTouchPoints: 0, ...extra }),
     });
 }
 

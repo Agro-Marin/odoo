@@ -1,52 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/module_bridge - Build runtime re-export bridge modules from odoo.loader.modules */
-
-/**
- * Canonical JS-side builder for "bridge" modules: tiny ES modules that
- * re-export a specifier's namespace from the live ``odoo.loader.modules``
- * map, preserving singleton identity when a bundle loads into a foreign
- * document (iframe) whose bare imports must resolve to already-evaluated
- * instances.
- *
- * RUNTIME counterpart of the BUILD-TIME generator ``_bridge_shim_source``
- * in ``odoo/tools/assets/esm_graph.py`` — the two MUST emit the same shape
- * so server-built and client-built bridges are interchangeable
- * (``@web/core/assets.loadESMBundle`` reuses server bridges where they
- * exist, falling back to runtime ``data:`` bridges otherwise). Keep in
- * sync with the Python generator.
- *
- * CONTRACT — bridged modules must not rely on mutable ``export let``
- * bindings: a bridge re-exports ``export const <name> = _m?.<name>`` — a
- * VALUE SNAPSHOT taken when the bridge evaluates.  ES-module live bindings
- * cannot be reproduced by a generated module (only ``export ... from``
- * preserves liveness, and a ``data:`` bridge has no source URL to re-export
- * from), so a module that reassigns an ``export let`` after load (the
- * lazy-loader pattern) would present a permanently-stale value — typically
- * ``null`` — to every cross-document consumer.  Modules that expose a
- * lazily-loaded value must instead export a STABLE ``const`` whose reads
- * forward to the current value — see {@link makeLazyFacade}, used by
- * ``@web/core/lib/chartjs``, ``@web/core/lib/fullcalendar`` and
- * ``@web/core/utils/pdfjs``.
- */
+/** @module @web/core/module_bridge */
 
 const VALID_EXPORT_NAME = /^[a-zA-Z_$][\w$]*$/;
 
 /**
- * Build the ES-module source of a bridge re-exporting ``specifier`` from
- * ``odoo.loader.modules``.  Field-for-field mirror of Python
- * ``_bridge_shim_source``:
- *
- *   const _m = odoo.loader.modules.get("<specifier>");
- *   const _d = _m?.default ?? _m;
- *   export default _d;
- *   export const <name> = _m?.<name>;   // one per named export
- *
- * @param {string} specifier  module specifier, e.g. ``@web/core/registry``
- * @param {Iterable<string>} exportNames  candidate named exports (``default``
- *   and non-identifier names are filtered out)
- * @returns {string} ES-module source
+ * @param {string} specifier
+ * @param {Iterable<string>} exportNames
+ * @returns {string}
  */
 export function buildBridgeModuleSource(specifier, exportNames) {
     const lines = [
@@ -63,30 +25,8 @@ export function buildBridgeModuleSource(specifier, exportNames) {
 }
 
 /**
- * Build a stable ``const``-exportable facade over a lazily-loaded value, so
- * the exporting module honours the bridge contract above (no mutable
- * ``export let``): the facade object never changes identity — a bridge's
- * value snapshot of it stays valid — while every interaction (property
- * reads/writes, calls, construction) forwards to the CURRENT value returned
- * by ``getValue()``.
- *
- * Intended for the lazy library loaders (``export const Chart =
- * makeLazyFacade(() => _chart, { constructable: true })``): consumers keep
- * their existing ``await loadChartJS(); new Chart(...)`` /
- * ``pdfjsLib.getDocument(...)`` call sites, in the parent document and in
- * bridged (iframe) documents alike.
- *
- * Before the value is loaded, interactions fall back to the bare target
- * (reads yield ``undefined``, construction throws) — consumers must await
- * the loader first, exactly as with the previous ``null`` binding.  Note
- * the facade itself is always truthy: code must gate on the loader
- * promise, not on the binding's truthiness.
- *
- * @param {() => any} getValue returns the currently-loaded value
- *   (``null``/``undefined`` while not yet loaded)
- * @param {{ constructable?: boolean }} [options] pass ``constructable:
- *   true`` when the loaded value is called/constructed (e.g. a class);
- *   leave false for plain namespace objects.
+ * @param {() => any} getValue
+ * @param {{ constructable?: boolean }} [options]
  * @returns {any}
  */
 export function makeLazyFacade(getValue, { constructable = false } = {}) {
@@ -158,9 +98,6 @@ export function makeLazyFacade(getValue, { constructable = false } = {}) {
 }
 
 /**
- * Wrap bridge-module source as a ``data:text/javascript`` URI for use as an
- * import-map value.
- *
  * @param {string} source
  * @returns {string}
  */
@@ -169,16 +106,8 @@ export function toDataModuleUrl(source) {
 }
 
 /**
- * Conventional mapping from a bare ``@addon/rest`` specifier to the URL
- * esbuild would have fetched for it individually
- * (``@<addon>/<rest>`` → ``/<addon>/static/src/<rest>.js``).  Lets a caller
- * also intercept *relative* imports that resolve to that URL, so a bridged
- * module is never re-evaluated outside its original bundle (which would split
- * the registry singleton).
- *
  * @param {string} specifier
- * @returns {string | null} the conventional URL, or ``null`` if the specifier
- *   doesn't map (not ``@``-scoped, contains ``..``, or has no ``/``).
+ * @returns {string | null}
  */
 export function specToModuleUrl(specifier) {
     if (!specifier.startsWith("@") || specifier.includes("..")) {
@@ -194,12 +123,6 @@ export function specToModuleUrl(specifier) {
 }
 
 /**
- * Whether an import-map value re-exports from ``odoo.loader.modules`` (a
- * ``data:`` runtime bridge or a server bridge attachment) rather than being a
- * raw source file.  Only such targets are safe to reuse for relative-import
- * interception — pointing a relative URL at a raw source file would
- * re-evaluate the module and split the registry singleton.
- *
  * @param {unknown} url
  * @returns {boolean}
  */

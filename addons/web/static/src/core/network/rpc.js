@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/network/rpc - JSON-RPC client built on fetch+AbortController, with error classification and request bus events */
+/** @module @web/core/network/rpc */
 
 import { EventBus } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -14,10 +14,6 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
 /** @import { RPCCache } from "@web/core/network/rpc_cache" */
 
 /**
- * Server-side payload of a JSON-RPC error response (the ``error`` slot
- * of a JSON-RPC envelope). Fields follow the JSON-RPC 2.0 spec; the
- * ``data`` member is server-defined and intentionally permissive.
- *
  * @typedef {{
  *  code: number;
  *  message: string;
@@ -27,11 +23,6 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
  */
 
 /**
- * Structured payload Odoo embeds in ``JsonRpcError.data``. Stable in practice —
- * downstream consumers (``error_handlers``, ``error_dialogs``,
- * ``form_controller``, ``file_upload_service``, ``domain_field``) read this
- * fixed surface, though server code may append addon-specific keys.
- *
  * @typedef {{
  *  name?: string;
  *  message?: string;
@@ -43,10 +34,6 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
  */
 
 /**
- * Whitelisted settings accepted by ``rpc()`` and forwarded through the
- * cache → retry → dedup composition layers. Any other key throws at
- * ``validateRPCSettings`` time so a typo surfaces immediately.
- *
  * @typedef {{
  *  cache?: boolean | { type?: "ram" | "disk"; update?: "once" | "always"; immutable?: boolean; callback?: Function };
  *  silent?: boolean;
@@ -58,17 +45,6 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
  */
 
 /**
- * Detail payload of the ``RpcEvent.REQUEST`` / ``RpcEvent.RESPONSE``
- * events fired on ``rpcBus``. Discriminated by the presence of
- * ``result`` (success) vs ``error`` (failure) vs neither (request).
- *
- * ``url`` is set on BOTH events. It used to be omitted from every RESPONSE
- * trigger, which left observers unable to identify the endpoint of any call
- * whose ``params`` carry no ``model``/``method`` — session_info,
- * ``/web/action/load``, ``get_views``, the observability beacons. The debug
- * RPC log below is one such consumer: its fallback ``params.method ||
- * detail.url`` rendered a literal ``"undefined"`` for those calls.
- *
  * @typedef {{
  *  data: { id: number; jsonrpc: "2.0"; method: "call"; params: Record<string, any> };
  *  url: string;
@@ -79,17 +55,13 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
  */
 
 /**
- * Promise returned by ``rpc()`` / ``_rpcOnce()`` / ``_rpcWithRetry()``.
- * Carries an ``abort(rejectError)`` method so callers can cancel the
- * underlying fetch. ``rejectError=true`` (default) rejects the outer
- * promise with ``ConnectionAbortedError``; ``rejectError=false`` leaves
- * it pending so the caller can silently swallow navigations.
- *
  * @template T
  * @typedef {Promise<T> & { abort: (rejectError?: boolean) => void }} RpcPromise
  */
 
-/** @type {{ rpcBus: EventBus, inflightDedup: Map<string, Promise<any>>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean, rpcId: number, dedupCallbackSeq: number }} */
+/**
+ * @type {{ rpcBus: EventBus, inflightDedup: Map<string, { shared: any, subscribers: number }>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean, rpcId: number, dedupCallbackSeq: number }}
+ */
 const _rpcState = globalSingleton("rpc", () => ({
     rpcBus: new EventBus(),
     inflightDedup: new Map(),
@@ -123,7 +95,6 @@ function validateRPCSettings(settings) {
     }
 }
 
-/** Base class for all network communication failures. Catch this to handle any RPC or connection error. */
 export class NetworkError extends Error {}
 
 export class RPCError extends NetworkError {
@@ -142,11 +113,6 @@ export class RPCError extends NetworkError {
         /** @type {string | null} */
         this.subType = null;
         /**
-         * Model that raised the error, attached by ``_rpcOnce`` after
-         * ``makeErrorFromResponse`` constructs the instance. Consumed by
-         * ``error_handlers`` / ``multi_company_recovery_service`` to
-         * disambiguate which model's context triggered the failure.
-         *
          * @type {string | undefined}
          */
         this.model = undefined;
@@ -156,7 +122,7 @@ export class RPCError extends NetworkError {
 export class ConnectionLostError extends NetworkError {
     /**
      * @param {string} [url]
-     * @param  {...any} args
+     * @param {...any} args
      */
     constructor(url, ...args) {
         const message = url
@@ -169,18 +135,10 @@ export class ConnectionLostError extends NetworkError {
     }
 }
 
-/**
- * Raised when the server returned a non-JSON response (typically a
- * werkzeug-rendered HTML error page from ``PoolError``, ``OperationalError``,
- * or other unhandled controller exception). Kept distinct from
- * ``ConnectionLostError`` so retry logic can apply a longer backoff floor,
- * but extends it for backward compatibility so existing
- * ``e instanceof ConnectionLostError`` catches still match.
- */
 export class ServerOverloadError extends ConnectionLostError {
     /**
      * @param {string} url
-     * @param {number} status HTTP status code of the non-JSON response.
+     * @param {number} status
      * @param {...any} args
      */
     constructor(url, status, ...args) {
@@ -194,20 +152,10 @@ export class ServerOverloadError extends ConnectionLostError {
     }
 }
 
-/**
- * Raised when the server returned a response that cannot be a JSON-RPC
- * envelope (non-JSON content type, or an unparseable body) with a NON-5xx
- * status: a session-expired POST redirected to the HTML login page (fetch
- * follows redirects), a 404 HTML page, a captive portal, an empty 200...
- * Deterministic — retrying cannot change the outcome — so ``isRetryable``
- * explicitly excludes it. Extends ``ConnectionLostError`` so existing
- * ``instanceof ConnectionLostError`` handling (connection-lost UX) still
- * matches, mirroring ``ServerOverloadError``.
- */
 export class InvalidResponseError extends ConnectionLostError {
     /**
      * @param {string} url
-     * @param {number} status HTTP status code of the invalid response.
+     * @param {number} status
      * @param {...any} args
      */
     constructor(url, status, ...args) {
@@ -225,11 +173,6 @@ export class ConnectionAbortedError extends NetworkError {
     name = "ConnectionAbortedError";
 }
 
-/**
- * Raised when the request body exceeds the maximum size accepted by the
- * server (or a reverse proxy in front of it, e.g. nginx's
- * ``client_max_body_size``), which replies with an HTTP 413 response.
- */
 export class RequestEntityTooLargeError extends NetworkError {
     constructor() {
         super(
@@ -256,26 +199,11 @@ export class ConnectionTimeoutError extends NetworkError {
 }
 
 /**
- * Classify a transport failure into the error taxonomy above.
- *
- * Shared by the two paths that can see one — the ``fetch()`` rejection and the
- * ``response.json()`` rejection — so an interrupted transfer yields the same
- * error whether it dies before or after the response headers arrive. They used
- * to classify independently, and disagreed: a transfer cut mid-body became an
- * ``InvalidResponseError``, which {@link isRetryable} excludes as deterministic,
- * while the very same interruption arriving one tick earlier became a retryable
- * ``ConnectionLostError``.
- *
- * ``response`` is passed only by the body path, and enables the one genuinely
- * deterministic case: a body that fully arrived and is not JSON (an HTML login
- * page served with a JSON content type, an empty 200). That is a ``SyntaxError``
- * from the parser; anything else means the transfer itself failed.
- *
  * @param {any} err
  * @param {string} url
  * @param {{[key: string]: any}} settings
  * @param {AbortSignal | null} timeoutSignal
- * @param {Response} [response] set by the body-read path only
+ * @param {Response} [response]
  * @returns {Error}
  */
 function classifyTransportFailure(err, url, settings, timeoutSignal, response) {
@@ -372,11 +300,6 @@ if (!_rpcState.busListenersAttached) {
  */
 
 /**
- * Normalize the user-supplied ``retry`` setting to a full {@link RetryConfig}.
- * Accepts a number (as ``retries``) or a partial config; defaults suit
- * transient infra failures (proxy hiccup, pool exhaustion, worker restart):
- * three retries, ramping 200ms → 2s.
- *
  * @param {number | Partial<RetryConfig>} retry
  * @returns {RetryConfig}
  */
@@ -389,24 +312,13 @@ function normalizeRetry(retry) {
     };
 }
 
-/**
- * Minimum delay between retries against an overloaded backend
- * (``ServerOverloadError``) — gives the worker pool / DB connections time to
- * drain before the next attempt instead of piling on.
- */
 const SERVER_OVERLOAD_BACKOFF_FLOOR_MS = 1000;
 
 /**
- * Compute the delay before the Nth retry attempt.  Exponential
- * backoff with full jitter so concurrent failing clients don't
- * thunder-herd the same recovering server.
- *
- * @param {number} attempt 1-indexed retry number (first retry = 1).
+ * @param {number} attempt
  * @param {RetryConfig} config
- * @param {unknown} [lastError] Error that triggered this retry.  When
- *   it is a ``ServerOverloadError``, a 1000ms floor is applied so the
- *   backend has time to recover.
- * @returns {number} milliseconds to wait before the next attempt.
+ * @param {unknown} [lastError]
+ * @returns {number}
  */
 function backoffDelay(attempt, config, lastError) {
     let exp = config.baseMs * 2 ** (attempt - 1);
@@ -419,10 +331,7 @@ function backoffDelay(attempt, config, lastError) {
 
 /**
  * @param {unknown} err
- * @returns {boolean} true if ``err`` represents a transient failure
- *   worth retrying (network blip, server timeout) — never an
- *   RPCError (server-returned and deterministic) or a
- *   ConnectionAbortedError (caller intent).
+ * @returns {boolean}
  */
 function isRetryable(err) {
     return (
@@ -432,41 +341,18 @@ function isRetryable(err) {
 }
 
 /**
- * Shared in-flight promises keyed by ``buildKey(url, params)``, used by the
- * ``settings.dedup`` branch of ``rpc._rpc`` so concurrent callers issuing the
- * same request (e.g. a form and its sidebar both reading ``res.partner`` [42])
- * share a single fetch. Entries evict on settle (success or rejection).
+ * In-flight requests shared by ``dedup`` callers.
  *
- * Abort is shared across deduped callers: aborting the returned promise
- * cancels the underlying fetch, and every other caller sees a
- * ``ConnectionAbortedError`` too. Callers needing independent abort
- * lifecycles must not opt in to ``dedup``.
+ * Each caller gets its own promise over the shared request and its own
+ * ``abort``, which detaches that caller only; the underlying request is
+ * cancelled when the last subscriber leaves. Handing the shared promise out
+ * directly made one caller's ``abort()`` reject every other caller.
  *
- * Anchored on ``globalThis`` (see ``_rpcState``) so concurrent identical
- * requests dedupe across bundles too.
- *
- * @type {Map<string, Promise<any>>}
+ * @type {Map<string, { shared: any, subscribers: number }>}
  */
 const inflightDedup = _rpcState.inflightDedup;
 
 /**
- * Fingerprint the behaviour-affecting settings so concurrent callers with the
- * same ``(url, params)`` but DIFFERENT settings don't join the same in-flight
- * promise — otherwise the second caller would silently inherit the first's
- * settings (e.g. a non-silent caller deduped onto a ``silent`` one loses its
- * loading indicator and error dialog).
- *
- * ``dedup`` itself is excluded (always set on this path). ``headers`` is
- * normalised to sorted entries so a plain-object and a ``Headers`` spelling
- * still match. ``cache.callback`` is dropped by ``JSON.stringify`` on
- * purpose — it only affects cache-hit notification, isolated in the cache
- * layer.
- *
- * Only a COLLISION (callers that must not share getting the same
- * fingerprint) is a real failure; a coarse fingerprint that SPLITS callers
- * that could have shared just costs a redundant fetch, so this errs toward
- * splitting.
- *
  * @param {{[key: string]: any}} settings
  * @returns {string}
  */
@@ -508,25 +394,51 @@ rpc._rpc = function (url, params, settings) {
     validateRPCSettings(settings);
     if (settings.dedup) {
         const key = `${buildKey(url, params)}|${dedupSettingsFingerprint(settings)}`;
-        const existing = inflightDedup.get(key);
-        if (existing) {
-            return existing;
+        let entry = inflightDedup.get(key);
+        if (!entry) {
+            const shared = /** @type {any} */ (
+                rpc._rpc(url, params, omit(settings, "dedup"))
+            );
+            entry = { shared, subscribers: 0 };
+            const onSettle = () => {
+                if (inflightDedup.get(key) === entry) {
+                    inflightDedup.delete(key);
+                }
+            };
+            shared.then(onSettle, onSettle);
+            inflightDedup.set(key, entry);
         }
-        const promise = rpc._rpc(url, params, omit(settings, "dedup"));
-        inflightDedup.set(key, promise);
-        const onSettle = () => {
-            if (inflightDedup.get(key) === promise) {
-                inflightDedup.delete(key);
+        const joined = entry;
+        joined.subscribers++;
+        let detached = false;
+        const { promise, resolve, reject } = Promise.withResolvers();
+        joined.shared.then(
+            (/** @type {any} */ result) => {
+                if (!detached) {
+                    resolve(result);
+                }
+            },
+            (/** @type {any} */ error) => {
+                if (!detached) {
+                    reject(error);
+                }
+            },
+        );
+        /** @type {any} */ (promise).abort = function (rejectError = true) {
+            if (detached) {
+                return;
+            }
+            detached = true;
+            if (--joined.subscribers === 0) {
+                if (inflightDedup.get(key) === joined) {
+                    inflightDedup.delete(key);
+                }
+                joined.shared.abort?.(false);
+            }
+            if (rejectError) {
+                reject(new ConnectionAbortedError(url));
             }
         };
-        promise.then(onSettle, onSettle);
-        const innerAbort = /** @type {any} */ (promise).abort;
-        if (typeof innerAbort === "function") {
-            /** @type {any} */ (promise).abort = function (rejectError = true) {
-                onSettle();
-                return innerAbort.call(this, rejectError);
-            };
-        }
         return promise;
     }
     if (settings.cache && _rpcState.rpcCache) {
@@ -600,10 +512,6 @@ rpc._rpc = function (url, params, settings) {
 };
 
 /**
- * Single-attempt RPC.  Carries the fetch + abort + error-classification
- * logic.  Callers go through ``rpc._rpc`` (which adds cache and retry
- * orchestration); this helper is also the unit that retry loops drive.
- *
  * @param {string} url
  * @param {{[key: string]: any}} params
  * @param {{[key: string]: any}} settings
@@ -736,8 +644,7 @@ function _rpcOnce(url, params, settings) {
         });
 
     /**
-     * @param {boolean} rejectError Returns an error if true. Allows you to cancel
-     *                  ignored rpc's to unblock the ui and not display an error.
+     * @param {boolean} rejectError
      */
     /** @type {RpcPromise<any>} */ (promise).abort = function (rejectError = true) {
         if (settled || aborted) {
@@ -755,15 +662,6 @@ function _rpcOnce(url, params, settings) {
 }
 
 /**
- * Wrap {@link _rpcOnce} with exponential-backoff retry on transient
- * failures (ConnectionLostError, ConnectionTimeoutError).  Each attempt
- * fires its own ``RPC:REQUEST`` and ``RPC:RESPONSE`` on ``rpcBus`` so
- * observers see the real attempt count.
- *
- * Caller opts in via ``settings.retry``.  RPCError (server-returned and
- * deterministic) and ConnectionAbortedError (caller intent) are never
- * retried.
- *
  * @param {string} url
  * @param {{[key: string]: any}} params
  * @param {{[key: string]: any}} settings
@@ -776,18 +674,10 @@ function _rpcWithRetry(url, params, settings) {
     let aborted = false;
     let settled = false;
     /**
-     * The current in-flight attempt, or ``null`` between attempts and after
-     * settle. ``abort`` forwards only to a genuinely in-flight attempt —
-     * aborting an already-settled one would emit a stray RPC:RESPONSE.
-     *
      * @type {RpcPromise<unknown> | null}
      */
     let currentInner = null;
     /**
-     * Handle of the scheduled backoff retry, or ``null`` when none is
-     * pending. ``abort`` must ``clearTimeout`` it, or the retry fires after
-     * the caller aborted and issues an unwanted RPC.
-     *
      * @type {ReturnType<typeof browser.setTimeout> | null}
      */
     let backoffTimer = null;

@@ -49,3 +49,49 @@ test("a failing open flips the instance to degraded mode", async () => {
     await db.read("mytable", "key");
     expect(db._degraded).toBe(true);
 });
+
+/**
+ * Record when the invalidation transaction actually completes.
+ *
+ * The listener is attached at transaction creation, so it precedes the
+ * `oncomplete` the code under test assigns and its flag is already set by the
+ * time that handler runs. Restored after the test.
+ *
+ * @param {{ completed: boolean }} state
+ */
+function patchTransactionToRecordCompletion(state) {
+    const originalTransaction = IDBDatabase.prototype.transaction;
+    IDBDatabase.prototype.transaction = function (...args) {
+        const transaction = originalTransaction.apply(this, args);
+        transaction.addEventListener("complete", () => {
+            state.completed = true;
+        });
+        return transaction;
+    };
+    after(() => {
+        IDBDatabase.prototype.transaction = originalTransaction;
+    });
+}
+
+test("invalidate() settles on the transaction, not on its clear() requests", async () => {
+    // A request's `onsuccess` fires before the transaction commits, so
+    // resolving there reported success for a transaction that could still go
+    // on to abort -- the later `reject` lands on an already settled promise
+    // and is lost.
+    const db = new IndexedDB(`${CACHE_NAME}_settle`, 1);
+    await db.write("mytable", "key", { a: 1 });
+
+    const state = { completed: false };
+    patchTransactionToRecordCompletion(state);
+
+    let completedWhenSettled = null;
+    await db.invalidate(["mytable"]).then(
+        () => (completedWhenSettled = state.completed),
+        () => (completedWhenSettled = state.completed),
+    );
+
+    expect(completedWhenSettled).toBe(true);
+    expect(await db.read("mytable", "key")).toBe(undefined);
+
+    after(() => db.deleteDatabase());
+});

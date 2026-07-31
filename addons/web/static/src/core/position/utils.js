@@ -1,20 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/position/utils - Compute optimal popper placement with direction/variant flipping and RTL support */
+/** @module @web/core/position/utils */
 
 import { localization } from "@web/core/l10n/localization";
 
 /**
  * @typedef {"top" | "left" | "bottom" | "right" | "center"} Direction
  * @typedef {"start" | "middle" | "end" | "fit"} Variant
- *
  * @typedef {{[direction: string]: string}} DirectionFlipOrder
- *  string values should match regex /^[tbrl]+$/m
- *
  * @typedef {{[variant in Variant]: string}} VariantFlipOrder
- *  string values should match regex /^[smef]+$/m
- *
  * @typedef {{
  *  top: number,
  *  left: number,
@@ -24,20 +19,13 @@ import { localization } from "@web/core/l10n/localization";
  *  variantOffset?: number,
  *  [key: string]: any,
  * }} PositioningSolution
- *
  * @typedef ComputePositionOptions
- * @property {HTMLElement | (() => HTMLElement)} [container] container element
+ * @property {HTMLElement | (() => HTMLElement)} [container]
  * @property {number} [margin=0]
- *  margin in pixels between the popper and the target.
  * @property {Direction | `${Direction}-${Variant}`} [position="bottom"]
- *  position of the popper relative to the target
  * @property {boolean} [flip=true]
- *  allow the popper to try a flipped direction when it overflows the container
  * @property {boolean} [extendedFlipping=false]
- *  allow the popper to try for all possible flipping directions (including center)
- *  when it overflows the container
  * @property {boolean} [shrink=false]
- *  reduce the popper's height when it overflows the container
  */
 
 /** @type {ComputePositionOptions} */
@@ -90,11 +78,6 @@ function getIFrame(popperEl, targetEl) {
 }
 
 /**
- * Returns the RTl adapted direction and variant if needed.
- * If the current localization direction is "rtl":
- *  - Direction "left" and "right" are flipped to "right" and "left".
- *  - Variant "start" and "end" are flipped to "end" and "start".
- *
  * @param {Direction} direction
  * @param {Variant} [variant="middle"]
  * @returns {[Direction, Variant]}
@@ -111,18 +94,10 @@ export function reverseForRTL(direction, variant = "middle") {
 }
 
 /**
- * Returns the best positioning solution that keeps the popper inside the
- * container (falling back to the requested position), based on target/
- * popper/container sizes, staying `margin` px from the target.
- *
- * Pre-condition: the popper element must have fixed positioning with top
- * and left set to 0px.
- *
  * @param {HTMLElement} popper
  * @param {HTMLElement} target
  * @param {ComputePositionOptions} options
- * @returns {PositioningSolution} the best positioning solution, relative to
- *  the containing block of the popper (applicable to popper.style.(top|left))
+ * @returns {PositioningSolution}
  */
 function computePosition(
     popper,
@@ -131,10 +106,6 @@ function computePosition(
         container,
         extendedFlipping,
         flip,
-        // `reposition` always spreads DEFAULTS underneath the caller's options,
-        // so these three are present on every call; defaulting them here says
-        // so rather than leaving `margin` to be read as possibly-undefined at
-        // the four places it enters the arithmetic below.
         margin = DEFAULTS.margin ?? 0,
         position = DEFAULTS.position ?? "bottom",
         shrink,
@@ -233,11 +204,6 @@ function computePosition(
             : [contBox.top + topCompensation, contBox.bottom + topCompensation];
 
         if (containerIsHTMLNode) {
-            // NB: only the Y axis is compensated — `scrollLeft` is never added.
-            // That asymmetry looks like an oversight but is NOT known to be a
-            // bug: the webclient's root element does not scroll horizontally,
-            // and no scenario has been produced where the missing term changes
-            // a placement. Do not "fix" it without a test that fails first.
             if (vertical) {
                 directionMin += cont.scrollTop;
                 directionMax += cont.scrollTop;
@@ -319,13 +285,10 @@ function computePosition(
 }
 
 /**
- * Repositions the popper element relative to the target (fixed positioning,
- * top/left), using the solution from `computePosition`.
- *
  * @param {HTMLElement} popper
  * @param {HTMLElement} target
  * @param {ComputePositionOptions} options
- * @returns {PositioningSolution} the applied positioning solution.
+ * @returns {PositioningSolution}
  */
 export function reposition(popper, target, options) {
     popper.style.position = "fixed";
@@ -362,8 +325,6 @@ export function reposition(popper, target, options) {
 }
 
 /**
- * Per-popper record of the maxHeight reposition last applied, so the next
- * reposition can undo exactly its own contribution (see reposition).
  * @type {WeakMap<HTMLElement, { authored: string, applied: string }>}
  */
 const popperMaxHeightState = new WeakMap();

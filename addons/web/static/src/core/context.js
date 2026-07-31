@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/context - Builds an evaluation context by merging and evaluating Python expressions */
+/** @module @web/core/context */
 
 import { ASTType } from "./py_js/ast_type.js";
 import { evaluateExpr, parseExpr } from "./py_js/py.js";
@@ -20,12 +20,11 @@ import { evaluate } from "./py_js/py_interpreter.js";
  * @typedef {Context | string | undefined} ContextDescription
  */
 
+export class InvalidContextError extends Error {}
+
 /**
- * Create an evaluated context from an arbitrary list of context representations.
- * The context being built is fed back in to evaluate subsequent expressions.
- *
  * @param {ContextDescription[]} contexts
- * @param {Context} [initialEvaluationContext] optional evaluation context to start from.
+ * @param {Context} [initialEvaluationContext]
  * @returns {Context}
  */
 export function makeContext(contexts, initialEvaluationContext) {
@@ -42,9 +41,6 @@ export function makeContext(contexts, initialEvaluationContext) {
 }
 
 /**
- * Extract a partial list of variable names found in the AST — incomplete by
- * design, used as a heuristic to skip expressions known to fail evaluation.
- *
  * @param {AST} ast
  * @returns {string[]}
  */
@@ -58,6 +54,9 @@ function getPartialNames(ast) {
     if (ast.type === ASTType.BooleanOperator || ast.type === ASTType.BinaryOperator) {
         return [...getPartialNames(ast.left), ...getPartialNames(ast.right)];
     }
+    if (ast.type === ASTType.Chain) {
+        return ast.operands.flatMap(getPartialNames);
+    }
     if (ast.type === ASTType.ObjLookup) {
         return getPartialNames(ast.obj);
     }
@@ -65,9 +64,6 @@ function getPartialNames(ast) {
 }
 
 /**
- * Evaluate a context with an incomplete evaluation context, keeping only
- * keys whose values are static or evaluable with the given context.
- *
  * @param {string} _context
  * @param {Context} [evaluationContext={}]
  * @returns {Context}
@@ -77,20 +73,27 @@ export function evalPartialContext(_context, evaluationContext = {}) {
     const ast = parseExpr(_context);
     /** @type {Record<string, any>} */
     const context = {};
-    for (const key in ast.value) {
+    if (ast.type !== ASTType.Dictionary) {
+        // A list yielded {0: …, 1: …} and a bare name yielded one entry per
+        // character of its spelling, both silently.
+        throw new InvalidContextError(
+            `context must be a dict literal, got: ${_context}`,
+        );
+    }
+    for (const key of Object.keys(ast.value)) {
         const value = ast.value[key];
         if (
             getPartialNames(value).some(
-                (name) => !(name in evaluationContext || name in BUILTINS),
+                (name) =>
+                    !Object.hasOwn(evaluationContext, name) &&
+                    !Object.hasOwn(BUILTINS, name),
             )
         ) {
             continue;
         }
         try {
             context[key] = evaluate(value, evaluationContext);
-        } catch {
-            // ignore this key as we can't evaluate its value
-        }
+        } catch {}
     }
     return context;
 }

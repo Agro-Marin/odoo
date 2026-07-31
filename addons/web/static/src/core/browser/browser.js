@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/browser - Patchable browser API facade (localStorage, fetch, setTimeout, etc.) for testability */
+/** @module @web/core/browser/browser */
 
 /** @type {Storage} */
 let sessionStorage;
@@ -37,6 +37,7 @@ const browserImpl = {
     clearInterval: window.clearInterval.bind(window),
     performance: window.performance,
     crypto: window.crypto,
+    indexedDB: window.indexedDB,
     PerformanceObserver: window.PerformanceObserver,
     requestAnimationFrame: window.requestAnimationFrame.bind(window),
     cancelAnimationFrame: window.cancelAnimationFrame.bind(window),
@@ -52,18 +53,10 @@ const browserImpl = {
     localStorage,
     sessionStorage,
     fetch: window.fetch.bind(window),
-    ontouchstart: window.ontouchstart,
     BroadcastChannel: window.BroadcastChannel,
     visualViewport: window.visualViewport,
 };
 
-/**
- * Mutable facade over ``window.location``. The real object has several
- * non-configurable properties, making it unpatchable in tests under modern
- * Chromium ("TypeError: Cannot redefine property: reload"). This forwards to
- * the real location while letting ``patchWithCleanup(browser.location, {...})``
- * override facade-owned properties without touching the real one.
- */
 const locationFacade = {
     get href() {
         return window.location.href;
@@ -134,21 +127,15 @@ Object.defineProperty(browserImpl, "innerWidth", {
     configurable: true,
 });
 
-/**
- * The runtime ``browser`` export: ``browserImpl`` plus the accessors installed
- * via ``Object.defineProperty`` (``location``, ``innerHeight``, ``innerWidth``),
- * which type inference can't see — the cast re-attaches them for type-checking
- * without changing the runtime object.
- */
 export const browser =
-    /** @type {typeof browserImpl & { location: typeof locationFacade, innerHeight: number, innerWidth: number }} */ (
-        browserImpl
-    );
+    /**
+     * @type {typeof browserImpl & { location: typeof locationFacade, innerHeight: number, innerWidth: number }}
+     */ (browserImpl);
 
 /**
  * @returns {typeof window["localStorage"]}
  */
-export function makeRAMLocalStorage() {
+function makeRAMLocalStorage() {
     /** @type {{[key: string]: string}} */
     let store = Object.create(null);
     return {

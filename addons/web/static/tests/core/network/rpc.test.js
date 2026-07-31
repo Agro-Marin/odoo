@@ -463,7 +463,7 @@ test("Cache: can cache a simple rpc", async () => {
     expect.verifySteps(["Fetch"]);
 });
 
-test("Dedup: concurrent identical rpcs share one fetch and one promise", async () => {
+test("Dedup: concurrent identical rpcs share one fetch, not one promise", async () => {
     mockFetch(() => {
         expect.step("Fetch");
         return { result: { x: 1 } };
@@ -473,8 +473,8 @@ test("Dedup: concurrent identical rpcs share one fetch and one promise", async (
     const p2 = rpc("/test/", {}, { dedup: true });
     const p3 = rpc("/test/", {}, { dedup: true });
 
-    expect(p1).toBe(p2);
-    expect(p2).toBe(p3);
+    expect(p1).not.toBe(p2);
+    expect(p2).not.toBe(p3);
 
     const [r1, r2, r3] = await Promise.all([p1, p2, p3]);
     expect(r1).toEqual({ x: 1 });
@@ -517,7 +517,6 @@ test("Dedup: error path also evicts so subsequent calls retry", async () => {
 
     const p1 = rpc("/test/", {}, { dedup: true });
     const p2 = rpc("/test/", {}, { dedup: true });
-    expect(p1).toBe(p2);
 
     await expect(p1).rejects.toThrow(ConnectionLostError);
     await expect(p2).rejects.toThrow(ConnectionLostError);
@@ -567,7 +566,6 @@ test("Dedup composes with cache: cache hit skips the fetch", async () => {
 
     const p1 = rpc("/test/", {}, { cache: true, dedup: true });
     const p2 = rpc("/test/", {}, { cache: true, dedup: true });
-    expect(p1).toBe(p2);
     await Promise.all([p1, p2]);
     expect.verifySteps([]);
 });
@@ -622,7 +620,7 @@ test("Dedup: differing settings do not leak silent to a non-silent caller", asyn
     expect(requestSilentFlags).toEqual([true, false]);
 });
 
-test("Dedup: identical settings still share one promise", async () => {
+test("Dedup: identical settings still share one fetch", async () => {
     mockFetch(() => {
         expect.step("Fetch");
         return { result: { ok: true } };
@@ -630,9 +628,9 @@ test("Dedup: identical settings still share one promise", async () => {
 
     const p1 = rpc("/test/", {}, { dedup: true, silent: true });
     const p2 = rpc("/test/", {}, { dedup: true, silent: true });
-    expect(p1).toBe(p2);
+    expect(p1).not.toBe(p2);
 
-    await Promise.all([p1, p2]);
+    expect(await Promise.all([p1, p2])).toEqual([{ ok: true }, { ok: true }]);
     expect.verifySteps(["Fetch"]);
 });
 
@@ -1003,4 +1001,61 @@ test("RPC:RESPONSE carries the url, like RPC:REQUEST", async () => {
         ["request", "/web/dataset/call_kw/foo/bar"],
         ["response", "/web/dataset/call_kw/foo/bar"],
     ]);
+});
+
+test("Dedup: one caller's abort does not cancel the others", async () => {
+    // Handing the shared promise to every caller made abort() -- which mutates
+    // it -- reject callers that never asked to be cancelled.
+    mockFetch(async () => {
+        expect.step("Fetch");
+        await tick();
+        return { result: { x: 1 } };
+    });
+
+    const p1 = rpc("/test/", {}, { dedup: true });
+    const p2 = rpc("/test/", {}, { dedup: true });
+    /** @type {any} */ (p1).abort();
+
+    await expect(p1).rejects.toThrow(ConnectionAbortedError);
+    expect(await p2).toEqual({ x: 1 });
+    expect.verifySteps(["Fetch"]);
+});
+
+test("Dedup: the shared request is cancelled once the last caller leaves", async () => {
+    let fetchCount = 0;
+    mockFetch(() => {
+        fetchCount++;
+        expect.step(`Fetch:${fetchCount}`);
+        if (fetchCount === 1) {
+            return new Promise(() => {});
+        }
+        return { result: { ok: true } };
+    });
+
+    const p1 = rpc("/test/", {}, { dedup: true });
+    const p2 = rpc("/test/", {}, { dedup: true });
+    p1.then(
+        () => {},
+        () => {},
+    );
+    p2.then(
+        () => {},
+        () => {},
+    );
+    /** @type {any} */ (p1).abort();
+    expect.verifySteps(["Fetch:1"]);
+
+    // p2 still holds the entry, so a third caller joins it rather than re-issuing
+    const p3 = rpc("/test/", {}, { dedup: true });
+    p3.then(
+        () => {},
+        () => {},
+    );
+    expect.verifySteps([]);
+
+    /** @type {any} */ (p2).abort();
+    /** @type {any} */ (p3).abort();
+    // with no subscribers left the entry is evicted and the next call re-issues
+    expect(await rpc("/test/", {}, { dedup: true })).toEqual({ ok: true });
+    expect.verifySteps(["Fetch:2"]);
 });

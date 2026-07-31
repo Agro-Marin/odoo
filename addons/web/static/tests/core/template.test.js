@@ -756,3 +756,31 @@ test("TemplateRegistry: inheriting child only sees extensions registered before 
         ),
     ).toEqual(["before", "after"]);
 });
+
+test("a template build that throws does not leak its text nodes into the next one", async () => {
+    // `contextByTextNode` spans a whole inheritance chain, so it can only be
+    // drained once the chain completes. A chain that threw used to leave its
+    // nodes behind, and the *next* template's drain wrapped them.
+    registerTemplates(
+        { name: "Broken", content: `<div>broken text</div>` },
+        {
+            name: "BrokenChild",
+            inheritFrom: "Broken",
+            content: `
+                <xpath expr="//div" position="inside">leaked text</xpath>
+                <xpath expr="//nowhere" position="inside">unreachable</xpath>
+            `,
+        },
+        { name: "Sound", content: `<div class="sound">sound text</div>` },
+    );
+
+    expect(() => templates.getTemplate("BrokenChild")).toThrow();
+
+    const el = await mountTestComponentWithTemplate("Sound");
+    expect(el).toHaveInnerHTML(`
+        <div class="sound">
+            sound text (addon_Sound)
+        </div>
+    `);
+    expect(el.textContent).not.toInclude("leaked text");
+});

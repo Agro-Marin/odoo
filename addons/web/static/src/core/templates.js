@@ -1,14 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/templates - Template registry: parses, inherits, caches, and retrieves QWeb templates */
+/** @module @web/core/templates */
 
 import {
     applyContextToTextNode,
     applyInheritance,
     deepClone,
+    discardPendingTranslationContexts,
 } from "@web/core/template_inheritance";
 import { makeAssetLog } from "@web/core/utils/asset_log";
+import { cyrb53 } from "@web/core/utils/format/strings";
 import { globalSingleton } from "@web/core/utils/global_singleton";
 
 const log = makeAssetLog("templates");
@@ -24,55 +26,12 @@ function getClone(template) {
 }
 
 /**
- * cyrb53 — a fast, well-distributed 53-bit string hash (public domain,
- * https://github.com/bryc/code). Used instead of the 32-bit
- * ``hashCode`` from ``@web/core/utils/format/strings`` because the
- * ``registered`` dedup set can hold tens of thousands of entries, where
- * 32-bit birthday collisions become likely — and a collision here would
- * silently skip registering a template.
- *
- * @param {string} str
- * @returns {number}
- */
-function cyrb53(str) {
-    let h1 = 0xdeadbeef;
-    let h2 = 0x41c6ce57;
-    for (let i = 0; i < str.length; i++) {
-        const ch = str.charCodeAt(i);
-        h1 = Math.imul(h1 ^ ch, 2654435761);
-        h2 = Math.imul(h2 ^ ch, 1597334677);
-    }
-    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
-    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
-    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
-    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
-    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
-}
-
-/**
- * Dedup key for a ``[name, url, templateString]`` registration triple.
- * Hashed so the ``registered`` set doesn't retain a full copy of every
- * template string (several MB over a session) for its whole lifetime.
- *
  * @param {unknown[]} args
  */
 function getKey(args) {
     return String(cyrb53(JSON.stringify(args)));
 }
 
-/**
- * Scoped registry for QWeb templates, their inheritance extensions, and
- * the processor pipeline that transforms parsed XML before it is cached.
- * Replaces 12 module-level mutable bindings with instance state.
- *
- * Anchored on ``globalThis`` (like ``core/registry.js``) so the esbuild
- * bundles this module gets inlined into (``web.assets_web``,
- * ``web.assets_unit_tests``, dynamic children) share one instance instead
- * of splitting template registrations across copies.
- *
- * The historical module-level functions below delegate to the canonical
- * singleton so the ~28 existing import sites don't need to change.
- */
 export class TemplateRegistry {
     constructor() {
         this._parser = new DOMParser();
@@ -95,35 +54,19 @@ export class TemplateRegistry {
         /** @type {string | null} */
         this.blockType = null;
         this.blockId = 0;
-        /** @type {Set<string>} Recursion guard for circular t-inherit chains. */
+        /** @type {Set<string>} */
         this._inheritanceChain = new Set();
         /**
-         * Reverse dependency edges: template name -> names whose CACHED
-         * compiled result was built from it.
-         *
-         * ``processedTemplates`` is keyed by the template being compiled, but a
-         * compiled result also embeds its whole ``t-inherit`` ancestry and every
-         * extension layered onto it. Invalidating only the name that changed
-         * therefore left every inheritor holding a result built from the old
-         * parent — a child kept rendering V1 after its parent became V2.
-         *
-         * Recorded from the actual resolution in ``_getTemplate`` rather than by
-         * re-parsing declarations, so it captures the transitive chain and the
-         * extension targets without a second source of truth.
-         *
          * @type {Map<string, Set<string>>}
          */
         this._dependents = new Map();
         /**
-         * Names read by the compilation currently in progress, collected by
-         * ``_getTemplate`` and folded into ``_dependents`` by ``getTemplate``.
          * @type {Set<string> | null}
          */
         this._currentSources = null;
     }
 
     /**
-     * Note that the in-progress compilation read ``name``.
      * @param {string} name
      */
     _recordSource(name) {
@@ -131,8 +74,6 @@ export class TemplateRegistry {
     }
 
     /**
-     * Drop ``name``'s compiled result and, transitively, that of everything
-     * compiled from it.
      * @param {string} name
      */
     _invalidateProcessed(name) {
@@ -152,10 +93,6 @@ export class TemplateRegistry {
     }
 
     /**
-     * Parse a raw template string and run the registered processor
-     * pipeline. Returns the root element ready for inheritance / extension
-     * processing.
-     *
      * @param {string} templateString
      * @returns {Element}
      */
@@ -172,10 +109,6 @@ export class TemplateRegistry {
     }
 
     /**
-     * Internal recursive resolver: parses ``name`` (cached), applies its
-     * ``t-inherit`` parent (if any), then layers all extension blocks
-     * whose blockId predates ``blockId``.
-     *
      * @param {string} name
      * @param {number | null} [blockId]
      */
@@ -236,11 +169,6 @@ export class TemplateRegistry {
         }
 
         let cloned = false;
-        // Extensions must layer in registration order, and the `break` below
-        // relies on it. Object key enumeration happens to give it (integer-like
-        // keys enumerate in ascending numeric order), but that is an incidental
-        // property of the key shape, not a stated contract of this loop — sort
-        // explicitly so the ordering survives any change to how blocks are keyed.
         const blockIds = Object.keys(this.templateExtensions[name] || {})
             .map(Number)
             .sort((a, b) => a - b);
@@ -284,9 +212,6 @@ export class TemplateRegistry {
     }
 
     /**
-     * Fetch a compiled template by name, building it on first request and
-     * caching the result.
-     *
      * @param {string} name
      */
     getTemplate(name) {
@@ -297,29 +222,27 @@ export class TemplateRegistry {
             this._currentSources = sources;
             try {
                 this.processedTemplates.set(name, this._getTemplate(name));
+                for (const source of sources) {
+                    if (source === name) {
+                        continue;
+                    }
+                    let dependents = this._dependents.get(source);
+                    if (!dependents) {
+                        dependents = new Set();
+                        this._dependents.set(source, dependents);
+                    }
+                    dependents.add(name);
+                }
+                applyContextToTextNode();
             } finally {
                 this._currentSources = outerSources;
+                discardPendingTranslationContexts();
             }
-            for (const source of sources) {
-                if (source === name) {
-                    continue;
-                }
-                let dependents = this._dependents.get(source);
-                if (!dependents) {
-                    dependents = new Set();
-                    this._dependents.set(source, dependents);
-                }
-                dependents.add(name);
-            }
-            applyContextToTextNode();
         }
         return this.processedTemplates.get(name);
     }
 
     /**
-     * Register a primary template.  Returns an unregister callback so test
-     * harnesses can opt into per-test cleanup.
-     *
      * @param {string} name
      * @param {string} url
      * @param {string} templateString
@@ -362,9 +285,6 @@ export class TemplateRegistry {
     }
 
     /**
-     * Register a template extension (``t-inherit-mode="extension"``).
-     * Returns an unregister callback.
-     *
      * @param {string} inheritFrom
      * @param {string} url
      * @param {string} templateString
@@ -417,8 +337,6 @@ export class TemplateRegistry {
     }
 
     /**
-     * Append a processor function applied to every parsed template DOM.
-     *
      * @param {(document: Document) => void} processor
      */
     registerTemplateProcessor(processor) {
@@ -426,10 +344,6 @@ export class TemplateRegistry {
     }
 
     /**
-     * Check that the listed primary template parents have been registered.
-     * Logs an error (without throwing) when any are missing.  Called from
-     * generated bundle.xml code.
-     *
      * @param {string[]} namesToCheck
      */
     checkPrimaryTemplateParents(namesToCheck) {
@@ -444,9 +358,6 @@ export class TemplateRegistry {
     }
 
     /**
-     * Replace the URL-filter chain.  Returns a restore callback so tests
-     * can scope a filter to a single suite.
-     *
      * @param {((url: string) => boolean)[]} filters
      */
     setUrlFilters(filters) {
@@ -457,11 +368,6 @@ export class TemplateRegistry {
         };
     }
 
-    /**
-     * Drop the cache of compiled-template-on-first-access results.
-     * Used by Hoot tests that need to re-process templates between
-     * runs (e.g. after a processor mutation).
-     */
     clearProcessedTemplates() {
         this.processedTemplates.clear();
         this._dependents.clear();
@@ -469,11 +375,6 @@ export class TemplateRegistry {
 }
 
 /**
- * Anchored on ``globalThis`` for the same bundle-sharing reason as the
- * class doc above. Bundle-evaluation order is deterministic: the first
- * bundle to load creates the instance, subsequent bundles rebind via
- * ``??=``.
- *
  * @type {TemplateRegistry}
  */
 export const templates = globalSingleton("templates", () => new TemplateRegistry());

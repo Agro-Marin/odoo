@@ -1,30 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/browser/cookie - Read, write, and delete browser cookies via document.cookie */
+/** @module @web/core/browser/cookie */
 
-/**
- * Utils to make use of document.cookie
- * https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
- * As recommended, storage should not be done by the cookie
- * but with localStorage/sessionStorage
- */
-
-/** @type {number} Default cookie time-to-live in seconds (1 year). */
+/** @type {number} */
 const COOKIE_TTL = 24 * 60 * 60 * 365;
 
 export const cookie = {
-    /** @returns {string} The raw document.cookie string. */
+    /** @returns {string} */
     get _cookieMonster() {
         return document.cookie;
     },
-    /** @param {string} value - Raw cookie string to assign to document.cookie. */
+    /** @param {string} value */
     set _cookieMonster(value) {
         document.cookie = value;
     },
     /**
-     * @param {string} str - Cookie name to look up.
-     * @returns {string | undefined} The cookie value, or undefined if not found.
+     * @param {string} str
+     * @returns {string | undefined}
      */
     get(str) {
         const parts = this._cookieMonster.split("; ");
@@ -43,10 +36,9 @@ export const cookie = {
         }
     },
     /**
-     * @param {string} key - Cookie name.
-     * @param {string | undefined} value - Cookie value. Passing `undefined`
-     *  deletes the cookie (see below).
-     * @param {number} [ttl] - Time-to-live in seconds (defaults to 1 year).
+     * @param {string} key
+     * @param {string | undefined} value
+     * @param {number} [ttl]
      */
     set(key, value, ttl = COOKIE_TTL) {
         if (value === undefined) {
@@ -66,7 +58,7 @@ export const cookie = {
         ];
         this._cookieMonster = parts.join("; ");
     },
-    /** @param {string} key - Cookie name to remove. */
+    /** @param {string} key */
     delete(key) {
         this.set(key, "", 0);
     },

@@ -4,6 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { Domain } from "@web/core/domain";
 import { PyDate } from "@web/core/py_js/py_date";
+import { session } from "@web/session";
 
 describe.current.tags("headless");
 
@@ -1133,5 +1134,175 @@ describe("contains: unset values compare as the server does", () => {
         // anchored variants: a false pattern is "", so only unset values match
         expect(new Domain([["x", "=like", false]]).contains({ x: false })).toBe(true);
         expect(new Domain([["x", "=like", false]]).contains({ x: "a" })).toBe(false);
+    });
+});
+
+describe("absent field, across every operator family", () => {
+    // A field the record simply does not carry is distinct from an unset one:
+    // the server always has the column, so it has no opinion, and this layer
+    // keeps the historical answer rather than inventing one. Two families
+    // already pinned that (inequalities, like-family); the equality and
+    // membership families did not, so the rule could drift in one place
+    // without any test noticing. The rule is uniform: the POSITIVE form never
+    // matches, and its negation is its exact dual.
+    const record = {};
+
+    test("equality", () => {
+        expect(new Domain([["a", "=", 5]]).contains(record)).toBe(false);
+        expect(new Domain([["a", "==", 5]]).contains(record)).toBe(false);
+        expect(new Domain([["a", "=", false]]).contains(record)).toBe(false);
+        expect(new Domain([["a", "=", ""]]).contains(record)).toBe(false);
+        expect(new Domain([["a", "!=", 5]]).contains(record)).toBe(true);
+        expect(new Domain([["a", "<>", 5]]).contains(record)).toBe(true);
+        expect(new Domain([["a", "!=", false]]).contains(record)).toBe(true);
+    });
+
+    test("membership", () => {
+        expect(new Domain([["a", "in", [1, 2]]]).contains(record)).toBe(false);
+        expect(new Domain([["a", "in", [false]]]).contains(record)).toBe(false);
+        expect(new Domain([["a", "in", [""]]]).contains(record)).toBe(false);
+        expect(new Domain([["a", "not in", [1, 2]]]).contains(record)).toBe(true);
+        expect(new Domain([["a", "not in", [false]]]).contains(record)).toBe(true);
+    });
+
+    test("=? is inert on a falsy operand, whatever the record holds", () => {
+        expect(new Domain([["a", "=?", false]]).contains(record)).toBe(true);
+        expect(new Domain([["a", "=?", 5]]).contains(record)).toBe(false);
+    });
+
+    test("negation of the positive form agrees with the negated operator", () => {
+        for (const [positive, negated] of [
+            ["=", "!="],
+            ["in", "not in"],
+            ["like", "not like"],
+            ["ilike", "not ilike"],
+            ["=like", "not =like"],
+            ["=ilike", "not =ilike"],
+        ]) {
+            const value = positive.includes("like") ? "x" : [1];
+            expect(new Domain(["!", ["a", positive, value]]).contains(record)).toBe(
+                new Domain([["a", negated, value]]).contains(record),
+            );
+        }
+    });
+});
+
+describe("contains: parity with the server's in-memory evaluator", () => {
+    // Every expectation below was read off a differential run against
+    // `filtered_domain()` (itself pinned to `search()` by
+    // test_orm/tests/test_domain_evaluator_parity.py), so the three evaluators
+    // agree rather than the client agreeing with itself.
+
+    test("None is the same 'unset' spelling as False", () => {
+        // The server leaves False/None alone through the whole optimizer
+        // (odoo/orm/domain/optimizations.py), so both select unset records.
+        for (const unset of [false, null, ""]) {
+            expect(new Domain([["x", "=", null]]).contains({ x: unset })).toBe(true);
+            expect(new Domain([["x", "!=", null]]).contains({ x: unset })).toBe(false);
+        }
+        expect(new Domain([["x", "=", null]]).contains({ x: "note" })).toBe(false);
+        expect(new Domain([["x", "!=", null]]).contains({ x: "note" })).toBe(true);
+        expect(new Domain([["x", "=", null]]).contains({})).toBe(false);
+    });
+
+    test("None and False select the same records for every unset-aware operator", () => {
+        for (const record of [{ x: false }, { x: "" }, { x: 0 }, { x: "a" }]) {
+            for (const [withNone, withFalse] of [
+                [
+                    ["x", "=", null],
+                    ["x", "=", false],
+                ],
+                [
+                    ["x", "!=", null],
+                    ["x", "!=", false],
+                ],
+                [
+                    ["x", "in", [null]],
+                    ["x", "in", [false]],
+                ],
+                [
+                    ["x", "not in", [null]],
+                    ["x", "not in", [false]],
+                ],
+            ]) {
+                expect(new Domain([withNone]).contains(record)).toBe(
+                    new Domain([withFalse]).contains(record),
+                );
+            }
+        }
+    });
+
+    test("a trailing lone backslash escapes nothing and is dropped", () => {
+        // The server's build_like_regex leaves `escaped` set and emits nothing;
+        // treating it as a literal backslash made 35 of 4712 fuzzed
+        // (operator, pattern, subject) triples disagree.
+        expect(new Domain([["x", "=like", "%B\\"]]).contains({ x: "BB" })).toBe(true);
+        expect(new Domain([["x", "like", "B\\"]]).contains({ x: "aBc" })).toBe(true);
+        expect(new Domain([["x", "=like", "a\\"]]).contains({ x: "a\\" })).toBe(false);
+        // an escaped backslash is still a literal backslash
+        expect(new Domain([["x", "=like", "a\\\\"]]).contains({ x: "a\\" })).toBe(true);
+        // and an escaped wildcard is still a literal wildcard
+        expect(new Domain([["x", "=like", "a\\%"]]).contains({ x: "a%" })).toBe(true);
+        expect(new Domain([["x", "=like", "a\\%"]]).contains({ x: "ab" })).toBe(false);
+    });
+
+    test("'_' matches one code point, not one UTF-16 code unit", () => {
+        expect(new Domain([["x", "=like", "_"]]).contains({ x: "\u{1F600}" })).toBe(
+            true,
+        );
+        expect(new Domain([["x", "=like", "__"]]).contains({ x: "\u{1F600}" })).toBe(
+            false,
+        );
+        expect(new Domain([["x", "=like", "a_b"]]).contains({ x: "a\u{1F600}b" })).toBe(
+            true,
+        );
+        expect(
+            new Domain([["x", "=like", "a__b"]]).contains({ x: "a\u{1F600}b" }),
+        ).toBe(false);
+        expect(
+            new Domain([["x", "=like", "__"]]).contains({ x: "\u{1F600}\u{1F600}" }),
+        ).toBe(true);
+    });
+});
+
+describe("contains: ilike folds accents only when the database does", () => {
+    // PostgreSQL's `unaccent` is opt-in (`--unaccent` defaults to off, and
+    // Odoo only issues CREATE EXTENSION for it when the flag is set), so the
+    // server folds only when the registry reports the function present. Both
+    // expectations below were read off a server: on a database WITH unaccent
+    // `('name','ilike','cafe')` selects cafe/café/CAFÉ, on one WITHOUT it
+    // selects only `cafe`.
+
+    const RECORDS = [{ x: "cafe" }, { x: "café" }, { x: "CAFÉ" }];
+
+    /**
+     * @param {string} value
+     * @returns {boolean[]}
+     */
+    function ilike(value) {
+        return RECORDS.map((r) => new Domain([["x", "ilike", value]]).contains(r));
+    }
+
+    test("folds when the server reports unaccent", () => {
+        patchWithCleanup(session, { has_unaccent: true });
+        expect(ilike("cafe")).toEqual([true, true, true]);
+        expect(ilike("café")).toEqual([true, true, true]);
+    });
+
+    test("does not fold when the server reports no unaccent", () => {
+        patchWithCleanup(session, { has_unaccent: false });
+        expect(ilike("cafe")).toEqual([true, false, false]);
+        expect(ilike("café")).toEqual([false, true, true]);
+    });
+
+    test("case folding still applies without unaccent", () => {
+        patchWithCleanup(session, { has_unaccent: false });
+        expect(ilike("CAFE")).toEqual([true, false, false]);
+        expect(new Domain([["x", "ilike", "CAFÉ"]]).contains({ x: "café" })).toBe(true);
+    });
+
+    test("an absent session key keeps the folding behaviour", () => {
+        patchWithCleanup(session, { has_unaccent: undefined });
+        expect(ilike("cafe")).toEqual([true, true, true]);
     });
 });

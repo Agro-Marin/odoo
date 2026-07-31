@@ -19,10 +19,6 @@ import {
     standardErrorDialogProps,
     WarningDialog,
 } from "@web/components/errors/error_dialogs";
-import {
-    defaultHandler,
-    supersededErrorHandler,
-} from "@web/components/errors/error_handlers";
 import { browser } from "@web/core/browser/browser";
 import {
     ConnectionLostError,
@@ -32,6 +28,7 @@ import {
 import { registry } from "@web/core/registry";
 import { omit } from "@web/core/utils/collections/objects";
 import { SupersededError } from "@web/core/utils/concurrency";
+import { defaultHandler, supersededErrorHandler } from "@web/services/error_handlers";
 import { UncaughtPromiseError } from "@web/services/error_service";
 
 const errorDialogRegistry = registry.category("error_dialogs");
@@ -674,4 +671,35 @@ describe("Error Service Logs", () => {
         expect(sawLaterHandler).toBe(true);
         expect.verifySteps(["handler crash logged", "traceback logged"]);
     });
+});
+
+test("a 403 Forbidden routes to WarningDialog, not the session-expired dialog", async () => {
+    expect.assertions(4);
+    expect.errors(1);
+    // an access denial is not an expiry: routing it to SessionExpiredDialog told
+    // the user their session had ended and offered a reload, which either loops
+    // or hides the permission problem. `SessionExpiredException` has its own
+    // mapping and is a plain Exception, unrelated to werkzeug's Forbidden.
+    const error = makeErrorFromResponse({
+        code: 200,
+        message: "Odoo Server Error",
+        data: {
+            name: "werkzeug.exceptions.Forbidden",
+            message: "You are not allowed to do that",
+            arguments: [],
+            context: {},
+            debug: "",
+        },
+    });
+    mockService("dialog", {
+        add(dialogClass, props) {
+            expect(dialogClass).toBe(WarningDialog);
+            expect(dialogClass).not.toBe(SessionExpiredDialog);
+            expect(props.exceptionName).toBe("werkzeug.exceptions.Forbidden");
+        },
+    });
+    await makeMockEnv();
+    Promise.reject(error);
+    await animationFrame();
+    expect.verifyErrors(["RPC_ERROR: Odoo Server Error"]);
 });

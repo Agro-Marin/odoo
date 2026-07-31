@@ -9,6 +9,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { findDependencyCycle } from "@web/core/utils/dependency_graph";
 
+describe.current.tags("headless");
+
 describe("findDependencyCycle", () => {
     test("returns null for empty graph", () => {
         const graph = new Map();

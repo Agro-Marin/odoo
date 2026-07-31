@@ -12,6 +12,7 @@ import {
     routerBus,
     startRouter,
 } from "@web/core/browser/router";
+import { RouterEvent } from "@web/core/events";
 import { redirect } from "@web/core/utils/urls";
 
 const _urlToState = (url) => router.urlToState(new URL(url));
@@ -2165,5 +2166,64 @@ describe("internal links", () => {
         expect.verifySteps(["click"]);
         expect(router.current).toEqual({});
         expect(defaultPrevented).toBe(false);
+    });
+});
+
+describe("ephemeral history entries", () => {
+    test("Back pops the ephemeral entry and reports its marker", async () => {
+        redirect("/odoo");
+        createRouter();
+        const marker = { sheet: 1 };
+        on(routerBus, RouterEvent.EPHEMERAL_POPPED, (ev) =>
+            expect.step(`popped:${ev.detail.markers.length}`),
+        );
+        on(routerBus, RouterEvent.ROUTE_CHANGE, () => expect.step("ROUTE_CHANGE"));
+
+        router.pushEphemeral(marker);
+        expect(router.ephemeralDepth).toBe(1);
+
+        browser.history.back();
+        await tick();
+        // The route never moved, so dismissing the layer must not reload it.
+        expect.verifySteps(["popped:1"]);
+        expect(router.ephemeralDepth).toBe(0);
+    });
+
+    test("releaseEphemeral unwinds the entry the owner closed itself", async () => {
+        redirect("/odoo");
+        createRouter();
+        const marker = { sheet: 1 };
+        router.pushEphemeral(marker);
+        expect(router.ephemeralDepth).toBe(1);
+
+        router.releaseEphemeral(marker);
+        await tick();
+        expect(router.ephemeralDepth).toBe(0);
+    });
+
+    test("Forward back INTO a dismissed ephemeral entry does not fabricate a marker", async () => {
+        redirect("/odoo");
+        createRouter();
+        on(routerBus, RouterEvent.EPHEMERAL_POPPED, (ev) =>
+            expect.step(`popped:${JSON.stringify(ev.detail.markers)}`),
+        );
+
+        router.pushEphemeral({ sheet: 1 });
+        browser.history.back();
+        await tick();
+        expect.verifySteps(['popped:[{"sheet":1}]']);
+        expect(router.ephemeralDepth).toBe(0);
+
+        // Forward lands on an entry whose recorded depth (1) EXCEEDS the live
+        // stack (0). Assigning that depth to `.length` grows the array with
+        // holes, so the router claims a layer is stacked when none is, and the
+        // next Back reports a marker nobody pushed.
+        browser.history.forward();
+        await tick();
+        expect(router.ephemeralDepth).toBe(0);
+
+        browser.history.back();
+        await tick();
+        expect.verifySteps([]);
     });
 });

@@ -47,3 +47,48 @@ describe("getActiveHotkey physical-key remapping", () => {
         ).toBe("shift+1");
     });
 });
+
+describe("getActiveHotkey never reports a modifier as the pressed key", () => {
+    // MODIFIERS is Odoo's CHORD vocabulary (the prefixes a registered hotkey may
+    // carry), not the set of physical modifier key names. Filtering the pressed
+    // key against it meant every modifier outside that vocabulary was appended
+    // as if it were a character: holding Meta alone produced the hotkey "meta".
+    test("bare Meta produces no key part", () => {
+        expect(
+            getActiveHotkey(/** @type {any} */ ({ key: "Meta", metaKey: true })),
+        ).toBe("");
+    });
+
+    test("other non-chord modifiers produce no key part either", () => {
+        for (const key of ["AltGraph", "CapsLock", "NumLock", "ScrollLock", "Fn"]) {
+            expect(getActiveHotkey(/** @type {any} */ ({ key }))).toBe("", {
+                message: `bare ${key}`,
+            });
+        }
+    });
+
+    test("chord modifiers keep reporting themselves as held", () => {
+        expect(
+            getActiveHotkey(/** @type {any} */ ({ key: "Control", ctrlKey: true })),
+        ).toBe("control");
+        expect(
+            getActiveHotkey(/** @type {any} */ ({ key: "Shift", shiftKey: true })),
+        ).toBe("shift");
+        expect(getActiveHotkey(/** @type {any} */ ({ key: "Alt", altKey: true }))).toBe(
+            "alt",
+        );
+    });
+
+    test("a real chord over a modifier-held state is unaffected", () => {
+        expect(
+            getActiveHotkey(
+                /** @type {any} */ ({
+                    key: "s",
+                    code: "KeyS",
+                    ctrlKey: true,
+                    metaKey: true,
+                }),
+            ),
+        ).toBe("control+s");
+    });
+});

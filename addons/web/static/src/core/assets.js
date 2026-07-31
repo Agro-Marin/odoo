@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/assets - Lazy-loads CSS/JS asset bundles into documents with caching */
+/** @module @web/core/assets */
 
 import { Component, onWillStart, whenReady, xml } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -38,20 +38,12 @@ const __odoo_assets_state__ = globalSingleton("assets", () => ({
 
 export const globalBundleCache = __odoo_assets_state__.globalBundleCache;
 export const assetCacheByDocument = __odoo_assets_state__.assetCacheByDocument;
-export const crossDocESMBundleCache = __odoo_assets_state__.crossDocESMBundleCache;
+const crossDocESMBundleCache = __odoo_assets_state__.crossDocESMBundleCache;
 const injectedImportMapKeys = __odoo_assets_state__.injectedImportMapKeys;
 
 /**
- * Pre-seed ``injectedImportMapKeys`` from the document's existing
- * ``<script type="importmap">`` tags. The initial page import map is rendered
- * server-side (``ir_qweb._get_esm_asset_nodes``) and already contains every
- * specifier of ``web.assets_web``'s dynamic child bundles (tour, spreadsheet,
- * html_editor, mail, etc.); without this seed, the first
- * ``loadBundle("web_tour.interactive")`` call would re-inject them and
- * Chromium would warn for each one.
- *
  * @param {Document} targetDoc
- * @returns {number} number of specifiers seeded
+ * @returns {number}
  */
 function seedInjectedImportMapKeys(targetDoc) {
     const head = targetDoc.head || targetDoc.documentElement;
@@ -75,10 +67,7 @@ function seedInjectedImportMapKeys(targetDoc) {
                     }
                 }
             }
-        } catch {
-            // Malformed JSON is the server's problem — the import map
-            // wouldn't work anyway.  Don't abort the seed for other tags.
-        }
+        } catch {}
     }
     return seeded;
 }
@@ -100,26 +89,25 @@ function getAssetCache(targetDoc) {
 }
 
 /**
- * Seed the per-document asset cache with the script/link URLs already
- * present in the document, so that ``loadJS``/``loadCSS`` (which dedupe
- * against that same cache) don't re-inject — and re-execute — assets
- * the server already rendered into the initial HTML.
- *
  * @param {Document} targetDoc
  */
 function computeBundleCacheMap(targetDoc) {
     const cacheMap = getAssetCache(targetDoc);
+    // Records what the page itself delivered, so nobody re-requests it. An
+    // entry that is already there tracks a load *we* started and may still be
+    // running -- `loadJS` appends its script to the same head, so this would
+    // find it and overwrite the pending promise with a resolved one, telling
+    // the next caller the asset was ready while it was still executing.
+    const seed = (/** @type {string} */ url) => {
+        if (!cacheMap.has(url)) {
+            cacheMap.set(url, Promise.resolve());
+        }
+    };
     for (const script of targetDoc.head.querySelectorAll("script[src]")) {
-        cacheMap.set(
-            /** @type {string} */ (script.getAttribute("src")),
-            Promise.resolve(),
-        );
+        seed(/** @type {string} */ (script.getAttribute("src")));
     }
     for (const link of targetDoc.head.querySelectorAll("link[rel=stylesheet][href]")) {
-        cacheMap.set(
-            /** @type {string} */ (link.getAttribute("href")),
-            Promise.resolve(),
-        );
+        seed(/** @type {string} */ (link.getAttribute("href")));
     }
 }
 
@@ -133,18 +121,10 @@ whenReady(() => {
  * @param {HTMLLinkElement | HTMLScriptElement} el
  * @param {(event: Event) => any} onLoad
  * @param {(error: Error) => any} onError
- * @param {() => void} [onPageHideCleanup] invoked when the page hides before
- *  the asset settles (bfcache hazard) — evict cache entries here
- * @param {(error: Error) => any} [onInterrupt] settles the caller's promise when
- *  the page hides mid-load. Separate from `onError` because the caller's error
- *  path may retry, and an interrupted load must not be retried — it must reject.
+ * @param {() => void} [onPageHideCleanup]
+ * @param {(error: Error) => any} [onInterrupt]
  */
 const onLoadAndError = (el, onLoad, onError, onPageHideCleanup, onInterrupt) => {
-    // The interrupt guard has to watch the window the ELEMENT lives in. For a
-    // cross-document load (`targetDoc` = an iframe document) that is not the
-    // top-level window, so watching `window` never fired: the iframe could
-    // unload mid-load, leaving the caller's promise pending forever and the
-    // cache entry poisoned with it.
     const view = el.ownerDocument?.defaultView ?? window;
 
     const onLoadListener = (/** @type {Event} */ event) => {
@@ -216,19 +196,6 @@ export function loadCSS(url, options) {
 export class AssetsLoadingError extends Error {}
 
 /**
- * Drop ``url`` from ``cacheMap``, but only if it still holds the promise the
- * caller owns.
- *
- * Every eviction here races a replacement: an entry is removed on failure or on
- * a page-hide interrupt, and a later ``loadJS``/``loadCSS`` for the same url
- * immediately installs a fresh promise — while the older load's listeners are
- * still attached, because ``pagehide`` fires for every live element at once.
- * An unconditional ``delete`` then evicts the NEWER, healthy entry, and the
- * asset is re-injected (and re-executed) on the next request.
- *
- * ``getOwn`` is a thunk because the promise is not yet bound when the listeners
- * are registered (it is the value being constructed).
- *
  * @param {Map<string, Promise<any>>} cacheMap
  * @param {string} url
  * @param {() => Promise<any>} getOwn
@@ -243,9 +210,6 @@ registry
     .category("lazy_components")
     .addValidation((entry) => entry?.prototype instanceof Component);
 
-/**
- * Utility component that loads an asset bundle before instanciating a component
- */
 export class LazyComponent extends Component {
     static template = xml`<t t-component="Component" t-props="componentProps"/>`;
     static props = {
@@ -269,10 +233,6 @@ export class LazyComponent extends Component {
     }
 }
 
-/**
- * Exported only so tests can override behavior; other modules should use the
- * standalone functions above instead of the methods below directly.
- */
 export const assets = {
     retries: {
         count: 3,
@@ -281,9 +241,7 @@ export const assets = {
     },
 
     /**
-     * Get the files information as descriptor object from a public asset template.
-     *
-     * @param {string} bundleName Name of the bundle containing the list of files
+     * @param {string} bundleName
      * @returns {Promise<BundleFileNames>}
      */
     getBundle(bundleName) {
@@ -293,12 +251,12 @@ export const assets = {
             return /** @type {Promise<BundleFileNames>} */ (cacheMap.get(bundleName));
         }
         log("getBundle:fetch", bundleName);
-        const url = new URL(`/web/bundle/${bundleName}`, location.origin);
+        const url = new URL(`/web/bundle/${bundleName}`, browser.location.origin);
         for (const [key, value] of Object.entries(session.bundle_params || {})) {
             url.searchParams.set(key, value);
         }
         const promise = (async () => {
-            const response = await fetch(url);
+            const response = await browser.fetch(url);
             if (!response.ok) {
                 throw new AssetsLoadingError(
                     `The loading of ${url} failed with HTTP status ${response.status}`,
@@ -360,14 +318,11 @@ export const assets = {
     },
 
     /**
-     * Loads the given js/css libraries and asset bundles. Already-loaded
-     * libraries or assets are not reloaded.
-     *
      * @param {string} bundleName
      * @param {Object} options
-     * @param {Document} [options.targetDoc=document] document to which the bundle will be applied (e.g. iframe document)
-     * @param {Boolean} [options.css=true] apply bundle css on targetDoc
-     * @param {Boolean} [options.js=true] apply bundle js on targetDoc
+     * @param {Document} [options.targetDoc=document]
+     * @param {Boolean} [options.css=true]
+     * @param {Boolean} [options.js=true]
      * @returns {Promise<void[]>}
      */
     async loadBundle(bundleName, { targetDoc = document, css = true, js = true } = {}) {
@@ -411,15 +366,7 @@ export const assets = {
     },
 
     /**
-     * Loads native ESM modules via dynamic import() and registers them in the
-     * target document's ``odoo.loader.modules`` for runtime access by dynamic
-     * callers. When ``targetDoc`` is foreign (e.g. an iframe), the imports MUST
-     * run in that document's context so specifiers resolve via its import map
-     * and modules land in its own ``odoo.loader`` — done by injecting a
-     * ``<script type="module">`` into ``targetDoc`` to perform the imports
-     * in-context.
-     *
-     * @param {string[]} specifiers module specifiers to import
+     * @param {string[]} specifiers
      * @param {{ targetDoc?: Document, importMap?: Record<string, string> | null }} [options]
      * @returns {Promise<void>}
      */
@@ -610,11 +557,9 @@ export const assets = {
     },
 
     /**
-     * Loads the given url as a stylesheet.
-     *
-     * @param {string} url the url of the stylesheet
+     * @param {string} url
      * @param {{ retryCount?: number, targetDoc?: Document }} [options]
-     * @returns {Promise<void>} resolved when the stylesheet has been loaded
+     * @returns {Promise<void>}
      */
     loadCSS(url, { retryCount = 0, targetDoc = document } = {}) {
         const cacheMap = getAssetCache(targetDoc);
@@ -674,11 +619,9 @@ export const assets = {
     },
 
     /**
-     * Loads the given url inside a script tag.
-     *
-     * @param {string} url the url of the script
+     * @param {string} url
      * @param {{ targetDoc?: Document }} [options]
-     * @returns {Promise<void>} resolved when the script has been loaded
+     * @returns {Promise<void>}
      */
     loadJS(url, { targetDoc = document } = {}) {
         const cacheMap = getAssetCache(targetDoc);
