@@ -1,8 +1,8 @@
 // @ts-check
 
 /**
- * Cache coherence: useViewCompiler must register OWL templates under a
- * deterministic name (the arch-content key) so resetViewCompilerCache() +
+ * Cache coherence: useViewCompiler must register OWL templates under a name
+ * derived deterministically from the arch, so resetViewCompilerCache() +
  * recompiling the same arch overwrites the same globalTemplates slot instead
  * of accumulating entries (the leak from the original FIXME).
  */
@@ -122,16 +122,20 @@ describe("useViewCompiler — cache coherence after reset", () => {
         expect(name1).toBe(name2);
     });
 
-    test("template name equals the arch-content key", () => {
+    test("template name is a bounded digest of the arch, not the arch itself", () => {
         resetViewCompilerCache();
         const arch = document.createElement("list");
         arch.setAttribute("string", "Lines");
-        const templates = { list: arch };
+        const bigArch = document.createElement("list");
+        bigArch.setAttribute("string", "L".repeat(5000));
 
-        const result = useViewCompiler(TestCompiler, templates);
+        const name = useViewCompiler(TestCompiler, { list: arch }).list;
+        const bigName = useViewCompiler(TestCompiler, { list: bigArch }).list;
 
-        expect(result.list).toMatch(/^TestCompiler#\d+\/\//);
-        expect(result.list.endsWith(`/${arch.outerHTML}`)).toBe(true);
+        expect(name).toMatch(/^TestCompiler#\d+\/\/\d+-\d+$/);
+        expect(name).not.toInclude(arch.outerHTML);
+        expect(bigName.length).toBeLessThan(bigArch.outerHTML.length);
+        expect(bigName).not.toBe(name);
     });
 
     test("multiple resets do not change the registered template name", () => {
@@ -193,9 +197,9 @@ describe("useViewCompiler — template name uniqueness", () => {
 
         const result = useViewCompiler(TestCompiler, templates);
 
-        expect(result.form.endsWith(`/${templates.form.outerHTML}`)).toBe(true);
-        expect(result.buttons.endsWith(`/${templates.buttons.outerHTML}`)).toBe(true);
         expect(result.form).not.toBe(result.buttons);
+        expect(result.form).toMatch(/\/\d+-\d+$/);
+        expect(result.buttons).toMatch(/\/\d+-\d+$/);
     });
 });
 

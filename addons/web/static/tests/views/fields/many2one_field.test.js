@@ -4187,3 +4187,37 @@ test("highlight search in many2one", async () => {
         ord
     `);
 });
+
+test("tab out of an untouched many2one commits nothing after an escaped dropdown", async () => {
+    // A many2one always runs its AutoComplete with autoSelect (many2one.js:221),
+    // and the same instance survives closing and reopening its dropdown.
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 4,
+        arch: `<form><field name="trululu"/><field name="foo"/></form>`,
+    });
+    const input = ".o_field_many2one[name='trululu'] input";
+    expect(input).toHaveValue("");
+
+    // Browse the suggestions, then dismiss them.
+    await contains(input).click();
+    await runAllTimers();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(3);
+    await press("arrowdown");
+    await animationFrame();
+    await press("escape");
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(0);
+
+    // Reopen on the still-empty input and tab on to the next field.
+    await contains(input).click();
+    await runAllTimers();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(3);
+    await press("tab");
+    await animationFrame();
+
+    // Nothing was picked, so the record must still be clean.
+    expect(input).toHaveValue("");
+    expect(".o_form_editable").not.toHaveClass("o_form_dirty");
+});

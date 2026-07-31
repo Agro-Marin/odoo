@@ -1,21 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/multi_record_controller - Base controller class for multi-record views (list, kanban) */
+/** @module @web/views/multi_record_controller */
 
-/**
- * Base class for multi-record view controllers (list, kanban).
- *
- * Encapsulates the shared setup, getters, and methods that were previously
- * duplicated between ListController and KanbanController. Single-record views
- * (form) extend Component directly.
- *
- * Subclass contract:
- *   1. Call `super.setup()` first (initializes services, archInfo, rootRef, etc.)
- *   2. Initialize `this.model` (view-specific model + sample data)
- *   3. Call `this.initMultiRecordBehavior()` (wires viewButtons, selection tracking, etc.)
- *   4. Then add view-specific hooks (useSetupAction, usePager, scroll restoration…)
- */
 import {
     Component,
     onMounted,
@@ -64,8 +51,10 @@ export class MultiRecordController extends Component {
     exportRecords;
     /** @type {any} */
     deleteRecordsWithConfirmation;
-    /** @type {boolean} resolved by ``onWillStart``; false until then */
+    /** @type {boolean} */
     isExportEnable = false;
+    /** @type {number} */
+    _selectionEpoch = 0;
 
     setup() {
         const { action, dialog, notification, orm, uiHooks } = useControllerServices();
@@ -86,10 +75,6 @@ export class MultiRecordController extends Component {
         });
     }
 
-    /**
-     * Wire hooks that depend on `this.model` being initialized.
-     * Must be called by the subclass after model creation.
-     */
     initMultiRecordBehavior() {
         useSubEnv({ model: this.model });
 
@@ -125,7 +110,8 @@ export class MultiRecordController extends Component {
 
     get actionMenuProps() {
         return {
-            getActiveIds: () => this.model.root.selection.map((r) => r.resId),
+            getActiveIds: () =>
+                this.model.root.selection.map((/** @type {any} */ r) => r.resId),
             context: this.model.root.context,
             domain: this.props.domain,
             items: this.actionMenuItems,
@@ -154,19 +140,6 @@ export class MultiRecordController extends Component {
     }
 
     /**
-     * Identity of the current selection, as a value comparable with ``===``
-     * so it can serve as a ``useEffect`` dependency.
-     *
-     * The dependency used to be ``selection.length``, which is a cardinality
-     * proxy for a SET: swapping one selected record for another (deselect A,
-     * select B in the same tick — two ordinary clicks) left the length
-     * unchanged, so the effect never re-ran and ``props.onSelectionChanged``
-     * consumers kept reporting the OLD ids until some later change happened to
-     * move the count — a stale-data window, not merely a missed notification.
-     * Keying on the ids themselves makes every selection change observable,
-     * and identical selections still compare equal so no spurious
-     * notification is introduced.
-     *
      * @returns {string}
      */
     get selectionKey() {
@@ -174,7 +147,7 @@ export class MultiRecordController extends Component {
         if (!selection?.length) {
             return "";
         }
-        return selection.map((record) => record.id).join(",");
+        return selection.map((/** @type {any} */ record) => record.id).join(",");
     }
 
     get hasSelectedRecords() {
@@ -243,37 +216,28 @@ export class MultiRecordController extends Component {
     }
 
     /**
-     * Override to provide view-specific exportable fields.
-     *
-     * Annotated rather than inferred: `return []` alone infers `never[]`, so
-     * every subclass returning real field objects was an invalid override
-     * (TS2416). The base is an empty extension point, not a claim that the
-     * list is always empty.
-     *
-     * @returns {any[]} view-specific exportable field descriptors
+     * @returns {any[]}
      */
     getExportableFields() {
         return [];
     }
 
-    /** Called when selection changes. Override to react to selection. */
     async onSelectionChanged() {
-        if (this.props.onSelectionChanged) {
-            const resIds = await this.model.root.getResIds(true);
-            this.props.onSelectionChanged(resIds);
+        if (!this.props.onSelectionChanged) {
+            return;
         }
+        const epoch = ++this._selectionEpoch;
+        const resIds = await this.model.root.getResIds(true);
+        if (epoch !== this._selectionEpoch) {
+            return;
+        }
+        this.props.onSelectionChanged(resIds);
     }
 
-    /**
-     * CSS selector (relative to ``rootRef``) of the scroll container reset to
-     * the top on pager navigation. Overridden per view type (e.g. the list
-     * renderer scrolls, not ``.o_content``).
-     */
     get scrollSelector() {
         return ".o_content";
     }
 
-    /** Scroll to top after pager navigation. */
     onPageChangeScroll() {
         if (!this.rootRef?.el) {
             return;
@@ -288,24 +252,18 @@ export class MultiRecordController extends Component {
         }
     }
 
-    /** Wraps deletion with confirmation dialog. Override for custom delete flows. */
     onDeleteSelectedRecords() {
         this.deleteRecordsWithConfirmation(this.deleteConfirmationDialogProps);
     }
 
     /**
-     * Intercept action button execution. Return false to prevent execution.
-     *
-     * Annotated rather than inferred: an empty `async` body infers
-     * `Promise<void>`, which contradicts this method's own documented contract
-     * and made every subclass that actually returns `false` an invalid
-     * override (TS2416).
-     *
      * @param {any} clickParams
-     * @returns {Promise<boolean | void>} `false` prevents execution
+     * @returns {Promise<boolean | void>}
      */
     async beforeExecuteActionButton(clickParams) {}
 
-    /** Post-processing after action button execution. */
+    /**
+     * @param {any} clickParams
+     */
     async afterExecuteActionButton(clickParams) {}
 }

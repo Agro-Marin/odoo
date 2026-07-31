@@ -490,6 +490,25 @@ test("rendering with given arch, fields, searchViewId, searchViewArch, and searc
     expect(".o_toy_view.toy").toHaveInnerHTML(`<toy>Specific arch content</toy>`);
 });
 
+test("loadIrFilters without any search view does not request or read one", async function () {
+    expect.assertions(4);
+    patchWithCleanup(ToyController.prototype, {
+        setup() {
+            super.setup();
+            const { irFilters, searchViewArch, searchViewId } = this.props.info;
+            expect(searchViewId).toBe(undefined);
+            expect(searchViewArch).toBe(undefined);
+            expect(irFilters).toBe(undefined);
+        },
+    });
+    onRpc("get_views", ({ kwargs }) => {
+        expect(kwargs.options.load_filters).toBe(false);
+    });
+    await mountWithCleanup(View, {
+        props: { resModel: "animal", type: "toy", loadIrFilters: true },
+    });
+});
+
 test("rendering with given arch, fields, searchViewArch, and searchViewFields", async function () {
     expect.assertions(6);
     patchWithCleanup(ToyController.prototype, {

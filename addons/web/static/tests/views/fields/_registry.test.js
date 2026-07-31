@@ -17,7 +17,7 @@ const fieldsRegistry = registry.category("fields");
 
 const SENTINEL_PREFIX = "__test_registerField_";
 
-function _sentinelWidget(label) {
+function _sentinelWidget(/** @type {string} */ label) {
     return { component: class extends Component {}, displayName: label };
 }
 

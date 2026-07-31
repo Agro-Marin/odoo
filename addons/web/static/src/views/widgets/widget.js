@@ -1,11 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/widget - Generic widget component resolving view_widgets registry entries with props extraction and validation */
+/** @module @web/views/widgets/widget */
 
 import { Component, xml } from "@odoo/owl";
 import { evaluateBooleanExpr, evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
+import { FIELD_DEPENDENCIES_VALIDATION } from "@web/model/relational_model/field_metadata";
 const viewWidgetRegistry = registry.category("view_widgets");
 
 const supportedInfoValidation = {
@@ -22,27 +23,20 @@ const supportedInfoValidation = {
 };
 
 viewWidgetRegistry.addValidation({
-    component: { validate: (c) => c.prototype instanceof Component },
+    component: {
+        validate: (/** @type {any} */ c) => c.prototype instanceof Component,
+    },
     extractProps: { type: Function, optional: true },
     additionalClasses: { type: Array, element: String, optional: true },
-    fieldDependencies: {
-        type: [
-            Function,
-            {
-                type: Array,
-                element: Object,
-                shape: { name: String, type: String },
-            },
-        ],
-        optional: true,
-    },
+    fieldDependencies: FIELD_DEPENDENCIES_VALIDATION,
     listViewWidth: {
         type: [
             Number,
             {
                 type: Array,
                 element: Number,
-                validate: (array) => array.length === 1 || array.length === 2,
+                validate: (/** @type {any[]} */ array) =>
+                    array.length === 1 || array.length === 2,
             },
             Function,
         ],
@@ -52,11 +46,6 @@ viewWidgetRegistry.addValidation({
     supportedOptions: supportedInfoValidation,
 });
 
-/**
- * Generic wrapper that renders `<widget />` tags in view archs by looking up
- * the named component from the "view_widgets" registry and forwarding
- * extracted props, readonly state, and the current record.
- */
 export class Widget extends Component {
     static template = xml`
         <div t-att-class="classNames" t-att-style="props.style">
@@ -64,13 +53,13 @@ export class Widget extends Component {
         </div>`;
 
     /**
-     * Parse a `<widget>` XML node into a descriptor with name, options, and attributes.
-     * @param {Element} node - arch XML element
+     * @param {Element} node
      * @returns {{ name: string, widget: Object, options: Object, attrs: Object }}
      */
     static parseWidgetNode = function (node) {
         const name = /** @type {string} */ (node.getAttribute("name"));
         const widget = viewWidgetRegistry.get(name);
+        /** @type {{ name: any, widget: any, options: any, attrs: Record<string, any> }} */
         const widgetInfo = {
             name,
             widget,
@@ -103,7 +92,7 @@ export class Widget extends Component {
         }
     }
 
-    /** @returns {Record<string, boolean>} CSS class map including o_widget, widget-specific, and additional classes */
+    /** @returns {Record<string, boolean>} */
     get classNames() {
         const classNames = {
             o_widget: true,
@@ -117,7 +106,7 @@ export class Widget extends Component {
         }
         return classNames;
     }
-    /** @returns {Object} merged props for the inner widget component (record, readonly, and extracted arch props) */
+    /** @returns {Object} */
     get widgetProps() {
         const record = this.props.record;
 

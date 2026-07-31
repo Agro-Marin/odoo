@@ -1,7 +1,7 @@
 // @ts-check
 
-import "@web/fields/formatters";
-import "@web/fields/parsers";
+import "@web/core/formatters";
+import "@web/core/parsers";
 import "@web/model/relational_model/field_values";
 import "@web/model/relational_model/record_value_transforms";
 

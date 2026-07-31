@@ -14,6 +14,7 @@ import {
     serverState,
 } from "@web/../tests/web_test_helpers";
 
+/** @param {string} name */
 function fieldTextArea(name) {
     return contains(`.o_field_widget[name='${name}'] textarea`);
 }
@@ -126,7 +127,9 @@ test("set row on text fields", async () => {
         resId: 1,
         arch: `<form><field name="description" rows="40"/><field name="description"/></form>`,
     });
-    const textareas = queryAll(".o_field_text textarea");
+    const textareas = /** @type {HTMLTextAreaElement[]} */ (
+        queryAll(".o_field_text textarea")
+    );
     expect(textareas[0].rows).toBe(40);
     expect(textareas[0].clientHeight).toBeGreaterThan(textareas[1].clientHeight);
 });

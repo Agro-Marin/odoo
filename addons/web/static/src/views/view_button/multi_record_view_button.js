@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_button/multi_record_view_button - ViewButton variant for list/kanban headers that operates on multiple selected records */
+/** @module @web/views/view_button/multi_record_view_button */
 
 import { ViewButton } from "./view_button.js";
 
-/** ViewButton variant for list/kanban headers that operates on multiple selected records at once. */
 export class MultiRecordViewButton extends ViewButton {
     static props = {
         ...ViewButton.props,
@@ -14,8 +13,6 @@ export class MultiRecordViewButton extends ViewButton {
     };
 
     /**
-     * Resolve all selected record IDs from the list and inject active_domain/active_ids
-     * into the button context before delegating to the environment handler.
      * @param {MouseEvent} ev
      * @param {boolean} [newWindow]
      */

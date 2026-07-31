@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/module_views - Cog-menu item to reset ir.module.module installation state */
+/** @module @web/views/module_views */
 
 import { Component } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -12,11 +12,13 @@ const cogMenuRegistry = registry.category("cogMenu");
 
 const moduleUpdateCache = new WeakMap();
 
-/** Cog-menu item that resets module installation state (only on ir.module.module list views). */
 export class ResetModuleStateCogMenu extends Component {
     static template = "web.ResetModuleStateCogMenu";
     static components = { DropdownItem };
     static props = {};
+
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
 
     setup() {
         this.orm = useService("orm");
@@ -32,6 +34,7 @@ cogMenuRegistry.add(
     "reset-module-state-cog-menu",
     /** @type {any} */ ({
         Component: ResetModuleStateCogMenu,
+        /** @param {{ config: any, searchModel: any, services: any }} param0 */
         isDisplayed: async ({ config, searchModel, services }) => {
             if (
                 searchModel.resModel !== "ir.module.module" ||

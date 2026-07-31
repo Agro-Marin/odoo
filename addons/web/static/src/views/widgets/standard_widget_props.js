@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/standard_widget_props - Standard OWL prop definitions shared by all view widgets (record and readonly) */
+/** @module @web/views/widgets/standard_widget_props */
 
 export const standardWidgetProps = {
     readonly: { type: Boolean, optional: true },

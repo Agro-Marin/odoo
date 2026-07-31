@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_utils - Shared utilities for view controllers (class names, active actions, archive, formatting) */
+/** @module @web/views/view_utils */
 
 import { status, useComponent } from "@odoo/owl";
 import { WarningDialog } from "@web/components/errors/error_dialogs";
@@ -60,13 +60,6 @@ export function computeViewClassName(viewType, rootNode, additionalClassList = [
 }
 
 /**
- * Per-`fieldInfo` cache of extracted format options, keyed by object identity.
- * `extractOptions` is stable per column for its whole lifetime but
- * `getFormattedValue` runs once per cell per render, so memoize to avoid
- * re-deriving (and re-JSON.parsing `digits`) every time. Still shallow-copied
- * per call below: the per-call `data`/`field` assignments must touch only the
- * copy, never the cached original (formatters themselves no longer mutate
- * their options argument).
  * @type {WeakMap<object, object>}
  */
 const formatOptionsByFieldInfo = new WeakMap();
@@ -125,21 +118,12 @@ export function isX2Many(field) {
 }
 
 /**
- * Shared ``beforeunload`` handler for the form and list controllers.
- *
- * A record is beacon-eligible only when it already exists (``sendBeacon`` cannot
- * return the new id for a creation), is not inside a dialog, and the model opted
- * into ``sendBeacon`` urgent saves. Only that path settles in microtasks, so a
- * late ``ev.preventDefault()`` after awaiting is still honored. Every other case
- * (a dirty NEW record, an inline row, a form/list in a dialog) must block the
- * unload SYNCHRONOUSLY so the browser shows its native "unsaved changes" prompt.
- *
  * @param {BeforeUnloadEvent} ev
  * @param {object} opts
  * @param {import("@web/model/relational_model/record").RelationalRecord | null | undefined} opts.record
  * @param {boolean} opts.inDialog
  * @param {boolean} opts.useSendBeacon
- * @param {() => Promise<any>} opts.urgentSave beacon-path save; resolves truthy on success
+ * @param {() => Promise<any>} opts.urgentSave
  */
 export function handleBeforeUnload(
     ev,
@@ -150,36 +134,9 @@ export function handleBeforeUnload(
     }
     const canBeacon = Boolean(record.resId) && !inDialog && useSendBeacon;
     if (!canBeacon) {
-        // LOAD-BEARING, and it looks like a no-op — do not delete. The `dirty`
-        // check below must see values the user typed but never committed (no
-        // blur, no Enter). Entering urgent-save mode is what flushes them, and
-        // the whole chain is synchronous by construction:
-        //   1. `UrgentSaveCoordinator.run` flips `status` to "active" and fires
-        //      `WILL_SAVE_URGENTLY` BEFORE its first `await`
-        //      (`urgent_save_coordinator.js`);
-        //   2. its nine listeners (`useInputField`, html/ace/domain/properties/
-        //      m2m-checkboxes/datetime fields, …) call their `commitChanges()`,
-        //      which reaches `Record.update`;
-        //   3. `Record.update` short-circuits the model mutex while
-        //      `urgentSave.isActive` (`record.js`), so `_update` runs inline and
-        //      calls `_markDirty()` before awaiting anything.
-        // `beforeunload` cannot await, so only that synchronous path can affect
-        // the check; without it the browser's unsaved-changes prompt silently
-        // stops appearing for typed input. Pinned by "uncommitted typed input
-        // on NEW record blocks unload" in `views/form/auto_save.test.js`, which
-        // is the ONLY test in that suite that fails when this line is removed.
-        //
-        // The cast asserts a fact the checker cannot derive: `urgentSave` is
-        // assigned unconditionally, but in `RelationalModel.setup()` rather
-        // than in a constructor, and TypeScript widens any JS property it
-        // cannot see definitely assigned to `T | undefined`. Declaring it as a
-        // class field would fix the type and BREAK the runtime — `Model`'s
-        // constructor calls `this.setup()`, so a subclass field initializer
-        // (which runs after `super()`) would overwrite what `setup()` just
-        // stored. That hazard applies to every `Model` subclass.
-        /** @type {import("@web/model/relational_model/urgent_save_coordinator").UrgentSaveCoordinator} */ (
-            record.model.urgentSave
-        ).run(() => Promise.resolve());
+        /**
+         * @type {import("@web/model/relational_model/urgent_save_coordinator").UrgentSaveCoordinator}
+         */ (record.model.urgentSave).run(() => Promise.resolve());
         if (record.dirty) {
             ev.preventDefault();
             ev.returnValue = "Unsaved changes";
@@ -196,7 +153,7 @@ export function handleBeforeUnload(
 
 /**
  * @param {Object} field
- * @returns {boolean} true iff the given field is a numeric field
+ * @returns {boolean}
  */
 export function isNumeric(field) {
     return NUMERIC_TYPES.includes(field.type);
@@ -211,47 +168,16 @@ export function isNull(value) {
 }
 
 /**
- * Transforms a string into a valid expression to be injected
- * in a template as a props via setAttribute.
- * Example: myString = `Some weird language quote (") `;
- *     should become in the template:
- *      <Component label="&quot;Some weird language quote (\\&quot;)&quot; " />
- *     which should be interpreted by owl as a JS expression being a string:
- *      `Some weird language quote (") `
- *
- * The result is a JS template literal, so BOTH the backtick delimiter and the
- * ``${...}`` interpolation syntax must be neutralized: a raw ``${expr}`` in the
- * source string would otherwise be evaluated as an expression in the generated
- * code (arch is admin-trusted, but this is the single codegen-escaping seam
- * shared by every view compiler, so it fails closed by construction). Backtick
- * is escaped first, then ``$`` before any ``{`` — escaping the ``$`` alone is
- * enough to defuse the interpolation while leaving a literal ``${`` visually
- * intact in the produced string.
- *
- * @param  {string | null | undefined} str The initial value: a pure string to
- *   be interpreted as such. Nullable by design, not by accident — every caller
- *   is a view compiler feeding it ``element.getAttribute(...)``, which returns
- *   ``string | null`` for an absent attribute, and the ``?? ""`` below is what
- *   "fails closed by construction" above refers to. The annotation used to say
- *   plain ``string``; that was invisible because the ambient
- *   ``declare module "@web/views/view_utils"`` in ``@types/views.d.ts``
- *   shadowed this file and declared the parameter correctly as ``string|null``.
- * @return {string}     the valid string to be injected into a component's node props.
+ * @param {string | null | undefined} str
+ * @return {string}
  */
 export function toStringExpression(str) {
     return `\`${(str ?? "").replaceAll("`", "\\`").replaceAll("${", "\\${")}\``;
 }
 
 /**
- * Compute the default model loading options for view controllers.
- *
- * A model loads lazily when it is not a controller reload, not inside a dialog,
- * and has a control panel — i.e. it is a top-level, first-paint view.
- * Embedded views (x2many) and dialog views must load eagerly so the
- * surrounding UI is never left with a visually empty nested component.
- *
- * @param {Object} env - OWL component environment
- * @param {Object} display - view display props (from standardViewProps)
+ * @param {Object} env
+ * @param {Object} display
  * @returns {{ lazy: boolean }}
  */
 export function computeModelOptions(env, display) {
@@ -264,37 +190,14 @@ export function computeModelOptions(env, display) {
 }
 
 /**
- * Compose the standard params object that multi-record view controllers
- * (list, kanban, ...) pass to the relational model constructor: state/config
- * restoration (so returning to a view via the action manager replays the
- * previous load instead of re-querying), `countLimit`/`defaultOrderBy` from
- * the arch, `activeIdsLimit`, and
- * ``hooks = { lifecycle, ui: { ...uiHooks, ...callerHooks.ui } }`` (every
- * controller's UI hooks layered over the model defaults, plus its own
- * lifecycle hooks).
- *
- * The caller's own view-specific config/extras (`groupByInfo`, `multiEdit`,
- * `groupsLimit`, `maxGroupByDepth`, `limit`, etc.) go through `extras`,
- * spread last so a controller can override any default here.
- *
- * Mono-record views (form) intentionally don't use this helper — their
- * config shape (`isMonoRecord`, `resId`/`resIds`, `mode`) is different.
- *
  * @param {Object} args
- * @param {any} args.archInfo - parsed view arch
- * @param {any} args.props    - controller props (must include state)
- * @param {any} args.uiHooks  - the ``_uiHooks`` from
- *                              ``useControllerServices()``
- * @param {Object} args.config - view-specific config object (used when
- *     no prior modelState is being restored)
- * @param {{ lifecycle?: Object, ui?: Object }} [args.hooks={}] -
- *     Controller-supplied hook overrides in the split shape.
- *     ``lifecycle`` is taken as-is; ``ui`` is merged on top of the
- *     ``uiHooks`` defaults so a controller can replace specific
- *     UI hooks without losing the rest.
- * @param {Object} [args.extras={}] - view-specific extras
- *     (``groupByInfo``, ``limit``, ``multiEdit``, ...) spread last
- * @returns {Object} the params object accepted by ``RelationalModel``
+ * @param {any} args.archInfo
+ * @param {any} args.props
+ * @param {any} args.uiHooks
+ * @param {Object} args.config
+ * @param {{ lifecycle?: Object, ui?: Object }} [args.hooks={}]
+ * @param {Object} [args.extras={}]
+ * @returns {Object}
  */
 export function buildMultiRecordModelParams({
     archInfo,
@@ -319,10 +222,6 @@ export function buildMultiRecordModelParams({
 }
 
 /**
- * Initialize the four standard services every view controller needs.
- * Returns an object with { action, dialog, notification, orm } plus a
- * pre-built set of model UI hooks.
- *
  * @returns {{ action: Object, dialog: Object, notification: Object, orm: Object, uiHooks: Object }}
  */
 export function useControllerServices() {
@@ -341,39 +240,23 @@ export function useControllerServices() {
 }
 
 /**
- * Determine if archive/unarchive actions should be available.
- *
- * Checks for the presence of the `active` or `x_active` field in
- * ``presenceSource`` and its writability in ``readonlySource``. Multi-record
- * views pass a single fields definition for both; the form view gates presence
- * on ``model.root.activeFields`` (the field must actually be in the view) while
- * reading writability from ``props.fields``.
- *
- * @param {Object} readonlySource - fields definition providing `.readonly`
- * @param {Object} [presenceSource=readonlySource] - fields definition gating
- *   the `active`/`x_active` presence check
+ * @param {Object} fields
+ * @param {Object} [options]
+ * @param {Object} [options.presentIn=fields]
  * @returns {boolean}
  */
-export function computeArchiveEnabled(readonlySource, presenceSource = readonlySource) {
-    if ("active" in presenceSource) {
-        return !readonlySource.active.readonly;
-    }
-    if ("x_active" in presenceSource) {
-        return !readonlySource.x_active.readonly;
+export function computeArchiveEnabled(fields, { presentIn = fields } = {}) {
+    for (const fieldName of ["active", "x_active"]) {
+        if (fieldName in presentIn) {
+            return Boolean(fields[fieldName]) && !fields[fieldName].readonly;
+        }
     }
     return false;
 }
 
 /**
- * Build the final action menu items from static items and server-provided
- * action menus.
- *
- * This is the shared filter→sort→map pipeline that was duplicated in
- * form, list, and kanban controllers.
- *
- * @param {Object} staticItems - keyed by action name, each with
- *   { isAvailable?, sequence, icon, description, callback, ... }
- * @param {Object} [actionMenus] - server-provided { action: [], print: [] }
+ * @param {Object} staticItems
+ * @param {Object} [actionMenus]
  * @returns {{ action: Object[], print: Object[] }}
  */
 export function buildActionMenuItems(staticItems, actionMenus) {
@@ -389,27 +272,17 @@ export function buildActionMenuItems(staticItems, actionMenus) {
 
     return {
         action: [...staticActionItems, ...(actionMenus?.action || [])],
-        // Always an array, like `action`: consumers already tolerate an absent
-        // `print`, but a single return shape means one less thing to remember.
         print: actionMenus?.print || [],
     };
 }
 
 /**
- * Build default UI hook implementations from controller services.
- *
- * Controllers spread these into their model hooks so that the data layer
- * (RelationalModel / Record / DynamicList) never imports or calls UI
- * services directly.
- *
  * @param {Object} services
  * @param {Object} services.action
  * @param {Object} services.dialog
  * @param {Object} services.notification
- * @param {() => boolean} [services.isAlive] whether the controller that owns
- *   these services is still mounted. Defaults to always-alive for direct
- *   callers; ``useControllerServices`` supplies the real check.
- * @returns {Object} hook implementations keyed by hook name
+ * @param {() => boolean} [services.isAlive]
+ * @returns {Object}
  */
 export function makeModelUIHooks({
     action,
@@ -443,15 +316,6 @@ export function makeModelUIHooks({
             notification.add(message, { type: "warning" });
         },
         onDisplayArchiveAction(actionResult, reload) {
-            // `onClose` fires whenever the dialog goes away — including when it
-            // is torn down along with the controller that owns `reload`. That
-            // reload reaches `model.load()`, which calls the ORM through the
-            // controller's PROTECTED service proxy; on a destroyed component
-            // that proxy returns a rejected promise nobody is left to catch,
-            // surfacing as an unhandled "Component is destroyed". Reloading a
-            // model whose view is gone has no observable effect anyway, so the
-            // fix is to not schedule the work rather than to swallow its
-            // rejection.
             const reloadIfAlive = () => (isAlive() ? reload() : undefined);
             if (actionResult && Object.keys(actionResult).length) {
                 return action.doAction(actionResult, { onClose: reloadIfAlive });

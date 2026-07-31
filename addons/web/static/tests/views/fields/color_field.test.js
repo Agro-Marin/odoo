@@ -85,7 +85,7 @@ test("swatch live-previews while dragging in the picker (input event)", async ()
 
     expect(".o_field_color div").toHaveStyle({ backgroundColor: "rgb(255, 68, 68)" });
 
-    const input = queryOne(".o_field_color input");
+    const input = /** @type {HTMLInputElement} */ (queryOne(".o_field_color input"));
     input.value = "#00ff00";
     input.dispatchEvent(new Event("input", { bubbles: true }));
     await animationFrame();

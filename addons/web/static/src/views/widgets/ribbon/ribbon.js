@@ -1,21 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/ribbon/ribbon - Decorative ribbon on the top-right corner of a form view with configurable label and color */
+/** @module @web/views/widgets/ribbon/ribbon */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
-/**
- * Decorative ribbon on the top-right corner of a form view.
- *
- * Configurable via arch attributes:
- * - `title` / `text`: ribbon label
- * - `tooltip`: hover tooltip
- * - `bg_color`: Bootstrap background class (default: `text-bg-success`)
- */
 export class RibbonWidget extends Component {
     static template = "web.Ribbon";
     static props = {
@@ -30,7 +22,7 @@ export class RibbonWidget extends Component {
         bgClass: "text-bg-success",
     };
 
-    /** @returns {string} CSS classes for the ribbon element, including size modifiers */
+    /** @returns {string} */
     get classes() {
         let classes = this.props.bgClass;
         if (this.props.text.length > 15) {
@@ -42,6 +34,7 @@ export class RibbonWidget extends Component {
     }
 }
 
+/** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const ribbonWidget = {
     component: RibbonWidget,
     extractProps: ({ attrs }) => ({

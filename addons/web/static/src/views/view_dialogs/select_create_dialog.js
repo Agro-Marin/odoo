@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_dialogs/select_create_dialog - Modal with embedded list/kanban for selecting existing records or creating new ones (Many2one/Many2many) */
+/** @module @web/views/view_dialogs/select_create_dialog */
 
 import { Component, useState } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -22,7 +22,6 @@ function getDefaultNoContentHelp() {
     return _defaultNoContentHelp;
 }
 
-/** Modal dialog with an embedded list/kanban view for selecting existing records or creating new ones (Many2one/Many2many popups). */
 export class SelectCreateDialog extends Component {
     static components = { Dialog, View };
     static template = "web.SelectCreateDialog";
@@ -98,7 +97,6 @@ export class SelectCreateDialog extends Component {
     }
 
     /**
-     * Guard to ensure the callback runs at most once, then close the dialog.
      * @param {() => Promise<void>} callback
      */
     async executeOnceAndClose(callback) {
@@ -114,7 +112,7 @@ export class SelectCreateDialog extends Component {
         }
     }
 
-    /** @param {number[]} resIds - confirm selection of the given record IDs */
+    /** @param {number[]} resIds */
     async select(resIds) {
         if (this.props.onSelected) {
             this.executeOnceAndClose(() => this.props.onSelected(resIds));
@@ -131,7 +129,6 @@ export class SelectCreateDialog extends Component {
         return this.env.isSmall && !!this.props.onUnselect;
     }
 
-    /** Open a FormViewDialog to create a new record, or delegate to onCreateEdit. */
     async createEditRecord() {
         if (this.props.onCreateEdit) {
             await this.props.onCreateEdit();

@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/selection_box - Banner with "Select all matching" and "Unselect" actions shown when records are selected */
+/** @module @web/views/view_components/selection_box */
 
 import { Component } from "@odoo/owl";
 
-/** Banner shown above a list/kanban when records are selected, offering "Select all matching" and "Unselect" actions. */
 export class SelectionBox extends Component {
     static components = {};
     static template = "web.SelectionBox";
@@ -13,53 +12,51 @@ export class SelectionBox extends Component {
         root: { type: Object },
     };
     /**
-     * @returns {Object} the live root datapoint. Read through a getter (not
-     * cached in setup): RelationalModel replaces model.root on every load
-     * (relational_model.js), so a cached reference could act on a dead
-     * datapoint after a reload (M3).
+     * @returns {import("@web/model/relational_model/dynamic_record_list").DynamicRecordList
+     *           & import("@web/model/relational_model/dynamic_group_list").DynamicGroupList}
      */
     get root() {
         return this.props.root;
     }
-    /** @returns {number} count of currently selected records */
+    /** @returns {number} */
     get nbSelected() {
         return this.selectedRecords.length;
     }
-    /** @returns {number} total record count (grouped or ungrouped) */
+    /** @returns {number} */
     get nbTotal() {
-        return this.root.isGrouped ? this.root.recordCount : this.root.count;
+        return /** @type {number} */ (
+            this.root.isGrouped ? this.root.recordCount : this.root.count
+        );
     }
-    /** @returns {boolean} whether the total count is approximate (limited) */
+    /** @returns {boolean} */
     get hasLimitedCount() {
-        return this.root.hasLimitedCount;
+        return /** @type {boolean} */ (this.root.hasLimitedCount);
     }
-    /** @returns {boolean} whether all records matching the domain are selected */
+    /** @returns {boolean} */
     get isDomainSelected() {
         return this.root.isDomainSelected;
     }
-    /** @returns {boolean} whether all records on the current page are selected but more exist */
+    /** @returns {boolean} */
     get isPageSelected() {
         return (
             this.nbSelected === this.root.records.length &&
             (!this.isRecordCountTrustable || this.nbTotal > this.selectedRecords.length)
         );
     }
-    /** @returns {boolean} whether the total record count is exact (not estimated) */
+    /** @returns {boolean} */
     get isRecordCountTrustable() {
         return this.root.isRecordCountTrustable;
     }
-    /** @returns {Array<Object>} list of currently selected record objects */
+    /** @returns {import("@web/model/relational_model/record").RelationalRecord[]} */
     get selectedRecords() {
         return this.root.selection;
     }
-    /** Deselect all records and clear domain selection. */
     onUnselectAll() {
         this.selectedRecords.forEach((record) => {
             record.toggleSelection(false);
         });
         this.root.selectDomain(false);
     }
-    /** Extend selection to all records matching the current domain (beyond the current page). */
     onSelectDomain() {
         this.root.selectDomain(true);
     }

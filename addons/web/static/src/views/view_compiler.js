@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_compiler - Base view compiler: transforms XML arch nodes into OWL template elements with attribute and slot helpers */
+/** @module @web/views/view_compiler */
 
 /**
  * @typedef Compiler
@@ -18,7 +18,7 @@ import {
     createTextNode,
     getTag,
 } from "@web/core/utils/dom/xml";
-import { exprToBoolean } from "@web/core/utils/format/strings";
+import { cyrb53, exprToBoolean } from "@web/core/utils/format/strings";
 
 import {
     MODAL_TARGET_ATTRS,
@@ -61,7 +61,7 @@ const ARCH_DIALOGS_EXPR = "__comp__.archDialogs";
 
 /**
  * @param {string} str
- * @returns {string} the interpolated string to be injected into a component's node props.
+ * @returns {string}
  */
 export function toInterpolatedStringExpression(str) {
     const matches = str.matchAll(INTERP_REGEXP);
@@ -111,7 +111,7 @@ function appendToStringifiedObject(originalTattr, string) {
 
 /**
  * @param {Element} target
- * @param  {...Element} sources
+ * @param {...Element} sources
  * @returns {Element}
  */
 function assignOwlDirectives(target, ...sources) {
@@ -163,7 +163,6 @@ export function copyAttributes(el, compiled) {
 }
 
 /**
- * Encodes an object into a string usable inside a pre-compiled template
  * @param {Object} obj
  * @return {string}
  */
@@ -228,19 +227,8 @@ export function makeSeparator(title) {
 }
 
 /**
- * Build the ``isVisible`` OWL expression for a node from its raw ``invisible``
- * modifier. This is the single source of truth shared by ``applyInvisible``
- * (below) and the slot-based compilers in the form compiler (button box,
- * group, notebook):
- *
- *  - falsy / ``"False"`` / ``"0"``  → ``"true"``  (always visible)
- *  - ``"True"`` / ``"1"``           → ``"false"`` (never visible)
- *  - anything else (a domain-style expression) → a negated
- *    ``evaluateBooleanExpr`` call evaluated against ``recordExpr``.
- *
  * @param {string | null | undefined} invisible
- * @param {string} [recordExpr] the record expression to evaluate against;
- *   defaults to the form record (``__comp__.props.record``).
+ * @param {string} [recordExpr]
  * @returns {string}
  */
 export function makeIsVisibleExpr(invisible, recordExpr = "__comp__.props.record") {
@@ -625,11 +613,6 @@ export class ViewCompiler {
             if (BUTTON_CLICK_PARAMS.includes(name)) {
                 clickParams[name] = value;
             } else if (name === "disabled") {
-                // `exprToBoolean`, not a bare truthiness test: `value` is the
-                // raw XML attribute STRING, so `disabled="0"` used to compile
-                // to `disabled="true"` — the exact opposite of what it says.
-                // `trueIfEmpty` stays false so `disabled=""` keeps its
-                // historical meaning here (not the HTML boolean-attribute one).
                 button.setAttribute(
                     "disabled",
                     exprToBoolean(value) ? "true" : "false",
@@ -723,10 +706,6 @@ export class ViewCompiler {
             props.name = toStringExpression(el.getAttribute("name"));
         }
         if (el.hasAttribute("class")) {
-            // `class` is free text, unlike `name`/`widget_id`. Interpolating it
-            // raw into a `'...'` literal made OWL fail to TOKENIZE the whole
-            // compiled template (`could not tokenize 'a'b'`) for any class
-            // holding a quote — the view never rendered at all.
             props.className = toStringExpression(el.getAttribute("class"));
         }
         props.widgetInfo = `__comp__.props.archInfo.widgetNodes[${toStringExpression(widgetId)}]`;
@@ -746,21 +725,12 @@ export class ViewCompiler {
 }
 ViewCompiler.OWL_DIRECTIVE_WHITELIST = [];
 
-let templateCache = Object.create(null);
+let templateCache = new Set();
 /**
- * Per-Element memo of the serialized arch part of the cache key. Serializing
- * `outerHTML` (+ regex replace) on every call is costly on hot paths (e.g.
- * KanbanRecord.setup runs once per card); the arch Element is immutable once
- * parsed, so its serialization can be computed once per Element.
  * @type {WeakMap<Element, string>}
  */
 const archKeyCache = new WeakMap();
 /**
- * Per-class stable cache-key prefix. Keyed by class IDENTITY, not
- * `Class.name`: two same-named compiler subclasses from different modules
- * must not share a compiled template (the second one's overrides would
- * silently never apply), and identifiers are fragile under minification.
- * The name is kept in the key for debuggability only.
  * @type {WeakMap<Function, string>}
  */
 const compilerClassKeys = new WeakMap();
@@ -774,16 +744,6 @@ function getCompilerClassKey(ViewCompiler) {
     return classKey;
 }
 /**
- * Compile view arch templates and register them with OWL.
- *
- * Each template is keyed by `${ViewCompiler.name}/${stringify(params)}/${arch.outerHTML}`
- * (newlines collapsed to spaces) — both the compiler-cache key and the name registered in
- * OWL's globalTemplates. The params discriminator keeps different compilations of the same
- * arch (e.g. form_controller's `{ isSubView: true }`) from colliding on one cached template.
- * The key must stay single-line since Owl embeds it in a `//` comment during code generation.
- * Using arch content as the template name means re-registering after a cache reset overwrites
- * the same slot instead of leaking new globalTemplates entries.
- *
  * @param {typeof ViewCompiler} ViewCompiler
  * @param {Record<string, Element>} templates
  * @param {Record<string, any>} [params]
@@ -799,28 +759,22 @@ export function useViewCompiler(ViewCompiler, templates, params) {
     for (const tname of Object.keys(templates)) {
         let archKey = archKeyCache.get(templates[tname]);
         if (archKey === undefined) {
-            archKey = templates[tname].outerHTML.replace(/[\n\r]+/g, " ");
+            const arch = templates[tname].outerHTML.replace(/[\n\r]+/g, " ");
+            archKey = `${arch.length}-${cyrb53(arch)}`;
             archKeyCache.set(templates[tname], archKey);
         }
         const key = `${getCompilerClassKey(ViewCompiler)}/${paramsKey}/${archKey}`;
-        if (!templateCache[key]) {
+        if (!templateCache.has(key)) {
             compiler = compiler || new ViewCompiler(templates);
             const compiledOuterHTML = compiler.compile(tname, params).outerHTML;
             /** @type {any} */ (App).registerTemplate(key, compiledOuterHTML);
-            templateCache[key] = key;
+            templateCache.add(key);
         }
-        compiledTemplates[tname] = templateCache[key];
+        compiledTemplates[tname] = key;
     }
     return compiledTemplates;
 }
 
-/**
- * Clear the view compiler's template cache.
- *
- * OWL template registrations are keyed by arch content (via App.registerTemplate),
- * so the next call to useViewCompiler for the same arch overwrites the existing
- * globalTemplates slot rather than creating a new one. No memory leak occurs.
- */
 export function resetViewCompilerCache() {
-    templateCache = Object.create(null);
+    templateCache = new Set();
 }

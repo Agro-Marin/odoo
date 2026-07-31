@@ -266,7 +266,7 @@ test("ProgressBarField: field is editable in kanban", async () => {
     expect(".o_progressbar_title").toHaveText("ProgressBarTitle");
 });
 
-test("force readonly in kanban", async (assert) => {
+test("force readonly in kanban", async () => {
     expect.assertions(2);
     Partner._records[0].int_field = 99;
     Partner._records[0].float_field = 250; // see the editable-in-kanban test

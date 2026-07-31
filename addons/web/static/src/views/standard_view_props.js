@@ -1,7 +1,6 @@
 // @ts-check
 /** @odoo-module native */
 
-/** Shared prop-validation shape used as the base `static props` on every standard view controller. */
 export const standardViewProps = {
     info: {
         type: Object,

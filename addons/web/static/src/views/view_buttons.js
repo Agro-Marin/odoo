@@ -1,12 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_buttons - Parses arch button nodes into structured click-param descriptors */
+/** @module @web/views/view_buttons */
 
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { combineModifiers } from "@web/model/relational_model/utils";
 
-/** Attribute names extracted from `<button>` arch nodes into `clickParams`. */
 export const BUTTON_CLICK_PARAMS = [
     "name",
     "type",
@@ -26,9 +25,7 @@ export const BUTTON_CLICK_PARAMS = [
 ];
 
 /**
- * Parse the `options` arch attribute as JSON, raising a contextual error.
- *
- * @param {Element} node - the `<button>` XML element from the arch
+ * @param {Element} node
  * @returns {Object}
  */
 function parseButtonOptions(node) {
@@ -43,12 +40,7 @@ function parseButtonOptions(node) {
 }
 
 /**
- * Parse a `<button>` XML arch node into a structured descriptor.
- *
- * Splits node attributes into `clickParams` (action-related) and `attrs`
- * (visual/modifier-related), and computes visibility/readonly modifiers.
- *
- * @param {Element} node - the `<button>` XML element from the arch
+ * @param {Element} node
  * @returns {{ className: string, disabled: boolean, icon: string|false, title: string|undefined, string: string|undefined, options: Object, display: string, clickParams: Object, column_invisible: string|null, invisible: string|null, readonly: string|null, required: string|null, attrs: Object }}
  */
 export function processButton(node) {

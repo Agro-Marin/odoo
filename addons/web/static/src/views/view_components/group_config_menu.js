@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/group_config_menu - Dropdown menu on grouped column headers for editing/deleting the group's relational value */
+/** @module @web/views/view_components/group_config_menu */
 
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -22,7 +22,6 @@ import { isRelational } from "@web/model/relational_model/utils";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
-/** Dropdown menu on grouped column headers providing edit/delete actions for the group's relational value. */
 export class GroupConfigMenu extends Component {
     static template = "web.GroupConfigMenu";
     static components = { Dropdown, DropdownItem };
@@ -41,23 +40,25 @@ export class GroupConfigMenu extends Component {
         this.dialog = useService("dialog");
     }
 
-    /** @returns {Array<Object>} registry-driven config items with resolved visibility and handlers */
+    /** @returns {Array<Object>} */
     get configItems() {
         const args = { permissions: this.permissions };
-        return this.props.configItems.map(([key, desc]) => ({
-            key,
-            label: desc.label,
-            class: typeof desc.class === "function" ? desc.class(args) : desc.class,
-            icon: desc.icon,
-            isVisible:
-                typeof desc.isVisible === "function"
-                    ? desc.isVisible(args)
-                    : desc.isVisible,
-            method:
-                typeof desc.method === "function"
-                    ? desc.method
-                    : this[desc.method].bind(this),
-        }));
+        return this.props.configItems.map(
+            (/** @type {[string, any]} */ [key, desc]) => ({
+                key,
+                label: desc.label,
+                class: typeof desc.class === "function" ? desc.class(args) : desc.class,
+                icon: desc.icon,
+                isVisible:
+                    typeof desc.isVisible === "function"
+                        ? desc.isVisible(args)
+                        : desc.isVisible,
+                method:
+                    typeof desc.method === "function"
+                        ? desc.method
+                        : this[desc.method].bind(this),
+            }),
+        );
     }
 
     get group() {
@@ -71,7 +72,6 @@ export class GroupConfigMenu extends Component {
         }, {});
     }
 
-    /** Show a confirmation dialog before deleting the group column. */
     deleteGroup() {
         this.dialog.add(ConfirmationDialog, {
             body: _t("Are you sure you want to delete this column?"),
@@ -81,7 +81,6 @@ export class GroupConfigMenu extends Component {
         });
     }
 
-    /** Open a FormViewDialog to edit the relational record behind this group. */
     editGroup() {
         const { context, displayName, groupByField, value } = this.group;
         this.props.dialogClose.push(
@@ -95,14 +94,14 @@ export class GroupConfigMenu extends Component {
         );
     }
 
-    /** @returns {boolean} whether the group can be deleted (relational field with a value) */
+    /** @returns {boolean} */
     canDeleteGroup() {
         const { deleteGroup } = this.props.activeActions;
         const { groupByField, value } = this.group;
         return deleteGroup && isRelational(groupByField) && value;
     }
 
-    /** @returns {boolean} whether the group can be edited (relational field with a value) */
+    /** @returns {boolean} */
     canEditGroup() {
         const { editGroup } = this.props.activeActions;
         const { groupByField, value } = this.group;

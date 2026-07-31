@@ -1,7 +1,15 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { click, edit, press, queryAllValues, queryFirst, select } from "@odoo/hoot-dom";
+import {
+    click,
+    edit,
+    press,
+    queryAllTexts,
+    queryAllValues,
+    queryFirst,
+    select,
+} from "@odoo/hoot-dom";
 import { animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
 import {
     clickSave,
@@ -611,8 +619,10 @@ test("ReferenceField on char field, reset by onchange", async () => {
     Partner._records[0].foo = "product,37";
     Partner._onChanges.int_field = (obj) => (obj.foo = "product," + obj.int_field);
     let nbNameGet = 0;
-    onRpc("product", "read", ({ args }) => {
-        if (args[1].length === 1 && args[1][0] === "display_name") {
+    // reference names resolve through the name service, which batches them
+    // into a web_search_read rather than a per-record read
+    onRpc("product", "web_search_read", ({ kwargs }) => {
+        if (kwargs.specification && "display_name" in kwargs.specification) {
             nbNameGet++;
         }
     });
@@ -1034,4 +1044,23 @@ test("reference write uses the picker's model, not a stale currentRelation", asy
     await ref.updateM2O({ id: 41, display_name: "xpad" });
     await clickSave();
     expect.verifySteps(["product,41"]);
+});
+
+test("AUDIT reference char: names are batched into one read, not one read each", async () => {
+    Partner._records[0].reference_char = "product,37";
+    Partner._records[1].reference_char = "product,41";
+    onRpc("has_group", () => true);
+    onRpc("product", "read", () => expect.step("read"));
+    onRpc("product", "web_search_read", () => expect.step("web_search_read"));
+
+    await mountView({
+        type: "list",
+        resModel: "partner",
+        arch: `<list><field name="reference_char" widget="reference"/></list>`,
+    });
+    await animationFrame();
+
+    // two different references resolve through a single batched call
+    expect.verifySteps(["web_search_read"]);
+    expect(queryAllTexts(".o_field_reference")).toEqual(["xphone", "xpad", ""]);
 });

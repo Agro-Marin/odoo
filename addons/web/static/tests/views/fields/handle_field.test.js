@@ -24,7 +24,7 @@ class Partner extends models.Model {
         {
             id: 1,
             display_name: "first record",
-            p: [],
+            p: /** @type {number[]} */ ([]),
         },
         {
             id: 2,

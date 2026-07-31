@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_hook - Hooks for action links, record export, and record deletion in views */
+/** @module @web/views/view_hook */
 
 import { useComponent, useEffect } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -20,17 +20,9 @@ import {
 import { ExportDataDialog } from "@web/views/view_dialogs/export_data_dialog";
 
 /**
- * Allows for a component (usually a View component) to handle links with
- * attribute type="action". This is used to support onboarding banners and content helpers.
- *
- * A @web/core/concurrency:KeepLast must be present in the owl environment to allow coordinating
- * between clicks. (env.keepLast)
- *
- * This is similar but quite different from action buttons, since action links
- * are not dynamic according to the record.
  * @param {Object} params
- * @param  {String} params.resModel The default resModel to which actions will apply
- * @param  {Function} [params.reload] The function to execute to reload, if a button has data-reload-on-close
+ * @param {String} params.resModel
+ * @param {Function} [params.reload]
  */
 export function useActionLinks({ resModel, reload }) {
     const component = useComponent();
@@ -41,7 +33,7 @@ export function useActionLinks({ resModel, reload }) {
 
     /**
      * @param {Event} ev
-     * @param {HTMLAnchorElement} target the resolved ``a[type="action"]``
+     * @param {HTMLAnchorElement} target
      */
     async function handler(ev, target) {
         ev.preventDefault();
@@ -100,22 +92,14 @@ export function useActionLinks({ resModel, reload }) {
     return (ev) => {
         const a = ev.target.closest(`a[type="action"]`);
         if (a && ev.currentTarget.contains(a)) {
-            // Pass the anchor we just matched. Re-deriving it inside the
-            // handler used a DIFFERENT selector (`closest("a")`), so the two
-            // could disagree about which element the click was for.
-            handler(ev, a).catch((error) => {
-                Promise.reject(error);
-            });
+            handler(ev, a);
         }
     };
 }
 
 /**
- * Applies a brief CSS bounce animation to a `[data-bounce-button]` element
- * whenever a click occurs inside `containerRef` and `shouldBounce` returns true.
- *
- * @param {{ el: HTMLElement | null }} containerRef - OWL ref wrapping the click zone
- * @param {(target: HTMLElement) => boolean} shouldBounce - predicate checked on every click
+ * @param {{ el: HTMLElement | null }} containerRef
+ * @param {(target: HTMLElement) => boolean} shouldBounce
  */
 export function useBounceButton(containerRef, shouldBounce) {
     let timeout;
@@ -147,19 +131,9 @@ export function useBounceButton(containerRef, shouldBounce) {
 }
 
 /**
- * Hook that wires up the export-records flow (dialog + direct download).
- *
- * Listens for `direct-export-data` on the searchModel bus and opens the
- * ExportDataDialog when the returned callback is invoked.
- *
- * Every path here reads the context off ``model.root``, which is the live one
- * the search model has already folded its facets into. An ``action`` context
- * parameter used to be threaded in from the controller and never read — it
- * could only have disagreed with the root's.
- *
- * @param {Object} env - OWL component environment (must have `model` and `searchModel`)
- * @param {() => Object[]} getDefaultExportList - returns default fields for export
- * @returns {() => void} callback that opens the export dialog
+ * @param {Object} env
+ * @param {() => Object[]} getDefaultExportList
+ * @returns {() => void}
  */
 export function useExportRecords(env, getDefaultExportList) {
     const { model, searchModel } = env;
@@ -230,13 +204,8 @@ export function useExportRecords(env, getDefaultExportList) {
 }
 
 /**
- * Hook that returns a callback for deleting records with a confirmation dialog.
- *
- * Handles both single-record (form) and multi-record (list/kanban) deletion,
- * adjusting the dialog body text and confirm callback accordingly.
- *
- * @param {Object} model - the view's relational model instance
- * @returns {(dialogProps?: Object, records?: Object[]) => void} opens a confirmation dialog then deletes
+ * @param {Object} model
+ * @returns {(dialogProps?: Object, records?: Object[]) => void}
  */
 export function useDeleteRecords(model) {
     const dialog = useService("dialog");
@@ -250,10 +219,6 @@ export function useDeleteRecords(model) {
         ) {
             body = _t("Are you sure you want to delete these records?");
         }
-        // `records` is optional (multi-record controllers omit it and let the
-        // list fall back to its selection). The mono-record branch used to
-        // dereference it anyway, so an omitted argument threw only once the
-        // user had already clicked "Delete" in the confirmation dialog.
         let confirm = () => Promise.all((records ?? []).map((r) => r.delete()));
         if (isDynamicList) {
             confirm = () => model.root.deleteRecords(records);

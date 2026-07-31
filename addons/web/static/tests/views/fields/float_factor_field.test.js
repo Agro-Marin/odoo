@@ -137,7 +137,7 @@ test("FloatFactorField passes *= operation input through unscaled", async () => 
 });
 
 test("FloatFactorField.value passes an unset value through as false", () => {
-    const makeField = (data, factor) =>
+    const makeField = (/** @type {any} */ data, /** @type {any} */ factor) =>
         Object.create(FloatFactorField.prototype, {
             props: {
                 value: { record: { data: { qux: data } }, name: "qux", factor },

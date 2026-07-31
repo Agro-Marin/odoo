@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_service - Service that loads, caches, and invalidates view descriptions (arch, filters, action menus) */
+/** @module @web/views/view_service */
 
 import { RpcEvent } from "@web/core/events";
 import { onModelMutation } from "@web/core/network/model_mutation";
@@ -28,8 +28,8 @@ import { registry } from "@web/core/registry";
  * @property {string} arch
  * @property {number|false} id
  * @property {number|null} [custom_view_id]
- * @property {Object} [actionMenus] // for views other than search
- * @property {IrFilter[]} [irFilters] // for search view
+ * @property {Object} [actionMenus]
+ * @property {IrFilter[]} [irFilters]
  */
 
 /**
@@ -65,9 +65,6 @@ export const viewService = {
         });
 
         /**
-         * Loads various information concerning views: fields_view for each view,
-         * fields of the corresponding model, and optionally the filters.
-         *
          * @param {LoadViewsParams} params
          * @param {LoadViewsOptions} [options={}]
          * @returns {Promise<ViewDescriptions>}
