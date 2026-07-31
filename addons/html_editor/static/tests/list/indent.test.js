@@ -1,7 +1,7 @@
 import { before, describe, expect, test } from "@odoo/hoot";
 
 import { setupEditor, testEditor } from "../_helpers/editor.js";
-import { loadTestFont } from "../_helpers/font.js";
+import { loadTestFont, pinMarkerWidth, pinRootFontSize } from "../_helpers/font.js";
 import { unformat } from "../_helpers/format.js";
 import { getContent } from "../_helpers/selection.js";
 import { keydownTab, splitBlock, tripleClick, undo } from "../_helpers/user_actions.js";
@@ -692,8 +692,13 @@ describe("with selection collapsed", () => {
         });
     });
     test("should adjust list padding on tab", async () => {
+        // `:root { font: ... }` did not pin the measurement: the web client sets
+        // `font-family` on the editable itself, and a declaration on the element
+        // beats one inherited from an ancestor — so this measured Inter, and
+        // moved the moment its optical size did. Stub the one measured input.
+        pinMarkerWidth(62);
         await testEditor({
-            styleContent: ":root { font: 14px Roboto }",
+            styleContent: pinRootFontSize("14px"),
             contentBefore: unformat(`
                 <ol style="padding-inline-start: 58px;">
                     <li style="font-size: 56px;">abc</li>

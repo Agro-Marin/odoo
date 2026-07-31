@@ -1,5 +1,6 @@
 import base64
 import re
+from itertools import pairwise
 
 from odoo.tests import TransactionCase, tagged
 
@@ -10,6 +11,31 @@ DARK_BUNDLE = "web.assets_web_dark"
 # WCAG 2.2 SC 1.4.3 (text) and SC 1.4.11 (non-text / focus indicators).
 WCAG_AA_TEXT = 4.5
 WCAG_NON_TEXT = 3.0
+
+# The list view's column header, spelled out rather than matched on the `thead`
+# tag: any installed addon may style a `thead` of its own, and the last such
+# rule won — `web_cohort`'s, which declares only a background.
+LIST_HEADER = ".o_list_renderer .o_list_table thead th"
+
+
+#: Viewport RFS interpolates up to. Bootstrap builds `calc(<rem> + <vw>)` so the
+#: pair resolves to exactly the requested size here, which makes the declared
+#: ramp recoverable from the compiled bundle without re-deriving `$rfs-factor`.
+RFS_REFERENCE_WIDTH = 1200
+ROOT_FONT_SIZE = 16
+
+
+def _font_size_px(css_value):
+    """Resolve a heading `font-size` to px, plain `rem` or RFS `calc()` alike."""
+    css_value = css_value.strip()
+    calc = re.fullmatch(r"calc\(\s*([\d.]+)rem\s*\+\s*([\d.]+)vw\s*\)", css_value)
+    if calc:
+        rem, vw = (float(g) for g in calc.groups())
+        return rem * ROOT_FONT_SIZE + vw * RFS_REFERENCE_WIDTH / 100
+    rem = re.fullmatch(r"([\d.]+)rem", css_value)
+    if not rem:
+        raise ValueError(f"not a font size: {css_value!r}")
+    return float(rem.group(1)) * ROOT_FONT_SIZE
 
 
 def _relative_luminance(rgb):
@@ -90,11 +116,16 @@ class TestScssDesignSystem(TransactionCase):
         return [body for _, body in re.findall(pattern, haystack, re.MULTILINE)]
 
     def _rule(self, selector, containing=None, css=None):
-        """Body of the last matching rule, optionally the last one declaring `containing`."""
+        """Body of the last matching rule, optionally the last one declaring `containing`.
+
+        `containing` is matched at a declaration boundary rather than anywhere in
+        the body: as a bare substring, `color:` also matches `background-color:`,
+        which selected rules that never declare a foreground at all.
+        """
         bodies = [
             b
             for b in self._rules(selector, css=css)
-            if containing is None or containing in b
+            if containing is None or re.search(rf"(?:^|;)\s*{re.escape(containing)}", b)
         ]
         self.assertTrue(
             bodies, f"no rule found for {selector} (containing {containing!r})"
@@ -126,7 +157,7 @@ class TestScssDesignSystem(TransactionCase):
             self.assertTrue(page, f"{scheme}: --body-bg is not defined")
             background = _parse_color(page.group(1))[0]
 
-            body = self._rule("thead", containing="color:", css=css)
+            body = self._rule(LIST_HEADER, containing="color:", css=css)
             colour = re.search(r"(?:^|;)color:\s*([^;}]+)", body)
             self.assertTrue(colour, f"{scheme}: list header declares no colour")
             rgb, alpha = _parse_color(colour.group(1))
@@ -180,6 +211,55 @@ class TestScssDesignSystem(TransactionCase):
                     )
         self.assertFalse(
             failures, f"below SC 1.4.11 ({WCAG_NON_TEXT}:1): {', '.join(failures)}"
+        )
+
+    def _heading_size_px(self, level):
+        """Effective px of `h<level>`, read from its own `h_,.h_` rule."""
+        match = re.search(
+            rf"(?:^|[;}}])h{level},\.h{level}\{{([^}}]*)\}}", self.css, re.MULTILINE
+        )
+        self.assertTrue(match, f"h{level} declares no rule")
+        size = re.search(r"(?:^|;)font-size:\s*([^;}]+)", match.group(1))
+        self.assertTrue(size, f"h{level} declares no font-size")
+        return _font_size_px(size.group(1))
+
+    def test_heading_scale_is_a_single_ratio(self):
+        """Every step of the ramp must be the same visual interval.
+
+        Hand-picked sizes drift: the ramp stepped 1.29, 1.27, 1.15 then 1.09, so
+        h4/h5/h6 sat within 1.4px of each other and read as one size while the
+        top of the scale carried no weight. A single ratio is what makes the
+        levels distinguishable without checking them by eye.
+        """
+        sizes = [self._heading_size_px(level) for level in range(1, 7)]
+        ratios = [big / small for big, small in pairwise(sizes)]
+
+        self.assertAlmostEqual(
+            min(ratios),
+            max(ratios),
+            delta=0.02,
+            msg=f"heading ratios drift: {[round(r, 3) for r in ratios]}",
+        )
+
+    def test_headings_are_optically_tracked(self):
+        """Tracking must tighten as the heading grows, and never loosen.
+
+        Inter is spaced for text sizes, so a display-size heading set at its
+        default tracking reads loose. The correction is optical, so what has to
+        hold is the direction: no level may be tracked looser than a smaller one.
+        """
+        tracking = []
+        for level in range(1, 7):
+            body = self._rule(f"h{level}", containing="letter-spacing:")
+            declared = re.search(r"(?:^|;)letter-spacing:\s*(-?[\d.]+)em", body)
+            self.assertTrue(declared, f"h{level} declares no em letter-spacing")
+            tracking.append(float(declared.group(1)))
+
+        self.assertLess(max(tracking), 0, f"headings are not tracked in: {tracking}")
+        self.assertEqual(
+            tracking,
+            sorted(tracking),
+            f"tracking must not loosen as headings grow: {tracking}",
         )
 
     def test_opacity_vars_do_not_inherit(self):

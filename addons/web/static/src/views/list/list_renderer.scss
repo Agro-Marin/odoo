@@ -89,7 +89,7 @@
                 color: $o-main-color-muted;
                 text-transform: uppercase;
                 font-size: $o-font-size-base-smaller;
-                letter-spacing: 0.05em;
+                letter-spacing: $o-tracking-wide;
                 font-weight: $o-font-weight-semibold;
 
                 @include media-only(print) {

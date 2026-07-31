@@ -13,7 +13,7 @@
  *     must exceed. This one is pure arithmetic over a value CSS fully controls,
  *     so {@link pinRootFontSize} is enough.
  *
- * Tests that stub input 1 (`pinMarkerWidth` in `list_font_size.test.js`) only
+ * Tests that stub input 1 ({@link pinMarkerWidth}) only
  * need input 2 pinned: the family cannot influence a measurement that is no
  * longer taken, and such tests are NOT font-dependent.
  *
@@ -25,6 +25,9 @@
  * (This is why `ol { font: ... }`-style pins work while `:root` ones silently
  * do not: they apply to the measured element rather than to an ancestor.)
  */
+
+import { ListPlugin } from "@html_editor/main/list/list_plugin";
+import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 export const TEST_FONT_FAMILY = "Roboto";
 const TEST_FONT_URL = "/web/static/fonts/google/Roboto/Roboto-Regular.ttf";
@@ -70,4 +73,29 @@ export function pinFont(size = "14px") {
         `${pinRootFontSize(size)} ` +
         `.odoo-editor-editable, .odoo-editor-editable * { font-family: ${TEST_FONT_FAMILY}; }`
     );
+}
+
+/**
+ * Pin the ``::marker`` width that {@link ListPlugin#adjustListPadding} reads.
+ *
+ * That width is produced by the browser's font rasterizer, so it is NOT stable
+ * across environments: the very same markup measures 19px on Chromium 149 and
+ * 20px on Chrome 150, and different again under another default font — or under
+ * the same family at another optical size, which a variable `opsz` axis selects
+ * on its own. Tests that hard-coded the resulting ``padding-inline-start``
+ * therefore encoded one machine's rasterizer.
+ *
+ * Stubbing the single measured input makes the padding arithmetic
+ * (``round(width) * (UL ? 2 : 1)``, applied only when it exceeds
+ * ``2 * root font-size``) deterministic and genuinely assertable, while
+ * production keeps measuring the real marker.
+ *
+ * @param {number} width marker width in px to report for every list item
+ */
+export function pinMarkerWidth(width) {
+    patchWithCleanup(ListPlugin.prototype, {
+        measureMarkerWidth() {
+            return width;
+        },
+    });
 }

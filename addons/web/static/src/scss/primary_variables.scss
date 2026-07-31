@@ -13,6 +13,20 @@ $o-line-height-base: 1.5 !default;
 $o-line-height-sm: 1.25 !default;
 $o-line-height-lg: 2 !default;
 
+// Tracking. Inter's spacing is drawn for text sizes, so it reads loose as soon
+// as a heading gets large and cramped as soon as it is uppercased. The
+// correction is optical and scales with size, which is why these are banded
+// rather than one global value — and why body text keeps Inter's own spacing.
+$o-tracking-display: -0.022em !default;
+$o-tracking-heading: -0.015em !default;
+$o-tracking-tight: -0.006em !default;
+$o-tracking-wide: 0.05em !default;
+
+// One ratio for the whole heading ramp. The sizes were hand-picked and stepped
+// 1.29, 1.27, 1.15, then 1.09, so h4/h5/h6 landed within 1.4px of each other
+// and read as a single size while the top of the scale carried no weight.
+$o-type-scale-ratio: 1.2 !default;
+
 $o-system-fonts: (
     "Inter",
     -apple-system,
@@ -174,6 +188,14 @@ $o-input-padding-x: 4px !default;
 $o-input-bg: transparent !default;
 $o-input-invalid-bg: mix($o-danger, $o-input-bg, 10%) !default;
 $o-input-border-required: $o-brand-primary !default;
+
+// The boundary of an *unchecked* control is the only thing that identifies it,
+// so it answers to WCAG 2.2 SC 1.4.11 (3:1). Named rather than spelled as a step
+// of the grey ramp because the two schemes do not agree on what a step means:
+// this palette reads `$o-gray-500` as a mid grey, while an inverted dark ramp
+// reads the same step as muted text and drops the boundary to 2.22:1. A palette
+// that renumbers the ramp overrides this instead.
+$o-input-boundary-color: $o-gray-500 !default;
 
 $o-spacer: 16px !default;
 $o-form-spacing-unit: 4px !default;
