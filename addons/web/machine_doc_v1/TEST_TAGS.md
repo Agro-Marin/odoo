@@ -39,12 +39,18 @@ Quick reference for running targeted subsets of `core/addons/web/tests/`.
 > than `web_http`, so its 2 tests disappear silently without a port. That tag
 > is inconsistent with this table's own definition of `web_unit`.
 
-> Note: three test files currently carry no `web_*` topic tag — two have
-> no `@tagged` at all (`test_esm_pipeline.py`, `test_res_config_settings.py`),
-> and one (`test_res_config_doc_links.py`) is tagged only with framework
-> conventions (`-standard`, `external`, `post_install`, `-at_install`).
-> They are not selected by any of the filters in this table; run with
-> the `/web` module filter alone (`-u web`) to include them.
+> Note: `test_res_config_doc_links.py` is the one file a plain `/web` run can
+> never reach. It is `@tagged("-standard", "external", …)`, and **an include
+> with no tag implies `standard`** (`odoo/tests/tag_selector.py`), so `/web`
+> resolves to `standard/web` and skips it. Select it by a tag it actually
+> carries:
+>
+> ```bash
+> --test-tags 'external/web'     # or '*/web' for everything regardless of tag
+> ```
+>
+> The same applies to `click_all` (`-standard`): `--test-tags '/web'` excludes
+> it silently. Add `click_all/web` to include it.
 
 ## Fastest edit/run loop — start here
 
@@ -201,7 +207,7 @@ mobile-only suite as a silent zero — see `web/tooling/scripts/README.md`.
 | Tag | Files | Scope |
 |-----|-------|-------|
 | `web_action` | test_action | Breadcrumb loading |
-| `web_assets` | test_assets | Bundle generation, asset cursors |
+| `web_assets` | test_assets, test_design_system, test_esm_pipeline | Bundle generation, asset cursors, compiled-CSS invariants (incl. `web.assets_frontend`, which no other test compiles) |
 | `web_db` | test_db_manager | Database manager UI |
 | `web_domain` | test_domain | Domain validation endpoint |
 | `web_favorite` | test_favorite | Favorite management tour |
@@ -221,7 +227,9 @@ mobile-only suite as a silent zero — see `web/tooling/scripts/README.md`.
 | `web_report` | test_reports | PDF report session/cookies |
 | `web_router` | test_router | Action routing/resolution |
 | `web_search` | test_web_search_read | web_search_read, web_name_search |
+| `web_metrics` | test_health | `/web/metrics` Prometheus exposition + bearer-token gating |
 | `web_session` | test_session_info | Session info endpoint perf |
+| `web_settings` | test_res_config_settings, test_res_config_doc_links | Settings view fields + documentation links (the latter is `external`) |
 | `web_translate` | test_translate | Translation overrides |
 | `web_users` | test_res_users, test_res_users_settings | User settings, name_search |
 | `web_controllers_audit` | test_controllers_audit | Controller conventions: docstrings, auth, readonly, methods |
