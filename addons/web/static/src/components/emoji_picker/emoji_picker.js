@@ -788,7 +788,7 @@ export function usePicker(PickerComponent, ref, props, options = {}) {
 }
 
 class PickerMobile extends Component {
-    static props = [...PICKER_PROPS, "onClose?"];
+    static props = [...PICKER_PROPS];
     static template = xml`
         <t t-component="props.PickerComponent" t-props="pickerProps"/>
     `;
@@ -804,7 +804,7 @@ class PickerMobile extends Component {
 
 class PickerMobileInDialog extends PickerMobile {
     static components = { Dialog };
-    static props = [...PICKER_PROPS, "onClose?"];
+    static props = [...PICKER_PROPS];
     static template = xml`
         <Dialog size="'lg'" header="false" footer="false" contentClass="'o-discuss-mobileContextMenu d-flex position-absolute bottom-0 rounded-0 h-50 bg-100'" bodyClass="'p-1'">
             <div class="h-100" t-ref="root">

@@ -58,7 +58,8 @@ export class ColorList extends Component {
             () => [this.state.isExpanded],
         );
     }
-    get colors() {
+    /** @returns {string[]} the translated name of each colour index */
+    get colorNames() {
         return /** @type {any} */ (this.constructor).COLORS;
     }
     /** @param {number} id */

@@ -354,12 +354,26 @@ export class SelectMenu extends Component {
         }
     }
 
+    /**
+     * Membership is asked once per choice by filterOptions and again per choice
+     * by every render, so a linear scan of the selection makes both quadratic.
+     *
+     * @returns {Set<any>}
+     */
+    get selectedValueSet() {
+        if (this._selectedValueSetSource !== this.props.value) {
+            this._selectedValueSetSource = this.props.value;
+            this._selectedValueSet = new Set(this.selectedValues);
+        }
+        return this._selectedValueSet;
+    }
+
     isOptionSelected(choice) {
         if (choice.isGroup) {
             return false;
         }
         if (this.props.multiSelect) {
-            return this.selectedValues.includes(choice.value);
+            return this.selectedValueSet.has(choice.value);
         }
         return this.props.value === choice.value;
     }

@@ -2,7 +2,8 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { queryAll } from "@odoo/hoot-dom";
-import { runAllTimers } from "@odoo/hoot-mock";
+import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
+import { Component, useState, xml } from "@odoo/owl";
 import {
     contains,
     defineModels,
@@ -10,6 +11,7 @@ import {
     models,
     mountWithCleanup,
     onRpc,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { ModelSelector } from "@web/components/model_selector/model_selector";
 
@@ -243,4 +245,50 @@ test("model_selector: autofocus", async () => {
     });
     const input = queryAll("input.o-autocomplete--input")[0];
     expect(input).toBe(document.activeElement);
+});
+
+test("models arriving after mount are loaded", async () => {
+    // How documents' details panel and mail's activity selector use it: mount
+    // with an empty list, then fill it in from an rpc.
+    class Parent extends Component {
+        static components = { ModelSelector };
+        static props = ["*"];
+        static template = xml`<ModelSelector models="state.models" onModelSelected="() => {}"/>`;
+        setup() {
+            this.state = useState({ models: [] });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    parent.state.models = ["model.1", "model.2", "model.3"];
+    await animationFrame();
+
+    await contains(".o-autocomplete input").click();
+    await runAllTimers();
+    await animationFrame();
+    expect(queryAll(".o-autocomplete--dropdown-item")).toHaveLength(3);
+});
+
+test("an unchanged models prop is not reloaded", async () => {
+    const models = ["model.1"];
+    patchWithCleanup(ModelSelector.prototype, {
+        loadModels(props) {
+            expect.step("loadModels");
+            return super.loadModels(props);
+        },
+    });
+    class Parent extends Component {
+        static components = { ModelSelector };
+        static props = ["*"];
+        static template = xml`<ModelSelector models="models" onModelSelected="() => {}"/><span t-esc="state.tick"/>`;
+        setup() {
+            this.models = models;
+            this.state = useState({ tick: 0 });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect.verifySteps(["loadModels"]);
+
+    parent.state.tick++;
+    await animationFrame();
+    expect.verifySteps([]);
 });

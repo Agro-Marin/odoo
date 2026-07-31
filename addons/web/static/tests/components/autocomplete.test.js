@@ -1322,3 +1322,76 @@ test("blur selects the first selectable option, whichever source holds it", asyn
     await contains(document.body).click();
     expect.verifySteps(["select World"]);
 });
+
+test("selectOnBlur does not resurrect a suggestion dismissed with escape", async () => {
+    class Parent extends Component {
+        static template = xml`
+            <AutoComplete value="''" sources="sources" selectOnBlur="true"/>
+            <button class="elsewhere">elsewhere</button>`;
+        static components = { AutoComplete };
+        static props = [];
+
+        sources = buildSources(() => [
+            item("World", () => expect.step("select World")),
+            item("Hello", () => expect.step("select Hello")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(2);
+
+    await press("escape");
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(0);
+
+    await contains(".elsewhere").click();
+    expect.verifySteps([]);
+});
+
+test("selectOnBlur does not resurrect a suggestion dismissed with tab", async () => {
+    class Parent extends Component {
+        static template = xml`
+            <AutoComplete value="''" sources="sources" selectOnBlur="true"/>
+            <button class="elsewhere">elsewhere</button>`;
+        static components = { AutoComplete };
+        static props = [];
+
+        sources = buildSources(() => [
+            item("World", () => expect.step("select World")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(1);
+
+    await press("tab");
+    await animationFrame();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(0);
+
+    await contains(".elsewhere").click();
+    expect.verifySteps([]);
+});
+
+test("reopening after a dismissal restores selectOnBlur", async () => {
+    class Parent extends Component {
+        static template = xml`
+            <AutoComplete value="''" sources="sources" selectOnBlur="true"/>
+            <button class="elsewhere">elsewhere</button>`;
+        static components = { AutoComplete };
+        static props = [];
+
+        sources = buildSources(() => [
+            item("World", () => expect.step("select World")),
+        ]);
+    }
+    await mountWithCleanup(Parent);
+    await contains(".o-autocomplete input").click();
+    await press("escape");
+    await animationFrame();
+
+    // A new, undismissed dropdown: blurring commits again.
+    await contains(".o-autocomplete input").click();
+    expect(".o-autocomplete--dropdown-item").toHaveCount(1);
+    await contains(".elsewhere").click();
+    expect.verifySteps(["select World"]);
+});

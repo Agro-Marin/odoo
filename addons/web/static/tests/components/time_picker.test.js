@@ -581,3 +581,67 @@ test("suggestions are rebuilt only when the rounding that shapes them changes", 
     expect(picker.suggestions).not.toBe(initial);
     expect(picker.suggestions.length).toBe(48);
 });
+
+test("toggling showSeconds reformats the value already in the box", async () => {
+    class Parent extends Component {
+        static components = { TimePicker };
+        static props = ["*"];
+        static template = xml`<TimePicker value="'08:30:45'" showSeconds="state.showSeconds"/>`;
+        setup() {
+            this.state = useState({ showSeconds: false });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect("input.o_time_picker_input").toHaveValue("8:30");
+
+    parent.state.showSeconds = true;
+    await animationFrame();
+    expect("input.o_time_picker_input").toHaveValue("8:30:45");
+
+    parent.state.showSeconds = false;
+    await animationFrame();
+    expect("input.o_time_picker_input").toHaveValue("8:30");
+});
+
+test("an unfocused box resyncs to the value, so a rejected edit is recoverable", async () => {
+    class Parent extends Component {
+        static components = { TimePicker };
+        static props = ["*"];
+        static template = xml`<TimePicker value="state.value" onInvalid="() => this.onInvalid()"/>`;
+        setup() {
+            this.state = useState({ value: "08:30" });
+        }
+        onInvalid() {
+            expect.step("invalid");
+            // The owner re-asserts the value it still holds.
+            this.render();
+        }
+    }
+    await mountWithCleanup(Parent);
+    await click("input.o_time_picker_input");
+    await edit("nonsense", { confirm: "blur" });
+    await animationFrame();
+
+    expect.verifySteps(["invalid"]);
+    expect("input.o_time_picker_input").toHaveValue("8:30");
+});
+
+test("a focused box keeps the user's keystrokes across an unrelated re-render", async () => {
+    class Parent extends Component {
+        static components = { TimePicker };
+        static props = ["*"];
+        static template = xml`<TimePicker value="'08:30'"/><span t-esc="state.tick"/>`;
+        setup() {
+            this.state = useState({ tick: 0 });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click("input.o_time_picker_input");
+    await edit("9:1");
+    await animationFrame();
+    expect("input.o_time_picker_input").toHaveValue("9:1");
+
+    parent.state.tick++;
+    await animationFrame();
+    expect("input.o_time_picker_input").toHaveValue("9:1");
+});
