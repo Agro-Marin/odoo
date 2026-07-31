@@ -14,6 +14,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { animationFrame, Deferred } from "@odoo/hoot-mock";
 import { markRaw } from "@odoo/owl";
+import { RECORD_STATE_TRANSITIONS } from "@web/../tests/model/relational_model/record_doubles";
+import { ListMembership } from "@web/model/relational_model/list_membership";
 import { save } from "@web/model/relational_model/record_save";
 import { StaticList } from "@web/model/relational_model/static_list";
 
@@ -29,6 +31,8 @@ const LINK = 4;
 function makeList({ loadRecords = async () => [] } = {}) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
+        // Membership owner first: the keys below write through its accessors.
+        _membership: new ListMembership(),
         id: "datapoint_test",
         _config: {
             limit: 40,
@@ -170,6 +174,7 @@ describe("save barrier on pending commands", () => {
             _setEvalContext() {},
             _checkValidity: () => true,
             _getChanges: () => ({ lines: list._getCommands() }),
+            ...RECORD_STATE_TRANSITIONS,
             _clearChanges() {},
             _discard: () => {},
             _load: async () => {},

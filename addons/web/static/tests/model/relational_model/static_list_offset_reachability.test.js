@@ -52,8 +52,10 @@ const ARCH = `
         </field>
     </form>`;
 
-// Asserted through `.o_pager_counter`, which `web.Pager` renders under
-// `t-if="!env.isSmall"` — the counter does not exist on mobile.
+// The offset is read back off `.o_pager_counter`, which `pager.xml` renders
+// under `t-if="!env.isSmall"` — the assertion this test is built around does
+// not exist on a small screen. `static_list_offset_clamp.test.js` covers the
+// same clamp at the model layer, in either preset.
 test.tags("desktop");
 test("an onchange shortening the relation while on page 2 does not blank the list", async () => {
     Partner._onChanges = { int_field: () => {} };

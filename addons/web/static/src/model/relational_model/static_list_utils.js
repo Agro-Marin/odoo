@@ -1,16 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/static_list_utils - Sorting comparators, record duplication, and sort-direction cycling for StaticList */
+/** @module @web/model/relational_model/static_list_utils */
 
 /**
- * Compare two field values for ordering purposes.
- * For many2one fields, compares by display_name.
- *
  * @param {any} v1
  * @param {any} v2
  * @param {string} fieldType
- * @returns {boolean} true if v1 < v2
+ * @returns {boolean}
  */
 
 import { x2ManyCommands } from "./commands.js";
@@ -34,14 +31,11 @@ function compareFieldValues(v1, v2, fieldType) {
 }
 
 /**
- * Recursively compare two records by an ordered list of sort criteria.
- * Falls through to the next criterion on ties.
- *
  * @param {Object} r1
  * @param {Object} r2
  * @param {import("@web/core/utils/order_by").OrderTerm[]} orderBy
- * @param {Object} fields - field definitions
- * @returns {number} -1, 0, or 1
+ * @param {Object} fields
+ * @returns {number}
  */
 export function compareRecords(r1, r2, orderBy, fields) {
     const { name, asc } = orderBy[0];
@@ -63,24 +57,11 @@ export function compareRecords(r1, r2, orderBy, fields) {
 }
 
 /**
- * Compute the next orderBy spec after clicking a column header.
- *
- * Cycles through: asc → desc → reset.
- * If the column wasn't the primary sort, it becomes the new primary (asc).
- * If reordering is pending, the current direction is kept.
- *
- * The reset policy is caller-defined: StaticList (in-memory x2many sorting)
- * falls back to "id asc" — it must keep a deterministic comparator — while
- * DynamicList clears the order entirely, deferring to the server/default
- * order on the next load.
- *
- * @param {string} fieldName - column clicked
+ * @param {string} fieldName
  * @param {import("@web/core/utils/order_by").OrderTerm[]} currentOrderBy
- * @param {boolean} needsReordering - true when a drag-reorder is pending
+ * @param {boolean} needsReordering
  * @param {Object} [options]
  * @param {import("@web/core/utils/order_by").OrderTerm[]} [options.resetOrderBy]
- *   orderBy to fall back to when the desc → reset transition is reached
- *   (default: ``[{ name: "id", asc: true }]``)
  * @returns {import("@web/core/utils/order_by").OrderTerm[]}
  */
 export function computeNextOrderBy(
@@ -111,15 +92,9 @@ export function computeNextOrderBy(
 }
 
 /**
- * Extract copyable data from a record for duplication.
- *
- * Skips readonly/invisible non-required fields (except display_name and
- * explicitly listed copyFields).  For many2many, produces LINK commands
- * with cached record data.  one2many fields are left empty (not supported).
- *
- * @param {Object} record - source Record datapoint
- * @param {string[]} [copyFields=[]] - fields to always include
- * @returns {Object} data suitable for passing to `_update`
+ * @param {Object} record
+ * @param {string[]} [copyFields=[]]
+ * @returns {Object}
  */
 export function copyRecordData(record, copyFields = []) {
     const data = {};
@@ -154,4 +129,25 @@ export function copyRecordData(record, copyFields = []) {
         }
     }
     return data;
+}
+
+/**
+ * The server returns created rows without saying which virtual id each came
+ * from; the only available correspondence is creation order, which the id
+ * sequence makes ascending. Rank the new ids and zip them against the CREATE
+ * commands. A count mismatch means the mapping is not derivable — callers must
+ * not guess.
+ *
+ * @param {(number|string)[]} createVirtualIds
+ * @param {number[]} newResIds
+ * @returns {Map<number|string, number> | null}
+ */
+export function pairCreatedRows(createVirtualIds, newResIds) {
+    if (newResIds.length !== createVirtualIds.length) {
+        return null;
+    }
+    const ranked = [...newResIds].sort((x, y) => x - y);
+    return new Map(
+        createVirtualIds.map((virtualId, index) => [virtualId, ranked[index]]),
+    );
 }

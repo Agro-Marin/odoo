@@ -25,6 +25,7 @@ function makeRec(id, steps, { updateResult = true, updateThrows = false } = {}) 
     const rec = {
         id,
         discarded: false,
+        /** @type {any} */
         updateChanges: null,
         async update(changes) {
             steps.push(`${id}:update`);

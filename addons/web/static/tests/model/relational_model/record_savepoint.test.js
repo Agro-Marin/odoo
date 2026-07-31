@@ -15,20 +15,23 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
+import { makeRecordDouble } from "@web/../tests/model/relational_model/record_doubles";
 import {
     addSavePoint,
+    createSavePoint,
     discard,
     restoreFromSavePoint,
 } from "@web/model/relational_model/record_savepoint";
 
 /**
- * Builds the minimal record mock shape required by addSavePoint() and
- * restoreFromSavePoint().
+ * Thin wrapper over the shared {@link makeRecordDouble}: the savepoint helpers
+ * only need the change bag, the text values and the validity pair.
  *
  * @param {Object} [opts]
  * @param {Record<string, any>} [opts.changes]
  * @param {Record<string, any>} [opts.textValues]
  * @param {string[]} [opts.invalidFields]
+ * @param {string[]} [opts.unsetRequiredFields]
  * @param {boolean} [opts.dirty]
  * @param {Record<string, { type: string }>} [opts.fields]
  * @returns {Object}
@@ -37,23 +40,19 @@ function makeRecord({
     changes = {},
     textValues = {},
     invalidFields = [],
+    unsetRequiredFields = invalidFields,
     dirty = false,
     fields = null,
 } = {}) {
-    if (fields === null) {
-        fields = {};
-        for (const key of Object.keys(changes)) {
-            fields[key] = { type: "char" };
-        }
-    }
-    return {
+    return makeRecordDouble({
+        changes,
+        textValues,
+        invalidFields,
+        unsetRequiredFields,
         dirty,
-        _changes: markRaw({ ...changes }),
-        _textValues: markRaw({ ...textValues }),
-        _invalidFields: new Set(invalidFields),
-        _savePoint: undefined,
         fields,
-    };
+        data: { ...changes },
+    });
 }
 
 describe("addSavePoint", () => {
@@ -263,41 +262,23 @@ function makeDiscardRecord({
     savePoint = null,
     fields = null,
 } = {}) {
-    /** @type {any} */
-    const autoFields = fields ?? {};
-    if (!fields) {
-        for (const key of Object.keys({ ...values, ...changes })) {
-            autoFields[key] = { type: "char" };
-        }
-    }
-    /** @type {any} */
-    const rec = {
-        fields: autoFields,
+    const rec = makeRecordDouble({
         isNew,
+        values,
+        changes,
+        initialTextValues,
+        invalidFields: invalid,
+        fields,
         dirty: Object.keys(changes).length > 0 || invalid.length > 0,
-        data: { ...values, ...changes },
-        _values: { ...values },
-        _changes: markRaw({ ...changes }),
-        _textValues: markRaw({}),
-        _initialTextValues: { ...initialTextValues },
-        _invalidFields: new Set(invalid),
-        _closeInvalidFieldsNotification: () => {},
-        _setEvalContext: () => {},
-        _checkValidity: () => true,
-        _restoreActiveFields: () => {},
-        _clearChanges() {
-            this._changes = markRaw({});
-            this.dirty = false;
-        },
-        _savePoint: hasSavePoint
-            ? (savePoint ??
-              markRaw({
-                  changes: { ...changes },
-                  textValues: {},
-                  invalidFields: [...invalid],
-              }))
-            : undefined,
-    };
+    });
+    rec._savePoint = hasSavePoint
+        ? (savePoint ??
+          createSavePoint({
+              changes,
+              invalidFields: invalid,
+              unsetRequiredFields: invalid,
+          }))
+        : undefined;
     return rec;
 }
 
@@ -346,10 +327,11 @@ describe("discard — savepoint path (restore snapshot)", () => {
         const rec = makeDiscardRecord({
             hasSavePoint: true,
             values: { name: "server" },
-            savePoint: markRaw({
+            savePoint: createSavePoint({
                 changes: { name: "snapshot-edit" },
                 textValues: { description: "snapshot-text" },
                 invalidFields: ["email"],
+                unsetRequiredFields: ["email"],
             }),
         });
         rec._changes = markRaw({ name: "post-snapshot edit" });
@@ -365,10 +347,8 @@ describe("discard — savepoint path (restore snapshot)", () => {
         const rec = makeDiscardRecord({
             hasSavePoint: true,
             values: { name: "server" },
-            savePoint: markRaw({
+            savePoint: createSavePoint({
                 changes: { name: "snapshot-edit" },
-                textValues: {},
-                invalidFields: [],
             }),
         });
         discard(rec);
@@ -378,10 +358,9 @@ describe("discard — savepoint path (restore snapshot)", () => {
     test("savepoint branch does NOT wipe _invalidFields (preserved from snapshot)", () => {
         const rec = makeDiscardRecord({
             hasSavePoint: true,
-            savePoint: markRaw({
-                changes: {},
-                textValues: {},
+            savePoint: createSavePoint({
                 invalidFields: ["email"],
+                unsetRequiredFields: ["email"],
             }),
         });
         rec._invalidFields = new Set(["email", "noise"]);
@@ -393,10 +372,8 @@ describe("discard — savepoint path (restore snapshot)", () => {
         const rec = makeDiscardRecord({
             hasSavePoint: true,
             values: { name: "server", age: 30 },
-            savePoint: markRaw({
+            savePoint: createSavePoint({
                 changes: { name: "from-snapshot" },
-                textValues: {},
-                invalidFields: [],
             }),
         });
         discard(rec);

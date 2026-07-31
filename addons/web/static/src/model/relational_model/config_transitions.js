@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/config_transitions - Pure derivation of the next RelationalModelConfig from a current config + load params */
+/** @module @web/model/relational_model/config_transitions */
 
 import { shallowEqual } from "@web/core/utils/collections/objects";
 
@@ -10,42 +10,12 @@ import { shallowEqual } from "@web/core/utils/collections/objects";
 
 /**
  * @typedef {object} ConfigTransitionDeps
- * @property {number} [maxGroupByDepth] Cap on the number of stacked
- *   groupbys. Read from ``RelationalModel.maxGroupByDepth`` — pass it
- *   in rather than reaching back into the model instance so the
- *   transformer is unit-testable in isolation.
- * @property {any[]} [defaultOrderBy] Fallback order applied when the
- *   caller supplied no ``orderBy`` and the current config has no
- *   active order either. ``RelationalModel.defaultOrderBy`` is the
- *   canonical source.
- * @property {boolean} hasRoot Whether the model already has a loaded
- *   root datapoint. Controls the offset-reset path: when loading
- *   into an existing tree we walk it depth-first; on first load
- *   there is nothing to reset.
+ * @property {number} [maxGroupByDepth]
+ * @property {any[]} [defaultOrderBy]
+ * @property {boolean} hasRoot
  */
 
 /**
- * Build the next ``RelationalModelConfig`` from a current one plus a
- * partial parameter bag. Mirrors the historical
- * ``RelationalModel._getNextConfig`` contract.
- *
- * Two branches: **MonoRecord** (``resId``/``resIds`` propagation, plus
- * "switch to edit mode when no resId" for the create flow
- * (``record.load({ resId: false })``)) and **List /
- * grouped** (domain/groupBy/orderBy plumbing, max-depth clipping,
- * default-month granularity for date/datetime groupbys, and an
- * offset-reset on domain change so pagination doesn't strand the user on
- * an empty page).
- *
- * Mutates a shallow copy of ``currentConfig``. ``context`` is re-spread and
- * the ``groups`` tree is structurally cloned (see {@link cloneGroupTree}):
- * the result is a *candidate* config that a load may freely mutate
- * (``postprocessReadGroup``, offset resets) without leaking into the
- * committed config a superseded load would otherwise clobber.
- *
- * Async work (``_getPropertyDefinition``) is deliberately NOT done here —
- * that lives in {@link postprocessReadGroup}, which runs after the RPC.
- *
  * @param {RelationalModelConfig} currentConfig
  * @param {Partial<SearchParams>} params
  * @param {ConfigTransitionDeps} deps
@@ -104,10 +74,7 @@ export function computeNextConfig(currentConfig, params, deps) {
     }
     if (!config.isMonoRecord) {
         if (params.domain) {
-            // A new search invalidates the page the user was on: the old offset
-            // can sit past the end of the new result set, stranding them on a
-            // blank page.
-            const resetOffset = (cfg) => {
+            const resetOffset = (/** @type {Record<string, any>} */ cfg) => {
                 cfg.offset = 0;
                 for (const group of Object.values(cfg.groups || {})) {
                     resetOffset(group.list);
@@ -117,14 +84,6 @@ export function computeNextConfig(currentConfig, params, deps) {
                 resetOffset(config);
             }
         }
-        // Crossing the grouped/ungrouped boundary changes what ``limit`` MEANS
-        // — records per page vs GROUPS per page — so the old number cannot be
-        // carried over; dropping it lets ``_loadData`` pick the right default
-        // (80 records, vs 10 groups when they auto-unfold). Deliberately
-        // outside the ``params.domain`` branch above, which it spent a long
-        // time nested in: the two have nothing to do with each other, and a
-        // caller that regroups without also passing a domain (``model.load({
-        // groupBy })``) got an auto-unfolding kanban sized for 80 groups.
         if (!!config.groupBy.length !== !!currentGroupBy?.length) {
             delete config.limit;
         }
@@ -134,20 +93,6 @@ export function computeNextConfig(currentConfig, params, deps) {
 }
 
 /**
- * Structurally clone a ``config.groups`` tree so a candidate config owns its
- * own mutable group containers. Copied per group: the entry object, its
- * ``list`` sub-config, its optional ``record`` sub-config, and (recursively)
- * the nested ``list.groups`` dict. Shared immutable references — ``fields``,
- * ``activeFields``, ``fieldsToAggregate`` — are kept as-is; the postprocessor
- * only ever *assigns* fresh ``domain``/``context``/``orderBy`` values onto the
- * containers, so container-level copies are sufficient isolation.
- *
- * Load-bearing for concurrency: data is loaded against candidate configs
- * (``RelationalModel.load`` / ``_reloadWithConfig``) and only committed on
- * success. ``KeepLast`` drops a superseded load's *result* but cannot stop its
- * continuation — ``postprocessReadGroup`` still runs when the stale RPC lands,
- * and without this clone it would rewrite the committed groups in place.
- *
  * @param {Record<string, any>} groups
  * @returns {Record<string, any>}
  */

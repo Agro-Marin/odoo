@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/field_context - Context and domain resolution for relational fields */
+/** @module @web/model/relational_model/field_context */
 
 import { makeContext } from "@web/core/context";
 import { Domain } from "@web/core/domain";
@@ -69,6 +69,14 @@ export function getBasicEvalContext(config) {
     };
 }
 
+/**
+ * @param {{ context: Record<string, any> }} config
+ * @returns {Record<string, any>}
+ */
+export function getSpecEvalContext(config) {
+    return { ...config.context, ...getBasicEvalContext(config) };
+}
+
 let nextId = 0;
 /**
  * @param {string} [prefix]
@@ -87,9 +95,6 @@ export function isRelational(field) {
 }
 
 /**
- * Whether ``field`` is an x2many (one2many / many2many). Null-safe, so it
- * subsumes the ``!field || ...`` guards at some call sites.
- *
  * @param {any} field
  * @returns {boolean}
  */

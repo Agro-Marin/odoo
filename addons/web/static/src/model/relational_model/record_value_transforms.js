@@ -1,22 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_value_transforms - Stateless value formatting, defaults, eval context extraction, and bulk server-value parsing */
-
-/**
- * Value transformation functions for Record data.
- *
- * Most helpers (``formatServerValue``, ``getDefaultValues``,
- * ``getTextValues``, ``computeDataContext``) are pure and independently
- * testable.
- *
- * ``parseServerValues`` takes the RelationalRecord as its first argument
- * because it must call back into ``record``-owned protected methods that
- * hold per-instance state (``_createStaticListDatapoint``,
- * ``_processProperties``), accessed directly as ``record._X`` per the
- * convention in ``record_lifecycle.js`` / ``record_validator.js``. Tests
- * stub these by setting them on a mock record.
- */
+/** @module @web/model/relational_model/record_value_transforms */
 
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
@@ -26,30 +11,14 @@ import { parseServerValue } from "./field_values.js";
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
- * Format a JS field value back to server format.
- *
- * Inverse of `parseServerValue` (in utils.js). Handles all field types
- * including recursive property definitions.
- *
  * @param {string} fieldType
  * @param {any} value
- * @returns {any} server-formatted value
+ * @returns {any}
  */
 export function formatServerValue(fieldType, value) {
     return registry.category("serializers").get(fieldType, (v) => v)(value);
 }
 
-/**
- * Per-type client→server value serializers, keyed by field type — the inverse
- * of the ``deserializers`` registry (`@web/model/relational_model/field_values`).
- *
- * Single source shared with the value codec (`@web/core/field_codec`): the
- * codec's ``serialize`` reads this same registry. Each entry is
- * ``(value) => serverValue``; types with no entry pass the value through
- * unchanged. Note the intentional read-rich/write-lean asymmetry vs the
- * deserializers (e.g. ``many2one`` reads ``[id, name]`` → ``{id, display_name}``
- * but writes back just the id) — the server only needs the id on write.
- */
 registry
     .category("serializers")
     .add("date", (value) => (value ? serializeDate(value) : false))
@@ -90,13 +59,12 @@ registry
     });
 
 /**
- * Compute default values for fields that don't have data yet.
- *
  * @param {string[]} fieldNames
- * @param {Object} fields - field definitions
- * @returns {Object} default values keyed by field name
+ * @param {Object} fields
+ * @returns {Record<string, unknown>}
  */
 export function getDefaultValues(fieldNames, fields) {
+    /** @type {Record<string, unknown>} */
     const defaultValues = {};
     for (const fieldName of fieldNames) {
         switch (fields[fieldName].type) {
@@ -117,15 +85,10 @@ export function getDefaultValues(fieldNames, fields) {
 }
 
 /**
- * Extract text values for char, text, and html fields.
- *
- * These track the raw server values so the eval context distinguishes
- * between NULL (false) and empty string ("") for char/text/html fields.
- *
- * @param {Object} values - field values
+ * @param {Object} values
  * @param {Object} activeFields
- * @param {Object} fields - field definitions
- * @returns {Object} text values keyed by field name
+ * @param {Object} fields
+ * @returns {Object}
  */
 export function getTextValues(values, activeFields, fields) {
     const textValues = {};
@@ -141,14 +104,9 @@ export function getTextValues(values, activeFields, fields) {
 }
 
 /**
- * Build a data context suitable for Python eval expressions from record data.
- *
- * Returns two variants: one including virtual IDs (for attribute evaluation)
- * and one with only real database IDs (for server-bound contexts).
- *
- * @param {Object} data - record data (should be toRaw'd before passing)
- * @param {Object} fields - field definitions
- * @param {Object} textValues - text values for char/text/html fields
+ * @param {Object} data
+ * @param {Object} fields
+ * @param {Object} textValues
  * @param {number|false} resId
  * @returns {{ withVirtualIds: Object, withoutVirtualIds: Object }}
  */
@@ -200,41 +158,12 @@ export function computeDataContext(data, fields, textValues, resId) {
 }
 
 /**
- * Parse a bag of server values into JS-shaped record values.
- *
- * Dispatch by field type:
- *   - **x2many**: build or reuse a StaticList via
- *     ``record._createStaticListDatapoint``. The server value may be a
- *     list of record objects (``[{id, name, ...}, ...]``), a list of
- *     bare ids (``[1, 2, 3]`` — converted to ``[{id: 1}, ...]``), or a
- *     list of x2many commands (``[[4, 1, 0], ...]``, detected via
- *     element 0) — applied through ``staticList._applyInitialCommands``
- *     (new list) or ``._applyCommands`` (existing, via ``currentValues``).
- *   - **properties**: parse via ``parseServerValue``, then
- *     ``record._processProperties`` splices the dynamic definitions
- *     into ``record.fields`` / ``activeFields`` and returns per-property
- *     values merged into the result.
- *   - **other**: delegate to ``parseServerValue(field, value)``.
- *
- * Skips fields not declared in ``record.activeFields`` (the server may
- * send more fields than the view subscribes to — e.g. the
- * ``definition_record`` companion of a properties field).
- *
- * Returns a plain object without assigning ``record._values`` — the
- * call sites in record.js own that assignment/``markRaw`` wrapping, to
- * preserve the three-layer state contract (``_values`` server-truth /
- * ``_changes`` user-edits / ``data`` merged).
- *
  * @param {RelationalRecord} record
- * @param {Object} serverValues - field-name → server-shape value
+ * @param {Object} serverValues
  * @param {Object} [options]
- * @param {Object} [options.currentValues] - existing parsed values
- *  (for x2many reuse / command-list application against an existing
- *  StaticList datapoint)
- * @param {Object<string, Object>} [options.orderBys] - default
- *  ``orderBy`` overrides per x2many field name; forwarded to newly-
- *  constructed StaticList datapoints
- * @returns {Object} parsed values keyed by field name
+ * @param {Object} [options.currentValues]
+ * @param {Object<string, Object>} [options.orderBys]
+ * @returns {Object}
  */
 export function parseServerValues(
     record,
@@ -281,7 +210,7 @@ export function parseServerValues(
             if (field.type === "properties") {
                 const parent =
                     /** @type {{ id?: number; display_name?: string } | false | undefined} */ (
-                        serverValues[field.definition_record]
+                        serverValues[/** @type {string} */ (field.definition_record)]
                     );
                 Object.assign(
                     parsedValues,

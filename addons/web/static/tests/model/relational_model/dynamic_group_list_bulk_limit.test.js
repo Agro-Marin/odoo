@@ -18,6 +18,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
 import { DynamicRecordList } from "@web/model/relational_model/dynamic_record_list";
 
+describe.current.tags("headless");
+
 const ACTIVE_IDS_LIMIT = 20000;
 const TOTAL_RECORDS = 25000;
 const NB_GROUPS = 12;
@@ -64,7 +66,8 @@ function makeList({ grouped }) {
         load: async () => {},
         hooks: {
             ui: {
-                onDisplayLimitNotification: (msg) => notifications.push(msg),
+                onDisplayLimitNotification: (/** @type {string} */ msg) =>
+                    notifications.push(msg),
                 onDisplayArchiveAction: async () => {},
             },
         },

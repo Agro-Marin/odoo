@@ -26,6 +26,8 @@ import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 
+describe.current.tags("headless");
+
 /**
  * @param {{ failIn?: "preprocess" | "onchange" | "onUpdate", required?: boolean }} [options]
  */

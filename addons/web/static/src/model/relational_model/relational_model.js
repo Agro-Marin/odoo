@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/relational_model - Top-level data model orchestrating records, groups, and lists with ORM loading and onchange */
+/** @module @web/model/relational_model/relational_model */
 
 import { markRaw, toRaw } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
@@ -16,7 +16,7 @@ import { cloneGroupTree, computeNextConfig } from "./config_transitions.js";
 import { DynamicGroupList } from "./dynamic_group_list.js";
 import { DynamicRecordList } from "./dynamic_record_list.js";
 import { FetchRecordError } from "./errors.js";
-import { getBasicEvalContext, getId } from "./field_context.js";
+import { getId, getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 import { invalidateAggregateSpecs } from "./field_values.js";
 import { Group } from "./group.js";
@@ -42,7 +42,6 @@ import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
  *  cache?: Object;
  *  [key: string]: any;
  * }} OnChangeParams
- *
  * @typedef {SearchParams & {
  *  fields: Record<string, Field>;
  *  activeFields: Record<string, FieldInfo>;
@@ -65,7 +64,6 @@ import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
  *  rawContext?: Record<string, unknown>;
  *  [key: string]: any;
  * }} RelationalModelConfig
- *
  * @typedef {{
  *  config: RelationalModelConfig;
  *  state?: RelationalModelState;
@@ -79,8 +77,9 @@ import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
  *  groupByInfo?: Record<string, { activeFields: Record<string, FieldInfo>; fields: Record<string, Field> }>;
  *  activeIdsLimit?: number;
  *  useSendBeaconToSaveUrgently?: boolean;
+ *  canUseSampleModel?: boolean;
+ *  isAlive?: () => boolean;
  * }} RelationalModelParams
- *
  * @typedef {{
  *  config: RelationalModelConfig;
  *  specialDataCaches: import("./special_data_cache.js").SpecialDataCache;
@@ -88,12 +87,6 @@ import { UrgentSaveCoordinator } from "./urgent_save_coordinator.js";
  */
 
 /**
- * Lifecycle hooks — model-emitted notifications about its own state.
- *
- * Some return values are load-bearing: ``onWillSaveRecord`` /
- * ``onWillSaveMulti`` can veto (return ``false``); ``onAskMultiSaveConfirmation``
- * returns the user's confirmation choice. The rest are fire-and-forget.
- *
  * @typedef {{
  *  onWillLoadRoot: (config: RelationalModelConfig) => any;
  *  onRootLoaded: (root: DataPoint) => any;
@@ -121,14 +114,6 @@ export const DEFAULT_LIFECYCLE_HOOKS = /** @type {LifecycleHooks} */ ({
 });
 
 /**
- * UI hooks — model requests for controller-mediated UI side effects.
- *
- * Controllers wire these via ``makeModelUIHooks()`` in ``views/view_utils``
- * so the model layer never imports ``dialog`` / ``notification`` / ``action``
- * services directly. Return values are either ``undefined`` or a
- * "close-this-notification" callback (``onDisplayInvalidFields``,
- * ``onDisplayUrgentSave``) — the model never branches on them otherwise.
- *
  * @typedef {{
  *  onDisplayOnchangeWarning: (warning: {type: string, title: string, message: string, className?: string, sticky?: boolean}) => void;
  *  onDisplayInvalidFields: () => (() => void);
@@ -151,11 +136,6 @@ export const DEFAULT_UI_HOOKS = /** @type {UIHooks} */ ({
     onDisplayLimitNotification: () => {},
 });
 
-/**
- * Settle rounds {@link RelationalModel._askChanges} runs before giving up. A
- * compound-update cascade of depth N drains in N rounds; real ones are 1–2
- * deep, so this only ever trips on a widget that re-registers indefinitely.
- */
 const ASK_CHANGES_MAX_ROUNDS = 100;
 
 export class RelationalModel extends Model {
@@ -219,42 +199,17 @@ export class RelationalModel extends Model {
         this.canUseSampleModel = Boolean(params.canUseSampleModel);
 
         /**
-         * Observable urgent-save mode state.  When ``urgentSave.isActive``
-         * is true, downstream code paths take fast routes:
-         *   - ``record.update`` skips the mutex
-         *   - ``record._update`` skips preprocessor awaits + onchange RPC
-         *   - ``record.checkValidity`` skips ``_askChanges()``
-         *   - ``record_save.save`` chooses the sendBeacon path
-         *   - ``dynamic_list._askChanges`` skips ``editedRecord.checkValidity``
-         *
-         * The coordinator's ``run(fn)`` wraps entry in a try/finally
-         * so the flag never leaks past the urgent save's lifetime even
-         * if the inner work throws.  See
-         * ``urgent_save_coordinator.js`` for the full rationale.
-         *
          * @type {UrgentSaveCoordinator}
          */
         this.urgentSave = new UrgentSaveCoordinator(this.bus);
         /** @type {(() => void) | null} */
         this._closeUrgentSaveNotification = null;
         /**
-         * Deferred of the in-flight {@link load}, handed to the SWR cache
-         * callback. Retired by {@link _retireRootLoadDef} when that load can no
-         * longer produce a root.
          * @type {Deferred | null}
          */
         this._rootLoadDef = null;
 
         /**
-         * In-flight *compound* updates: multi-step record mutations a field
-         * widget drives across more than one ``mutex`` section, awaiting
-         * something (an RPC, a variant lookup) in between. The mutex goes idle
-         * in every one of those gaps, so ``mutex.getUnlockedDef()`` cannot see
-         * them and {@link _askChanges} would call the model settled mid-cascade
-         * — handing ``leaveEditMode`` / ``save`` / ``load`` a half-applied
-         * record whose required fields the pending step has yet to write.
-         * Widgets scope one with {@link trackCompoundUpdate}.
-         *
          * @type {Set<Promise<unknown>>}
          */
         this._compoundUpdates = new Set();
@@ -278,19 +233,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * Multi-edit dispatch: a selected record whose changes are committed
-     * while ``multiEdit`` is enabled routes them through the model, which
-     * forwards to the root list's multi-save — records must not reach into a
-     * DynamicList subclass's protected state themselves.
-     *
-     * NB: this must stay a prototype method called through the record's own
-     * reference chain (``record.model.multiEditDispatch(...)``): datapoints
-     * are reactive proxies (SignalStore), and ``_multiSave`` compares record
-     * identities (``editedRecord`` vs ``this.selection`` /
-     * ``this._recordToDiscard``), which only match within a single reactive
-     * domain. A closure capturing a list at construction time would run in
-     * the base domain and break those comparisons.
-     *
      * @param {import("./record").RelationalRecord} record
      * @param {Object} changes
      * @returns {Promise<any>}
@@ -315,18 +257,9 @@ export class RelationalModel extends Model {
         }
         this.hooks.lifecycle.onWillLoadRoot(config);
         const rootLoadDef = new Deferred();
-        // ``keepLast`` never settles a superseded load's promise, so the await
-        // below would hang and this deferred with it. Retiring the previous
-        // one here is what tells its SWR callback it has been superseded —
-        // otherwise every abandoned load (one per keystroke in a search bar)
-        // leaves a parked callback holding a full server payload.
         this._retireRootLoadDef();
         this._rootLoadDef = rootLoadDef;
         const cache = this._getCacheParams(config, rootLoadDef);
-        // Debug-gated, like the identical instrumentation in
-        // ``list_renderer.js``: nothing clears marks/measures anywhere in web,
-        // so an ungated pair per load accumulated in the performance timeline
-        // for the life of the tab and polluted any user-recorded profile.
         const profiling = Boolean(odoo.debug);
         if (profiling) {
             performance.mark("model:loadData:start");
@@ -354,23 +287,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * A group-by axis can name a property (``properties_field.property_name``)
-     * that ``config.fields`` does not carry; fetch its definition and register
-     * it as a synthetic field.
-     *
-     * A property dropped from its definition record still answers the
-     * read_group — the stored values are still there — but
-     * ``get_property_definition`` then returns an EMPTY definition, and a model
-     * overriding it may return nothing at all. Both register a ``char``
-     * placeholder rather than clearing the axis: the read_group has already run
-     * on it, and every consumer downstream (``postprocessReadGroup``,
-     * ``computeNextConfig``, ``_createEmptyRoot``, ``_loadData``) dereferences
-     * ``groupBy`` as an array, so the previous ``config.groupBy = null`` turned
-     * a missing label into a TypeError on the very next statement. Giving the
-     * placeholder a ``type`` matters too: without one it falls through every
-     * ``switch`` in the group-value helpers, silently skipping date/relational
-     * handling instead of rendering a plain label.
-     *
      * @param {RelationalModelConfig} config
      * @param {string} propertyFullName
      */
@@ -394,15 +310,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * Scope a multi-step record mutation as one unit {@link _askChanges} waits
-     * on, for widgets whose write cannot be expressed as a single mutex
-     * section (a variant lookup between two writes, say).
-     *
-     * Call it *synchronously* at the point the user's edit is applied — never
-     * from a render side effect. A barrier that only opens once the first
-     * step's re-render has landed still leaves unguarded exactly the gap it
-     * exists to close.
-     *
      * @template T
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}
@@ -416,24 +323,9 @@ export class RelationalModel extends Model {
     }
 
     async _askChanges() {
-        // Settle in rounds: flushing an input can open a compound update, and a
-        // compound update's next step re-takes the mutex. The model is settled
-        // only once a whole round finds nothing left in flight. Each round
-        // awaits the units it snapshotted, so a cascade of depth N drains in N
-        // rounds.
-        //
-        // Bounded on purpose. A widget whose compound update re-registers on
-        // every round is a bug, but an unbounded loop turns it into a silent
-        // hang: ``save`` / ``leaveEditMode`` / ``load`` all wait on this
-        // barrier, so the view stops responding with nothing in the console to
-        // point at. Same degradation as ``record_save.waitForPendingCommands``
-        // — warn, then proceed and let the mutex do the rest.
         for (let round = 0; round < ASK_CHANGES_MAX_ROUNDS; round++) {
             const proms = [];
             this.bus.trigger(ModelEvent.NEED_LOCAL_CHANGES, { proms });
-            // Only *completion* is the barrier's business: a failed cascade has
-            // already reported itself, and rejecting here would fail the save
-            // or the leave-edit-mode that merely waited behind it.
             const compound = [...this._compoundUpdates].map((p) => p.catch(() => {}));
             await Promise.all([...proms, ...compound, this.mutex.getUnlockedDef()]);
             if (!this._compoundUpdates.size) {
@@ -450,9 +342,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * Creates a root datapoint without data. Supported root types are DynamicRecordList and
-     * DynamicGroupList.
-     *
      * @param {RelationalModelConfig} config
      * @returns {DataPoint | undefined}
      */
@@ -480,12 +369,6 @@ export class RelationalModel extends Model {
         return new this.Class.DynamicRecordList(this, config, data);
     }
 
-    /**
-     * Settle the deferred of a load that will never produce a root — rejected,
-     * or superseded by a newer {@link load}. The SWR callback registered
-     * against it awaits it as its very first step, so resolving with ``null``
-     * is what lets that callback return instead of parking forever.
-     */
     _retireRootLoadDef() {
         if (this._rootLoadDef) {
             this._rootLoadDef.resolve(null);
@@ -512,8 +395,6 @@ export class RelationalModel extends Model {
                     }
                     const loaded = await rootLoadDef;
                     if (!loaded) {
-                        // The load this cached read belongs to never produced a
-                        // root (it failed, or a newer load superseded it).
                         return;
                     }
                     const { root, loadId } = loaded;
@@ -553,7 +434,9 @@ export class RelationalModel extends Model {
                     }
 
                     if (
-                        root.records.some((r) => r.isInEdition || r.dirty || r.selected)
+                        root.records.some(
+                            (r) => r.isInEdition || r.hasPendingChanges || r.selected,
+                        )
                     ) {
                         return;
                     }
@@ -581,14 +464,13 @@ export class RelationalModel extends Model {
     }
 
     /**
-     *
      * @param {RelationalModelConfig} config
      * @param {Object} [cache]
      */
     async _loadData(config, cache) {
         config.loadId = getId("load");
         if (config.isMonoRecord) {
-            const evalContext = getBasicEvalContext(config);
+            const evalContext = getSpecEvalContext(config);
             if (!config.resId) {
                 return this._loadNewRecord(config, { evalContext, cache });
             }
@@ -600,7 +482,12 @@ export class RelationalModel extends Model {
                 config.offset,
                 config.offset + config.limit,
             );
-            return this._loadRecords({ ...config, resIds }, config.context, cache);
+            const records = await this._loadRecords(
+                { ...config, resIds },
+                getSpecEvalContext(config),
+                cache,
+            );
+            return { records, length: config.resIds.length };
         }
         if (config.groupBy.length) {
             return this._loadGroupedList(config, cache);
@@ -668,7 +555,7 @@ export class RelationalModel extends Model {
      * @param {Context} evalContext
      * @param {Object} [cache]
      */
-    async _loadRecords(config, evalContext = config.context, cache) {
+    async _loadRecords(config, evalContext, cache) {
         const { resModel, activeFields, fields, context } = config;
         const resIds = config.resId ? [config.resId] : config.resIds;
         if (!resIds.length) {
@@ -693,9 +580,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * Load records from the server for an ungrouped list. Return the result
-     * of unity read RPC.
-     *
      * @param {RelationalModelConfig} config
      * @param {Object} [cache]
      */
@@ -709,7 +593,7 @@ export class RelationalModel extends Model {
             specification: getFieldsSpec(
                 config.activeFields,
                 config.fields,
-                config.context,
+                getSpecEvalContext(config),
             ),
             offset: config.offset,
             order,
@@ -731,17 +615,15 @@ export class RelationalModel extends Model {
      */
     async _onchange(
         config,
-        { changes = {}, fieldNames = [], evalContext = config.context, onError, cache },
+        {
+            changes = {},
+            fieldNames = [],
+            evalContext = getSpecEvalContext(config),
+            onError,
+            cache,
+        },
     ) {
         if (!this.isAlive()) {
-            // Committing a pending edit (blur / NEED_LOCAL_CHANGES) races the
-            // teardown that provoked it: escape out of a FormViewDialog flushes
-            // the focused input, and the onchange it triggers lands after the
-            // dialog is gone. The RPC then travels through the destroyed
-            // component's service proxy and rejects with "Component is
-            // destroyed" inside a promise nobody is left to await. No onchange
-            // values can matter to a view that no longer exists, so answer the
-            // no-op the callers already understand.
             return {};
         }
         const { fields, activeFields, resModel, resId } = config;
@@ -777,18 +659,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * Synchronously applies ``patch`` to ``config`` (no reload, no promise).
-     *
-     * SYNCHRONY IS LOAD-BEARING: 20+ call sites (mode switches, resId
-     * commits after save, limit/offset bookkeeping, group fold state, …)
-     * rely on the patched config being visible in the very next statement,
-     * without awaiting. This method MUST NOT become async and MUST NOT
-     * await anything — that's the whole reason it is split from
-     * ``_reloadWithConfig``, whose historical ``{ reload: false }`` mode
-     * only happened to be synchronously visible because no ``await``
-     * preceded the assign. Pinned by a unit test
-     * (relational_model_config.test.js).
-     *
      * @param {RelationalModelConfig} config
      * @param {Partial<RelationalModelConfig>} patch
      */
@@ -800,14 +670,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * Asynchronously applies ``patch`` to ``config`` and reloads the
-     * corresponding data. The data is loaded against a candidate config and
-     * only committed into ``config`` (via ``_patchConfig``) once the load
-     * has succeeded, so a rejected load leaves ``config`` untouched.
-     *
-     * For a pure config patch with no reload, use the synchronous
-     * ``_patchConfig`` instead.
-     *
      * @param {RelationalModelConfig} config
      * @param {Partial<RelationalModelConfig>} patch
      * @param {{
@@ -835,7 +697,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     *
      * @param {RelationalModelConfig} config
      * @returns {Promise<number>}
      */
@@ -850,9 +711,6 @@ export class RelationalModel extends Model {
     }
 
     /**
-     * When grouped by a many2many field, the same record may appear in several
-     * groups; propagate a reloaded record's values to all its other occurrences.
-     *
      * @param {RelationalRecord} reloadedRecord
      * @param {Record<string, unknown>} serverValues
      */

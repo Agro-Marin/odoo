@@ -1,41 +1,22 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/resequence - Reorders records by sequence field via drag-and-drop position changes */
+/** @module @web/model/relational_model/resequence */
 
 /**
- * Compute the plan for moving one record to a new position in a
- * sequence-ordered list: which records must receive a new sequence value,
- * and from which offset the new values start.
- *
- * Pure — does not mutate ``records``. Shared by the server-backed
- * {@link resequence} below and by StaticList's in-memory resequencing
- * (static_list_sort.js).
- *
- * Minimizes writes: if sequence values are strictly monotonic, only records
- * between the source and target positions are rewritten. Otherwise
- * (duplicates, wrong-direction gaps, or a missing sequence value), every
- * record is rewritten (``reorderAll``).
- *
  * @param {Object} params
- * @param {Array<{id: number | string}>} params.records - Records in their
- *   current visual order.
- * @param {number | string} params.movedId - The id of the record being moved.
- * @param {number | string | null} [params.targetId] - The id of the target
- *   position: the record is placed after it. ``null``/``undefined`` moves the
- *   record to the first position.
- * @param {(record: any) => number} params.getSequence - Read a record's
- *   current sequence value.
- * @param {boolean} [params.asc] - Whether the list is sorted ascending.
+ * @param {Array<{id: number | string}>} params.records
+ * @param {number | string} params.movedId
+ * @param {number | string | null} [params.targetId]
+ * @param {(record: any) => number} params.getSequence
+ * @param {boolean} [params.asc]
  * @returns {{
  *   toReorder: any[],
  *   offset: number,
  *   fromIndex: number,
  *   toIndex: number,
  *   reorderAll: boolean,
- * }} ``toReorder`` lists the records to rewrite, in ascending target-sequence
- *   order; new sequences are ``offset + index``. ``fromIndex``/``toIndex``
- *   are the source and destination indices in ``records``.
+ * }}
  */
 export function computeResequencePlan({
     records,
@@ -95,22 +76,18 @@ export function computeResequencePlan({
 }
 
 /**
- * Resequence records based on provided parameters.
- *
  * @param {Object} params
- * @param {Array} params.records - The list of records to resequence.
- * @param {string} params.resModel - The model to be used for resequencing.
- * @param {Object} params.orm
- * @param {string} params.fieldName - The field used to handle the sequence.
- * @param {number} params.movedId - The id of the record being moved.
- * @param {number} [params.targetId] - The id of the target position, the record will be resequenced
- *                                     after the target. If undefined, the record will be resequenced
- *                                     as the first record.
- * @param {Boolean} [params.asc] - Resequence in ascending or descending order
- * @param {(record: any) => number} [params.getSequence] - Function to get the sequence of a record.
- * @param {(record: any) => number} [params.getResId] - Function to get the resID of the record.
+ * @param {any[]} params.records
+ * @param {string} params.resModel
+ * @param {Record<string, any>} params.orm
+ * @param {string} params.fieldName
+ * @param {number} params.movedId
+ * @param {number} [params.targetId]
+ * @param {Boolean} [params.asc]
+ * @param {(record: any) => number} [params.getSequence]
+ * @param {(record: any) => number} [params.getResId]
  * @param {Object} [params.context]
- * @returns {Promise<any>} - The list of the resequenced fieldName
+ * @returns {Promise<any>}
  */
 export async function resequence({
     records,

@@ -1,23 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/concurrency_baseline - Shared builder for the field-scoped optimistic-locking baseline (known_values) */
+/** @module @web/model/relational_model/concurrency_baseline */
 
-/**
- * Field types whose value cannot be safely compared for the field-scoped
- * optimistic lock, so they never contribute a baseline:
- * - x2many/binary/html/json/properties/properties_definition/reference/
- *   many2one_reference: no stable scalar to compare;
- * - date/datetime: client (Luxon, tz/ms) vs raw DB value risks a
- *   timezone-boundary FALSE conflict.
- * This denylist is the exact complement of the server's allowlist
- * `_CONCURRENCY_SAFE_TYPES` (models/web_read.py:
- * integer/boolean/char/text/selection/float/monetary/many2one) over all field
- * types — every type NOT in that allowlist must appear here, or the JS ships a
- * baseline the server can never check (the sets would no longer mirror).
- * ``many2one_reference`` / ``properties_definition`` were the two the server
- * excludes but this set previously did not.
- */
 const NON_COMPARABLE_TYPES = new Set([
     "one2many",
     "many2many",
@@ -33,15 +18,9 @@ const NON_COMPARABLE_TYPES = new Set([
 ]);
 
 /**
- * Build the field-scoped optimistic-locking baseline for `record`: the
- * originally-loaded value (`record._values`) of each field in `fieldNames`
- * that can be safely compared server-side. Shared by the single-save
- * (`record_save.js`) and list mass-edit (`dynamic_list.js`) paths so their
- * exclusion rules never diverge — the server fails open on anything omitted.
- *
  * @param {import("./record").RelationalRecord} record
- * @param {Iterable<string>} fieldNames the fields being written
- * @returns {Record<string, any>} `{ field: baseline }` (may be empty)
+ * @param {Iterable<string>} fieldNames
+ * @returns {Record<string, any>}
  */
 export function buildConcurrencyBaseline(record, fieldNames) {
     /** @type {Record<string, any>} */
@@ -56,7 +35,7 @@ export function buildConcurrencyBaseline(record, fieldNames) {
         ) {
             continue;
         }
-        const value = record._values[fieldName];
+        const value = /** @type {Record<string, any>} */ (record._values)[fieldName];
         if (
             field.type === "selection" &&
             value === 0 &&
@@ -70,17 +49,9 @@ export function buildConcurrencyBaseline(record, fieldNames) {
 }
 
 /**
- * Build the mass-edit ``kwargs`` carrying a per-record optimistic-locking
- * baseline. Each saved record with a resId gets its ``buildConcurrencyBaseline``
- * over ``fieldNames``; records with a non-empty baseline are keyed by resId
- * under ``known_values``. Returns ``kwargs`` unchanged when no record
- * contributed a baseline, so a plain save carries no extra key. Shared by both
- * ``_multiSave`` paths (relative Operation and absolute mass-edit) so the
- * ``known_values`` shape can't drift between them.
- *
- * @param {import("./record").RelationalRecord[]} records records being saved
- * @param {Iterable<string>} fieldNames the fields being written
- * @param {Record<string, any>} kwargs base kwargs to extend
+ * @param {import("./record").RelationalRecord[]} records
+ * @param {Iterable<string>} fieldNames
+ * @param {Record<string, any>} kwargs
  * @returns {Record<string, any>}
  */
 export function buildKnownValuesKwargs(records, fieldNames, kwargs) {

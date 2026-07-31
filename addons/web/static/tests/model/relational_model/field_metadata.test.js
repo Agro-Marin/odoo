@@ -17,6 +17,8 @@ import {
     patchActiveFields,
 } from "@web/model/relational_model/field_metadata";
 
+describe.current.tags("headless");
+
 describe("makeActiveField — defaults", () => {
     test("no args produces default field", () => {
         const f = makeActiveField();

@@ -21,6 +21,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { fromUnityToServerValues } from "@web/model/relational_model/field_values";
 
+describe.current.tags("headless");
+
 const FIELDS = {
     name: { name: "name", type: "char" },
     // Present on the model, absent from the arch — so absent from activeFields.

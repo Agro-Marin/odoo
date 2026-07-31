@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/utils - Barrel re-export of field metadata, spec, values, and context utilities for external consumers */
+/** @module @web/model/relational_model/utils */
 
 export {
     getBasicEvalContext,

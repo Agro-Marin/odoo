@@ -10,6 +10,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { applyCommands } from "@web/model/relational_model/static_list_command_engine";
 
+describe.current.tags("headless");
+
 const CREATE = 0;
 const UPDATE = 1;
 const DELETE = 2;

@@ -17,6 +17,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { computeNextConfig } from "@web/model/relational_model/config_transitions";
 
+describe.current.tags("headless");
+
 const DEPS = { hasRoot: true };
 
 /** @param {{ groupBy?: string[], limit?: number }} [options] */

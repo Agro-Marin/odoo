@@ -15,6 +15,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { Group } from "@web/model/relational_model/group";
 
+describe.current.tags("headless");
+
 describe("Group._deleteRecords count integrity", () => {
     test("does not decrement count when the unlink is vetoed", async () => {
         const group = Object.create(Group.prototype);

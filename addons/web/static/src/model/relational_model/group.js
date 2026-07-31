@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/group - Single group node within a grouped list, holding aggregates and a nested record list */
+/** @module @web/model/relational_model/group */
 
 import { Domain } from "@web/core/domain";
 
@@ -33,7 +33,7 @@ export class Group extends DataPoint {
             List = this.model.Class.DynamicRecordList;
         }
         config.list.isGroupList = true;
-        /** @type {any} DynamicRecordList or DynamicGroupList depending on groupBy depth */
+        /** @type {any} */
         this.list = new List(this.model, config.list, data);
         this._useGroupCountForList();
         if (config.record) {
@@ -129,21 +129,6 @@ export class Group extends DataPoint {
         return unlinked;
     }
 
-    /**
-     * ``web_search_read`` caps its count at ``countLimit`` (see
-     * DEFAULT_COUNT_LIMIT); the per-group count from ``formatted_read_group``
-     * is not capped. Where the list's number is the capped one, adopt the
-     * group's.
-     *
-     * Asks the list whether it capped, rather than inferring it by comparing
-     * ``count`` to ``countLimit``. That comparison answered correctly only by
-     * accident: a group's list config carries no ``countLimit`` until its first
-     * ``_loadData``, so on the initial (read_group-embedded) load it compared a
-     * number against ``undefined`` — false, which happens to be the right
-     * answer there because that count came from read_group and was never
-     * capped. ``hasLimitedCount`` is set by ``_updateCount`` precisely when it
-     * truncated, so it states the condition instead of re-deriving it.
-     */
     _useGroupCountForList() {
         if (!this.list.isGrouped && this.list.hasLimitedCount) {
             this.list.count = this.count;
@@ -151,11 +136,6 @@ export class Group extends DataPoint {
     }
 
     /**
-     * Synchronous on purpose: ``DynamicList._leaveEditMode`` drops an abandoned
-     * new row through this without awaiting, and reads ``this.editedRecord``
-     * on the very next line. An ``async`` signature over a fully synchronous
-     * body only made that call site read as a race it never was.
-     *
      * @param {(string | number)[]} recordIds
      */
     _removeRecords(recordIds) {

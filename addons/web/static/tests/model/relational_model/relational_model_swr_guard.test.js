@@ -14,6 +14,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
 
+describe.current.tags("headless");
+
 function makeModelWithRoot(records) {
     const model = Object.create(RelationalModel.prototype);
     model.withCache = true;
@@ -68,7 +70,12 @@ function makeMonoModelWithRoot({ resId = 5, loadId = "load_1" } = {}) {
 describe("SWR revalidation guard", () => {
     test("a fresh result rebuilds a clean, unselected root", async () => {
         const { cacheParams, setDataCalls } = makeModelWithRoot([
-            { isInEdition: false, dirty: false, selected: false },
+            {
+                isInEdition: false,
+                dirty: false,
+                hasPendingChanges: false,
+                selected: false,
+            },
         ]);
 
         await cacheParams.callback({ records: [], length: 0 }, true);
@@ -78,8 +85,18 @@ describe("SWR revalidation guard", () => {
 
     test("selected records block the rebuild", async () => {
         const { cacheParams, setDataCalls } = makeModelWithRoot([
-            { isInEdition: false, dirty: false, selected: false },
-            { isInEdition: false, dirty: false, selected: true },
+            {
+                isInEdition: false,
+                dirty: false,
+                hasPendingChanges: false,
+                selected: false,
+            },
+            {
+                isInEdition: false,
+                dirty: false,
+                hasPendingChanges: false,
+                selected: true,
+            },
         ]);
 
         await cacheParams.callback({ records: [], length: 0 }, true);
@@ -89,13 +106,23 @@ describe("SWR revalidation guard", () => {
 
     test("dirty and edited records still block the rebuild", async () => {
         const dirty = makeModelWithRoot([
-            { isInEdition: false, dirty: true, selected: false },
+            {
+                isInEdition: false,
+                dirty: true,
+                hasPendingChanges: true,
+                selected: false,
+            },
         ]);
         await dirty.cacheParams.callback({ records: [], length: 0 }, true);
         expect(dirty.setDataCalls.length).toBe(0);
 
         const edited = makeModelWithRoot([
-            { isInEdition: true, dirty: false, selected: false },
+            {
+                isInEdition: true,
+                dirty: false,
+                hasPendingChanges: false,
+                selected: false,
+            },
         ]);
         await edited.cacheParams.callback({ records: [], length: 0 }, true);
         expect(edited.setDataCalls.length).toBe(0);
@@ -103,7 +130,12 @@ describe("SWR revalidation guard", () => {
 
     test("an unchanged result is a no-op", async () => {
         const { cacheParams, setDataCalls } = makeModelWithRoot([
-            { isInEdition: false, dirty: false, selected: false },
+            {
+                isInEdition: false,
+                dirty: false,
+                hasPendingChanges: false,
+                selected: false,
+            },
         ]);
 
         await cacheParams.callback({ records: [], length: 0 }, false);

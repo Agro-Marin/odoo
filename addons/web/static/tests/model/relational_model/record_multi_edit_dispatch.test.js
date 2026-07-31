@@ -20,6 +20,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 
+/** @param {any} multiSaveResult */
 function makeRecord(multiSaveResult) {
     /** @type {string[]} */
     const calls = [];

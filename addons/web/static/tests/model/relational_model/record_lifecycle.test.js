@@ -13,6 +13,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
+import { RECORD_STATE_TRANSITIONS } from "@web/../tests/model/relational_model/record_doubles";
 import {
     archive,
     deleteRecord,
@@ -63,6 +64,7 @@ function makeRecord({
         _getDefaultValues() {
             return { id: false, name: false };
         },
+        ...RECORD_STATE_TRANSITIONS,
         _clearChanges() {
             this._changes = markRaw({});
             this.dirty = false;

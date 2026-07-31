@@ -17,6 +17,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { getAggregateSpecifications } from "@web/model/relational_model/field_values";
 
+describe.current.tags("headless");
+
 function makeFields() {
     return {
         amount: { name: "amount", type: "monetary", aggregator: "sum" },

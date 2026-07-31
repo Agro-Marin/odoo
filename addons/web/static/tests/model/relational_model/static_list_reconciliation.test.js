@@ -13,6 +13,9 @@ import { describe, expect, test } from "@odoo/hoot";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { StaticList } from "@web/model/relational_model/static_list";
 
+describe.current.tags("headless");
+
+/** @param {{ commands: any, resIds: any }} params */
 function makeList({ commands, resIds }) {
     const list = Object.create(StaticList.prototype);
     list._commands = commands;

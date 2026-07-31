@@ -26,6 +26,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { DynamicGroupList } from "@web/model/relational_model/dynamic_group_list";
 
+describe.current.tags("headless");
+
 const FIRST_DOMAIN_TOTAL = 25000;
 const FIRST_DOMAIN = [["active", "=", true]];
 const NARROWER_DOMAIN = [
@@ -62,10 +64,10 @@ function makeGroupList({ limit, searchCount }) {
         initialCountLimit: 10000,
         orm: { searchCount: async () => searchCount() },
     };
-    list._createGroupDatapoint = (data) => ({
+    list._createGroupDatapoint = (/** @type {any} */ data) => ({
         count: data.count,
         isFolded: false,
-        records: [],
+        records: /** @type {any[]} */ ([]),
         list: { _selectDomain() {} },
     });
     return list;

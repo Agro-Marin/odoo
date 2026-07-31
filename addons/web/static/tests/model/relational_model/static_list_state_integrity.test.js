@@ -19,11 +19,14 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { markRaw } from "@odoo/owl";
+import { ListMembership } from "@web/model/relational_model/list_membership";
 import { StaticList } from "@web/model/relational_model/static_list";
 
 function makeList(overrides = {}) {
     const list = Object.create(StaticList.prototype);
     Object.assign(list, {
+        // Membership owner first: the keys below write through its accessors.
+        _membership: new ListMembership(),
         _config: {
             limit: 40,
             offset: 0,

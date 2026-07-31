@@ -12,6 +12,8 @@
 import { describe, expect, test } from "@odoo/hoot";
 import { sort, sortBy } from "@web/model/relational_model/static_list_sort";
 
+describe.current.tags("headless");
+
 /**
  * Minimal StaticList mock for sort/sortBy tests.
  * Captures calls to _load so we can assert the arguments.

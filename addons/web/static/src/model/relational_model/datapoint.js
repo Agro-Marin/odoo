@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/datapoint - Abstract reactive base class for all data model nodes (records, lists, groups) */
+/** @module @web/model/relational_model/datapoint */
 
 import { markRaw } from "@odoo/owl";
 import { SignalStore } from "@web/core/utils/reactive";

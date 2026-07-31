@@ -12,6 +12,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { makeMockEnv } from "@web/../tests/web_test_helpers";
 import { FetchRecordError } from "@web/model/relational_model/errors";
 
+describe.current.tags("headless");
+
 describe("FetchRecordError", () => {
     test("is an instance of Error", async () => {
         await makeMockEnv();

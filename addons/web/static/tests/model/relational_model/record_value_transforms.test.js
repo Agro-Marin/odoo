@@ -16,6 +16,8 @@ import {
     parseServerValues,
 } from "@web/model/relational_model/record_value_transforms";
 
+describe.current.tags("headless");
+
 const { DateTime } = luxon;
 
 describe("formatServerValue — char / text", () => {

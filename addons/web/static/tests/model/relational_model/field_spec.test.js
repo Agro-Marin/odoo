@@ -6,6 +6,8 @@ import { describe, expect, test } from "@odoo/hoot";
 import { makeActiveField } from "@web/model/relational_model/field_metadata";
 import { getFieldsSpec } from "@web/model/relational_model/field_spec";
 
+describe.current.tags("headless");
+
 /** Build minimal activeFields from a list of [name, options] pairs. */
 function makeActiveFields(defs) {
     const activeFields = {};

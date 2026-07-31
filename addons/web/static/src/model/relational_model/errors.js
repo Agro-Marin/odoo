@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/errors - Error types and handlers for record fetch failures */
+/** @module @web/model/relational_model/errors */
 
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";

@@ -23,6 +23,8 @@ import { RelationalRecord } from "@web/model/relational_model/record";
 import { RecordEditState } from "@web/model/relational_model/record_edit_state";
 import { StaticList } from "@web/model/relational_model/static_list";
 
+describe.current.tags("headless");
+
 const LINK = 4;
 
 const SERVER_ROWS = {
@@ -54,7 +56,10 @@ function makeX2ManyList(resIds) {
         _isEvalContextReady: true,
     };
     const data = resIds.map((id) => SERVER_ROWS[id]);
-    return new StaticList(model, config, data, { parent, onUpdate: async () => {} });
+    return new StaticList(/** @type {any} */ (model), config, data, {
+        parent,
+        onUpdate: async () => {},
+    });
 }
 
 function makeRecordWith(list) {

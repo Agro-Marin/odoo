@@ -52,10 +52,11 @@ function makeModel() {
                 id: "root",
                 config: this.config,
                 hasData: true,
-                records: [],
+                records: /** @type {any[]} */ ([]),
                 _setData() {},
             };
         }
+        /** @returns {any} */
         _createEmptyRoot() {
             return undefined;
         }

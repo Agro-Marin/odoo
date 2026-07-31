@@ -1,9 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/static_list_sort - Sorting and resequencing logic extracted from StaticList */
-
-/** Receives the StaticList instance as first argument (delegation pattern). */
+/** @module @web/model/relational_model/static_list_sort */
 
 import { pick } from "@web/core/utils/collections/objects";
 
@@ -13,7 +11,6 @@ import { compareRecords, computeNextOrderBy } from "./static_list_utils.js";
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
 
 /**
- * Sort records by the given orderBy spec, loading missing field values as needed.
  * @param {StaticList} list
  * @param {any[]} [currentIds]
  * @param {any[]} [orderBy]
@@ -27,21 +24,15 @@ export async function sort(list, currentIds = list.currentIds, orderBy = list.or
     if (resIds.length) {
         const activeFields = pick(list.activeFields, ...fieldNames);
         const config = { ...list.config, resIds, activeFields };
-        const records = await list.model._loadRecords(config);
+        const records = await list.model._loadRecords(config, list.evalContext);
         for (const record of records) {
             list._createRecordDatapoint(record, { activeFields });
         }
     }
-    // ``_loadRecords`` only throws when NO row comes back; a partial response —
-    // a row unlinked server-side between this request and its load — simply
-    // returns fewer. Mapping every requested id through ``_cache`` then left
-    // ``undefined`` holes, and ``Array.sort`` moves those to the end WITHOUT
-    // calling the comparator, so the crash landed on the ``r.resId`` below
-    // rather than anywhere near the load. Drop the vanished ids instead, same
-    // guard as ``_load`` and ``_replaceWith`` (the other two loaders).
-    const presentIds = currentIds.filter((id) => list._cache[id]);
+    const cache = /** @type {Record<string, any>} */ (list._cache);
+    const presentIds = currentIds.filter((/** @type {any} */ id) => cache[id]);
     const sortedRecords = presentIds
-        .map((id) => list._cache[id])
+        .map((/** @type {any} */ id) => cache[id])
         .sort((r1, r2) => compareRecords(r1, r2, orderBy, list.fields));
     await list._load({
         orderBy,
@@ -51,7 +42,6 @@ export async function sort(list, currentIds = list.currentIds, orderBy = list.or
 }
 
 /**
- * Resequence a record by moving it to a target position and updating handle field values.
  * @param {StaticList} list
  * @param {number|string} movedId
  * @param {number|string|null} targetId
@@ -88,7 +78,6 @@ export async function resequence(list, movedId, targetId) {
 }
 
 /**
- * Toggle sort direction for a field, or switch to sorting by that field.
  * @param {StaticList} list
  * @param {string} fieldName
  */

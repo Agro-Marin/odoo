@@ -20,6 +20,8 @@ import {
 } from "@web/model/relational_model/config_transitions";
 import { postprocessReadGroup } from "@web/model/relational_model/group_postprocessor";
 
+describe.current.tags("headless");
+
 const DEPS = { hasRoot: true };
 
 const POSTPROCESS_DEPS = {

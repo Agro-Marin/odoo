@@ -1,27 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/record_preprocessors - Field change preprocessing extracted from RelationalRecord */
-
-/**
- * Preprocessing logic for field changes before they are applied to a record.
- *
- * Handles many2one completion (name_create / webRead), many2one_reference,
- * reference, x2many commands, properties expansion, and html markup.
- * Receives the RelationalRecord instance as first argument (delegation pattern).
- */
+/** @module @web/model/relational_model/record_preprocessors */
 
 import { markup } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 
 import { x2ManyCommands } from "./commands.js";
-import { getBasicEvalContext, getFieldContext } from "./field_context.js";
+import { getFieldContext, getSpecEvalContext } from "./field_context.js";
 import { getFieldsSpec } from "./field_spec.js";
 
 /** @import { RelationalRecord } from "@web/model/relational_model/record" */
 
 /**
- * Complete a many2one value: fetch display_name if missing, or create via name_create.
  * @param {RelationalRecord} record
  * @param {{ id?: number, display_name?: string }} value
  * @param {string} fieldName
@@ -52,7 +43,7 @@ export async function completeMany2OneValue(record, value, fieldName, resModel) 
                 getFieldsSpec(
                     record.activeFields[fieldName].related.activeFields,
                     record.activeFields[fieldName].related.fields,
-                    getBasicEvalContext(record.config),
+                    getSpecEvalContext(record.config),
                 ),
             );
         }
@@ -64,7 +55,6 @@ export async function completeMany2OneValue(record, value, fieldName, resModel) 
 }
 
 /**
- * Preprocess many2one field changes — complete values with display_name or name_create.
  * @param {RelationalRecord} record
  * @param {Record<string, any>} changes
  */
@@ -87,7 +77,6 @@ export async function preprocessMany2oneChanges(record, changes) {
 }
 
 /**
- * Preprocess many2one_reference field changes.
  * @param {RelationalRecord} record
  * @param {Record<string, any>} changes
  */
@@ -100,7 +89,9 @@ export async function preprocessMany2OneReferenceChanges(record, changes) {
             } else if (typeof value === "number") {
                 changes[fieldName] = { resId: value };
             } else {
-                const relation = record.data[record.fields[fieldName].model_field];
+                const relation = /** @type {Record<string, any>} */ (record.data)[
+                    record.fields[fieldName].model_field
+                ];
                 return completeMany2OneValue(
                     record,
                     { id: value.resId, display_name: value.displayName },
@@ -123,7 +114,6 @@ export async function preprocessMany2OneReferenceChanges(record, changes) {
 }
 
 /**
- * Preprocess reference field changes.
  * @param {RelationalRecord} record
  * @param {Record<string, any>} changes
  */
@@ -157,7 +147,6 @@ export async function preprocessReferenceChanges(record, changes) {
 }
 
 /**
- * Preprocess x2many field changes — apply commands to the static list.
  * @param {RelationalRecord} record
  * @param {Record<string, any>} changes
  */
@@ -169,7 +158,7 @@ export async function preprocessX2manyChanges(record, changes) {
         ) {
             continue;
         }
-        const list = record.data[fieldName];
+        const list = /** @type {Record<string, any>} */ (record.data)[fieldName];
         let batch = [];
         for (const command of value) {
             if (command[0] === x2ManyCommands.SET) {
@@ -190,7 +179,6 @@ export async function preprocessX2manyChanges(record, changes) {
 }
 
 /**
- * Preprocess properties field changes — expand property values.
  * @param {RelationalRecord} record
  * @param {Record<string, any>} changes
  */
@@ -200,15 +188,23 @@ export function preprocessPropertiesChanges(record, changes) {
         if (field.type === "properties") {
             const parent =
                 changes[field.definition_record] ||
-                record.data[field.definition_record];
+                /** @type {Record<string, any>} */ (record.data)[
+                    field.definition_record
+                ];
             Object.assign(
                 changes,
                 record._processProperties(value, fieldName, parent, record.data),
             );
         } else if (field?.relatedPropertyField) {
             const [propertyFieldName, propertyName] = field.name.split(".");
-            const propertiesData = record.data[propertyFieldName] || [];
-            if (!propertiesData.find((property) => property.name === propertyName)) {
+            const propertiesData =
+                /** @type {Record<string, any>} */ (record.data)[propertyFieldName] ||
+                [];
+            if (
+                !propertiesData.find(
+                    (/** @type {any} */ property) => property.name === propertyName,
+                )
+            ) {
                 record.model.hooks.ui.onDisplayPropertyWarning(
                     _t(
                         "This record belongs to a different parent so you can not change this property.",
@@ -217,15 +213,15 @@ export function preprocessPropertiesChanges(record, changes) {
                 delete changes[fieldName];
                 continue;
             }
-            changes[propertyFieldName] = propertiesData.map((property) =>
-                property.name === propertyName ? { ...property, value } : property,
+            changes[propertyFieldName] = propertiesData.map(
+                (/** @type {any} */ property) =>
+                    property.name === propertyName ? { ...property, value } : property,
             );
         }
     }
 }
 
 /**
- * Preprocess html field changes — wrap values with markup.
  * @param {RelationalRecord} record
  * @param {Record<string, any>} changes
  */

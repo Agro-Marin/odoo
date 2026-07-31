@@ -15,6 +15,8 @@ import {
     isRelational,
 } from "@web/model/relational_model/field_context";
 
+describe.current.tags("headless");
+
 describe("getId", () => {
     test("returns unique string IDs on successive calls", () => {
         const id1 = getId();
@@ -92,6 +94,7 @@ describe("getBasicEvalContext", () => {
     });
 
     test("passes context reference through", () => {
+        /** @type {{ uid: number, allowed_company_ids: number[] }} */
         const ctx = { uid: 2, allowed_company_ids: [] };
         const config = { context: ctx };
         expect(getBasicEvalContext(config).context).toBe(ctx);

@@ -1,39 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/relational_model/urgent_save_coordinator - Observable urgent-save state machine for RelationalModel */
+/** @module @web/model/relational_model/urgent_save_coordinator */
 
 import { ModelEvent } from "@web/core/events";
 import { SignalStore } from "@web/core/utils/reactive";
 
 /**
- * Observable state machine for the urgent-save axis of a {@link RelationalModel}.
- * Replaces the bare ``model._urgentSave`` boolean with the same Coordinator
- * pattern as ``FormSaveCoordinator``/``SampleDataCoordinator``: transitions are
- * guarded and wrapped in {@link run}, centralizing the try/finally that
- * prevents a leaked flag on throw, plus SignalStore observability. Fires
- * ``ModelEvent.WILL_SAVE_URGENTLY`` on entry so concurrent field/editor
- * consumers can flush pending state synchronously.
- *
- * Does NOT replace the model's ``mutex`` or ``keepLast`` — this is a *mode*
- * flag, not a concurrency primitive. The *load* axis has no coordinator: it's
- * governed by ``loadId`` epochs in ``_getCacheParams``, not a flag.
- *
  * @typedef {"idle" | "active"} UrgentSaveStatus
- *
  * @typedef {"begin" | "end"} UrgentSaveEvent
  */
 
 /**
- * Allowed status transitions. ``_transition`` looks up
- * ``TRANSITIONS[status]?.[event]``; ``undefined`` throws
- * {@link InvalidUrgentSaveTransitionError} instead of corrupting state
- * silently. There is deliberately no ``active -> begin``: a re-entrant
- * ``run()`` (a second ``urgentSave()`` on the SAME model) is NOT a
- * transition — ``run`` short-circuits it before ``_transition`` (see
- * ``run``), so the flag is only ever raised and lowered once, by the
- * outermost entry.
- *
  * @type {Record<UrgentSaveStatus, Partial<Record<UrgentSaveEvent, UrgentSaveStatus>>>}
  */
 const TRANSITIONS = {
@@ -58,10 +36,7 @@ export class InvalidUrgentSaveTransitionError extends Error {
 
 export class UrgentSaveCoordinator extends SignalStore {
     /**
-     * @param {{ bus: { trigger: (event: string, payload?: any) => void } } | null} [bus]
-     *   Optional event bus used to fire ``WILL_SAVE_URGENTLY`` at
-     *   entry.  In the production RelationalModel this is
-     *   ``model.bus``; tests can pass ``null`` to opt out.
+     * @param {{ trigger: (event: string, payload?: any) => void } | null} [bus]
      */
     constructor(bus = null) {
         super();
@@ -69,16 +44,12 @@ export class UrgentSaveCoordinator extends SignalStore {
         this.status = "idle";
         this._bus = bus;
         /**
-         * Promises of re-entrant ``run()`` calls (a second ``urgentSave()`` on
-         * the SAME model while urgent mode is already active). The OUTERMOST
-         * entry awaits these in its ``finally`` before lowering the flag, so
-         * urgent mode covers their whole lifetime.
          * @type {Promise<unknown>[]}
          */
         this._reentrantProms = [];
     }
 
-    /** @returns {boolean} true while a tab-close urgent save is in progress */
+    /** @returns {boolean} */
     get isActive() {
         return this.status === "active";
     }
@@ -95,12 +66,6 @@ export class UrgentSaveCoordinator extends SignalStore {
     }
 
     /**
-     * Run ``fn`` with the urgent-save mode active.  Sets ``status``
-     * to ``"active"``, fires the bus event so concurrent field /
-     * editor consumers can flush their pending state, then awaits
-     * ``fn`` and resets status — even on throw.  The single point of
-     * access for entering urgent-save mode.
-     *
      * @template T
      * @param {() => Promise<T>} fn
      * @returns {Promise<T>}
@@ -113,18 +78,13 @@ export class UrgentSaveCoordinator extends SignalStore {
         }
         this._transition("begin");
         this._reentrantProms = [];
+        /** @type {Promise<any>[]} */
         const proms = [];
         this._bus?.trigger(ModelEvent.WILL_SAVE_URGENTLY, { proms });
         try {
             await Promise.allSettled(proms);
             return await fn();
         } finally {
-            // Drain to a fixed point, not once: ``isActive`` stays true for the
-            // whole drain, so a ``run()`` arriving while we await the current
-            // batch is still accepted as re-entrant — and lands in the array
-            // the snapshot below already swapped out. Draining once lowered the
-            // flag with that save still in flight (audit_challenge_model_claims
-            // pins the exact ordering).
             while (this._reentrantProms.length) {
                 const reentrant = this._reentrantProms;
                 this._reentrantProms = [];
@@ -135,25 +95,9 @@ export class UrgentSaveCoordinator extends SignalStore {
     }
 
     /**
-     * Inversion-of-control helper: await ``promise`` only when NOT in
-     * urgent-save mode; while urgent, returns immediately so callers
-     * (e.g. ``record._update`` awaiting async preprocessors) don't block
-     * the tab-close race. Centralizes the check that would otherwise be
-     * scattered across every consumer, which previously wrote::
-     *
-     *     if (!model.urgentSave.isActive) {
-     *         await prom;
-     *     }
-     *
-     * Does NOT cancel the underlying promise — it keeps running but the
-     * caller no longer awaits it. Use {@link unlessUrgent} when the work
-     * itself should be skipped, not just the await.
-     *
      * @template T
      * @param {Promise<T> | undefined} promise
-     * @returns {Promise<T | undefined>} resolves to ``undefined`` when
-     *   urgent (caller would have skipped the await anyway); otherwise
-     *   to whatever ``promise`` resolves to.
+     * @returns {Promise<T | undefined>}
      */
     async awaitUnlessUrgent(promise) {
         if (this.isActive) {
@@ -164,15 +108,6 @@ export class UrgentSaveCoordinator extends SignalStore {
     }
 
     /**
-     * Inversion-of-control helper: invoke ``fn()`` only when NOT in
-     * urgent-save mode, skipping it entirely (returning ``undefined``
-     * synchronously) for skippable network round trips (onchange RPC,
-     * validation flush) the urgent path has no time to await.
-     *
-     * Unlike {@link awaitUnlessUrgent} (which lets already-started work run
-     * but un-awaits it), this prevents the work from starting at all — use
-     * it for side-effecting RPCs that shouldn't fire on tab close.
-     *
      * @template T
      * @param {() => T | Promise<T>} fn
      * @returns {T | undefined | Promise<T>}
