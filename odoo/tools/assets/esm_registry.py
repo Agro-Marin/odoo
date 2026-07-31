@@ -20,8 +20,10 @@ they relate to parent bundles) in their own ``__manifest__.py`` under an
         'dynamic_children': {'web.assets_web': ['web_tour.automatic']},
 
         # Parent -> satellite bundles whose specifiers piggyback on the
-        # parent's import map.  Skips esbuild entirely — used for
-        # test-runner bundles that load individual test files on demand.
+        # parent's import map.  The merge reads the satellite's per-file
+        # URLs rather than a compiled artifact, but the satellite is still
+        # esbuild-compiled when separately rendered — used for test-runner
+        # bundles that load individual test files on demand.
         'import_map_includes': {
             'web.assets_unit_tests_setup': ['web.assets_unit_tests'],
         },

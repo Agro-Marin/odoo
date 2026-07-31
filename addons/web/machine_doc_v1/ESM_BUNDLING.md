@@ -114,6 +114,15 @@ wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 | `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild; used for test-runner bundles |
 | `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map |
 
+Choosing between the last two: only `secondary_import_map_includes` populates
+`secondary_parents`, which is what drives the esbuild `--alias` step that points
+a satellite's shared specifiers at `odoo.loader.modules` shims. Pick it whenever
+the satellite has to drive the parent's *live* instances — a tour patching
+`browser` on a page where the app is already running. `import_map_includes` only
+grants bare-specifier resolvability, so esbuild inlines a second copy and the
+patch lands on an object nothing is using. Neither key raises; the wrong one
+shows up as a tour step that times out waiting for an effect that never happens.
+
 Example:
 
 ```python
