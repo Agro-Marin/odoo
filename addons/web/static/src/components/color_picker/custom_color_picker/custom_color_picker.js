@@ -21,7 +21,7 @@ import {
 } from "@web/core/utils/format/colors";
 import { clamp } from "@web/core/utils/format/numbers";
 import { uniqueId } from "@web/core/utils/functions";
-import { useDebounced, useThrottleForAnimation } from "@web/core/utils/timing";
+import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const ARROW_KEYS = ["arrowup", "arrowdown", "arrowleft", "arrowright"];
 const SLIDER_KEYS = [...ARROW_KEYS, "pageup", "pagedown", "home", "end"];
@@ -75,11 +75,6 @@ export class CustomColorPicker extends Component {
         this.shouldSetSelectedColor = false;
         this.lastFocusedSliderEl = undefined;
         this.selectedColor = this.props.selectedColor || this.defaultColor;
-        // Enter in a component input fires both keydown and change; the leading
-        // debounce collapses them into one apply.
-        this.debouncedOnChangeInputs = useDebounced(this.onChangeInputs, 10, {
-            immediate: true,
-        });
 
         this.elRef = useRef("el");
         this.hexInputRef = useRef("hexInput");
@@ -451,9 +446,6 @@ export class CustomColorPicker extends Component {
      */
     onKeydown(ev) {
         if (ev.key === "Enter") {
-            if (/** @type {HTMLElement} */ (ev.target).tagName === "INPUT") {
-                this.onChangeInputs(ev);
-            }
             ev.preventDefault();
             this.props.onInputEnter(ev);
         }
@@ -664,18 +656,6 @@ export class CustomColorPicker extends Component {
         this._updateOpacity(opacity);
         this._updateUI();
         this.shouldSetSelectedColor = true;
-    }
-    /**
-     * @private
-     * @param {Event} ev
-     */
-    onChangeInputs(ev) {
-        const target = /** @type {HTMLInputElement} */ (ev.target);
-        if (target.dataset.colorMethod === "hex") {
-            return;
-        }
-        this._updateUI();
-        this._colorSelected();
     }
     /**
      * @private

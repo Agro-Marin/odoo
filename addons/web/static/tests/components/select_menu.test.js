@@ -1760,3 +1760,37 @@ test("the selected set follows a new value", async () => {
     expect(menu.isOptionSelected(choices[0])).toBe(false);
     expect(menu.isOptionSelected(choices[1])).toBe(true);
 });
+
+test("a selection mutated in place is still reflected", async () => {
+    const choices = [
+        { value: "a", label: "A" },
+        { value: "b", label: "B" },
+    ];
+    let menu;
+    class Probe extends SelectMenu {
+        setup() {
+            super.setup();
+            menu = this;
+        }
+    }
+    class Parent extends Component {
+        static components = { SelectMenu: Probe };
+        static props = ["*"];
+        static template = xml`<SelectMenu multiSelect="true" choices="choices" value="state.value"/>`;
+        setup() {
+            this.choices = choices;
+            this.state = useState({ value: ["a"] });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    expect(menu.isOptionSelected(choices[1])).toBe(false);
+
+    // Reactive arrays are mutated in place, so the identity never changes.
+    parent.state.value.push("b");
+    await animationFrame();
+    expect(menu.isOptionSelected(choices[1])).toBe(true);
+
+    parent.state.value.splice(0, 1);
+    await animationFrame();
+    expect(menu.isOptionSelected(choices[0])).toBe(false);
+});

@@ -16,29 +16,31 @@ export class TagsList extends Component {
         tags: { type: Array, element: Object },
     };
 
-    /** @returns {number} */
-    get visibleTagsCount() {
+    /**
+     * The last visible slot goes to the "+N" counter, so overflowing shows one
+     * fewer tag than the limit.
+     *
+     * @returns {number}
+     */
+    get splitIndex() {
         return this.props.visibleItemsLimit - 1;
+    }
+    /** @returns {boolean} */
+    get hasOverflow() {
+        return Boolean(
+            this.props.visibleItemsLimit &&
+            this.props.tags.length > this.props.visibleItemsLimit,
+        );
     }
     /** @returns {Object[]} */
     get visibleTags() {
-        if (
-            this.props.visibleItemsLimit &&
-            this.props.tags.length > this.props.visibleItemsLimit
-        ) {
-            return this.props.tags.slice(0, this.visibleTagsCount);
-        }
-        return this.props.tags;
+        return this.hasOverflow
+            ? this.props.tags.slice(0, this.splitIndex)
+            : this.props.tags;
     }
     /** @returns {Record<string, any>[]} */
     get otherTags() {
-        if (
-            this.props.visibleItemsLimit &&
-            this.props.tags.length > this.props.visibleItemsLimit
-        ) {
-            return this.props.tags.slice(this.visibleTagsCount);
-        }
-        return [];
+        return this.hasOverflow ? this.props.tags.slice(this.splitIndex) : [];
     }
     /** @returns {string} */
     get tooltipInfo() {
