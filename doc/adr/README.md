@@ -27,6 +27,8 @@ enforce them.
 | [0009](0009-close-the-enforcement-loop.md) | Close the enforcement loop (mainline gating, full façade scope, true floors) | Accepted |
 | [0010](0010-consolidate-cache-compute-access-surfaces.md) | Consolidate the internal cache/compute access surfaces around `env._core` | Accepted |
 | [0011](0011-persistence-backend-port.md) | Persistence backend port (`env.backend`) | Accepted |
+| [0012](0012-attachment-storage-layers.md) | Attachment storage layers (object store, key policy, delivery) | Accepted |
+| [0013](0013-content-placement.md) | Content placement — where an attachment's bytes are, as data | Accepted |
 
 ## Template
 
