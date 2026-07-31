@@ -1,17 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/ace/ace_field - Code editor field using the Ace/CodeEditor component */
+/** @module @web/fields/specialized/ace/ace_field */
 
 import { Component, useState } from "@odoo/owl";
 import { CodeEditor } from "@web/components/code_editor/code_editor";
 import { cookie } from "@web/core/browser/cookie";
 import { ModelEvent } from "@web/core/events";
+import { formatText } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { useBus } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { useFieldDirtySignal } from "@web/fields/field_dirty_signal";
-import { formatText } from "@web/fields/formatters";
 import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
@@ -25,6 +25,9 @@ export class AceField extends Component {
         mode: "qweb",
     };
     static components = { CodeEditor };
+
+    /** @type {ReturnType<typeof useFieldDirtySignal>} */
+    setFieldDirty;
 
     setup() {
         this.state = useState({});

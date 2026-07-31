@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/user_groups/res_user_group_ids_field - Field widget for visualizing and configuring res.users access rights (group_ids) */
+/** @module @web/fields/specialized/user_groups/res_user_group_ids_field */
 
 import { Component, onWillRender, toRaw, useChildSubEnv } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -14,11 +14,6 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
 import { Record } from "@web/model/record";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 
-/**
- * This widget is only used for the 'group_ids' field of the 'res.users'
- * form view or the 'implied_ids' field of the 'res.groups' form view,
- * to visualize and configure access rights.
- */
 const viewRegistry = registry.category("views");
 
 class ResUserGroupIdsField extends Component {
@@ -28,10 +23,6 @@ class ResUserGroupIdsField extends Component {
     }
     static props = { ...standardFieldProps };
 
-    /**
-     * Initialize categories, privileges, fields, archInfo, and env-shared group info.
-     * Registers an onWillRender hook that recomputes group selection state each render.
-     */
     setup() {
         const { groups, privileges, categories } = deepCopy(
             toRaw(this.props.record.data.view_group_hierarchy),
@@ -208,8 +199,7 @@ class ResUserGroupIdsField extends Component {
     }
 
     /**
-     * Build the XML arch fragment for the "Extra Rights" category (debug-only boolean toggles).
-     * @returns {string} XML arch string for extra rights groups split into two columns
+     * @returns {string}
      */
     getExtraGroupsArch() {
         return `
@@ -230,18 +220,16 @@ class ResUserGroupIdsField extends Component {
     }
 
     /**
-     * Derive the dynamic field name used in the generated form for a privilege.
-     * @param {{ id: string | number }} privilege - privilege or extra-rights entry
-     * @returns {string} field name of the form `field_<privilege.id>`
+     * @param {{ id: string | number }} privilege
+     * @returns {string}
      */
     getFieldName(privilege) {
         return `field_${privilege.id}`;
     }
 
     /**
-     * Build the XML arch fragment for a single privilege field.
-     * @param {{ id: string | number }} privilege - privilege descriptor
-     * @returns {string} `<field>` XML element with the res_user_group_ids_privilege widget
+     * @param {{ id: string | number }} privilege
+     * @returns {string}
      */
     getPrivilegeArch(privilege) {
         const fieldName = this.getFieldName(privilege);
@@ -249,9 +237,8 @@ class ResUserGroupIdsField extends Component {
     }
 
     /**
-     * Build the XML arch fragment for a category containing its privilege fields.
      * @param {{ name: string, privileges: Array<{ id: string | number }> }} category
-     * @returns {string} `<group>` XML element wrapping all privilege fields in the category
+     * @returns {string}
      */
     getCategoryArch(category) {
         return `
@@ -261,10 +248,8 @@ class ResUserGroupIdsField extends Component {
     }
 
     /**
-     * Handle changes in the generated sub-form and propagate them back to the
-     * parent record's x2many group_ids field via SET commands.
-     * @param {unknown} _ - unused record reference
-     * @param {{[key: string]: number | boolean}} values - changed field name to value map
+     * @param {unknown} _
+     * @param {{[key: string]: number | boolean}} values
      * @returns {Promise<void>}
      */
     onRecordChanged(_, values) {
@@ -290,6 +275,7 @@ class ResUserGroupIdsField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 const resUserGroupIdsField = {
     component: ResUserGroupIdsField,
     fieldDependencies: [{ name: "view_group_hierarchy", type: "json", readonly: true }],

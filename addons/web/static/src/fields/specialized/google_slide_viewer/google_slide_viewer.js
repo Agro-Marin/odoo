@@ -1,19 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/google_slide_viewer/google_slide_viewer - Embedded Google Slides presentation viewer field */
+/** @module @web/fields/specialized/google_slide_viewer/google_slide_viewer */
 
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
 import { registerField } from "@web/fields/_registry";
 import { CharField, charField } from "@web/fields/basic/char/char_field";
 
+/**
+ * @param {string | false} value
+ * @param {string | number} page
+ */
 export function getGoogleSlideUrl(value, page) {
     /** @type {string | false} */
     let url = false;
     const googleRegExp =
         /(^https:\/\/docs\.google\.com).*(\/d\/e\/|\/d\/)([A-Za-z0-9-_]+)/;
-    const google = value.match(googleRegExp);
+    const google = /** @type {string} */ (value).match(googleRegExp);
     if (google && google[3]) {
         url = `https://docs.google.com/presentation${google[2]}${google[3]}/preview?slide=${encodeURIComponent(page)}`;
     }
@@ -22,6 +26,9 @@ export function getGoogleSlideUrl(value, page) {
 
 export class GoogleSlideViewer extends CharField {
     static template = "web.GoogleSlideViewer";
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+
     setup() {
         super.setup();
         this.notification = useService("notification");
@@ -46,6 +53,7 @@ export class GoogleSlideViewer extends CharField {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const googleSlideViewer = {
     ...charField,
     component: GoogleSlideViewer,

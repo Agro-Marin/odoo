@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/properties/property_definition_selection - Sortable option editor for property definition selection/tags types */
+/** @module @web/fields/specialized/properties/property_definition_selection */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { deepCopy } from "@web/core/utils/collections/objects";
@@ -63,9 +63,6 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * Current available options, deep-copied so we can restore the
-     * original props if form-view editing is discarded.
-     *
      * @returns {array}
      */
     get options() {
@@ -73,8 +70,6 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * Options visible by the UI, include the newly created option if needed.
-     *
      * @returns {array}
      */
     get optionsVisible() {
@@ -94,8 +89,6 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * We changed an option label.
-     *
      * @param {Event} event
      * @param {number} optionIndex
      */
@@ -126,12 +119,6 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * Lose focus on an option: cancel the newly created option if we
-     * didn't write anything in it.
-     *
-     * `_ignoreBlur` can be set to keep an empty option alive across a blur
-     * (it regains focus on the next `useEffect`).
-     *
      * @param {FocusEvent} event
      * @param {number} optionIndex
      */
@@ -153,11 +140,6 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * We pressed Enter on an option, add it if it's not
-     * empty and automatically create a new one.
-     *
-     * Navigate using the up / down arrows.
-     *
      * @param {KeyboardEvent} event
      * @param {number} optionIndex
      */
@@ -195,8 +177,6 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * Change the default selection option.
-     *
      * @param {integer} optionIndex
      */
     onOptionSetDefault(optionIndex) {
@@ -210,8 +190,6 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * Ask to remove the selection option.
-     *
      * @param {integer} optionIndex
      */
     onOptionDelete(optionIndex) {
@@ -227,11 +205,8 @@ export class PropertyDefinitionSelection extends Component {
     }
 
     /**
-     * Move an option after another one.
-     *
-     * @param {string} movedOption - the option to move
-     * @param {string} destinationOption - the target option
-     *      (null if we move the option at the first index)
+     * @param {string} movedOption
+     * @param {string} destinationOption
      */
     onOptionMoveTo(movedOption, destinationOption) {
         this._ignoreBlur = true;

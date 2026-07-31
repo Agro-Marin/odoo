@@ -1,14 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/field_selector/field_selector_field - Model field path selector field for Char columns */
+/** @module @web/fields/specialized/field_selector/field_selector_field */
 
 import { Component } from "@odoo/owl";
 import { ModelFieldSelector } from "@web/components/model_field_selector/model_field_selector";
+import { formatChar } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { registerField } from "@web/fields/_registry";
-import { formatChar } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class FieldSelectorField extends Component {
@@ -23,6 +23,7 @@ export class FieldSelectorField extends Component {
         required: { type: Boolean, optional: true },
     };
 
+    /** @param {Record<string, any>} fieldDef */
     filter(fieldDef) {
         if (fieldDef.type === "separator") {
             return false;
@@ -33,6 +34,7 @@ export class FieldSelectorField extends Component {
         return !this.props.onlySearchable || fieldDef.searchable;
     }
 
+    /** @param {any} value */
     async update(value) {
         await this.props.record.update({ [this.props.name]: value });
     }
@@ -64,6 +66,7 @@ export class FieldSelectorField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const fieldSelectorField = {
     component: FieldSelectorField,
     displayName: _t("Field Selector"),

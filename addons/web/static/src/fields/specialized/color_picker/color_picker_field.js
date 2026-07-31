@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/color_picker/color_picker_field - Predefined color palette picker field for Integer columns */
+/** @module @web/fields/specialized/color_picker/color_picker_field */
 
 import { Component } from "@odoo/owl";
 import { ColorList } from "@web/components/colorlist/colorlist";
@@ -20,17 +20,18 @@ export class ColorPickerField extends Component {
 
     static RECORD_COLORS = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
 
-    /** @returns {boolean} Whether the color palette is expanded (non-list, editable views) */
+    /** @returns {boolean} */
     get isExpanded() {
         return !this.props.canToggle && !this.props.readonly;
     }
 
-    /** @param {number} colorIndex Color index to set on the record */
+    /** @param {number} colorIndex */
     switchColor(colorIndex) {
         this.props.record.update({ [this.props.name]: colorIndex });
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const colorPickerField = {
     component: ColorPickerField,
     supportedTypes: ["integer"],

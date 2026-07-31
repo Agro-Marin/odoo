@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/domain/domain_field - Domain expression editor field with record count and selector UI */
+/** @module @web/fields/specialized/domain/domain_field */
 
 import { Component, useState } from "@odoo/owl";
 import { DomainSelector } from "@web/components/domain_selector/domain_selector";
@@ -110,7 +110,6 @@ export class DomainField extends Component {
             flushDebugDomain,
         );
 
-        // Retraction on destroy is handled by the signal hook itself.
         this.setFieldDirty = useFieldDirtySignal();
     }
 
@@ -126,34 +125,56 @@ export class DomainField extends Component {
         return props.record.data[props.name] || "[]";
     }
 
-    getEvaluatedDomain(props = this.props) {
+    /**
+     * @param {Object} [props]
+     * @returns {{ domain: any[] | { isInvalid: true }, hasExpressions: boolean }}
+     */
+    evaluateDomain(props = this.props) {
         const domainStringRepr = this.getDomain(props);
         const evalContext = this.getContext(props);
-        if (domainContainsExpressions(domainStringRepr)) {
-            const allowExpressions = this.allowExpressions(props);
-            if (domainStringRepr !== this.lastDomainChecked) {
-                this.lastDomainChecked = domainStringRepr;
-                this.notification.add(
-                    allowExpressions
-                        ? _t(
-                              "The domain involves non-literals. Their evaluation might fail.",
-                          )
-                        : _t("The domain should not involve non-literals"),
-                );
-            }
-            if (!allowExpressions) {
-                return { isInvalid: true };
-            }
+        const hasExpressions = domainContainsExpressions(domainStringRepr);
+        if (hasExpressions && !this.allowExpressions(props)) {
+            return { domain: { isInvalid: true }, hasExpressions };
         }
         try {
-            const domain = new Domain(domainStringRepr).toList(evalContext);
-            return domain;
+            return {
+                domain: new Domain(domainStringRepr).toList(evalContext),
+                hasExpressions,
+            };
         } catch (error) {
             if (error instanceof InvalidDomainError) {
-                return { isInvalid: true };
+                return { domain: { isInvalid: true }, hasExpressions };
             }
             throw error;
         }
+    }
+
+    /**
+     * @param {Object} [props]
+     */
+    reportDomainExpressions(props = this.props) {
+        const domainStringRepr = this.getDomain(props);
+        if (
+            !domainContainsExpressions(domainStringRepr) ||
+            domainStringRepr === this.lastDomainChecked
+        ) {
+            return;
+        }
+        this.lastDomainChecked = domainStringRepr;
+        this.notification.add(
+            this.allowExpressions(props)
+                ? _t("The domain involves non-literals. Their evaluation might fail.")
+                : _t("The domain should not involve non-literals"),
+        );
+    }
+
+    /**
+     * @param {Object} [props]
+     * @returns {any[] | { isInvalid: true }}
+     */
+    getEvaluatedDomain(props = this.props) {
+        this.reportDomainExpressions(props);
+        return this.evaluateDomain(props).domain;
     }
 
     getResModel(props = this.props) {
@@ -341,6 +362,7 @@ export class DomainField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const domainField = {
     component: DomainField,
     displayName: _t("Domain"),

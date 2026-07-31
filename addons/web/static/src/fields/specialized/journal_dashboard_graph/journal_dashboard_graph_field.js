@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field - Chart.js graph field for accounting journal dashboard data */
+/** @module @web/fields/specialized/journal_dashboard_graph/journal_dashboard_graph_field */
 
 import { Component, onWillStart, useEffect, useRef } from "@odoo/owl";
 import { cookie } from "@web/core/browser/cookie";
@@ -22,10 +22,6 @@ export class JournalDashboardGraphField extends Component {
         },
     };
     static defaultProps = {
-        // `graph_type` is an arch attribute, so it is absent whenever the view
-        // author forgets it — but the prop was required, which only surfaces as
-        // a prop-validation error in dev. In production it left `config`
-        // undefined all the way into `new Chart(el, undefined)`.
         graphType: "bar",
     };
 
@@ -50,14 +46,10 @@ export class JournalDashboardGraphField extends Component {
         );
     }
 
-    /** Instantiates the Chart.js chart for the current config. */
     renderChart() {
         if (this.chart) {
             this.chart.destroy();
         }
-        // The payload is server-generated JSON, but a malformed one used to
-        // propagate out of the effect and take down the whole view rather than
-        // just blanking this tile.
         try {
             this.data = JSON.parse(this.props.record.data[this.props.name] || "[]");
         } catch (error) {
@@ -77,7 +69,7 @@ export class JournalDashboardGraphField extends Component {
                 : this.getBarChartConfig();
         this.chart = new Chart(this.canvasRef.el, config);
     }
-    /** @returns {Object} Chart.js configuration object for a line chart */
+    /** @returns {Object} */
     getLineChartConfig() {
         const labels = this.data[0].values.map((pt) => pt.x);
         const color10 = getColor(3, cookie.get("color_scheme"), "odoo");
@@ -201,6 +193,7 @@ export class JournalDashboardGraphField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const journalDashboardGraphField = {
     component: JournalDashboardGraphField,
     supportedTypes: ["text"],

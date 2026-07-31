@@ -1,12 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/specialized/ir_ui_view_ace/ace_field - Code editor field variant for ir.ui.view XML arch editing */
+/** @module @web/fields/specialized/ir_ui_view_ace/ace_field */
 
 /** @odoo-module native */
-import { IrUiViewCodeEditor } from "@web/components/ir_ui_view_code_editor/code_editor";
 import { registerField } from "@web/fields/_registry";
 import { AceField, aceField } from "@web/fields/specialized/ace/ace_field";
+import { IrUiViewCodeEditor } from "@web/fields/specialized/ir_ui_view_ace/ir_ui_view_code_editor";
 
 // @ts-expect-error OWL static props typing
 export class IrUiViewAceField extends AceField {
@@ -14,6 +14,7 @@ export class IrUiViewAceField extends AceField {
     static components = { IrUiViewCodeEditor };
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const irUiViewAceField = {
     ...aceField,
     component: IrUiViewAceField,
