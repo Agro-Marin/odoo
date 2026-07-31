@@ -6,6 +6,7 @@
 import { Component, onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
 import { _t } from "@web/core/l10n/translation";
+import { KeepLast } from "@web/core/utils/concurrency";
 import { useService } from "@web/core/utils/hooks";
 import { fuzzyLookup } from "@web/core/utils/search";
 export class ModelSelector extends Component {
@@ -24,9 +25,12 @@ export class ModelSelector extends Component {
 
     /** @type {import("services").ServiceFactories["orm"]} */
     orm;
+    /** @type {KeepLast<any>} */
+    keepLast;
 
     setup() {
         this.orm = useService("orm");
+        this.keepLast = new KeepLast();
 
         onWillStart(() => this.loadModels(this.props));
         onWillUpdateProps((nextProps) => {
@@ -43,9 +47,13 @@ export class ModelSelector extends Component {
      * @returns {Promise<void>}
      */
     async loadModels(props) {
-        const records = props.models
-            ? await this.orm.call("ir.model", "display_name_for", [props.models])
-            : await this._fetchAvailableModels();
+        // Two prop changes in quick succession race, and the slower one is not
+        // necessarily the older one.
+        const records = await this.keepLast.add(
+            props.models
+                ? this.orm.call("ir.model", "display_name_for", [props.models])
+                : this._fetchAvailableModels(),
+        );
 
         this.models = records.map((record) => ({
             cssClass: `o_model_selector_${record.model.replaceAll(".", "_")}`,

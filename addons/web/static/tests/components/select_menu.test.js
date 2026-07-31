@@ -1119,13 +1119,15 @@ test("SelectMenu group items only after being opened", async () => {
     await editInput("option d");
 
     expect(".o_select_menu_menu").toHaveText("Group B\nOption D");
-    expect.verifySteps(["filterOptions", "filterOptions"]);
+    // One derivation, not two: the applied search and the choices the handler
+    // swapped in reach the same render, so a single pass covers both.
+    expect.verifySteps(["filterOptions"]);
     await editInput("");
 
     await animationFrame();
 
     expect(".o_select_menu_menu").toHaveText("Option A\nGroup A\nOption B\nOption C");
-    expect.verifySteps(["filterOptions", "filterOptions"]);
+    expect.verifySteps(["filterOptions"]);
 });
 
 test("search value is cleared when reopening the menu", async () => {
@@ -1793,4 +1795,113 @@ test("a selection mutated in place is still reflected", async () => {
     parent.state.value.splice(0, 1);
     await animationFrame();
     expect(menu.isOptionSelected(choices[0])).toBe(false);
+});
+
+test("a choice replaced in place is reflected in the toggler", async () => {
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`<SelectMenu choices="state.choices" value="state.value" onSelect="() => {}"/>`;
+        setup() {
+            this.state = useState({
+                value: "b",
+                choices: [
+                    { label: "Alpha", value: "a" },
+                    { label: "Bee", value: "b" },
+                ],
+            });
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    expect(".o_select_menu_toggler").toHaveValue("Bee");
+
+    // Same array, same value: only the choice object was swapped out.
+    parent.state.choices.splice(1, 1, { label: "Bee v2", value: "b" });
+    await animationFrame();
+    expect(".o_select_menu_toggler").toHaveValue("Bee v2");
+});
+
+test("an open menu picks up choices pushed in place", async () => {
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`<SelectMenu choices="state.choices" value="state.value" onSelect="() => {}"/>`;
+        setup() {
+            this.state = useState({
+                value: "b",
+                choices: [
+                    { label: "Alpha", value: "a" },
+                    { label: "Bee", value: "b" },
+                ],
+            });
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    await open();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha", "Bee"]);
+
+    parent.state.choices.push({ label: "Cee", value: "c" });
+    await animationFrame();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha", "Bee", "Cee"]);
+
+    parent.state.choices.splice(0, 1);
+    await animationFrame();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Bee", "Cee"]);
+});
+
+test("a multiSelect tag created in place shows up", async () => {
+    // Shape of website_slides' slide upload dialog: the "create" button pushes
+    // into the choices AND into the value, both in place.
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`
+            <SelectMenu choices="state.tags" value="state.tagIds" multiSelect="true"
+                        onSelect="(values) => this.state.tagIds = values"/>
+        `;
+        setup() {
+            this.state = useState({
+                // Saved records carry numeric ids, ones being created carry a
+                // temporary string one, exactly as the upload dialog does.
+                /** @type {{ value: any, label: string }[]} */
+                tags: [{ value: 1, label: "Existing" }],
+                /** @type {any[]} */
+                tagIds: [1],
+            });
+        }
+        createTag(label) {
+            this.state.tags.push({ value: "temp1", label });
+            this.state.tagIds.push("temp1");
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    expect(queryAllTexts(".o_tag")).toEqual(["Existing"]);
+
+    parent.createTag("Brand new");
+    await animationFrame();
+    expect(queryAllTexts(".o_tag")).toEqual(["Existing", "Brand new"]);
+});
+
+test("a selected choice that leaves the choices keeps its label", async () => {
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`
+            <SelectMenu choices="state.choices" value="state.value" multiSelect="true"
+                        onSelect="() => {}"/>
+        `;
+        setup() {
+            this.state = useState({
+                value: ["a"],
+                choices: [{ label: "Alpha", value: "a" }],
+            });
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    expect(queryAllTexts(".o_tag")).toEqual(["Alpha"]);
+
+    // A server-side search narrows the list; the picked tag must stay readable.
+    parent.state.choices.splice(0, 1);
+    await animationFrame();
+    expect(queryAllTexts(".o_tag")).toEqual(["Alpha"]);
 });

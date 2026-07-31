@@ -120,15 +120,18 @@ export class FileViewer extends Component {
         if (files === this.props.files) {
             return;
         }
-        const index = files.indexOf(this.state.file);
-        if (index === this.state.index) {
-            return;
-        }
+        const index = this.state.file ? files.indexOf(this.state.file) : -1;
         if (index !== -1) {
+            // Same file, it may only have moved.
             this.state.index = index;
             return;
         }
-        this.activateFile(Math.min(this.state.index, files.length - 1), files);
+        // The file we were on is gone. Falling back on the index needs it to be
+        // a real position: emptying the list parks it at -1, and comparing that
+        // against a still-missing file used to read as "nothing changed", which
+        // left the viewer blank for good once the list refilled.
+        const fallback = Math.min(Math.max(this.state.index, 0), files.length - 1);
+        this.activateFile(fallback, files);
     }
 
     /**
@@ -301,7 +304,7 @@ export class FileViewer extends Component {
         if (ty === 0) {
             this.translate.y = 0;
         }
-        this.zoomerRef.el.style.cssText = "transform: " + `translate(${tx}px, ${ty}px)`;
+        this.zoomerRef.el.style.setProperty("transform", `translate(${tx}px, ${ty}px)`);
     }
 
     get imageStyle() {

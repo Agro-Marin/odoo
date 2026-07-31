@@ -645,3 +645,69 @@ test("a focused box keeps the user's keystrokes across an unrelated re-render", 
     await animationFrame();
     expect("input.o_time_picker_input").toHaveValue("9:1");
 });
+
+test("a browsed suggestion is committed when focus leaves the field", async () => {
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { TimePicker };
+        static template = xml`
+            <TimePicker value="'09:00'" onChange.bind="onChange"/>
+            <input class="elsewhere"/>
+        `;
+        onChange(value) {
+            expect.step(`change ${value.toString()}`);
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    await click(".o_time_picker_input");
+    await animationFrame();
+    await press("arrowdown");
+    await animationFrame();
+    expect("input.o_time_picker_input").toHaveValue("9:15");
+
+    queryOne(".elsewhere").focus();
+    await animationFrame();
+    expect.verifySteps(["change 9:15"]);
+});
+
+test("a browsed suggestion is committed on tab", async () => {
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { TimePicker };
+        static template = xml`<TimePicker value="'09:00'" onChange.bind="onChange"/>`;
+        onChange(value) {
+            expect.step(`change ${value.toString()}`);
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    await click(".o_time_picker_input");
+    await animationFrame();
+    await press("arrowdown");
+    await press("arrowdown");
+    await animationFrame();
+    await press("tab");
+    await animationFrame();
+    expect.verifySteps(["change 9:30"]);
+});
+
+test("typing supersedes a browsed suggestion", async () => {
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { TimePicker };
+        static template = xml`<TimePicker value="'09:00'" onChange.bind="onChange"/>`;
+        onChange(value) {
+            expect.step(`change ${value.toString()}`);
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    await click(".o_time_picker_input");
+    await animationFrame();
+    await press("arrowdown");
+    await animationFrame();
+    await edit("11:45", { confirm: "enter" });
+    await animationFrame();
+    expect.verifySteps(["change 11:45"]);
+});

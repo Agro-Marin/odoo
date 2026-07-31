@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { queryAll } from "@odoo/hoot-dom";
-import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
+import { animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
     contains,
@@ -291,4 +291,46 @@ test("an unchanged models prop is not reloaded", async () => {
     parent.state.tick++;
     await animationFrame();
     expect.verifySteps([]);
+});
+
+test("a superseded model load does not overwrite the newer one", async () => {
+    const gates = [new Deferred(), new Deferred(), new Deferred()];
+    let call = 0;
+    onRpc("ir.model", "display_name_for", async ({ args }) => {
+        await gates[call++];
+        return args[0].map((model) => ({ model, display_name: `Name ${model}` }));
+    });
+
+    /** @type {any} */
+    let selector;
+    class Probe extends ModelSelector {
+        setup() {
+            super.setup();
+            selector = this;
+        }
+    }
+    class Parent extends Component {
+        static props = ["*"];
+        static components = { Probe };
+        static template = xml`<Probe models="state.models" onModelSelected="() => {}"/>`;
+        setup() {
+            this.state = useState({ models: ["first.model"] });
+        }
+    }
+    gates[0].resolve();
+    const parent = await mountWithCleanup(Parent);
+    expect(selector.models.map((m) => m.data.technical)).toEqual(["first.model"]);
+
+    parent.state.models = ["second.model"];
+    await animationFrame();
+    parent.state.models = ["third.model"];
+    await animationFrame();
+
+    // The third load lands first, then the second one it superseded.
+    gates[2].resolve();
+    await animationFrame();
+    gates[1].resolve();
+    await animationFrame();
+
+    expect(selector.models.map((m) => m.data.technical)).toEqual(["third.model"]);
 });

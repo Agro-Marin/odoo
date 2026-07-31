@@ -181,6 +181,10 @@ export class EmojiPicker extends Component {
     recentCategory;
     /** @type {ResizeObserver | undefined} */
     navbarResizeObserver;
+    /** @type {ResizeObserver | undefined} */
+    gridResizeObserver;
+    /** @type {number | undefined} */
+    gridWidth;
     /** @type {boolean | (() => HTMLElement | null)} */
     shouldScrollElem = false;
     /** @type {string | undefined} */
@@ -243,6 +247,24 @@ export class EmojiPicker extends Component {
             }
             this.navbarResizeObserver = new ResizeObserver(() => this.adaptNavbar());
             this.navbarResizeObserver.observe(this.navbarRef.el);
+            // Kept apart from the navbar's observer on purpose: adaptNavbar
+            // re-renders, and driving both from one callback makes each one's
+            // reflow re-trigger the other.
+            if (this.gridRef.el) {
+                this.gridWidth = this.gridRef.el.clientWidth;
+                this.gridResizeObserver = new ResizeObserver(() => {
+                    // The matrix maps grid cells to rows and columns, so it is
+                    // only valid for the width it was measured at: reflowing the
+                    // grid without rebuilding it points the arrow keys at cells
+                    // that are no longer where it thinks they are.
+                    const gridWidth = this.gridRef.el?.clientWidth;
+                    if (gridWidth !== undefined && gridWidth !== this.gridWidth) {
+                        this.gridWidth = gridWidth;
+                        this.updateEmojiPickerRepr();
+                    }
+                });
+                this.gridResizeObserver.observe(this.gridRef.el);
+            }
             this.adaptNavbar();
             this.highlightActiveCategory();
             if (this.props.storeScroll) {
@@ -320,6 +342,7 @@ export class EmojiPicker extends Component {
         );
         onWillUnmount(() => {
             this.navbarResizeObserver?.disconnect();
+            this.gridResizeObserver?.disconnect();
             if (!this.gridRef.el) {
                 return;
             }

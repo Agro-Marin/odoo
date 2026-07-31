@@ -27,7 +27,7 @@
                     t-on-focus="() => this.ensureOpen({ selectAll: true })"
                     t-on-click="() => this.ensureOpen({ selectAll: true })"
                     t-on-change="onChange"
-                    t-on-keydown.capture="onKeydown"
+                    t-on-blur="onBlur"
                     t-att-placeholder="getPlaceholder()"
                     role="combobox"
                     aria-autocomplete="list"

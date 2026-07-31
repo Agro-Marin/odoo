@@ -85,7 +85,6 @@ export class CodeEditor extends Component {
                 this.aceEditor = aceEditor;
 
                 this.aceEditor.setOptions({
-                    maxLines: this.props.maxLines,
                     showPrintMargin: false,
                     useWorker: false,
                 });
@@ -134,11 +133,12 @@ export class CodeEditor extends Component {
         );
 
         useEffect(
-            (readonly, showLineNumbers) => {
+            (readonly, showLineNumbers, maxLines) => {
                 this.aceEditor.setOptions({
                     readOnly: readonly,
                     highlightActiveLine: !readonly,
                     highlightGutterLine: !readonly,
+                    maxLines,
                 });
 
                 this.aceEditor.renderer.setOptions({
@@ -150,7 +150,11 @@ export class CodeEditor extends Component {
                     ? "none"
                     : "block";
             },
-            () => [this.props.readonly, this.props.showLineNumbers],
+            () => [
+                this.props.readonly,
+                this.props.showLineNumbers,
+                this.props.maxLines,
+            ],
         );
 
         useEffect(
