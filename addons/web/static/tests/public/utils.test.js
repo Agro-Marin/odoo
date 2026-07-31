@@ -48,7 +48,7 @@ describe("PairSet", () => {
         expect(pairSet.has(a, b)).toBe(false);
         pairSet.add(a, b);
         pairSet.add(a, b);
-        expect(pairSet.map.get(a).size).toBe(1);
+        expect(pairSet.map.get(a)?.size).toBe(1);
         pairSet.delete(a, b);
         expect(pairSet.has(a, b)).toBe(false);
     });
@@ -60,11 +60,13 @@ describe("PairSet", () => {
 
 describe("patch dynamic content", () => {
     test("patch applies new values", () => {
+        /** @type {Record<string, Record<string, any>>} */
         const parent = {
             somewhere: {
                 "t-att-doNotTouch": 123,
             },
         };
+        /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
                 "t-att-class": () => ({
@@ -90,12 +92,14 @@ describe("patch dynamic content", () => {
     });
 
     test("patch removes undefined values", () => {
+        /** @type {Record<string, Record<string, any>>} */
         const parent = {
             somewhere: {
                 "t-att-doNotTouch": 123,
                 "t-att-removeMe": "abc",
             },
         };
+        /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
                 "t-att-removeMe": undefined,
@@ -110,6 +114,7 @@ describe("patch dynamic content", () => {
     });
 
     test("patch combines function outputs", () => {
+        /** @type {Record<string, Record<string, any>>} */
         const parent = {
             somewhere: {
                 "t-att-style": () => ({
@@ -119,9 +124,10 @@ describe("patch dynamic content", () => {
                 }),
             },
         };
+        /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-att-style": (el, old) => ({
+                "t-att-style": /** @param {any} el @param {any} old */ (el, old) => ({
                     changeMe: 50,
                     doubleMe: old.doubleMe * 2,
                     addMe: 1000,
@@ -138,6 +144,7 @@ describe("patch dynamic content", () => {
     });
 
     test("patch t-on-... provides access to super", () => {
+        /** @type {Record<string, Record<string, any>>} */
         const parent = {
             somewhere: {
                 "t-on-click": () => {
@@ -145,9 +152,10 @@ describe("patch dynamic content", () => {
                 },
             },
         };
+        /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-on-click": (el, oldFn) => {
+                "t-on-click": /** @param {any} el @param {any} oldFn */ (el, oldFn) => {
                     oldFn();
                     expect.step("patch");
                 },
@@ -159,10 +167,12 @@ describe("patch dynamic content", () => {
     });
 
     test("patch t-on-... does not require knowledge about there being a super", () => {
+        /** @type {Record<string, Record<string, any>>} */
         const parent = {};
+        /** @type {Record<string, Record<string, any>>} */
         const patch = {
             somewhere: {
-                "t-on-click": (el, oldFn) => {
+                "t-on-click": /** @param {any} el @param {any} oldFn */ (el, oldFn) => {
                     oldFn();
                     expect.step("patch");
                 },
@@ -175,12 +185,14 @@ describe("patch dynamic content", () => {
 });
 
 test("removing an entry does not leave an empty selector behind", () => {
+    /** @type {Record<string, Record<string, any>>} */
     const dynamicContent = {};
     patchDynamicContent(dynamicContent, { ".gone": { "t-on-click": undefined } });
     // an empty bucket is still a selector the framework re-resolves on every
     // updateContent, for a directive that can no longer apply anything
     expect(Object.keys(dynamicContent)).toEqual([]);
 
+    /** @type {Record<string, Record<string, any>>} */
     const existing = { ".kept": { "t-on-click": () => {}, "t-att-a": () => "b" } };
     patchDynamicContent(existing, { ".kept": { "t-on-click": undefined } });
     expect(Object.keys(existing)).toEqual([".kept"]);

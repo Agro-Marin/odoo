@@ -1,35 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/public_boot - Frontend (public pages) app bootstrap: env, services, OWL app and global page behaviors */
+/** @module @web/public/public_boot */
 
 import { App, Component, whenReady } from "@odoo/owl";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { browser } from "@web/core/browser/browser";
-import { cookie } from "@web/core/browser/cookie";
-import { Settings } from "@web/core/l10n/luxon";
 import { appTranslateFn } from "@web/core/l10n/translation";
-import { jsToPyLocale, pyToJsLocale } from "@web/core/l10n/utils";
 import { getTemplate } from "@web/core/templates";
 import { makeEnv, startServices } from "@web/env";
 import lazyloader from "@web/public/lazyloader";
 
-function getLang() {
-    const html = document.documentElement;
-    return jsToPyLocale(html.getAttribute("lang")) || "en_US";
-}
-const lang = cookie.get("frontend_lang") || getLang();
-
 function noop() {}
 
 /**
- * Marks a submit button as busy and returns the undo.
- *
- * The undo drops the exact nodes it inserted, rather than the button's first
- * `<i>` — which is how callers used to clean up after a cancelled submit, and
- * which removes a legitimate icon (or throws) on a button that has one of its
- * own.
- *
  * @param {HTMLElement} buttonEl
  * @returns {() => void}
  */
@@ -38,7 +22,6 @@ function markSubmitting(buttonEl) {
     spinnerEl.className = "fa-solid fa-circle-notch fa-spin";
     const spaceEl = document.createTextNode(" ");
     buttonEl.prepend(spinnerEl, spaceEl);
-    // an anchor has no `disabled`; assigning one only adds a dead property
     const isDisableable = "disabled" in buttonEl;
     const wasDisabled = /** @type {HTMLButtonElement} */ (buttonEl).disabled;
     if (isDisableable) {
@@ -54,13 +37,7 @@ function markSubmitting(buttonEl) {
 }
 
 /**
- * Page-global behaviors historically installed by the legacy PublicRoot
- * widget: they are simple document-level delegations and one-shot DOM
- * decorations, needed on every public page (portal, website, ...).
- *
- * @returns {() => void} removes the delegations again; the one-shot decorations
- *  are not undone. Production never calls it — it exists so a test can install
- *  these behaviours without leaking listeners into the next one.
+ * @returns {() => void}
  */
 export function setupGlobalPageBehaviors() {
     /** @type {Array<() => void>} */
@@ -81,11 +58,6 @@ export function setupGlobalPageBehaviors() {
         if (!form) {
             return;
         }
-        // a submit that is cancelled navigates nowhere and so has no progress
-        // to show. Handlers bound to the form itself have already run by the
-        // time this delegated one does; one that cancels afterwards is caught
-        // by the wrapper below. Without either, every caller that cancels a
-        // submit had to reach into the button and undo the effect itself.
         if (ev.defaultPrevented) {
             return;
         }
@@ -117,24 +89,13 @@ export function setupGlobalPageBehaviors() {
             /gif|jpe|jpg|png|webp/.test(imgEl.dataset.mimetype || "") &&
             imgEl.dataset.src
         ) {
-            // interpolated raw, a src holding a quote closed the url() and let
-            // the rest of the attribute through as declarations of its own
             const src = imgEl.dataset.src.replace(/["\\]/g, "\\$&");
             imgEl.style.backgroundImage = `url("${src}")`;
         }
     }
 
-    // through the browser facade, like the locale above: `window.location` has
-    // non-configurable properties and cannot be patched, which left this the
-    // one behaviour here no test could reach
     const scrollTopMatch = browser.location.hash.match(/scrollTop=([0-9]+)/);
     if (scrollTopMatch) {
-        // measured: in standards mode `document.body.scrollTop = n` leaves
-        // window.scrollY at 0 — the viewport scrolls on <html>, not <body>.
-        // Nothing in odoo, enterprise or the themes emits this hash — it came
-        // over with the legacy PublicRoot widget — but it does work on a page
-        // tall enough to honour it (measured in a browser), so it stays for
-        // whatever outside the codebase links that way.
         window.scrollTo(0, +scrollTopMatch[1]);
     }
 
@@ -146,10 +107,7 @@ export function setupGlobalPageBehaviors() {
 }
 
 /**
- * Boots the public (frontend) OWL application: environment and services,
- * MainComponentsContainer, locale, and the global page behaviors.
- *
- * @returns {Promise<import("@web/env").OdooEnv>} the started public env
+ * @returns {Promise<import("@web/env").OdooEnv>}
  */
 export async function startPublicApp() {
     await lazyloader.allScriptsLoaded;
@@ -166,24 +124,13 @@ export async function startPublicApp() {
         translateFn: appTranslateFn,
         translatableAttributes: ["data-tooltip"],
     });
-    Settings.defaultLocale = pyToJsLocale(lang) || browser.navigator.language;
     setupGlobalPageBehaviors();
     try {
         const root = await app.mount(document.body);
         // @ts-expect-error -- debug property assigned to odoo global at runtime
         odoo.__WOWL_DEBUG__ = { root };
     } finally {
-        // `is-ready` is what the website builder's iframe wait and every tour
-        // gate on, so it has to mean the page is usable. Hanging it off
-        // `isReady` alone set it while MainComponentsContainer — the dialogs
-        // and notifications a tour is about to drive — was still mounting;
-        // measured, a probe reading the page the moment the flag appeared found
-        // the app not mounted yet. Both legs now have to settle.
-        //
-        // Settle, not succeed: either leg failing is reported through its own
-        // channel, and withholding the flag only converts that into a timeout
-        // that says nothing about the actual crash.
-        const settled = (prom) => prom.then(noop, noop);
+        const settled = (/** @type {Promise<any>} */ prom) => prom.then(noop, noop);
         settled(env.services["public.interactions"].isReady).then(() =>
             document.body.setAttribute("is-ready", "true"),
         );

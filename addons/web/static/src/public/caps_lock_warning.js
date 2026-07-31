@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/caps_lock_warning - Interaction that detects Caps Lock state and toggles a warning on password inputs */
+/** @module @web/public/caps_lock_warning */
 
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
@@ -24,9 +24,6 @@ export class CapsLockWarning extends Interaction {
     }
 
     /**
-     * Reads the Caps Lock state off any key event in the field and toggles the
-     * warning.
-     *
      * @private
      * @param {KeyboardEvent} ev
      */
@@ -36,10 +33,6 @@ export class CapsLockWarning extends Interaction {
             return;
         }
         if (ev.type === "keydown" && ev.key === "CapsLock") {
-            // browsers disagree on whether the Caps Lock key's own keydown
-            // reports the state from before or after the toggle; its keyup is
-            // unambiguous everywhere, so wait for that one reading instead of
-            // guessing which convention this browser follows
             return;
         }
         this.isWarningHidden = !state;

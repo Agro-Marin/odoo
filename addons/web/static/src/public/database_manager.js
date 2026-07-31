@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/public/database_manager - DOM event handlers for the database manager page (eye toggle, modals, master password) */
+/** @module @web/public/database_manager */
 
 // @ts-ignore — bootstrap is exposed at runtime by the asset bundle, but its types are not part of this fork's npm tree
 import { Modal } from "bootstrap";
@@ -14,8 +14,6 @@ window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e)
 });
 
 document.addEventListener("DOMContentLoaded", function () {
-    // "click" and not "mousedown": the toggle is a button, and a keyboard user
-    // activating it with Enter or Space never produces a mousedown
     document.body.addEventListener("click", function (ev) {
         const target = /** @type {HTMLElement} */ (ev.target);
         const eyeToggle = target.closest(".o_little_eye");
@@ -35,11 +33,6 @@ document.addEventListener("DOMContentLoaded", function () {
             "aria-label",
             isShown ? "Hide password" : "Show password",
         );
-        // the markup ships a `fa-eye` that nothing ever swapped, so the icon
-        // said "hidden" while the field was showing the password in clear —
-        // contradicting the aria-pressed set just above. Same pair as the
-        // framework's own toggle in show_password.js, which this page cannot
-        // reuse: it is served as a bare ES module, outside every asset bundle.
         const iconEl = eyeToggle.querySelector(".fa-eye, .fa-eye-slash");
         iconEl?.classList.toggle("fa-eye", !isShown);
         iconEl?.classList.toggle("fa-eye-slash", isShown);

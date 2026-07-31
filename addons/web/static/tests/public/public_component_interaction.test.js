@@ -66,3 +66,24 @@ test(`content of owl-component tag is cleared`, async () => {
             </owl-root> 
         </owl-component>`);
 });
+
+test(`an unregistered name leaves the placeholder markup alone`, async () => {
+    const html = `
+            <div>
+                <owl-component name="no_such_component">server-rendered fallback</owl-component>
+            </div>
+    `;
+
+    expect.errors(1);
+    await expect(startInteractions(html)).rejects.toThrow(
+        `No public component registered as "no_such_component"`,
+    );
+    await animationFrame();
+    expect.verifyErrors([/No public component registered/]);
+    // the component is resolved BEFORE the placeholder is dropped: the getter
+    // throws on an unknown name, and the children are removed with
+    // `insertBackOnClean = false`, so a typo in a template's `name` used to
+    // delete the fallback for good and put nothing in its place
+    expect("owl-component").toHaveText("server-rendered fallback");
+    expect("owl-component owl-root").toHaveCount(0);
+});

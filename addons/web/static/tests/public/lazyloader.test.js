@@ -176,6 +176,7 @@ describe("waiting for the lazy JS", () => {
         freeze();
         expect(document.body).toHaveClass("o_lazy_js_waiting");
 
+        /** @type {string[]} */
         const seen = [];
         const button = queryOne(".a");
         button.addEventListener("click", () => seen.push("own-listener"));
@@ -193,6 +194,7 @@ describe("waiting for the lazy JS", () => {
         // the freeze applies to the controls chosen when it started: making it
         // cheaper must not quietly make it wider
         queryOne("#wrapwrap").innerHTML = `<button class="late">x</button>`;
+        /** @type {string[]} */
         const seen = [];
         const button = queryOne(".late");
         button.addEventListener("click", () => seen.push("own-listener"));
@@ -210,6 +212,7 @@ describe("waiting for the lazy JS", () => {
                 <a class="hash" href="#">x</a>
             </div>`);
         freeze();
+        /** @type {string[]} */
         const seen = [];
         for (const sel of [".opted", ".nav", ".hash"]) {
             queryOne(sel).addEventListener("click", (ev) => {
@@ -248,6 +251,7 @@ describe("waiting for the lazy JS", () => {
             <form class="outside"></form>
             <form class="opted o_no_wait_lazy_js"></form>`);
         freeze();
+        /** @type {string[]} */
         const seen = [];
         for (const sel of ["form.outside", "form.opted"]) {
             const formEl = queryOne(sel);
@@ -271,6 +275,7 @@ describe("waiting for the lazy JS", () => {
         freeze();
         stopWaitingLazy();
         expect(document.body).not.toHaveClass("o_lazy_js_waiting");
+        /** @type {string[]} */
         const seen = [];
         const button = queryOne(".a");
         button.addEventListener("click", () => seen.push("own-listener"));
