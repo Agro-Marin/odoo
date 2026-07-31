@@ -256,6 +256,12 @@
             # concatenated into non-ESM bundle"), so the tour helpers never
             # loaded and every customer-display tour failed to start.
             "point_of_sale.customer_display_assets_test",
+            # Same story on the POS page itself: ``assets_debug`` includes
+            # ``point_of_sale.base_tests``, which pulls web_tour and hoot-dom.
+            # Undeclared, those were dropped from the bundle, the Owl templates
+            # they register never loaded, and every fake tour died on a missing
+            # ``point_of_sale.Loader``.
+            "point_of_sale.assets_debug",
         ],
         # ``/pos/ui`` renders ``web.assets_tests`` in test mode; declaring it a
         # secondary of the POS app bundles makes the served import map carry the
@@ -263,9 +269,21 @@
         # ``odoo.loader.modules`` shim), so a test patching ``browser`` reaches
         # the running app instead of a re-bundled copy. Both the light and dark
         # prod bundles can be the page's first (import-map-winning) ESM bundle.
+        # ``assets_debug`` is rendered last on that same page (after the app
+        # bundle and after ``web.assets_tests``), so it needs the same treatment
+        # for the same reason: its tour helpers have to drive the running app's
+        # ``browser``/``registry``, not a second copy esbuild would otherwise
+        # inline. Listed under BOTH prod bundles because either one can be the
+        # page's first bundle, depending on the ``pos_color_scheme`` cookie.
         "secondary_import_map_includes": {
-            "point_of_sale.assets_prod": ["web.assets_tests"],
-            "point_of_sale.assets_prod_dark": ["web.assets_tests"],
+            "point_of_sale.assets_prod": [
+                "web.assets_tests",
+                "point_of_sale.assets_debug",
+            ],
+            "point_of_sale.assets_prod_dark": [
+                "web.assets_tests",
+                "point_of_sale.assets_debug",
+            ],
             # Same shape on the customer-display page: the app bundle is the
             # first (import-map-winning) ESM bundle and the test bundle is
             # rendered after it, so it must share the app's module singletons
