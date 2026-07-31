@@ -1,20 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/field_arch - Parses an XML `<field>` arch node into a normalized fieldInfo object */
-
-/**
- * View-arch parsing for `<field>` nodes.
- *
- * Extracted from {@link Field} (`@web/fields/field`) so arch parsing —
- * a view-layer concern — isn't coupled to the rendering component's registry
- * lookups and render-time setup.
- *
- * Recursively dispatches to view-type ArchParsers
- * (`registry.category("views").get(viewType).ArchParser`) for x2many
- * sub-views; living under `@web/views/` makes that a same-layer reference
- * instead of a back-edge from fields → views.
- */
+/** @module @web/views/field_arch */
 
 import { evaluateExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
@@ -27,15 +14,11 @@ const isSmall = utils.isSmall;
 const viewRegistry = registry.category("views");
 
 /**
- * Parses an XML `<field>` node from a view arch into a normalized
- * fieldInfo object, resolving widget, options, decorations, x2many
- * sub-views, and related fields.
- *
- * @param {Element} node - XML `<field>` element from the view arch
- * @param {Record<string, { fields: Record<string, { type: string, string?: string, relation?: string, readonly?: boolean, [k: string]: any }> }>} models - Model metadata keyed by model name
- * @param {string} modelName - Technical model name (e.g. "res.partner")
- * @param {string} viewType - View type (e.g. "list", "form", "kanban")
- * @param {string} [jsClass] - JS class prefix for compound registry lookup
+ * @param {Element} node
+ * @param {Record<string, { fields: Record<string, { type: string, string?: string, relation?: string, readonly?: boolean, [k: string]: any }> }>} models
+ * @param {string} modelName
+ * @param {string} viewType
+ * @param {string} [jsClass]
  * @returns {{ name: string, type: string, viewType: string, widget: string | null, field: ReturnType<typeof getFieldFromRegistry>, context: string, string?: string, help?: string, onChange: boolean, forceSave: boolean, options: Object, decorations: Record<string, string>, attrs: Record<string, string>, domain?: string, readonly?: string | null, required?: string | null, invisible?: string | null, column_invisible?: string | null, viewMode?: string, views?: Object, relatedFields?: Object, isHandle?: boolean }}
  */
 export function parseFieldNode(node, models, modelName, viewType, jsClass) {
@@ -131,7 +114,6 @@ export function parseFieldNode(node, models, modelName, viewType, jsClass) {
         }
         for (const child of node.children) {
             const viewType = child.tagName;
-            // a ``/** @type {any} */`` escape on the call. The runtime
             const { ArchParser } =
                 /** @type {{ ArchParser: new () => { parse: (n: Element, m: any, r?: string) => any } }} */ (
                     viewRegistry.get(viewType)

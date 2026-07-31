@@ -48,7 +48,7 @@ onRpc("has_group", () => true);
 
 test("Many2OneReferenceField in form view", async () => {
     mockService("action", {
-        doAction() {
+        async doAction() {
             expect.step("doAction");
         },
     });

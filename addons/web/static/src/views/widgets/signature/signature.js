@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/signature/signature - Widget opening a signature drawing dialog and writing the captured image to a Binary field */
+/** @module @web/views/widgets/signature/signature */
 
 import { Component } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
@@ -9,7 +9,6 @@ import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
-/** Widget that opens a signature drawing dialog and writes the captured image to a Binary field on the record. */
 export class SignatureWidget extends Component {
     static template = "web.SignatureWidget";
     static props = {
@@ -20,12 +19,16 @@ export class SignatureWidget extends Component {
         signatureField: { type: String, optional: true },
     };
 
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialogService;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+
     setup() {
         this.dialogService = useService("dialog");
         this.orm = useService("orm");
     }
 
-    /** Open the SignatureDialog pre-filled with the record's full name field. */
     onClickSignature() {
         const nameAndSignatureProps = {
             mode: "draw",
@@ -49,14 +52,14 @@ export class SignatureWidget extends Component {
         const dialogProps = {
             defaultName,
             nameAndSignatureProps,
-            uploadSignature: (data) => this.uploadSignature(data),
+            uploadSignature: (/** @type {{ signatureImage: string }} */ data) =>
+                this.uploadSignature(data),
         };
         this.dialogService.add(SignatureDialog, dialogProps);
     }
 
     /**
-     * Write the base64 signature image to the record's signature field via ORM.
-     * @param {{ signatureImage: string }} param0 - data URL from the signature pad
+     * @param {{ signatureImage: string }} param0
      */
     async uploadSignature({ signatureImage }) {
         const file = signatureImage.split(",")[1];
@@ -77,6 +80,7 @@ export class SignatureWidget extends Component {
     }
 }
 
+/** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const signatureWidget = {
     component: SignatureWidget,
     extractProps: ({ attrs }) => {

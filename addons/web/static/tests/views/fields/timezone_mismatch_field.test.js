@@ -87,9 +87,12 @@ test("timezone_mismatch_field mismatch property", () => {
     ];
 
     for (const testCase of testCases) {
-        patchWithCleanup(Date.prototype, {
-            getTimezoneOffset: () => testCase.browserOffset,
-        });
+        patchWithCleanup(
+            Date.prototype,
+            /** @type {Partial<Date>} */ ({
+                getTimezoneOffset: () => testCase.browserOffset,
+            }),
+        );
 
         patchWithCleanup(TimezoneMismatchField.prototype, {
             props: {

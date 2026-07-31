@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { computeAggregatedValue } from "@web/views/view_measurements";
+import { computeArchiveEnabled } from "@web/views/view_utils";
 
 describe.current.tags("headless");
 
@@ -63,5 +64,32 @@ describe("computeAggregatedValue", () => {
         expect(() => computeAggregatedValue([], "oups")).toThrow(
             "Invalid aggregator 'oups'",
         );
+    });
+});
+
+describe("computeArchiveEnabled", () => {
+    const fields = {
+        active: { readonly: false },
+        x_active: { readonly: true },
+        name: { readonly: false },
+    };
+
+    test("presence and readonly both read from fields by default", () => {
+        expect(computeArchiveEnabled(fields)).toBe(true);
+        expect(computeArchiveEnabled({ active: { readonly: true } })).toBe(false);
+        expect(computeArchiveEnabled({ x_active: { readonly: false } })).toBe(true);
+        expect(computeArchiveEnabled({ name: { readonly: false } })).toBe(false);
+    });
+
+    test("presentIn scopes presence without changing where readonly is read", () => {
+        expect(computeArchiveEnabled(fields, { presentIn: { active: {} } })).toBe(true);
+        expect(computeArchiveEnabled(fields, { presentIn: { name: {} } })).toBe(false);
+        expect(computeArchiveEnabled(fields, { presentIn: { x_active: {} } })).toBe(
+            false,
+        );
+    });
+
+    test("a field present only in presentIn does not throw", () => {
+        expect(computeArchiveEnabled({}, { presentIn: { active: {} } })).toBe(false);
     });
 });

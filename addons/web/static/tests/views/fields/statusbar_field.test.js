@@ -278,7 +278,9 @@ test("statusbar with tooltip for help text", async () => {
     expect(".o_statusbar_status").not.toHaveClass("o_field_empty");
     expect(".o_field_statusbar").toHaveAttribute("data-tooltip-info");
     const tooltipInfo = JSON.parse(
-        queryAttribute(".o_field_statusbar", "data-tooltip-info"),
+        /** @type {string} */ (
+            queryAttribute(".o_field_statusbar", "data-tooltip-info")
+        ),
     );
     expect(tooltipInfo.field.help).toBe("some info about the field", {
         message: "tooltip text is present on the field",

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/attach_document/attach_document - Widget button that uploads files as ir.attachment records and optionally calls a model action */
+/** @module @web/views/widgets/attach_document/attach_document */
 
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -17,6 +17,9 @@ export class AttachDocumentWidget extends Component {
         highlight: { type: Boolean },
     };
 
+    /** @type {HTMLInputElement} */
+    fileInput;
+
     setup() {
         // eslint-disable-next-line no-restricted-syntax -- see comment above: raw services outlive the component
         this.http = this.env.services.http;
@@ -31,7 +34,7 @@ export class AttachDocumentWidget extends Component {
         this.fileInput.onchange = this.onInputChange.bind(this);
     }
 
-    /** Validate file sizes and upload selected files to the server. */
+    /** @returns {Promise<null | void>} */
     async onInputChange() {
         const ufile = [...this.fileInput.files];
         for (const file of ufile) {
@@ -56,7 +59,6 @@ export class AttachDocumentWidget extends Component {
         await this.onFileUploaded(parsedFileData);
     }
 
-    /** Save the record first, then open the native file picker. */
     async triggerUpload() {
         if (await this.beforeOpen()) {
             this.fileInput.value = "";
@@ -65,8 +67,7 @@ export class AttachDocumentWidget extends Component {
     }
 
     /**
-     * After upload, optionally call the configured model action with the new attachment IDs.
-     * @param {Array<{id: number}>} files - server response with created attachment records
+     * @param {Array<{id: number}>} files
      */
     async onFileUploaded(files) {
         const { action, record } = this.props;
@@ -79,12 +80,13 @@ export class AttachDocumentWidget extends Component {
         }
     }
 
-    /** @returns {Promise<boolean>} save the record before opening the file picker */
+    /** @returns {Promise<boolean>} */
     beforeOpen() {
         return this.props.record.save();
     }
 }
 
+/** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const attachDocumentWidget = {
     component: AttachDocumentWidget,
     extractProps: ({ attrs }) => {

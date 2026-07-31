@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/multi_selection_buttons - Floating toolbar with Add/Cancel/Delete for multi-record selection in calendar/gantt views */
+/** @module @web/views/view_components/multi_selection_buttons */
 
 import { Component, onWillRender, toRaw, useEffect, useRef, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
@@ -18,7 +18,6 @@ import { FormArchParser } from "@web/views/form/form_arch_parser";
 
 import { MultiCreatePopover } from "./multi_create_popover.js";
 
-/** Floating toolbar with Add/Cancel/Delete actions for multi-record selection in calendar/gantt views, with a multi-create popover. */
 export class MultiSelectionButtons extends Component {
     static template = "web.MultiSelectionButtons";
     static props = {
@@ -42,6 +41,19 @@ export class MultiSelectionButtons extends Component {
         Popover: MultiCreatePopover,
     };
 
+    /** @type {import("@odoo/owl").Ref} */
+    addButtonRef;
+    /** @type {CallbackRecorder} */
+    callbackRecorder;
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialogService;
+    /** @type {ReturnType<typeof usePopover>} */
+    multiCreatePopover;
+    /** @type {{ isReady: boolean }} */
+    state;
+    /** @type {import("services").ServiceFactories["view"]} */
+    viewService;
+
     setup() {
         this.viewService = useService("view");
         this.dialogService = useService("dialog");
@@ -53,6 +65,7 @@ export class MultiSelectionButtons extends Component {
                         this.state.isReady = true;
                     })
                     .catch((error) => {
+                        this._loadViewProm = null;
                         console.error("Failed to load multi-create view:", error);
                     });
             }
@@ -105,19 +118,17 @@ export class MultiSelectionButtons extends Component {
         });
     }
 
-    /** @returns {Object | null} current form data from the open popover, or null */
+    /** @returns {Object | null} */
     getMultiCreateDataFromPopover() {
         const fn = this.callbackRecorder.callbacks[0];
         return fn?.() || null;
     }
 
-    /** Persist time range to localStorage and cache form values for reuse. */
     storeMultiCreateData(multiCreateData) {
         this.storeTimeRange(multiCreateData.timeRange);
         this.multiCreateValues = this.computeValues(multiCreateData.record);
     }
 
-    /** Fetch and parse the multi-create form view definition from the server. */
     async loadMultiCreateView() {
         const { context, resModel, multiCreateView } = this.props.reactive;
         const result = await this.viewService.loadViews(
@@ -147,7 +158,7 @@ export class MultiSelectionButtons extends Component {
         };
     }
 
-    /** @returns {Object} props to pass to the MultiCreatePopover component */
+    /** @returns {Object} */
     getMultiCreatePopoverProps() {
         return {
             timeRange: this.props.reactive.showMultiCreateTimeRange
@@ -166,21 +177,13 @@ export class MultiSelectionButtons extends Component {
         };
     }
 
-    /** @returns {{ start: Time, end: Time }} time range from localStorage or defaults */
+    /** @returns {{ start: Time, end: Time }} */
     getTimeRange() {
+        const stored = (key, fallback) =>
+            Time.from(this.getItemFromStorage(key, fallback)) ?? new Time(fallback);
         return {
-            start: new Time(
-                this.getItemFromStorage("timeRange_start", {
-                    hour: 12,
-                    minute: 0,
-                }),
-            ),
-            end: new Time(
-                this.getItemFromStorage("timeRange_end", {
-                    hour: 13,
-                    minute: 0,
-                }),
-            ),
+            start: stored("timeRange_start", { hour: 12, minute: 0 }),
+            end: stored("timeRange_end", { hour: 13, minute: 0 }),
         };
     }
 
@@ -215,9 +218,8 @@ export class MultiSelectionButtons extends Component {
     }
 
     /**
-     * Extract plain data values from a form record, flattening x2many sub-records.
-     * @param {Object} record - ORM record proxy
-     * @returns {Object} flat values dict suitable for re-creation
+     * @param {Object} record
+     * @returns {Object}
      */
     computeValues(record) {
         const multiCreateFormRecord = toRaw(record);
@@ -236,18 +238,16 @@ export class MultiSelectionButtons extends Component {
         return values;
     }
 
-    /** Open the multi-create popover anchored to the Add button. */
     onAdd() {
         if (this.multiCreatePopover.isOpen) {
             return;
         }
         this.multiCreatePopover.open(
-            this.addButtonRef.el,
+            /** @type {HTMLElement} */ (this.addButtonRef.el),
             this.getMultiCreatePopoverProps(),
         );
     }
 
-    /** Show a confirmation dialog before deleting all selected records. */
     onDelete() {
         const body =
             this.props.reactive.nbSelected === 1

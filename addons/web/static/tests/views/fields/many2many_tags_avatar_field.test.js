@@ -162,7 +162,7 @@ test("widget many2many_tags_avatar in list view", async () => {
     );
     expect(tag).toHaveAttribute("data-tooltip-template", "web.TagsList.Tooltip");
     const tooltipInfo = JSON.parse(tag.dataset["tooltipInfo"]);
-    expect(tooltipInfo.tags.map((tag) => tag.text).join(" ")).toBe(
+    expect(tooltipInfo.tags.map((/** @type {any} */ tag) => tag.text).join(" ")).toBe(
         "record 6 record 7",
         {
             message: "shows a tooltip on hover",

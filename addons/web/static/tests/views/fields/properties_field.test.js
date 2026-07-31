@@ -1306,10 +1306,14 @@ test("properties: date(time) property manipulations", async () => {
         },
     ];
     onRpc(({ method, args }) => {
-        expect.step(method);
+        // Ambient access checks, not steps: how many fire depends on which
+        // addons patch the property field (`html_editor` asks for
+        // `base.group_portal`), and `web`'s own suite runs with only `web`'s
+        // dependency closure loaded.
         if (method === "has_access" || method === "has_group") {
             return true;
         }
+        expect.step(method);
         if (method === "web_save") {
             expect(args[1].properties).toEqual([
                 {
@@ -1333,9 +1337,6 @@ test("properties: date(time) property manipulations", async () => {
         resId: 5000,
         arch: `<form><field name="company_id"/><field name="properties"/></form>`,
     });
-    // No `has_group`: the only caller on this screen is `html_editor`'s patch of
-    // PropertyValue, and `html_editor` sits outside `web`'s dependency closure,
-    // so `module_scope=web` never loads it.
     expect.verifySteps(["get_views", "web_read"]);
 
     expect("[property-name=property_1] .o_property_field_value input").toHaveValue(

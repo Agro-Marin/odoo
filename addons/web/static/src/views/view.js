@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view - Generic view loader: resolves arch, fields, and compiler then renders the appropriate view component */
+/** @module @web/views/view */
 
 import {
     Component,
@@ -37,50 +37,40 @@ import { computeViewClassName } from "./view_utils.js";
  * @property {() => Record<string, any>} [getPagerProps]
  * @property {Record<string, any>[]} [viewSwitcherEntry]
  * @property {typeof Component} [Banner]
- *
  * @typedef {import("@web/core/context").Context} Context
  * @typedef {import("@web/env").OdooEnv} OdooEnv
  * @typedef {import("@web/core/utils/order_by").OrderTerm} OrderTerm
- *
  * @typedef ViewProps
  * @property {string} resModel
  * @property {ViewType} type
- *
- * @property {string} [arch] if given, fields must be given too /\ no post processing is done (evaluation of "groups" attribute,...)
- * @property {Record<string, any>} [fields] if given, arch must be given too
+ * @property {string} [arch]
+ * @property {Record<string, any>} [fields]
  * @property {Record<string, any>} [relatedModels]
  * @property {number|false} [viewId]
  * @property {[number|false, string][]} [views]
  * @property {Record<string, any>} [actionMenus]
  * @property {boolean} [loadActionMenus=false]
- *
- * @property {string} [searchViewArch] if given, searchViewFields must be given too
- * @property {Record<string, any>} [searchViewFields] if given, searchViewArch must be given too
+ * @property {string} [searchViewArch]
+ * @property {Record<string, any>} [searchViewFields]
  * @property {number|false} [searchViewId]
  * @property {Record<string, any>[]} [irFilters]
  * @property {boolean} [loadIrFilters=false]
- *
  * @property {Record<string, any>} [comparison]
  * @property {Context} [context={}]
  * @property {any} [domain]
  * @property {string[]} [groupBy]
  * @property {OrderTerm[]} [orderBy]
- *
  * @property {boolean} [useSampleModel]
  * @property {string} [noContentHelp]
  * @property {string} [className]
  * @property {string} [jsClass]
  * @property {boolean} [noBreadcrumbs]
- *
- * @property {Record<string, any>} [display={}] to rework
- *
- * --- Manipulated by withSearch ---
+ * @property {Record<string, any>} [display={}]
  * @property {boolean} [activateFavorite]
  * @property {Record<string, any>[]} [dynamicFilters]
  * @property {boolean} [hideCustomGroupBy]
  * @property {string[]} [searchMenuTypes]
  * @property {Record<string, any>} [globalState]
- *
  * @typedef {"activity"
  *  | "calendar"
  *  | "cohort"
@@ -105,7 +95,6 @@ viewRegistry.addValidation({
     "*": true,
 });
 
-/** Default config used when env.config is absent or incomplete (standalone views). */
 export function getDefaultConfig() {
     const breadcrumbReactive = reactive([{ name: undefined }]);
     const config = {
@@ -199,17 +188,6 @@ export class View extends Component {
     static canOrderByCount = false;
 
     /**
-     * Monotonic epoch for {@link loadView}: a slow older `loadViews` RPC must
-     * not resolve after a newer one and clobber the resolved Controller with
-     * stale data. Each `loadView` captures this and bails if superseded.
-     *
-     * Declared as a field so its type is `number`, not `number | undefined`:
-     * it is assigned in `setup()`, which TypeScript does not credit for
-     * definite assignment. Safe here because OWL constructs the component and
-     * calls `setup()` afterwards — see Pattern 7 in
-     * `machine_doc_v1/JSDOC_TYPE_TIGHTENING.md`, and do NOT copy this onto a
-     * `Model` subclass (its base constructor calls `setup()` itself).
-     *
      * @type {number}
      */
     loadViewId;
@@ -317,19 +295,21 @@ export class View extends Component {
             actionMenus,
         } = props;
 
+        const hasSearchView = views.some((v) => v[1] === "search");
         const loadView = !arch || (!actionMenus && loadActionMenus);
         const loadSearchView =
-            (searchViewId !== undefined && !searchViewArch) ||
-            (!irFilters && loadIrFilters);
+            hasSearchView &&
+            ((searchViewId !== undefined && !searchViewArch) ||
+                (!irFilters && loadIrFilters));
 
         /** @type {any} */
-        let viewDescription = { viewId, resModel, type };
+        let viewDescription = { id: viewId, resModel, type };
         let searchViewDescription;
         if (loadView || loadSearchView) {
             const options = {
                 actionId: config.actionId,
                 loadActionMenus,
-                loadIrFilters,
+                loadIrFilters: loadIrFilters && hasSearchView,
             };
             if (config.currentEmbeddedActionId) {
                 options.embeddedActionId = config.currentEmbeddedActionId;
@@ -358,12 +338,6 @@ export class View extends Component {
             relatedModels = relatedModels || markRaw(result.relatedModels);
         }
 
-        // Outside the branch above: `views` was amended unconditionally (the
-        // entry for `type` is synthesized when absent), and consumers read it
-        // back off the config — `calendar_model` resolves its form view there,
-        // `graph_renderer` and `pivot_renderer` look up sibling views. Publishing
-        // it only when an RPC happened left a View mounted with an explicit
-        // `arch` advertising a `views` list that omits its own type.
         config.views = views;
 
         if (!arch) {
@@ -374,11 +348,6 @@ export class View extends Component {
         }
 
         const archXmlDoc = parseXML((arch ?? "").replaceAll("&amp;nbsp;", nbsp));
-        // `context`, not `this.props.context`: OWL assigns `component.props`
-        // only AFTER every `onWillUpdateProps` handler settles, so on the
-        // reload path (`onWillUpdateProps` -> `loadView(nextProps)`) reading
-        // `this.props` applies the PREVIOUS action's create/edit/delete
-        // restrictions to the newly loaded arch.
         for (const action of ACTIONS) {
             if (action in context && !context[action]) {
                 archXmlDoc.setAttribute(action, "0");
@@ -488,9 +457,10 @@ export class View extends Component {
             const viewDisplay = deepCopy(descr.display);
             const display = { ...this.withSearchProps.display };
             for (const key of Object.keys(viewDisplay)) {
-                if (typeof display[key] === "object") {
-                    Object.assign(display[key], viewDisplay[key]);
-                } else if (!(key in display) || display[key]) {
+                const current = display[key];
+                if (current && typeof current === "object") {
+                    display[key] = { ...current, ...viewDisplay[key] };
+                } else if (!(key in display) || current) {
                     display[key] = viewDisplay[key];
                 }
             }

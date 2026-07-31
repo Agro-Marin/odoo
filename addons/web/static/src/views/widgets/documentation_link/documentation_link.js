@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/documentation_link/documentation_link - Widget rendering a hyperlink to versioned Odoo documentation */
+/** @module @web/views/widgets/documentation_link/documentation_link */
 
 import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -10,7 +10,6 @@ import { standardWidgetProps } from "@web/views/widgets/standard_widget_props";
 
 const LINK_REGEX = /^https?:\/\//;
 
-/** Widget that renders a hyperlink to the Odoo documentation, auto-prefixing the server version. */
 export class DocumentationLink extends Component {
     static template = "web.DocumentationLink";
     static props = {
@@ -22,7 +21,7 @@ export class DocumentationLink extends Component {
         alertLink: { type: Boolean, optional: 1 },
     };
 
-    /** @returns {string} full documentation URL (absolute if path is a full URL, otherwise versioned) */
+    /** @returns {string} */
     get url() {
         if (LINK_REGEX.test(this.props.path)) {
             return this.props.path;
@@ -48,6 +47,7 @@ export class DocumentationLink extends Component {
     }
 }
 
+/** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const documentationLink = {
     component: DocumentationLink,
     extractProps: ({ attrs }) => {

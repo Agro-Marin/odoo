@@ -177,7 +177,7 @@ test("AceEditorField commits its pending edit into the tab-close beacon", async 
     const sendBeaconDeferred = new Deferred();
     mockSendBeacon((_, blob) => {
         expect.step("sendBeacon");
-        blob.text().then((r) => {
+        /** @type {Blob} */ (blob).text().then((/** @type {any} */ r) => {
             const { params } = JSON.parse(r);
             if (params.method === "web_save" && params.model === "res.partner") {
                 expect(params.args).toEqual([[1], { foo: "urgent" }]);

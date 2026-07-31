@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/multi_create_popover - Popover with mini form and optional time range picker for quick-creating records */
+/** @module @web/views/view_components/multi_create_popover */
 
 import { Component } from "@odoo/owl";
 import { TimePicker } from "@web/components/time_picker/time_picker";
@@ -12,7 +12,6 @@ import { useService } from "@web/core/utils/hooks";
 import { Record } from "@web/model/record";
 import { FormRenderer } from "@web/views/form/form_renderer";
 
-/** Popover with a mini form and optional time range picker for quick-creating records in calendar/gantt views. */
 export class MultiCreatePopover extends Component {
     static template = "web.MultiCreatePopover";
     static components = {
@@ -28,6 +27,11 @@ export class MultiCreatePopover extends Component {
         callbackRecorder: Object,
         timeRange: { type: [Object, { value: null }] },
     };
+
+    /** @type {{ timeRange: any }} */
+    multiCreateData;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
 
     setup() {
         this.notification = useService("notification");
@@ -56,13 +60,12 @@ export class MultiCreatePopover extends Component {
         useCallbackRecorder(this.props.callbackRecorder, () => this.multiCreateData);
     }
 
-    /** @param {{ start: any, end: any }} timeRange luxon DateTime instances */
+    /** @param {{ start: any, end: any }} timeRange */
     setMultiCreateTimeRange(timeRange) {
         Object.assign(this.multiCreateData.timeRange, timeRange);
     }
 
     /**
-     * Validate the form record and time range, showing notifications on failure.
      * @returns {Promise<boolean>}
      */
     async isValidMultiCreateData() {
@@ -95,7 +98,6 @@ export class MultiCreatePopover extends Component {
         return true;
     }
 
-    /** Validate and propagate the creation data to the parent, then close the popover. */
     async onAdd() {
         const isValid = await this.isValidMultiCreateData();
         if (isValid) {

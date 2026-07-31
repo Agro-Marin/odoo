@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_dialogs/export_data_dialog - Export configuration dialog: field selection, template management, and format options */
+/** @module @web/views/view_dialogs/export_data_dialog */
 
 import {
     Component,
@@ -23,7 +23,6 @@ import { fuzzyLookup } from "@web/core/utils/search";
 import { useDebounced } from "@web/core/utils/timing";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/** Confirmation dialog for deleting a saved export template. */
 class DeleteExportListDialog extends Component {
     static components = { Dialog };
     static template = "web.DeleteExportListDialog";
@@ -38,7 +37,6 @@ class DeleteExportListDialog extends Component {
     }
 }
 
-/** Recursive tree item for a single exportable field, expandable to show sub-fields of relational fields. */
 class ExportDataItem extends Component {
     static template = "web.ExportDataItem";
     static components = { ExportDataItem };
@@ -65,9 +63,8 @@ class ExportDataItem extends Component {
     }
 
     /**
-     * Expand or collapse sub-fields for a relational field.
-     * @param {string} id - field identifier path (e.g. "partner_id/name")
-     * @param {boolean} isUserToggle - true if triggered by user click (shows all sub-fields)
+     * @param {string} id
+     * @param {boolean} isUserToggle
      */
     async toggleItem(id, isUserToggle) {
         if (this.props.isFieldExpandable(id)) {
@@ -97,10 +94,6 @@ class ExportDataItem extends Component {
     }
 }
 
-/**
- * Dialog for configuring and executing data exports. Supports field selection with
- * search/drag-reorder, format choice (xlsx/csv), and saved export templates.
- */
 export class ExportDataDialog extends Component {
     static template = "web.ExportDataDialog";
     static components = { CheckBox, Dialog, ExportDataItem };
@@ -130,12 +123,6 @@ export class ExportDataDialog extends Component {
 
         this.state = useState({
             exportList: [],
-            // Reactive, not a plain instance field: it is the `value` of a
-            // CONTROLLED CheckBox, whose contract (see `CheckBox.toggle`) is
-            // that the owner re-renders when the value changes. As a plain
-            // field it never did, so the CheckBox re-asserted its stale
-            // `props.value` onto the DOM and the next click toggled BACK to
-            // the value the user had just left.
             isCompatible: false,
             isEditingTemplate: false,
             search: [],
@@ -200,12 +187,12 @@ export class ExportDataDialog extends Component {
         );
     }
 
-    /** @returns {boolean} true if the search input currently holds a query */
+    /** @returns {boolean} */
     get isSearching() {
         return Boolean(/** @type {HTMLInputElement} */ (this.searchRef.el)?.value);
     }
 
-    /** @returns {Array<Object>} fields matching the current search, or all known fields */
+    /** @returns {Array<Object>} */
     get fieldsAvailable() {
         if (this.isSearching) {
             return this.state.search.length ? Object.values(this.state.search) : [];
@@ -217,7 +204,7 @@ export class ExportDataDialog extends Component {
         return Boolean(odoo.debug);
     }
 
-    /** @returns {Array<Object>} top-level fields (or search-matching roots) for the left panel tree */
+    /** @returns {Array<Object>} */
     get rootFields() {
         if (this.isSearching) {
             const rootFromSearchResults = this.fieldsAvailable.map((f) => {
@@ -235,7 +222,6 @@ export class ExportDataDialog extends Component {
     }
 
     /**
-     * Filter sub-fields to only those matching the current search query.
      * @param {Array<Object>} subfields
      * @returns {Array<Object>}
      */
@@ -264,22 +250,11 @@ export class ExportDataDialog extends Component {
         this.state.isSmall = this.env.isSmall;
     }
 
-    /**
-     * Load fields to display and (re)set the list of available fields
-     */
     async fetchFields() {
-        // Build the replacement set BEFORE dropping the one on screen. Clearing
-        // up front only looked harmless while `isCompatible` was a non-reactive
-        // field: nothing re-rendered between the clear and the response. Now
-        // that toggling it re-renders immediately (as a controlled CheckBox
-        // requires), an emptied `knownFields` paints an EMPTY field tree for
-        // the whole round trip.
         const isCompatible = this.state.isCompatible;
         const pending = { knownFields: {}, expandedFields: {} };
         await this.fetchFieldsKeepLast.add(this.loadFields(undefined, false, pending));
         if (isCompatible !== this.state.isCompatible) {
-            // Superseded mid-flight: `KeepLast` normally strands this call, but
-            // never commit a half-built set on the strength of that alone.
             return;
         }
         this.knownFields = pending.knownFields;
@@ -301,16 +276,15 @@ export class ExportDataDialog extends Component {
     }
 
     /**
-     * @param {string} id - field path
-     * @returns {boolean} true if the field has children and nesting depth < 3
+     * @param {string} id
+     * @returns {boolean}
      */
     isFieldExpandable(id) {
         return this.knownFields[id].children && id.split("/").length < 3;
     }
 
     /**
-     * Load the field list for a saved export template, or prepare for a new one.
-     * @param {string | number} value - template ID, "new_template", or falsy to reset
+     * @param {string | number} value
      */
     async loadExportList(value) {
         this.state.templateId = value === "new_template" ? value : Number(value);
@@ -328,12 +302,9 @@ export class ExportDataDialog extends Component {
     }
 
     /**
-     * Fetch exportable (sub-)fields from the server and cache them.
-     * @param {string} [id] - parent field path to expand; omit for root fields
-     * @param {boolean} [preventLoad=false] - if true, return cached data only (no RPC)
-     * @param {{ knownFields: Object, expandedFields: Object }} [target] - where to
-     *   accumulate the loaded fields. Defaults to the live maps; {@link fetchFields}
-     *   passes a staging pair so the displayed tree survives the round trip.
+     * @param {string} [id]
+     * @param {boolean} [preventLoad=false]
+     * @param {{ knownFields: Object, expandedFields: Object }} [target]
      * @returns {Promise<Array<Object> | undefined>}
      */
     async loadFields(id, preventLoad = false, target) {
@@ -358,7 +329,7 @@ export class ExportDataDialog extends Component {
         const isCompatible = this.state.isCompatible;
         const fields = await this.props.getExportedFields(isCompatible, parentParams);
         if (isCompatible !== this.state.isCompatible) {
-            return fields;
+            return;
         }
         for (const field of fields) {
             field.parent = parentField;
@@ -373,9 +344,8 @@ export class ExportDataDialog extends Component {
     }
 
     /**
-     * Reorder the export list after a drag-and-drop operation.
-     * @param {number} item - source index
-     * @param {number} target - destination index
+     * @param {number} item
+     * @param {number} target
      */
     onDraggingEnd(item, target) {
         this.state.exportList.splice(
@@ -385,13 +355,13 @@ export class ExportDataDialog extends Component {
         );
     }
 
-    /** @param {string} fieldId - add a field to the export list */
+    /** @param {string} fieldId */
     onAddItemExportList(fieldId) {
         this.state.exportList.push(this.knownFields[fieldId]);
         this.enterTemplateEdition();
     }
 
-    /** @param {string} fieldId - remove a field from the export list */
+    /** @param {string} fieldId */
     onRemoveItemExportList(fieldId) {
         const item = this.state.exportList.findIndex(({ id }) => id === fieldId);
         this.state.exportList.splice(item, 1);
@@ -402,7 +372,6 @@ export class ExportDataDialog extends Component {
         this.loadExportList(ev.target.value);
     }
 
-    /** Persist the current export field list as a named ir.exports template. */
     async onSaveExportTemplate() {
         const name = /** @type {HTMLInputElement} */ (this.exportListRef.el).value;
         if (!name) {
@@ -443,7 +412,6 @@ export class ExportDataDialog extends Component {
         this.loadExportList(this.state.templateId);
     }
 
-    /** Validate the export list and trigger the download in the selected format. */
     async onClickExportButton() {
         if (!this.state.exportList.length) {
             return this.notification.add(
@@ -465,7 +433,6 @@ export class ExportDataDialog extends Component {
         }
     }
 
-    /** Delete the currently selected export template after confirmation. */
     async onDeleteExportTemplate() {
         this.dialog.add(DeleteExportListDialog, {
             text: _t("Do you really want to delete this export template?"),
@@ -474,9 +441,6 @@ export class ExportDataDialog extends Component {
                 await this.orm.unlink("ir.exports", [id], {
                     context: this.props.context,
                 });
-                // Guarded: a miss makes findIndex answer -1, and splice reads
-                // that as "one from the end" — silently dropping whichever
-                // template happens to be last instead of the deleted one.
                 const index = this.templates.findIndex((i) => i.id === id);
                 if (index !== -1) {
                     this.templates.splice(index, 1);
@@ -492,8 +456,7 @@ export class ExportDataDialog extends Component {
     }
 
     /**
-     * Fuzzy-search known fields by label (and by technical name in debug mode).
-     * @param {string} value - search query
+     * @param {string} value
      * @returns {Array<Object>}
      */
     lookup(value) {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/view_scale_selector - Dropdown for switching between time scales (day/week/month/year) in calendar and gantt views */
+/** @module @web/views/view_components/view_scale_selector */
 
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";

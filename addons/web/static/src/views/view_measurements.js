@@ -1,10 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_measurements - Computes available report measures from field definitions and active selections */
+/** @module @web/views/view_measurements */
 
 /**
- *
  * @param {Object} fields
  * @param {Object} fieldAttrs
  * @param {string[]} activeMeasures
@@ -54,25 +53,20 @@ export const computeReportMeasures = (
         }
     }
 
+    const collator = new Intl.Collator(undefined, { sensitivity: "base" });
     const sortedMeasures = Object.entries(measures).sort(([m1, f1], [m2, f2]) => {
         if (m1 === "__count" || m2 === "__count") {
             return m1 === "__count" ? 1 : -1;
         }
-        return f1.string.toLowerCase().localeCompare(f2.string.toLowerCase());
+        return collator.compare(f1.string, f2.string);
     });
 
     return Object.fromEntries(sortedMeasures);
 };
 
 /**
- * Drop active measures that have no field definition (and are not the
- * synthetic ``__count``): a favorite/action context can carry a measure whose
- * field was removed or renamed since it was saved (this fork renames fields),
- * and such a measure would crash the graph/pivot view on activation. Warns for
- * each dropped measure and falls back to ``["__count"]`` when none remain.
- *
  * @param {string[]} activeMeasures
- * @param {Object} measures - computed measures dict (from computeReportMeasures)
+ * @param {Object} measures
  * @returns {string[]}
  */
 export function dropUnknownMeasures(activeMeasures, measures) {
@@ -94,13 +88,10 @@ export function dropUnknownMeasures(activeMeasures, measures) {
 }
 
 /**
- * Given an array of values and an aggregator function, returns the aggregated
- * value.
- *
  * @param {number[]} values
  * @param {'sum'|'avg'|'min'|'max'|'count'|'count_distinct'} aggregator
  * @returns number
- * @throws {Error} if the aggregator function given isn't supported
+ * @throws {Error}
  */
 export function computeAggregatedValue(values, aggregator) {
     if (aggregator === "sum") {
@@ -120,9 +111,6 @@ export function computeAggregatedValue(values, aggregator) {
 }
 
 /**
- * Normalize legacy '__count__' (old preview-implementation name) to
- * '__count' so favorites saved before the rename still work.
- *
  * @param {any | any[]} [measure]
  * @returns {any}
  */

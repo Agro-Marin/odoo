@@ -84,7 +84,7 @@ class User extends models.Model {
 }
 defineModels([Partner, User]);
 
-const reload = async (kanban, params = {}) => {
+const reload = async (/** @type {any} */ kanban, params = {}) => {
     kanban.env.searchModel.reload(params);
     kanban.env.searchModel.search();
     await animationFrame();

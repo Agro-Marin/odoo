@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/multi_currency_popover - Popover showing a monetary value converted into each active company currency */
+/** @module @web/views/view_components/multi_currency_popover */
 
 import {
     Component,
@@ -10,12 +10,11 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { formatMonetary } from "@web/core/formatters";
 import { toLocaleDateString } from "@web/core/l10n/dates";
-import { formatMonetary } from "@web/fields/formatters";
 import { getCurrency, getCurrencyRates } from "@web/services/currency";
 import { user } from "@web/services/user";
 
-/** Popover showing a monetary value converted into each of the company's active currencies. */
 export class MultiCurrencyPopover extends Component {
     static template = "web.MultiCurrencyPopover";
     static props = {
@@ -24,6 +23,11 @@ export class MultiCurrencyPopover extends Component {
         target: HTMLElement,
         value: Number,
     };
+
+    /** @type {import("@odoo/owl").Ref} */
+    rootRef;
+    /** @type {{ rates: null }} */
+    state;
 
     setup() {
         this.rootRef = useRef("root");
@@ -41,7 +45,7 @@ export class MultiCurrencyPopover extends Component {
         });
     }
 
-    /** @returns {Array<Object>} non-default currencies with their rates and converted values */
+    /** @returns {Array<Object>} */
     get currencies() {
         return this.props.currencyIds.reduce((currencies, currencyId) => {
             const rateInfo = this.state.rates[currencyId];
@@ -61,7 +65,7 @@ export class MultiCurrencyPopover extends Component {
     /**
      * @param {number} value
      * @param {number} currencyId
-     * @returns {string} formatted monetary string
+     * @returns {string}
      */
     formatedValue(value, currencyId) {
         return formatMonetary(value, { currencyId });

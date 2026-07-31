@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_dialogs/form_view_dialog - Modal dialog embedding a full form view for creating or editing a single record */
+/** @module @web/views/view_dialogs/form_view_dialog */
 
 import { Component } from "@odoo/owl";
 import { CallbackRecorder } from "@web/core/action_hook";
@@ -10,7 +10,6 @@ import { useChildRef, useService } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { View } from "@web/views/view";
 
-/** Modal dialog embedding a full form view for creating or editing a single record, with save/discard/expand controls. */
 export class FormViewDialog extends Component {
     static template = "web.FormViewDialog";
     static components = { Dialog, View };
@@ -78,7 +77,10 @@ export class FormViewDialog extends Component {
             preventCreate: this.props.preventCreate,
             preventEdit: this.props.preventEdit,
             discardRecord: this.discardRecord.bind(this),
-            saveRecord: async (record, params) => {
+            saveRecord: async (
+                /** @type {any} */ record,
+                /** @type {any} */ params,
+            ) => {
                 let saved;
                 if (this.props.onRecordSave) {
                     saved = await this.props.onRecordSave(record);
@@ -109,9 +111,8 @@ export class FormViewDialog extends Component {
     }
 
     /**
-     * overridable method defining what to do on save
-     * @param {*} record, record that was saved
-     * @param {*} params, additional parameters passed to "save"
+     * @param {*} record
+     * @param {*} params
      */
     async onRecordSaved(record, params) {
         if (params?.saveAndNew) {
@@ -123,7 +124,6 @@ export class FormViewDialog extends Component {
         }
     }
 
-    /** Invoke the onRecordDiscarded callback (if any) and close the dialog. */
     async discardRecord() {
         if (this.props.onRecordDiscarded) {
             await this.props.onRecordDiscarded();
@@ -131,11 +131,10 @@ export class FormViewDialog extends Component {
         this.props.close();
     }
 
-    /** Navigate to a full-page form view for the current record, closing the dialog. */
     async onExpand() {
         const beforeLeaveCallbacks = this.viewProps.__beforeLeave__.callbacks;
         const res = await Promise.all(
-            beforeLeaveCallbacks.map((callback) => callback()),
+            beforeLeaveCallbacks.map((/** @type {Function} */ callback) => callback()),
         );
         if (!res.includes(false)) {
             this.actionService.doAction({

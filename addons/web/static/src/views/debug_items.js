@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/debug_items - Debug menu entries: view arch inspection, field metadata, asset management, and technical info */
+/** @module @web/views/debug_items */
 
 import { Component, onWillStart, useState, xml } from "@odoo/owl";
+import { formatMany2one } from "@web/core/formatters";
 import {
     deserializeDateTime,
     formatDateTime,
@@ -14,14 +15,12 @@ import { _t } from "@web/core/l10n/translation";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { formatMany2one } from "@web/fields/formatters";
 import { editModelDebug } from "@web/services/debug/debug_utils";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
 const debugRegistry = registry.category("debug");
 
-/** Dialog that displays the computed (post-inheritance) arch XML of the current view. */
 class GetViewDialog extends Component {
     static template = "web.DebugMenu.GetViewDialog";
     static components = { Dialog };
@@ -32,10 +31,8 @@ class GetViewDialog extends Component {
 }
 
 /**
- * Debug menu item: show the computed (post-inheritance) arch of the current view.
- *
  * @param {{ component: Object, env: Object }} params
- * @returns {Object} debug menu item descriptor
+ * @returns {Object}
  */
 export function getView({ component, env }) {
     return {
@@ -54,10 +51,8 @@ export function getView({ component, env }) {
 debugRegistry.category("view").add("getView", /** @type {any} */ (getView));
 
 /**
- * Debug menu item: open the current view's ir.ui.view record in the form view.
- *
  * @param {{ accessRights: Object, component: Object, env: Object }} params
- * @returns {Object | null | undefined} debug menu item descriptor, or null if no access
+ * @returns {Object | null | undefined}
  */
 export function editView({ accessRights, component, env }) {
     if (!accessRights.canEditView) {
@@ -83,10 +78,8 @@ export function editView({ accessRights, component, env }) {
 debugRegistry.category("view").add("editView", /** @type {any} */ (editView));
 
 /**
- * Debug menu item: open the search view's ir.ui.view record in the form view.
- *
  * @param {{ accessRights: Object, component: Object, env: Object }} params
- * @returns {Object | null} debug menu item descriptor, or null if no access/search view
+ * @returns {Object | null}
  */
 export function editSearchView({ accessRights, component, env }) {
     if (!accessRights.canEditView) {
@@ -112,8 +105,16 @@ debugRegistry
     .category("view")
     .add("editSearchView", /** @type {any} */ (editSearchView));
 
-/** Dialog displaying record metadata (XML ID, creator, timestamps, noupdate flag). */
 class GetMetadataDialog extends Component {
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialogService;
+    /** @type {string[]} */
+    fieldNamesBlackList;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {{} | { fieldToSet: string; condition: string; scope: string }} */
+    state;
+
     static template = "web.DebugMenu.GetMetadataDialog";
     static components = { Dialog };
     static props = {
@@ -174,10 +175,8 @@ class GetMetadataDialog extends Component {
 }
 
 /**
- * Debug menu item: show record metadata (XML ID, creator, write date).
- *
  * @param {{ component: Object, env: Object }} params
- * @returns {Object | null} debug menu item descriptor, or null if no record
+ * @returns {Object | null}
  */
 export function viewMetadata({ component, env }) {
     const resId = component.model.root.resId;
@@ -214,7 +213,6 @@ function sortKeysDeep(obj) {
     return obj;
 }
 
-/** Dialog that displays a record's raw field data as pretty-printed JSON. */
 class RawRecordDialog extends Component {
     static template = xml`
         <Dialog title="props.title">
@@ -234,10 +232,8 @@ class RawRecordDialog extends Component {
 }
 
 /**
- * Debug menu item: show all field data for the current record as JSON.
- *
  * @param {{ component: Object, env: Object }} params
- * @returns {Object | null} debug menu item descriptor, or null if no record
+ * @returns {Object | null}
  */
 export function viewRawRecord({ component, env }) {
     const { resId, resModel, fields } = component.model.config;
@@ -272,7 +268,6 @@ export function viewRawRecord({ component, env }) {
 
 debugRegistry.category("form").add("viewRawRecord", /** @type {any} */ (viewRawRecord));
 
-/** Dialog for setting default field values (ir.default) from the current record. */
 class SetDefaultDialog extends Component {
     static template = "web.DebugMenu.SetDefaultDialog";
     static components = { Dialog };
@@ -407,10 +402,8 @@ class SetDefaultDialog extends Component {
 }
 
 /**
- * Debug menu item: set default values for the current record's fields.
- *
  * @param {{ component: Object, env: Object }} params
- * @returns {Object} debug menu item descriptor
+ * @returns {Object}
  */
 export function setDefaults({ component, env }) {
     return {
@@ -429,10 +422,8 @@ export function setDefaults({ component, env }) {
 debugRegistry.category("form").add("setDefaults", /** @type {any} */ (setDefaults));
 
 /**
- * Debug menu item: manage ir.attachment records linked to the current record.
- *
  * @param {{ component: Object, env: Object }} params
- * @returns {Object | null} debug menu item descriptor, or null if no record
+ * @returns {Object | null}
  */
 export function manageAttachments({ component, env }) {
     const resId = component.model.root.resId;

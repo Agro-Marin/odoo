@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_button/view_button - Renders arch button elements with debouncing, tooltips, and Bootstrap class resolution */
+/** @module @web/views/view_button/view_button */
 
 import { Component } from "@odoo/owl";
 import { useDropdownCloser } from "@web/components/dropdown/dropdown_hooks";
@@ -18,18 +18,14 @@ const explicitRankClasses = [
     "btn-danger",
 ];
 
+/** @type {Record<string, string>} */
 const odooToBootstrapClasses = {
     oe_highlight: "btn-primary",
     oe_link: "btn-link",
 };
 
 /**
- * Parse an icon string into a tag/class descriptor for Font Awesome, OdooIcon, or image sources.
- *
- * Accepts both FA7 full class syntax ("fa-solid fa-edit") and legacy bare-name syntax
- * ("fa-edit"). Bare names are normalized to "fa-solid" (solid style default).
- *
- * @param {string} iconString - icon identifier (e.g. "fa-solid fa-save", "fa-save", "oi-settings", or an image URL)
+ * @param {string} iconString
  * @returns {{ tag: string, class?: string, src?: string }}
  */
 function iconFromString(iconString) {
@@ -58,7 +54,6 @@ function iconFromString(iconString) {
     return icon;
 }
 
-/** Renders a button from a view arch (`<button>` or `<a>` tag) with debouncing, tooltips, and Bootstrap class resolution. */
 export class ViewButton extends Component {
     static template = "web.views.ViewButton";
     static props = {
@@ -114,8 +109,6 @@ export class ViewButton extends Component {
     }
 
     /**
-     * Serialized tooltip descriptor, read by the template only when
-     * {@link hasBigTooltip} is true.
      * @returns {string}
      */
     get tooltip() {
@@ -145,9 +138,8 @@ export class ViewButton extends Component {
     }
 
     /**
-     * Delegate to a custom onClick prop or the environment's onClickViewButton handler.
      * @param {MouseEvent} ev
-     * @param {boolean} [newWindow] - open the resulting action in a new window
+     * @param {boolean} [newWindow]
      */
     onClick(ev, newWindow) {
         if (this.props.tag === "a") {
@@ -175,7 +167,6 @@ export class ViewButton extends Component {
     }
 
     /**
-     * Build the CSS class string, mapping Odoo legacy classes to Bootstrap and applying default rank.
      * @returns {string}
      */
     getClassName() {

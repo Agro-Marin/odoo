@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_button/view_button_hook - Hook wiring view button click handling with confirmation dialogs and UI blocking */
+/** @module @web/views/view_button/view_button_hook */
 
 import { status, useComponent, useEnv, useSubEnv } from "@odoo/owl";
 import { evaluateExpr } from "@web/core/py_js/py";
@@ -10,10 +10,8 @@ import { useService } from "@web/core/utils/hooks";
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 
 /**
- * Disable all buttons within `el` (and overlays) while executing `fct`, then re-enable them.
- * Prevents double-clicks during async button actions.
- * @param {HTMLElement | null} el - container whose buttons are disabled
- * @param {() => Promise<any>} fct - async callback to execute
+ * @param {HTMLElement | null} el
+ * @param {() => Promise<any>} fct
  * @returns {Promise<any>}
  */
 export async function executeButtonCallback(el, fct) {
@@ -51,16 +49,13 @@ function undefinedAsTrue(val) {
 
 /**
  * @typedef {Object} ViewButtonsOptions
- * @property {Function} [afterExecuteAction] - called after the button action completes
- * @property {Function} [beforeExecuteAction] - called before the button action; return false to abort
- * @property {Function} [reload] - called to reload the view after a non-dialog action
+ * @property {Function} [afterExecuteAction]
+ * @property {Function} [beforeExecuteAction]
+ * @property {Function} [reload]
  */
 
 /**
- * OWL hook that injects `onClickViewButton` into the sub-environment, wiring up
- * confirmation dialogs, context evaluation, button disabling, and action execution
- * for all ViewButton descendants.
- * @param {{ readonly el: HTMLElement | null; }} ref - component root ref
+ * @param {{ readonly el: HTMLElement | null; }} ref
  * @param {ViewButtonsOptions} [options={}]
  */
 export function useViewButtons(ref, options = {}) {

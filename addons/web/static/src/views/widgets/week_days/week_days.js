@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/widgets/week_days/week_days - Widget rendering seven day-of-week checkboxes respecting the locale's week start day */
+/** @module @web/views/widgets/week_days/week_days */
 
 import { Component } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -10,7 +10,6 @@ import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 const WEEKDAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
 
-/** Widget rendering a row of seven day-of-week checkboxes (sun-sat), respecting the locale's week start day. */
 export class WeekDays extends Component {
     static template = "web.WeekDays";
     static components = { CheckBox };
@@ -19,7 +18,7 @@ export class WeekDays extends Component {
         readonly: Boolean,
     };
 
-    /** @returns {string[]} day abbreviations rotated to start on the locale's first day of the week */
+    /** @returns {string[]} */
     get weekdays() {
         return [
             ...WEEKDAYS.slice(
@@ -29,7 +28,7 @@ export class WeekDays extends Component {
             ...WEEKDAYS.slice(0, localization.weekStart % WEEKDAYS.length),
         ];
     }
-    /** @returns {Record<string, boolean>} map of day abbreviations to their checked state */
+    /** @returns {Record<string, boolean>} */
     get data() {
         return Object.fromEntries(
             this.weekdays.map((day) => [day, this.props.record.data[day]]),
@@ -37,7 +36,7 @@ export class WeekDays extends Component {
     }
 
     /**
-     * @param {string} day - day abbreviation (e.g. "mon")
+     * @param {string} day
      * @param {boolean} checked
      */
     onChange(day, checked) {
@@ -45,6 +44,7 @@ export class WeekDays extends Component {
     }
 }
 
+/** @type {import("registries").ViewWidgetsRegistryItemShape} */
 export const weekDays = {
     component: WeekDays,
     fieldDependencies: [

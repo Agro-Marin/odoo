@@ -8,7 +8,7 @@
 import { expect, test } from "@odoo/hoot";
 import { click, queryAll, queryFirst } from "@odoo/hoot-dom";
 import { animationFrame, runAllTimers } from "@odoo/hoot-mock";
-import { onMounted } from "@odoo/owl";
+import { Component, onMounted, toRaw, xml } from "@odoo/owl";
 import {
     defineModels,
     fields,
@@ -17,8 +17,11 @@ import {
     mountView,
     patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
+import { parseFloat, parseMonetary } from "@web/core/parsers";
+import { registry } from "@web/core/registry";
 import { GaugeField } from "@web/fields/display/gauge/gauge_field";
-import { parseFloat, parseMonetary } from "@web/fields/parsers";
+import { Field } from "@web/fields/field";
+import { standardFieldProps } from "@web/fields/standard_field_props";
 import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
 
 import { setupChartJsForTests } from "../graph/graph_test_helpers.js";
@@ -377,4 +380,120 @@ test("json_checkboxes: a toggle survives an onchange inside the debounce window"
 
     expect(boxes()[0].checked).toBe(true);
     expect(boxes()[1].checked).toBe(false);
+});
+
+// ---------------------------------------------------------------------------
+// registry: a `fieldDependencies` declaration is actually validated
+//
+// The schema nested `shape` as a sibling of `element`; owl's validateType
+// checks `element` first and returns, so the shape was never applied and any
+// malformed entry was accepted. The corrected schema must reject junk while
+// still admitting every shape the real widgets declare.
+// ---------------------------------------------------------------------------
+
+test("fieldDependencies: a malformed declaration is rejected, valid ones are kept", async () => {
+    await makeMockEnv();
+    const fieldsReg = registry.category("fields");
+    class Probe extends Component {
+        static template = xml`<span/>`;
+        static props = { ...standardFieldProps };
+    }
+    const add = (key, fieldDependencies) => {
+        let error = null;
+        try {
+            fieldsReg.add(key, { component: Probe, fieldDependencies });
+        } catch (e) {
+            error = e;
+        }
+        return { rejected: Boolean(error) || !fieldsReg.contains(key) };
+    };
+    patchWithCleanup(odoo, { debug: "1" });
+
+    // rejected: no `name`, and `name` of the wrong type
+    expect(add("audit_dep_a", [{ nope: 1 }]).rejected).toBe(true);
+    expect(add("audit_dep_b", [{ name: 42 }]).rejected).toBe(true);
+    expect(add("audit_dep_c", [{ name: "ok", optional: "yes" }]).rejected).toBe(true);
+
+    // accepted: every form the shipped widgets actually declare
+    expect(
+        add("audit_dep_d", [{ name: "write_date", type: "datetime" }]).rejected,
+    ).toBe(false);
+    expect(
+        add("audit_dep_e", [{ name: "f", optional: true, readonly: true }]).rejected,
+    ).toBe(false);
+    // daterange spreads the node's arch attrs, so `readonly` arrives as a py expr
+    expect(
+        add("audit_dep_f", [
+            { name: "f", type: "date", readonly: "state != 'draft'", placeholder: "p" },
+        ]).rejected,
+    ).toBe(false);
+    expect(add("audit_dep_g", () => []).rejected).toBe(false);
+});
+
+test("fieldDependencies: every registered widget still satisfies the schema", async () => {
+    await makeMockEnv();
+    // A widget dropped by validation is silently removed outside debug mode,
+    // which would blank the field. Nothing may be missing from the registry.
+    const survivors = registry
+        .category("fields")
+        .getEntries()
+        .filter(([, w]) => w.fieldDependencies !== undefined);
+    expect(survivors.length).toBeGreaterThan(10);
+    for (const name of ["date", "datetime", "daterange", "progressbar", "image"]) {
+        expect(registry.category("fields").contains(name)).toBe(true);
+    }
+});
+
+// ---------------------------------------------------------------------------
+// Field: a modifier expression is evaluated once per render, not three times
+// ---------------------------------------------------------------------------
+
+test("Field evaluates readonly/required once per render", async () => {
+    let lookups = 0;
+    class Probe extends models.Model {
+        _name = "eval.probe";
+        name = fields.Char();
+        gate = fields.Char();
+        _records = [{ id: 1, name: "n", gate: "on" }];
+    }
+    defineModels([Probe]);
+
+    patchWithCleanup(Field.prototype, {
+        setup() {
+            const raw = toRaw(this.props.record);
+            if (!raw.__auditProbed) {
+                raw.__auditProbed = true;
+                const real = raw.evalContextWithVirtualIds;
+                Object.defineProperty(raw, "evalContextWithVirtualIds", {
+                    configurable: true,
+                    writable: true,
+                    // one py evaluation copies the context once, reading each name
+                    value: new Proxy(real, {
+                        get(target, prop, receiver) {
+                            if (prop === "gate") {
+                                lookups++;
+                            }
+                            return Reflect.get(target, prop, receiver);
+                        },
+                    }),
+                });
+            }
+            return super.setup();
+        },
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "eval.probe",
+        resId: 1,
+        arch: `<form><group>
+                 <field name="gate" invisible="1"/>
+                 <field name="name" readonly="gate == 'on'" required="gate != 'off'"/>
+               </group></form>`,
+    });
+
+    // readonly + required, once each: Field.classNames and
+    // Field.fieldComponentProps share one computation, and FormLabel never
+    // touches `required`.
+    expect(lookups).toBe(3);
 });

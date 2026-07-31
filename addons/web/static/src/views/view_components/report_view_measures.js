@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/view_components/report_view_measures - Dropdown selector for choosing numeric measures in pivot/graph report views */
+/** @module @web/views/view_components/report_view_measures */
 
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
