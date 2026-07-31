@@ -19,6 +19,7 @@ from . import test_ir_model
 from . import test_ir_qweb
 from . import test_ir_ui_view
 from . import test_js
+from . import test_js_addons
 from . import test_load_menus
 from . import test_login
 from . import test_onchange

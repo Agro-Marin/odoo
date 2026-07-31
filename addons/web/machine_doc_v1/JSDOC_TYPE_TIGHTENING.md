@@ -16,12 +16,21 @@ values, framework-level proxy types that escape JSDoc's expressiveness).
 ## Type-check setup
 
 The core repo ships a committed root `tsconfig.json` (`noEmit: true`,
-`allowJs: true`, `typeRoots` → each module's `static/src/@types`); CI
-type-checks against it (see "CI gating"). Opt-in editor template at
-`tooling/_jsconfig.json` (copied by `tooling/enable.sh`). For a one-off
-seam-file check, point `tsc --noEmit` at a `tsconfig` with `"types": []`
-to block the implicit `@types/models` / `@types/registries` loading that
-errors out outside the full tooling install.
+`allowJs: true`, `types: []`); CI type-checks against it (see "CI gating").
+The `@types/` ambients are loaded as ordinary program files by the `include`
+glob — `**/*.ts` matches `.d.ts` — not as `@types` packages, which is why
+`typeRoots` is absent: it resolves `<root>/<pkg>/index.d.ts`, and nothing in
+those folders provides one. Opt-in editor template at
+`tooling/_jsconfig.json` (copied by `tooling/enable.sh`); keep it in step with
+the committed `jsconfig.json`, since `enable.sh` overwrites the latter from it.
+
+Check a single file against the full program rather than in isolation — run the
+real config and filter to the file. An isolated program under-resolves the
+framework ambients and invents errors:
+
+```bash
+npx tsc -p tsconfig.strict.json --noEmit 2>&1 | grep -F "<path>("
+```
 
 ## The 8 recurring tightening patterns
 
@@ -231,7 +240,7 @@ field type — `res_partner_many2one` is a widget name, not a type.
 ### Pattern 8 — Property assigned in `setup()`, not in a constructor
 
 The dominant shape in this codebase, and the one that will surface on almost
-every model/component file added to the allowlist.
+every model/component file you clear off a typecheck exception list.
 
 **Symptom** — `TS2532` / `TS18048` "possibly undefined" on a property that is
 unconditionally assigned:
@@ -246,7 +255,7 @@ this.nextActionsAfterMouseup.push(fn);   // TS2532: Object is possibly 'undefine
 
 TypeScript's definite-assignment analysis credits **only the constructor**. A
 property assigned in `setup()` is inferred as `T | undefined` under
-`strictNullChecks` (which `tooling/typecheck-ci.sh` enables even though the
+`strictNullChecks` (which `tsconfig.strict.json` enables even though the
 committed `tsconfig.json` does not).
 
 **Fix — declare a class field, but ONLY on an OWL `Component`:**
@@ -280,10 +289,13 @@ nameService;
 
 **When the class field is not usable** (a `Model` subclass, or a cross-file
 read like `record.model.urgentSave`), use `@ts-ignore` with a comment stating
-why — **not `@ts-expect-error`**. The gate runs `strictNullChecks: true` but the
-committed `tsconfig.json` and `tooling/_jsconfig.json` do not, so there the
-error does not occur and `@ts-expect-error` reports `TS2578 Unused directive`
-in every editor. Verified 2026-07-25.
+why — **not `@ts-expect-error`**. `tsconfig.strict.json` runs
+`strictNullChecks: true` but the committed `tsconfig.json` — the config the
+count ratchet runs — does not, so under that gate the error does not occur and
+`@ts-expect-error` reports `TS2578 Unused directive`. Note the editor configs
+(`jsconfig.json`, `tooling/_jsconfig.json`) *do* set `strictNullChecks: true`,
+so the directive resolves differently there; `@ts-ignore` is the form that is
+inert under all three.
 
 **What does NOT work: module augmentation.** `declare module "…" { interface X { … } }`
 can only **ADD** members to a class declared in a `.js` file; it cannot re-type
@@ -316,7 +328,7 @@ source were removed, which emptied and therefore deleted six files:
 expectation that this would expose masked debt, the whole-repo `tsc` count went
 DOWN by 90 (2321 -> 2231): the hand-written declarations generated more errors
 through wrong or incomplete signatures than their `any`-heavy members hid. Only
-five errors surfaced in allowlisted files, each a genuine contract defect the
+five errors surfaced in locked files, each a genuine contract defect the
 shadow had papered over (a `ReportAction` typedef that existed only in the
 shadow; two base-class signatures in `multi_record_controller.js` that
 contradicted their own doc comments; a `compileSeparator` return type narrower
@@ -360,21 +372,36 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
   package hardcoding `.js` extension in URL stripping and forced-suffix logic.
   Would need 6+ pipeline patches across the `assetsbundle/` package and
   `ir_qweb_assets.py` plus a `--loader=ts:` esbuild flag.
-- ~~**CI gating**~~ — no longer a gap: `.github/workflows/typecheck.yml`
-  runs `npx tsc --project tsconfig.json --noEmit` on every PR touching
-  JS/TS (and on every push to `19.0-marin` / `19.0`) as a **blocking
-  drift-zero ratchet** (no `continue-on-error`). The committed floor and its
-  full history live in `tooling/ratchet/baselines/tsc.json` — read the value
-  there rather than from this page, which previously carried a stale copy.
-  The floor is normally monotonic downward, but it is not guaranteed to be:
-  it was corrected **upward** on 2026-07-24 to absorb 357 errors that
-  accumulated while CI was off (ADR-0009 sets the precedent). Note the gate
-  fails on *improvement* too — an actual count below the floor exits 1 to
-  force a lock-in, so a fix wave that is not committed back leaves mainline
-  red. To move it: run tsc locally, count `error TS` lines, then
-  `python tooling/ratchet/ratchet.py tsc --count "$N" --update` and commit
-  the baseline. See `tooling/ratchet/README.md`.
-- **The `@types/registries` / `@types/models` ambient typeRoots** — declare
-  framework-wide interfaces but loading them implicitly errors out without
-  the full tooling install. The seam-file checker bypasses them via
-  `"types": []`, costing a few "implicit any" warnings on registry reads.
+- ~~**CI gating**~~ — no longer a gap. `.github/workflows/typecheck.yml` runs
+  three blocking gates (no `continue-on-error`) on every PR touching JS/TS and
+  on every push to `19.0-marin` / `19.0`:
+
+  1. **Project-wide count ratchet** — `tsc -p tsconfig.json --noEmit`, floor in
+     `tooling/ratchet/baselines/tsc.json`. Read the value there, not from this
+     page, which previously carried a stale copy. The floor is normally
+     monotonic downward but not guaranteed to be: it was corrected **upward**
+     on 2026-07-24 to absorb 357 errors accumulated while CI was off (ADR-0009
+     sets the precedent). It fails on *improvement* too — a count below the
+     floor exits 1 to force a lock-in, so a fix wave that is not committed back
+     leaves mainline red. To move it: `python tooling/ratchet/ratchet.py tsc
+     --count "$N" --update`. See `tooling/ratchet/README.md`.
+  2. **`strictNullChecks` per-file lock** over `addons/web/static/{src,tests}`.
+  3. **`noImplicitAny` per-file lock** over the same scope — this is what makes
+     (2) mean anything, since `any` is null-safe by fiat.
+
+  Gates 2 and 3 are **default-deny**: a file must be clean unless it is named in
+  `tooling/typecheck/exceptions/<gate>.txt`, so a file you clean must be dropped
+  from that list in the same commit, and a NEW file is gated from its first
+  commit. Cleaning a file therefore has a mechanical finish line. To find the
+  cheapest next target:
+
+  ```bash
+  npx tsc -p tsconfig.strict.json --noEmit > /tmp/strict.log 2>&1 || true
+  python tooling/typecheck/scope_gate.py strict --log /tmp/strict.log --report
+  ```
+
+  See `tooling/typecheck/README.md`.
+- **Narrowing the `@types/registries` / `@types/models` interfaces** — they
+  declare framework-wide shapes (`Services`, the registry categories) that a
+  file inherits wholesale. Cutting a file's dependency on the loose members is
+  out of scope here; the gates simply report what those declarations imply.

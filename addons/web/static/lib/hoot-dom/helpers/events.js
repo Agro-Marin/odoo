@@ -173,7 +173,7 @@ function cancelTrustedEvent(ev) {
  * @param {number} start
  * @param {number} end
  */
-async function changeSelection(target, start, end) {
+function changeSelection(target, start, end) {
     if (!isNil(start) && !isNil(target.selectionStart)) {
         target.selectionStart = start;
     }
@@ -1329,9 +1329,11 @@ async function _keyDown(targetResolver, eventInit) {
             nextValue += toInsert;
         } else {
             nextValue = value.slice(0, selectionStart) + toInsert + value.slice(selectionEnd);
-            if (selectionStart === selectionEnd) {
-                nextSelectionStart = nextSelectionEnd = selectionStart + 1;
-            }
+            // Also when a RANGE was replaced: a browser collapses the caret to
+            // the end of what it inserted. Leaving the range in place kept the
+            // whole replaced text selected, so the next character replaced it
+            // again -- the opposite of what typing over a selection does.
+            nextSelectionStart = nextSelectionEnd = selectionStart + toInsert.length;
         }
     }
 
@@ -1530,6 +1532,14 @@ async function _keyDown(targetResolver, eventInit) {
 
     if (initialValue !== nextValue) {
         target.value = nextValue;
+        // Value AND selection, both before `input` is dispatched: a browser
+        // applies an editing operation atomically and only then notifies. Doing
+        // the selection afterwards silently overwrote whatever the listener had
+        // just set -- a widget that `select()`s its own input from `oninput`
+        // looked like it had never run, hiding that class of bug from every
+        // test in the suite.
+        changeSelection(target, nextSelectionStart, nextSelectionEnd);
+        nextSelectionStart = nextSelectionEnd = null;
         const inputEventInit = {
             data: inputData,
             inputType,
@@ -2546,7 +2556,9 @@ export async function press(keyStrokes, options) {
  * The target will be resized to the given dimensions, enforced by `!important` style
  * attributes.
  *
- * @param {Dimensions} dimensions
+ * @param {Dimensions} [dimensions] omitted leaves the current dimensions in
+ *  place: {@link parseDimensions} yields `[undefined, undefined]` and
+ *  {@link setDimensions} skips both branches.
  * @param {EventOptions} [options]
  * @returns {Promise<EventList>}
  * @example

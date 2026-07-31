@@ -10,9 +10,6 @@ const STATIC_PATH_RE = /^\/web\/assets\/(esm\/)?[0-9a-f]{7,}\//;
 const IMAGE_PATH_RE = /^\/web\/image(\/|$)/;
 
 /**
- * Whether a request URL may be served stale-while-revalidate from the
- * static cache.
- *
  * @param {URL} url
  * @returns {boolean}
  */
@@ -22,7 +19,6 @@ const isStaleWhileRevalidateURL = (url) =>
 
 const sessionInfoURL = "/web/__sw_session_info__";
 
-/** In-memory fast path over the persisted session info. */
 let sessionInfo = null;
 
 self.addEventListener("install", (event) => {
@@ -41,14 +37,6 @@ self.addEventListener("activate", (event) => {
 });
 
 /**
- * Deletes all ``/web/image`` and content-hashed ``/web/assets`` entries from
- * the static cache — the entries that are either mutable (images) or
- * superseded after a deploy (old asset hashes).  Also drops the
- * ``/web/webclient/translations`` entries earlier service-worker versions
- * cached: this version no longer intercepts that route (IndexedDB owns
- * translation caching — see STATIC_PATH_RE), so those entries are dead
- * weight that would otherwise linger forever.
- *
  * @returns {Promise<void>}
  */
 const purgeSupersededStaticEntries = async () => {
@@ -64,18 +52,10 @@ const purgeSupersededStaticEntries = async () => {
                 await cache.delete(request);
             }
         }
-    } catch {
-        // Storage unavailable — nothing to purge.
-    }
+    } catch {}
 };
 
 /**
- * Extracts the session info JSON string from an HTML page body, using a
- * balanced-brace scan from the ``odoo.__session_info__ = `` marker.  (A
- * non-greedy ``({.*?});`` regex would truncate the capture at the first
- * ``};`` occurring INSIDE a JSON string value — e.g. a company name —
- * corrupting both the scrub and the later restore.)
- *
  * @param {string} htmlContent
  * @returns {string | null}
  */
@@ -116,10 +96,6 @@ const extractSessionInfo = (htmlContent) => {
 };
 
 /**
- * Persists the extracted session info (or clears it when ``info`` is null)
- * in ``caches`` so a fresh service-worker instance can restore the cached
- * app shell after this instance is terminated.
- *
  * @param {string | null} info
  * @returns {Promise<void>}
  */
@@ -137,17 +113,10 @@ const saveSessionInfo = async (info) => {
         } else {
             await cache.delete(sessionInfoURL);
         }
-    } catch {
-        // Storage unavailable — the in-memory copy still serves this
-        // instance's lifetime.
-    }
+    } catch {}
 };
 
 /**
- * Returns the session info, falling back to the persisted copy when this
- * service-worker instance has none in memory (fresh instance after idle
- * termination).
- *
  * @returns {Promise<string | null>}
  */
 const getSessionInfo = async () => {
@@ -165,8 +134,6 @@ const getSessionInfo = async () => {
 };
 
 /**
- * Reads the full body of a response as a string.
- *
  * @param {Response} response
  * @returns {Promise<string>}
  */
@@ -186,8 +153,6 @@ const getTextFromResponse = async (response) => {
 };
 
 /**
- * Stores a page response in the cache, scrubbing the session info.
- *
  * @param {string} url
  * @param {Response} response
  * @returns {Promise<void>}
@@ -216,14 +181,6 @@ const storeDataOnCache = async (url, response) => {
 };
 
 /**
- * Splices the session info back into a scrubbed app-shell body.  Uses a
- * replacer FUNCTION (not a string) so that ``$``-sequences inside ``info``
- * (``$$``, ``$&``, ``$'``, `` $` ``, ``$n`` — reachable via user/company
- * free-text fields in ``__session_info__``) are inserted verbatim instead
- * of being interpreted by ``String.prototype.replaceAll`` as substitution
- * patterns, which would corrupt the restored JSON and white-screen the
- * offline shell.
- *
  * @param {string} htmlBody
  * @param {string} info
  * @returns {string}
@@ -232,8 +189,6 @@ const restoreSessionInfo = (htmlBody, info) =>
     htmlBody.replaceAll("@@@session_info_secret@@@", () => info);
 
 /**
- * Reads a cached response and restores the session info placeholder.
- *
  * @param {string} url
  * @returns {Promise<Response | undefined>}
  */
@@ -266,15 +221,6 @@ const fetchErrorMessages = [
 ];
 
 /**
- * Serve the event's request using stale-while-revalidate: if a cached entry
- * exists, return it immediately while kicking off a background fetch
- * to refresh the cache; otherwise go to the network.  Errors during the
- * background refresh are swallowed — the already-served cached response
- * is still valid, and the next request will retry.
- *
- * Only GET requests with 2xx responses are stored.  Opaque responses
- * and non-OK statuses are never cached.
- *
  * @param {FetchEvent} event
  * @returns {Promise<Response>}
  */
@@ -285,9 +231,7 @@ const staleWhileRevalidate = async (event) => {
     const networkPromise = fetch(request)
         .then(async (response) => {
             if (response.ok) {
-                await cache.put(request, response.clone()).catch(() => {
-                    // Quota exceeded or storage disabled — drop silently.
-                });
+                await cache.put(request, response.clone()).catch(() => {});
             }
             return response;
         })
@@ -300,8 +244,6 @@ const staleWhileRevalidate = async (event) => {
 };
 
 /**
- * Fetches the request and falls back to cached or offline page on network failure.
- *
  * @param {FetchEvent} event
  * @returns {Promise<Response>}
  */
@@ -339,8 +281,6 @@ const navigateOrDisplayOfflinePage = async (event) => {
 };
 
 /**
- * Handles share_target POST requests by redirecting and forwarding the data.
- *
  * @param {FetchEvent} event
  * @returns {void}
  */
@@ -391,8 +331,6 @@ self.addEventListener("fetch", (event) => {
 const nextMessageMap = new Map();
 
 /**
- * Returns a promise resolved the next time the given message is received.
- *
  * @param {string} message
  * @returns {Promise<void>}
  */
@@ -418,11 +356,7 @@ self.addEventListener("message", (event) => {
     }
     if (event.data === "user_logout") {
         saveSessionInfo(null);
-        caches.delete(staticCacheName).catch(() => {
-            // Storage unavailable (private mode, quota exceeded
-            // during delete, ...) — nothing to do; entries are
-            // harmless if they stay.
-        });
+        caches.delete(staticCacheName).catch(() => {});
     }
 });
 

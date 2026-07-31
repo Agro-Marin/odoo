@@ -1921,9 +1921,20 @@ export class Runner {
 
     /**
      * @param {Runner["state"]["includeSpecs"]["id"]} idSpecs
+     *
+     * Dropping an unresolvable id is what the interactive UI needs — it keeps
+     * ids in the URL across runs, so a renamed test would otherwise wedge the
+     * page — but it is fail-open: once the last id is dropped `hasFilter` is
+     * false and the runner silently runs the WHOLE bundle. A single typo in a
+     * `&id=` filter therefore turns a one-file run into a full-suite one that
+     * reports success (warm runner: exit 0 after 180 s) or dies on the harness
+     * timeout with nothing naming the bad id (`odoo-bin`: 10108 tests, 900 s,
+     * "Script timeout exceeded"). Headless runs have no user to read the
+     * warning, so there the same condition is fatal.
      */
     _simplifyIncludeSpecs(idSpecs) {
         let hasChanged = false;
+        const unresolved = [];
         let remaining = $keys(idSpecs);
         while (remaining.length) {
             const id = remaining.shift();
@@ -1935,6 +1946,7 @@ export class Runner {
             if (!item) {
                 const couldRemove = this._include(idSpecs, [id], 0);
                 if (value > 0) {
+                    unresolved.push(id);
                     if (couldRemove) {
                         logger.warn(
                             `Test runner did not find job with ID "${id}": it has been removed from the URL`
@@ -1957,6 +1969,14 @@ export class Runner {
                 this._include(idSpecs, siblingIds, 0, true);
                 hasChanged = true;
             }
+        }
+        if (unresolved.length && this.headless) {
+            throw new HootError(
+                `no suite or test matches ${unresolved.length > 1 ? "ids" : "id"} ${unresolved
+                    .map(stringify)
+                    .join(", ")}: refusing to fall back to running every test`,
+                { level: "critical" }
+            );
         }
         return hasChanged;
     }

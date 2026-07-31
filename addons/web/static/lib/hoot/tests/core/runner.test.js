@@ -114,4 +114,57 @@ describe(parseUrl(import.meta.url), () => {
         expect(runner.tests).toHaveLength(3);
         expect(runner.tags).toHaveLength(3);
     });
+
+    test("headless run refuses an id that matches nothing", () => {
+        const runner = new Runner({ headless: true, id: ["deadbeef"] });
+        runner.describe("a suite", () => {
+            runner.test("a test", () => {});
+        });
+
+        expect(() => runner._prepareRunner()).toThrow(/no suite or test matches id "deadbeef"/);
+    });
+
+    test("headless run names every id that matches nothing", () => {
+        const runner = new Runner({ headless: true, id: ["deadbeef", "d15ea5e"] });
+        runner.describe("a suite", () => {
+            runner.test("a test", () => {});
+        });
+
+        expect(() => runner._prepareRunner()).toThrow(
+            /no suite or test matches ids "deadbeef", "d15ea5e"/
+        );
+    });
+
+    test("headless run accepts an id that matches, and keeps it as a filter", () => {
+        const runner = new Runner({ headless: true });
+        let suiteId;
+        runner.describe("a suite", () => {
+            suiteId = runner.suiteStack.at(-1).id;
+            runner.test("a test", () => {});
+        });
+        runner.config.id = [suiteId];
+        runner._include(runner.state.includeSpecs.id, [suiteId], 1);
+
+        expect(() => runner._prepareRunner()).not.toThrow();
+        expect(runner.hasFilter).toBe(true);
+    });
+
+    test("headless run ignores an exclusion that matches nothing", () => {
+        const runner = new Runner({ headless: true, id: ["-deadbeef"] });
+        runner.describe("a suite", () => {
+            runner.test("a test", () => {});
+        });
+
+        expect(() => runner._prepareRunner()).not.toThrow();
+    });
+
+    test("interactive run drops an id that matches nothing instead of throwing", () => {
+        const runner = new Runner({ headless: false, id: ["deadbeef"] });
+        runner.describe("a suite", () => {
+            runner.test("a test", () => {});
+        });
+
+        expect(() => runner._prepareRunner()).not.toThrow();
+        expect(runner.hasFilter).toBe(false);
+    });
 });

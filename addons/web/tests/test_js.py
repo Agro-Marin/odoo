@@ -1,5 +1,9 @@
 import ast
+import importlib
+import importlib.machinery
+import importlib.util
 import re
+import sys
 from contextlib import suppress
 from pathlib import Path
 
@@ -63,178 +67,6 @@ ALL_WEB_SUITE_PREFIXES = (
     *MISC_SUITES,
 )
 
-#: Addons that bundle ``*.test.js`` into ``web.assets_unit_tests`` while no
-#: runner selects those suites, so they never execute. Asserted to be exact by
-#: ``test_every_addon_unit_suite_is_selected_by_a_runner``: it may only shrink,
-#: and a new addon in this situation fails the build instead of joining it.
-#:
-#: Two entries are not "no runner at all" but a runner that misses files:
-#: ``point_of_sale`` selects ``@point_of_sale/unit`` and bundles files outside
-#: it, and ``im_livechat`` drives an unfiltered ``/web/tests/livechat`` route
-#: rather than ``_run_hoot``, so its bundled suites match no prefix.
-KNOWN_UNCOVERED_ADDONS = frozenset(
-    {
-        "account",
-        "account_accountant",
-        "account_online_synchronization",
-        "account_payment",
-        "account_reports",
-        "ai",
-        "ai_app",
-        "ai_documents",
-        "ai_fields",
-        "analytic",
-        "analytic_enterprise",
-        "appointment",
-        "approval",
-        "approvals",
-        "base_automation",
-        "board",
-        "calendar",
-        "crm",
-        "crm_enterprise",
-        "crm_livechat",
-        "data_cleaning",
-        "documents_spreadsheet",
-        "documents_spreadsheet_survey",
-        "esg",
-        "gamification",
-        "geoengine",
-        "google_address_autocomplete",
-        "google_calendar",
-        "helpdesk",
-        "helpdesk_timesheet",
-        "hr",
-        "hr_attendance",
-        "hr_attendance_gantt",
-        "hr_gantt",
-        "hr_holidays",
-        "hr_holidays_homeworking",
-        "hr_homeworking",
-        "hr_homeworking_calendar",
-        "hr_mobile",
-        "hr_org_chart",
-        "hr_payroll",
-        "hr_recruitment",
-        "hr_skills",
-        "hr_timesheet",
-        "hr_work_entry",
-        "hr_work_entry_enterprise",
-        "html_builder",
-        "iap_extract",
-        "im_livechat",
-        "industry_fsm",
-        "industry_fsm_sale",
-        "industry_fsm_stock",
-        "iot",
-        "knowledge",
-        "l10n_at_pos",
-        "l10n_de_pos_cert",
-        "l10n_fr_fec_import",
-        "l10n_fr_pos_cert",
-        "l10n_it_pos",
-        "l10n_sa_pos",
-        "l10n_uk_reports",
-        "lunch",
-        "mail_enterprise",
-        "mass_mailing",
-        "microsoft_calendar",
-        "mrp",
-        "mrp_workorder",
-        "partner_autocomplete",
-        "payment",
-        "planning",
-        "planning_holidays",
-        "point_of_sale",
-        "portal",
-        "pos_appointment",
-        "pos_event",
-        "pos_glory_cash",
-        "pos_hr",
-        "pos_iot",
-        "pos_iot_six",
-        "pos_online_payment_self_order",
-        "pos_restaurant_appointment",
-        "pos_sale",
-        "pos_self_order",
-        "pos_settle_due",
-        "pos_urban_piper",
-        "pos_urban_piper_enhancements",
-        "product",
-        "project_enterprise",
-        "project_forecast",
-        "project_todo",
-        "purchase_stock",
-        "quality_control",
-        "resource",
-        "resource_mail",
-        "room",
-        "sale",
-        "sale_management",
-        "sale_planning",
-        "sale_project",
-        "sale_timesheet",
-        "sale_timesheet_enterprise",
-        "sales_team",
-        "sign",
-        "sign_itsme",
-        "sms",
-        "snailmail",
-        "social_facebook",
-        "social_test_full",
-        "spreadsheet",
-        "spreadsheet_account",
-        "spreadsheet_dashboard",
-        "spreadsheet_dashboard_documents",
-        "spreadsheet_dashboard_edition",
-        "spreadsheet_edition",
-        "spreadsheet_sale_management",
-        "stock",
-        "stock_barcode",
-        "stock_barcode_product_expiry",
-        "survey",
-        "test_assetsbundle",
-        "test_discuss_full_enterprise",
-        "test_mail_enterprise",
-        "test_mail_full",
-        "test_spreadsheet_edition",
-        "timer",
-        "timesheet_grid",
-        "uom",
-        "voip",
-        "voip_crm",
-        "voip_onsip",
-        "web_cohort",
-        "web_enterprise",
-        "web_gantt",
-        "web_grid",
-        "web_hierarchy",
-        "web_map",
-        "web_mobile",
-        "web_studio",
-        "web_studio_ai_fields",
-        "web_threed",
-        "web_tour",
-        "web_unsplash",
-        "web_widget_model_viewer",
-        "website_appointment",
-        "website_blog",
-        "website_cf_turnstile",
-        "website_event",
-        "website_forum",
-        "website_helpdesk_livechat",
-        "website_knowledge",
-        "website_livechat",
-        "website_mass_mailing",
-        "website_payment",
-        "website_sale",
-        "website_slides",
-        "website_studio",
-        "whatsapp",
-        "worksheet",
-    }
-)
-
 
 def unit_test_error_checker(message):
     return "[HOOT]" not in message
@@ -254,6 +86,140 @@ def _get_filters(test_params):
                 part_sign = "-" if sign == "+" else "+"
             filters.append((part_sign, part))
     return sorted(filters)
+
+
+def suite_addon(suite):
+    return suite.split("/", 1)[0].lstrip("@")
+
+
+def runner_suite_prefixes(path):
+    """Return the suite prefixes ``path`` actually passes to ``_run_hoot``.
+
+    Module-level tuple/list constants are resolved first so a ``*SUITES`` splat
+    inside the call expands, which is how most runners spell their lists.
+    """
+    tree = ast.parse(Path(path).read_text(encoding="utf-8"))
+    constants = {}
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Assign)
+            and len(node.targets) == 1
+            and isinstance(node.targets[0], ast.Name)
+            and isinstance(node.value, ast.Tuple | ast.List)
+        ):
+            values = []
+            for elt in node.value.elts:
+                if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
+                    values.append(elt.value)
+                elif isinstance(elt, ast.Starred) and isinstance(elt.value, ast.Name):
+                    values.extend(constants.get(elt.value.id, ()))
+            constants[node.targets[0].id] = tuple(values)
+    prefixes = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "_run_hoot"
+        ):
+            for arg in node.args:
+                if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
+                    prefixes.add(arg.value)
+                elif isinstance(arg, ast.Starred) and isinstance(arg.value, ast.Name):
+                    prefixes.update(constants.get(arg.value.id, ()))
+    return prefixes
+
+
+def addons_bundling_unit_tests():
+    """``{addon: [suite, ...]}`` for every addon that bundles ``*.test.js``."""
+    bundled = {}
+    for root in (Path(p) for p in odoo.addons.__path__):
+        for manifest in root.glob("*/__manifest__.py"):
+            addon = manifest.parent
+            if "assets_unit_tests" not in manifest.read_text(encoding="utf-8"):
+                continue
+            tests_root = addon / "static" / "tests"
+            suites = [
+                f"@{addon.name}/"
+                + test_file.relative_to(tests_root).as_posix()[: -len(".test.js")]
+                for test_file in sorted(tests_root.rglob("*.test.js"))
+            ]
+            if suites:
+                bundled.setdefault(addon.name, []).extend(suites)
+    return bundled
+
+
+def uncovered_unit_suites():
+    """Suite names bundled for HOOT that no addon's own runner selects.
+
+    These are what :mod:`test_js_addons` picks up: a suite no ``_run_hoot``
+    filter names simply never runs, and before the catch-all existed that was
+    660 test files across 159 addons — 38% of the workspace's HOOT tests.
+    """
+    prefixes = set()
+    for root in (Path(p) for p in odoo.addons.__path__):
+        for runner in root.glob("*/tests/test_js.py"):
+            prefixes |= runner_suite_prefixes(runner)
+    return [
+        suite
+        for suites in addons_bundling_unit_tests().values()
+        for suite in suites
+        if not any(suite == p or suite.startswith(p + "/") for p in prefixes)
+    ]
+
+
+def uncovered_suites_by_addon():
+    """``{addon: [suite, ...]}`` for :mod:`test_js_addons` to generate from.
+
+    Keyed on the *suites* an addon leaves uncovered rather than on the addon,
+    because coverage is not all-or-nothing: ``point_of_sale`` selects
+    ``@point_of_sale/unit`` and bundles files outside it, so a generated method
+    running the whole addon would re-run what its own runner already does.
+    """
+    by_addon = {}
+    for suite in uncovered_unit_suites():
+        by_addon.setdefault(suite_addon(suite), []).append(suite)
+    return by_addon
+
+
+RE_MOBILE_TAG = re.compile(r"""\.tags\([^)]*["']mobile["']""")
+
+
+def _suite_test_files(suite):
+    """The ``*.test.js`` files a ``&id=`` filter for ``suite`` can select."""
+    addon, _, rel = suite.lstrip("@").partition("/")
+    with suppress(FileNotFoundError):
+        tests_root = Path(file_path(f"{addon}/static/tests"))
+        target = tests_root / rel if rel else tests_root
+        if target.is_dir():
+            return sorted(target.rglob("*.test.js"))
+        leaf = target.with_name(target.name + ".test.js")
+        if leaf.is_file():
+            return [leaf]
+    return []
+
+
+def _mobile_suites_under(prefixes):
+    """The file suites under ``prefixes`` that carry at least one mobile test.
+
+    The mobile preset excludes only ``desktop``-tagged tests, so an untagged
+    test — 49% of ``@web`` and 97% of ``@html_editor`` — runs a second time at
+    375x667. Measured, that second pass is 9409 tests and ~875 s of serial
+    runtime against 198 tests that actually carry a ``mobile`` tag, and across
+    ~23600 executions its failure set was a strict subset of the desktop pass's
+    (the same 7 cross-suite pollution failures, nothing else). Selecting the
+    files that own a mobile test keeps every mobile test, keeps the untagged
+    tests sitting next to them, and stops re-running the other 96%.
+    """
+    suites = []
+    for prefix in prefixes:
+        addon = prefix.lstrip("@").partition("/")[0]
+        tests_root = Path(file_path(f"{addon}/static/tests"))
+        for test_file in _suite_test_files(prefix):
+            with suppress(OSError):
+                if RE_MOBILE_TAG.search(test_file.read_text(encoding="utf-8")):
+                    rel = test_file.relative_to(tests_root).as_posix()
+                    suites.append(f"@{addon}/" + rel[: -len(".test.js")])
+    return suites
 
 
 @odoo.tests.tagged("post_install", "-at_install", "web_js")
@@ -462,6 +428,53 @@ class WebSuite(HOOTCommon):
         """Check that no HOOT test uses only() or debug()."""
         self._check_forbidden_statements("web.assets_unit_tests")
 
+    def test_shard_runner_covers_ci(self):
+        """``tooling/scripts/hoot-shard`` must run every test file CI runs.
+
+        It presents itself as the full web suite, so a suite missing from it
+        reads as "the whole thing is green". Its list used to be a hand-kept
+        copy of the one above, marked "KEEP IN SYNC", and it had lost
+        ``@html_editor`` (4766 tests, 494 s — more than a third of the desktop
+        pass) and ``@web/libs``: the "full" run covered 66% of the tests.
+
+        Asserted over the *resolved plan* — after ``refine()`` has split heavy
+        suites into child ids — and in files rather than suite names, so it
+        also catches a refinement that drops one. Comparing the two suite lists
+        would prove nothing: both are read from this file.
+        """
+        hoot_lib, hoot_shard = self._load_shard_runner()
+        weights = hoot_shard.load_weights()
+        declared = hoot_shard.default_web_suites()
+        scheduled = hoot_shard.refine(declared, 4, weights)
+
+        def files(suites):
+            return {p for s in suites for p in hoot_lib.suite_test_files(s)}
+
+        expected = files(self._runner_suite_prefixes(Path(__file__)))
+        self.assertTrue(expected, "no test files resolved for the CI suites")
+        self.assertFalse(
+            expected - files(scheduled),
+            "hoot-shard's plan does not cover every test file WebSuite runs:"
+            "\n- " + "\n- ".join(sorted(str(p) for p in expected - files(scheduled))),
+        )
+
+    @staticmethod
+    def _load_shard_runner():
+        """Import ``hoot_lib`` and the extension-less ``hoot-shard`` CLI."""
+        scripts = Path(file_path("web/tooling/scripts"))
+        sys.path.insert(0, str(scripts))
+        try:
+            hoot_lib = importlib.import_module("hoot_lib")
+            loader = importlib.machinery.SourceFileLoader(
+                "hoot_shard", str(scripts / "hoot-shard")
+            )
+            spec = importlib.util.spec_from_loader("hoot_shard", loader)
+            hoot_shard = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(hoot_shard)
+        finally:
+            sys.path.remove(str(scripts))
+        return hoot_lib, hoot_shard
+
     def test_suite_filters_cover_every_test_file(self):
         """Every ``static/tests/**/*.test.js`` must be selected by at least
         one CI suite filter in ALL_WEB_SUITE_PREFIXES.
@@ -493,114 +506,62 @@ class WebSuite(HOOTCommon):
         )
 
     def test_every_addon_unit_suite_is_selected_by_a_runner(self):
-        """Repo-wide: every ``*.test.js`` bundled into ``web.assets_unit_tests``
-        must be selected by some runner's ``_run_hoot`` prefix.
+        """Repo-wide: every bundled ``*.test.js`` must be selected by a runner.
 
-        The per-addon walks above only police their own addon, so an addon that
-        bundles test files and ships no ``tests/test_js.py`` at all was policed
-        by nothing: ``_run_hoot`` drives HOOT with ``&id=`` hash filters built
-        from explicit suite names, and a suite no filter names simply never
-        runs. ``base_import`` sat that way with 38 tests, two of which were
-        broken -- one of them a real UI bug -- and ``barcodes`` with 9.
+        ``_run_hoot`` drives HOOT with ``&id=`` hash filters built from explicit
+        suite names, and a suite no filter names simply never runs.
+        ``base_import`` sat that way with 38 tests, two of which were broken --
+        one of them a real UI bug -- and ``barcodes`` with 9.
 
-        Coverage is read from what the runners actually execute rather than from
-        a naming convention, so cross-addon coverage counts (``web`` runs
-        ``@html_editor``) and a runner whose prefixes miss some of its own files
-        is still reported.
+        An addon with no runner of its own is now picked up by
+        :class:`~odoo.addons.web.tests.test_js_addons.AddonSuite`, which
+        generates one method per such addon from this same walk. So the walk no
+        longer asks "did someone write a runner" — it asks whether the two
+        halves still meet: every suite is either named by an explicit runner or
+        owned by a generated method, and nothing falls between them.
 
-        :attr:`KNOWN_UNCOVERED_ADDONS` is the remaining debt, and is asserted to
-        be exact in both directions: an addon that gains coverage must be
-        removed from it, so the list can only shrink.
+        :data:`~odoo.addons.web.tests.test_js_addons.KNOWN_FAILING_ADDONS` is
+        the remaining debt — addons whose generated method skips because the
+        suites do not pass yet — and is asserted exact in both directions, so it
+        can only shrink.
         """
-        uncovered = self._uncovered_unit_suites()
-        unexpected = sorted(
-            suite
-            for suite in uncovered
-            if self._suite_addon(suite) not in KNOWN_UNCOVERED_ADDONS
+        from .test_js_addons import GENERATED_ADDONS, KNOWN_FAILING_ADDONS
+
+        uncovered = uncovered_unit_suites()
+        generated = GENERATED_ADDONS
+        unowned = sorted(
+            suite for suite in uncovered if suite_addon(suite) not in generated
         )
         self.assertFalse(
-            unexpected,
-            "Unit test files selected by no runner (they will never run). Add a "
-            "tests/test_js.py for the addon, or a prefix to an existing runner:"
-            "\n- " + "\n- ".join(unexpected),
+            unowned,
+            "Unit test files selected by no runner and by no generated method "
+            "(they will never run):\n- " + "\n- ".join(unowned),
         )
-        stale = KNOWN_UNCOVERED_ADDONS - {self._suite_addon(s) for s in uncovered}
+
+        covered_addons = set(addons_bundling_unit_tests()) - {
+            suite_addon(s) for s in uncovered
+        }
         self.assertFalse(
-            stale,
-            "These addons are now covered by a runner; remove them from "
-            f"KNOWN_UNCOVERED_ADDONS: {sorted(stale)}",
+            generated & covered_addons,
+            "These addons have their own runner; AddonSuite must not also "
+            f"generate a method for them: {sorted(generated & covered_addons)}",
+        )
+        self.assertFalse(
+            KNOWN_FAILING_ADDONS - generated,
+            "These addons no longer bundle uncovered suites; remove them from "
+            f"KNOWN_FAILING_ADDONS: {sorted(KNOWN_FAILING_ADDONS - generated)}",
         )
 
     @staticmethod
     def _suite_addon(suite):
-        return suite.split("/", 1)[0].lstrip("@")
+        return suite_addon(suite)
 
     @staticmethod
     def _runner_suite_prefixes(path):
-        """Return the suite prefixes ``path`` actually passes to ``_run_hoot``.
-
-        Module-level tuple/list constants are resolved first so a ``*SUITES``
-        splat inside the call expands, which is how most runners spell their
-        lists.
-        """
-        tree = ast.parse(Path(path).read_text())
-        constants = {}
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Assign)
-                and len(node.targets) == 1
-                and isinstance(node.targets[0], ast.Name)
-                and isinstance(node.value, ast.Tuple | ast.List)
-            ):
-                values = []
-                for elt in node.value.elts:
-                    if isinstance(elt, ast.Constant) and isinstance(elt.value, str):
-                        values.append(elt.value)
-                    elif isinstance(elt, ast.Starred) and isinstance(
-                        elt.value, ast.Name
-                    ):
-                        values.extend(constants.get(elt.value.id, ()))
-                constants[node.targets[0].id] = tuple(values)
-        prefixes = set()
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Call)
-                and isinstance(node.func, ast.Attribute)
-                and node.func.attr == "_run_hoot"
-            ):
-                for arg in node.args:
-                    if isinstance(arg, ast.Constant) and isinstance(arg.value, str):
-                        prefixes.add(arg.value)
-                    elif isinstance(arg, ast.Starred) and isinstance(
-                        arg.value, ast.Name
-                    ):
-                        prefixes.update(constants.get(arg.value.id, ()))
-        return prefixes
+        return runner_suite_prefixes(path)
 
     def _uncovered_unit_suites(self):
-        """Return the suite names bundled for HOOT that no runner selects."""
-        roots = [Path(p) for p in odoo.addons.__path__]
-        prefixes = set()
-        for root in roots:
-            for runner in root.glob("*/tests/test_js.py"):
-                prefixes |= self._runner_suite_prefixes(runner)
-
-        uncovered = []
-        for root in roots:
-            for manifest in root.glob("*/__manifest__.py"):
-                addon = manifest.parent
-                if "assets_unit_tests" not in manifest.read_text():
-                    continue
-                tests_root = addon / "static" / "tests"
-                for test_file in sorted(tests_root.rglob("*.test.js")):
-                    rel = test_file.relative_to(tests_root).as_posix()
-                    suite = f"@{addon.name}/" + rel[: -len(".test.js")]
-                    if not any(
-                        suite == prefix or suite.startswith(prefix + "/")
-                        for prefix in prefixes
-                    ):
-                        uncovered.append(suite)
-        return uncovered
+        return uncovered_unit_suites()
 
     def _check_forbidden_statements(self, bundle):
         self.env.ref("web.layout").write(
@@ -629,6 +590,19 @@ class WebSuite(HOOTCommon):
 class MobileWebSuite(HOOTCommon):
     browser_size = "375x667"
     touch_enabled = True
+
+    def _run_hoot(self, *suite_names, **kwargs):
+        """Narrow each category to the files that own a mobile test.
+
+        See :func:`_mobile_suites_under`. Not applied when ``--test-tags``
+        supplies explicit suites: that path is someone asking for exactly what
+        they typed.
+        """
+        if not self.hoot_filters:
+            suite_names = _mobile_suites_under(suite_names)
+            if not suite_names:
+                self.skipTest("no mobile-tagged test under these suites")
+        super()._run_hoot(*suite_names, **kwargs)
 
     @odoo.tests.no_retry
     def test_core(self):
