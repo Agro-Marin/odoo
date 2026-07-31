@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/utils/format_list - Locale-aware list formatting via Intl.ListFormat (conjunction, disjunction, unit) */
+/** @module @web/core/l10n/utils/format_list */
 
 import { localization } from "@web/core/l10n/localization";
 import { pyToJsLocale } from "@web/core/l10n/utils/locales";
@@ -10,9 +10,6 @@ import { pyToJsLocale } from "@web/core/l10n/utils/locales";
  * @typedef {keyof typeof LIST_STYLES} FormatListStyle
  */
 
-/**
- * Convert Unicode TR35-49 list pattern types to ES Intl.ListFormat options
- */
 const LIST_STYLES = /** @type {const} */ ({
     standard: {
         type: "conjunction",
@@ -48,40 +45,12 @@ const LIST_STYLES = /** @type {const} */ ({
 const _listFormatCache = new Map();
 
 /**
- * Format the items in `values` as a list in a locale-dependent manner with the
- * chosen style.
- *
- * The available styles are defined in the Unicode TR35-49 spec:
- * * standard:
- *   A typical "and" list for arbitrary placeholders.
- *   e.g. "January, February, and March"
- * * standard-short:
- *   A short version of an "and" list, suitable for use with short or abbreviated placeholder values.
- *   e.g. "Jan., Feb., and Mar."
- * * or:
- *   A typical "or" list for arbitrary placeholders.
- *   e.g. "January, February, or March"
- * * or-short:
- *   A short version of an "or" list.
- *   e.g. "Jan., Feb., or Mar."
- * * unit:
- *   A list suitable for wide units.
- *   e.g. "3 feet, 7 inches"
- * * unit-short:
- *   A list suitable for short units
- *   e.g. "3 ft, 7 in"
- * * unit-narrow:
- *   A list suitable for narrow units, where space on the screen is very limited.
- *   e.g. "3′ 7″"
- *
- * @see https://www.unicode.org/reports/tr35/tr35-general.html#ListPatterns for more details.
- *
- * @param {Iterable<string>} values values to format into a list.
+ * @param {Iterable<string>} values
  * @param {{
  *  localeCode?: string;
  *  style?: FormatListStyle;
  * }} [options]
- * @returns {string} formatted list.
+ * @returns {string}
  */
 export function formatList(values, { localeCode, style } = {}) {
     const locale = localeCode || pyToJsLocale(localization.code) || "en-US";

@@ -1,30 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/utils/locales - Bidirectional JS (BCP 47) to Python (XPG) locale conversion */
+/** @module @web/core/l10n/utils/locales */
 
 /**
- * Converts a locale from JavaScript to Python format.
- *
- * Most of the time, the conversion replaces - with _.
- * Example: fr-BE → fr_BE
- *
- * Exceptions:
- *  - Serbian can be written in both Latin and Cyrillic scripts interchangeably,
- *  therefore its locale includes a special modifier to indicate which script to
- *  use. Example: sr-Latn → sr@latin
- *  - Tagalog/Filipino: The "fil" locale is replaced by "tl" for compatibility
- *  with the Python side (where the "fil" locale doesn't exist).
- *
- * BCP 47 (JS):
- *  language[-extlang][-script][-region][-variant][-extension][-privateuse]
- *  https://www.ietf.org/rfc/rfc5646.txt
- * XPG syntax (Python):
- *  language[_territory][.codeset][@modifier]
- *  https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
- *
- * @param {string | null} locale The locale formatted for use on the JavaScript-side.
- * @returns {string} The locale formatted for use on the Python-side.
+ * @param {string | null} locale
+ * @returns {string}
  */
 export function jsToPyLocale(locale) {
     if (!locale) {
@@ -55,25 +36,8 @@ export function jsToPyLocale(locale) {
 }
 
 /**
- * Converts a locale from Python to JavaScript format.
- *
- * Most of the time, the conversion replaces _ with -.
- * Example: fr_BE → fr-BE
- *
- * Exception: Serbian can be written in both Latin and Cyrillic scripts
- * interchangeably, therefore its locale includes a special modifier
- * to indicate which script to use.
- * Example: sr@latin → sr-Latn
- *
- * BCP 47 (JS):
- *  language[-extlang][-script][-region][-variant][-extension][-privateuse]
- *  https://www.ietf.org/rfc/rfc5646.txt
- * XPG syntax (Python):
- *  language[_territory][.codeset][@modifier]
- *  https://www.gnu.org/software/libc/manual/html_node/Locale-Names.html
- *
- * @param {string} locale The locale formatted for use on the Python-side.
- * @returns {string} The locale formatted for use on the JavaScript-side.
+ * @param {string} locale
+ * @returns {string}
  */
 export function pyToJsLocale(locale) {
     if (!locale) {

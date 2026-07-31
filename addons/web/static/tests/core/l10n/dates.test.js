@@ -14,8 +14,8 @@ import {
     formatDate,
     formatDateTime,
     formatDuration,
-    parseDate,
-    parseDateTime,
+    parseDate as parseDateOrNull,
+    parseDateTime as parseDateTimeOrNull,
     serializeDate,
     serializeDateTime,
     strftimeToLuxonFormat,
@@ -24,6 +24,21 @@ import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
 
 const { DateTime, Settings } = luxon;
+
+/**
+ * ``parseDate``/``parseDateTime`` return ``null`` only for a falsy value; an
+ * unparseable non-empty one throws. Every call below passes a non-empty
+ * literal, so the null branch is unreachable and asserting that once here beats
+ * repeating it at ~100 call sites.
+ */
+const parseDate =
+    /** @type {(...args: Parameters<typeof parseDateOrNull>) => DateTime} */ (
+        parseDateOrNull
+    );
+const parseDateTime =
+    /** @type {(...args: Parameters<typeof parseDateTimeOrNull>) => DateTime} */ (
+        parseDateTimeOrNull
+    );
 
 const formats = {
     date: "%d.%m/%Y",

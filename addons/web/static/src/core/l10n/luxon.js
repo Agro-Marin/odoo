@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/luxon - Typed re-exports of the Luxon DateTime library (real ESM build, resolved via the import map) */
+/** @module @web/core/l10n/luxon */
 
 export {
     DateTime,

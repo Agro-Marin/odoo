@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/dates - Luxon-based date/datetime parsing, formatting, serialization, and locale-aware week helpers */
+/** @module @web/core/l10n/dates */
 
 import { localization } from "@web/core/l10n/localization";
 import { DateTime, Duration, Settings } from "@web/core/l10n/luxon";
@@ -30,7 +30,6 @@ export {
  * @typedef ConversionOptions
  * @property {string} [format]
  * @property {string} [tz]
- *
  * @typedef {[NullableDateTime, NullableDateTime]} NullableDateRange
  *
  * A Luxon ``DateTime`` or an "empty" sentinel. ``null`` and ``false`` both mean
@@ -48,10 +47,6 @@ export {
  * @property {string} [tz]
  */
 
-/**
- * Limits defining a valid date (server only understands 4-digit years).
- * Computed once and cached — each getter is hit ~10x per parseDateTime.
- */
 let minValidDate;
 let maxValidDate;
 export function getMinValidDate() {
@@ -113,28 +108,6 @@ export class ConversionError extends Error {
 }
 
 /**
- * Returns whether the given DateTime is valid (between 1000-01-01 and 9999-12-31).
- *
- * Declared as a TYPE PREDICATE so the parse fallback chain in
- * ``parseDateTime`` narrows: that function reassigns ``result`` from
- * ``parseSmartDateInput`` (``NullableDateTime``), then guards with
- * ``if (!isValidDate(result)) { throw }`` before calling ``result.reconfigure``
- * / ``result.setZone``. Without the predicate every one of those calls is
- * "possibly null" even though the throw above makes them unreachable.
- *
- * CAVEAT — the predicate is precise on the TRUE branch and deliberately
- * approximate on the FALSE one: a Luxon ``DateTime`` that is merely invalid or
- * out of range also returns ``false``, so the negative branch narrows to
- * ``null | false`` while it could still hold a ``DateTime``. That is sound for
- * every caller today — this function is module-private and all six call sites
- * are ``if (!isValidDate(result))`` branches that either reassign ``result`` or
- * throw, never read it as a date. A future caller that wants the rejected
- * DateTime back in the false branch must not use this guard.
- *
- * ``Boolean(...)`` because a type predicate must return ``boolean``: the bare
- * ``date && ...`` chain evaluates to ``null | false | boolean``, which also
- * contradicted the "Returns whether" contract.
- *
  * @param {NullableDateTime} date
  * @returns {date is DateTime}
  */
@@ -145,8 +118,6 @@ function isValidDate(date) {
 }
 
 /**
- * Smart date inputs are shortcuts to write dates quicker.
- *
  * @param {string} value
  * @returns {NullableDateTime}
  */
@@ -226,7 +197,6 @@ function parseSmartDateInput(value) {
 }
 
 /**
- * Removes duplicate subsequent alphabetic characters.
  * @type {(str: string) => string}
  */
 const stripAlphaDupes = memoize(function stripAlphaDupes(str) {
@@ -236,7 +206,6 @@ const stripAlphaDupes = memoize(function stripAlphaDupes(str) {
 });
 
 /**
- * Convert Python strftime to escaped luxon.js format.
  * @type {(format: string) => string}
  */
 export const strftimeToLuxonFormat = memoize(function strftimeToLuxonFormat(format) {
@@ -266,13 +235,7 @@ delete DATE_MED_NO_YEAR.year;
 const DATETIME_MED_NO_SECONDS = { ...DateTime.DATETIME_MED_WITH_SECONDS };
 delete DATETIME_MED_NO_SECONDS.second;
 
-/**
- * Current year in the default timezone, memoized for the current local day.
- * Avoids building two luxon DateTimes (`today()`) per formatted value just to
- * compare `.year`. The memo is keyed on the [start, end) timestamps of the
- * day it was computed for, so it also recomputes when the clock is moved
- * backwards (e.g. mocked dates in tests).
- */
+/** @type {number} */
 let currentYear;
 let currentYearDayStart = 0;
 let currentYearDayEnd = 0;
@@ -312,9 +275,6 @@ export function formatDateTime(value, options = {}) {
 }
 
 /**
- * Format a DateTime to a locale date string (e.g. "Jan 31, 2024").
- * Current year is omitted.
- *
  * @param {NullableDateTime} value
  */
 export function toLocaleDateString(value) {
@@ -327,8 +287,6 @@ export function toLocaleDateString(value) {
 }
 
 /**
- * Format a DateTime to a locale datetime string (e.g. "Jan 31, 2024, 12:00 AM").
- *
  * @param {NullableDateTime} value
  * @param {ConversionLocalOptions} [options]
  */
@@ -358,8 +316,6 @@ export function toLocaleDateTimeString(
 }
 
 /**
- * Converts duration in seconds to human-readable format.
- *
  * @param {number} seconds
  * @param {boolean} showFullDuration
  * @returns {string}
@@ -369,7 +325,6 @@ export function formatDuration(seconds, showFullDuration) {
     const numberOfValuesToDisplay = showFullDuration ? 2 : 1;
     /** @type {Array<"years" | "months" | "days" | "hours" | "minutes">} */
     const durationKeys = ["years", "months", "days", "hours", "minutes"];
-    /** Plural Luxon key -> singular Intl "unit" identifier. */
     const intlUnitByKey = {
         years: "year",
         months: "month",
@@ -388,11 +343,6 @@ export function formatDuration(seconds, showFullDuration) {
     const locale = Settings.defaultLocale || undefined;
 
     /**
-     * Formats a single unit value using the locale, avoiding `toHuman` (whose
-     * output we would otherwise have to split on a comma — a separator that
-     * does not exist in "and"-joined locales such as `ar`, which would make
-     * every unit show regardless of `numberOfValuesToDisplay`).
-     *
      * @param {number} value
      * @param {"years" | "months" | "days" | "hours" | "minutes"} key
      * @returns {string}
@@ -445,12 +395,15 @@ export function parseDate(value, options = {}) {
 }
 
 /**
- * Parses a string value to a Luxon DateTime object.
- * Tries multiple strategies: user format, smart date input, partial formats, ISO, SQL.
+ * Returns ``null`` only for a falsy ``value``; an unparseable non-empty value
+ * throws ``ConversionError`` rather than yielding a sentinel. Deliberately not
+ * ``NullableDateTime``, whose ``false`` member describes an empty *field value*
+ * and is unreachable here.
  *
  * @param {string} value
  * @param {ConversionOptions} [options={}]
- * @returns {NullableDateTime}
+ * @returns {DateTime | null}
+ * @throws {ConversionError} if ``value`` is non-empty and cannot be parsed
  */
 export function parseDateTime(value, options = {}) {
     if (!value) {

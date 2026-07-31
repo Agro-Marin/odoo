@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/date_serialization - Server-format date serialization and deserialization with WeakMap caching */
+/** @module @web/core/l10n/date_serialization */
 
 import { DateTime, Settings } from "@web/core/l10n/luxon";
 
@@ -15,19 +15,13 @@ const dateCache = new WeakMap();
 const dateTimeCache = new WeakMap();
 
 /**
- * Formats the given DateTime to the server date format ("yyyy-MM-dd").
- * Results are cached per DateTime instance.
- *
- * @param {any} value - Luxon DateTime
- * @returns {string|false} the serialized date, or `false` for falsy input
+ * @param {any} value
+ * @returns {string|false}
  */
 export function serializeDate(value) {
     if (!value) {
         return false;
     }
-    // One map lookup on a hit instead of the has()/set()/get() trio, and the
-    // result is a plain string rather than the `string | undefined` a bare
-    // `get()` returns however unreachable the miss is.
     let serialized = dateCache.get(value);
     if (serialized === undefined) {
         serialized = String(
@@ -39,11 +33,8 @@ export function serializeDate(value) {
 }
 
 /**
- * Formats the given DateTime to the server datetime format ("yyyy-MM-dd HH:mm:ss").
- * The value is converted to UTC before formatting. Results are cached.
- *
- * @param {any} value - Luxon DateTime
- * @returns {string|false} the serialized datetime, or `false` for falsy input
+ * @param {any} value
+ * @returns {string|false}
  */
 export function serializeDateTime(value) {
     if (!value) {
@@ -62,11 +53,8 @@ export function serializeDateTime(value) {
 }
 
 /**
- * Parses a serialized date string (e.g. "2018-01-01") into a Luxon DateTime
- * in the user's timezone.
- *
  * @param {string} value
- * @returns {any} Luxon DateTime
+ * @returns {any}
  */
 export function deserializeDate(value) {
     return DateTime.fromSQL(value, {
@@ -78,12 +66,9 @@ export function deserializeDate(value) {
 }
 
 /**
- * Parses a serialized datetime string (e.g. "2018-01-01 00:00:00") expressed
- * in UTC into a Luxon DateTime in the user's timezone.
- *
  * @param {string} value
  * @param {{tz?: string}} [options]
- * @returns {any} Luxon DateTime
+ * @returns {any}
  */
 export function deserializeDateTime(value, options = {}) {
     return DateTime.fromSQL(value, { numberingSystem: "latn", zone: "utc" })

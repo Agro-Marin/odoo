@@ -1,15 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/l10n/utils/unaccent - PostgreSQL-compatible transliteration fold */
+/** @module @web/core/l10n/utils/unaccent */
 
 import { UNACCENT_REPLACEMENTS, UNACCENT_SOURCES } from "./unaccent_table.js";
 
 /**
- * Lazily-built fold map. Deferred because the overwhelming majority of strings
- * this module sees are pure ASCII and never need it — see the fast path in
- * {@link unaccent}.
- *
  * @type {Map<string, string> | null}
  */
 let foldMap = null;
@@ -27,10 +23,6 @@ function getFoldMap() {
 }
 
 /**
- * Whether a string contains anything the fold table could act on. Every probed
- * range starts at U+0080, so a string of pure ASCII is always its own fold and
- * can skip the walk entirely.
- *
  * @param {string} str
  * @returns {boolean}
  */
@@ -44,23 +36,6 @@ function needsFold(str) {
 }
 
 /**
- * Transliterate a string the way PostgreSQL's ``unaccent()`` does.
- *
- * This is the fold the server applies to BOTH operands of an ``ilike`` — in SQL
- * via ``unaccent(...)`` and in ``Model.filtered_domain`` via
- * ``Registry.unaccent_python`` — so it is what any client-side re-implementation
- * of ``ilike`` has to use to select the same records. It goes well beyond
- * stripping combining marks: ``Ø``→``O``, ``æ``→``ae``, ``ß``→``ss``,
- * ``Œ``→``OE``, ``Ł``→``L``, ``₹``→``Rs``, and 1494 more.
- *
- * Note the ORDER this implies at the call site: the server transliterates and
- * only THEN lowercases (``unaccent_python(x).lower()``), because a fold whose
- * replacement is upper-case — ``Æ``→``AE``, ``₹``→``Rs`` — is invisible to a
- * table lookup performed after lowering. Callers wanting a case-insensitive
- * comparison must therefore do ``unaccent(x).toLowerCase()``, not the reverse,
- * and must not lean on a case-insensitive regex flag: no such flag can make a
- * one-to-many fold like ``ß``→``ss`` happen.
- *
  * @param {string} str
  * @returns {string}
  */
@@ -77,13 +52,22 @@ export function unaccent(str) {
 }
 
 /**
- * ``unaccent`` + lowercase, in the order the server uses. The single spelling
- * of "fold as ``ilike`` folds", so no call site has to remember the ordering
- * constraint documented above.
+ * Fold a value the way this database's ``ilike`` does.
+ *
+ * PostgreSQL's ``unaccent`` extension is opt-in (``--unaccent`` defaults to
+ * off, and Odoo only issues ``CREATE EXTENSION`` for it when the flag is set),
+ * so the server folds accents only when the registry reports the function
+ * present -- otherwise ``Field.filter_function`` folds through ``_identity``
+ * and ``café`` simply is not ``cafe``. Folding unconditionally here made the
+ * client select records the server would not.
+ *
+ * Unrelated to {@link normalize}, which powers fuzzy *UI* search and should
+ * keep folding whatever the database can do.
  *
  * @param {string} str
+ * @param {boolean} [foldAccents=true] defaults to the pre-session behaviour
  * @returns {string}
  */
-export function foldForCaseInsensitiveCompare(str) {
-    return unaccent(str).toLowerCase();
+export function foldForCaseInsensitiveCompare(str, foldAccents = true) {
+    return (foldAccents ? unaccent(str) : str).toLowerCase();
 }
