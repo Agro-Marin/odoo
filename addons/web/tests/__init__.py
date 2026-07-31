@@ -5,6 +5,7 @@ from . import test_base_document_layout
 from . import test_click_everywhere
 from . import test_database_controller
 from . import test_db_manager
+from . import test_design_system
 from . import test_domain
 from . import test_esm_pipeline
 from . import test_export

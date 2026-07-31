@@ -48,6 +48,7 @@ FONT_DECLARATION_RE = re.compile(
 )
 
 
+@odoo.tests.tagged("-at_install", "post_install", "web_assets")
 class TestDesignSystem(odoo.tests.TransactionCase):
     @classmethod
     def setUpClass(cls):
