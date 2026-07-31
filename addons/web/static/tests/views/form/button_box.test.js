@@ -36,7 +36,7 @@ const NB_BUTTONS = 9;
  */
 function mockUiSize(size) {
     const bus = new EventBus();
-    /** @type {any} */ (mockService)("ui", (env) => {
+    /** @type {any} */ (mockService)("ui", (/** @type {any} */ env) => {
         Object.defineProperty(env, "isSmall", {
             value: size <= SIZES.SM,
         });

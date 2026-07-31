@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/form_renderer - Compiles form arch into an OWL template and manages autofocus, sticky statusbar, and field ID uniqueness */
+/** @module @web/views/form/form_renderer */
 
 import {
     Component,
@@ -34,13 +34,6 @@ import { FormLabel } from "./form_label.js";
 import { Setting } from "./setting/setting.js";
 import { StatusBarButtons } from "./status_bar_buttons/status_bar_buttons.js";
 
-/**
- * Renderer for the form view.
- *
- * Compiles the form arch into an OWL template, manages autofocus on new
- * records, handles scroll-based sticky statusbar behavior, and ensures
- * field ID uniqueness when rendered inside a dialog.
- */
 export class FormRenderer extends Component {
     static template = xml`<t t-call="{{ templates.FormRenderer }}" t-call-context="{ __comp__: Object.assign(Object.create(this), { this: this }) }" />`;
     static components = {

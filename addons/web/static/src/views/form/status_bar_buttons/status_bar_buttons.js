@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/form/status_bar_buttons/status_bar_buttons - Renders action buttons in the form status bar with overflow dropdown */
+/** @module @web/views/form/status_bar_buttons/status_bar_buttons */
 
 import { Component } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -16,7 +16,7 @@ export class StatusBarButtons extends Component {
         slots: { type: Object, optional: 1 },
     };
 
-    /** @returns {string[]} names of slots whose `isVisible` flag is true */
+    /** @returns {string[]} */
     get visibleSlotNames() {
         if (!this.props.slots) {
             return [];
