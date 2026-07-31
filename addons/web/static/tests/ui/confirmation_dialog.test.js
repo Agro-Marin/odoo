@@ -9,6 +9,7 @@ import {
     getService,
     makeDialogMockEnv,
     mountWithCleanup,
+    patchWithCleanup,
 } from "@web/../tests/web_test_helpers";
 import { MainComponentsContainer } from "@web/components/main_components_container";
 import { AlertDialog, ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
@@ -32,15 +33,14 @@ test("check content confirmation dialog", async () => {
 });
 
 test("Without dismiss callback: pressing escape to close the dialog", async () => {
-    const env = await makeDialogMockEnv();
+    const close = () => expect.step("Close action");
+    const env = await makeDialogMockEnv({ dialogData: { close } });
     await mountWithCleanup(ConfirmationDialog, {
         env,
         props: {
             body: "Some content",
             title: "Confirmation",
-            close: () => {
-                expect.step("Close action");
-            },
+            close,
             confirm: () => {
                 throw new Error("should not be called");
             },
@@ -56,15 +56,14 @@ test("Without dismiss callback: pressing escape to close the dialog", async () =
 });
 
 test("With dismiss callback: pressing escape to close the dialog", async () => {
-    const env = await makeDialogMockEnv();
+    const close = () => expect.step("Close action");
+    const env = await makeDialogMockEnv({ dialogData: { close } });
     await mountWithCleanup(ConfirmationDialog, {
         env,
         props: {
             body: "Some content",
             title: "Confirmation",
-            close: () => {
-                expect.step("Close action");
-            },
+            close,
             confirm: () => {
                 throw new Error("should not be called");
             },
@@ -82,15 +81,14 @@ test("With dismiss callback: pressing escape to close the dialog", async () => {
 });
 
 test("Without dismiss callback: clicking on 'X' to close the dialog", async () => {
-    const env = await makeDialogMockEnv();
+    const close = () => expect.step("Close action");
+    const env = await makeDialogMockEnv({ dialogData: { close } });
     await mountWithCleanup(ConfirmationDialog, {
         env,
         props: {
             body: "Some content",
             title: "Confirmation",
-            close: () => {
-                expect.step("Close action");
-            },
+            close,
             confirm: () => {
                 throw new Error("should not be called");
             },
@@ -104,15 +102,14 @@ test("Without dismiss callback: clicking on 'X' to close the dialog", async () =
 });
 
 test("With dismiss callback: clicking on 'X' to close the dialog", async () => {
-    const env = await makeDialogMockEnv();
+    const close = () => expect.step("Close action");
+    const env = await makeDialogMockEnv({ dialogData: { close } });
     await mountWithCleanup(ConfirmationDialog, {
         env,
         props: {
             body: "Some content",
             title: "Confirmation",
-            close: () => {
-                expect.step("Close action");
-            },
+            close,
             confirm: () => {
                 throw new Error("should not be called");
             },
@@ -401,4 +398,93 @@ test("confirming reports no close params", async () => {
     await contains(".modal-footer .btn-primary").click();
     await tick();
     expect(closeParams).toEqual([undefined]);
+});
+
+// DISMISS-VETO-BLOCK
+// `execButton` has always let a button callback refuse to close by returning
+// `false`. The dismiss path ignored it: `Dialog.dismiss` discarded what
+// `dialogData.dismiss` returned and closed anyway, so escape and the header
+// `X` overrode a refusal the Cancel button honoured.
+const openConfirmationWith = async (/** @type {any} */ props) => {
+    await mountWithCleanup(MainComponentsContainer);
+    getService("dialog").add(ConfirmationDialog, {
+        body: "Some content",
+        confirm: () => {},
+        ...props,
+    });
+    await animationFrame();
+    expect(".modal").toHaveCount(1);
+};
+
+const refusingCancel = () => {
+    expect.step("cancel");
+    return false;
+};
+
+test("Cancel button: a cancel callback returning false keeps the dialog open", async () => {
+    await openConfirmationWith({ cancel: refusingCancel });
+    await contains(".modal-footer .btn-secondary").click();
+    await tick();
+    expect.verifySteps(["cancel"]);
+    expect(".modal").toHaveCount(1);
+});
+
+test("escape: a cancel callback returning false keeps the dialog open", async () => {
+    await openConfirmationWith({ cancel: refusingCancel });
+    await press("escape");
+    await animationFrame();
+    await tick();
+    expect.verifySteps(["cancel"]);
+    expect(".modal").toHaveCount(1);
+});
+
+test("header X: a cancel callback returning false keeps the dialog open", async () => {
+    await openConfirmationWith({ cancel: refusingCancel });
+    await contains(".modal-header .btn-close").click();
+    await tick();
+    expect.verifySteps(["cancel"]);
+    expect(".modal").toHaveCount(1);
+});
+
+test("escape: a dismiss callback returning false outranks cancel", async () => {
+    await openConfirmationWith({
+        cancel: () => expect.step("cancel"),
+        dismiss: () => {
+            expect.step("dismiss");
+            return false;
+        },
+    });
+    await press("escape");
+    await animationFrame();
+    await tick();
+    expect.verifySteps(["dismiss"]);
+    expect(".modal").toHaveCount(1);
+});
+
+test("dismissing closes the dialog exactly once", async () => {
+    // Both `ConfirmationDialog._dismiss` and `Dialog.dismiss` used to close;
+    // only the overlay's re-entrancy guard kept that from closing twice.
+    await mountWithCleanup(MainComponentsContainer);
+    const overlay = getService("overlay");
+    const originalAdd = overlay.add;
+    patchWithCleanup(overlay, {
+        add(/** @type {any[]} */ ...args) {
+            const remove = originalAdd.apply(this, args);
+            return (/** @type {any} */ ...removeArgs) => {
+                expect.step(`close(${JSON.stringify(removeArgs[0])})`);
+                return remove(...removeArgs);
+            };
+        },
+    });
+    getService("dialog").add(ConfirmationDialog, {
+        body: "Some content",
+        confirm: () => {},
+        cancel: () => {},
+    });
+    await animationFrame();
+
+    await press("escape");
+    await animationFrame();
+    await tick();
+    expect.verifySteps([`close({"dismiss":true})`]);
 });

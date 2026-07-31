@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/notification/notification_service - Service that manages toast notifications displayed in the top-right corner */
+/** @module @web/ui/notification/notification_service */
 
 import { reactive } from "@odoo/owl";
+import { mainComponentEntry } from "@web/components/main_components_container";
 import { registry } from "@web/core/registry";
 
 import { NotificationContainer } from "./notification_container.js";
@@ -13,7 +14,6 @@ import { NotificationContainer } from "./notification_container.js";
  * @property {string} [icon]
  * @property {boolean} [primary=false]
  * @property {function(): void} onClick
- *
  * @typedef {Object} NotificationOptions
  * @property {string} [title]
  * @property {number} [autocloseDelay=4000]
@@ -26,42 +26,36 @@ import { NotificationContainer } from "./notification_container.js";
 
 export const notificationService = {
     notificationContainer: NotificationContainer,
-    /**
-     * Explicit, because `website_sale` starts a second notification service
-     * alongside this one and the two containers must land in different
-     * `main_components` slots. Deriving the key from `Component.name` made
-     * that separation depend on the bundler preserving class names.
-     */
     notificationContainerKey: "NotificationContainer",
 
     start() {
         let notifId = 0;
+        const notificationProps =
+            this.notificationContainer.notificationComponent?.props;
+        if (!notificationProps) {
+            throw new Error(
+                `${this.notificationContainer.name}.notificationComponent must declare the component ` +
+                    `rendering each notification, so that the options this service accepts are the ` +
+                    `props that component validates.`,
+            );
+        }
         /**
-         * Read off the hosted component's own declaration, never hardcoded:
-         * this service is built to be subclassed with a different container
-         * and notification component (`website_sale`'s cart toast takes
-         * `lines`, `warning`, `currency_id`), so a fixed list here would
-         * quietly strip exactly the props that subclass exists for.
-         * `null` = the component declares nothing, so filter nothing.
-         * @type {Set<string> | null}
+         * @type {Set<string>}
          */
-        const declaredProps = this.notificationContainer.components?.Notification?.props
-            ? new Set(
-                  Object.keys(this.notificationContainer.components.Notification.props),
-              )
-            : null;
+        const declaredProps = new Set(Object.keys(notificationProps));
         const notifications = reactive(
-            /** @type {Record<number, { id: number, props: Record<string, any>, onClose?: () => void }>} */ ({}),
+            /**
+             * @type {Record<number, { id: number, props: Record<string, any>, onClose?: () => void }>}
+             */ ({}),
         );
 
-        registry.category("main_components").add(
-            this.notificationContainerKey,
-            {
-                Component: this.notificationContainer,
-                props: { notifications },
-            },
-            { sequence: 100 },
-        );
+        registry
+            .category("main_components")
+            .add(
+                this.notificationContainerKey,
+                mainComponentEntry(this.notificationContainer),
+                { sequence: 100 },
+            );
 
         /**
          * @param {string} message
@@ -70,20 +64,15 @@ export const notificationService = {
         function add(message, options = {}) {
             const id = ++notifId;
             const closeFn = () => close(id);
-            /**
-             * Picked, not spread: every option used to become a prop, so one
-             * unrecognised key made Owl reject the whole component and the
-             * container dropped the notification — the caller lost their toast
-             * outright, and only in debug mode, where prop validation runs.
-             * Unknown keys now warn there instead, like `makeOverlayPresenter`
-             * already does for overlay options.
-             */
-            const props = { message, close: closeFn };
+            const props = /** @type {Record<string, any>} */ ({
+                message,
+                close: closeFn,
+            });
             for (const [key, value] of Object.entries(options)) {
                 if (key === "onClose") {
                     continue;
                 }
-                if (!declaredProps || declaredProps.has(key)) {
+                if (declaredProps.has(key)) {
                     props[key] = value;
                 } else if (odoo.debug) {
                     console.warn(
@@ -116,7 +105,15 @@ export const notificationService = {
             }
         }
 
-        return { add };
+        return {
+            add,
+            notifications,
+            destroy() {
+                for (const id of Object.keys(notifications)) {
+                    close(Number(id));
+                }
+            },
+        };
     },
 };
 

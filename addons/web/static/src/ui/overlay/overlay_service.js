@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/overlay/overlay_service - Low-level service for adding/removing overlay components (popovers, dialogs, effects) */
+/** @module @web/ui/overlay/overlay_service */
 
 import { markRaw, reactive } from "@odoo/owl";
+import { mainComponentEntry } from "@web/components/main_components_container";
 import { registry } from "@web/core/registry";
 import { OverlayContainer } from "@web/ui/overlay/overlay_container";
 
@@ -19,25 +20,13 @@ const services = registry.category("services");
  * }} OverlayServiceAddOptions
  */
 
-/**
- * Low-level service for adding/removing overlay components (popovers, dialogs, effects).
- *
- * Manages a reactive registry of overlay entries rendered by `OverlayContainer`.
- * Higher-level services (popover, dialog, bottom_sheet, effect) build on top of this.
- */
 export const overlayService = {
     start() {
         let nextId = 0;
         const overlays = reactive(/** @type {Record<number, any>} */ ({}));
         const removing = new Set();
 
-        mainComponents.add(
-            "OverlayContainer",
-            { Component: /** @type {any} */ (OverlayContainer) },
-            // A second env (test infra, embedded sub-app) starting the service
-            // must not blow up on a key the first one already registered.
-            { force: true },
-        );
+        mainComponents.add("OverlayContainer", mainComponentEntry(OverlayContainer));
 
         const remove = async (
             /** @type {number} */ id,
@@ -60,9 +49,7 @@ export const overlayService = {
          * @param {import("@odoo/owl").ComponentConstructor} component
          * @param {object} props
          * @param {OverlayServiceAddOptions} [options]
-         * @returns {(removeParams?: any) => Promise<void>} resolves once
-         *  `options.onRemove` has settled and the overlay is gone. Calling it
-         *  more than once is a no-op: the first call owns the removal.
+         * @returns {(removeParams?: any) => Promise<void>}
          */
         const add = (component, props, options = {}) => {
             const id = ++nextId;
@@ -84,15 +71,9 @@ export const overlayService = {
         return {
             add,
             overlays,
-            /**
-             * Service-teardown hook (see `makeEnv().destroy`). Overlays own
-             * timers, listeners and `document.body` classes through their
-             * `onRemove` callbacks; dropping the env without running them
-             * leaves that state behind for the next one.
-             */
             destroy() {
                 for (const id of Object.keys(overlays)) {
-                    overlays[id].remove();
+                    overlays[Number(id)].remove().catch(() => {});
                 }
             },
         };

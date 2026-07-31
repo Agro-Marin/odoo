@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/dialog/dialog - Modal dialog component with dragging, hotkey escape, and active element focus trap */
+/** @module @web/ui/dialog/dialog */
 
 import {
     Component,
@@ -21,12 +21,9 @@ const useDialogDraggable = makeDraggableHook(
     /** @type {any} */ ({
         name: "useDialogDraggable",
         onWillStartDrag(
-            /** @type {{ ctx: { current: any }, addCleanup: Function, addStyle: Function, getRect: Function }} */ {
-                ctx,
-                addCleanup,
-                addStyle,
-                getRect,
-            },
+            /**
+             * @type {{ ctx: { current: any }, addCleanup: Function, addStyle: Function, getRect: Function }}
+             */ { ctx, addCleanup, addStyle, getRect },
         ) {
             const { height, width } = getRect(ctx.current.element);
             ctx.current.container = document.createElement("div");
@@ -55,10 +52,6 @@ const useDialogDraggable = makeDraggableHook(
     }),
 );
 
-/**
- * Bootstrap modal with header/body/footer slots: draggable via header handle,
- * escape to dismiss, ctrl+enter confirms, fullscreen on mobile, stacked z-ordering.
- */
 export class Dialog extends Component {
     static template = "web.Dialog";
     static props = {
@@ -107,13 +100,14 @@ export class Dialog extends Component {
         useHotkey(
             "control+enter",
             () => {
-                const btns =
-                    this.modalRef.el?.querySelectorAll(".modal-footer button") ?? [];
-                const firstActiveBtn = Array.from(btns).find(
-                    (/** @type {HTMLButtonElement} */ btn) =>
-                        !btn.disabled && getComputedStyle(btn).display !== "none",
+                const btns = /** @type {HTMLButtonElement[]} */ ([
+                    ...(this.modalRef.el?.querySelectorAll(".modal-footer button") ??
+                        []),
+                ]);
+                const firstActiveBtn = btns.find(
+                    (btn) => !btn.disabled && getComputedStyle(btn).display !== "none",
                 );
-                /** @type {HTMLElement | undefined} */ (firstActiveBtn)?.click();
+                firstActiveBtn?.click();
             },
             { bypassEditableProtection: true },
         );
@@ -143,8 +137,6 @@ export class Dialog extends Component {
         }
         onWillDestroy(() => {
             if (this.env.isSmall) {
-                // Only the dialog service supplies this; a Dialog mounted on a
-                // hand-built `dialogData` must not crash on teardown.
                 this.data.scrollToOrigin?.();
             }
         });
@@ -156,7 +148,7 @@ export class Dialog extends Component {
         return this.props.fullscreen || this.env.isSmall;
     }
 
-    /** @returns {string} inline CSS for drag offset */
+    /** @returns {string} */
     get contentStyle() {
         if (this.isMovable) {
             return `top: ${this.position.top}px; left: ${this.position.left}px;`;
@@ -164,7 +156,6 @@ export class Dialog extends Component {
         return "";
     }
 
-    /** Reset drag position on window resize. */
     onResize() {
         this.position.left = 0;
         this.position.top = 0;
@@ -174,10 +165,9 @@ export class Dialog extends Component {
         return this.dismiss();
     }
 
-    /** Invoke dismiss handler, then close with `{ dismiss: true }`. */
     async dismiss() {
-        if (this.data.dismiss) {
-            await this.data.dismiss();
+        if ((await this.data.dismiss?.()) === false) {
+            return;
         }
         return this.data.close({ dismiss: true });
     }

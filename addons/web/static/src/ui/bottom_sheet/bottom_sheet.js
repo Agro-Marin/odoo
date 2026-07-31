@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/bottom_sheet/bottom_sheet - Mobile-friendly slide-up panel with drag-to-dismiss and snap points */
+/** @module @web/ui/bottom_sheet/bottom_sheet */
 
 import { Component, onMounted, onWillUnmount, useRef, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -15,26 +15,12 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 import { useActiveElement } from "@web/ui/ui_service";
 
-/**
- * Delay before giving up on the dismiss animation events. Safely above
- * `$o_BottomSheet_slideOut_duration` (bottom_sheet.variables.scss); if neither
- * `animationend` nor `animationcancel` fired by then (detached sheet element,
- * animation removed by a theme), close anyway instead of soft-locking the
- * sheet behind `isDismissing`.
- */
 const DISMISS_ANIMATION_FALLBACK_DELAY = 1000;
 
 /**
- * Run `callback` once the sheet element finishes (or aborts) an animation of
- * ITS OWN. `animationend` bubbles, so a descendant ending an animation — a
- * spinner, a menu entry, anything the hosted component animates — would
- * otherwise be mistaken for the sheet's slide and cut it short: snapping would
- * engage before the slide-in landed, and a dismissal would close the sheet
- * before the slide-out played.
- *
  * @param {HTMLElement} sheetEl
  * @param {() => void} callback
- * @returns {() => void} disposer, also called automatically once `callback` ran
+ * @returns {() => void}
  */
 function onSheetAnimationEnd(sheetEl, callback) {
     const dispose = () => {
@@ -64,19 +50,13 @@ export class BottomSheet extends Component {
     };
 
     static props = {
-        /**
-         * Optional: the template renders the `default` slot instead when no
-         * component is given. Requiring it made that branch — and with it the
-         * `slots`, `onBack` and `back()` API below — unreachable: prop
-         * validation rejected every slot-only sheet before it could render.
-         */
         component: { optional: true, type: Function },
         componentProps: { optional: true, type: Object },
         close: { type: Function },
-        /** The element the sheet was opened from; only used to scope the overlay. */
         target: { optional: true },
 
         class: { optional: true },
+        id: { optional: true, type: String },
         role: { optional: true, type: String },
 
         closeOnClickAway: { optional: true, type: Function },
@@ -89,7 +69,6 @@ export class BottomSheet extends Component {
         slots: { optional: true, type: Object },
     };
 
-    /** Identity token for this sheet's ephemeral history entry. */
     historyMarker = {};
     /** @type {(() => void)[]} */
     animationCleanups = [];
@@ -99,11 +78,6 @@ export class BottomSheet extends Component {
     setup() {
         this.maxHeightPercent = 90;
 
-        /**
-         * Bound once, not per render: these go out as props/slot values, and a
-         * fresh closure on every render would re-render the hosted component
-         * on each scroll frame (`state.progress` ticks continuously).
-         */
         this.close = this.close.bind(this);
         this.back = this.back.bind(this);
 
@@ -176,7 +150,6 @@ export class BottomSheet extends Component {
         });
     }
 
-    /** Sets up measurements, dimensions, position, and event handlers for the sheet. */
     initializeSheet() {
         if (!this.containerRef.el || !this.scrollRailRef.el || !this.sheetRef.el) {
             return;
@@ -199,29 +172,27 @@ export class BottomSheet extends Component {
         }
     }
 
-    /** Recalculates dimensions on viewport change, preserving extended state. */
     updateDimensions() {
-        this.state.isSnappingEnabled = false;
+        const rail = this.scrollRailRef.el;
+        rail.style.setProperty("scroll-snap-type", "none", "important");
 
         this.measureDimensions();
         this.applyDimensions();
+        this.updateProgressValue(rail.scrollTop);
 
-        const scrollTop = this.scrollRailRef.el.scrollTop;
-        this.updateProgressValue(scrollTop);
-
-        this.state.isSnappingEnabled = true;
+        rail.style.removeProperty("scroll-snap-type");
     }
 
-    /** Measures viewport/sheet dimensions, including natural height. */
     measureDimensions() {
         const viewportHeight = getViewportDimensions().height;
         const maxHeightPx = (this.maxHeightPercent / 100) * viewportHeight;
 
         const sheet = this.sheetRef.el;
+        sheet.style.setProperty("min-height", "0", "important");
+        sheet.style.setProperty("height", "auto", "important");
+        const naturalHeight = sheet.offsetHeight;
         sheet.style.removeProperty("min-height");
         sheet.style.removeProperty("height");
-
-        const naturalHeight = sheet.offsetHeight;
         const initialHeightPx = Math.min(naturalHeight, maxHeightPx);
 
         this.measurements = {
@@ -233,7 +204,6 @@ export class BottomSheet extends Component {
         };
     }
 
-    /** Sets CSS custom properties (heights) on the scroll rail from current measurements. */
     applyDimensions() {
         const rail = this.scrollRailRef.el;
 
@@ -253,7 +223,6 @@ export class BottomSheet extends Component {
         );
     }
 
-    /** Sets initial scroll position and content overflow behavior. */
     positionSheet() {
         const scrollRail = this.scrollRailRef.el;
         const bodyContent = this.sheetBodyRef.el;
@@ -268,7 +237,6 @@ export class BottomSheet extends Component {
         scrollRail.style.containerType = "scroll-state size";
     }
 
-    /** Registers the scroll listener on the rail, and its disposer. */
     setupEventHandlers() {
         const scrollRail = this.scrollRailRef.el;
         scrollRail.addEventListener("scroll", this.throttledOnScroll);
@@ -277,7 +245,6 @@ export class BottomSheet extends Component {
         );
     }
 
-    /** Updates progress and dismisses the sheet once scroll falls below the threshold. */
     onScroll() {
         if (!this.scrollRailRef.el) {
             return;
@@ -292,7 +259,7 @@ export class BottomSheet extends Component {
     }
 
     /**
-     * @param {number} scrollTop - Current scroll position
+     * @param {number} scrollTop
      */
     updateProgressValue(scrollTop) {
         const { naturalHeight } = this.measurements;
@@ -306,9 +273,6 @@ export class BottomSheet extends Component {
         }
     }
 
-    /**
-     * Initiates the slide out animation and dismissal
-     */
     slideOut() {
         if (this.state.isDismissing) {
             return;
@@ -342,18 +306,11 @@ export class BottomSheet extends Component {
         this.state.isSnappingEnabled = false;
     }
 
-    /**
-     * Closes the sheet (public API)
-     */
     close() {
         this.slideOut();
     }
 
     /**
-     * Backdrop tap. Honours `closeOnClickAway` so a caller that vetoes
-     * click-away closing (a dropdown whose menu owns a nested overlay) behaves
-     * the same whether it was routed to a popover or to a sheet.
-     *
      * @param {PointerEvent} ev
      */
     onBackdropClick(ev) {
@@ -362,9 +319,6 @@ export class BottomSheet extends Component {
         }
     }
 
-    /**
-     * Handles back button press (public API)
-     */
     back() {
         if (this.props.onBack) {
             this.props.onBack();

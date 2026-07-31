@@ -1,19 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/notification/notification - Individual notification toast with auto-close progress bar and action buttons */
+/** @module @web/ui/notification/notification */
 
 import { Component, onMounted, onWillUnmount, useRef } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 
 const AUTOCLOSE_DELAY = 4000;
 
-/**
- * Individual notification toast with auto-close progress bar.
- *
- * Supports warning/danger/success/info types, sticky mode,
- * configurable autoclose delay, and action buttons.
- */
 export class Notification extends Component {
     static template = "web.NotificationWowl";
     static props = {
@@ -61,10 +55,16 @@ export class Notification extends Component {
     closeTimeout = null;
     /** @type {number} */
     timerStart = 0;
-    /** Auto-close time left, shrinking across `freeze()`/`refresh()` cycles. */
     remainingDelay = 0;
+    /**
+     * Number of reasons the countdown is currently held: the pointer being
+     * over the notification and the focus being inside it are independent, so
+     * releasing one must not resume the countdown while the other still holds.
+     */
+    holds = 0;
 
     setup() {
+        this.rootRef = useRef("root");
         this.autocloseProgress = useRef("autoclose_progress_bar");
         this.remainingDelay = this.props.autocloseDelay;
         onMounted(() => this.startNotificationTimer());
@@ -72,18 +72,30 @@ export class Notification extends Component {
     }
 
     /**
-     * Only errors/warnings interrupt a screen reader (role="alert"/assertive);
-     * routine success/info toasts announce politely (role="status"/polite) so a
-     * "Saved" toast doesn't cut off whatever the user is reading (WCAG 4.1.3).
      * @returns {boolean}
      */
     get isAssertive() {
         return ["danger", "warning"].includes(this.props.type);
     }
 
-    /** Pause the auto-close timer + progress bar in place (e.g. on mouse hover). */
-    freeze() {
-        if (this.props.sticky || !this.closeTimeout) {
+    /**
+     * @param {Node | null} [relatedTarget]
+     * @returns {boolean}
+     */
+    isInternalTransition(relatedTarget) {
+        return (
+            relatedTarget instanceof Node &&
+            Boolean(this.rootRef.el?.contains(relatedTarget))
+        );
+    }
+
+    /** @param {FocusEvent | MouseEvent} [ev] */
+    freeze(ev) {
+        if (this.isInternalTransition(/** @type {Node | null} */ (ev?.relatedTarget))) {
+            return;
+        }
+        this.holds++;
+        if (this.props.sticky || !this.closeTimeout || this.holds > 1) {
             return;
         }
         const elapsed = browser.performance.now() - this.timerStart;
@@ -95,12 +107,15 @@ export class Notification extends Component {
         }
     }
 
-    /**
-     * Resume the auto-close timer + progress bar from where `freeze()` paused.
-     * A pointer leaving a notification whose timer already fired must not arm
-     * a new one: the toast is on its way out.
-     */
-    refresh() {
+    /** @param {FocusEvent | MouseEvent} [ev] */
+    refresh(ev) {
+        if (this.isInternalTransition(/** @type {Node | null} */ (ev?.relatedTarget))) {
+            return;
+        }
+        this.holds = Math.max(0, this.holds - 1);
+        if (this.holds > 0) {
+            return;
+        }
         if (this.remainingDelay > 0) {
             this.startNotificationTimer();
         }

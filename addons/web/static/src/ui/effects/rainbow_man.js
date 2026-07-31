@@ -1,34 +1,22 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/ui/effects/rainbow_man - Animated rainbow celebration overlay with configurable message and fadeout */
+/** @module @web/ui/effects/rainbow_man */
 
 import { Component, useEffect, useExternalListener, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 /**
  * @typedef Common
- * @property {string} [fadeout='medium'] Delay before disappearing: 'fast' is
- *  quick, 'medium'/'slow' wait longer (for longer messages), 'no' keeps it
- *  until the user clicks outside.
- * @property {string} [imgUrl] URL of the image to be displayed
- *
+ * @property {string} [fadeout='medium']
+ * @property {string} [imgUrl]
  * @typedef Simple
- * @property {string} message Message to be displayed on rainbowman card
- *
+ * @property {string} message
  * @typedef Custom
  * @property {import("@odoo/owl").ComponentConstructor} Component
- *  Receives a `close` prop on top of `props`, since a click inside it does not
- *  dismiss the reward.
  * @property {any} [props]
- *
  * @typedef {Common & (Simple | Custom)} RainbowManProps
  */
 
-/**
- * Displays a rewarding message (e.g. large deal won, inbox cleared) as a
- * picture with a rainbow animation. Prefer the effect service over
- * importing this file directly.
- */
 export class RainbowMan extends Component {
     static template = "web.RainbowMan";
     static rainbowFadeouts = {
@@ -45,6 +33,9 @@ export class RainbowMan extends Component {
         Component: { type: Function, optional: true },
         props: { type: Object, optional: true },
     };
+
+    /** @type {{ isFading: boolean }} */
+    state;
 
     setup() {
         useExternalListener(document.body, "click", this.onBodyClick);
@@ -67,12 +58,6 @@ export class RainbowMan extends Component {
     }
 
     /**
-     * A click anywhere dismisses the reward — except inside a hosted
-     * `Component`, whose whole point is to be interactive. Without this a
-     * button in a custom card fired its handler and closed the effect in the
-     * same click, making the documented `params.Component` API unusable. A
-     * plain message card keeps the click-anywhere behaviour.
-     *
      * @param {MouseEvent} ev
      */
     onBodyClick(ev) {

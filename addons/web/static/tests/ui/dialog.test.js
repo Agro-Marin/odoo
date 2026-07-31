@@ -148,7 +148,8 @@ test("click on the button x triggers the service close", async () => {
     }
     await makeDialogMockEnv({
         dialogData: {
-            close: (params) => expect.step(`close ${JSON.stringify(params)}`),
+            close: (/** @type {any} */ params) =>
+                expect.step(`close ${JSON.stringify(params)}`),
             dismiss: () => expect.step("dismiss"),
         },
     });
@@ -328,9 +329,7 @@ test("can be the UI active element", async () => {
             onMounted(() => {
                 expect(".modal").toHaveCount(1);
                 expect(/** @type {any} */ (this.ui.activeElement)).toBe(
-                    queryOne(".modal", {
-                        message: "UI active element should be the dialog modal",
-                    }),
+                    queryOne(".modal"),
                 );
             });
         }

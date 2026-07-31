@@ -49,10 +49,11 @@ test("simple rendering", async () => {
 test("unmounts erroring main component", async () => {
     expect.assertions(7);
     expect.errors(1);
-    onError((error) => {
+    onError((/** @type {any} */ error) => {
         expect.step(error.reason.message);
         expect.step(error.reason.cause.message);
     });
+    /** @type {any} */
     let compA;
     class MainComponentA extends Component {
         static template = xml`<span><t t-if="state.shouldThrow" t-esc="error"/>MainComponentA</span>`;
@@ -102,7 +103,7 @@ test("unmounts erroring main component", async () => {
 test("unmounts erroring main component: variation", async () => {
     expect.assertions(7);
     expect.errors(1);
-    onError((error) => {
+    onError((/** @type {any} */ error) => {
         expect.step(error.reason.message);
         expect.step(error.reason.cause.message);
     });
@@ -111,6 +112,7 @@ test("unmounts erroring main component: variation", async () => {
         static props = ["*"];
     }
 
+    /** @type {any} */
     let compB;
     class MainComponentB extends Component {
         static template = xml`<span><t t-if="state.shouldThrow" t-esc="error"/>MainComponentB</span>`;
@@ -186,4 +188,52 @@ test("Should be possible to add a new component when MainComponentContainer is n
     await mounted;
     await animationFrame();
     expect(".myMainComponent").toHaveCount(1);
+});
+
+test("an error from an entry no longer in the snapshot removes nothing", async () => {
+    // `splice(-1, 1)` reads "one from the end", so an `indexOf` miss took an
+    // unrelated main component down with it -- the notification or overlay
+    // container, silently and with no second error to explain it.
+    expect.errors(1);
+
+    class MainComponentA extends Component {
+        static template = xml`<span>A</span>`;
+        static props = ["*"];
+    }
+    class MainComponentB extends Component {
+        static template = xml`<span>B</span>`;
+        static props = ["*"];
+    }
+    mainComponentsRegistry.add("A", { Component: MainComponentA, props: {} });
+    mainComponentsRegistry.add("B", { Component: MainComponentB, props: {} });
+    const container = await mountWithCleanup(MainComponentsContainer);
+    const before = container.Components.entries.map((e) => e[0]);
+
+    container.handleComponentError(
+        new Error("BOOM"),
+        /** @type {any} */ (["ghost", { Component: MainComponentA, props: {} }]),
+    );
+    await animationFrame();
+
+    expect(container.Components.entries.map((e) => e[0])).toEqual(before);
+    // The error still surfaces: swallowing it would be the worse bug.
+    expect.verifyErrors(["BOOM"]);
+});
+
+test("a crashing main component is dropped from the registry too", async () => {
+    expect.errors(1);
+
+    class Boom extends Component {
+        static props = {};
+        static template = xml`<div class="boom"/>`;
+        setup() {
+            throw new Error("boom");
+        }
+    }
+    mainComponentsRegistry.add("Boom", { Component: Boom });
+    await mountWithCleanup(MainComponentsContainer);
+    await animationFrame();
+    expect(".boom").toHaveCount(0);
+    expect(mainComponentsRegistry.contains("Boom")).toBe(false);
+    expect.verifyErrors(["boom"]);
 });

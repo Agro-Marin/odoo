@@ -4,6 +4,7 @@
     <t t-name="web.Popover">
         <div
             t-ref="ref"
+            t-att-id="props.id"
             t-att-class="defaultClassObj"
             t-attf-style="--animation-time: {{ constructor.animationTime }}ms"
             t-att-role="props.role"
@@ -15,7 +16,7 @@
                 t-props="props.componentProps"
                 close="props.close"
             />
-            <div t-if="props.arrow" class="popover-arrow position-absolute z-n1"/>
+            <div t-if="props.arrow" t-ref="arrow" class="popover-arrow position-absolute z-n1"/>
         </div>
     </t>
 
