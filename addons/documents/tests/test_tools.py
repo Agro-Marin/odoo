@@ -1,8 +1,9 @@
 from odoo import Command
-from odoo.tests.common import TransactionCase
+from odoo.tests.common import TransactionCase, tagged
 
-from odoo.addons.documents.tests.test_documents_common import TEXT
-from odoo.addons.documents.tools import UserFolder
+from .test_documents_common import TEXT
+from odoo.addons.documents.controllers.documents import _is_safe_redirect_url
+from odoo.addons.documents.tools import UserFolder, is_mimetype_textual
 
 
 class TestTools(TransactionCase):
@@ -93,3 +94,32 @@ class TestUserFolderParsing(TransactionCase):
         self.assertTrue(UserFolder.parse("COMPANY").is_writable_root)
         for value in ("SHARED", "RECENT", "TRASH"):
             self.assertFalse(UserFolder.parse(value).is_writable_root, value)
+
+
+@tagged("post_install", "-at_install")
+class TestDocumentsToolHelpers(TransactionCase):
+    """Pure-helper regression tests (no fixtures needed)."""
+
+    def test_is_mimetype_textual_handles_bad_input(self):
+        self.assertTrue(is_mimetype_textual("text/plain"))
+        self.assertTrue(is_mimetype_textual("application/json"))
+        self.assertFalse(is_mimetype_textual("image/png"))
+        # Falsy / malformed input must not raise (would be a 500 in the route).
+        self.assertFalse(is_mimetype_textual(False))
+        self.assertFalse(is_mimetype_textual(""))
+        self.assertFalse(is_mimetype_textual("notamimetype"))
+        # A bare "text" has maintype "text": textual, and importantly no crash.
+        self.assertTrue(is_mimetype_textual("text"))
+
+    def test_is_safe_redirect_url(self):
+        self.assertTrue(_is_safe_redirect_url("https://example.com"))
+        self.assertTrue(_is_safe_redirect_url("http://example.com/x"))
+        self.assertTrue(_is_safe_redirect_url("mailto:a@b.c"))
+        # Schemeless / protocol-relative are resolved against the origin: fine.
+        self.assertTrue(_is_safe_redirect_url("example.com/path"))
+        self.assertTrue(_is_safe_redirect_url("//host/path"))
+        # Dangerous schemes are rejected.
+        self.assertFalse(_is_safe_redirect_url("javascript:alert(1)"))
+        self.assertFalse(_is_safe_redirect_url("data:text/html,<script>"))
+        self.assertFalse(_is_safe_redirect_url("vbscript:msgbox"))
+        self.assertFalse(_is_safe_redirect_url(""))

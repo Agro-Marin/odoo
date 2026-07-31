@@ -87,9 +87,7 @@ export class DocumentsManageVersions extends Component {
         if (!ev.target.files.length) {
             return;
         }
-        await this.documentService.uploadDocument(ev.target.files, this.state.accessToken, {
-            document_id: this.props.documentId,
-        });
+        await this.documentService.uploadDocument(ev.target.files, this.state.accessToken);
         ev.target.value = "";
     }
 

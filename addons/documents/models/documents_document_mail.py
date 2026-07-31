@@ -1,0 +1,299 @@
+"""A document as a mail thread: alias, incoming mail, chatter, activities.
+
+`documents.document` is a `mail.thread` with an optional alias, so a folder
+can be mailed to and turn its attachments into documents. That, the chatter
+it writes on transitions, and the activity scheduling live here.
+"""
+
+from ast import literal_eval
+from typing import Any
+
+from dateutil.relativedelta import relativedelta
+
+from odoo import Command, _, api, fields, models
+from odoo.exceptions import ValidationError
+
+
+class DocumentsDocument(models.Model):
+    _inherit = "documents.document"
+
+    @api.constrains("type", "alias_name")
+    def _check_alias(self) -> None:
+        wrong_records = self.filtered(
+            lambda d: (d.type != "folder" or d.shortcut_document_id) and d.alias_name
+        )
+        if wrong_records:
+            raise ValidationError(
+                _(
+                    "The following documents can't have alias: \n- %(records)s",
+                    records="\n-".join(wrong_records.mapped("name")),
+                )
+            )
+
+    def _log_transition_to_parent_folders(self, body: Any) -> None:
+        """Post one chatter message per parent folder about its children in ``self``.
+
+        The trash and restore transitions log the same way — group by folder,
+        post as the folder, drop superuser when the actor owns the children —
+        and differ only in wording. *body* is called with the rendered document
+        names so each caller keeps its own translatable string at its own call
+        site (where the extractor can see it).
+
+        Callers must build that string with ``self.env._``, never the bare
+        ``_``: the latter resolves module and language by inspecting its
+        *calling frame* for a ``self``/``env``/``cr``, and a lambda frame has
+        none. Off any HTTP request — crons, the mail gateway, the archive
+        cascade in ``documents.unlink.mixin``, tests — it therefore found no
+        language, fell back to ``("base", "en_US")`` and logged a WARNING with a
+        full stack trace for every folder it posted to.
+
+        :param body: ``callable(names: str) -> str`` building the message body
+        """
+        for folder, children in self.filtered("folder_id").grouped("folder_id").items():
+            folder.sudo(self.env.user in children.owner_id).message_post(
+                body=body(", ".join(children.mapped("display_name")))
+            )
+
+    def _compute_mail_alias_domain_count(self) -> None:
+        self.mail_alias_domain_count = (
+            self.env["mail.alias.domain"].sudo().search_count([])
+        )
+
+    def _notify_get_recipients_groups(
+        self,
+        message: models.Model,
+        model_description: str | None,
+        msg_vals: dict | bool = False,
+    ) -> list:
+        groups = super()._notify_get_recipients_groups(
+            message, model_description, msg_vals=msg_vals
+        )
+        if len(self.ids) != 1:
+            return groups
+
+        group_values = {
+            "active": True,
+            "button_access": {"url": self.access_url},
+            "has_button_access": True,
+        }
+        return [
+            (
+                "group_documents_document_people_with_access",
+                lambda pdata: (
+                    (
+                        pdata["uid"]
+                        and self.with_user(pdata["uid"]).user_permission != "none"
+                    )
+                    or (
+                        pdata["id"]
+                        and self.access_via_link != "none"
+                        and self.access_ids.filtered(
+                            lambda a: a.partner_id.id == pdata["id"] and a.role
+                        )
+                    )
+                ),
+                group_values,
+            )
+        ] + groups
+
+    @api.model
+    def message_new(
+        self, msg_dict: dict, custom_values: dict | None = None
+    ) -> DocumentsDocument:
+        """Create a document from an incoming email and its attachments."""
+        # When an email comes, create a document with the default values,
+        # then let `_message_post_after_hook` create one document per attachment.
+        custom_values = custom_values or {}
+
+        folder = self.env["documents.document"].browse(custom_values.get("folder_id"))
+
+        custom_values["name"] = _("Mail: %s", msg_dict.get("subject"))
+        if "company_id" not in custom_values:
+            custom_values["company_id"] = folder.company_id.id
+
+        if "tag_ids" not in custom_values:
+            custom_values["tag_ids"] = folder.alias_tag_ids.ids
+
+        else:
+            tags = custom_values["tag_ids"]
+            if tags and isinstance(tags[0], list | tuple):
+                # we have a list of m2m commands
+                if all(len(t) >= 2 and t[0] == Command.LINK for t in tags):
+                    tags = [t[1] for t in tags]
+                elif len(tags) == 1 and len(tags[0]) == 3 and tags[0][0] == Command.SET:
+                    tags = tags[0][2]
+                else:  # do not support other commands
+                    tags = []
+
+            custom_values["tag_ids"] = (
+                self.env["documents.tag"].browse(tags).exists().ids
+            )
+
+        custom_values["active"] = False
+        return (
+            super()
+            .message_new(msg_dict, custom_values)
+            .with_context(document_message_new=True)
+        )
+
+    def _alias_get_creation_values(self) -> dict:
+        values = super()._alias_get_creation_values()
+        values["alias_model_id"] = self.env["ir.model"]._get("documents.document").id
+        if self.id:
+            values["alias_defaults"] = literal_eval(self.alias_defaults or "{}")
+            values["alias_defaults"] |= {"folder_id": self.id}
+        return values
+
+    def message_post(
+        self, *, message_type: str = "notification", **kwargs
+    ) -> models.Model:
+        """Prevent document creation when posting a message with attachment on a document.
+
+        If new documents must be created (ex.: alias on document folder), it will be handled by the
+        _message_post_after_hook based on the context variable "document_message_new" (ignoring no_document)
+        That variable is set to True by the message_new method (and not set by message_update method).
+        """
+        return super(
+            DocumentsDocument, self.with_context(no_document=True)
+        ).message_post(message_type=message_type, **kwargs)
+
+    def _message_post_after_hook(self, message: models.Model, msg_vals: dict) -> Any:
+        # If the res model was an attachment and a mail, adds all the custom values of the linked
+        # document settings to the attachments of the mail. If it was only a new email converts
+        # its body to an attachment for the given document (use case: invoice/receipt sent as an email)
+        if message.message_type != "email" or not self.env.context.get(
+            "document_message_new"
+        ):
+            return super()._message_post_after_hook(message, msg_vals)
+
+        m2m_commands = msg_vals["attachment_ids"]
+        attachments = self.env["ir.attachment"].browse([x[1] for x in m2m_commands])
+        disable_mail_to_document = literal_eval(
+            self.env["ir.config_parameter"].get_param(
+                "documents.disable_mail_to_document", default="0"
+            )
+        )
+        documents = None
+
+        if attachments:
+            self.attachment_id = False
+            documents = self.env["documents.document"].create(
+                [
+                    {
+                        **self._message_post_after_hook_template_values(),
+                        "name": attachment.name,
+                        "attachment_id": attachment.id,
+                        "company_id": self.folder_id.company_id.id,
+                    }
+                    for attachment in attachments
+                ]
+            )
+
+            for attachment, document in zip(attachments, documents, strict=True):
+                attachment.write(
+                    {
+                        "res_model": "documents.document",
+                        "res_id": document.id,
+                    }
+                )
+                sub_message_values = {
+                    "author_id": msg_vals.get("author_id"),
+                    "body": msg_vals.get("body", ""),
+                    "email_from": msg_vals.get("email_from"),
+                    "message_type": "email",
+                    "subject": msg_vals.get("subject") or self.name,
+                    "subtype_id": msg_vals.get("subtype_id"),
+                    "subtype_xmlid": msg_vals.get("subtype_xmlid"),
+                }
+                sub_message_values.pop("model", None)
+                sub_message_values.pop("res_id", None)
+                sub_message_values.pop("attachment_ids", None)
+                document.message_post(**sub_message_values)
+        elif not self.attachment_id and not disable_mail_to_document:
+            attachment = self.env[
+                "ir.attachment"
+            ].create(
+                {
+                    "name": msg_vals.get("subject")
+                    or msg_vals.get("email_from", _("email")),
+                    "type": "binary",
+                    "raw": message.body,
+                    "mimetype": "application/documents-email",  # Custom mimetype. Only for preview in Documents
+                    "res_model": "documents.document",
+                }
+            )
+            document = self.env["documents.document"].create(
+                {
+                    **self._message_post_after_hook_template_values(),
+                    "attachment_id": attachment.id,
+                }
+            )
+            message.res_id = document.id
+            attachment.res_id = document.id
+            documents = document
+
+        # Activity settings set through alias_defaults values has precedence over the activity folder settings
+        if documents:
+            for document in documents:
+                if self.create_activity_option:
+                    document.documents_set_activity(settings_record=self)
+                elif self.folder_id.create_activity_option:
+                    document.documents_set_activity(settings_record=self.folder_id)
+
+        return super()._message_post_after_hook(message, msg_vals)
+
+    def _message_post_after_hook_template_values(self) -> dict:
+        """Values that will be taken from the document template."""
+        return {
+            "folder_id": self.folder_id.id,
+            "owner_id": self.folder_id.owner_id.id,
+            "partner_id": self.partner_id.id,
+            "tag_ids": self.tag_ids.ids,
+        }
+
+    def documents_set_activity(
+        self, settings_record: models.Model | None = None
+    ) -> None:
+        """Generate an activity based on the fields of settings_record.
+
+        :param settings_record: the record that contains the activity fields.
+            settings_record.create_activity_type_id (required)
+            settings_record.create_activity_summary
+            settings_record.create_activity_note
+            settings_record.create_activity_date_deadline_range
+            settings_record.create_activity_date_deadline_range_type
+            settings_record.create_activity_user_id
+        """
+        if settings_record and settings_record.create_activity_type_id:
+            for record in self:
+                activity_vals = {
+                    "activity_type_id": settings_record.create_activity_type_id.id,
+                    "summary": settings_record.create_activity_summary or "",
+                    "note": settings_record.create_activity_note or "",
+                }
+                if settings_record.create_activity_date_deadline_range > 0:
+                    activity_vals["date_deadline"] = fields.Date.context_today(
+                        settings_record
+                    ) + relativedelta(
+                        **{
+                            settings_record.create_activity_date_deadline_range_type: settings_record.create_activity_date_deadline_range
+                        }
+                    )
+                if (
+                    settings_record._fields.get("create_has_owner_activity")
+                    and settings_record.create_has_owner_activity
+                    and record.owner_id
+                ):
+                    user = record.owner_id
+                elif (
+                    settings_record._fields.get("create_activity_user_id")
+                    and settings_record.create_activity_user_id
+                ):
+                    user = settings_record.create_activity_user_id
+                elif settings_record._fields.get("user_id") and settings_record.user_id:
+                    user = settings_record.user_id
+                else:
+                    user = self.env.user
+                if user:
+                    activity_vals["user_id"] = user.id
+                record.activity_schedule(**activity_vals)

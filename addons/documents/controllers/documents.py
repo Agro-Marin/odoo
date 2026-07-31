@@ -12,7 +12,7 @@ from urllib.parse import quote, urlparse
 
 from werkzeug.exceptions import BadRequest, Forbidden, RequestEntityTooLarge
 
-from odoo import Command, _, fields, http
+from odoo import SUPERUSER_ID, Command, _, fields, http
 from odoo.exceptions import MissingError
 from odoo.fields import Domain
 from odoo.http import content_disposition, request
@@ -52,10 +52,22 @@ _ZIP_READ_BLOCK = 256 * 1024
 
 
 class ZipEntry(NamedTuple):
-    """One planned archive entry: where it goes, and what to put there."""
+    """One planned archive entry: where it goes, and what to put there.
+
+    ``document`` is the record the entry was resolved from -- the shortcut, not
+    its target, since the audit answers "what did this user take away", and the
+    shortcut is what they reached. It is what lets :meth:`ShareRoute._make_zip`
+    record the whole archive, descendants included, without walking twice.
+    """
 
     path: str
     stream: Any | None  # None marks a directory entry
+    document: Any = None
+    # Set for content Odoo can read but does not serve itself: a remote keyed
+    # store hands back a redirect, so the bytes have to be fetched rather than
+    # streamed from a path. The callable is resolved during the plan pass and
+    # must not touch the ORM -- see :meth:`_stream_zip`.
+    reader: Any = None
 
 
 class _ZipSink:
@@ -84,12 +96,18 @@ class _ZipSink:
         return b"".join(chunks)
 
 
-def _read_stream_blocks(stream: Any) -> Any:
+def _read_stream_blocks(stream: Any, reader: Any = None) -> Any:
     """Yield an ``odoo.http.Stream``'s content in bounded blocks.
 
     Filestore-backed content is read from disk a block at a time; content held
-    in the database is already in memory and is handed over as-is.
+    in the database is already in memory and is handed over as-is. A *reader*
+    supersedes the stream: remotely-keyed content has no local path and its
+    stream is a redirect, so the bytes come from the detached fetcher the plan
+    pass resolved.
     """
+    if reader is not None:
+        yield from reader(_ZIP_READ_BLOCK)
+        return
     if stream.type == "path":
         with open(stream.path, "rb") as source:  # noqa: PTH123 — plain fs path
             while block := source.read(_ZIP_READ_BLOCK):
@@ -253,6 +271,28 @@ class ShareRoute(http.Controller):
             result[folder] = folder_children
         return result
 
+    @staticmethod
+    def _split_access_token(access_token: str) -> tuple[str, int]:
+        """Split an ``access_token`` into its secret and the document id.
+
+        The token is ``<document_token>o<id in hex>``. Splitting on the LAST
+        ``o`` is what makes that unambiguous: the id is hexadecimal, so it never
+        contains an ``o``, while the base64url secret may.
+
+        :return: ``(document_token, document_id)``, or ``("", 0)`` when the
+            token is malformed -- which every caller must treat as "no such
+            document" rather than as a bad request, since the value is a public,
+            attacker-controlled path segment.
+        """
+        try:
+            document_token, __, encoded_id = (access_token or "").rpartition("o")
+            document_id = int(encoded_id, 16)
+        except ValueError:
+            return "", 0
+        if not document_token or document_id < 1:
+            return "", 0
+        return document_token, document_id
+
     @classmethod
     def _from_access_token(
         cls, access_token: str, *, skip_log: bool = False, follow_shortcut: bool = True
@@ -280,12 +320,8 @@ class ShareRoute(http.Controller):
         Doc = request.env["documents.document"]
 
         # Document record
-        try:
-            document_token, __, encoded_id = access_token.rpartition("o")
-            document_id = int(encoded_id, 16)
-        except ValueError:
-            return Doc
-        if not document_token or document_id < 1:
+        document_token, document_id = cls._split_access_token(access_token)
+        if not document_id:
             return Doc
         document_sudo = Doc.browse(document_id).sudo()
         try:
@@ -412,6 +448,17 @@ class ShareRoute(http.Controller):
         :return: a http response streaming the zip file
         """
         entries = self._plan_zip_entries(name, documents)
+        # Every route that builds an archive records it, and it records what the
+        # archive actually holds -- the files discovered by the walk, not just
+        # the roots the caller named. `/documents/zip` (what the web client uses
+        # for any multi-document download) recorded nothing at all, so the access
+        # log answered "who took this file" for single downloads and stayed
+        # silent for every bulk one.
+        self._log_download(
+            request.env["documents.document"]
+            .sudo()
+            .browse({entry.document.id for entry in entries if entry.document})
+        )
         headers = [
             ("Content-Type", "application/zip"),
             ("X-Content-Type-Options", "nosniff"),
@@ -483,7 +530,9 @@ class ShareRoute(http.Controller):
                 document_name = _sanitize_zip_name(document.name)
                 # it is the ending slash that makes it appears as a
                 # folder inside the zip file.
-                return ZipEntry(unique(f"{folder.path}{document_name}") + "/", None)
+                return ZipEntry(
+                    unique(f"{folder.path}{document_name}") + "/", None, document
+                )
             try:
                 stream = self._documents_content_stream(
                     document.shortcut_document_id or document
@@ -491,11 +540,29 @@ class ShareRoute(http.Controller):
                 download_name = _sanitize_zip_name(stream.download_name)
             except ValueError, MissingError:
                 return None  # skip
+            if stream.type == "url":
+                # A url stream covers two different things. Content Odoo merely
+                # points at (a `cloud_storage` row, any binary attachment
+                # carrying a url) has no bytes to archive and `Stream.read`
+                # refuses it -- skipping is the only option, and this pass is the
+                # last point where it is expressible, since the streaming pass
+                # runs after the 200 is on the wire. Content held in a remote
+                # KEYED store is different: Odoo can read it, it just does not
+                # serve it, so it belongs in the archive and is fetched through
+                # the detached reader below.
+                source = (document.shortcut_document_id or document).attachment_id
+                reader = source.sudo()._zip_detached_reader()
+                if reader is None:
+                    return None  # skip
+                account(source.file_size or 0)
+                return ZipEntry(
+                    unique(f"{folder.path}{download_name}"), stream, document, reader
+                )
             # The declared size, never the content: this pass must not read a
             # single file, both to keep the plan cheap and because reading is
             # what the streaming pass is for.
             account(stream.size or 0)
-            return ZipEntry(unique(f"{folder.path}{download_name}"), stream)
+            return ZipEntry(unique(f"{folder.path}{download_name}"), stream, document)
 
         def generate_zip_items(documents_sudo: Any, folder: Any) -> Any:
             documents_sudo = documents_sudo.sorted(lambda d: d.id)
@@ -564,7 +631,7 @@ class ShareRoute(http.Controller):
                             yield chunk
                         continue
                     with doc_zip.open(entry.path, "w") as destination:
-                        for block in _read_stream_blocks(entry.stream):
+                        for block in _read_stream_blocks(entry.stream, entry.reader):
                             destination.write(block)
                             # Hand each compressed block out as it appears
                             # rather than accumulating the archive.
@@ -668,12 +735,25 @@ class ShareRoute(http.Controller):
         }
         documents = request.env["documents.document"].browse(document_ids)
         documents.check_access("read")
-        # The ids are client-supplied like the rest of the payload. A pending
-        # request document holds no content and a shortcut holds its target's,
-        # so `b64decode(document.datas)` got `False` and raised TypeError -- an
-        # HTTP 500 where every other bad input on this route answers 400.
-        if any(not document.attachment_id for document in documents):
-            raise BadRequest("cannot split a document that carries no content")
+        # `_get_pdf_raw` is the base primitive for "this row's bytes, if it holds
+        # a PDF": it neutralizes `bin_size` and answers None for anything else.
+        # The ids are client-supplied like the rest of the payload, and both
+        # refusals used to reach PyPDF instead of being answered here -- a
+        # document carrying no content (a pending request, a shortcut) as a
+        # TypeError, one holding something other than a PDF as a PdfStreamError,
+        # which is not a ValueError and so escaped the mapping below as an HTTP
+        # 500. It also replaces the `datas` round-trip, which base64-encoded the
+        # whole payload out of the filestore only to decode it back here.
+        # sudo: read access to a document carries access to its content, the
+        # same elevation `datas` grants through `related_sudo`.
+        pdf_raws = [
+            document.attachment_id.sudo()._get_pdf_raw()
+            if document.attachment_id
+            else None
+            for document in documents
+        ]
+        if any(pdf_raw is None for pdf_raw in pdf_raws):
+            raise BadRequest("cannot split a document that does not hold a PDF")
 
         with ExitStack() as stack:
             files = request.httprequest.files.getlist("ufile")
@@ -684,10 +764,8 @@ class ShareRoute(http.Controller):
             # merge together data from existing documents and from extra uploads
             document_id_index_map = {}
             current_index = len(open_files)
-            for document in documents:
-                open_files.append(
-                    stack.enter_context(io.BytesIO(base64.b64decode(document.datas)))
-                )
+            for document, pdf_raw in zip(documents, pdf_raws, strict=True):
+                open_files.append(stack.enter_context(io.BytesIO(pdf_raw)))
                 document_id_index_map[document.id] = current_index
                 current_index += 1
 
@@ -714,13 +792,26 @@ class ShareRoute(http.Controller):
         )
 
     @http.route("/documents/<access_token>", type="http", auth="public")
-    def documents_home(self, access_token: str) -> Any:
-        """Serve the shared document home page for the current user type."""
+    def documents_home(
+        self,
+        access_token: str,
+        member_id: str = "",
+        member_signup_token: str = "",
+    ) -> Any:
+        """Serve the shared document home page for the current user type.
+
+        ``member_id``/``member_signup_token`` are the member-invitation pair
+        carried by the signup link. They are declared here, rather than read out
+        of ``request.params`` in the body: the dispatcher filters a request's
+        args down to what the endpoint accepts, so an undeclared parameter is
+        dropped with a "called ignoring args" warning on every invitation
+        follow-up -- and would be genuinely lost the day the body stopped
+        reaching around the signature.
+        """
         document_sudo = self._from_access_token(access_token)
 
-        member_signup_token = request.params.get("member_signup_token")
         with replace_exceptions(ValueError, by=BadRequest):
-            member_id = int(request.params.get("member_id") or "0")
+            member_id = int(member_id or "0")
 
         if not document_sudo:
             Redirect = request.env["documents.redirect"].sudo()
@@ -883,8 +974,39 @@ class ShareRoute(http.Controller):
         Decided here rather than by letting the write happen and relying on the
         dispatcher's read-only retry: that retry re-runs the whole handler, and
         this one serves file content.
+
+        A **folder** token ignores ``download`` entirely -- :meth:`documents_content`
+        always builds the zip and always records the download -- so answering
+        from the query string alone declared exactly the case that cannot be
+        served read-only. On a deployment with a replica that is the retry this
+        docstring says was avoided: a `ReadOnlySqlTransaction`, a warning, and the
+        whole handler run twice. The type is resolved in sudo off the id embedded
+        in the token; failing to resolve it means a read/write cursor, which is
+        always safe.
         """
-        return not str2bool(request.httprequest.args.get("download", "1"), default=True)
+        if str2bool(request.httprequest.args.get("download", "1"), default=True):
+            return False
+        try:
+            __, document_id = self._split_access_token(args.get("access_token") or "")
+            if not document_id:
+                return True  # no such document: the handler will 404, writing nothing
+            document_sudo = (
+                request.env["documents.document"]
+                .with_user(SUPERUSER_ID)
+                .sudo()
+                .browse(document_id)
+                .exists()
+            )
+            target_sudo = document_sudo.shortcut_document_id or document_sudo
+            return target_sudo.type != "folder"
+        except Exception:
+            logger.warning(
+                "Could not classify %r for read-only serving; using a read/write "
+                "cursor",
+                args.get("access_token"),
+                exc_info=True,
+            )
+            return False
 
     @http.route(
         "/documents/content/<access_token>",
@@ -1046,10 +1168,22 @@ class ShareRoute(http.Controller):
         if not is_mimetype_textual(document_sudo.mimetype):
             e = f"bad document mimetype: expect text/* or a recognized application/, got {document_sudo.mimetype}"
             raise BadRequest(e)
-        head = None
-        if document_sudo.mimetype != "text/html":
-            head = attachment_sudo._read_prefix(self.TEXTUAL_THUMBNAIL_SIZE)
-        if not head:
+        # Two things end up served whole rather than as a snippet, for two
+        # unrelated reasons, and reading them off one falsy `head` made the
+        # route look like it might ship a large file by accident:
+        #
+        # * HTML is never truncated -- half a document does not render. It goes
+        #   out through `Stream`, which sets `default-src 'none'` and `nosniff`,
+        #   so it cannot pull anything in or run inline script.
+        # * content the client fetches from a remote store (a url-backed
+        #   attachment) has no local bytes to take a prefix of, so
+        #   `_read_prefix` answers empty and `Stream` performs the redirect.
+        #
+        # Anything else with an empty prefix is simply an empty file, and
+        # streaming it is the same empty response either way.
+        if document_sudo.mimetype == "text/html" or not (
+            head := attachment_sudo._read_prefix(self.TEXTUAL_THUMBNAIL_SIZE)
+        ):
             with replace_exceptions(ValueError, MissingError, by=request.not_found()):
                 stream = self._documents_content_stream(document_sudo)
             return stream.get_response(as_attachment=False)
@@ -1232,11 +1366,18 @@ class ShareRoute(http.Controller):
             # performs no access check on these client-supplied values; they have
             # to be validated here, against the *real* user.
             #
-            # Only the folder branch of `_documents_upload` consumes them. When
-            # the target is an existing binary/request document the route
-            # deliberately ignores them (see `test_doc_upload_request_user`), so
-            # rejecting them there would break a documented contract.
-            values_are_used = document_sudo.type == "folder"
+            # Only the *create* branch of `_documents_upload` consumes them, and
+            # that branch runs for a folder token AND for the token-less upload
+            # into a drive root -- where `document_sudo` is the empty recordset,
+            # so its `type` is `False`, not `"folder"`. Testing for `"folder"`
+            # alone therefore disabled both guards below on exactly the path that
+            # uses the values: any internal user (no Documents group required,
+            # `_is_internal()` is the only gate on this route) could POST
+            # `user_folder_id=MY&res_model=<any>&res_id=<any>` and have the sudo
+            # create plant their file on the chatter of a record they cannot
+            # write. The route already spells this union out for `len(files) > 1`
+            # above; the two must agree.
+            values_are_used = document_sudo.type in (False, "folder")
             if (
                 values_are_used
                 and owner_id

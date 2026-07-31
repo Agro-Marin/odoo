@@ -90,6 +90,24 @@ export class DocumentsSearchPanelUserFolderId extends Component {
         categoryState[value.id] = !categoryState[value.id];
     }
 
+    /**
+     * `aria-expanded` for a category row, or false to leave the attribute off a
+     * leaf. This component reuses `web.SearchPanel.Category` through
+     * `documents.SearchPanel.Category` but is a plain Component rather than a
+     * SearchPanel subclass, so the accessor the template gained has to be
+     * provided here too -- without it the whole folder picker fails to render.
+     *
+     * @param {Object} category
+     * @param {Object} value
+     * @returns {string|false}
+     */
+    categoryAriaExpanded(category, value) {
+        if (!value.childrenIds.length) {
+            return false;
+        }
+        return this.state.expanded[category.id][value.id] ? "true" : "false";
+    }
+
     onFilterChange(ev) {
         const query = ev.target.value;
         this._createCategoryTree({ values: this._treeValues, query });

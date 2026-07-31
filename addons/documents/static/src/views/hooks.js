@@ -502,10 +502,16 @@ function useDocumentsViewFileUpload() {
      */
     const uploadFiles = async ({ files, accessToken, context }) => {
         const selectedUserFolderId = env.searchModel.getSelectedFolderId() || "MY"; // False='ALL'
-        if (["COMPANY", "MY"].includes(selectedUserFolderId)) {
-            context.default_user_folder_id = selectedUserFolderId;
-        }
-        await documentService.uploadDocument(files, accessToken, context, {
+        // A copy: `onFileInputChange` hands in `component.props.context`, so
+        // stamping the destination onto it mutates the controller's props --
+        // and through `computeNextConfig`, `this.config.context` with it, so a
+        // `default_user_folder_id` picked up from one upload kept travelling
+        // with every later read and record creation from that view.
+        // `documents_model_mixin.load` copies for exactly this reason.
+        const uploadContext = ["COMPANY", "MY"].includes(selectedUserFolderId)
+            ? { ...context, default_user_folder_id: selectedUserFolderId }
+            : context;
+        await documentService.uploadDocument(files, accessToken, uploadContext, {
             targetFolderId: selectedUserFolderId,
         });
     };

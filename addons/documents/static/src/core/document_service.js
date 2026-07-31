@@ -709,7 +709,8 @@ export class DocumentService {
      * @param {number|String} [param3.targetFolderId] search-panel id of the
      *   folder this upload lands in. Carried on the upload object rather than in
      *   the form data: `/documents/upload` declares its parameters explicitly,
-     *   so an extra field would be rejected outright.
+     *   and the dispatcher silently drops anything else (with a "called
+     *   ignoring args" warning), so a form field would simply be lost.
      */
     async uploadDocument(files, accessToken, context, { targetFolderId } = {}) {
         const fileArray = [...files];
@@ -737,9 +738,11 @@ export class DocumentService {
                                 JSON.stringify(context.allowed_company_ids)
                             );
                         }
-                        if (context.document_id) {
-                            formData.append("document_id", context.document_id);
-                        }
+                        // No `document_id`: the route has no such parameter --
+                        // which document is being written is what the access
+                        // token in the URL says. It was appended on every
+                        // "replace this version" upload and dropped by the
+                        // dispatcher, one warning per upload.
                     }
                 },
                 displayErrorNotification: false,

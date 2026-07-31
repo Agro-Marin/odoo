@@ -75,6 +75,11 @@ class DocumentsAccessTracking(models.Model):
           forever: every later access change stopped being tracked.
         """
         Cron = self.env["ir.cron"]
+        # Counted once, then decremented: `search_count([])` per drained row
+        # doubled the query count of the loop to report a number the loop
+        # already knows. A row queued by another transaction mid-drain is picked
+        # up by the `while`, which re-searches anyway.
+        remaining = self.search_count([])
         while tracking := self.search([], limit=1):
             try:
                 with self.env.cr.savepoint():
@@ -86,7 +91,7 @@ class DocumentsAccessTracking(models.Model):
                     exc_info=True,
                 )
             tracking.unlink()
-            remaining = self.search_count([])
+            remaining = max(remaining - 1, 0)
             if Cron._commit_progress(processed=1, remaining=remaining) <= 0:
                 return
         Cron._commit_progress(remaining=0)

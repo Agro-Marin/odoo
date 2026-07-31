@@ -73,7 +73,7 @@ class DocumentsAccess(models.Model):
         return super().write(vals)
 
     @api.autovacuum
-    def _gc_expired(self) -> None:
+    def _gc_expired(self) -> tuple[int, bool]:
         """Retire expired memberships without discarding access history.
 
         A row carries two independent things: the membership (``role`` +

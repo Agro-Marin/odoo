@@ -11,8 +11,10 @@ WEBP = b"UklGRjoAAABXRUJQVlA4IC4AAAAwAQCdASoBAAEAAUAmJaAAA3AA/u/uY//8s//2W/7LeM/
 
 class TransactionCaseDocuments(TransactionCase):
     def _assert_no_members(self, documents):
-        self.assertFalse(documents.access_ids.filtered("role"),
-                         "There shouldn't be any access records with role for these documents.")
+        self.assertFalse(
+            documents.access_ids.filtered("role"),
+            "There shouldn't be any access records with role for these documents.",
+        )
 
     def _assert_raises_check_access_rule(self, document, operation=None, msg=None):
         operations = [operation] if operation else ("read", "write")
@@ -24,101 +26,153 @@ class TransactionCaseDocuments(TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
-        cls.document_manager, cls.doc_user, cls.internal_user, cls.portal_user, cls.public_user, = cls.env["res.users"].create([
+        (
+            cls.document_manager,
+            cls.doc_user,
+            cls.internal_user,
+            cls.portal_user,
+            cls.public_user,
+        ) = cls.env["res.users"].create(
+            [
+                {
+                    "email": "dtdm@yourcompany.com",
+                    "group_ids": [
+                        Command.link(
+                            cls.env.ref("documents.group_documents_manager").id
+                        )
+                    ],
+                    "login": "dtdm",
+                    "name": "Documents Manager",
+                },
+                {
+                    "email": "documents@example.com",
+                    "group_ids": [
+                        Command.link(cls.env.ref("documents.group_documents_user").id)
+                    ],
+                    "login": "documents@example.com",
+                    "name": "Documents User",
+                },
+                {
+                    "login": "internal_user",
+                    "group_ids": [Command.link(cls.env.ref("base.group_user").id)],
+                    "name": "Internal user",
+                },
+                {
+                    "login": "portal_user",
+                    "group_ids": [Command.link(cls.env.ref("base.group_portal").id)],
+                    "name": "Portal user",
+                },
+                {
+                    "login": "public_user",
+                    "group_ids": [Command.link(cls.env.ref("base.group_public").id)],
+                    "name": "Public user",
+                },
+            ]
+        )
+        # A second plain Documents user: "another user with the same rights"
+        # is the premise of most access tests, and re-creating it per class was
+        # both duplication and a login collision waiting to happen.
+        cls.doc_user_2 = cls.env["res.users"].create(
             {
-                "email": "dtdm@yourcompany.com",
-                "group_ids": [Command.link(cls.env.ref("documents.group_documents_manager").id)],
-                "login": "dtdm",
-                "name": "Documents Manager",
-            }, {
-                "email": "documents@example.com",
-                "group_ids": [Command.link(cls.env.ref("documents.group_documents_user").id)],
-                "login": "documents@example.com",
-                "name": "Documents User",
-            }, {
-                "login": "internal_user",
-                "group_ids": [Command.link(cls.env.ref("base.group_user").id)],
-                "name": "Internal user"
-            }, {
-                "login": "portal_user",
-                "group_ids": [Command.link(cls.env.ref("base.group_portal").id)],
-                "name": "Portal user"
-            }, {
-                "login": "public_user",
-                "group_ids": [Command.link(cls.env.ref("base.group_public").id)],
-                "name": "Public user",
-            },
-        ])
-        cls.folder_a, cls.folder_b = cls.env["documents.document"].create([
+                "login": "documents_user_2@example.com",
+                "name": "Documents User 2",
+                "email": "documents_user_2@example.com",
+                "group_ids": [
+                    Command.link(cls.env.ref("documents.group_documents_user").id)
+                ],
+            }
+        )
+        cls.folder_a, cls.folder_b = cls.env["documents.document"].create(
+            [
+                {
+                    "type": "folder",
+                    "name": f"folder {letter}",
+                    "owner_id": cls.doc_user.id,
+                    "access_internal": "view",
+                }
+                for letter in ("A", "B")
+            ]
+        )
+        cls.folder_a_a = cls.env["documents.document"].create(
             {
                 "type": "folder",
-                "name": f"folder {letter}",
+                "name": "folder A - A",
+                "folder_id": cls.folder_a.id,
                 "owner_id": cls.doc_user.id,
-                "access_internal": "view",
-            } for letter in ("A", "B")
-        ])
-        cls.folder_a_a = cls.env["documents.document"].create({
-            "type": "folder",
-            "name": "folder A - A",
-            "folder_id": cls.folder_a.id,
-            "owner_id": cls.doc_user.id,
-        })
-        cls.tag_b = cls.env["documents.tag"].create({
-            "name": "categ_b > tag_b",
-        })
-        cls.tag_a, cls.tag_a_a = cls.env["documents.tag"].create([
-            {"name": "tag_a"},
-            {"name": "tag_a_a"},
-        ])
-        cls.document_gif = cls.env["documents.document"].create({
-            "type": "binary",
-            "datas": GIF,
-            "name": "file.gif",
-            "mimetype": "image/gif",
-            "folder_id": cls.folder_b.id,
-            "owner_id": cls.doc_user.id,
-        })
-        cls.document_txt = cls.env["documents.document"].create({
-            "type": "binary",
-            "datas": TEXT,
-            "name": "file.txt",
-            "mimetype": "text/plain",
-            "folder_id": cls.folder_b.id,
-            "owner_id": cls.doc_user.id,
-        })
+            }
+        )
+        cls.tag_b = cls.env["documents.tag"].create(
+            {
+                "name": "categ_b > tag_b",
+            }
+        )
+        cls.tag_a, cls.tag_a_a = cls.env["documents.tag"].create(
+            [
+                {"name": "tag_a"},
+                {"name": "tag_a_a"},
+            ]
+        )
+        cls.document_gif = cls.env["documents.document"].create(
+            {
+                "type": "binary",
+                "datas": GIF,
+                "name": "file.gif",
+                "mimetype": "image/gif",
+                "folder_id": cls.folder_b.id,
+                "owner_id": cls.doc_user.id,
+            }
+        )
+        cls.document_txt = cls.env["documents.document"].create(
+            {
+                "type": "binary",
+                "datas": TEXT,
+                "name": "file.txt",
+                "mimetype": "text/plain",
+                "folder_id": cls.folder_b.id,
+                "owner_id": cls.doc_user.id,
+            }
+        )
         cls.document_txt.access_via_link = "view"
 
-        cls.company_root_folder, cls.company_sub_folder, cls.company_root_document = cls.env["documents.document"].create([
-            {
-                "type": "folder",
-                "name": "Company Root Folder",
-                "owner_id": False,
-                "folder_id": False,
-                "access_internal": "view",
-            }, {
-                "type": "folder",
-                "name": "Company Sub Folder",
-                "owner_id": False,
-                "folder_id": False,
-                "access_internal": "view",
-            }, {
-                "type": "binary",
-                "name": "Company Root Document",
-                "owner_id": False,
-                "folder_id": False,
-                "access_internal": "view",
-            },
-        ])
+        cls.company_root_folder, cls.company_sub_folder, cls.company_root_document = (
+            cls.env["documents.document"].create(
+                [
+                    {
+                        "type": "folder",
+                        "name": "Company Root Folder",
+                        "owner_id": False,
+                        "folder_id": False,
+                        "access_internal": "view",
+                    },
+                    {
+                        "type": "folder",
+                        "name": "Company Sub Folder",
+                        "owner_id": False,
+                        "folder_id": False,
+                        "access_internal": "view",
+                    },
+                    {
+                        "type": "binary",
+                        "name": "Company Root Document",
+                        "owner_id": False,
+                        "folder_id": False,
+                        "access_internal": "view",
+                    },
+                ]
+            )
+        )
         cls.company_sub_folder.folder_id = cls.company_root_folder.id
 
-        cls.server_action = cls.env["ir.actions.server"].create({
-            "name": "Add tag_a",
-            "model_id": cls.env.ref("documents.model_documents_document").id,
-            "type": "ir.actions.server",
-            "group_ids": cls.env.ref("base.group_user").ids,
-            "update_path": "tag_ids",
-            "usage": "ir_actions_server",
-            "state": "object_write",
-            "update_m2m_operation": "add",
-            "resource_ref": f"documents.tag,{cls.tag_a.id}",
-        })
+        cls.server_action = cls.env["ir.actions.server"].create(
+            {
+                "name": "Add tag_a",
+                "model_id": cls.env.ref("documents.model_documents_document").id,
+                "type": "ir.actions.server",
+                "group_ids": cls.env.ref("base.group_user").ids,
+                "update_path": "tag_ids",
+                "usage": "ir_actions_server",
+                "state": "object_write",
+                "update_m2m_operation": "add",
+                "resource_ref": f"documents.tag,{cls.tag_a.id}",
+            }
+        )
