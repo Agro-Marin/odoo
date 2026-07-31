@@ -1,11 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/skeleton_view - Shimmer loading placeholder shown during view transitions to replace blank screens */
+/** @module @web/webclient/actions/skeleton_view */
 
 import { Component, onMounted } from "@odoo/owl";
 
-/** Replaces the blank screen during clearBreadcrumbs navigation with a shimmer matching the target view's layout. */
 export class SkeletonView extends Component {
     static template = "web.SkeletonView";
     static props = {
@@ -29,16 +28,15 @@ export class SkeletonView extends Component {
         onMounted(() => this.props.onMounted());
     }
 
-    /** @returns {string} The view type to render, defaulting to "generic". */
+    /** @returns {string} */
     get viewType() {
         return this.props.viewType || "generic";
     }
 
     /**
-     * Vary skeleton bar widths to look organic, not uniform.
-     * @param {number} row - Row index
-     * @param {number} col - Column index
-     * @returns {number} Width percentage between 35 and 80
+     * @param {number} row
+     * @param {number} col
+     * @returns {number}
      */
     cellWidth(row, col) {
         return 35 + ((row * 7 + col * 13) % 45);

@@ -1,58 +1,87 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/debug_items - Debug menu items for editing actions and views in the admin editor */
+/** @module @web/webclient/actions/debug_items */
 
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { editModelDebug } from "@web/services/debug/debug_utils";
 
+/** @import { Action } from "./action_service.js" */
+
 const debugRegistry = registry.category("debug");
 
 /**
- * Resolve a model name to its ``ir.model`` database id.
+ * ``ir.model`` ids are immutable for a given model, so one lookup per env is
+ * enough. Keyed by env rather than module-global so a test's cache dies with
+ * its env instead of leaking into the next one.
  *
- * Every item below needs this to build a domain or a ``default_model_id``;
- * the same four-line search was inlined in each of them.
- *
- * Throws when the model has no ``ir.model`` row. Every registered model has
- * one, so this is a can't-happen — but the four callers all feed the id
- * straight into an action (``res_id``, or a ``model_id =`` domain), where
- * ``undefined`` does not fail: it opens the ``ir.model`` form in CREATE mode,
- * or silently matches no rows. Raising here turns a silently-wrong debug
- * action into a legible error.
- *
- * @param {Object} env
- * @param {string} resModel
- * @returns {Promise<number>} the ``ir.model`` id
+ * @type {WeakMap<object, Map<string, Promise<number>>>}
  */
-async function getModelId(env, resModel) {
-    const [modelId] = await env.services.orm.search(
-        "ir.model",
-        [["model", "=", resModel]],
-        { limit: 1 },
-    );
-    if (modelId === undefined) {
-        throw new Error(`No ir.model record found for model "${resModel}"`);
+const modelIdCaches = new WeakMap();
+
+/**
+ * @param {import("@web/env").OdooEnv} env
+ * @param {string} resModel
+ * @returns {Promise<number>}
+ */
+function getModelId(env, resModel) {
+    let cache = modelIdCaches.get(env);
+    if (!cache) {
+        cache = new Map();
+        modelIdCaches.set(env, cache);
     }
-    return modelId;
+    let modelIdProm = cache.get(resModel);
+    if (!modelIdProm) {
+        modelIdProm = env.services.orm
+            .search("ir.model", [["model", "=", resModel]], { limit: 1 })
+            .then(([modelId]) => {
+                if (modelId === undefined) {
+                    throw new Error(`No ir.model record found for model "${resModel}"`);
+                }
+                return modelId;
+            });
+        modelIdProm.catch(() => cache.delete(resModel));
+        cache.set(resModel, modelIdProm);
+    }
+    return modelIdProm;
 }
 
 /**
- * Debug menu item: open the action's form view in the admin editor.
- * @param {{ action: Object, env: Object }} params
- * @returns {Object | null} debug menu item descriptor
+ * @param {string} resModel
+ * @param {string} name
+ * @param {number} modelId
+ * @returns {Record<string, any>}
+ */
+function modelScopedAction(resModel, name, modelId) {
+    return {
+        res_model: resModel,
+        name,
+        views: [
+            [false, "list"],
+            [false, "form"],
+        ],
+        domain: [["model_id", "=", modelId]],
+        type: "ir.actions.act_window",
+        context: { default_model_id: modelId },
+    };
+}
+
+/**
+ * @param {{ action: Action, env: import("@web/env").OdooEnv }} params
+ * @returns {Record<string, any> | null}
  */
 function editAction({ action, env }) {
     if (!action.id) {
         return null;
     }
+    const actionId = action.id;
     const description = _t("Action");
     return {
         type: "item",
         description,
         callback: async () => {
-            await editModelDebug(env, description, action.type, action.id);
+            await editModelDebug(env, description, action.type, actionId);
         },
         sequence: 220,
         section: "ui",
@@ -60,9 +89,8 @@ function editAction({ action, env }) {
 }
 
 /**
- * Debug menu item: list all fields for the action's model.
- * @param {{ action: Object, env: Object }} params
- * @returns {Object | null}
+ * @param {{ action: Action, env: import("@web/env").OdooEnv }} params
+ * @returns {Record<string, any> | null}
  */
 function viewFields({ action, env }) {
     if (!action.res_model) {
@@ -73,20 +101,13 @@ function viewFields({ action, env }) {
         type: "item",
         description,
         callback: async () => {
-            const modelId = await getModelId(env, action.res_model);
-            await env.services.action.doAction({
-                res_model: "ir.model.fields",
-                name: description,
-                views: [
-                    [false, "list"],
-                    [false, "form"],
-                ],
-                domain: [["model_id", "=", modelId]],
-                type: "ir.actions.act_window",
-                context: {
-                    default_model_id: modelId,
-                },
-            });
+            const modelId = await getModelId(
+                env,
+                /** @type {string} */ (action.res_model),
+            );
+            await env.services.action.doAction(
+                modelScopedAction("ir.model.fields", description, modelId),
+            );
         },
         sequence: 250,
         section: "ui",
@@ -94,9 +115,8 @@ function viewFields({ action, env }) {
 }
 
 /**
- * Debug menu item: open the ir.model form for the action's model.
- * @param {{ action: Object, env: Object }} params
- * @returns {Object | null}
+ * @param {{ action: Action, env: import("@web/env").OdooEnv }} params
+ * @returns {Record<string, any> | null}
  */
 function ViewModel({ action, env }) {
     if (!action.res_model) {
@@ -116,9 +136,8 @@ function ViewModel({ action, env }) {
 }
 
 /**
- * Debug menu item: list filters for the action's model.
- * @param {{ action: Object, env: Object }} params
- * @returns {Object | null}
+ * @param {{ action: Action, env: import("@web/env").OdooEnv }} params
+ * @returns {Record<string, any> | null}
  */
 function manageFilters({ action, env }) {
     if (!action.res_model) {
@@ -149,9 +168,8 @@ function manageFilters({ action, env }) {
 }
 
 /**
- * Debug menu item: list access rights for the action's model.
- * @param {{ accessRights: Object, action: Object, env: Object }} params
- * @returns {Object | null}
+ * @param {{ accessRights: Record<string, any>, action: Action, env: import("@web/env").OdooEnv }} params
+ * @returns {Record<string, any> | null}
  */
 function viewAccessRights({ accessRights, action, env }) {
     if (!action.res_model || !accessRights.canSeeModelAccess) {
@@ -162,20 +180,13 @@ function viewAccessRights({ accessRights, action, env }) {
         type: "item",
         description,
         callback: async () => {
-            const modelId = await getModelId(env, action.res_model);
-            await env.services.action.doAction({
-                res_model: "ir.model.access",
-                name: description,
-                views: [
-                    [false, "list"],
-                    [false, "form"],
-                ],
-                domain: [["model_id", "=", modelId]],
-                type: "ir.actions.act_window",
-                context: {
-                    default_model_id: modelId,
-                },
-            });
+            const modelId = await getModelId(
+                env,
+                /** @type {string} */ (action.res_model),
+            );
+            await env.services.action.doAction(
+                modelScopedAction("ir.model.access", description, modelId),
+            );
         },
         sequence: 350,
         section: "security",
@@ -183,37 +194,25 @@ function viewAccessRights({ accessRights, action, env }) {
 }
 
 /**
- * Debug menu item: list record rules for the action's model.
- * @param {{ accessRights: Object, action: Object, env: Object }} params
- * @returns {Object | null}
+ * @param {{ accessRights: Record<string, any>, action: Action, env: import("@web/env").OdooEnv }} params
+ * @returns {Record<string, any> | null}
  */
 function viewRecordRules({ accessRights, action, env }) {
     if (!action.res_model || !accessRights.canSeeRecordRules) {
         return null;
     }
-    // Two distinct strings on purpose: the menu entry sits under a "Model:
-    // <name>" heading and needs no qualifier, the opened action's own title
-    // does. `description` is the ACTION title here, unlike every sibling above
-    // where the two coincide.
     const description = _t("Model Record Rules");
     return {
         type: "item",
         description: _t("Record Rules"),
         callback: async () => {
-            const modelId = await getModelId(env, action.res_model);
-            await env.services.action.doAction({
-                res_model: "ir.rule",
-                name: description,
-                views: [
-                    [false, "list"],
-                    [false, "form"],
-                ],
-                domain: [["model_id", "=", modelId]],
-                type: "ir.actions.act_window",
-                context: {
-                    default_model_id: modelId,
-                },
-            });
+            const modelId = await getModelId(
+                env,
+                /** @type {string} */ (action.res_model),
+            );
+            await env.services.action.doAction(
+                modelScopedAction("ir.rule", description, modelId),
+            );
         },
         sequence: 360,
         section: "security",

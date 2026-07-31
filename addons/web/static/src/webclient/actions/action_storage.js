@@ -1,44 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_storage - Single owner of the sessionStorage keys the action manager uses to survive a reload */
+/** @module @web/webclient/actions/action_storage */
 
 import { browser } from "@web/core/browser/browser";
-
-/**
- * The action manager persists three values in ``sessionStorage`` so a page
- * reload (or a new tab opened from an ``ir.actions.act_url``) can rebuild what
- * the user was looking at:
- *
- * | key              | shape                                            |
- * |------------------|--------------------------------------------------|
- * | ``current_action``| JSON of the leaf action (``action._originalAction``) |
- * | ``current_state`` | JSON of the router state (``makeActionState``)   |
- * | ``current_lang``  | plain string — the lang the two above were written under |
- *
- * This module is the single owner of that schema, and every read is TOTAL: a
- * missing, empty or corrupt value resolves to the same neutral default. All
- * three keys are an optimisation — the URL remains the source of truth — so a
- * corrupt one must never propagate an exception into a restore and cost the
- * user their back-navigation.
- */
 
 const CURRENT_ACTION = "current_action";
 const CURRENT_STATE = "current_state";
 const CURRENT_LANG = "current_lang";
 
-/** Keys that together describe "the action the user was on"; cleared as a unit. */
 const RESTORE_KEYS = [CURRENT_ACTION, CURRENT_STATE, CURRENT_LANG];
 
 /**
- * Read a key and parse it as JSON, resolving anything unusable to ``{}``.
- *
- * ``sessionStorage`` is shared with the user (devtools), other tabs of the
- * same session and any extension, and a write can be interrupted — so a
- * malformed value is a normal input here, not an exceptional one.
- *
  * @param {string} key
- * @returns {Object} the parsed object, or ``{}``
+ * @returns {Object}
  */
 function readJSON(key) {
     let raw;
@@ -57,16 +32,14 @@ function readJSON(key) {
         console.warn(`Discarding a corrupt "${key}" entry in sessionStorage`);
         try {
             browser.sessionStorage.removeItem(key);
-        } catch {
-            // Nothing to clean up if storage is unavailable.
-        }
+        } catch {}
         return {};
     }
 }
 
 /**
  * @param {string} key
- * @param {string | null} value ``null`` removes the key
+ * @param {string | null} value
  */
 function writeRaw(key, value) {
     try {
@@ -75,11 +48,7 @@ function writeRaw(key, value) {
         } else {
             browser.sessionStorage.setItem(key, value);
         }
-    } catch {
-        // Quota exceeded or storage unavailable: the restore cache is
-        // best-effort, so losing it must never break the navigation that
-        // triggered the write.
-    }
+    } catch {}
 }
 
 /** @param {string} key */
@@ -93,39 +62,32 @@ function readRaw(key) {
 
 export const actionStorage = {
     /**
-     * The last committed action, as a plain object.
-     * @returns {Object} ``{}`` when absent or unusable
+     * @returns {Object}
      */
     getCurrentAction() {
         return readJSON(CURRENT_ACTION);
     },
 
     /**
-     * Store the leaf action. Takes the ALREADY-serialized ``_originalAction``
-     * rather than the action object: the action carries non-serializable
-     * members (markups, component classes), and ``action_loader`` is what
-     * decides what a serializable snapshot of it looks like.
-     *
-     * @param {string} [serializedAction] ``action._originalAction``
+     * @param {string} [serializedAction]
      */
     setCurrentAction(serializedAction) {
         writeRaw(CURRENT_ACTION, serializedAction || "{}");
     },
 
     /**
-     * The last pushed router state, as a plain object.
-     * @returns {Object} ``{}`` when absent or unusable
+     * @returns {Object}
      */
     getCurrentState() {
         return readJSON(CURRENT_STATE);
     },
 
-    /** @param {Object} state a router state (see ``makeActionState``) */
+    /** @param {Object} state */
     setCurrentState(state) {
         writeRaw(CURRENT_STATE, JSON.stringify(state));
     },
 
-    /** @returns {string | null} the lang the cached action/state were written under */
+    /** @returns {string | null} */
     getLang() {
         return readRaw(CURRENT_LANG);
     },
@@ -135,11 +97,6 @@ export const actionStorage = {
         writeRaw(CURRENT_LANG, lang);
     },
 
-    /**
-     * Drop the whole restore cache. Used when it describes a session that no
-     * longer applies — currently a language switch, after which the cached
-     * action's translated labels and the state built from them are stale.
-     */
     clearRestoreCache() {
         for (const key of RESTORE_KEYS) {
             writeRaw(key, null);
@@ -147,18 +104,9 @@ export const actionStorage = {
     },
 
     /**
-     * Run ``fn`` with ``current_action``/``current_state`` temporarily set to
-     * the given pair, restoring the previous values afterwards.
-     *
-     * Used to seed a new tab: ``sessionStorage`` is copied into an auxiliary
-     * browsing context at the moment it is opened
-     * (https://html.spec.whatwg.org/multipage/webstorage.html#webstorage), so
-     * the destination window boots from these values — while the originating
-     * window must be left exactly as it was.
-     *
      * @template T
      * @param {{ serializedAction?: string, state: Object }} entry
-     * @param {() => T} fn invoked synchronously; the swap only holds for its duration
+     * @param {() => T} fn
      * @returns {T}
      */
     withTemporaryEntry({ serializedAction, state }, fn) {

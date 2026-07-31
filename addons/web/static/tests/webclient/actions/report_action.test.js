@@ -197,7 +197,7 @@ test("downloadReport resolves with nothing (no wkhtmltopdf-fallback plumbing)", 
         },
     });
     const action = { report_name: "some_report", report_type: "qweb-pdf" };
-    const result = await downloadReport(rpc, action, "pdf", {});
+    const result = await downloadReport(action, "pdf", {});
     expect(result).toBe(undefined);
     expect.verifySteps(["/report/download"]);
 });

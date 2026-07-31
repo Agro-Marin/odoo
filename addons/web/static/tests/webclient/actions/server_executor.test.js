@@ -21,6 +21,7 @@ import { executeServerAction } from "@web/webclient/actions/action_executors/ser
  * @param {Object} [overrides]
  */
 function makeFakeAm(overrides = {}) {
+    /** @type {Record<string, any[]>} */
     const calls = { doAction: [] };
     const am = {
         keepLast: new KeepLast({ rejectSuperseded: true }),

@@ -1,29 +1,23 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_views - View lookup and action display mode resolution for the action service */
+/** @module @web/webclient/actions/action_views */
+
+/** @import { Action, BaseView } from "./action_service.js" */
 
 /**
- * Find a view descriptor matching the given type and multi-record flag.
- *
- * @param {Object[]} views - available view descriptors
- * @param {boolean} multiRecord - whether to match multi-record views
- * @param {string} [viewType] - the view type to find; when undefined no
- *   descriptor matches and the caller falls back to its default view
- * @returns {Object|undefined}
+ * @param {BaseView[]} views
+ * @param {boolean} multiRecord
+ * @param {string} [viewType]
+ * @returns {BaseView|undefined}
  */
 export function findView(views, multiRecord, viewType) {
     return views.find((v) => v.type === viewType && v.multiRecord === multiRecord);
 }
 
 /**
- * Determine the effective display mode for an action.
- *
- * Client actions may force a target via their registry definition.
- * Falls back to "current" when no explicit target is set.
- *
- * @param {Object} action - preprocessed action descriptor
- * @param {Object} actionRegistry - the "actions" registry category
+ * @param {Action} action
+ * @param {import("@web/core/registry").Registry<import("registries").ActionsRegistryItemShape>} actionRegistry
  * @returns {"current"|"fullscreen"|"new"|"main"}
  */
 export function getActionMode(action, actionRegistry) {
@@ -31,7 +25,7 @@ export function getActionMode(action, actionRegistry) {
         return "new";
     }
     if (action.type === "ir.actions.client") {
-        const clientAction = actionRegistry.get(action.tag);
+        const clientAction = actionRegistry.get(/** @type {string} */ (action.tag));
         if (clientAction.target) {
             return clientAction.target;
         }

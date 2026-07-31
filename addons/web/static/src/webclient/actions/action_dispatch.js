@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_dispatch - The commit/fail/discard transaction behind a single _updateUI dispatch */
+/** @module @web/webclient/actions/action_dispatch */
 
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -14,54 +14,17 @@ import { BlankComponent } from "./blank_component.js";
 
 const actionRegistry = registry.category("actions");
 
-/** @import { ActionManager } from "./action_service.js" */
+/** @import { Action, ActionManager, Controller } from "./action_service.js" */
 
-/**
- * ONE ``_updateUI`` DISPATCH, AS A TRANSACTION.
- * =============================================
- *
- * A dispatch proposes a change to action-manager state and only applies it if
- * the controller actually reaches the DOM. It has exactly three outcomes:
- *
- *   {@link commit}   the controller mounted        -> swap in ``nextStack``, or
- *                                                     promote the pending dialog
- *   {@link fail}     it errored before mounting    -> roll back to a good stack,
- *                                                     or tear the pending dialog
- *                                                     down (which hands the
- *                                                     stolen ``onClose`` back)
- *   {@link discard}  a newer dispatch destroyed it -> settle the awaiter so it
- *                    before it could mount            cannot hang
- *
- * The proposal (``nextStack``, ``nextDialog``) and its three outcomes live in
- * this one object so the transaction's invariants are enforceable rather than
- * merely stated — notably {@link _releasePendingDialog}'s: "any path that tears
- * a pending dialog down WITHOUT going through its remove() must clear the slot
- * itself."
- *
- * ``ControllerComponent`` keeps only what is genuinely component-local (OWL's
- * ``status``, the ``CallbackRecorder``s) and passes it in; everything that
- * mutates the manager lives here.
- *
- * NOT a general-purpose abstraction: one instance per dispatch, used once.
- */
 export class ActionDispatch {
     /**
      * @param {ActionManager} am
      * @param {Object} params
-     * @param {Object} params.controller
-     * @param {Object} params.action
-     * @param {Object[]} params.nextStack the stack to commit on mount
-     * @param {Object[]} params.baseStack the stack ``nextStack`` was derived
-     *   from. For a URL restore that is the URL's own stack, which is NOT
-     *   installed anywhere until this dispatch settles — so a pre-mount failure
-     *   has to install it before degrading within it.
-     * @param {Object[]} [params.restoreStackOnError] set only by a breadcrumb
-     *   restore: the stack that is currently DISPLAYED. The URL still points at
-     *   it (``pushState`` only runs on mount), so a restore that errors before
-     *   mounting must return here rather than to the truncated ``nextStack``
-     *   tip, making the failed click a no-op. ``loadState`` deliberately does
-     *   not set it — it runs after the browser already changed the URL and must
-     *   degrade within that URL's stack.
+     * @param {Controller} params.controller
+     * @param {Action} params.action
+     * @param {Controller[]} params.nextStack
+     * @param {Controller[]} [params.baseStack]
+     * @param {Controller[]} [params.restoreStackOnError]
      */
     constructor(am, { controller, action, nextStack, baseStack, restoreStackOnError }) {
         this.am = am;
@@ -71,17 +34,11 @@ export class ActionDispatch {
         this.baseStack = baseStack ?? am.controllerStack;
         this.restoreStackOnError = restoreStackOnError;
         /**
-         * Identity of the dialog this dispatch registered, set by
-         * ``_dispatchTargetNew``. A ref rather than a plain field because the
-         * dialog service hands the remove function back only after the entry
-         * exists, and the failure path needs it later.
          * @type {{ current?: Function }}
          */
         this.removeDialogRef = { current: undefined };
         /**
-         * Settled by exactly one of commit/fail/discard. ``_updateUI`` returns
-         * it, so every ``doAction`` awaiter is waiting on this.
-         * @type {Promise<any>}
+         * @type {Promise<void>}
          */
         this.promise = new Promise((resolve, reject) => {
             this._resolve = resolve;
@@ -90,10 +47,7 @@ export class ActionDispatch {
     }
 
     /**
-     * The controller mounted: apply the proposal.
-     *
-     * @param {Object} exporters state exporters owned by the component — they
-     *   close over its ``CallbackRecorder``s, so they cannot be built here
+     * @param {Object} exporters
      * @param {() => any} exporters.getGlobalState
      * @param {() => any} exporters.getLocalState
      */
@@ -119,14 +73,6 @@ export class ActionDispatch {
         );
     }
 
-    /**
-     * Promote the pending dialog over the committed one.
-     *
-     * The removal chain synchronously nulls ``am.dialog`` and fires no user
-     * callback, because ``_dispatchTargetNew`` already moved ``onClose`` onto
-     * ``am.nextDialog``. Clearing the pending slot afterwards keeps the two
-     * from ever aliasing.
-     */
     _commitDialog() {
         const { am } = this;
         am.dialog?.remove();
@@ -135,14 +81,6 @@ export class ActionDispatch {
     }
 
     /**
-     * The dispatch outcome as a dispatch path must expose it to its caller:
-     * supersession is a quiet resolve, every other failure propagates.
-     *
-     * BOTH dispatch paths must go through here — the "quiet resolve" half of
-     * {@link discard}'s contract lives in the awaiter, not in the rejection, so
-     * a path returning {@link promise} raw turns a superseded dispatch into an
-     * unhandled rejection in any caller that did not await.
-     *
      * @returns {Promise<any>}
      */
     async settled() {
@@ -156,14 +94,7 @@ export class ActionDispatch {
     }
 
     /**
-     * A newer ``ACTION_MANAGER:UPDATE`` destroyed this controller before it
-     * mounted, so neither commit nor fail will run. Settle the awaiter or every
-     * ``doAction`` caller of the superseded action hangs forever.
-     *
-     * {@link settled} is what turns this rejection into the quiet resolve
-     * callers observe; it never reaches the global error service.
-     *
-     * @param {{ componentStatus: string }} ctx OWL's ``status(component)``
+     * @param {{ componentStatus: string }} ctx
      */
     discard({ componentStatus }) {
         if (!this.controller.isMounted && componentStatus !== "mounted") {
@@ -172,12 +103,9 @@ export class ActionDispatch {
     }
 
     /**
-     * The controller threw. Surface the error and leave the action container in
-     * an unbroken state.
-     *
      * @param {Error} error
-     * @param {{ componentStatus: string }} ctx OWL's ``status(component)``
-     * @returns {any} a recovery promise when one is started
+     * @param {{ componentStatus: string }} ctx
+     * @returns {any}
      */
     fail(error, { componentStatus }) {
         const { am, controller, action } = this;
@@ -205,35 +133,15 @@ export class ActionDispatch {
         return this._restoreStack();
     }
 
-    /**
-     * Tear down a dialog that failed before mounting.
-     *
-     * INVARIANT — SINGLE OWNER. ``remove()`` runs
-     * ``overlay.remove -> dialog onRemove -> options.onClose ->
-     * am._removeDialog(closeParams, removeFn)`` SYNCHRONOUSLY, and
-     * ``_removeDialog``'s identity guard is the one place that recognises "the
-     * dialog going away is the PENDING one": it hands ``stolenOnClose`` back to
-     * the committed dialog and clears the slot. Keep the recovery there — any
-     * path that tears a pending dialog down WITHOUT going through its
-     * ``remove()`` must clear the slot itself.
-     */
     _releasePendingDialog() {
         this.removeDialogRef.current?.();
     }
 
     /**
-     * Return the controller stack to a state the user can act on.
-     *
-     * @returns {any} the restore promise, when one is started
+     * @returns {any}
      */
     _restoreStack() {
         const { am, controller, baseStack } = this;
-        // Nothing was committed, so the live stack is still the one on screen.
-        // Recovery happens within the stack this dispatch was building on: for
-        // a URL navigation the browser has ALREADY moved to that URL, so
-        // degrading inside the previously-displayed stack would leave the two
-        // disagreeing. ``restoreStackOnError`` below is the one case that wants
-        // the opposite, and it overrides this.
         if (am.controllerStack !== baseStack) {
             am.controllerStack = baseStack;
         }

@@ -843,9 +843,12 @@ test("_getView answers null — not a throw — when the tip is not a window act
     await mountWithCleanup(WebClient);
     const actionService = getService("action");
     await actionService.doAction(3);
-    expect(".o_list_view").toHaveCount(1);
-    // Captured while the list is on top, exactly as openRecord() holds it
-    // across its `await record.save()`.
+    // The multi-record view the action opens with is preset-dependent (mobile
+    // resolves `mobile_view_mode`), and irrelevant here: what matters is that a
+    // window action is on the tip and exposes the prop captured below.
+    expect(actionService.currentController.action.type).toBe("ir.actions.act_window");
+    // Captured while the multi-record view is on top, exactly as openRecord()
+    // holds it across its `await record.save()`.
     const selectRecord = actionService.currentController.props.selectRecord;
 
     await actionService.doAction({

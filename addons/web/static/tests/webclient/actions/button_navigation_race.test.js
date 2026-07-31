@@ -35,6 +35,7 @@ registry.category("actions").add("test_destination", DestinationAction);
  * Same, but its mount can be held open, so a test can keep the navigation
  * in flight while something else enters the action manager's KeepLast.
  */
+/** @type {any} */
 export let slowDestinationDef = null;
 class SlowDestinationAction extends Component {
     static template = xml`<div class="test_slow_destination">Slow destination</div>`;

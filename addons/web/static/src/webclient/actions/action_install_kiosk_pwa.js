@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_install_kiosk_pwa - Client action dialog displaying a kiosk PWA installation URL */
+/** @module @web/webclient/actions/action_install_kiosk_pwa */
 
 import { Component, onWillStart } from "@odoo/owl";
 import { registry } from "@web/core/registry";
@@ -11,6 +11,11 @@ import { standardActionServiceProps } from "./action_constants.js";
 export class InstallKiosk extends Component {
     static template = "web.ActionInstallKioskPWA";
     static props = { ...standardActionServiceProps };
+
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialog;
 
     setup() {
         this.resModel = this.props.action.res_model;
@@ -23,12 +28,12 @@ export class InstallKiosk extends Component {
         });
     }
 
-    /** @returns {string} the PWA application identifier */
+    /** @returns {string} */
     get appId() {
         return this.props.action.context.app_id || this.resModel;
     }
 
-    /** @returns {string} URL path to install the kiosk as a scoped PWA */
+    /** @returns {string} */
     get installURL() {
         return `/scoped_app?app_id=${this.appId}&path=${encodeURIComponent(
             this.url.replace(`${document.location.origin}/`, ""),

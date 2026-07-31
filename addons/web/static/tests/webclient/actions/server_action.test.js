@@ -88,7 +88,7 @@ test("can execute server actions from db ID", async () => {
     ]);
 });
 
-test("handle server actions returning false", async function (assert) {
+test("handle server actions returning false", async function () {
     defineActions([
         {
             id: 2,

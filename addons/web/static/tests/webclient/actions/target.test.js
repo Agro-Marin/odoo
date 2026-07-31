@@ -363,6 +363,235 @@ describe("new", () => {
         def.resolve();
     });
 
+    test("a superseded pending dialog's own on_close still fires", async () => {
+        // A pending, never-mounted dialog replaced by another one is NOT an
+        // error: its dispatch is discarded, so its doAction resolves quietly
+        // and its caller believes the action succeeded. Dropping its on_close
+        // stranded that caller for good — see the awaiting-caller test below.
+        const def = new Deferred();
+        class SlowDialogAction extends Component {
+            static template = xml`<div class="slow_dialog_action"/>`;
+            static props = ["*"];
+            setup() {
+                onWillStart(() => def);
+            }
+        }
+        registry.category("actions").add("superseded_pending", SlowDialogAction);
+        const request = {
+            type: "ir.actions.client",
+            tag: "superseded_pending",
+            target: "new",
+        };
+
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction(5, {
+            onClose: () => expect.step("committed on_close"),
+        });
+
+        getService("action").doAction(request, {
+            onClose: () => expect.step("A on_close"),
+        });
+        await animationFrame();
+        const promB = getService("action").doAction(request, {
+            onClose: () => expect.step("B on_close"),
+        });
+        await animationFrame();
+
+        def.resolve();
+        await promB;
+        await animationFrame();
+        expect(".o_technical_modal .slow_dialog_action").toHaveCount(1);
+        expect.verifySteps([]);
+
+        await getService("action").doAction({ type: "ir.actions.act_window_close" });
+        // Innermost first: the order the dialogs would have unwound in had they
+        // each opened and been closed one at a time.
+        expect.verifySteps(["B on_close", "A on_close", "committed on_close"]);
+    });
+
+    test("awaiting a superseded dialog through on_close still settles", async () => {
+        const def = new Deferred();
+        class SlowDialogAction extends Component {
+            static template = xml`<div class="slow_dialog_action"/>`;
+            static props = ["*"];
+            setup() {
+                onWillStart(() => def);
+            }
+        }
+        registry.category("actions").add("awaited_pending", SlowDialogAction);
+        const request = {
+            type: "ir.actions.client",
+            tag: "awaited_pending",
+            target: "new",
+        };
+
+        await mountWithCleanup(WebClient);
+        // The idiom mail's scheduled_message_model, the calendar controller and
+        // the view-button confirmation flow all use to AWAIT a dialog.
+        //
+        // Recorded into a flag and asserted, rather than awaited: the defect
+        // this pins is a promise that never settles, so `await` detects it by
+        // hanging — which costs the whole per-test timeout and, worse, HOOT
+        // scores a timed-out test whose executed assertions passed as PASSED,
+        // so in a batch run the regression would not even be listed.
+        let settled = false;
+        new Promise((resolve) =>
+            getService("action").doAction(request, { onClose: resolve }),
+        ).then(() => (settled = true));
+        await animationFrame();
+
+        const promB = getService("action").doAction(request);
+        await animationFrame();
+        def.resolve();
+        await promB;
+        await animationFrame();
+        expect(".o_technical_modal .slow_dialog_action").toHaveCount(1);
+        // Still open, so nothing is owed yet.
+        expect(settled).toBe(false);
+
+        await getService("action").doAction({ type: "ir.actions.act_window_close" });
+        await animationFrame();
+        expect(settled).toBe(true);
+    });
+
+    test("a superseded pending dialog is still owed on_close when its replacement fails", async () => {
+        const def = new Deferred();
+        class SlowDialogAction extends Component {
+            static template = xml`<div/>`;
+            static props = ["*"];
+            setup() {
+                onWillStart(() => def);
+            }
+        }
+        class FailingClientAction extends Component {
+            static template = xml`<div/>`;
+            static props = ["*"];
+            setup() {
+                throw new Error("replacement failed");
+            }
+        }
+        registry.category("actions").add("pending_then_failing", SlowDialogAction);
+        registry.category("actions").add("the_failing_one", FailingClientAction);
+
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction(5, {
+            onClose: () => expect.step("committed on_close"),
+        });
+
+        getService("action").doAction(
+            {
+                type: "ir.actions.client",
+                tag: "pending_then_failing",
+                target: "new",
+            },
+            { onClose: () => expect.step("A on_close") },
+        );
+        await animationFrame();
+
+        await expect(
+            getService("action").doAction({
+                type: "ir.actions.client",
+                tag: "the_failing_one",
+                target: "new",
+            }),
+        ).rejects.toThrow();
+        await animationFrame();
+        // The committed dialog is still the one on screen, and it now owes both
+        // its own callback and the one A's resolved dispatch left behind. The
+        // failing action's own is not owed: its doAction rejected.
+        expect(".o_technical_modal .o_form_view").toHaveCount(1);
+        expect.verifySteps([]);
+
+        await getService("action").doAction({ type: "ir.actions.act_window_close" });
+        expect.verifySteps(["A on_close", "committed on_close"]);
+        def.resolve();
+    });
+
+    test("a superseded on_close is called outright when no dialog outlives it", async () => {
+        // Same obligation as the test above, but with nothing committed to
+        // re-arm it on: the callback has to be invoked rather than handed over.
+        const def = new Deferred();
+        class SlowDialogAction extends Component {
+            static template = xml`<div/>`;
+            static props = ["*"];
+            setup() {
+                onWillStart(() => def);
+            }
+        }
+        class FailingClientAction extends Component {
+            static template = xml`<div/>`;
+            static props = ["*"];
+            setup() {
+                throw new Error("replacement failed");
+            }
+        }
+        registry.category("actions").add("lone_pending", SlowDialogAction);
+        registry.category("actions").add("lone_failing", FailingClientAction);
+
+        await mountWithCleanup(WebClient);
+        expect(".o_technical_modal").toHaveCount(0);
+
+        getService("action").doAction(
+            { type: "ir.actions.client", tag: "lone_pending", target: "new" },
+            { onClose: () => expect.step("A on_close") },
+        );
+        await animationFrame();
+
+        await expect(
+            getService("action").doAction({
+                type: "ir.actions.client",
+                tag: "lone_failing",
+                target: "new",
+            }),
+        ).rejects.toThrow();
+        await animationFrame();
+
+        expect(".o_technical_modal").toHaveCount(0);
+        expect.verifySteps(["A on_close"]);
+        def.resolve();
+    });
+
+    test("a `close` button whose action opens a dialog does not close the replacement", async () => {
+        // `close` means "close the dialog this button lives in". That dialog is
+        // gone by the time the action has run — a target="new" result REPLACED
+        // it — so closing whatever is standing tore down the wizard step the
+        // click had just opened.
+        class Step2 extends Component {
+            static template = xml`<div class="step2"/>`;
+            static props = ["*"];
+        }
+        registry.category("actions").add("close_button_step2", Step2);
+        onRpc("/web/dataset/call_button/partner/next_step", () => ({
+            type: "ir.actions.client",
+            tag: "close_button_step2",
+            target: "new",
+        }));
+
+        await mountWithCleanup(WebClient);
+        await getService("action").doAction(5, {
+            onClose: () => expect.step("wizard on_close"),
+        });
+        expect(".o_technical_modal").toHaveCount(1);
+
+        await getService("action").doActionButton({
+            type: "object",
+            name: "next_step",
+            resModel: "partner",
+            resId: 1,
+            close: true,
+        });
+        await animationFrame();
+
+        expect(".step2").toHaveCount(1);
+        expect(".o_technical_modal").toHaveCount(1);
+        // The dialog the button lived in did go away — replaced, so its own
+        // callback rides on the replacement rather than firing now.
+        expect.verifySteps([]);
+
+        await getService("action").doAction({ type: "ir.actions.act_window_close" });
+        expect.verifySteps(["wizard on_close"]);
+    });
+
     test("footer buttons are moved to the dialog footer", async () => {
         Partner._views["form"] = `
             <form>

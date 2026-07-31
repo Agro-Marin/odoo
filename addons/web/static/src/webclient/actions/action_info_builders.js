@@ -1,36 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_info_builders - Builds props, config, and state for client action and view controllers */
-
-/**
- * Extracted from action_service.js to reduce file size and isolate the
- * props/config/state building logic for action-manager controllers.
- */
+/** @module @web/webclient/actions/action_info_builders */
 
 import { shallowEqual } from "@web/core/utils/collections/objects";
 import { session } from "@web/session";
 
-/** @import { ActionManager } from "./action_service.js" */
+/** @import { Action, ActWindowAction, ActionManager, ActionProps, BaseView, Config, Controller } from "./action_service.js" */
 
 /**
- * Build the ``updateActionState`` prop: the callback a controller uses to
- * report a change in the state that belongs in the URL (``resId``,
- * ``active_id``).
- *
- * A factory rather than a shared closure: each builder's updater closes over
- * ITS controller's ``currentState``.
- *
- * The gate is deliberately conservative: nothing is pushed when the state did
- * not actually change (a re-render reporting the same resId must not add a
- * history entry), when the action is a dialog (a ``target="new"`` action owns
- * no URL), or before the controller mounted (the URL still describes the
- * controller currently on screen).
- *
- * @param {Object} currentState the controller's live state object, mutated in place
- * @param {string} target the owning action's ``target``
+ * @param {Record<string, any>} currentState
+ * @param {string|undefined} target
  * @param {ActionManager} am
- * @returns {(controller: Object, patchState: Object) => void}
+ * @returns {(controller: Controller, patchState: Record<string, any>) => void}
  */
 function makeActionStateUpdater(currentState, target, am) {
     return (controller, patchState) => {
@@ -44,14 +26,13 @@ function makeActionStateUpdater(currentState, target, am) {
 }
 
 /**
- * Build the props, config, currentState, and displayName for a client action controller.
- *
- * @param {Object} action the client action descriptor
- * @param {Object} props initial props to merge
+ * @param {Action} action
+ * @param {ActionProps} props
  * @param {ActionManager} am
- * @returns {{ props: Object, currentState: Object, config: Object, displayName: string }}
+ * @returns {{ props: ActionProps, currentState: Record<string, any>, config: Config, displayName: string }}
  */
 export function buildActionInfo(action, props, am) {
+    /** @type {ActionProps} */
     const actionProps = { ...props, action, actionId: action.id };
     const currentState = {
         resId: actionProps.resId ?? false,
@@ -74,20 +55,19 @@ export function buildActionInfo(action, props, am) {
 }
 
 /**
- * Build the props, config, currentState, and displayName for a view (act_window) controller.
- *
- * @param {Object} view the view descriptor (type, icon, display_name, multiRecord)
- * @param {Object} action the act_window action descriptor
- * @param {Object[]} views all available views for this action
- * @param {Object} props initial props to merge
+ * @param {BaseView} view
+ * @param {ActWindowAction} action
+ * @param {BaseView[]} views
+ * @param {ActionProps} props
  * @param {ActionManager} am
- * @returns {{ props: Object, currentState: Object, config: Object, displayName: string }}
+ * @returns {{ props: ActionProps, currentState: Record<string, any>, config: Config, displayName: string }}
  */
 export function buildViewInfo(view, action, views, props = {}, am) {
     const target = action.target;
     const viewSwitcherEntries = views
         .filter((v) => v.multiRecord === view.multiRecord)
         .map((v) => {
+            /** @type {Record<string, any>} */
             const viewSwitcherEntry = {
                 icon: v.icon,
                 name: v.display_name,
@@ -105,7 +85,7 @@ export function buildViewInfo(view, action, views, props = {}, am) {
         groupBy = groupBy ? [groupBy] : [];
     }
     const openFormView = (
-        resId,
+        /** @type {any} */ resId,
         { activeIds, readonly, force, newWindow } = /** @type {any} */ ({}),
     ) => {
         if (target !== "new") {
@@ -130,6 +110,7 @@ export function buildViewInfo(view, action, views, props = {}, am) {
             }
         }
     };
+    /** @type {ActionProps} */
     const viewProps = {
         ...props,
         context,
@@ -147,7 +128,10 @@ export function buildViewInfo(view, action, views, props = {}, am) {
         if (target === "new") {
             viewProps.readonly = false;
             if (!viewProps.onSave) {
-                viewProps.onSave = (record, params) => {
+                viewProps.onSave = (
+                    /** @type {any} */ record,
+                    /** @type {any} */ params,
+                ) => {
                     if (params?.closable) {
                         am.doAction({ type: "ir.actions.act_window_close" });
                     }
@@ -162,7 +146,7 @@ export function buildViewInfo(view, action, views, props = {}, am) {
             if (key === "help") {
                 viewProps.noContentHelp = action.help;
             } else {
-                viewProps[key] = action[key];
+                viewProps[key] = /** @type {Record<string, any>} */ (action)[key];
             }
         }
     }
@@ -210,11 +194,9 @@ export function buildViewInfo(view, action, views, props = {}, am) {
 }
 
 /**
- * Build the views array for an act_window action, validating that all view types are known.
- *
- * @param {Object} action the act_window action descriptor
- * @returns {Object[]} array of view descriptors with { icon, display_name, multiRecord, type }
- * @throws {Error} if unknown view types are found or no views are available
+ * @param {ActWindowAction} action
+ * @returns {BaseView[]}
+ * @throws {Error}
  */
 export function buildActionViews(action) {
     const views = [];

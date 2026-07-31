@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/load_state - Restore the action stack from URL state and dispatch the leaf action */
+/** @module @web/webclient/actions/load_state */
 
 import { AppEvent } from "@web/core/events";
 import { SupersededError } from "@web/core/utils/concurrency";
@@ -12,18 +12,9 @@ import { actionStorage } from "./action_storage.js";
 /** @import { ActionManager } from "./action_service.js" */
 
 /**
- * Restore a stack of virtual controllers from the URL state (usually
- * `router.current`) and dispatch a `doAction` on the leaf. Used to hydrate
- * the action stack from the URL on initial load, and by Studio /
- * project_sharing when leaving to resync the stack with the URL.
- *
- * On `MissingActionError` (URL references a deleted action), pops the leaf
- * from `state.actionStack` and recurses; if the stack is empty, triggers
- * `WEBCLIENT:LOAD_DEFAULT_APP`. Other errors propagate.
- *
  * @param {ActionManager} am
- * @param {object} [state] defaults to `am.router.current`
- * @returns {Promise<boolean | undefined>} true if a `doAction` was performed
+ * @param {Record<string, any>} [state]
+ * @returns {Promise<boolean | undefined>}
  */
 export async function loadState(am, state) {
     state ??= am.router.current;
@@ -32,6 +23,7 @@ export async function loadState(am, state) {
     if (lang && lang !== user.lang) {
         actionStorage.clearRestoreCache();
     }
+    /** @type {any[]} */
     let newStack;
     try {
         newStack = await am._controllersFromState(state);
@@ -49,12 +41,6 @@ export async function loadState(am, state) {
     const actionParams = am._getActionParams(state);
     if (actionParams) {
         const { actionRequest, options } = actionParams;
-        // Counted from the END of the rebuilt controller stack, because that is
-        // the coordinate system ``poppedLeaves`` is expressed in — see the note
-        // on ``getActionParams``. ``newStack`` is shorter than the URL's
-        // ``actionStack`` whenever ``controllersFromState`` dropped a deleted or
-        // inaccessible record, so counting from the start lands on the wrong
-        // entry exactly then.
         const popped = options.poppedLeaves || 0;
         delete options.poppedLeaves;
         options.newStack = popped ? newStack.slice(0, -popped) : newStack;
@@ -65,10 +51,11 @@ export async function loadState(am, state) {
                 error.exceptionName ===
                 "odoo.addons.web.controllers.action.MissingActionError"
             ) {
-                if (state.actionStack?.length > 1) {
+                const actionStack = state?.actionStack;
+                if (actionStack?.length > 1) {
                     const newState = {
-                        ...state.actionStack.slice(0, -1).at(-1),
-                        actionStack: [...state.actionStack.slice(0, -1)],
+                        ...actionStack.slice(0, -1).at(-1),
+                        actionStack: [...actionStack.slice(0, -1)],
                     };
                     return loadState(am, newState);
                 } else {

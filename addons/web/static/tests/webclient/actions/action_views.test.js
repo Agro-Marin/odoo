@@ -20,7 +20,11 @@ import { findView, getActionMode } from "@web/webclient/actions/action_views";
 
 describe.current.tags("desktop");
 
-/** Minimal stand-in for the `actions` registry category. */
+/**
+ * Minimal stand-in for the `actions` registry category.
+ *
+ * @returns {any} Only `get` is implemented, so it is not a real Registry.
+ */
 function makeRegistry(entries = {}) {
     return {
         get(key) {
@@ -34,7 +38,7 @@ function makeRegistry(entries = {}) {
 
 test("a dialog is 'new' whatever else the action says", () => {
     const registry = makeRegistry({ tagged: { target: "fullscreen" } });
-    expect(getActionMode({ target: "new" }, registry)).toBe("new");
+    expect(getActionMode(/** @type {any} */ ({ target: "new" }), registry)).toBe("new");
     // Even when the registry entry would force another target.
     expect(
         getActionMode(
@@ -87,9 +91,13 @@ test("a window action never consults the registry", () => {
 
 test("an unknown target degrades to current rather than passing through", () => {
     const registry = makeRegistry();
-    expect(getActionMode({ target: "main" }, registry)).toBe("current");
-    expect(getActionMode({ target: "self" }, registry)).toBe("current");
-    expect(getActionMode({}, registry)).toBe("current");
+    expect(getActionMode(/** @type {any} */ ({ target: "main" }), registry)).toBe(
+        "current",
+    );
+    expect(getActionMode(/** @type {any} */ ({ target: "self" }), registry)).toBe(
+        "current",
+    );
+    expect(getActionMode(/** @type {any} */ ({}), registry)).toBe("current");
 });
 
 const VIEWS = [

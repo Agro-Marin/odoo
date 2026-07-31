@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/client_actions - Built-in client actions (display_notification, soft_reload, reload_context) */
+/** @module @web/webclient/actions/client_actions */
 
 import { markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -10,12 +10,12 @@ import { makeErrorFromResponse, rpc } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { htmlSprintf } from "@web/core/utils/dom/html";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
+
+/** @import { Action } from "./action_service.js" */
 /**
- * Client action to display a notification with optional links.
- *
- * @param {Object} env - the OWL environment
- * @param {Object} action - the action descriptor with params (title, message, type, links, next)
- * @returns {Object | undefined} optional follow-up action
+ * @param {import("@web/env").OdooEnv} env
+ * @param {Action} action
+ * @returns {Object | undefined}
  */
 export function displayNotificationAction(env, action) {
     const params = action.params || {};
@@ -25,13 +25,6 @@ export function displayNotificationAction(env, action) {
         title: params.title,
         type: params.type || "info",
     };
-    // `markup` escapes the interpolated url, which stops tag injection but says
-    // nothing about the SCHEME: `javascript:` survives escaping intact and runs
-    // on click. `params.links[].url` is not necessarily admin-authored — any
-    // model method can build a notification out of a record field a regular
-    // user filled in — so it gets the same `isSafeUrlScheme` gate `act_url.js`
-    // applies. A blocked link keeps its label as plain text rather than
-    // vanishing, so the message still reads as written.
     const links = (params.links || []).map((link) => {
         if (isSafeUrlScheme(link.url)) {
             return markup`<a href="${link.url}" target="_blank">${link.label}</a>`;
@@ -40,31 +33,25 @@ export function displayNotificationAction(env, action) {
         return markup`${link.label}`;
     });
     const message = htmlSprintf(params.message, ...links);
-    env.services.notification.add(message, options);
+    env.services.notification.add(/** @type {any} */ (message), options);
     return params.next;
 }
 
 registry.category("actions").add("display_notification", displayNotificationAction);
 
 /**
- * Client action to trigger an Exception on the interface.
- *
- * @param {Object} env
- * @param {Object} action - action with params matching error response shape
+ * @param {import("@web/env").OdooEnv} env
+ * @param {Action} action
  */
 function displayException(env, action) {
-    throw makeErrorFromResponse(action.params);
+    throw makeErrorFromResponse(/** @type {any} */ (action.params));
 }
 
 registry.category("actions").add("display_exception", displayException);
 
 /**
- * Client action to reload the whole interface.
- * If action.params.menu_id, it opens the given menu entry.
- * If action.params.action_id, it opens the given action.
- *
- * @param {Object} env
- * @param {Object} action
+ * @param {import("@web/env").OdooEnv} env
+ * @param {Action} action
  */
 function reload(env, action) {
     const { menu_id, action_id } = action.params || {};
@@ -85,29 +72,12 @@ function reload(env, action) {
 
 registry.category("actions").add("reload", reload);
 
-/** First probe delay: give a restarting server a moment before asking. */
 const HOME_POLL_INITIAL_DELAY = 1000;
-/**
- * Ceiling for the exponential backoff between probes. A power of two so the
- * doubling saturates cleanly (1s, 2s, 4s, 8s, 8s, ...) instead of being
- * clamped mid-sequence.
- */
 const HOME_POLL_MAX_DELAY = 8000;
-/** Give up waiting after this long and navigate anyway. */
 const HOME_POLL_DEADLINE = 2 * 60 * 1000;
 
 /**
- * Wait for the server to answer again, backing off exponentially.
- *
- * Dispatched after an install/upgrade (``base_install_request``,
- * ``spreadsheet_edition``), i.e. exactly when the server is restarting.
- *
- * Both the period and the total wait are bounded: the delay grows to
- * ``HOME_POLL_MAX_DELAY`` (matching the anti-thundering-herd intent of
- * ``rpc.js``'s own retry backoff) and the wait ends at ``HOME_POLL_DEADLINE``,
- * so a server that never comes back is neither hammered nor awaited forever.
- *
- * @returns {Promise<boolean>} whether the server answered before the deadline
+ * @returns {Promise<boolean>}
  */
 async function waitForServer() {
     const deadline = Date.now() + HOME_POLL_DEADLINE;
@@ -126,12 +96,6 @@ async function waitForServer() {
     }
 }
 
-/**
- * Client action to go back home.
- *
- * Navigates whether or not the server came back: landing on the server's own
- * error page is more useful than an action that silently never completes.
- */
 async function home() {
     await waitForServer();
     const url = "/" + (browser.location.search || "");
@@ -143,11 +107,8 @@ registry.category("actions").add("home", home);
 registry.category("actions").add("reload_context", reload);
 
 /**
- * Client action to restore the current controller.
- * Serves as a trigger to reload the interface without a full browser reload.
- *
- * @param {Object} env
- * @param {Object} action
+ * @param {import("@web/env").OdooEnv} env
+ * @param {Action} action
  */
 async function softReload(env, action) {
     const controller = env.services.action.currentController;

@@ -205,7 +205,9 @@ class TestClientAction extends Component {
 onRpc("has_group", () => true);
 
 beforeEach(() => {
-    actionRegistry.add("__test__client__action__", TestClientAction);
+    actionRegistry.add("__test__client__action__", TestClientAction, {
+        force: true,
+    });
     patchWithCleanup(browser.location, {
         origin: "http://example.com",
     });
@@ -1348,7 +1350,7 @@ describe(`new urls`, () => {
         );
         expect(
             queryAllAttributes(".o_breadcrumb li.breadcrumb-item a", "data-tooltip"),
-        ).toEqual(['Back to "Second record" form', 'Back to "Partners Action 28"']);
+        ).toEqual(["Back to “Second record” form", "Back to “Partners Action 28”"]);
     });
 
     test(`don't load controllers when load action new`, async () => {

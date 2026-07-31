@@ -219,6 +219,37 @@ test("duplicate controllers are fetched once and both updated", async () => {
     expect([a.displayName, b.displayName]).toEqual(["shared", "shared"]);
 });
 
+test("restoring a stack that repeats a record asks the server for it once", async () => {
+    // The same guard `refreshBreadcrumbDisplayNames` has above, on the restore
+    // path: two controllers resolving to one {action, model, resId} both missed
+    // the cache (nothing is written until the request exists) and both queued,
+    // so the one batched RPC listed the record twice.
+    await makeMockServer();
+    let fetchedKeys = null;
+    onRpc("/web/action/load_breadcrumbs", async (request) => {
+        const { params } = await request.json();
+        fetchedKeys = params.actions;
+        return params.actions.map(() => ({ display_name: "Rec" }));
+    });
+    const am = makeFakeAm();
+
+    const controllers = await controllersFromState(
+        {
+            action: 4,
+            actionStack: [
+                { action: 4, model: "partner", resId: 1 },
+                { action: 4, model: "partner", resId: 1 },
+                { action: 4, model: "partner", resId: 2 },
+            ],
+        },
+        am,
+    );
+
+    expect(fetchedKeys).toHaveLength(1);
+    // Both controllers are still built, and both get the fetched name.
+    expect(controllers.map((c) => c.displayName)).toEqual(["Rec", "Rec"]);
+});
+
 test("a state with no actionStack yields no virtual controllers", async () => {
     const am = makeFakeAm();
     expect(await controllersFromState({}, am)).toEqual([]);

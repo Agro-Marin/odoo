@@ -1,12 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/actions/action_button_executor - Executes action buttons (type=object/action/special) with RPC, context filtering, and UI blocking */
-
-/**
- * Extracted action-button execution logic; takes an {@link ActionManager}
- * instance and accesses the service's methods/state through it.
- */
+/** @module @web/webclient/actions/action_button_executor */
 
 import { markup } from "@odoo/owl";
 import { makeContext } from "@web/core/context";
@@ -19,17 +14,14 @@ import { user } from "@web/services/user";
 import { CTX_KEY_REGEX, EMBEDDED_ACTIONS_CTX_KEYS } from "./action_constants.js";
 
 /** @typedef {Object} DoActionButtonParams */
-/** @import { ActionManager } from "./action_service.js" */
+/** @import { ActionManager, Context } from "./action_service.js" */
 
 export class InvalidButtonParamsError extends Error {}
 
 /**
- * Build the positional ``args`` for a ``call_button`` RPC: the record id(s)
- * followed by any explicit ``args`` arch attribute (a Python-literal list).
- *
  * @param {DoActionButtonParams} params
  * @returns {any[]}
- * @throws {InvalidButtonParamsError} if ``args`` is unparseable or not a list
+ * @throws {InvalidButtonParamsError}
  */
 export function buildCallButtonArgs(params) {
     let args = params.resId ? [[params.resId]] : [params.resIds];
@@ -54,13 +46,8 @@ export function buildCallButtonArgs(params) {
 }
 
 /**
- * Strip context keys that must not leak from the originating action into the
- * destination action's context — wrong ``default_*`` / ``search_default_*``
- * values, or a ``group_by`` the destination view can't satisfy. The stripped
- * set is defined by {@link CTX_KEY_REGEX}.
- *
- * @param {Object} [context]
- * @returns {Object} a new context with the action-specific keys removed
+ * @param {Context} [context]
+ * @returns {Context}
  */
 export function filterActionContext(context) {
     const filtered = {};
@@ -73,17 +60,11 @@ export function filterActionContext(context) {
 }
 
 /**
- * Execute an action button (type="object", type="action", or special).
- *
- * Handles RPC calls, embedded-action recursion, context filtering,
- * UI blocking, and effect triggering.
- *
  * @param {ActionManager} am
  * @param {DoActionButtonParams} params
  * @param {Object} [options={}]
- * @param {boolean} [options.isEmbeddedAction] set to true if the action
- *   request is an embedded action (avoids infinite recursion).
- * @param {boolean} [options.newWindow] set to true to open in a new tab.
+ * @param {boolean} [options.isEmbeddedAction]
+ * @param {boolean} [options.newWindow]
  * @returns {Promise<void>}
  */
 export async function executeActionButton(
@@ -94,6 +75,7 @@ export async function executeActionButton(
     if (!params.name && !params.special) {
         return;
     }
+    const dialogAtPress = am.dialog;
     let action;
     if (!isEmbeddedAction && params.context) {
         params = {
@@ -175,14 +157,6 @@ export async function executeActionButton(
                     parent_action_embedded_actions: embeddedActions,
                     parent_action_id: action.id,
                 };
-                // Delegating is still THIS click, so everything the click owed
-                // its caller is now owed by the delegate. ``onClose`` above all:
-                // it is how every view button reloads its view afterwards
-                // (``view_button_hook``) and how a list's ``openAction``
-                // reloads its root record (``list_controller.openRecord``).
-                // Dropping it left the view showing pre-action data with no
-                // second trigger, and dropping ``close`` left the dialog the
-                // button was pressed in standing open.
                 await am.doActionButton(
                     {
                         name:
@@ -222,7 +196,7 @@ export async function executeActionButton(
             viewType,
         });
         if (params.close) {
-            await am._executeCloseAction();
+            await am._executeCloseAction(undefined, { dialog: dialogAtPress });
         }
     } finally {
         if (blockUi) {
