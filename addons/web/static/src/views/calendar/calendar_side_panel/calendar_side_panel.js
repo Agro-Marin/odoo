@@ -1,14 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_side_panel/calendar_side_panel - Side panel with date picker and filter sections for the calendar view */
+/** @module @web/views/calendar/calendar_side_panel/calendar_side_panel */
 
 import { Component } from "@odoo/owl";
 import { DateTimePicker } from "@web/components/datetime/datetime_picker";
 import { getStartOfLocalWeek } from "@web/core/l10n/date_utils";
 import { CalendarFilterSection } from "@web/views/calendar/calendar_filter_section/calendar_filter_section";
 
-/** Side panel with a date picker and filter sections for the calendar view. */
 export class CalendarSidePanel extends Component {
     static components = {
         DatePicker: DateTimePicker,
@@ -17,14 +16,16 @@ export class CalendarSidePanel extends Component {
     static template = "web.CalendarSidePanel";
     static props = ["model"];
 
-    /** @returns {Object} props passed to the DateTimePicker component */
+    /** @returns {Object} */
     get datePickerProps() {
         return {
             type: "date",
             showWeekNumbers: false,
             maxPrecision: "days",
             daysOfWeekFormat: "narrow",
-            onSelect: (date) => {
+            onSelect: (
+                /** @type {import("@web/core/l10n/dates").NullableDateTime} */ date,
+            ) => {
                 let scale = "week";
 
                 if (this.props.model.date.hasSame(date, "day")) {
@@ -46,14 +47,14 @@ export class CalendarSidePanel extends Component {
             value: this.props.model.date,
         };
     }
-    /** @returns {{ model: Object }} props passed to the CalendarFilterSection */
+    /** @returns {{ model: Object }} */
     get filterPanelProps() {
         return {
             model: this.props.model,
         };
     }
 
-    /** @returns {boolean} whether the date picker should be visible */
+    /** @returns {boolean} */
     get showDatePicker() {
         return this.props.model.showDatePicker && !this.env.isSmall;
     }

@@ -1,19 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/hooks/calendar_popover_hook - Hook managing calendar event popovers with desktop/mobile responsive behavior */
+/** @module @web/views/calendar/hooks/calendar_popover_hook */
 
 import { useComponent, useExternalListener } from "@odoo/owl";
 import { useService } from "@web/core/utils/hooks";
 import { usePopover } from "@web/ui/popover/popover_hook";
 
 /**
- * On desktop, opens a positioned popover anchored to the event element.
- * On mobile, opens a full dialog instead. Prevents FullCalendar's own
- * popover from closing while the custom popover is open.
- *
- * @param {typeof import("@odoo/owl").Component} component - OWL component class to render inside the popover
- * @returns {{ close: Function, open: Function }} popover control API
+ * @param {typeof import("@odoo/owl").Component} component
+ * @returns {{ close: Function, open: Function }}
  */
 export function useCalendarPopover(component) {
     const owner = useComponent();

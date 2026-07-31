@@ -7,6 +7,7 @@ import {
     keyDown,
     keyUp,
     manuallyDispatchProgrammaticEvent,
+    press,
     queryAll,
     queryAllTexts,
 } from "@odoo/hoot-dom";
@@ -1189,4 +1190,58 @@ test("multi_create: window blur clears a stuck ctrl for drag selection", async (
         "2019-03-12",
         "2019-03-13",
     ]);
+});
+
+test.tags("desktop");
+test("multi_create: a failed view load is retried on the next selection", async () => {
+    let failNext = true;
+    let multiCreateLoads = 0;
+    onRpc("get_views", ({ kwargs }) => {
+        if (kwargs.context?.form_view_ref !== "multi_create_form") {
+            return;
+        }
+        multiCreateLoads++;
+        if (failNext) {
+            failNext = false;
+            throw new Error("multi-create view unavailable");
+        }
+    });
+
+    await mountView({
+        type: "calendar",
+        resModel: "event",
+        arch: `<calendar date_start="date_start" scales="month" multi_create_view="multi_create_form">
+            <field name="name"/>
+            <field name="date_start" invisible="1"/>
+        </calendar>`,
+    });
+
+    const { drop, moveTo } = await contains(".fc-day[data-date='2019-03-04']").drag();
+    await moveTo(".fc-day[data-date='2019-03-06']");
+    await animationFrame();
+    await drop();
+    await animationFrame();
+    await animationFrame();
+
+    expect(multiCreateLoads).toBe(1);
+    expect(".o_multi_selection_buttons").toHaveCount(0, {
+        message: "the toolbar stays hidden while the view failed to load",
+    });
+
+    await press("escape");
+    await animationFrame();
+
+    const { drop: drop2, moveTo: moveTo2 } = await contains(
+        ".fc-day[data-date='2019-03-04']",
+    ).drag();
+    await moveTo2(".fc-day[data-date='2019-03-08']");
+    await animationFrame();
+    await drop2();
+    await animationFrame();
+    await animationFrame();
+
+    expect(multiCreateLoads).toBe(2);
+    expect(".o_multi_selection_buttons").toHaveCount(1, {
+        message: "the retry succeeded and the toolbar is back",
+    });
 });

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_view - Calendar view descriptor registered in the view registry */
+/** @module @web/views/calendar/calendar_view */
 
 import { registry } from "@web/core/registry";
 
@@ -22,9 +22,9 @@ export const calendarView = {
     buttonTemplate: "web.CalendarController.controlButtons",
 
     /**
-     * @param {Object} props - standard view props (arch, relatedModels, resModel)
-     * @param {Object} view - view descriptor with ArchParser, Model, Renderer
-     * @returns {Object} controller props including parsed archInfo
+     * @param {Record<string, any>} props
+     * @param {Record<string, any>} view
+     * @returns {Record<string, any>}
      */
     props: (props, view) => {
         const { ArchParser } = view;

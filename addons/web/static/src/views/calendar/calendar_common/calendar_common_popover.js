@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_common/calendar_common_popover - Popover for calendar events in day/week/month scales */
+/** @module @web/views/calendar/calendar_common/calendar_common_popover */
 
 import { Component, useExternalListener } from "@odoo/owl";
 import { is24HourFormat } from "@web/core/l10n/time";
@@ -14,11 +14,6 @@ import { Dialog } from "@web/ui/dialog/dialog";
 import { getFormattedDateSpan } from "@web/views/calendar/calendar_utils";
 
 /**
- * Escape a (possibly translated) string for inclusion inside a Luxon
- * single-quoted format literal. Luxon represents a literal apostrophe as a
- * doubled single quote; a raw apostrophe in a translation (fr/it/ca …) would
- * otherwise close the literal early and corrupt the duration string.
- *
  * @param {string} str
  * @returns {string}
  */
@@ -26,7 +21,6 @@ function luxonLiteral(str) {
     return String(str).replaceAll("'", "''");
 }
 
-/** Popover displayed when clicking a calendar event in day/week/month scales. */
 export class CalendarCommonPopover extends Component {
     static template = "web.CalendarCommonPopover";
     static subTemplates = {
@@ -90,8 +84,8 @@ export class CalendarCommonPopover extends Component {
     }
 
     /**
-     * @param {Object} fieldNode - parsed field node with invisible expression
-     * @param {Object} record - current record for expression evaluation context
+     * @param {{ [key: string]: any }} fieldNode
+     * @param {{ [key: string]: any }} record
      * @returns {boolean}
      */
     isInvisible(fieldNode, record) {
@@ -102,11 +96,9 @@ export class CalendarCommonPopover extends Component {
     }
 
     /**
-     * Format a record field value for display using the appropriate formatter.
-     *
      * @param {string} fieldName
-     * @param {Object} record
-     * @returns {string} formatted value
+     * @param {{ [key: string]: any }} record
+     * @returns {string}
      */
     getFormattedValue(fieldName, record) {
         const fieldInfo = this.props.model.popoverFieldNodes[fieldName];
@@ -121,7 +113,6 @@ export class CalendarCommonPopover extends Component {
         return format(record.data[fieldName]);
     }
 
-    /** Compute human-readable date, time, and duration strings for the popover header. */
     computeDateTimeAndDuration() {
         const record = this.props.record;
         const { start, end } = record;

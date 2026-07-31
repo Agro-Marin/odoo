@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/hooks/square_selection_hook - Drag-to-select date range hook for month-view calendar cells */
+/** @module @web/views/calendar/hooks/square_selection_hook */
 
 import { useComponent, useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { useCallbackRecorder } from "@web/core/action_hook";
@@ -20,25 +20,24 @@ const IGNORE_SELECTOR = [
     ".fc-popover",
 ].join(",");
 
-/** @param {Object} ctx - drag context with pointer position and ref element */
+/** @param {Object} ctx */
 function getClosestCell(ctx) {
     const { pointer, ref } = ctx;
     return closest(ref.el.querySelectorAll(CELL_SELECTOR), pointer);
 }
 
-/** @param {Element} element - DOM element whose sibling index to compute */
+/** @param {Element} element */
 function getElementIndex(element) {
     return [...(element?.parentNode.children || [])].indexOf(element);
 }
 
-/** @param {Element} cell - day cell element to get grid coordinates from */
+/** @param {Element} cell */
 function getCoordinates(cell) {
     const colIndex = getElementIndex(cell);
     const rowIndex = getElementIndex(cell.closest(ROW_SELECTOR));
     return { colIndex, rowIndex };
 }
 
-/** Compute the bounding rectangle of a selection between two grid coordinates. */
 function getBlockBounds({ initCoord, coord }) {
     const [startColIndex, endColIndex] = [initCoord.colIndex, coord.colIndex].sort(
         (a, b) => a - b,
@@ -49,7 +48,6 @@ function getBlockBounds({ initCoord, coord }) {
     return { startColIndex, endColIndex, startRowIndex, endRowIndex };
 }
 
-/** Collect all selectable cells within the current rectangular selection bounds. */
 function getSelectedCellsInBlock(ctx) {
     const { cellIsSelectable, current, ref } = ctx;
     const { startColIndex, endColIndex, startRowIndex, endRowIndex } =
@@ -70,7 +68,6 @@ function getSelectedCellsInBlock(ctx) {
     return { selectedCells };
 }
 
-/** Select all cells in linear order between two cells (for Shift+click ranges). */
 function getSelectedCellsBetween2Cells(ctx, prevCell, cellClicked) {
     const { cellIsSelectable, ref } = ctx;
     const cells = [...ref.el.querySelectorAll(`${ROW_SELECTOR} ${CELL_SELECTOR}`)];
@@ -123,14 +120,8 @@ const useBlockSelection = /** @type {any} */ (makeDraggableHook)({
 });
 
 /**
- * OWL hook enabling rectangular cell selection on a FullCalendar month grid.
- *
- * Supports click, Ctrl+click (toggle), Shift+click (range), and drag-to-select.
- * Selected cells are highlighted and reported via `onSquareSelection` callback.
- * Used by the multi-create feature in month scale.
- *
  * @param {Object} [params]
- * @param {Function} [params.cellIsSelectable] - predicate to filter selectable day cells
+ * @param {Function} [params.cellIsSelectable]
  */
 export function useSquareSelection(params = {}) {
     const cellIsSelectable = params.cellIsSelectable || (() => true);

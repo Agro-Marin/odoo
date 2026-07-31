@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_renderer - Top-level calendar renderer delegating to scale-specific sub-renderers */
+/** @module @web/views/calendar/calendar_renderer */
 
 import { Component } from "@odoo/owl";
 import { ActionSwiper } from "@web/components/action_swiper/action_swiper";

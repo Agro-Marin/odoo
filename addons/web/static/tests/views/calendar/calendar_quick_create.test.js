@@ -75,7 +75,7 @@ test(`click on create button (with name)`, async () => {
         props: {
             model: {
                 ...FAKE_MODEL,
-                createRecord(record) {
+                createRecord(/** @type {any} */ record) {
                     expect.step("create");
                     expect(record.title).toBe("TEST");
                 },
@@ -100,7 +100,7 @@ test(`click on edit button`, async () => {
 test(`click on edit button (with name)`, async () => {
     await start({
         props: {
-            editRecord(record) {
+            editRecord(/** @type {any} */ record) {
                 expect.step("edit");
                 expect(record.title).toBe("TEST");
             },

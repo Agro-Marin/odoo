@@ -1,13 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_utils - Utility functions for calendar record-to-event conversion, color mapping, and date formatting */
+/** @module @web/views/calendar/calendar_utils */
 
 /**
- * Convert a calendar record into a FullCalendar event object.
- *
- * @param {Object} record - calendar record with id, title, start, end, isAllDay
- * @param {boolean} [forceAllDay=false] - treat the event as all-day regardless of record flags
+ * @param {Object} record
+ * @param {boolean} [forceAllDay=false]
  * @returns {{ id: number, title: string, start: string, end: string, allDay: boolean }}
  */
 export function convertRecordToEvent(record, forceAllDay = false) {
@@ -35,15 +33,8 @@ const CSS_COLOR_REGEX =
     /^((#[A-F0-9]{3})|(#[A-F0-9]{6})|((hsl|rgb)a?\(\s*(?:(\s*\d{1,3}%?\s*),?){3}(\s*,[0-9.]{1,4})?\))|)$/i;
 const colorMap = new Map();
 /**
- * Map a key to a stable calendar color index or CSS color string.
- *
- * CSS color strings are returned as-is. Numeric keys are mapped to a
- * palette index (1-55). Other keys hash to a deterministic index (1-24)
- * derived from the key itself, so the color is stable across sessions and
- * independent of which view was visited first.
- *
- * @param {string|number|false} key - color key (record id, CSS color, or falsy)
- * @returns {string|number|false} palette index, CSS color string, or false
+ * @param {string|number|false} key
+ * @returns {string|number|false}
  */
 export function getColor(key) {
     if (!key) {
@@ -70,17 +61,9 @@ export function getColor(key) {
 }
 
 /**
- * Sort calendar filters by type priority, then by label.
- *
- * Filters are grouped by their `type` following the order given in
- * `typePriority` (a type absent from the list sorts last). Within a group,
- * `dynamic` filters that have no value (e.g. "Open Shifts") are pushed to the
- * end; the remaining filters are ordered case-/accent-insensitively by label
- * with natural numeric ordering.
- *
  * @param {Array<{ type: string, value: any, label: string }>} filters
- * @param {string[]} typePriority - filter types in the desired priority order
- * @returns {Array} a new array of filters, sorted
+ * @param {string[]} typePriority
+ * @returns {Array}
  */
 export function sortCalendarFilters(filters, typePriority) {
     return filters.toSorted((a, b) => {
@@ -102,14 +85,9 @@ export function sortCalendarFilters(filters, typePriority) {
 }
 
 /**
- * Format a start/end date pair as a human-readable date span string.
- *
- * Same-month ranges are collapsed (e.g. "August 4-5, 2019"), same-day
- * ranges show a single date, and cross-month ranges show full dates.
- *
  * @param {any} start
  * @param {any} end
- * @returns {string} formatted date span
+ * @returns {string}
  */
 export function getFormattedDateSpan(start, end) {
     const isSameDay = start.hasSame(end, "days");

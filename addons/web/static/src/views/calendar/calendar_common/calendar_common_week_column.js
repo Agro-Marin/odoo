@@ -1,18 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_common/calendar_common_week_column - Inserts week-number columns into FullCalendar grid headers and body rows */
+/** @module @web/views/calendar/calendar_common/calendar_common_week_column */
 
 /**
- * Complete FullCalendar v7's month-grid week column.
- *
- * Tags each body week-number element as ``.o-fc-week`` and prepends a matching
- * ``.o-fc-week-header`` to the header row so the header and body grids keep the
- * same column count.
- *
  * @param {Object} params
- * @param {HTMLElement} params.el - FullCalendar root element
- * @param {string} params.weekText - header label for the week column
+ * @param {HTMLElement} params.el
+ * @param {string} params.weekText
  */
 export function makeWeekColumn({ el, weekText }) {
     const headerCell = el.querySelector(".fc-col-header-cell");

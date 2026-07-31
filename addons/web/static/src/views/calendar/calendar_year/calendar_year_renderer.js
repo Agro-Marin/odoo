@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_year/calendar_year_renderer - Year-scale renderer displaying 12 mini month grids with background events */
+/** @module @web/views/calendar/calendar_year/calendar_year_renderer */
 
 import { Component, useEffect, useExternalListener, useRef } from "@odoo/owl";
 import { getLocalYearAndWeek } from "@web/core/l10n/dates";
@@ -21,7 +21,6 @@ import {
     useFullCalendar,
 } from "@web/views/calendar/hooks/full_calendar_hook";
 
-/** Year-scale calendar renderer displaying 12 mini month grids with background events. */
 export class CalendarYearRenderer extends Component {
     static components = {
         Popover: CalendarYearPopover,
@@ -34,6 +33,13 @@ export class CalendarYearRenderer extends Component {
         deleteRecord: Function,
         isWeekendVisible: { type: Boolean, optional: true },
     };
+
+    /** @type {{}} */
+    fcs;
+    /** @type {ReturnType<typeof useCalendarPopover>} */
+    popover;
+    /** @type {import("@odoo/owl").Ref} */
+    rootRef;
 
     setup() {
         this.months = Info.months();
@@ -207,11 +213,6 @@ export class CalendarYearRenderer extends Component {
             });
         }
     }
-    /**
-     * v7 ``dayCellClass`` generator: combines base v6 day-cell hooks with
-     * ``o_calendar_disabled`` for unusual days. Declarative so classes survive
-     * v7 re-renders (unlike imperative additions in ``dayCellDidMount``).
-     */
     dayCellClass(info) {
         const base = dayCellClassNames(info);
         const extras = this.getDayCellClassNames(info);

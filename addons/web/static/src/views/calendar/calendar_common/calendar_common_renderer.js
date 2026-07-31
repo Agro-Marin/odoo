@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_common/calendar_common_renderer - FullCalendar renderer for day/week/month scales */
+/** @module @web/views/calendar/calendar_common/calendar_common_renderer */
 
 import { Component, onWillUnmount } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -42,14 +42,6 @@ const SHORT_SCALE_TO_HEADER_FORMAT = {
     month: { weekday: "short" },
 };
 /**
- * Format a Luxon DateTime as a bare, offset-less ISO string for FullCalendar's
- * ``initialDate`` option.
- *
- * FC v7 re-derives the day from an offset-bearing ISO in its declared
- * ``timeZone``, which can cross a UTC boundary and land on the previous day
- * for local midnight in a fixed-offset/marker zone. Wall-clock time with no
- * offset tells FC to interpret it in its configured zone as callers intend.
- *
  * @param {import("@web/core/l10n/luxon").DateTime} dt
  * @returns {string}
  */
@@ -71,13 +63,6 @@ const HOUR_FORMATS = {
     },
 };
 
-/**
- * Renderer for day, week, and month calendar scales.
- *
- * Wraps a FullCalendar instance, handles event rendering with custom templates,
- * popover management, drag/drop/resize interactions, click vs double-click
- * detection, and square cell selection for multi-create in month view.
- */
 export class CalendarCommonRenderer extends Component {
     static components = {
         Popover: CalendarCommonPopover,
@@ -96,6 +81,13 @@ export class CalendarCommonRenderer extends Component {
         onSquareSelection: Function,
         cleanSquareSelection: Function,
     };
+
+    /** @type {null | number} */
+    clickTimeoutId;
+    /** @type {ReturnType<typeof useFullCalendar>} */
+    fc;
+    /** @type {ReturnType<typeof useCalendarPopover>} */
+    popover;
 
     setup() {
         this.fc = useFullCalendar("fullCalendar", () => this.options);
@@ -270,7 +262,7 @@ export class CalendarCommonRenderer extends Component {
             el.classList.remove(className);
         }
     }
-    /** @returns {Object[]} model records converted to FullCalendar event objects */
+    /** @returns {Object[]} */
     mapRecordsToEvents() {
         return Object.values(this.props.model.records).map((r) =>
             this.convertRecordToEvent(r),
@@ -318,16 +310,6 @@ export class CalendarCommonRenderer extends Component {
         }
         return [];
     }
-    /**
-     * v7 dayCellClass generator — combines base v6 day-cell hooks with
-     * model-driven classes like o_calendar_disabled. Declarative classes
-     * survive re-renders, unlike imperative dayCellDidMount edits which v7
-     * may wipe on partial updates.
-     *
-     * :param info: cell render-props supplied by FullCalendar
-     * :return: space-joined day-cell class names
-     * :rtype: string
-     */
     dayCellClass(info) {
         const base = dayCellClassNames(info);
         const extras = this.getDayCellClassNames(info);
@@ -341,11 +323,7 @@ export class CalendarCommonRenderer extends Component {
         this.props.editRecord(record);
     }
     /**
-     * Flush or discard the pending single-click, then clear all timer state.
-     *
-     * @param {boolean} fire - when true, run the deferred single-click (open
-     *   the popover); when false, drop it silently (used when the click turned
-     *   out to be a double-click on the same event).
+     * @param {boolean} fire
      */
     cancelPendingClick(fire) {
         browser.clearTimeout(this.clickTimeoutId);
@@ -446,16 +424,7 @@ export class CalendarCommonRenderer extends Component {
         this.injectMobileWeekNumber(info);
     }
     /**
-     * Render the mobile month-view week-number cell.
-     *
-     * FC v7 suppresses its inline week number on "micro" cells (cellWidth
-     * <= 60px, always true on a phone-width month grid). This hook fires per
-     * day cell on every render — unlike viewDidMount (runs once; FC discards
-     * its imperative edits on the next body re-render) — so injecting here
-     * keeps the column stable. Companion .o-fc-week-header is added by
-     * makeWeekColumn.
-     *
-     * @param {Object} info - FullCalendar dayCellDidMount payload ({ el, date })
+     * @param {Object} info
      */
     injectMobileWeekNumber(info) {
         if (
@@ -552,13 +521,8 @@ export class CalendarCommonRenderer extends Component {
         this.props.model.updateRecord(record);
     }
     /**
-     * Convert a FullCalendar event object back into a calendar record.
-     *
-     * @param {Object} event - FullCalendar event with id, allDay, date/start/end
-     * @returns {Object|null} record with luxon DateTime start/end and optional
-     *   id; null when the event carries an id whose model record was removed
-     *   mid-interaction (drag/resize during a reload) — the click paths already
-     *   guard this, and dereferencing the missing record here would throw.
+     * @param {Object} event
+     * @returns {Object|null}
      */
     fcEventToRecord(event) {
         const { id, allDay, date, start, end } = event;

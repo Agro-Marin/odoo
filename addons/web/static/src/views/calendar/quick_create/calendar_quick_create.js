@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/quick_create/calendar_quick_create - Lightweight dialog for creating a calendar event with just a title */
+/** @module @web/views/calendar/quick_create/calendar_quick_create */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -21,6 +21,11 @@ export class CalendarQuickCreate extends Component {
         model: Object,
         editRecord: Function,
     };
+
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {ReturnType<typeof useAutofocus>} */
+    titleRef;
 
     setup() {
         this.titleRef = useAutofocus({ refName: "title" });
@@ -65,7 +70,7 @@ export class CalendarQuickCreate extends Component {
                 this.creatingRecord = false;
             }
         } else {
-            this.titleRef.el.classList.add("o_field_invalid");
+            this.titleRef.el?.classList.add("o_field_invalid");
             this.notification.add(_t("Meeting Subject"), {
                 title: _t("Invalid fields"),
                 type: "danger",
@@ -73,7 +78,7 @@ export class CalendarQuickCreate extends Component {
         }
     }
 
-    onInputKeyup(ev) {
+    onInputKeyup(/** @type {KeyboardEvent} */ ev) {
         switch (ev.key) {
             case "Enter":
                 this.createRecord();
