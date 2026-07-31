@@ -60,16 +60,35 @@ import { globalSingleton } from "@web/core/utils/global_singleton";
  */
 
 /**
- * @type {{ rpcBus: EventBus, inflightDedup: Map<string, { shared: any, subscribers: number }>, rpcCache: RPCCache | null | undefined, busListenersAttached: boolean, rpcId: number, dedupCallbackSeq: number }}
+ * @typedef {{
+ *  rpcBus: EventBus,
+ *  inflightDedup: Map<string, { shared: any, subscribers: number }>,
+ *  rpcCache: RPCCache | null | undefined,
+ *  busListenersAttached: boolean,
+ *  rpcId: number,
+ *  dedupCallbackSeq: number,
+ * }} RpcState
  */
-const _rpcState = globalSingleton("rpc", () => ({
-    rpcBus: new EventBus(),
-    inflightDedup: new Map(),
-    rpcCache: undefined,
-    busListenersAttached: false,
-    rpcId: 0,
-    dedupCallbackSeq: 0,
-}));
+
+/**
+ * The factory's return type is annotated rather than the binding: the literal
+ * is inferred on its own, so a `@type` on `_rpcState` alone leaves `rpcCache`
+ * implicitly `any`.
+ *
+ * @type {RpcState}
+ */
+const _rpcState = globalSingleton(
+    "rpc",
+    () =>
+        /** @type {RpcState} */ ({
+            rpcBus: new EventBus(),
+            inflightDedup: new Map(),
+            rpcCache: undefined,
+            busListenersAttached: false,
+            rpcId: 0,
+            dedupCallbackSeq: 0,
+        }),
+);
 
 export const rpcBus = _rpcState.rpcBus;
 
@@ -459,6 +478,7 @@ rpc._rpc = function (url, params, settings) {
         }
         /** @type {((rejectError?: boolean) => void) | null} */
         let innerAbort = null;
+        /** @type {object | null} */
         let ownRequest = null;
         const fallback = (/** @type {object} */ request) => {
             ownRequest = request ?? null;
@@ -488,10 +508,11 @@ rpc._rpc = function (url, params, settings) {
             };
             return cacheProm;
         }
-        let abortReject;
+        /** @type {(reason?: any) => void} */
+        let abortReject = () => {};
         const joinerProm = new Promise((resolve, reject) => {
             abortReject = reject;
-            cacheProm.then(resolve, (error) => {
+            cacheProm.then(resolve, (/** @type {any} */ error) => {
                 if (!callerAborted) {
                     reject(error);
                 }

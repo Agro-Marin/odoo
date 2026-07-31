@@ -37,10 +37,6 @@ addons/web/static/src/components/transition.js
 addons/web/static/src/components/tree_editor/tree_editor.js
 addons/web/static/src/components/tree_editor/tree_editor_operator_editor.js
 addons/web/static/src/components/tree_editor/tree_editor_value_editors.js
-addons/web/static/src/core/formatters.js
-addons/web/static/src/core/network/rpc.js
-addons/web/static/src/core/network/rpc_cache.js
-addons/web/static/src/core/py_js/py_date.js
 addons/web/static/src/env.js
 addons/web/static/src/fields/display/statusbar/statusbar_field.js
 addons/web/static/src/fields/dynamic_placeholder_hook.js

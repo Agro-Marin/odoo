@@ -168,7 +168,8 @@ export function makeCleanupManager(defaultCleanupFn) {
  */
 export function makeDOMHelpers(cleanup) {
     /**
-     * @param {HTMLElement} el
+     * @param {HTMLElement | null} el a selector may resolve to nothing; the
+     *  guard below is the contract, so the signature says so
      * @param {...string} classNames
      */
     const addClass = (el, ...classNames) => {

@@ -163,12 +163,20 @@ class RamCache {
         this.lru = new Map();
     }
 
+    /**
+     * @param {string} table
+     * @param {string} key
+     */
     _touchLru(table, key) {
         const ck = `${table}\x00${key}`;
         this.lru.delete(ck);
         this.lru.set(ck, [table, key]);
     }
 
+    /**
+     * @param {string} table
+     * @param {string} key
+     */
     _forgetLru(table, key) {
         this.lru.delete(`${table}\x00${key}`);
     }
@@ -567,6 +575,8 @@ export class RPCCache {
     /**
      * @param {string} table
      * @param {string} key
+     * @param {object} [request] the entry this caller owns, so a caller that
+     *  aborts after its own request was superseded drops nothing
      */
     abortPending(table, key, request) {
         const requestKey = `${table}/${key}`;

@@ -26,6 +26,13 @@ import { exprToBoolean } from "@web/core/utils/format/strings";
 import { formatCurrency } from "@web/services/currency";
 
 /**
+ * The view node a formatter's `extractOptions` reads: the field's XML
+ * attributes and its parsed `options` dict.
+ *
+ * @typedef {{ attrs: Record<string, any>, options: Record<string, any> }} FieldInfoNode
+ */
+
+/**
  * @param {unknown} value
  * @returns {value is number}
  */
@@ -63,14 +70,14 @@ export function formatBinary(value) {
     return value;
 }
 
-/**
- * @param {boolean} value
- * @returns {any}
- */
 const _booleanMarkup = {
     checked: markup`<div class="o-checkbox d-inline-block me-2"><input type="checkbox" class="form-check-input" disabled checked/><label class="form-check-label"/></div>`,
     unchecked: markup`<div class="o-checkbox d-inline-block me-2"><input type="checkbox" class="form-check-input" disabled/><label class="form-check-label"/></div>`,
 };
+/**
+ * @param {boolean} value
+ * @returns {any}
+ */
 export function formatBoolean(value) {
     return value ? _booleanMarkup.checked : _booleanMarkup.unchecked;
 }
@@ -87,13 +94,14 @@ export function formatChar(value, options) {
     }
     return value || "";
 }
+/** @param {FieldInfoNode} node */
 formatChar.extractOptions = ({ attrs }) => ({
     isPassword: exprToBoolean(attrs.password),
 });
 
 /**
  * @param {any} value
- * @param {Object} [options]
+ * @param {{ numeric?: boolean, format?: string, tz?: string }} [options]
  * @returns {string}
  */
 export function formatDate(value, options = {}) {
@@ -103,13 +111,21 @@ export function formatDate(value, options = {}) {
         return toLocaleDateString(value);
     }
 }
-formatDate.extractOptions = (/** @type {any} */ { options }) => ({
+/** @param {FieldInfoNode} node */
+formatDate.extractOptions = ({ options }) => ({
     numeric: exprToBoolean(options.numeric ?? false),
 });
 
 /**
  * @param {any} value
- * @param {Object} [options]
+ * @param {{
+ *  numeric?: boolean,
+ *  showTime?: boolean,
+ *  showDate?: boolean,
+ *  showSeconds?: boolean,
+ *  format?: string,
+ *  tz?: string,
+ * }} [options]
  * @returns {string}
  */
 export function formatDateTime(value, options = {}) {
@@ -122,7 +138,8 @@ export function formatDateTime(value, options = {}) {
         return toLocaleDateTimeString(value, options);
     }
 }
-formatDateTime.extractOptions = (/** @type {any} */ { attrs, options }) => ({
+/** @param {FieldInfoNode} node */
+formatDateTime.extractOptions = ({ attrs, options }) => ({
     ...formatDate.extractOptions({ attrs, options }),
     showSeconds: exprToBoolean(options.show_seconds ?? false),
     showTime: exprToBoolean(options.show_time ?? true),
@@ -142,6 +159,7 @@ export function formatFloat(value, options = {}) {
     const minDigits = options.minDigits || options.field?.min_display_digits;
     return formatFloatNumber(value, { ...options, digits, minDigits });
 }
+/** @param {FieldInfoNode} node */
 formatFloat.extractOptions = ({ attrs, options }) => ({
     decimals: options.decimals || 0,
     digits: extractDigits({ attrs, options }),
@@ -163,6 +181,7 @@ export function formatFloatFactor(value, options = {}) {
     const digits = options.digits || options.field?.digits;
     return formatFloatNumber(value * factor, { ...options, digits });
 }
+/** @param {FieldInfoNode} node */
 formatFloatFactor.extractOptions = ({ attrs, options }) => ({
     ...formatFloat.extractOptions({ attrs, options }),
     factor: options.factor,
@@ -208,6 +227,7 @@ export function formatFloatTime(value, options = {}) {
     const showSign = isNegative && (hour !== 0 || min !== 0 || secValue !== 0);
     return `${showSign ? "-" : ""}${hourStr}:${minStr}${sec}`;
 }
+/** @param {FieldInfoNode} node */
 formatFloatTime.extractOptions = ({ options }) => ({
     displaySeconds: options.displaySeconds,
 });
@@ -236,6 +256,7 @@ export function formatInteger(value, options = {}) {
             : value.toFixed(0);
     return insertThousandsSep(digits, thousandsSep, grouping);
 }
+/** @param {FieldInfoNode} node */
 formatInteger.extractOptions = ({ attrs, options }) => ({
     decimals: options.decimals || 0,
     humanReadable: !!options.human_readable,
@@ -300,6 +321,7 @@ export function formatMonetary(value, options = {}) {
     }
     return formatCurrency(value, currencyId, options);
 }
+/** @param {FieldInfoNode} node */
 formatMonetary.extractOptions = ({ options }) => ({
     noSymbol: options.no_symbol,
     currencyField: options.currency_field,
@@ -337,8 +359,8 @@ function formatProperties(value) {
 }
 
 /**
- * @param {Object|false} value
- * @param {Object} [options={}]
+ * @param {{ resId: number|false, displayName: string }|false} value
+ * @param {{ escape?: boolean }} [options]
  * @returns {string}
  */
 export function formatReference(value, options) {
@@ -349,7 +371,7 @@ export function formatReference(value, options) {
 }
 
 /**
- * @param {Object|false} value
+ * @param {{ resId: number|false, displayName: string }|false} value
  * @returns {string}
  */
 export function formatMany2oneReference(value) {
@@ -359,12 +381,12 @@ export function formatMany2oneReference(value) {
 }
 
 /**
- * @param {Object} [options={}]
- * @param {[string, string][]} [options.selection]
- * @param {Object} [options.field]
+ * @param {any} value
+ * @param {{ selection?: [string, string][], field?: { selection?: [string, string][] } }} [options]
  * @returns {string}
  */
 export function formatSelection(value, options = {}) {
+    /** @type {[string, string][]} */
     const selection =
         options.selection || (options.field && options.field.selection) || [];
     const option = selection.find((option) => option[0] === value);

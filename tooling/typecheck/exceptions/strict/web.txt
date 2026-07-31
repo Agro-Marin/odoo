@@ -25,7 +25,6 @@ addons/web/static/src/components/time_picker/time_picker.js
 addons/web/static/src/components/tree_editor/tree_editor.js
 addons/web/static/src/components/tree_editor/tree_editor_value_editors.js
 addons/web/static/src/components/user_switch/user_switch.js
-addons/web/static/src/core/utils/dnd/draggable_hook_builder.js
 addons/web/static/src/fields/display/progress_bar/progress_bar_field.js
 addons/web/static/src/fields/display/statusbar/statusbar_field.js
 addons/web/static/src/fields/field_widths.js
