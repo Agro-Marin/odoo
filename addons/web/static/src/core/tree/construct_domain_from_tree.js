@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/construct_domain_from_tree - Converts a condition tree into an Odoo domain string representation */
+/** @module @web/core/tree/construct_domain_from_tree */
 
-/** Tree/Value kept `any` (separate condition-tree unions). */
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @typedef {any} Tree */
 /** @typedef {any} Value */
@@ -23,7 +22,6 @@ import {
 } from "./condition_tree.js";
 
 /**
- * Wrap an AST node in a `bool()` call unless it is already boolean-like.
  * @param {AST} ast
  * @returns {AST}
  */
@@ -40,10 +38,8 @@ function bool(ast) {
 }
 
 /**
- * Recursively convert a tree node into an array of AST nodes representing
- * the prefix-notation domain (connectors before their operands).
  * @param {Tree} tree
- * @param {boolean} [isSubTree=false] - whether this tree is nested inside a condition value
+ * @param {boolean} [isSubTree=false]
  * @returns {AST[]}
  */
 function getASTs(tree, isSubTree = false) {
@@ -90,8 +86,6 @@ function getASTs(tree, isSubTree = false) {
 }
 
 /**
- * Convert a tree or scalar value into its AST representation.
- * Sub-trees become list ASTs (type 4) of their domain encoding.
  * @param {Value|Tree} value
  * @returns {AST}
  */
@@ -103,7 +97,6 @@ function toAST(value) {
 }
 
 /**
- * Convert a condition tree into a domain string (e.g. `"[('name', '=', 'foo')]"`).
  * @param {Tree} tree
  * @returns {string}
  */

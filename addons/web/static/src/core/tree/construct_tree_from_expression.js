@@ -1,13 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/construct_tree_from_expression - Parses a Python expression string into a condition tree structure */
+/** @module @web/core/tree/construct_tree_from_expression */
 
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @typedef {import("../py_js/ast_type.js").ASTName} ASTName */
 /** @typedef {import("../py_js/ast_type.js").ASTBinaryOperator} ASTBinaryOperator */
 /** @typedef {import("../py_js/ast_type.js").ASTFunctionCall} ASTFunctionCall */
-/** @import { Tree, Condition, ComplexCondition, Options } from "@web/core/tree/condition_tree" */
+/**
+ * @import { Tree, Condition, ComplexCondition, Options } from "@web/core/tree/condition_tree"
+ */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { isNot, isValidPath, not } from "@web/core/tree/ast_utils";
@@ -22,7 +24,7 @@ import { COMPARATORS } from "@web/core/tree/operators";
 
 import { ASTType } from "../py_js/ast_type.js";
 
-/** @type {Record<string, string>} Operator exchange map for swapping left/right operands */
+/** @type {Record<string, string>} */
 const EXCHANGE = {
     "<": ">",
     "<=": ">=",
@@ -33,7 +35,6 @@ const EXCHANGE = {
 };
 
 /**
- * Build a boolean-or AST node.
  * @param {AST} left
  * @param {AST} right
  * @returns {AST}
@@ -43,7 +44,6 @@ function or(left, right) {
 }
 
 /**
- * Build a boolean-and AST node.
  * @param {AST} left
  * @param {AST} right
  * @returns {AST}
@@ -53,7 +53,6 @@ function and(left, right) {
 }
 
 /**
- * Check whether an AST node is a `set()` call (with zero or one argument).
  * @param {AST} ast
  * @returns {boolean}
  */
@@ -67,7 +66,6 @@ function isSet(ast) {
 }
 
 /**
- * Like `isValidPath` but also accepts single-element list/tuple ASTs.
  * @param {AST} ast
  * @param {Options} options
  * @returns {boolean|null}
@@ -86,11 +84,9 @@ function isValidPath2(ast, options) {
 }
 
 /**
- * Try to extract a `Condition` from a comparison AST (e.g. `field == value`).
- * Swaps operands if needed so the field path is on the left.
- * @param {ASTBinaryOperator} ast - a comparator AST node
+ * @param {ASTBinaryOperator} ast
  * @param {Options} options
- * @returns {Condition|null} null if the AST cannot be represented as a simple condition
+ * @returns {Condition|null}
  */
 function _getConditionFromComparator(ast, options) {
     if (["is", "is not"].includes(ast.op)) {
@@ -123,12 +119,10 @@ function _getConditionFromComparator(ast, options) {
 }
 
 /**
- * Try to extract a `Condition` from a `set(...).intersection(...)` AST pattern,
- * used for x2many "in"/"not in" checks.
- * @param {ASTFunctionCall} ast - a function-call AST whose fn is a set intersection lookup
+ * @param {ASTFunctionCall} ast
  * @param {Options} options
  * @param {boolean} [negate=false]
- * @returns {Condition|null} null if the pattern cannot be decomposed
+ * @returns {Condition|null}
  */
 function _getConditionFromIntersection(ast, options, negate = false) {
     let left = /** @type {any} */ (ast.fn).obj.args[0];
@@ -171,9 +165,6 @@ function _getConditionFromIntersection(ast, options, negate = false) {
 }
 
 /**
- * Convert a non-connector AST node into a leaf tree node (Condition or ComplexCondition).
- * Handles negation, field paths, set intersections, and comparators.
- * Falls back to `ComplexCondition` when no simple representation exists.
  * @param {AST} ast
  * @param {Options} options
  * @param {boolean} [negate=false]
@@ -219,9 +210,6 @@ function _leafFromAST(ast, options, negate = false) {
 }
 
 /**
- * Recursively convert an AST into a condition tree.
- * Handles boolean connectors (and/or), ternary expressions, negation,
- * and delegates leaf nodes to `_leafFromAST`.
  * @param {AST} ast
  * @param {Options} options
  * @param {boolean} [negate=false]
@@ -259,11 +247,27 @@ function _treeFromAST(ast, options, negate = false) {
         return _treeFromAST(newAST, options, negate);
     }
 
+    if (ast.type === ASTType.Chain) {
+        // The editor shows `a < b < c` as two editable conditions. Expanding
+        // here rather than in the parser keeps that, without handing the
+        // interpreter a shared operand it would evaluate twice.
+        const comparisons = ast.operators.map((op, i) => ({
+            type: ASTType.BinaryOperator,
+            op,
+            left: ast.operands[i],
+            right: ast.operands[i + 1],
+        }));
+        return _treeFromAST(
+            /** @type {AST} */ (comparisons.reduce((left, right) => and(left, right))),
+            options,
+            negate,
+        );
+    }
+
     return _leafFromAST(ast, options, negate);
 }
 
 /**
- * Parse a Python expression string into a condition tree.
  * @param {string} expression
  * @param {Options} [options={}]
  * @returns {Tree}

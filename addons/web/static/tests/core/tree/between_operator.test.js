@@ -11,7 +11,7 @@ import {
 describe.current.tags("headless");
 
 const options = {
-    getFieldDef: (name) => {
+    getFieldDef: (/** @type {any} */ name) => {
         if (name === "m2o") {
             return { type: "many2one" };
         }

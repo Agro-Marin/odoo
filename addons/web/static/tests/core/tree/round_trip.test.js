@@ -13,7 +13,7 @@ import {
 describe.current.tags("headless");
 
 const options = {
-    getFieldDef: (name) => {
+    getFieldDef: (/** @type {any} */ name) => {
         if (["foo", "bar", "char_field"].includes(name)) {
             return { type: "char" };
         }

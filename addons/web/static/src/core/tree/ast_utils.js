@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/ast_utils - AST manipulation helpers for boolean wrapping, negation, and path validation */
+/** @module @web/core/tree/ast_utils */
 
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
 /** @typedef {import("../py_js/ast_type.js").ASTName} ASTName */
@@ -13,7 +13,7 @@ import { COMPARATORS, TERM_OPERATORS_NEGATION_EXTENDED } from "./operators.js";
 
 /**
  * @param {AST} ast
- * @returns {ast is ASTFunctionCall} whether the AST is a `bool(...)` call
+ * @returns {ast is ASTFunctionCall}
  */
 export function isBool(ast) {
     return (
@@ -26,16 +26,15 @@ export function isBool(ast) {
 
 /**
  * @param {AST} ast
- * @returns {ast is ASTUnaryOperator} whether the AST is a `not` unary expression
+ * @returns {ast is ASTUnaryOperator}
  */
 export function isNot(ast) {
     return ast.type === ASTType.UnaryOperator && ast.op === "not";
 }
 
 /**
- * Negate an AST node. Unwraps double negations and flips comparison operators.
  * @param {AST} ast
- * @returns {AST} negated AST
+ * @returns {AST}
  */
 export function not(ast) {
     if (isNot(ast)) {
@@ -57,12 +56,15 @@ export function not(ast) {
 /**
  * @param {AST} ast
  * @param {{ getFieldDef?: (name: string) => (Object|null) }} options
- * @returns {ast is ASTName} whether the AST represents a valid field path
+ * @returns {ast is ASTName}
  */
 export function isValidPath(ast, options) {
     const getFieldDef = options.getFieldDef || (() => null);
     if (ast.type === ASTType.Name) {
-        return getFieldDef(ast.value) !== null;
+        // `!= null`, not `!== null`: a getFieldDef answering `undefined`
+        // for "not found" -- the ordinary JS convention -- made every name
+        // a valid field path.
+        return getFieldDef(ast.value) != null;
     }
     return false;
 }

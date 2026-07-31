@@ -11,7 +11,7 @@ import { treeFromExpression } from "@web/core/tree/tree_from_expression";
 
 test("treeFromExpression", () => {
     const options = {
-        getFieldDef: (name) => {
+        getFieldDef: (/** @type {any} */ name) => {
             if (["foo", "bar"].includes(name)) {
                 return { type: "any" };
             }
@@ -250,7 +250,7 @@ test("treeFromExpression", () => {
             result: complexCondition(`a != b`),
         },
     ];
-    for (const { expression, result, extraOptions } of toTest) {
+    for (const { expression, result, extraOptions } of /** @type {any[]} */ (toTest)) {
         const o = { ...options, ...extraOptions };
         expect(treeFromExpression(expression, o)).toEqual(result);
     }

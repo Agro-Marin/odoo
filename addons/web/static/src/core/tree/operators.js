@@ -1,9 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/operators - Operator negation maps and comparator constants for domain/expression trees */
+/** @module @web/core/tree/operators */
 
-/** @type {Record<string, string>} Maps each domain operator to its logical negation */
+/** @type {Record<string, string>} */
 export const TERM_OPERATORS_NEGATION = {
     "<": ">=",
     ">": "<=",
@@ -19,7 +19,7 @@ export const TERM_OPERATORS_NEGATION = {
     "not ilike": "ilike",
 };
 
-/** @type {Record<string, string>} Extended negation map including Python identity/equality operators */
+/** @type {Record<string, string>} */
 export const TERM_OPERATORS_NEGATION_EXTENDED = {
     ...TERM_OPERATORS_NEGATION,
     is: "is not",
@@ -28,7 +28,7 @@ export const TERM_OPERATORS_NEGATION_EXTENDED = {
     "!=": "==",
 };
 
-/** @type {string[]} All comparison operators valid in Python expressions */
+/** @type {string[]} */
 export const COMPARATORS = [
     "<",
     "<=",

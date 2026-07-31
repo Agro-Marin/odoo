@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/operator_labels - Operator descriptions, labels, and serialization for domain condition trees */
+/** @module @web/core/tree/operator_labels */
 
 import { _t } from "@web/core/l10n/translation";
 import { parseExpr } from "@web/core/py_js/py";
@@ -108,9 +108,9 @@ export const OPERATOR_DESCRIPTIONS = {
 /**
  * @param {import("./condition_tree").Value} operator
  * @param {boolean} [negate=false]
- * @returns {string} serialized key for operator+negate combination
+ * @returns {string}
  */
-export function toKey(operator, negate = false) {
+function toKey(operator, negate = false) {
     if (
         !negate &&
         typeof operator === "string" &&
@@ -123,7 +123,7 @@ export function toKey(operator, negate = false) {
 
 /**
  * @param {string} key
- * @returns {[import("./condition_tree").Value, boolean]} operator and negate flag
+ * @returns {[import("./condition_tree").Value, boolean]}
  */
 export function toOperator(key) {
     if (!key.startsWith("[")) {
@@ -136,7 +136,7 @@ export function toOperator(key) {
 /**
  * @param {string} operator
  * @param {string} [fieldDefType]
- * @returns {string|undefined} human-readable operator description
+ * @returns {string|undefined}
  */
 function getOperatorDescription(operator, fieldDefType) {
     const description = OPERATOR_DESCRIPTIONS[operator];
@@ -151,7 +151,7 @@ function getOperatorDescription(operator, fieldDefType) {
  * @param {string} [fieldDefType]
  * @param {boolean} [negate=false]
  * @param {(operator: string, fieldDefType?: string) => string|null} [getDescr]
- * @returns {string} display label for the operator
+ * @returns {string}
  */
 export function getOperatorLabel(
     operator,
@@ -181,7 +181,7 @@ export function getOperatorLabel(
  * @param {import("./condition_tree").Value} operator
  * @param {string} [fieldDefType]
  * @param {boolean} [negate=false]
- * @returns {[string, string]} key and label pair
+ * @returns {[string, string]}
  */
 export function getOperatorInfo(operator, fieldDefType, negate = false) {
     const key = toKey(operator, negate);

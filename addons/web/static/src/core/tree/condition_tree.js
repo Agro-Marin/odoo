@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/tree/condition_tree - Core tree data structures (conditions, connectors, expressions) and tree manipulation functions */
+/** @module @web/core/tree/condition_tree */
 
 /** @import { AST } from "@web/core/py_js/py_parser" */
 /** @import { DomainRepr } from "@web/core/domain" */
@@ -27,7 +27,7 @@
 /**
  * @typedef {Object} ComplexCondition
  * @property {"complex_condition"} type
- * @property {string} value expression
+ * @property {string} value
  */
 
 /**
@@ -46,10 +46,9 @@
  * @typedef {Object} Options
  * @property {(value: Value) => (null|Object)} [getFieldDef]
  * @property {boolean} [distributeNot]
- * @property {boolean} [generateSmartDates] when false, emit literal date/datetime values instead of relative expressions
+ * @property {boolean} [generateSmartDates]
  */
 
-import { Domain } from "@web/core/domain";
 import { formatAST, parseExpr } from "@web/core/py_js/py";
 import { toPyValue } from "@web/core/py_js/py_utils";
 
@@ -114,8 +113,10 @@ export function condition(path, operator, value, negate = false, isProperty = fa
     return { type: "condition", path, operator, value, negate, isProperty };
 }
 
-export const TRUE_TREE = condition(1, "=", 1);
-export const FALSE_TREE = condition(0, "=", 1);
+// Shared singletons, compared against by `removeFalseTrueLeaves`; frozen so a
+// consumer cannot flip `negate` on the one everyone else reads.
+export const TRUE_TREE = Object.freeze(condition(1, "=", 1));
+export const FALSE_TREE = Object.freeze(condition(0, "=", 1));
 
 /**
  * @param {Value|Tree} value
@@ -262,12 +263,15 @@ export function normalizeValue(value) {
  * @param {any} value
  */
 export function isTree(value) {
+    // Tested by tag, not by elimination: "any object that is not a Domain, an
+    // Expression or an Array" let `operate()` recurse into a Date or an
+    // options bag that happened to sit in a condition's value.
     return (
         typeof value === "object" &&
-        !(value instanceof Domain) &&
-        !(value instanceof Expression) &&
-        !Array.isArray(value) &&
-        value !== null
+        value !== null &&
+        (value.type === "condition" ||
+            value.type === "connector" ||
+            value.type === "complex_condition")
     );
 }
 
@@ -284,10 +288,6 @@ export function addChild(parent, child) {
 }
 
 /**
- * Apply the transformations IN ARRAY ORDER: transformations[0] runs first.
- * Callers whose passes depend on each other's output must order the array
- * accordingly (see the ordering contracts in virtual_operators.js).
- *
  * @param {Function[]} transformations
  * @param {any} transformed
  * @param {...any} fixedParams
