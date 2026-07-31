@@ -1,11 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/decorations - Maps decoration-* XML attributes to Bootstrap CSS classes */
+/** @module @web/core/utils/decorations */
 
 /**
- * Maps a decoration name to its corresponding CSS class name.
- *
  * @param {string} decoration
  * @returns {string}
  */
@@ -19,8 +17,6 @@ export function getClassNameFromDecoration(decoration) {
 }
 
 /**
- * Extracts decoration directives from an XML node's attributes.
- *
  * @param {Element} rootNode
  * @returns {{ class: string, condition: string }[]}
  */

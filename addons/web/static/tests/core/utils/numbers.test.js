@@ -12,6 +12,7 @@ import {
     roundDecimals,
     roundPrecision,
 } from "@web/core/utils/format/numbers";
+import { formatFloat as formatterFloat } from "@web/core/formatters";
 
 describe.current.tags("headless");
 
@@ -184,6 +185,29 @@ describe("roundPrecision", () => {
         expect(roundPrecision(1.2345675, 1e-6)).toBe(1.234568);
         expect(roundPrecision(1.234567891234, 1e-12)).toBe(1.234567891234);
     });
+});
+
+test("roundDecimals: the precision table is identical to the string build", () => {
+    // roundDecimals derives its precision from a table of 10**-d literals
+    // instead of parseFloat("1e" + -decimals), which cost 18% of the function
+    // on the per-cell formatting path. Pin that every table entry, and every
+    // rounding that goes through it, matches the string form exactly --
+    // including the out-of-range indices that still fall back to it.
+    //
+    // Deliberately NOT asserted here: that Math.pow(10, -4) differs from 1e-4.
+    // It does under Node 22 and does not under Chrome 141, because ECMA-262
+    // leaves Math.pow implementation-approximated -- which is the reason the
+    // table exists, and the reason that fact cannot be a test.
+    for (let d = -3; d <= 20; d++) {
+        const fromString = parseFloat("1e" + -d);
+        for (const v of [
+            0, 0.5, -0.5, 1.005, -2.675, 2.6745, 1234567.891, 1e-7, -0.0001, 1e13,
+        ]) {
+            expect(roundDecimals(v, d)).toBe(roundPrecision(v, fromString), {
+                message: `roundDecimals(${v}, ${d})`,
+            });
+        }
+    }
 });
 
 test("roundDecimals", () => {
@@ -410,7 +434,7 @@ describe("formatFloat", () => {
         expect(formatFloat(1e18, options)).toBe("1E");
         expect(formatFloat(-1e18, options)).toBe("-1E");
 
-        Object.assign(options, { decimals: 2, minDigits: 1 });
+        Object.assign(options, { decimals: 2, minIntegerDigits: 1 });
         expect(formatFloat(1020, options)).toBe("1.02k");
         expect(formatFloat(1002, options)).toBe("1.00k");
         expect(formatFloat(101, options)).toBe("101.00");
@@ -429,7 +453,7 @@ describe("formatFloat", () => {
         expect(formatFloat(-1.012e43, options)).toBe("-1.01e+43");
         expect(formatFloat(-0.0000001, options)).toBe("0.00");
 
-        Object.assign(options, { decimals: 2, minDigits: 2 });
+        Object.assign(options, { decimals: 2, minIntegerDigits: 2 });
         expect(formatFloat(1020000, options)).toBe("1,020k");
         expect(formatFloat(10200000, options)).toBe("10.20M");
         expect(formatFloat(1.012e43, options)).toBe("1.01e+43");
@@ -437,7 +461,7 @@ describe("formatFloat", () => {
         expect(formatFloat(-10200000, options)).toBe("-10.20M");
         expect(formatFloat(-1.012e43, options)).toBe("-1.01e+43");
 
-        Object.assign(options, { decimals: 3, minDigits: 1 });
+        Object.assign(options, { decimals: 3, minIntegerDigits: 1 });
         expect(formatFloat(1.0045e22, options)).toBe("1.005e+22");
         expect(formatFloat(-1.0045e22, options)).toBe("-1.004e+22");
 
@@ -457,6 +481,7 @@ describe("formatFloat", () => {
             humanReadable: false,
             digits: undefined,
             minDigits: undefined,
+            minIntegerDigits: undefined,
         });
         expect(formatFloat(-0.0000001, options)).toBe("0.00");
     });
@@ -471,4 +496,46 @@ test("humanNumber reads a negative decimal exponent", () => {
     expect(humanNumber(0, { decimals: 0 })).toBe("0");
     // and the >= 1e21 scientific branch is unchanged
     expect(humanNumber(1e22, { decimals: 0 })).toBe("1e+22");
+});
+
+describe("minDigits and minIntegerDigits are distinct options", () => {
+    // They used to share the name `minDigits`: formatFloat read it as a
+    // minimum number of decimal places and then forwarded its whole options
+    // object to humanNumber, which read it as a minimum number of integer
+    // digits. A float field declared with `min_display_digits=` in Python and
+    // rendered with `options="{'human_readable': True}"` hit both at once.
+    test("minDigits pads decimals and never reaches humanNumber", () => {
+        patchWithCleanup(localization, {
+            decimalPoint: ".",
+            grouping: [3, 0],
+            thousandsSep: ",",
+        });
+        expect(formatFloat(1234.5, { minDigits: 3 })).toBe("1,234.500");
+        expect(formatFloat(1234.5, { minDigits: 3, humanReadable: true })).toBe("1k");
+        expect(formatFloat(1500000, { minDigits: 3, humanReadable: true })).toBe("2M");
+    });
+
+    test("minIntegerDigits holds off the unit suffix", () => {
+        patchWithCleanup(localization, {
+            decimalPoint: ".",
+            grouping: [3, 0],
+            thousandsSep: ",",
+        });
+        expect(humanNumber(1500000)).toBe("2M");
+        expect(humanNumber(1500000, { minIntegerDigits: 3 })).toBe("1,500k");
+        expect(formatFloat(1500000, { humanReadable: true, minIntegerDigits: 3 })).toBe(
+            "1,500k"
+        );
+    });
+
+    test("a field's min_display_digits no longer distorts the human format", () => {
+        patchWithCleanup(localization, {
+            decimalPoint: ".",
+            grouping: [3, 0],
+            thousandsSep: ",",
+        });
+        const field = { type: "float", min_display_digits: 3 };
+        expect(formatterFloat(1234.5, { field })).toBe("1,234.500");
+        expect(formatterFloat(1234.5, { field, humanReadable: true })).toBe("1k");
+    });
 });

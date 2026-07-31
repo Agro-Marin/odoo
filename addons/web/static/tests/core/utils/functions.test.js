@@ -28,8 +28,50 @@ test("memoize", () => {
     memoized(1, 2, 3);
     expect(callCount).toBe(3);
     expect(lastReceivedArgs).toEqual([1, 2, 3]);
-    memoized(1, 20, 30);
+    memoized(1, 2, 3);
     expect(callCount).toBe(3);
+    // Every argument takes part in the key. This used to key on args[0] only
+    // while still forwarding the rest, so this call returned the value
+    // computed for (1, 2, 3).
+    memoized(1, 20, 30);
+    expect(callCount).toBe(4);
+    expect(lastReceivedArgs).toEqual([1, 20, 30]);
+});
+
+test("memoize keys on every argument, and arities do not collide", () => {
+    let calls = 0;
+    const memoized = memoize((...args) => {
+        calls++;
+        return args.join("|");
+    });
+    const owner = {};
+    // The website_sale shape: one memoized factory per (interaction, uniqueId).
+    expect(memoized(owner, "product-A")).toBe(`${owner}|product-A`);
+    expect(memoized(owner, "product-B")).toBe(`${owner}|product-B`);
+    expect(calls).toBe(2);
+    expect(memoized(owner, "product-A")).toBe(`${owner}|product-A`);
+    expect(calls).toBe(2);
+
+    // f(a) must not be served from, or poison, the f(a, b) branch.
+    expect(memoized(owner)).toBe(String(owner));
+    expect(calls).toBe(3);
+    expect(memoized(owner, "product-A")).toBe(`${owner}|product-A`);
+    expect(calls).toBe(3);
+});
+
+test("memoize distinguishes object arguments by identity", () => {
+    let calls = 0;
+    const memoized = memoize((a, b) => {
+        calls++;
+        return { a, b };
+    });
+    const k1 = {};
+    const k2 = {};
+    memoized(k1, k2);
+    memoized(k1, k2);
+    expect(calls).toBe(1);
+    memoized(k2, k1);
+    expect(calls).toBe(2);
 });
 
 test("memoized function inherit function name if possible", () => {

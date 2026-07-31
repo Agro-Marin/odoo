@@ -25,14 +25,50 @@ function makeScrollable() {
     };
 }
 
+/**
+ * Drain MICROTASKS only — no timers, no animation frames. `scrollend` and the
+ * max-duration fallback both need real time, so a promise that settles here
+ * took the "nothing to scroll" fast path.
+ *
+ * Every test below asserts the resulting scrollTop as well as the settling.
+ * Without that, the whole file was vacuous: each test only asserted
+ * `resolved === true`, which the fast path satisfies too, so all four passed
+ * unchanged even when no scrolling happened at all.
+ */
+async function settlesOnMicrotasks(promise) {
+    let settled = false;
+    promise?.then(() => (settled = true));
+    for (let i = 0; i < 20; i++) {
+        await microTick();
+    }
+    return settled;
+}
+
 test("resolves immediately when no scroll is needed", async () => {
     const { scrollable, target } = makeScrollable();
     scrollable.scrollTop = 500;
-    let resolved = false;
-    scrollTo(target, { scrollable })?.then(() => (resolved = true));
-    await microTick();
-    await microTick();
-    expect(resolved).toBe(true);
+    expect(await settlesOnMicrotasks(scrollTo(target, { scrollable }))).toBe(true);
+    expect(scrollable.scrollTop).toBe(500);
+});
+
+test("does NOT resolve on microtasks alone when a scroll is needed", async () => {
+    // The discriminator the other tests lack: proves the fixture really moves,
+    // so "resolved" elsewhere means the wait completed rather than the fast
+    // path firing.
+    const { scrollable, target } = makeScrollable();
+    expect(await settlesOnMicrotasks(scrollTo(target, { scrollable }))).toBe(false);
+    expect(scrollable.scrollTop).toBe(450);
+});
+
+test("does not report a smooth scroll as settled before it starts", async () => {
+    // `scrollTo({behavior:"smooth"})` leaves scrollTop untouched synchronously,
+    // so a fast path keyed on "did scrollTop change?" fires for every smooth
+    // scroll. Verified in a real Chrome as well as here.
+    const { scrollable, target } = makeScrollable();
+    const settled = await settlesOnMicrotasks(
+        scrollTo(target, { scrollable, behavior: "smooth" }),
+    );
+    expect([scrollable.scrollTop, settled]).toEqual([0, false]);
 });
 
 test("resolves when a scrollend event fires", async () => {
@@ -40,6 +76,7 @@ test("resolves when a scrollend event fires", async () => {
     let resolved = false;
     scrollTo(target, { scrollable })?.then(() => (resolved = true));
     await microTick();
+    expect(scrollable.scrollTop).toBe(450);
     scrollable.dispatchEvent(new Event("scrollend"));
     await microTick();
     await microTick();
@@ -50,6 +87,8 @@ test("resolves via the max-duration timer when scrollend never fires", async () 
     const { scrollable, target } = makeScrollable();
     let resolved = false;
     scrollTo(target, { scrollable })?.then(() => (resolved = true));
+    expect(await settlesOnMicrotasks(Promise.resolve())).toBe(true);
+    expect(resolved).toBe(false);
     await runAllTimers();
     await animationFrame();
     await microTick();
@@ -60,6 +99,8 @@ test("does not hang when the scrollable is detached mid-scroll", async () => {
     const { scrollable, target } = makeScrollable();
     let resolved = false;
     scrollTo(target, { scrollable })?.then(() => (resolved = true));
+    await microTick();
+    expect(scrollable.scrollTop).toBe(450);
     scrollable.remove();
     await runAllTimers();
     await animationFrame();

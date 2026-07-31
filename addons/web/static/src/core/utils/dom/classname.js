@@ -1,17 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/classname - Helpers to add, merge, and toggle CSS classes from strings or objects */
+/** @module @web/core/utils/dom/classname */
 
 /**
- * Adds the given classes to an element, whether the classes
- * are strings or objects.
- *
  * @param {HTMLElement} el
  * @param {...(string | object | undefined)} classes
- *
- * @example
- * addClassesToElement(el, "hello", { "world": 0 == 1, }...)
  */
 export function addClassesToElement(el, ...classes) {
     for (const classDefinition of classes) {
@@ -25,14 +19,8 @@ export function addClassesToElement(el, ...classes) {
 }
 
 /**
- * Merges two classes to a single class object, whether the
- * classes are strings or objects.
- *
  * @param {...(string | object | undefined)} classes
  * @returns {object}
- *
- * @example
- * mergeClasses("hello", { "world": 0 == 1, }...)
  */
 export function mergeClasses(...classes) {
     const classObj = {};
@@ -43,13 +31,6 @@ export function mergeClasses(...classes) {
 }
 
 /**
- * Returns an object from a class definition, whether it
- * is a string or an object.
- *
- * The returned object keys are css class names and the
- * values are expressions which represent if the class
- * should be added or not.
- *
  * @param {string | object | undefined} classDefinition
  * @returns {Record<string, any>}
  */

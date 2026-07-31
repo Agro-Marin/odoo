@@ -16,9 +16,9 @@ import {
     uuid,
 } from "@web/core/utils/format/strings";
 
-function _t() {
+function _t(/** @type {any[]} */ ...args) {
     odoo.translationContext = "web";
-    const translatedTerm = basic_t(...arguments);
+    const translatedTerm = basic_t(...args);
     odoo.translationContext = null;
     return translatedTerm;
 }

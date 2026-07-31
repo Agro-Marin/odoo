@@ -1,14 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/search - Fuzzy text search with consecutive-letter scoring and normalized matching */
+/** @module @web/core/utils/search */
 
 import { normalize } from "@web/core/l10n/utils";
 
 /**
- * @param {string} normalizedPattern an already-normalized pattern
+ * @param {string} normalizedPattern
  * @param {string|string[]} strs
- * @param {boolean} [preNormalized] candidate strings are already normalized
+ * @param {boolean} [preNormalized]
  * @returns {number}
  */
 function match(normalizedPattern, strs, preNormalized = false) {
@@ -25,26 +25,12 @@ function match(normalizedPattern, strs, preNormalized = false) {
     return globalScore;
 }
 
-/**
- * Cap on the per-run score of {@link _match}. The consecutive bonus doubles
- * the run score on every matched character (exponential growth), so without
- * a cap a run of ~1000 characters overflows to Infinity and every long match
- * compares as equal, degenerating the ranking. 2^50 leaves ranking untouched
- * for any realistic input (the cap is only reached after ~44 consecutive
- * matched characters) while keeping accumulated totals finite.
- */
 const MAX_RUN_SCORE = 2 ** 50;
 
 /**
- * Score how well `str` contains the letters of `pattern` in order (0 = no
- * match). Consecutive letters and matches near the start score higher.
- *
- * @param {string} pattern an already-normalized pattern (normalized once at
- *  the entry points instead of once per candidate string)
+ * @param {string} pattern
  * @param {string} str
- * @param {boolean} [preNormalized] skip normalizing `str` when the caller has
- *  already normalized every candidate (e.g. the emoji picker precomputes and
- *  caches them); re-normalizing on every keystroke was ~94% of its search cost.
+ * @param {boolean} [preNormalized]
  * @returns {number}
  */
 function _match(pattern, str, preNormalized = false) {
@@ -75,22 +61,11 @@ function _match(pattern, str, preNormalized = false) {
 }
 
 /**
- * Return `list` filtered to fuzzy matches of `pattern`, ordered by score
- * (higher = better match, e.g. consecutive letters).
- *
- * An EMPTY pattern matches everything, in the input order: every element
- * trivially contains no letters in order. It used to match NOTHING, because
- * {@link _match} scores an empty pattern 0 and this filters on ``score > 0`` —
- * so "clear the search box" returned an empty result set rather than the
- * unfiltered list. Every call site works around it with its own
- * ``if (query)`` guard; the guard is now redundant rather than load-bearing.
- *
  * @template T
  * @param {string} pattern
  * @param {T[]} list
  * @param {(element: T) => (string|string[])} fn
- * @param {{ preNormalized?: boolean }} [options] set `preNormalized` when `fn`
- *  returns already-normalized strings, to skip re-normalizing every candidate.
+ * @param {{ preNormalized?: boolean }} [options]
  * @returns {T[]}
  */
 export function fuzzyLookup(pattern, list, fn, { preNormalized = false } = {}) {
@@ -113,9 +88,6 @@ export function fuzzyLookup(pattern, list, fn, { preNormalized = false } = {}) {
 }
 
 /**
- * Whether `string` fuzzy-matches `pattern`. An empty pattern matches anything,
- * consistently with {@link fuzzyLookup}.
- *
  * @param {string} pattern
  * @param {string} string
  * @returns {boolean}
@@ -126,27 +98,30 @@ export function fuzzyTest(pattern, string) {
 }
 
 /**
- * Fuzzy-match `pattern` against `list` using Levenshtein distance within an
- * error margin. A direct substring match scores 0 (perfect).
- *
- * @param {string} pattern - The string to match.
- * @param {string[]} list - The list of strings to compare against the pattern.
- * @param {number} errorRatio - Controls how many errors can a word have depending of its length.
- * @returns {string[]} The list of the words that matches within a defined number of errors.
+ * @param {string} pattern
+ * @param {string[]} list
+ * @param {number} errorRatio
+ * @returns {string[]}
  */
 export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
-    const maxNbrCorrection = Math.round(pattern.length / errorRatio);
     pattern = normalize(pattern);
+    const maxNbrCorrection = Math.round(pattern.length / errorRatio);
     const scored = [];
     for (const candidate of list) {
         const norm = normalize(candidate);
         if (norm.includes(pattern)) {
             scored.push({ candidate, score: 0 });
-        } else {
-            const score = getLevenshteinScore(pattern, norm);
-            if (score <= maxNbrCorrection) {
-                scored.push({ candidate, score });
-            }
+            continue;
+        }
+        // A length gap is a lower bound on the edit distance, so this rejects
+        // without running the O(n*m) matrix. It must stay below the substring
+        // check, which legitimately matches across a large length gap.
+        if (Math.abs(norm.length - pattern.length) > maxNbrCorrection) {
+            continue;
+        }
+        const score = getLevenshteinScore(pattern, norm);
+        if (score <= maxNbrCorrection) {
+            scored.push({ candidate, score });
         }
     }
     scored.sort((a, b) => a.score - b.score);
@@ -154,12 +129,9 @@ export function fuzzyLevenshteinLookup(pattern, list, errorRatio = 3) {
 }
 
 /**
- * Computes the Levenshtein distance between two strings.
- * Uses a two-row approach: O(min(a,b)) memory instead of O(a*b).
- *
  * @param {string} a
  * @param {string} b
- * @returns {number} The Levenshtein distance between `a` and `b`.
+ * @returns {number}
  */
 function getLevenshteinScore(a, b) {
     const aLen = a.length;

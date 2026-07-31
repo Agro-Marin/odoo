@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/hooks - OWL component hooks: useService, useBus, useAutofocus, useOwnedDialogs, useForwardRefToParent */
+/** @module @web/core/utils/hooks */
 
 import {
     onWillUnmount,
@@ -15,31 +15,15 @@ import {
 import { hasTouch, isMobileOS } from "@web/core/browser/feature_detection";
 
 /**
- * This file contains various custom hooks.
- * Each custom hook attaches itself to any number of owl lifecycle hooks.
- * Use them like any owl hook in a Component, e.g.:
- * import { useBus } from "@web/core/utils/hooks";
- * ...
- * setup() {
- *    ...
- *    useBus(someBus, someEvent, callback)
- *    ...
- * }
- */
-
-/**
  * @typedef {{ readonly el: HTMLElement | null; }} Ref
  */
 
 /**
- * Focus an element referenced by a t-ref="autofocus" in the active component
- * as soon as it appears in the DOM and if it was not displayed before.
- * If it is an input/textarea, set the selection at the end.
  * @param {Object} [params]
- * @param {string} [params.refName] override the ref name "autofocus"
- * @param {boolean} [params.selectAll] if true, will select the entire text value.
- * @param {boolean} [params.mobile] if true, will force autofocus on touch devices.
- * @returns {Ref} the element reference
+ * @param {string} [params.refName]
+ * @param {boolean} [params.selectAll]
+ * @param {boolean} [params.mobile]
+ * @returns {Ref}
  */
 export function useAutofocus({ refName, selectAll, mobile } = {}) {
     const ref = useRef(refName || "autofocus");
@@ -84,18 +68,20 @@ export function useAutofocus({ refName, selectAll, mobile } = {}) {
 }
 
 /**
- * Ensures a bus event listener is attached and cleared the proper way.
+ * ``EventBus.trigger`` always dispatches a ``CustomEvent`` carrying its payload
+ * in ``detail``, so the callback is typed against that rather than the bare
+ * ``EventListener`` an ``EventTarget`` would take.
  *
  * @param {import("@odoo/owl").EventBus} bus
  * @param {string} eventName
- * @param {EventListener} callback
+ * @param {(ev: CustomEvent<any>) => void} callback
  * @returns {void}
  */
 export function useBus(bus, eventName, callback) {
     const component = useComponent();
     useEffect(
         () => {
-            const listener = callback.bind(component);
+            const listener = /** @type {EventListener} */ (callback.bind(component));
             bus.addEventListener(eventName, listener);
             return () => bus.removeEventListener(eventName, listener);
         },
@@ -103,11 +89,6 @@ export function useBus(bus, eventName, callback) {
     );
 }
 
-/**
- * Patchable object for controlling protected method behavior in tests.
- * In production, returns a rejected promise when the component is destroyed.
- * In tests, can be mocked to return an unresolved promise to prevent crashes.
- */
 export const useServiceProtectMethodHandling = {
     /** @returns {Promise<never>} */
     fn() {
@@ -124,8 +105,13 @@ export const useServiceProtectMethodHandling = {
 };
 
 /**
- * Wrap a service method so that it returns a pending promise when the
- * owning component is destroyed, preventing post-teardown side effects.
+ * Both settle paths are withheld once the owner is destroyed, not just the
+ * resolve one. Letting rejections through meant a request started by a
+ * component the user has since navigated away from still reached
+ * ``error_service``'s ``unhandledrejection`` listener and opened a crash dialog
+ * for a view that is no longer on screen. A destroyed component can act on a
+ * failure no more than it can act on a result, so the error is logged for
+ * developers and withheld from the UI.
  *
  * ``resolve`` is called per invocation rather than closed over once: the
  * wrapper is installed as an own property that shadows the service, so
@@ -144,8 +130,19 @@ function _protectMethod(component, resolve) {
         }
 
         const prom = Promise.resolve(resolve().call(this, ...args));
-        const protectedProm = prom.then((result) =>
-            status(component) === "destroyed" ? new Promise(() => {}) : result,
+        const protectedProm = prom.then(
+            (result) =>
+                status(component) === "destroyed" ? new Promise(() => {}) : result,
+            (error) => {
+                if (status(component) !== "destroyed") {
+                    throw error;
+                }
+                console.warn(
+                    "Discarded a service call that failed after its component was destroyed:",
+                    error,
+                );
+                return new Promise(() => {});
+            },
         );
         return Object.assign(protectedProm, {
             abort: /** @type {any} */ (prom).abort,
@@ -158,8 +155,6 @@ function _protectMethod(component, resolve) {
 export const SERVICES_METADATA = {};
 
 /**
- * Import a service into a component
- *
  * @template {keyof import("services").ServiceFactories} K
  * @param {K} serviceName
  * @returns {import("services").ServiceFactories[K]}
@@ -171,10 +166,6 @@ export function useService(serviceName) {
         throw new Error(`Service ${serviceName} is not available`);
     }
     const service = services[serviceName];
-    // A reactive service must be observed through THIS component's reactive
-    // view, or its mutations never schedule a re-render: OWL caches one proxy
-    // per (target, callback) pair, so reading through the service's own proxy
-    // subscribes whoever created it — not us.
     const observed =
         toRaw(service) !== service
             ? /** @type {any} */ (useState(/** @type {any} */ (service)))
@@ -186,8 +177,6 @@ export function useService(serviceName) {
             );
         }
         const methods = SERVICES_METADATA[serviceName] ?? [];
-        // Prototype-chain onto the observed view so plain property reads stay
-        // reactive while the listed async methods gain destroy-protection.
         const result = Object.create(observed);
         for (const method of methods) {
             result[method] = _protectMethod(component, () => observed[method]);
@@ -198,9 +187,6 @@ export function useService(serviceName) {
 }
 
 /**
- * Enables spellcheck only while an element is focused, so the red squiggles
- * don't linger once it loses focus. Opt out via the spellcheck attribute.
- *
  * @param {{ refName?: string }} [params]
  * @returns {void}
  */
@@ -246,10 +232,8 @@ export function useSpellCheck({ refName } = {}) {
  */
 
 /**
- * Use a ref that was forwarded by a child @see useForwardRefToParent
- *
- * @returns {ForwardRef} a ref that can be called to set its value to that of a
- *  child ref, but can otherwise be used as a normal ref object
+ * @see useForwardRefToParent
+ * @returns {ForwardRef}
  */
 export function useChildRef() {
     let defined = false;
@@ -269,12 +253,9 @@ export function useChildRef() {
     };
 }
 /**
- * Forwards the given refName to the parent by calling the corresponding
- * ForwardRef received as prop. @see useChildRef
- *
- * @param {string} refName name of the ref to forward
- * @returns {Ref} the same ref that is forwarded to the
- *  parent
+ * @see useChildRef
+ * @param {string} refName
+ * @returns {Ref}
  */
 export function useForwardRefToParent(refName) {
     const component = useComponent();
@@ -285,9 +266,6 @@ export function useForwardRefToParent(refName) {
     return ref;
 }
 /**
- * Use the dialog service while also automatically closing the dialogs opened
- * by the current component when it is unmounted.
- *
  * @returns {(...args: any[]) => () => void}
  */
 export function useOwnedDialogs() {
@@ -324,12 +302,8 @@ export function useOwnedDialogs() {
     return addDialog;
 }
 /**
- * Manages one or more event listeners on a ref — for hooks that need several.
- * Prefer t-on directly in components; for a single listener, return it from
- * the hook and let the caller attach it with t-on.
- *
  * @param {Ref} ref
- * @param  {...any} listener addEventListener arguments (eventName, handler, options)
+ * @param {...any} listener
  * @returns {void}
  */
 export function useRefListener(ref, ...listener) {

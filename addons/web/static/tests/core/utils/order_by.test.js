@@ -1,7 +1,11 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { orderByToString, stringToOrderBy } from "@web/core/utils/order_by";
+import {
+    InvalidOrderError,
+    orderByToString,
+    stringToOrderBy,
+} from "@web/core/utils/order_by";
 
 describe.current.tags("headless");
 
@@ -76,5 +80,35 @@ describe("stringToOrderBy", () => {
             { name: "id", asc: true },
         ];
         expect(stringToOrderBy(orderByToString(terms))).toEqual(terms);
+    });
+
+    // An empty term used to yield `{ name: "", asc: true }`, which
+    // `orderByToString` turned into " ASC". The server answers that with
+    // `ValueError: Invalid field 'ASC'` instead of the readable
+    // `UserError: Invalid "order" specified` it raises for the original string.
+    test("empty terms are rejected, not silently kept", () => {
+        expect(() => stringToOrderBy("id desc,")).toThrow(InvalidOrderError);
+        expect(() => stringToOrderBy(",")).toThrow(InvalidOrderError);
+        expect(() => stringToOrderBy(" ")).toThrow(InvalidOrderError);
+        expect(() => stringToOrderBy("a, ,b")).toThrow(InvalidOrderError);
+    });
+
+    // "id ASCENDING" used to parse as DESC, so the list silently rendered in
+    // the opposite order; the server would have refused the string outright.
+    test("an unrecognised direction is rejected, not read as DESC", () => {
+        expect(() => stringToOrderBy("id ASCENDING")).toThrow(InvalidOrderError);
+        expect(() => stringToOrderBy("id ASCII")).toThrow(InvalidOrderError);
+        expect(() => stringToOrderBy("id up")).toThrow(InvalidOrderError);
+    });
+
+    test("more than two tokens in a term is still rejected", () => {
+        expect(() => stringToOrderBy("id desc extra")).toThrow(InvalidOrderError);
+    });
+
+    test("valid input is unaffected by the added validation", () => {
+        expect(stringToOrderBy("  date   DESC ,  name  ")).toEqual([
+            { name: "date", asc: false },
+            { name: "name", asc: true },
+        ]);
     });
 });

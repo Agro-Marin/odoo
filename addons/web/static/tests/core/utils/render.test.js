@@ -8,7 +8,7 @@ describe.current.tags("headless");
 
 test("renderToElement always returns an element", () => {
     allowTranslations();
-    renderToString.app.addTemplate(
+    /** @type {any} */ (renderToString.app).addTemplate(
         "test.render.template.1",
         `<t t-if="False">
           <div>NotOk</div>

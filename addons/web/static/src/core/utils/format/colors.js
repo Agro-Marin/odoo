@@ -1,17 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/format/colors - Color conversions between RGB, HSL, hex, and gradient opacity manipulation */
+/** @module @web/core/utils/format/colors */
 
 /**
- * Adds opacity to the gradient
- *
  * @static
- * @param {string} gradient - css gradient string
- * @param {number} opacity - percentage in [0, 100] (NOT a [0, 1] fraction); the
- *  default of 100 is a no-op. Note: only ``rgb(...)`` stops are rewritten;
- *  existing ``rgba(...)`` stops are left untouched.
- * @returns {string} - gradient string with opacity
+ * @param {string} gradient
+ * @param {number} opacity
+ * @returns {string}
  */
 export function applyOpacityToGradient(gradient, opacity = 100) {
     if (opacity === 100) {
@@ -20,16 +16,11 @@ export function applyOpacityToGradient(gradient, opacity = 100) {
     return gradient.replace(/rgb\(([^)]+)\)/g, `rgba($1, ${opacity / 100.0})`);
 }
 /**
- * Converts RGB color components to HSL components.
- *
  * @static
- * @param {number} r - [0, 255]
- * @param {number} g - [0, 255]
- * @param {number} b - [0, 255]
+ * @param {number} r
+ * @param {number} g
+ * @param {number} b
  * @returns {Object|false}
- *          - hue [0, 360[ (float)
- *          - saturation [0, 100] (float)
- *          - lightness [0, 100] (float)
  */
 export function convertRgbToHsl(r, g, b) {
     if (
@@ -78,16 +69,11 @@ export function convertRgbToHsl(r, g, b) {
     };
 }
 /**
- * Converts HSL color components to RGB components.
- *
  * @static
- * @param {number} h - [0, 360[ (float)
- * @param {number} s - [0, 100] (float)
- * @param {number} l - [0, 100] (float)
+ * @param {number} h
+ * @param {number} s
+ * @param {number} l
  * @returns {Object|false}
- *          - red [0, 255] (integer)
- *          - green [0, 255] (integer)
- *          - blue [0, 255] (integer)
  */
 export function convertHslToRgb(h, s, l) {
     if (
@@ -162,14 +148,11 @@ export function convertHslToRgb(h, s, l) {
     return false;
 }
 /**
- * Converts RGBA components to a normalized CSS color: hex without opacity if
- * opacity is invalid or 100, hex with opacity otherwise.
- *
  * @static
- * @param {number} r - [0, 255]
- * @param {number} g - [0, 255]
- * @param {number} b - [0, 255]
- * @param {number} [a] - [0, 100]
+ * @param {number} r
+ * @param {number} g
+ * @param {number} b
+ * @param {number} [a]
  * @returns {string | false}
  */
 export function convertRgbaToCSSColor(r, g, b, a) {
@@ -206,18 +189,9 @@ export function convertRgbaToCSSColor(r, g, b, a) {
     return `#${rr}${gg}${bb}${aa}`.toUpperCase();
 }
 /**
- * Converts a CSS color (rgb(), rgba(), hexadecimal) to RGBA color components.
- *
- * Note: we don't support using and displaying hexadecimal color with opacity
- * but this method allows to receive one and returns the correct opacity value.
- *
  * @static
- * @param {string} cssColor - hexadecimal code or rgb() or rgba() or color()
+ * @param {string} cssColor
  * @returns {{red: number, green: number, blue: number, opacity: number}|false}
- *          - red [0, 255] (integer)
- *          - green [0, 255] (integer)
- *          - blue [0, 255] (integer)
- *          - opacity [0, 100.0] (float)
  */
 export function convertCSSColorToRgba(cssColor = "") {
     const rgba = cssColor.match(
@@ -260,8 +234,6 @@ export function convertCSSColorToRgba(cssColor = "") {
         canvasEl.width = 1;
         const ctx = canvasEl.getContext("2d");
         if (!ctx) {
-            // No 2D context (canvas disabled / blocked): a `color()` value
-            // cannot be resolved, which is exactly what `false` means here.
             return false;
         }
         ctx.fillStyle = cssColor;
@@ -277,15 +249,9 @@ export function convertCSSColorToRgba(cssColor = "") {
     return false;
 }
 /**
- * Converts a CSS color (rgb(), rgba(), hexadecimal) to a normalized version
- * of the same color (@see convertRgbaToCSSColor).
- *
- * Normalized color can be safely compared using string comparison.
- *
  * @static
- * @param {string} cssColor - hexadecimal code or rgb() or rgba()
- * @returns {string} - the normalized css color or the given css color if it
- *                     failed to be normalized
+ * @param {string} cssColor
+ * @returns {string}
  */
 export function normalizeCSSColor(cssColor) {
     const rgba = convertCSSColorToRgba(cssColor);
@@ -297,8 +263,6 @@ export function normalizeCSSColor(cssColor) {
     );
 }
 /**
- * Checks if a given string is a css color.
- *
  * @static
  * @param {string} cssColor
  * @returns {boolean}
@@ -307,14 +271,11 @@ export function isCSSColor(cssColor) {
     return convertCSSColorToRgba(cssColor) !== false;
 }
 /**
- * Mixes two colors by applying a weighted average of their red, green and blue
- * components.
- *
  * @static
- * @param {string} cssColor1 - hexadecimal code or rgb() or rgba()
- * @param {string} cssColor2 - hexadecimal code or rgb() or rgba()
- * @param {number} weight - a number between 0 and 1
- * @returns {string | false} - mixed color in hexadecimal format, or ``false`` if either input cannot be parsed
+ * @param {string} cssColor1
+ * @param {string} cssColor2
+ * @param {number} weight
+ * @returns {string | false}
  */
 export function mixCssColors(cssColor1, cssColor2, weight) {
     const rgba1 = convertCSSColorToRgba(cssColor1);
@@ -340,7 +301,7 @@ export function isColorGradient(value) {
 
 /**
  * @param {string} gradient
- * @returns {string} standardized gradient
+ * @returns {string}
  */
 export function standardizeGradient(gradient) {
     if (isColorGradient(gradient)) {
@@ -354,15 +315,9 @@ export function standardizeGradient(gradient) {
 export const RGBA_REGEX = /\d+(?:\.\d+)?/g;
 
 /**
- * Converts a color (rgb, rgba or hex) to hex. For rgba, blends with the
- * node's background color using `alpha*color + (1 - alpha)*background`
- * per channel.
- *
  * @param {string} rgb
- * @param {HTMLElement | null} [node] the element to blend an rgba() against;
- *   `null` (the default, and what `node.parentElement` yields at the root of
- *   the chain) means "no background to blend with".
- * @returns {string} hexadecimal color (#RRGGBB)
+ * @param {HTMLElement | null} [node]
+ * @returns {string}
  */
 export function rgbToHex(rgb = "", node = null) {
     if (rgb.startsWith("#")) {
@@ -412,11 +367,8 @@ export function rgbToHex(rgb = "", node = null) {
 }
 
 /**
- * Converts an RGBA/RGB/hex color string to hex, preserving alpha only when
- * the input was rgba.
- *
- * @param {string} rgba - The color string to convert (can be in RGBA, RGB, or hex format).
- * @returns {string} - The resulting color in hex format (including alpha if applicable).
+ * @param {string} rgba
+ * @returns {string}
  */
 export function rgbaToHex(rgba = "") {
     if (rgba.startsWith("#")) {
@@ -437,13 +389,9 @@ export function rgbaToHex(rgba = "") {
 }
 
 /**
- * Blends an RGBA color with node's (and ancestors') background color;
- * non-RGBA input converts straight to hex; defaults to white (#FFFFFF) if
- * no background is found.
- *
- * @param {string} color - The RGBA color to blend.
- * @param {HTMLElement|null} node - The DOM node to get the background color from.
- * @returns {string} - The resulting blended color as a hex string.
+ * @param {string} color
+ * @param {HTMLElement|null} node
+ * @returns {string}
  */
 export function blendColors(color, node) {
     if (!color.startsWith("rgba")) {

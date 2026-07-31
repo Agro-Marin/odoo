@@ -1,9 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/virtual_grid - useVirtualGrid hook for windowed rendering of large row/column grids */
+/** @module @web/core/utils/virtual_grid */
 
 import { useComponent, useEffect, useExternalListener } from "@odoo/owl";
+import { browser } from "@web/core/browser/browser";
 import { pick, shallowEqual } from "@web/core/utils/collections/objects";
 import { useThrottleForAnimation } from "@web/core/utils/timing";
 
@@ -11,23 +12,10 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
  * @template T
  * @typedef VirtualGridParams
  * @property {ReturnType<typeof import("@odoo/owl").useRef>} scrollableRef
- *  a ref to the scrollable element
  * @property {ScrollPosition} [initialScroll={ left: 0, top: 0 }]
- *  the initial scroll position of the scrollable element
  * @property {(changed: Partial<VirtualGridIndexes>) => void} [onChange=() => this.render()]
- *  called when the visible items change (scroll/resize); defaults to re-rendering the component.
  * @property {number} [bufferCoef=1]
- *  buffer size around the visible area, as a multiple of the window size on each side.
- *  Default 1 renders 3x the window size (9x if buffered on both axes); 0 means no buffer.
- *  Lower it for costly renders.
  * @property {() => number} [getRowsOffset]
- *  Distance in px between the scroll container's content origin and the first
- *  row, when the two differ — a sticky header, or a scroll container that is an
- *  ANCESTOR of the grid and holds other content above it. The cumulative sizes
- *  passed to {@link setRowsHeights} are measured from the first row, so without
- *  this the scroll position and those sizes are expressed in different origins
- *  and the computed window is shifted by the offset. Defaults to 0 (the grid
- *  itself is the scroll container and starts at its content origin).
  */
 
 /**
@@ -39,9 +27,7 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 /**
  * @typedef VirtualGridSetters
  * @property {(widths: number[]) => void} setColumnsWidths
- *  Set the width of each column (indexes must match column indexes).
  * @property {(heights: number[]) => void} setRowsHeights
- *  Set the height of each row (indexes must match row indexes).
  */
 
 /**
@@ -52,48 +38,20 @@ import { useThrottleForAnimation } from "@web/core/utils/timing";
 
 const BUFFER_COEFFICIENT = 1;
 
-/**
- * Scroll movement, in px, below which the visible window is NOT recomputed.
- *
- * Windowing is inherently a fixpoint problem: the indexes are derived from the
- * scroll position, and rendering them changes the scrollable height, which can
- * move the scroll position back. The sizes fed to {@link getIndexes} are
- * *assumed* per-item sizes, while the browser lays out real items at fractional
- * heights and rounds spacer elements — so the assumed and actual extents differ
- * by ~1px, and no exact fixpoint exists.
- *
- * At a scroll extremity the browser additionally clamps the scroll position to
- * `scrollHeight - clientHeight`, which turns that 1px disagreement into a
- * self-sustaining limit cycle: window A renders 1px shorter, the clamp moves
- * the position, the new position selects window B, which renders 1px taller,
- * the clamp moves back, and so on at animation-frame rate forever.
- *
- * A deadband makes the mapping stable under the jitter it causes. Movement is
- * measured against the position the current indexes were computed AT, not the
- * previous event, so many sub-threshold scrolls still accumulate past it. The
- * value only has to exceed the layout rounding error, and is negligible next to
- * the buffer (`bufferCoef` × viewport) that decides when a recompute actually
- * matters.
- */
 const SCROLL_DEADBAND_PX = 4;
 
 /**
  * @typedef GetIndexesParams
- * @property {number[]} [sizes] cumulative sizes of the items (each entry sums
- *   the previous sizes and the current item's size). Absent until the caller
- *   has supplied them via `setRowsHeights` / `setColumnsWidths`; `getIndexes`
- *   answers `[]` for that.
- * @property {number} start start of the visible area (scroll position).
- * @property {number} span size of the visible area (window size).
- * @property {number} [prevStartIndex] previous start index, used to optimize the search.
- * @property {number} [bufferCoef=BUFFER_COEFFICIENT] coefficient to calculate the buffer size.
+ * @property {number[]} [sizes]
+ * @property {number} start
+ * @property {number} span
+ * @property {number} [prevStartIndex]
+ * @property {number} [bufferCoef=BUFFER_COEFFICIENT]
  */
 
 /**
- * Calculates the indexes of the visible items in a virtual list.
- *
  * @param {GetIndexesParams} param0
- * @returns {[number, number] | []} the indexes of the visible items with a surrounding buffer of totalSize on each side.
+ * @returns {[number, number] | []}
  */
 function getIndexes({
     sizes,
@@ -131,13 +89,6 @@ function getIndexes({
 }
 
 /**
- * Calculates the displayed items in a virtual grid.
- *
- * Requirements:
- *  - the scrollable area has a fixed height and width.
- *  - the items are rendered with a proper offset inside the scrollable area.
- *    This can be achieved e.g. with a css grid or an absolute positioning.
- *
  * @template T
  * @param {VirtualGridParams<T>} params
  * @returns {VirtualGridIndexes & VirtualGridSetters}
@@ -152,13 +103,15 @@ export function useVirtualGrid({
     const comp = useComponent();
     onChange ||= () => comp.render();
 
-    /** @type {{ scroll: { left: number, top: number }, computedScroll?: { left: number, top: number }, summedColumnsWidths?: number[], summedRowsHeights?: number[], columnsIndexes?: [number, number] | [], rowsIndexes?: [number, number] | [] }} */
+    /**
+     * @type {{ scroll: { left: number, top: number }, computedScroll?: { left: number, top: number }, summedColumnsWidths?: number[], summedRowsHeights?: number[], columnsIndexes?: [number, number] | [], rowsIndexes?: [number, number] | [] }}
+     */
     const current = { scroll: { left: 0, top: 0, ...initialScroll } };
     const computeColumnsIndexes = () =>
         getIndexes({
             sizes: current.summedColumnsWidths,
             start: Math.abs(current.scroll.left),
-            span: scrollableRef.el?.clientWidth || window.innerWidth,
+            span: scrollableRef.el?.clientWidth || browser.innerWidth,
             prevStartIndex: current.columnsIndexes?.[0],
             bufferCoef,
         });
@@ -166,7 +119,7 @@ export function useVirtualGrid({
         getIndexes({
             sizes: current.summedRowsHeights,
             start: Math.max(0, current.scroll.top - (getRowsOffset?.() ?? 0)),
-            span: scrollableRef.el?.clientHeight || window.innerHeight,
+            span: scrollableRef.el?.clientHeight || browser.innerHeight,
             prevStartIndex: current.rowsIndexes?.[0],
             bufferCoef,
         });

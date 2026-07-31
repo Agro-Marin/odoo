@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/ui - DOM visibility, proximity, and tabable-element queries */
+/** @module @web/core/utils/dom/ui */
 
 /**
  * @typedef Position
@@ -29,9 +29,6 @@ export function closest(elements, targetPos) {
 }
 
 /**
- * rough approximation of a visible element. not perfect (does not take into
- * account opacity = 0 for example), but good enough for our purpose
- *
  * @param {any} el
  * @returns {boolean}
  */
@@ -82,7 +79,7 @@ function getQuadrance(rect, pos) {
 /**
  * @param {Element} activeElement
  * @param {string} selector
- * @returns {HTMLElement[]} all selected and visible elements present in the activeElement
+ * @returns {HTMLElement[]}
  */
 export function getVisibleElements(activeElement, selector) {
     const visibleElements = [];
@@ -132,8 +129,6 @@ const TABABLE_SELECTORS = FOCUSABLE_SELECTORS.map(
 );
 
 /**
- * Check if an element is focusable
- *
  * @param {HTMLElement} el
  */
 export function isFocusable(el) {
@@ -145,8 +140,6 @@ export function isFocusable(el) {
 }
 
 /**
- * Returns all focusable elements in the given container.
- *
  * @param {HTMLElement} [container=document.body]
  */
 export function getTabableElements(container = document.body) {
@@ -183,12 +176,8 @@ export function getPreviousTabableElement(container = document.body) {
 }
 
 /**
- * Gives the button a loading effect by disabling it and adding a `fa` spinner
- * icon. The existing button `fa` icons will be hidden through css.
- *
- * @param {HTMLButtonElement} btnEl - the button to disable/load
- * @return {function} a callback function that will restore the button to its
- *         initial state
+ * @param {HTMLButtonElement} btnEl
+ * @return {function}
  */
 export function addLoadingEffect(btnEl) {
     btnEl.classList.add("o_btn_loading", "disabled", "pe-none");

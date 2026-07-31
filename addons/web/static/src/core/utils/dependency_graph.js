@@ -1,33 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dependency_graph - Iterative DFS cycle detection and wave-based dependency resolution */
+/** @module @web/core/utils/dependency_graph */
 
 /**
- * Two pure helpers (no OWL/DOM deps): iterative-DFS cycle detection and an
- * O(N+E) wave-based dependency resolver.
- *
- * ``env.js`` (the service launcher) is the only consumer. This file used to
- * claim that ``module_loader.js`` "keeps an inlined copy" that "must be kept
- * in sync"; it does not, and nothing else in the tree does either —
- * ``createWaveResolver`` and ``findDependencyCycle`` appear only here, in
- * ``env.js``, and in their tests. The note imposed a maintenance obligation
- * against code that does not exist, so it is removed rather than corrected.
- *
- * @see env.js for the service-launcher integration
- */
-
-/**
- * Find a cycle in a dependency graph, if one exists.
- *
- * Uses iterative DFS with explicit stack to avoid call-stack overflow on
- * pathologically deep graphs.
- *
  * @param {Map<string, string[]>} graph
- *     Map from node name to its dependency names.
- *     Nodes not present as keys are treated as external (no outgoing edges).
  * @returns {string[] | null}
- *     The cycle path (e.g. ["a", "b", "c", "a"]) or null if acyclic.
  */
 export function findDependencyCycle(graph) {
     const NOT_VISITED = 0;
@@ -40,7 +18,7 @@ export function findDependencyCycle(graph) {
         state.set(name, NOT_VISITED);
     }
 
-    /** @type {Map<string, string | null>} parent pointers for path reconstruction */
+    /** @type {Map<string, string | null>} */
     const parent = new Map();
 
     for (const startNode of graph.keys()) {
@@ -88,12 +66,10 @@ export function findDependencyCycle(graph) {
 }
 
 /**
- * Reconstruct a cycle path from parent pointers.
- *
  * @param {Map<string, string | null>} parent
- * @param {string} from - Node whose dependency closes the cycle
- * @param {string} to - The dependency that was already in the stack
- * @returns {string[]} The cycle path, e.g. ["a", "b", "c", "a"]
+ * @param {string} from
+ * @param {string} to
+ * @returns {string[]}
  */
 function _reconstructCycle(parent, from, to) {
     const path = [from];
@@ -110,58 +86,28 @@ function _reconstructCycle(parent, from, to) {
 /**
  * @typedef {object} WaveResolver
  * @property {(name: string, deps: Iterable<string>) => void} track
- *   Register an entry; returns immediately if already tracked.
  * @property {(name: string) => void} propagate
- *   Notify waiters that ``name`` is loaded; unblocks any whose last
- *   dep just resolved.
  * @property {() => string | undefined} shift
- *   Remove and return the next ready-to-start entry, or undefined.
  * @property {() => boolean} hasReady
- *   Cheap check for whether ``shift()`` would return a value.
  * @property {(name: string) => void} untrack
- *   Remove an entry from the resolver without firing propagate() (called on
- *   both successful start and on failure).
  * @property {(name: string) => number | undefined} pendingOf
- *   Diagnostics: current unmet-dep count, or undefined if not tracked.
  * @property {() => IterableIterator<string>} trackedNames
- *   Diagnostics: iterate names that are currently blocked.
  */
 
 /**
- * Create an O(N+E) wave resolver for name/deps entries.
- *
- * The resolver does NOT start anything itself — it just surfaces names
- * whose deps are all met.  Callers drive the wave:
- *
- *     const r = createWaveResolver({ isLoaded: (n) => knownMap.has(n) });
- *     for (const [name, deps] of entries) r.track(name, deps);
- *     while (r.hasReady()) {
- *         const name = r.shift();
- *         startOne(name);           // the caller's work
- *         r.propagate(name);        // unblocks dependents
- *     }
- *
- * ``isLoaded(dep)`` is invoked during ``track`` to decide whether a
- * dep should count against the pending counter.  Deps that come from
- * outside the resolver (already-loaded entries, native pre-registered
- * names) return true and don't inflate the counter.
- *
  * @param {{ isLoaded: (dep: string) => boolean }} options
  * @returns {WaveResolver}
  */
 export function createWaveResolver({ isLoaded }) {
-    /** Count of unmet deps per tracked entry. @type {Map<string, number>} */
+    /** @type {Map<string, number>} */
     const pending = new Map();
-    /** Reverse graph: dep name → entries waiting on it. @type {Map<string, Set<string>>} */
+    /** @type {Map<string, Set<string>>} */
     const dependents = new Map();
     /**
-     * Forward graph: entry name → the unmet deps whose reverse edge it owns.
-     * Kept so ``untrack`` can remove ``name`` from every ``dependents`` set in
-     * O(deps) instead of scanning the whole reverse graph.
      * @type {Map<string, string[]>}
      */
     const waitingOn = new Map();
-    /** FIFO of entries whose deps are all met. @type {string[]} */
+    /** @type {string[]} */
     const ready = [];
 
     return {
@@ -170,7 +116,7 @@ export function createWaveResolver({ isLoaded }) {
                 return;
             }
             let unmet = 0;
-            /** Unmet deps whose reverse edge this entry now owns. @type {string[]} */
+            /** @type {string[]} */
             const owned = [];
             for (const dep of deps) {
                 if (!isLoaded(dep)) {
@@ -217,11 +163,6 @@ export function createWaveResolver({ isLoaded }) {
         },
         untrack(name) {
             pending.delete(name);
-            // Also drop it from the ready FIFO. `untrack` is documented as
-            // "remove an entry from the resolver", but a name that had already
-            // become ready stayed queued and a later `shift()` handed it back —
-            // so a caller that untracks on FAILURE (as the service launcher
-            // does) could be told to start the very entry it just gave up on.
             const readyIndex = ready.indexOf(name);
             if (readyIndex !== -1) {
                 ready.splice(readyIndex, 1);

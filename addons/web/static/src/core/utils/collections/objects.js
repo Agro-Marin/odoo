@@ -1,13 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/collections/objects - Object helpers: deepEqual, deepCopy, toRawDeep, pick, omit, deepMerge */
+/** @module @web/core/utils/collections/objects */
 
 import { toRaw } from "@odoo/owl";
 
 /**
- * Shallow compares two objects.
- *
  * @template T
  * @param {T} obj1
  * @param {T} obj2
@@ -30,15 +28,6 @@ export function shallowEqual(obj1, obj2, comparisonFn = (a, b) => a === b) {
 }
 
 /**
- * Deeply compares two values.
- *
- * Handles primitives (with ``NaN`` equal to ``NaN``), plain objects, arrays,
- * ``Date``, ``RegExp``, ``Map`` and ``Set``, and is cycle-safe. Previously this
- * delegated to {@link shallowEqual} recursively, which silently reported any two
- * ``Date``/``Map``/``Set`` as equal (they expose no own keys) and stack-
- * overflowed on self-referential inputs — neither matched the "deeply compares"
- * contract.
- *
  * @param {unknown} obj1
  * @param {unknown} obj2
  * @returns {boolean}
@@ -48,22 +37,9 @@ export function deepEqual(obj1, obj2) {
 }
 
 /**
- * Cycle guard around {@link _deepEqualInner}.
- *
- * The ``(a, b)`` pair is recorded as *in progress* and answered ``true`` if the
- * recursion reaches it again — the standard co-inductive rule that makes
- * self-referential inputs terminate. It must be *un*recorded on a negative
- * result: a pair that was proven unequal is not a cycle, and leaving it behind
- * turns the guard into a memo of wrong answers.
- *
- * That distinction is only observable where a failed comparison does not abort
- * the whole walk, which is exactly the Set branch — it probes candidate
- * counterparts until one matches, so every rejected candidate would otherwise
- * be memoized as equal and answered ``true`` at any later position in the tree.
- *
  * @param {any} a
  * @param {any} b
- * @param {WeakMap<object, WeakSet<object>>} seen pairs currently being compared
+ * @param {WeakMap<object, WeakSet<object>>} seen
  * @returns {boolean}
  */
 function _deepEqual(a, b, seen) {
@@ -164,13 +140,6 @@ function _deepEqualInner(a, b, seen) {
 }
 
 /**
- * Recursively un-wraps OWL reactive proxies in plain objects, arrays, Maps,
- * and Sets so that the result is structured-clone compatible. Class instances
- * (Date, RegExp, ArrayBuffer, etc.) are returned by reference via a single
- * level of ``toRaw`` — ``structuredClone`` already handles their internal
- * state correctly when present in the output tree. Cycles are preserved via
- * a ``WeakMap`` accumulator.
- *
  * @template T
  * @param {T} value
  * @param {WeakMap<object, object>} [seen]
@@ -225,13 +194,6 @@ export function toRawDeep(value, seen = new WeakMap()) {
 }
 
 /**
- * Deep copies an object using ``structuredClone``, which preserves Date,
- * Set, Map, ArrayBuffer, RegExp, and other structured types. Reactive OWL
- * proxies are recursively unwrapped via ``toRawDeep`` before cloning so that
- * structured types survive the copy instead of falling through to the JSON
- * fallback (which silently drops them). Functions and DOM nodes still fall
- * through to JSON.
- *
  * @template T
  * @param {T} object
  * @return {T}
@@ -252,35 +214,14 @@ export function deepCopy(object) {
 }
 
 /**
- * Returns whether the given value is an object, i.e. an instance of the `Object`
- * class or of one of its direct subclass.
- *
- * Note: this may wrongly validate any object implementing a modified `toString`
- * explicitly returning `"[object Object]"`.
- *
  * @param {unknown} value
  * @returns {boolean}
- * @example
- *  // true
- *  isObject({ a: 1 });
- *  isObject(Object.create(null));
- * @example
- *  // false
- *  isObject([1, 2, 3]);
- *  isObject(new Map([["a", 1]]));
  */
 export function isObject(value) {
     return Object.prototype.toString.call(value) === "[object Object]";
 }
 
 /**
- * Returns a shallow copy of object with every property in properties removed
- * if present in object.
- *
- * ``Record<string, any>`` rather than ``object``: a lowercase ``object``
- * constraint in a JSDoc ``@template`` tag is silently dropped by TypeScript,
- * leaving ``T`` unconstrained and ``Object.keys(object)`` below unresolvable.
- *
  * @template {Record<string, any>} T
  * @template {keyof T} K
  * @param {T} object
@@ -317,49 +258,51 @@ export function pick(object, ...properties) {
 }
 
 /**
- * Deeply merges two values, recursively combining plain-object properties.
- * Non-object values (primitives, arrays, functions) follow "extension wins"
- * semantics: `extension` is returned as-is, unless it is `undefined`, in
- * which case `target` is returned. Arrays are not deep-merged; `extension`
- * replaces `target` entirely for array values.
- *
- * Aliasing contract: only paths where BOTH sides hold a plain object are
- * rebuilt fresh (via recursion). A subtree taken wholesale from one side —
- * present on only one side, or an object/array replacing a primitive — is
- * shared BY REFERENCE with that input; it is NOT deep-cloned. This is
- * deliberate: config objects routinely carry functions, and deep-cloning
- * (structuredClone / JSON) would silently drop them. Callers must therefore
- * treat the merged result's nested subtrees as read-only (or clone a subtree
- * themselves before mutating it), otherwise mutating the result mutates the
- * input it was taken from.
- *
- * @param {any} target - The base value.
- * @param {any} extension - The value to merge on top of target.
- * @returns {any} - The merged result.
- *
- * @example
- * const target = { a: 1, b: { c: 2 } };
- * const source = { a: 2, b: { d: 3 } };
- * const output = deepMerge(target, source);
- * // output => { a: 2, b: { c: 2, d: 3 } }
+ * @param {Record<PropertyKey, any>} output
+ * @param {PropertyKey} key
+ * @param {any} value
+ */
+function defineOwn(output, key, value) {
+    Object.defineProperty(output, key, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+    });
+}
+
+/**
+ * @param {any} target
+ * @param {any} extension
+ * @returns {any}
  */
 export function deepMerge(target, extension) {
     if (!isObject(target) && !isObject(extension)) {
         return extension !== undefined ? extension : target;
     }
 
-    target = target || {};
-    const output = Object.assign({}, target);
+    target = Object(target || {});
+    /** @type {Record<PropertyKey, any>} */
+    const output = {};
+    for (const key of Reflect.ownKeys(target)) {
+        if (Object.getOwnPropertyDescriptor(target, key)?.enumerable) {
+            defineOwn(output, key, target[key]);
+        }
+    }
     if (isObject(extension)) {
         for (const key of Reflect.ownKeys(extension)) {
-            if (extension[key] === undefined) {
+            const extensionValue = extension[key];
+            if (extensionValue === undefined) {
                 continue;
             }
-            if (isObject(target[key]) && isObject(extension[key])) {
-                output[key] = deepMerge(target[key], extension[key]);
-            } else {
-                Object.assign(output, { [key]: extension[key] });
-            }
+            const targetValue = Object.hasOwn(target, key) ? target[key] : undefined;
+            defineOwn(
+                output,
+                key,
+                isObject(targetValue) && isObject(extensionValue)
+                    ? deepMerge(targetValue, extensionValue)
+                    : extensionValue,
+            );
         }
     }
 

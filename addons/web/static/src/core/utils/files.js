@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/files - File size validation and upload hook for multipart form submissions */
+/** @module @web/core/utils/files */
 
 import { _t } from "@web/core/l10n/translation";
 import { humanNumber } from "@web/core/utils/format/numbers";
@@ -38,7 +38,6 @@ export function checkFileSize(fileSize, notificationService) {
 }
 
 /**
- * Hook to upload a file to the server.
  * @returns {function}
  */
 export function useFileUploader() {

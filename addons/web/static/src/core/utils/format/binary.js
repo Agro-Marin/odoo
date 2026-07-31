@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/format/binary - Binary size detection, base64 length calculation, and human-readable byte formatting */
+/** @module @web/core/utils/format/binary */
 
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
@@ -15,16 +15,15 @@ export function isBinarySize(value) {
 }
 
 /**
- * Get the length necessary for a base64 str to encode maxBytes
- * @param {number} maxBytes number of bytes we want to encode in base64
- * @returns {number} number of char
+ * @param {number} maxBytes
+ * @returns {number}
  */
 export function toBase64Length(maxBytes) {
     return Math.ceil((maxBytes * 4) / 3);
 }
 
 /**
- * @param {number} size number of bytes
+ * @param {number} size
  * @returns {string}
  */
 export function humanSize(size) {

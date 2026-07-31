@@ -1,30 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/pdfjs - PDF.js viewer button visibility control and library lazy-loading */
+/** @module @web/core/utils/pdfjs */
 
 import { isMobileOS } from "@web/core/browser/feature_detection";
 import { makeLazyFacade } from "@web/core/module_bridge";
 
 /**
- * Until we have our own implementation of the /web/static/lib/pdfjs/web/viewer.{html,js,css}
- * (currently based on Firefox), this method allows us to hide the buttons that we do not want:
- * * All edit buttons
- * * "Open File"
- * * "Current Page" ("#viewBookmark")
- * * "Download" (Hidden on mobile device like Android, iOS, ... or via option)
- * * "Print" (Hidden on mobile device like Android, iOS, ... or via option)
- * * "Presentation" (via options)
- * * "Rotation" (via options)
- *
- * @link https://mozilla.github.io/pdf.js/getting_started/
- *
- * @param {Element} rootElement IFRAME DOM element of PDF.js viewer
- * @param {Object} [options] options to hide additional buttons
- * @param {boolean} [options.hideDownload] hide download button
- * @param {boolean} [options.hidePrint] hide print button
- * @param {boolean} [options.hidePresentation] hide presentation button
- * @param {boolean} [options.hideRotation] hide rotation button
+ * @link
+ * @param {Element} rootElement
+ * @param {Object} [options]
+ * @param {boolean} [options.hideDownload]
+ * @param {boolean} [options.hidePrint]
+ * @param {boolean} [options.hidePresentation]
+ * @param {boolean} [options.hideRotation]
  */
 export function hidePDFJSButtons(rootElement, options = {}) {
     const hiddenElements = [
@@ -71,12 +60,10 @@ export function hidePDFJSButtons(rootElement, options = {}) {
 
 const VIEWER_STYLE_ID = "o_hide_pdfjs_buttons_style";
 
-/** @type {WeakMap<HTMLIFrameElement, string>} latest requested CSS per iframe */
+/** @type {WeakMap<HTMLIFrameElement, string>} */
 const pendingViewerStyles = new WeakMap();
 
 /**
- * Inject (or update) the button-hiding <style> in the viewer document.
- *
  * @param {HTMLIFrameElement} iframe
  */
 function applyViewerStyle(iframe) {
@@ -93,38 +80,19 @@ function applyViewerStyle(iframe) {
     styleEl.textContent = pendingViewerStyles.get(iframe) ?? "";
 }
 
-/** @type {any} the loaded namespace, null until {@link loadPDFJS} resolves */
+/** @type {any} */
 let _pdfjsLib = null;
 
 /**
- * Stable facade over the lazily-loaded pdf.js namespace
- * (`{ getDocument, GlobalWorkerOptions, ... }`): property reads forward to
- * the loaded namespace, so existing call sites keep working — including
- * through module bridges (iframe bundles), which snapshot exported values
- * and would never see a mutable `export let` reassignment (see the bridge
- * contract in `@web/core/module_bridge`). Callers must still
- * `await loadPDFJS()` before use.
- *
- * Loading the library also assigns `globalThis.pdfjsLib` (a build artifact
- * of the upstream ESM bundle), which the classic `PDFSlidesViewer.js`
- * helper in website_slides still reads.
- *
  * @type {any}
  */
 export const pdfjsLib = makeLazyFacade(() => _pdfjsLib);
 
-/** @type {Promise<any> | null} de-dupes concurrent loads into one fetch. */
+/** @type {Promise<any> | null} */
 let loadPromise = null;
 
 /**
- * Lazily load pdf.js, then populate the {@link pdfjsLib} facade.
- *
- * Resolved via the `pdfjs-dist` import-map specifier — replaces the old
- * `loadJS()` + `window.pdfjsLib` pattern, which evaluated the 2.2 MB
- * `pdf.worker.js` on the main thread. `workerSrc` is set centrally so
- * pdf.js spawns its own module worker instead.
- *
- * @returns {Promise<any>} the pdf.js namespace (facade)
+ * @returns {Promise<any>}
  */
 export async function loadPDFJS() {
     if (!_pdfjsLib) {
@@ -144,37 +112,20 @@ export async function loadPDFJS() {
 }
 
 /**
- * Directory holding pdf.js's WebAssembly codecs.
- *
- * Since v6 the JPEG 2000 (openjpeg), JBIG2 and colour-management (qcms)
- * decoders ship as separate `.wasm` files instead of being inlined in the
- * worker bundle, and `getDocument` needs to be told where they live. The
- * bundled *viewer* defaults the option; the library does not — it defaults to
- * `null` and then cannot decode images that need those codecs.
- *
- * The trailing slash matters: pdf.js concatenates the file name onto it.
- *
  * @type {string}
  */
-export const PDFJS_WASM_URL = "/web/static/lib/pdfjs/web/wasm/";
+const PDFJS_WASM_URL = "/web/static/lib/pdfjs/web/wasm/";
 
 /**
- * Wrap the pdf.js namespace so `getDocument` defaults {@link PDFJS_WASM_URL}.
- *
- * Applying the default here rather than at each call site keeps the codec
- * location a property of "pdf.js as this app loads it": a new caller cannot
- * forget it, and moving the files is a one-line change. An ES module
- * namespace is read-only, so the default is layered on a delegating object
- * rather than assigned onto the namespace itself.
- *
- * @param {any} lib the freshly imported pdf.js namespace
- * @returns {any} a view of `lib` whose `getDocument` carries the default
+ * @param {any} lib
+ * @returns {any}
  */
 function withWasmDefault(lib) {
     const view = Object.create(lib);
-    view.getDocument = (src) => {
-        // getDocument also accepts a URL/TypedArray/ArrayBuffer shorthand;
-        // normalise to the parameter-object form so wasmUrl has somewhere to go.
+    view.getDocument = (
+        /** @type {string | URL | ArrayBuffer | ArrayBufferView | Record<string, any>} */ src,
+    ) => {
+        /** @type {Record<string, any>} */
         let params;
         if (typeof src === "string" || src instanceof URL) {
             params = { url: src };

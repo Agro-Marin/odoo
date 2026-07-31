@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/render - Render QWeb templates to Element, DocumentFragment, Markup, or string */
+/** @module @web/core/utils/render */
 
 import { App, blockDom, Component, markup } from "@odoo/owl";
 import { appTranslateFn } from "@web/core/l10n/translation";
@@ -41,7 +41,6 @@ export function renderToFragment(template, context = {}) {
 /**
  * @param {string} template
  * @param {Object} context
- * @returns string: the html of the template
  */
 export function renderToString(template, context = {}) {
     return render(template, context).innerHTML;
@@ -77,10 +76,9 @@ function render(template, context = {}) {
 }
 
 /**
- * Suitable to be inserted in a template with a t-out directive.
  * @param {string} template
  * @param {Object} context
- * @returns {ReturnType<markup>} the html of the template, as a markup string
+ * @returns {ReturnType<markup>}
  */
 export function renderToMarkup(template, context = {}) {
     return markup(renderToString(template, context));

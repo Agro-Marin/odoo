@@ -1,15 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/dvu - Dynamic viewport units with virtual keyboard and visualViewport tracking */
+/** @module @web/core/utils/dom/dvu */
 
 /**
- * Tracks visualViewport (not just window innerWidth/innerHeight) so
- * dimensions reflect virtual-keyboard appearance, pinch-zoom, and mobile
- * browser UI changes — none of which reliably affect innerWidth/innerHeight.
- * Falls back to window dimensions when visualViewport/VirtualKeyboard APIs
- * are unavailable (older browsers, some embedded webviews).
- *
  * @see https://developer.mozilla.org/en-US/docs/Web/API/VirtualKeyboard_API
  */
 
@@ -18,31 +12,14 @@ import { browser } from "@web/core/browser/browser";
 import { isVirtualKeyboardSupported } from "@web/core/browser/feature_detection";
 import { throttleForAnimation } from "@web/core/utils/timing";
 
-/**
- * Sources are subscribed to on the first listener and released with the last,
- * NOT at module scope.
- *
- * `browser` is a mutable indirection — tests swap `visualViewport`,
- * `navigator` and the `addEventListener` implementation on it. Binding at
- * module-evaluation time captured whichever `browser` happened to be installed
- * when some unrelated module first pulled this one in, so the subscription
- * could outlive the object it was made against and then never fire again. That
- * made behaviour depend on import order, and left three global listeners and a
- * throttle handle alive for the life of the page with no way to release them.
- *
- * Resolving `browser.*` at subscribe time keeps the module free of load-order
- * side effects and makes the whole thing tear down with its last consumer.
- */
 const viewport = {
     listeners: /** @type {Function[]} */ ([]),
     /** @type {(() => void)[]} */
     cleanups: [],
 
     /**
-     * Register a callback for viewport changes
-     *
-     * @param {Function} listener - Function to call when viewport changes
-     * @returns {Function} - Function to remove the listener
+     * @param {Function} listener
+     * @returns {Function}
      */
     addListener(listener) {
         this.listeners.push(listener);
@@ -103,10 +80,7 @@ const viewport = {
 };
 
 /**
- * Get current viewport dimensions
- * Takes into account VirtualKeyboard API if available
- *
- * @returns {{ width: number, height: number }} - width and height in pixels
+ * @returns {{ width: number, height: number }}
  */
 export function getViewportDimensions() {
     return {
@@ -116,21 +90,15 @@ export function getViewportDimensions() {
 }
 
 /**
- * Register a callback for viewport dimension changes
- * This will trigger for regular viewport changes and virtual keyboard visibility changes
- *
- * @param {Function} callback - Function to call on viewport change
- * @returns {Function} - Function to remove the listener
+ * @param {Function} callback
+ * @returns {Function}
  */
 function onViewportChange(callback) {
     return viewport.addListener(callback);
 }
 
 /**
- * OWL hook to use viewport change tracking in components
- * Automatically cleans up listener when component is unmounted
- *
- * @param {Function} callback - Function to call when viewport changes
+ * @param {Function} callback
  */
 export function useViewportChange(callback) {
     const removeListener = onViewportChange(callback);

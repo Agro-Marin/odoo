@@ -1,15 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/autoresize - useAutoresize hook to auto-grow input/textarea elements on content change */
+/** @module @web/core/utils/dom/autoresize */
 
 import { useEffect } from "@odoo/owl";
 
 /**
- * Auto-resizes an input/textarea to fit its content on each update. Forces a
- * layout reflow on every update (mild perf cost). Textareas must be the sole
- * child of their parent div (see text_field).
- *
  * @param {{ el: HTMLInputElement | HTMLTextAreaElement | null }} ref
  * @param {{ ignoreIfEmpty?: boolean, onResize?: (el: HTMLInputElement | HTMLTextAreaElement, options: object) => void, offset?: number, minimumHeight?: number }} [options]
  */
@@ -63,19 +59,47 @@ export function useAutoresize(ref, options = {}) {
 }
 
 /**
- * Measure text width via a hidden span in the input's parent, so it inherits
- * the same CSS context (font-variant-numeric, etc.) as the input. Input
- * scrollWidth can differ ~10px from span width in Chromium, causing visual
- * jumps between readonly/edit mode.
- *
  * @param {HTMLInputElement} input
- * @returns {number} the text width in pixels
+ * @returns {number}
+ */
+/**
+ * Properties that decide how wide a run of text renders. Copied from the input
+ * onto the measuring span, which is appended to the input's *parent* and so
+ * inherits the parent's typography -- and an `<input>` does not inherit the
+ * page font to begin with, so the two routinely differ.
+ */
+const TEXT_METRIC_PROPERTIES = [
+    "fontFamily",
+    "fontSize",
+    "fontStyle",
+    "fontWeight",
+    "fontStretch",
+    "fontVariant",
+    // The shorthand does not carry `font-variant-numeric`: it computes to
+    // "normal" on an element rendering tabular figures. Tabular and
+    // proportional digits have different advances, so an input that sets a
+    // numeric variant its parent lacks would otherwise be measured in the
+    // wrong one.
+    "fontVariantNumeric",
+    "letterSpacing",
+    "textTransform",
+    "wordSpacing",
+    "textIndent",
+];
+
+/**
+ * @param {HTMLInputElement} input
+ * @returns {number}
  */
 function measureTextWidth(input) {
     const span = document.createElement("span");
     span.style.position = "absolute";
     span.style.visibility = "hidden";
-    span.style.whiteSpace = "nowrap";
+    span.style.whiteSpace = "pre";
+    const inputStyle = window.getComputedStyle(input);
+    for (const property of TEXT_METRIC_PROPERTIES) {
+        span.style[property] = inputStyle[property];
+    }
     span.textContent = input.value;
     const container = input.parentNode || document.body;
     container.appendChild(span);
@@ -91,7 +115,9 @@ function measureTextWidth(input) {
 function resizeInput(input, options) {
     input.style.width = "100%";
     const maxWidth = input.clientWidth;
-    input.style.width = "10px";
+    // The measuring span is absolutely positioned and does not wrap, so its
+    // width does not depend on the input's; every path below assigns a width
+    // anyway, so the intermediate "10px" was a style write nobody could read.
     if (input.value === "" && input.placeholder !== "") {
         input.style.width = "auto";
         return;
@@ -120,10 +146,15 @@ export function resizeTextArea(textarea, options = {}) {
             parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
         heightOffset = borderHeight + paddingHeight;
     }
+    // Save what was *inline*, not what was computed: restoring the computed
+    // values wrote the stylesheet's padding and border onto the element, where
+    // they outrank every later rule. One resize was enough to freeze a
+    // textarea against its own breakpoints and theme.
     const previousStyle = {
-        borderTopWidth: style.borderTopWidth,
-        borderBottomWidth: style.borderBottomWidth,
-        padding: style.padding,
+        borderTopWidth: textarea.style.borderTopWidth,
+        borderBottomWidth: textarea.style.borderBottomWidth,
+        paddingTop: textarea.style.paddingTop,
+        paddingBottom: textarea.style.paddingBottom,
     };
     Object.assign(textarea.style, {
         height: "auto",
@@ -132,7 +163,6 @@ export function resizeTextArea(textarea, options = {}) {
         paddingTop: 0,
         paddingBottom: 0,
     });
-    textarea.style.height = "auto";
     const height = Math.max(minimumHeight, textarea.scrollHeight + heightOffset);
     Object.assign(textarea.style, previousStyle, { height: `${height}px` });
     if (textarea.parentElement) {
