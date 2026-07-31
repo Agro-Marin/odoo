@@ -79,7 +79,12 @@ missing. Never write an `fc-<hash>` literal; resolve names through
 `fcInternalClassName()` in `@web/views/calendar/hooks/full_calendar_hook`.
 
 **`pdfjs/`** ships the full viewer, which the npm package does not carry, so a bump
-starts from the `pdfjs-<v>-dist.zip` on the GitHub releases page. That archive does not
+starts from a release archive on the GitHub releases page — specifically the
+**legacy** one, `pdfjs-<v>-legacy-dist.zip`, never the plain `-dist.zip`. The modern
+build calls `Map.prototype.getOrInsertComputed` with no feature detection and no
+shipping browser implements it yet, so taking it breaks PDF preview everywhere
+(t24581); only the legacy build bundles the core-js polyfill, in both `build/pdf.js`
+and `build/pdf.worker.js`. A test in `pdfjs.test.js` gates this. That archive does not
 match the vendored layout: `addons/web/tooling/scripts/mechanise_pdfjs.sh
 <unzipped-dir>`
 reshapes it (`.mjs` to `.js`, source-map references stripped, scripting sandbox and

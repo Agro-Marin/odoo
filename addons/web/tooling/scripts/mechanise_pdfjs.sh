@@ -1,7 +1,13 @@
 #!/bin/bash
-# Reshape an upstream pdf.js prebuilt release ("pdfjs-<v>-dist.zip" from the
-# GitHub releases page -- the npm package ships no full viewer) into the layout
-# vendored here. Run this on the fresh release, then re-apply the fork's
+# Reshape an upstream pdf.js prebuilt release into the layout vendored here.
+# Take the LEGACY archive -- "pdfjs-<v>-legacy-dist.zip" from the GitHub
+# releases page, NOT the plain "-dist.zip": the modern build calls
+# Map.prototype.getOrInsertComputed with no feature detection and no shipping
+# browser implements it yet, so PDF preview breaks everywhere (t24581). Only the
+# legacy build carries the core-js polyfill, and it carries it in both
+# build/pdf.js and build/pdf.worker.js -- a hand-written prototype patch could
+# not, since it would never reach the worker. The npm package ships no full
+# viewer, which is why a release zip is the source at all. Run this on the fresh release, then re-apply the fork's
 # divergences, each of which is marked `AgroMarin:` in the file it lives in
 # (see addons/web/static/lib/README.md).
 #
