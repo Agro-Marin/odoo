@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_arch_parser - Parses search view XML arch into structured filter, groupby, and search panel items */
+/** @module @web/search/search_arch_parser */
 
 import { makeContext } from "@web/core/context";
 import { _t } from "@web/core/l10n/translation";
@@ -16,9 +16,6 @@ const DEFAULT_LIMIT = 200;
 const DEFAULT_VIEWS_WITH_SEARCH_PANEL = ["kanban", "list"];
 
 /**
- * Normalize an icon class value to FA7 format.
- * Bare FA4 names like 'fa-folder' are promoted to 'fa-solid fa-folder'.
- * Full FA7 class strings ('fa-solid …', 'fa-regular …', 'fa-brands …') pass through unchanged.
  * @param {string | null | undefined} iconClass
  * @returns {string | null}
  */
@@ -38,8 +35,6 @@ function _normalizeIconClass(iconClass) {
 }
 
 /**
- * Split the 'group_by' key from a context attribute; falls back to an
- * empty list for an invalid context or a missing 'group_by' key.
  * @param {string} context
  * @returns {string[]}
  */
@@ -52,7 +47,6 @@ function getContextGroupBy(context) {
 }
 
 /**
- * Normalize extended search item types to their base type.
  * @param {string} type
  * @returns {string}
  */
@@ -66,20 +60,13 @@ function reduceType(type) {
     return type;
 }
 
-/**
- * Parser that transforms a `<search>` view architecture XML into structured
- * pre-search items, search panel sections, and label resolution callbacks.
- */
 export class SearchArchParser {
     /**
      * @param {{ irFilters?: Object[], arch?: string }} searchViewDescription
-     * @param {Record<string, Object>} fields - field definitions from the model
-     * @param {Record<string, any>} [searchDefaults={}] - default search values from context
-     * @param {Record<string, any>} [searchPanelDefaults={}] - default search panel selections
-     * @param {Record<string, any>} [evalContext={}] - namespace for the `invisible`
-     *  expression of a `<searchpanel><field>`, which carries no search item and
-     *  so cannot be re-evaluated at read time the way `<filter>`/`<field>` are
-     *  by `getSearchItems`
+     * @param {Record<string, Object>} fields
+     * @param {Record<string, any>} [searchDefaults={}]
+     * @param {Record<string, any>} [searchPanelDefaults={}]
+     * @param {Record<string, any>} [evalContext={}]
      */
     constructor(
         searchViewDescription,
@@ -115,7 +102,6 @@ export class SearchArchParser {
     }
 
     /**
-     * Walk the search arch XML and produce structured output.
      * @returns {{ labels: Function[], preSearchItems: Array[], searchPanelInfo: Object, sections: Array[] }}
      */
     parse() {
@@ -154,8 +140,7 @@ export class SearchArchParser {
     }
 
     /**
-     * Flush the current group of pre-search items and start a new one.
-     * @param {string | null} [tag=null] - the type tag for the new group
+     * @param {string | null} [tag=null]
      */
     pushGroup(tag = null) {
         if (this.currentGroup.length) {
@@ -171,7 +156,6 @@ export class SearchArchParser {
     }
 
     /**
-     * Process a `<field>` node: extract domain, operator, defaults, and label callbacks.
      * @param {Element} node
      */
     visitField(node) {
@@ -286,8 +270,6 @@ export class SearchArchParser {
     }
 
     /**
-     * Process a `<filter>` node: detect type (filter, groupBy, dateGroupBy, dateFilter),
-     * handle defaults, and push to the current group.
      * @param {Element} node
      * @param {() => void} visitChildren
      */
@@ -402,7 +384,6 @@ export class SearchArchParser {
     }
 
     /**
-     * Process a `<filter>` child of a date filter — adds a custom period option.
      * @param {Element} node
      */
     visitDateOption(node) {
@@ -419,7 +400,6 @@ export class SearchArchParser {
     }
 
     /**
-     * Process a `<group>` node: flush current group, visit children, flush again.
      * @param {Element} node
      * @param {() => void} visitChildren
      */
@@ -430,7 +410,6 @@ export class SearchArchParser {
     }
 
     /**
-     * Process the root `<search>` node.
      * @param {Element} node
      * @param {() => void} visitChildren
      */
@@ -443,9 +422,8 @@ export class SearchArchParser {
     }
 
     /**
-     * Process the `<searchpanel>` node: build category and filter sections.
      * @param {Element} searchPanelNode
-     * @returns {false} stops the visitor from descending into children
+     * @returns {false}
      */
     visitSearchPanel(searchPanelNode) {
         let hasCategoryWithCounters = false;
@@ -465,10 +443,6 @@ export class SearchArchParser {
             if (node.tagName !== "field") {
                 continue;
             }
-            // Numbered before the visibility test, so hiding one field does not
-            // renumber the ones after it. Section ids key the SearchPanel's
-            // exported `expanded` state and `_sectionLoadIds`; shifting them
-            // reattaches a restored state to the wrong sections.
             const sectionId = nextSectionId++;
             if (this.isHidden(node)) {
                 continue;
@@ -493,11 +467,6 @@ export class SearchArchParser {
                 values: new Map(),
             };
             if (type === "category") {
-                // A category holds one active value, a filter a list of them;
-                // nothing enforces the two forms apart, so accept the list a
-                // caller naturally writes instead of letting
-                // `_ensureCategoryValue` find it among no known value id and
-                // silently bounce the user back to "All".
                 const categoryDefault = this.searchPanelDefaults[attrs.name];
                 section.activeValueId = Array.isArray(categoryDefault)
                     ? categoryDefault[0]
@@ -523,11 +492,6 @@ export class SearchArchParser {
             this.sections.push([section.id, section]);
         }
 
-        /**
-         * Category counters are auto-disabled when a filter domain exists, to
-         * avoid inconsistent counts. Quick fix; a proper solution would rework
-         * the search panel's counter computation.
-         */
         if (hasCategoryWithCounters && hasFilterWithDomain) {
             for (const section of this.sections) {
                 if (section[1].type === "category") {
@@ -544,7 +508,6 @@ export class SearchArchParser {
     }
 
     /**
-     * Whether a node's `invisible` attribute holds right now.
      * @param {Element} node
      * @returns {boolean}
      */
@@ -552,18 +515,6 @@ export class SearchArchParser {
         return isInvisible(node.getAttribute("invisible"), this.evalContext);
     }
 
-    /**
-     * Process a `<separator/>` node: flush the current group.
-     *
-     * `invisible` is deliberately NOT honoured here, and must not be: 44 shipped
-     * search views carry `<separator invisible="1"/>` inside the standard
-     * Activities block, and the split it performs is what makes
-     * `search_default_filter_activities_my` AND with
-     * `search_default_activities_overdue` instead of OR-ing (a separator is a
-     * group boundary, and `computeDomain` ORs within a group). Honouring the
-     * attribute silently rewrites those domains. The attribute is dead weight
-     * on this tag — a lint/view fix, not a client-side one.
-     */
     visitSeparator() {
         this.pushGroup();
     }

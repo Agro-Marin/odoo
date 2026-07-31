@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/utils/dates - Date period/quarter/interval option definitions and domain generators for search filters */
+/** @module @web/search/utils/dates */
 
 import { Domain } from "@web/core/domain";
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
@@ -49,9 +49,6 @@ const QUARTER_OPTIONS = {
 
 export const DEFAULT_INTERVAL = "month";
 
-/**
- * Time interval options that users can select in the views.
- */
 export const INTERVAL_OPTIONS = {
     year: { description: _t("Year"), id: "year", groupNumber: 1 },
     quarter: { description: _t("Quarter"), id: "quarter", groupNumber: 1 },
@@ -60,24 +57,11 @@ export const INTERVAL_OPTIONS = {
     day: { description: _t("Day"), id: "day", groupNumber: 1 },
 };
 
-/**
- * Time interval options supported by the backend.
- * These options are not available in the views UI, but can be used in dashboards.
- */
 export const BACKEND_INTERVAL_OPTIONS = {
     ...INTERVAL_OPTIONS,
     hour: { description: _t("Hour"), id: "hour" },
 };
 
-/**
- * Constructs the string representation of a domain and its description. The
- * domain is of the form:
- *      ['|', d_1 ,..., '|', d_n]
- * where d_i is a time range of the form
- *      ['&', [fieldName, >=, leftBound_i], [fieldName, <=, rightBound_i]]
- * where leftBound_i and rightBound_i are date or datetime computed accordingly
- * to the given options and reference moment.
- */
 export function constructDateDomain(referenceMoment, searchItem, selectedOptionIds) {
     const selectedOptions = getSelectedOptions(
         referenceMoment,
@@ -85,10 +69,6 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
         selectedOptionIds,
     );
     if ("withDomain" in selectedOptions) {
-        // OR'd like every other multi-selection. `toggleDateFilter` keeps at
-        // most one custom option in the query, so this normally has a single
-        // entry — but silently honouring only the first would make the function
-        // lie about any state it is handed (imported query, direct caller).
         const customOptions = /** @type {any[]} */ (selectedOptions.withDomain);
         return {
             description: customOptions.map((o) => o.description).join("/"),
@@ -150,13 +130,6 @@ export function constructDateDomain(referenceMoment, searchItem, selectedOptionI
     return { domain, description };
 }
 
-/**
- * Constructs the string representation of a domain and its description. The
- * domain is a time range of the form:
- *      ['&', [fieldName, >=, leftBound],[fieldName, <=, rightBound]]
- * where leftBound and rightBound are some date or datetime determined by setParam,
- * plusParam, granularity and the reference moment.
- */
 export function constructDateRange(params) {
     const { referenceMoment, fieldName, fieldType, granularity, plusParam } = params;
     const setParam = { ...params.setParam };
@@ -194,7 +167,6 @@ export function constructDateRange(params) {
 }
 
 /**
- * Returns a version of the options in INTERVAL_OPTIONS with translated descriptions.
  * @see getOptionsWithDescriptions
  */
 export function getIntervalOptions() {
@@ -202,7 +174,6 @@ export function getIntervalOptions() {
 }
 
 /**
- * Returns a version of the options in OPTIONS with translated descriptions (if any).
  * @param {object} OPTIONS
  * @returns {object[]}
  */
@@ -217,10 +188,6 @@ export function getOptionsWithDescriptions(OPTIONS) {
     return options;
 }
 
-/**
- * Returns the period options relative to the referenceMoment for a date filter, with translated
- * descriptions and a key defautlYearId used in the control panel model when toggling a period option.
- */
 export function getPeriodOptions(referenceMoment, optionsParams) {
     return [
         ...getMonthPeriodOptions(referenceMoment, optionsParams),
@@ -231,10 +198,9 @@ export function getPeriodOptions(referenceMoment, optionsParams) {
 }
 
 /**
- * Build a period option ID string from a unit and numeric offset.
- * @param {string} unit - "year", "month", etc.
+ * @param {string} unit
  * @param {number} [offset=0]
- * @returns {string} e.g. "year+2", "month-1", "year"
+ * @returns {string}
  */
 export function toGeneratorId(unit, offset) {
     if (!offset) {
@@ -325,10 +291,6 @@ function getCustomPeriodOptions(optionsParams) {
     }));
 }
 
-/**
- * Returns a partial version of the period options whose ids are in selectedOptionIds
- * partitioned by granularity.
- */
 export function getSelectedOptions(referenceMoment, searchItem, selectedOptionIds) {
     const selectedOptions = { year: [] };
     const periodOptions = getPeriodOptions(referenceMoment, searchItem.optionsParams);
@@ -351,10 +313,6 @@ export function getSelectedOptions(referenceMoment, searchItem, selectedOptionId
     return selectedOptions;
 }
 
-/**
- * Returns the setParam object associated with the given periodOption and
- * referenceMoment.
- */
 export function getSetParam(periodOption, referenceMoment) {
     if (periodOption.granularity === "quarter") {
         return periodOption.setParam;
@@ -366,17 +324,6 @@ export function getSetParam(periodOption, referenceMoment) {
 }
 
 /**
- * Rank an interval from coarsest to finest (year=0 … day=4, hour=5); -1 for an
- * id that is not an interval at all.
- *
- * Ranked against the BACKEND options, not the five the UI offers: `hour` is a
- * legal group-by interval (`getGroupBy` accepts it, and a `<filter
- * context="{'group_by': 'x:hour'}">` puts it straight into the query), and
- * ranking it -1 made it the *coarsest* of all. That inverted both callers —
- * `getQueryGroups` sorted an hour interval before the year, and the graph
- * model, which keeps the finest interval when a field is grouped twice,
- * discarded the hour and kept whatever else was there.
- *
  * @param {string} intervalOptionId
  * @returns {number}
  */
@@ -384,9 +331,6 @@ export function rankInterval(intervalOptionId) {
     return Object.keys(BACKEND_INTERVAL_OPTIONS).indexOf(intervalOptionId);
 }
 
-/**
- * Sorts in place an array of 'period' options.
- */
 export function sortPeriodOptions(options) {
     options.sort((o1, o2) => {
         const granularity1 = o1.granularity;
@@ -398,9 +342,6 @@ export function sortPeriodOptions(options) {
     });
 }
 
-/**
- * Checks if a year id is among the given array of period option ids.
- */
 export function yearSelected(selectedOptionIds) {
     return selectedOptionIds.some((optionId) => optionId.startsWith("year"));
 }

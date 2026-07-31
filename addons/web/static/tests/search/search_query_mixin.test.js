@@ -18,6 +18,8 @@ import { luxon } from "@web/core/l10n/luxon";
 import { SearchQueryMixin } from "@web/search/search_query_mixin";
 import { SPECIAL } from "@web/search/search_state";
 
+describe.current.tags("headless");
+
 /** Concrete class exercising the mixin methods in isolation. */
 const QueryModel = SearchQueryMixin(class {});
 

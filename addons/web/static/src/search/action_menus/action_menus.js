@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/action_menus/action_menus - Action/Print dropdown menus for executing server actions on selected records */
+/** @module @web/search/action_menus/action_menus */
 
 import { Component, onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -17,7 +17,6 @@ export const STATIC_ACTIONS_GROUP_NUMBER = 1;
 export const ACTIONS_GROUP_NUMBER = 100;
 
 /**
- * Action/Print bar: dropdowns for executing server actions on selected records.
  * @extends Component
  */
 export class ActionMenus extends Component {
@@ -65,8 +64,7 @@ export class ActionMenus extends Component {
     }
 
     /**
-     * Transform raw action items into display-ready objects.
-     * @param {Object} props - component props
+     * @param {Object} props
      * @returns {Promise<Array<{key: string, groupNumber: number, description?: string, action?: Object, callback?: Function}>>}
      */
     async getActionItems(props) {
@@ -91,7 +89,6 @@ export class ActionMenus extends Component {
     }
 
     /**
-     * Execute an ir.actions.* action with the current selection context.
      * @param {{ id: number, name: string }} action
      * @returns {Promise<void>}
      */
@@ -119,7 +116,6 @@ export class ActionMenus extends Component {
     }
 
     /**
-     * Dispatch a selected item to its callback, action, or URL.
      * @private
      * @param {Object} item
      */
@@ -137,8 +133,6 @@ export class ActionMenus extends Component {
     }
 
     /**
-     * Load and filter print report actions, excluding those whose domain
-     * doesn't match the current record selection.
      * @returns {Promise<Array<{action: Object, class: string, description: string, key: number}>>}
      */
     async loadAvailablePrintItems() {
@@ -168,13 +162,6 @@ export class ActionMenus extends Component {
             }));
     }
 
-    /**
-     * Load print items and extra items, populating `state.printItems`.
-     *
-     * Runs on every dropdown open, so closing and reopening while the first
-     * fetch is in flight starts a second one; `keepLast` drops the loser so a
-     * slow earlier run cannot land after (and overwrite) a newer one.
-     */
     async loadPrintItems() {
         if (!this.props.items.print?.length) {
             return;

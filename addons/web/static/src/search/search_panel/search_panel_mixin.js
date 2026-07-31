@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_panel/search_panel_mixin - Search panel section management mixed into SearchModel */
+/** @module @web/search/search_panel/search_panel_mixin */
 
 import { Domain } from "@web/core/domain";
 import { SearchModelEvent } from "@web/core/events";
@@ -28,30 +28,12 @@ function sectionErrorMessage(error) {
 }
 
 /**
- * Search panel category/filter section management for SearchModel.
- *
- * Mixed into SearchModel (``class SearchModel extends SearchPanelMixin(EventBus)``)
- * rather than kept as a sibling module of pass-``this`` functions: the methods
- * here live on the SearchModel prototype chain, so subclasses (e.g. enterprise
- * ``documents_search_model``) still override ``_createCategoryTree`` /
- * ``_getCategoryDomain`` / ``_ensureCategoryValue`` and reach them via ``super``.
- * Because every call routes through ``this``, an overridden ``_createCategoryTree``
- * is honoured by ``_fetchCategories`` without any proxy round-trip.
- *
- * State owned here but declared/initialised by SearchModel: ``sections`` (Map),
- * ``_sections`` (memo), ``_sectionLoadIds`` (Map), ``searchPanelInfo``,
- * ``searchDomain``, ``sectionsPromise``. Domain builders (``_getDomain``,
- * ``_getCategoryDomain``, ``_getFilterDomain``, ``_getGroupDomain``), ``_reset``,
- * ``_notify`` and the ``_reloadMutex`` live on SearchModel and are reached via
- * ``this``.
- *
  * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchPanelMixin = (Base) =>
     class extends Base {
         /**
-         * Set the active value of a category.
          * @param {number} sectionId
          * @param {number} valueId
          */
@@ -62,7 +44,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Toggle filter values on or off.
          * @param {number} sectionId
          * @param {number[]} valueIds
          * @param {boolean|null} [forceTo=null]
@@ -80,7 +61,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Clear all values from the provided sections.
          * @param {number[]} sectionIds
          */
         clearSections(sectionIds) {
@@ -98,14 +78,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Returns a list of section copies, optionally filtered.
-         * Section order is the ``sections`` Map insertion order (arch order).
-         *
-         * Memoised like _facets/_groups: SearchPanel hits this getter several
-         * times per render. Cleared in _reset() and whenever a section is mutated
-         * outside a query cycle (tree rebuilds, fetch error stamps); consumers
-         * treat the returned sections as read-only.
-         *
          * @param {SectionPredicate} [predicate]
          * @returns {Section[]}
          */
@@ -124,7 +96,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Build a category tree from ORM results.
          * @param {number} sectionId
          * @param {Object} result
          */
@@ -137,7 +108,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Build a filter tree from ORM results.
          * @param {number} sectionId
          * @param {Object} result
          */
@@ -148,7 +118,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Ensure the active category value is among existing values.
          * @param {Category} category
          * @param {number[]} valueIds
          */
@@ -158,18 +127,6 @@ export const SearchPanelMixin = (Base) =>
             }
         }
 
-        /**
-         * Announce that a section's values were rewritten by a late disk-cache
-         * hit, outside any query mutation.
-         *
-         * The two `orm.cache` callbacks used to `_reset()` + `trigger(UPDATE)`
-         * inline, which is the ONE write path that ignored the batching the rest
-         * of the model funnels through `_notify`: N refreshed sections fired N
-         * renders, and a hit landing inside a blocked window (`load`,
-         * `_reloadSections`, `_withNotificationsBlocked`) fired anyway. Deferring
-         * to the pending-notification flag lets the opener drain it, exactly as
-         * a query mutation raised during that window is drained.
-         */
         _notifySectionRefreshed() {
             this._reset();
             if (this.blockNotification) {
@@ -180,7 +137,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Fetch values for each category at startup or reload.
          * @param {Category[]} categories
          * @returns {Promise}
          */
@@ -191,6 +147,16 @@ export const SearchPanelMixin = (Base) =>
                 categories.map(async (category) => {
                     const loadId = (this._sectionLoadIds.get(category.id) || 0) + 1;
                     this._sectionLoadIds.set(category.id, loadId);
+                    const kwargs = {
+                        category_domain: this._getCategoryDomain(category.id),
+                        context: this.globalContext,
+                        enable_counters: category.enableCounters,
+                        expand: category.expand,
+                        filter_domain: filterDomain,
+                        hierarchize: category.hierarchize,
+                        limit: category.limit,
+                        search_domain: searchDomain,
+                    };
                     let result;
                     try {
                         result = await this.orm
@@ -212,18 +178,7 @@ export const SearchPanelMixin = (Base) =>
                                 this.resModel,
                                 "search_panel_select_range",
                                 [category.fieldName],
-                                {
-                                    category_domain: this._getCategoryDomain(
-                                        category.id,
-                                    ),
-                                    context: this.globalContext,
-                                    enable_counters: category.enableCounters,
-                                    expand: category.expand,
-                                    filter_domain: filterDomain,
-                                    hierarchize: category.hierarchize,
-                                    limit: category.limit,
-                                    search_domain: searchDomain,
-                                },
+                                kwargs,
                             );
                     } catch (error) {
                         if (loadId === this._sectionLoadIds.get(category.id)) {
@@ -243,7 +198,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Fetch values for each filter section.
          * @param {Filter[]} filters
          * @returns {Promise}
          */
@@ -258,6 +212,18 @@ export const SearchPanelMixin = (Base) =>
                 filters.map(async (filter) => {
                     const loadId = (this._sectionLoadIds.get(filter.id) || 0) + 1;
                     this._sectionLoadIds.set(filter.id, loadId);
+                    const kwargs = {
+                        category_domain: categoryDomain,
+                        comodel_domain: new Domain(filter.domain).toList(evalContext),
+                        context: this.globalContext,
+                        enable_counters: filter.enableCounters,
+                        filter_domain: this._getFilterDomain(filter.id),
+                        expand: filter.expand,
+                        group_by: filter.groupBy || false,
+                        group_domain: this._getGroupDomain(filter),
+                        limit: filter.limit,
+                        search_domain: searchDomain,
+                    };
                     let result;
                     try {
                         result = await this.orm
@@ -279,20 +245,7 @@ export const SearchPanelMixin = (Base) =>
                                 this.resModel,
                                 "search_panel_select_multi_range",
                                 [filter.fieldName],
-                                {
-                                    category_domain: categoryDomain,
-                                    comodel_domain: new Domain(filter.domain).toList(
-                                        evalContext,
-                                    ),
-                                    context: this.globalContext,
-                                    enable_counters: filter.enableCounters,
-                                    filter_domain: this._getFilterDomain(filter.id),
-                                    expand: filter.expand,
-                                    group_by: filter.groupBy || false,
-                                    group_domain: this._getGroupDomain(filter),
-                                    limit: filter.limit,
-                                    search_domain: searchDomain,
-                                },
+                                kwargs,
                             );
                     } catch (error) {
                         if (loadId === this._sectionLoadIds.get(filter.id)) {
@@ -312,7 +265,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Fetch values for the given categories and filters.
          * @param {Category[]} categoriesToLoad
          * @param {Filter[]} filtersToLoad
          * @returns {Promise}
@@ -324,8 +276,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Reload sections when search domain changes or search panel becomes visible.
-         * Serialised through ``_reloadMutex`` (owned by SearchModel).
          * @returns {Promise<void>}
          */
         async _reloadSections() {
@@ -369,7 +319,6 @@ export const SearchPanelMixin = (Base) =>
         }
 
         /**
-         * Whether the query should wait for section data before proceeding.
          * @param {boolean} searchDomainChanged
          * @returns {boolean}
          */

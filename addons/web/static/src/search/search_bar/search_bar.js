@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_bar/search_bar - Search bar with autocomplete suggestions, facet display, and keyboard navigation */
+/** @module @web/search/search_bar/search_bar */
 
 import { Component, status, useRef, useState } from "@odoo/owl";
 import { DomainSelectorDialog } from "@web/components/domain_selector_dialog/domain_selector_dialog";
@@ -78,6 +78,50 @@ export class SearchBar extends Component {
         autofocus: true,
     };
 
+    // Declared here, assigned in setup(). Definite assignment analysis credits
+    // only the constructor, so without these every read would be
+    // `T | undefined`. Safe on an OWL Component, whose setup() runs after
+    // construction — NOT on a Model, which calls setup() from its own
+    // constructor and would be clobbered by a field initialiser.
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialogService;
+    /** @type {{ el: HTMLElement | null }} */
+    root;
+    /** @type {import("services").ServiceFactories["ui"]} */
+    ui;
+    /** @type {{ showSearchBar: boolean }} */
+    visibilityState;
+    /**
+     * @type {{
+     *  expanded: any[];
+     *  query: string;
+     *  subItemsLimits: Record<string, number>;
+     * }}
+     */
+    state;
+    /** @type {any[]} */
+    items;
+    /** @type {Record<string, any>} */
+    subItems;
+    /** @type {{ el: HTMLElement | null }} */
+    facetContainerRef;
+    /** @type {ReturnType<typeof useChildRef>} */
+    menuRef;
+    /** @type {ReturnType<typeof useDropdownState>} */
+    inputDropdownState;
+    /** @type {ReturnType<SearchBar["getDropdownNavigation"]>} */
+    inputDropdownNavOptions;
+    /** @type {ReturnType<typeof useDropdownState>} */
+    searchBarDropdownState;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {KeepLast<any>} */
+    keepLast;
+    /** @type {Map<string, Promise<any>>} */
+    _pendingSubItems;
+    /** @type {{ el: HTMLElement | null }} */
+    inputRef;
+
     setup() {
         this.dialogService = useService("dialog");
         this.root = useRef("root");
@@ -121,19 +165,11 @@ export class SearchBar extends Component {
         useBus(this.env.searchModel, SearchModelEvent.UPDATE, () => this.render());
     }
 
-    /**
-     * Live view instead of a setup-time snapshot: `invisible` expressions and
-     * refreshed descriptions (properties flow) must be re-evaluated. Cheap —
-     * the search model memoizes its enriched items per query cycle.
-     */
     get searchItemsFields() {
         return this.env.searchModel.getSearchItems((f) => f.type === "field");
     }
 
     /**
-     * Live, like {@link searchItemsFields} and `SearchBarMenu.fields`: the
-     * properties flow adds `<field>.<property>` entries to `searchViewFields`
-     * after setup, and `load` replaces the object wholesale.
      * @returns {Record<string, Object>}
      */
     get fields() {
@@ -155,14 +191,22 @@ export class SearchBar extends Component {
      * @returns {Promise<void>}
      */
     async computeState(options = {}) {
-        const query = "query" in options ? options.query : this.state.query;
-        const subItems = "subItems" in options ? options.subItems : this.subItems;
-        // A `field_property` item is retired as soon as its definition
-        // disappears from the parent record (`getSearchItemsProperties`), so an
-        // id captured when the user expanded it can already be gone.
+        const query =
+            "query" in options
+                ? /** @type {string} */ (options.query)
+                : this.state.query;
+        const subItems =
+            "subItems" in options
+                ? /** @type {Record<number, Object[]>} */ (options.subItems)
+                : this.subItems;
         const expanded = (
-            "expanded" in options ? options.expanded : this.state.expanded
-        ).filter((id) => this.getSearchItem(id));
+            "expanded" in options
+                ? /** @type {number[]} */ (options.expanded)
+                : this.state.expanded
+        ).filter((id) => {
+            const searchItem = this.getSearchItem(id);
+            return searchItem && this.getFieldType(searchItem) !== undefined;
+        });
 
         const tasks = [];
         for (const id of expanded) {
@@ -237,7 +281,6 @@ export class SearchBar extends Component {
         const isFieldProperty = searchItem.type === "field_property";
         const fieldType = this.getFieldType(searchItem);
 
-        /** @todo do something with respect to localization (rtl) */
         let preposition = this.getPreposition(searchItem);
 
         if (
@@ -270,7 +313,6 @@ export class SearchBar extends Component {
                         preposition,
                         searchItemId: searchItem.id,
                         label,
-                        /** @todo check if searchItem.operator is fine (here and elsewhere) */
                         operator: searchItem.operator || "=",
                         value,
                         isFieldProperty,
@@ -338,9 +380,6 @@ export class SearchBar extends Component {
     }
 
     getFieldType(searchItem) {
-        // `searchViewFields` is replaced wholesale by `load` and extended at
-        // runtime by the properties flow, so a search item can momentarily name
-        // a field the current map has not got.
         const { type } =
             (searchItem.type === "field_property"
                 ? searchItem.propertyFieldDefinition
@@ -357,12 +396,6 @@ export class SearchBar extends Component {
     }
 
     /**
-     * Dedup wrapper around {@link computeSubItems}: reuse a still-pending fetch
-     * for the same (searchItemId, query, limit) instead of firing a duplicate
-     * name_search. Without this, expanding item B while item A's fetch is in
-     * flight refetches A — the superseded call's `subItems[A]` write never
-     * lands, so the next computeState sees `!subItems[A]` and refetches.
-     *
      * @param {Object} searchItem
      * @param {string} query
      * @returns {Promise<Object[]>}
@@ -522,15 +555,9 @@ export class SearchBar extends Component {
                 !item.isChild
             ) {
                 try {
-                    // Label and value are one unit: adopting the newer query as
-                    // the label while its parse fails leaves the facet naming a
-                    // value the domain does not use. Rapid typing gets here —
-                    // the item was built for an earlier query.
                     value = parseValue(this.state.query.trim(), fieldType);
                     label = this.state.query;
-                } catch {
-                    // keep the pair the item was built with
-                }
+                } catch {}
             }
             this.env.searchModel.addAutoCompletionValues(searchItemId, {
                 label,
@@ -590,8 +617,7 @@ export class SearchBar extends Component {
                 },
                 enter: {
                     isAvailable: () => !this.inputDropdownState.isOpen,
-                    callback: () =>
-                        this.env.searchModel.search() /** @todo keep this thing ?*/,
+                    callback: () => this.env.searchModel.search(),
                 },
                 arrowdown: {
                     callback: () =>
@@ -712,8 +738,6 @@ export class SearchBar extends Component {
                             this.items.findIndex(
                                 (item) => item.isParent && item.searchItemId === id,
                             );
-                        // `isAvailable` already established that `item` is one
-                        // of these three; there is no fourth case to handle.
                         if (item.isParent && item.isExpanded) {
                             this.toggleItem(item, false);
                         } else if (item.isChild) {
@@ -730,11 +754,23 @@ export class SearchBar extends Component {
     }
 
     /**
-     * Whether clicking a facet's label does anything — it flips the count sort
-     * on a group-by facet, or opens the domain editor on a facet that carries
-     * one. The template used to re-derive half of this and got it wrong: a
-     * count-sortable group-by facet has no `domain` (group-by items contribute
-     * none), so it rendered as `role="img"` while still being clickable.
+     * @param {Object} facet
+     * @returns {string}
+     */
+    getFacetName(facet) {
+        const values = facet.values.join(` ${facet.separator} `);
+        return facet.title ? `${facet.title}: ${values}` : values;
+    }
+
+    /**
+     * @param {Object} facet
+     * @returns {string}
+     */
+    getFacetRemoveLabel(facet) {
+        return _t("Remove %s", this.getFacetName(facet));
+    }
+
+    /**
      * @param {Object} facet
      * @returns {boolean}
      */

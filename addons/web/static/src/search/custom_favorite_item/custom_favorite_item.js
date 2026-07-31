@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/custom_favorite_item/custom_favorite_item - Dropdown form for saving the current search as a named favorite filter */
+/** @module @web/search/custom_favorite_item/custom_favorite_item */
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -12,7 +12,6 @@ import { useService } from "@web/core/utils/hooks";
 import { editFavoriteFilter } from "@web/search/utils/misc";
 const favoriteMenuRegistry = registry.category("favoriteMenu");
 
-/** Dropdown form for saving the current search as a named favorite filter. */
 export class CustomFavoriteItem extends Component {
     static template = "web.CustomFavoriteItem";
     static components = { CheckBox, AccordionItem };

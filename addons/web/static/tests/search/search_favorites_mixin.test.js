@@ -21,6 +21,8 @@ import {
     FAVORITE_SHARED_GROUP,
 } from "@web/search/search_state";
 
+describe.current.tags("headless");
+
 /** Concrete class exercising the mixin methods in isolation. */
 const FavoritesModel = SearchFavoritesMixin(class {});
 

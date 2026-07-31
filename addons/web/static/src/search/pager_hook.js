@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/pager_hook - OWL hook that injects reactive pager props into the sub-environment */
+/** @module @web/search/pager_hook */
 
 import { onWillRender, useEnv, useState, useSubEnv } from "@odoo/owl";
 
@@ -26,6 +26,7 @@ import { onWillRender, useEnv, useState, useSubEnv } from "@odoo/owl";
  */
 export function usePager(getProps) {
     const env = useEnv();
+    /** @type {Record<string, any>} */
     const pagerState = useState({});
 
     useSubEnv({
@@ -34,19 +35,10 @@ export function usePager(getProps) {
             pagerProps: pagerState,
         },
     });
-    // Plain closure, never `Object.keys(pagerState)`: reading the reactive
-    // object here would subscribe the owning component to its own key set, and
-    // the writes below would then schedule a second render of every view that
-    // pages.
+    /** @type {string[]} */
     let previousKeys = [];
     onWillRender(() => {
         const props = getProps() || { total: 0 };
-        // Replace, don't merge: `Object.assign` alone left every key the
-        // previous render set and this one omits, so the ControlPanel spread
-        // `<Pager t-props="pagerProps"/>` kept receiving it. Callers were
-        // papering over that by hand — list_controller still writes
-        // `updateTotal: <cond> ? fn : undefined` purely so the key gets
-        // overwritten rather than inherited.
         for (const key of previousKeys) {
             if (!(key in props)) {
                 delete pagerState[key];

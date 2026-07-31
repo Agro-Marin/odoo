@@ -1,9 +1,8 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/utils/misc - Shared constants and helpers for search facet icons, colors, groupable field types, and favorite filters */
+/** @module @web/search/utils/misc */
 
-/** Icon classes for each search facet type. */
 export const FACET_ICONS = {
     filter: "fa-solid fa-filter",
     groupBy: "oi oi-group",
@@ -12,14 +11,13 @@ export const FACET_ICONS = {
     favorite: "fa-solid fa-star",
 };
 
-/** Bootstrap color variants for each search facet type. */
 export const FACET_COLORS = {
     filter: "primary",
     groupBy: "action",
     favorite: "warning",
 };
 
-/** @type {string[]} Field types that support the "Group By" operation. */
+/** @type {string[]} */
 export const GROUPABLE_TYPES = [
     "boolean",
     "char",
@@ -33,10 +31,9 @@ export const GROUPABLE_TYPES = [
 ];
 
 /**
- * Open the form view of an ir.filters record to edit a favorite filter.
- * @param {Object} actionService
- * @param {number} resId - id of the ir.filters record
- * @returns {Promise}
+ * @param {Record<string, any>} actionService
+ * @param {number} resId
+ * @returns {Promise<any>}
  */
 export function editFavoriteFilter(actionService, resId) {
     return actionService.doAction({

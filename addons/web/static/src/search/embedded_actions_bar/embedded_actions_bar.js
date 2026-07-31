@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/embedded_actions_bar/embedded_actions_bar - Embedded actions tab bar: per-user visibility, ordering, creation and deletion of embedded actions */
+/** @module @web/search/embedded_actions_bar/embedded_actions_bar */
 
 import {
     Component,
@@ -44,11 +44,6 @@ import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
  * @property {any} [group_ids]
  */
 
-/**
- * Manages per-user embedded action visibility, ordering, and configuration.
- *
- * Persists settings to `res.users.settings` keyed by `parentActionId+activeId`.
- */
 export class EmbeddedActionsConfigHandler {
     /**
      * @param {number|string} parentActionId
@@ -75,11 +70,8 @@ export class EmbeddedActionsConfigHandler {
     }
 
     /**
-     * @param {Object} config - partial config to merge (e.g.
-     *  { embedded_visibility: true }); must be plain serializable data —
-     *  callers pass copies, never live reactive arrays
-     * @returns {Promise<boolean>} never rejects: on failure, the local cache
-     *  is reverted, a notification is shown and `false` is returned
+     * @param {Object} config
+     * @returns {Promise<boolean>}
      */
     async setEmbeddedActionsConfig(config) {
         config = structuredClone(config);
@@ -129,19 +121,19 @@ export class EmbeddedActionsConfigHandler {
     }
 
     /**
-     * @param {string} key - config key (e.g. "embedded_visibility", "embedded_actions_order")
+     * @param {string} key
      * @returns {any}
      */
     getEmbeddedActionsConfig(key) {
         return this.embeddedActionsConfig[this.embeddedActionsKey]?.[key];
     }
 
-    /** @returns {boolean} whether a config entry exists for this action+activeId key */
+    /** @returns {boolean} */
     hasEmbeddedActionsConfig() {
         return this.embeddedActionsKey in this.embeddedActionsConfig;
     }
 
-    /** @returns {Promise<Object>} embedded actions settings from the database */
+    /** @returns {Promise<Object>} */
     async fetchEmbeddedActionsConfig() {
         return await this.orm.call(
             "res.users.settings",
@@ -156,7 +148,7 @@ export class EmbeddedActionsConfigHandler {
         );
     }
 
-    /** @param {Object} newSettings - settings map to merge into local cache */
+    /** @param {Object} newSettings */
     updateEmbeddedActionsConfig(newSettings) {
         for (const [key, value] of Object.entries(newSettings)) {
             this.embeddedActionsConfig[key] = value;
@@ -164,23 +156,14 @@ export class EmbeddedActionsConfigHandler {
     }
 }
 
-/**
- * Holds the embedded actions state shared between the ControlPanel (toggle
- * button, mobile dropdown) and the EmbeddedActionsBar (desktop tab bar), and
- * implements every embedded-action behavior: show/hide persistence, per-action
- * visibility, creation ("Save View"), deletion, reordering, and execution.
- *
- * The reactive `embeddedInfos` object is the single source of truth; each
- * component subscribes to it with `useState`.
- */
 export class EmbeddedActions {
     /**
      * @param {Object} params
-     * @param {Object} params.env - component env (config, searchModel)
+     * @param {Object} params.env
      * @param {Object} params.orm
      * @param {Object} params.notification
      * @param {Object} params.dialog
-     * @param {Object} params.action - action service
+     * @param {Object} params.action
      */
     constructor({ env, orm, notification, dialog, action }) {
         this.env = env;
@@ -221,7 +204,9 @@ export class EmbeddedActions {
             this.notificationService,
         );
 
-        /** @type {{showEmbedded: boolean, embeddedActions: EmbeddedAction[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: (number|false)[], currentEmbeddedAction: EmbeddedAction}} */
+        /**
+         * @type {{showEmbedded: boolean, embeddedActions: EmbeddedAction[], newActionIsShared: boolean, newActionName: string, visibleEmbeddedActions: (number|false)[], currentEmbeddedAction: EmbeddedAction}}
+         */
         this.embeddedInfos = reactive({
             showEmbedded:
                 !!this.configHandler.getEmbeddedActionsConfig("embedded_visibility"),
@@ -259,7 +244,7 @@ export class EmbeddedActions {
         );
     }
 
-    /** @returns {string} default name for a new embedded action */
+    /** @returns {string} */
     get defaultNewActionName() {
         if (this.currentEmbeddedAction?.name) {
             return _t("Custom %s", this.currentEmbeddedAction.name);
@@ -276,11 +261,6 @@ export class EmbeddedActions {
         return this.embeddedInfos.visibleEmbeddedActions.includes(action.id);
     }
 
-    /**
-     * Show or hide the embedded actions bar, persisting `embedded_visibility`.
-     * On first display without a locally cached config, syncs the config from
-     * the database (it may have been changed from another browser session).
-     */
     async toggleBar() {
         if (this._togglingBar) {
             return;
@@ -295,7 +275,7 @@ export class EmbeddedActions {
         }
     }
 
-    /** @param {boolean} showEmbedded target visibility being persisted */
+    /** @param {boolean} showEmbedded */
     async _applyBarVisibility(showEmbedded) {
         if (showEmbedded && !this.configHandler.hasEmbeddedActionsConfig()) {
             const embeddedSettings =
@@ -351,15 +331,6 @@ export class EmbeddedActions {
     }
 
     /**
-     * Toggles an action's visibility in the cached visibleEmbeddedActions
-     * list (avoids re-parsing user settings on every access) and persists it.
-     * On persistence failure the visible UI is restored too, so it cannot
-     * silently diverge from the cache and the server.
-     *
-     * The rollback undoes THIS toggle against the current list rather than
-     * restoring a snapshot: the save is awaited, so a second toggle (of any
-     * action) can land in between, and putting the pre-toggle array back would
-     * silently discard it.
      * @param {number|false} actionId
      * @returns {Promise<void>}
      */
@@ -380,11 +351,7 @@ export class EmbeddedActions {
     }
 
     /**
-     * Creates a new embedded action from the current view state, together with
-     * a default favorite carrying the current search context.
-     *
-     * @returns {Promise<boolean>} false when the name is missing or duplicated
-     *  (a danger notification is shown), true on success
+     * @returns {Promise<boolean>}
      */
     async saveNewAction() {
         const {
@@ -488,8 +455,6 @@ export class EmbeddedActions {
     }
 
     /**
-     * Asks for confirmation before deleting the given embedded action.
-     *
      * @param {EmbeddedAction} action
      */
     confirmDelete(action) {
@@ -544,8 +509,6 @@ export class EmbeddedActions {
     }
 
     /**
-     * Executes the given embedded action, replacing the current action.
-     *
      * @param {EmbeddedAction} action
      */
     async openAction(action) {
@@ -596,24 +559,35 @@ export class EmbeddedActions {
     }
 
     /**
-     * Computes and persists the new tab order after a drag-and-drop.
+     * Buttons carry their position in `embeddedActions`, not their action id:
+     * the main action's id is `false`, and OWL removes a `t-att-` attribute
+     * whose value is `false` rather than rendering it, so an id read back from
+     * the DOM is `undefined` for exactly the action this reorders.
      *
      * @param {Object} params
      * @param {HTMLElement} params.element
      * @param {HTMLElement} [params.previous]
      */
     async reorderFromDrop({ element, previous }) {
-        const previousActions = [...this.embeddedInfos.embeddedActions];
-        const order = this.embeddedInfos.embeddedActions.map((el) => el.id);
-        const elementId = Number(element.dataset.id) || false;
-        const elementIndex = order.indexOf(elementId);
-        order.splice(elementIndex, 1);
-        if (previous) {
-            const prevIndex = order.indexOf(Number(previous.dataset.id) || false);
-            order.splice(prevIndex + 1, 0, elementId);
-        } else {
-            order.splice(0, 0, elementId);
+        const actions = this.embeddedInfos.embeddedActions;
+        /** @param {HTMLElement} [el] */
+        const positionOf = (el) => {
+            const position = Number(el?.dataset.embeddedIndex);
+            return Number.isInteger(position) && actions[position] ? position : -1;
+        };
+        const elementIndex = positionOf(element);
+        if (elementIndex === -1) {
+            return;
         }
+        const previousIndex = positionOf(previous);
+        const order = actions.map((el) => el.id);
+        const elementId = order[elementIndex];
+        const previousId = previousIndex === -1 ? undefined : order[previousIndex];
+        const previousActions = [...actions];
+        order.splice(elementIndex, 1);
+        // `indexOf` is taken after the removal, so it is the post-splice seat.
+        const insertAt = previousIndex === -1 ? 0 : order.indexOf(previousId) + 1;
+        order.splice(insertAt, 0, elementId);
         this.sortActions(order);
         const saved = await this.configHandler.setEmbeddedActionsConfig({
             embedded_actions_order: order,
@@ -625,10 +599,6 @@ export class EmbeddedActions {
 }
 
 /**
- * Builds the embedded actions state for the current view, or returns `null`
- * when the action provides no embedded actions — in that case none of the
- * embedded machinery (config handler, reactive state, persistence) is set up.
- *
  * @returns {EmbeddedActions | null}
  */
 export function useEmbeddedActions() {
@@ -646,17 +616,6 @@ export function useEmbeddedActions() {
     });
 }
 
-/**
- * Desktop tab bar listing the visible embedded actions of the current action,
- * with drag-and-drop reordering and a configuration dropdown (per-action
- * visibility, "Save View").
- *
- * All state and behavior live in the shared {@link EmbeddedActions} model
- * owned by the ControlPanel; this component only renders the desktop bar.
- * `isActionVisible` is received as a prop (instead of read from the model)
- * so that ControlPanel subclasses overriding `_isEmbeddedActionVisible`
- * keep controlling the tabs' visibility.
- */
 export class EmbeddedActionsBar extends Component {
     static template = "web.EmbeddedActionsBar";
     static components = {
@@ -671,7 +630,6 @@ export class EmbeddedActionsBar extends Component {
         isActionVisible: Function,
     };
 
-    // Class fields declared with @type so strictNullChecks treats them as
     /** @type {{el: HTMLElement | null}} */
     root;
     /** @type {{el: HTMLElement | null}} */
@@ -720,15 +678,6 @@ export class EmbeddedActionsBar extends Component {
     }
 
     /**
-     * Whether `action` gets a tab.
-     *
-     * Reading `visibleEmbeddedActions` is what subscribes THIS component to it:
-     * the answer comes from the prop so a ControlPanel subclass can override the
-     * rule, but the prop closes over the ControlPanel's reactive copy, a
-     * subscription the bar does not share. Every writer REPLACES the array
-     * rather than mutating it, which is what makes this plain key read enough —
-     * an in-place splice would notify nobody here.
-     *
      * @param {EmbeddedAction} action
      * @returns {boolean}
      */
@@ -739,7 +688,7 @@ export class EmbeddedActionsBar extends Component {
 
     /**
      * @param {EmbeddedAction} action
-     * @returns {string} CSS class ("selected" or "")
+     * @returns {string}
      */
     getDropdownClass(action) {
         return (!this.env.isSmall && this._isEmbeddedActionVisible(action)) ||
@@ -771,8 +720,6 @@ export class EmbeddedActionsBar extends Component {
     }
 
     /**
-     * Activate the delete affordance from the keyboard. It is an `<i>` carrying
-     * a click handler, so deleting an embedded action was mouse-only.
      * @param {KeyboardEvent} ev
      * @param {EmbeddedAction} action
      */
@@ -780,7 +727,6 @@ export class EmbeddedActionsBar extends Component {
         if (ev.key !== "Enter" && ev.key !== " ") {
             return;
         }
-        // Both would otherwise reach the DropdownItem and select the action.
         ev.preventDefault();
         ev.stopPropagation();
         this.openConfirmationDialog(action);

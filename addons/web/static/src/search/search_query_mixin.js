@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_query_mixin - Query mutation methods mixed into SearchModel */
+/** @module @web/search/search_query_mixin */
 
 import { _t } from "@web/core/l10n/translation";
 
@@ -10,37 +10,11 @@ import { SPECIAL } from "./search_state.js";
 import { DEFAULT_INTERVAL, getPeriodOptions, yearSelected } from "./utils/dates.js";
 
 /**
- * Query mutation methods for SearchModel: activating/deactivating filters,
- * group-bys and date filters, creating custom filters/group-bys/favorites entry
- * points, and clearing the query.
- *
- * Mixed into SearchModel (``extends SearchQueryMixin(...)``) rather than kept as
- * pass-``this`` module functions with thin proxy methods: the logic now lives on
- * the prototype directly, using ``this`` (no owner argument, no proxy round-trip).
- * None of these methods is overridden by any SearchModel subclass, so folding
- * them in is behaviour-preserving. ``query``/``searchItems``/``nextId`` state and
- * the domain/facet getters live on SearchModel and are reached via ``this``.
- *
- * The mutators that used to return nothing now return ``_notify()``'s promise,
- * which settles once the search panel has reloaded and the UPDATE event has
- * fired. Purely additive — nothing read the old ``undefined`` — and it means a
- * caller (a test, a controller sequencing two mutations) can await the settled
- * state instead of guessing at ticks.
- *
  * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchQueryMixin = (Base) =>
     class extends Base {
-        /**
-         * Deactivate the order-by-count flag when no EFFECTIVE groupBy remains.
-         *
-         * An effective groupBy is either an active query groupBy/dateGroupBy OR a
-         * surviving ``defaultGroupBy`` fallback (which computeGroupBy still injects,
-         * and which computeOrderBy still count-sorts). Scanning only ``query``
-         * dropped the user's count sort whenever an unrelated filter was toggled
-         * off while the sole group-by present was the SPECIAL default-group-by facet.
-         */
         _checkOrderByCountStatus() {
             if (!this.orderByCount) {
                 return;
@@ -57,12 +31,7 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Run ``fn`` with search-model notifications blocked, restoring the previous
-         * ``blockNotification`` state afterwards — even if ``fn`` throws, and even
-         * when nested inside another blocked window (e.g. splitAndAddDomain →
-         * createNewGroupBy).
-         *
-         * @param {() => void} fn - synchronous callback run inside the blocked window
+         * @param {() => void} fn
          */
         _withNotificationsBlocked(fn) {
             const wasBlocked = this.blockNotification;
@@ -75,8 +44,6 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Activate a filter of type 'field' with given searchItemId with
-         * autocomplete value, label, and operator.
          * @param {number} searchItemId
          * @param {Object} autocompleteValue
          */
@@ -101,7 +68,6 @@ export const SearchQueryMixin = (Base) =>
             return this._notify();
         }
 
-        /** Remove all query elements. */
         clearQuery() {
             this.query = [];
             this.orderByCount = false;
@@ -109,9 +75,8 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Create new search items of type 'filter' and activate them.
          * @param {Object[]} prefilters
-         * @returns {number[]} ids of the created search items
+         * @returns {number[]}
          */
         createNewFilters(prefilters) {
             if (!prefilters.length) {
@@ -138,15 +103,20 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Create a new filter of type 'groupBy' or 'dateGroupBy' and activate it.
          * @param {string} fieldName
          * @param {Object} [options]
          * @param {string} [options.interval]
          * @param {boolean} [options.invisible]
-         * @returns {number} id of the created search item
+         * @returns {number | undefined} `undefined` when `fieldName` is not in the search view
          */
         createNewGroupBy(fieldName, { interval, invisible } = {}) {
             const field = this.searchViewFields[fieldName];
+            if (!field) {
+                console.warn(
+                    `[search] ignoring group-by on unknown field "${fieldName}"`,
+                );
+                return undefined;
+            }
             const { string, type: fieldType } = field;
             const preSearchItem = {
                 description: string || fieldName,
@@ -185,7 +155,6 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Deactivate a group, i.e. delete the query elements with given groupId.
          * @param {number|symbol} groupId
          */
         deactivateGroup(groupId) {
@@ -204,7 +173,6 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Toggle a simple filter on or off.
          * @param {number} searchItemId
          */
         toggleSearchItem(searchItemId) {
@@ -237,7 +205,6 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Toggle a date filter query element.
          * @param {number} searchItemId
          * @param {string} [generatorId]
          */
@@ -266,10 +233,6 @@ export const SearchQueryMixin = (Base) =>
                 }
                 generatorIds = validGeneratorIds;
             }
-            // Selecting a custom period replaces whatever the filter held, so a
-            // multi-custom default (`default_period`/`search_default_*` naming
-            // several) resolves to its last entry alone. Say so rather than
-            // dropping the others without a trace.
             const customIds = generatorIds.filter((gid) => gid.startsWith("custom"));
             if (customIds.length > 1) {
                 console.warn(
@@ -310,8 +273,6 @@ export const SearchQueryMixin = (Base) =>
                         knownOptions &&
                         !yearSelected(this._getSelectedGeneratorIds(searchItemId))
                     ) {
-                        // `generatorIds` was filtered against `knownOptions`
-                        // above, so the lookup always hits.
                         const { defaultYearId } = knownOptions.find(
                             (o) => o.id === generatorId,
                         );
@@ -326,7 +287,6 @@ export const SearchQueryMixin = (Base) =>
         }
 
         /**
-         * Toggle a date groupBy interval.
          * @param {number} searchItemId
          * @param {string} [intervalId]
          */
@@ -351,7 +311,6 @@ export const SearchQueryMixin = (Base) =>
             return this._notify();
         }
 
-        /** Open the custom filter dialog (DomainSelectorDialog). */
         async spawnCustomFilterDialog() {
             const domain = this.getDefaultDomain(this.searchViewFields);
             this.dialog.add(this.DomainSelectorDialog, {
@@ -368,7 +327,6 @@ export const SearchQueryMixin = (Base) =>
             });
         }
 
-        /** Toggle groupBy sort direction between Desc/Asc. */
         switchGroupBySort() {
             if (this.orderByCount === "Desc") {
                 this.orderByCount = "Asc";

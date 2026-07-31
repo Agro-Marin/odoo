@@ -2314,3 +2314,67 @@ test("a filter facet label carrying a domain announces itself as a button", asyn
         "button",
     );
 });
+
+test("facets sit in a list and carry their visible text as accessible name", async () => {
+    // `aria-label` was bound to `facet.title`, which only a `field` facet
+    // carries, so filter/group-by/favorite chips reached assistive technology
+    // unnamed — and `role="listitem"` had no list to belong to, because the
+    // container also holds the text input.
+    await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: ["filter"],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <filter string="Foo" name="foo" domain="[('foo', '=', 'qsdf')]"/>
+            </search>
+        `,
+        context: { search_default_foo: true },
+    });
+
+    const facet = queryFirst`.o_searchview_facet`;
+    const list = facet.closest("[role='list']");
+    expect(list).not.toBe(null);
+    expect(facet).toHaveAttribute("aria-label", "Foo");
+    expect(".o_facet_remove").toHaveAttribute("aria-label", "Remove Foo");
+    // The list wrapper must stay layout-neutral: the facets are flex children
+    // of the input container, which also holds the text input on the same row.
+    expect(getComputedStyle(list).display).toBe("contents");
+});
+
+test("a multi-value facet names itself with its separator", async () => {
+    await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: ["groupBy"],
+        searchViewId: false,
+        searchViewArch: `
+            <search>
+                <filter string="Foo" name="gb_foo" context="{'group_by': 'foo'}"/>
+                <filter string="Bar" name="gb_bar" context="{'group_by': 'bar'}"/>
+            </search>
+        `,
+        context: { search_default_gb_foo: 1, search_default_gb_bar: 2 },
+    });
+
+    expect(queryFirst`.o_searchview_facet`).toHaveAttribute("aria-label", "Foo > Bar");
+});
+
+test("an expansion naming a field that vanished from the view is dropped", async () => {
+    // `load` replaces searchViewFields wholesale, so a restored expansion can
+    // name a field the current map has not got. getFieldType already tolerated
+    // that, but computeSubItems — reached from computeState before getItems can
+    // drop the item — read `.relation` straight off the missing entry.
+    const searchBar = await mountWithSearch(SearchBar, {
+        resModel: "partner",
+        searchMenuTypes: [],
+        searchViewId: false,
+        searchViewArch: `<search><field name="bar"/></search>`,
+    });
+    const { searchModel } = searchBar.env;
+    const [item] = searchModel.getSearchItems((i) => i.type === "field");
+
+    delete searchModel.searchViewFields.bar;
+    await searchBar.computeState({ expanded: [item.id], query: "A" });
+
+    expect(searchBar.state.expanded).toEqual([]);
+});

@@ -854,6 +854,7 @@ test("Add a custom filter: notification on invalid domain", async () => {
             expect.step("notification");
             expect(message).toBe("Domain is invalid. Please correct it");
             expect(options).toEqual({ type: "danger" });
+            return () => {};
         },
     });
 

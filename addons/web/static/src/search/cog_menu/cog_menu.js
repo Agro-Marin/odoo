@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/cog_menu/cog_menu - Combined cog dropdown merging Action, Print, and registry-based menu items */
+/** @module @web/search/cog_menu/cog_menu */
 
 import { onWillStart, onWillUpdateProps } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -19,9 +19,6 @@ cogMenuRegistry.addValidation({
 });
 
 /**
- * ActionMenus variant merging Action, Print, and registry-based cog items into a
- * single Dropdown.
- *
  * @extends ActionMenus
  */
 // @ts-expect-error - static props/defaultProps shapes differ from parent (OWL pattern)
@@ -57,13 +54,12 @@ export class CogMenu extends ActionMenus {
         });
     }
 
-    /** @returns {boolean} whether there are any cog or print items to display */
+    /** @returns {boolean} */
     get hasItems() {
         return this.cogItems.length || this.props.items.print?.length;
     }
 
     /**
-     * Collect visible items from the cogMenu registry.
      * @returns {Promise<Array<{Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}>>}
      */
     async _registryItems() {
@@ -95,7 +91,7 @@ export class CogMenu extends ActionMenus {
      * @returns {Array<
      *   | {Component: import("@odoo/owl").ComponentConstructor, groupNumber: number, key: string}
      *   | {key: string, groupNumber: number, description?: string, action?: any, callback?: Function}
-     * >} merged cog + action items, sorted by group
+     * >}
      */
     get cogItems() {
         return [...this.registryItems, ...(this.actionItems ?? [])].toSorted(

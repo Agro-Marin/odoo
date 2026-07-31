@@ -1,36 +1,20 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/search_split_domain_mixin - Domain-splitting logic mixed into SearchModel */
+/** @module @web/search/search_split_domain_mixin */
 
 import { makeContext } from "@web/core/context";
 import { domainFromTree } from "@web/core/tree/domain_from_tree";
 
 /**
- * Domain-splitting logic for SearchModel: decomposes a compound "&"-connected
- * domain into individual (invisible) filter search items, optionally replacing
- * an existing query group in place.
- *
- * Mixed into SearchModel (``extends SearchSplitDomainMixin(...)``) rather than
- * kept as a pass-``this`` module function with a proxy method: the logic lives on
- * the prototype directly, using ``this``. Not overridden by any subclass (only
- * called, e.g. enterprise ``ai``). ``treeProcessor``/``query``/``searchItems`` and
- * the query-mutation methods live on SearchModel and are reached via ``this``.
- *
  * @template {new (...args: any[]) => any} T
  * @param {T} Base
  */
 export const SearchSplitDomainMixin = (Base) =>
     class extends Base {
         /**
-         * Split a domain into individual filter conditions and add them to the search.
-         *
-         * Decomposes a top-level "&"-connected domain into its children, creates
-         * invisible filter search items for each, and optionally replaces an
-         * existing query group (preserving its position and group-by settings).
-         *
-         * @param {string} domain - the domain expression to split
-         * @param {number} [groupId] - optional query group to replace
+         * @param {string} domain
+         * @param {number} [groupId]
          */
         async splitAndAddDomain(domain, groupId) {
             const group = groupId
@@ -80,6 +64,20 @@ export const SearchSplitDomainMixin = (Base) =>
 
             const preFilters = await Promise.all(promises);
 
+            if (group) {
+                const firstActiveItem = group.activeItems[0];
+                const firstSearchItem = this.searchItems[firstActiveItem.searchItemId];
+                if (firstSearchItem.type === "favorite") {
+                    const groupBys = this._getSearchItemGroupBys(firstActiveItem) || [];
+                    const needsPropertyFields = groupBys.some((groupBy) =>
+                        groupBy.split(":")[0].includes("."),
+                    );
+                    if (needsPropertyFields) {
+                        await this.fillSearchViewItemsProperty();
+                    }
+                }
+            }
+
             this._withNotificationsBlocked(() => {
                 let queryItemIndex;
                 if (group) {
@@ -115,12 +113,13 @@ export const SearchSplitDomainMixin = (Base) =>
                             for (const activeItemGroupBy of activeItemGroupBys) {
                                 const [fieldName, interval] =
                                     activeItemGroupBy.split(":");
-                                newGroupByIds.push(
-                                    this.createNewGroupBy(fieldName, {
-                                        interval,
-                                        invisible: true,
-                                    }),
-                                );
+                                const newGroupById = this.createNewGroupBy(fieldName, {
+                                    interval,
+                                    invisible: true,
+                                });
+                                if (newGroupById !== undefined) {
+                                    newGroupByIds.push(newGroupById);
+                                }
                             }
                             const isNewGroupBy = (queryElem) =>
                                 newGroupByIds.includes(queryElem.searchItemId);
@@ -154,10 +153,6 @@ export const SearchSplitDomainMixin = (Base) =>
                 }
             });
 
-            // Awaited, not floated: the method is already async and its callers
-            // await it, so returning before the reload settled made that await
-            // mean nothing — and a rejection out of `_reloadSections` had no
-            // handler at all.
             await this._notify();
         }
     };

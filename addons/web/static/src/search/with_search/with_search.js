@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/search/with_search/with_search - Wrapper component that creates a SearchModel and injects it into the sub-environment */
+/** @module @web/search/with_search/with_search */
 
 import { Component, onWillStart, onWillUpdateProps, toRaw, useSubEnv } from "@odoo/owl";
 import { getDefaultDomain } from "@web/components/domain_selector/utils";
@@ -15,7 +15,6 @@ import { SearchModel } from "@web/search/search_model";
 
 export { SEARCH_KEYS };
 
-/** Creates a SearchModel, injects it into the sub-env, and re-renders children on search-state change. */
 export class WithSearch extends Component {
     static template = "web.WithSearch";
     static props = {
@@ -101,6 +100,7 @@ export class WithSearch extends Component {
         const reloadKeepLast = new KeepLast();
 
         onWillUpdateProps(async (nextProps) => {
+            /** @type {Record<string, any>} */
             const config = {};
             for (const key of SEARCH_KEYS) {
                 if (nextProps[key] !== undefined) {

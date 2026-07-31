@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module search/search_favorites - Favorites/ir.filters utilities for SearchModel */
+/** @module search/search_favorites */
 
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
 
@@ -13,14 +13,9 @@ import { user } from "@web/services/user";
 import { FAVORITE_PRIVATE_GROUP, FAVORITE_SHARED_GROUP } from "./search_state.js";
 
 /**
- * Convert an ir.filter record to a favorite search item.
- *
  * @param {Object} irFilter
- * @param {Object} [fields=null] search-model field metadata
- *  (``searchViewFields``). When provided (and non-empty), ``group_by``
- *  entries naming unknown fields are screened out (see below); when absent,
- *  group-bys are imported as-is.
- * @returns {Object} favorite search item (pre-group format)
+ * @param {Object} [fields=null]
+ * @returns {Object}
  */
 export function irFilterToFavorite(irFilter, fields = null) {
     const userIds = irFilter.user_ids;
@@ -74,8 +69,6 @@ export function irFilterToFavorite(irFilter, fields = null) {
             isInvalid = true;
         }
     }
-    // A blank entry carries no field to sort on; keeping it would emit an
-    // order term with an empty name straight into the read_group call.
     const orderBy = sort.flatMap((order) => {
         let fieldName;
         let asc;
@@ -114,14 +107,11 @@ export function irFilterToFavorite(irFilter, fields = null) {
 }
 
 /**
- * Reconciliate existing search items of type "favorite" with the current ir.filters.
- * Updates changed favorites, removes deleted ones, and creates new ones.
- *
- * @param {Object} searchItems - mutable searchItems map
- * @param {Object[]} query - mutable query array
+ * @param {Object} searchItems
+ * @param {Object[]} query
  * @param {Object[]} irFilters
- * @param {Function} irFilterToFavoriteFn - conversion function (irFilter) => favorite
- * @param {Function} createGroupOfFavoritesFn - (irFilters) => void
+ * @param {Function} irFilterToFavoriteFn
+ * @param {Function} createGroupOfFavoritesFn
  */
 export function reconciliateFavorites(
     searchItems,
@@ -163,19 +153,17 @@ export function reconciliateFavorites(
 }
 
 /**
- * Build the ir.filter description for saving a favorite.
- *
  * @param {Object} params
  * @param {string} params.description
  * @param {boolean} params.isDefault
  * @param {boolean} params.isShared
  * @param {number|false} [params.embeddedActionId]
- * @param {Object} params.localContext - context from env.__getContext__
- * @param {OrderTerm[]} [params.localOrderBy] - orderBy from env.__getOrderBy__
- * @param {Function} params.getContext - () => searchContext
- * @param {Function} params.getDomain - () => Domain (raw, no global)
- * @param {Function} params.getGroupBy - () => string[]
- * @param {Function} params.getOrderBy - () => OrderTerm[]
+ * @param {Object} params.localContext
+ * @param {OrderTerm[]} [params.localOrderBy]
+ * @param {Function} params.getContext
+ * @param {Function} params.getDomain
+ * @param {Function} params.getGroupBy
+ * @param {Function} params.getOrderBy
  * @param {Object} params.globalContext
  * @param {number} params.actionId
  * @param {string} params.resModel
