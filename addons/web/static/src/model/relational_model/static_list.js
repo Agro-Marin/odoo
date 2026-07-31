@@ -4,6 +4,7 @@
 /** @module @web/model/relational_model/static_list */
 
 import { markRaw } from "@odoo/owl";
+import { reportUncaught } from "@web/core/errors/error_utils";
 import { deepEqual, omit } from "@web/core/utils/collections/objects";
 
 import { serializeCommands } from "./command_builder.js";
@@ -705,9 +706,7 @@ export class StaticList extends DataPoint {
             console.error(
                 `Failed to apply x2many commands (resModel: ${this.resModel}, list: ${this.id}): the pending record load rejected`,
             );
-            Promise.resolve().then(() => {
-                throw error;
-            });
+            reportUncaught(error);
         });
         const combined = this._commandsPromise
             ? this._commandsPromise.then(() => guarded)
