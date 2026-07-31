@@ -27,6 +27,7 @@ declare module "services" {
     import { allowedQwebExpressionsService } from "@web/fields/dynamic_placeholder_popover";
     import { datetimePickerService } from "@web/components/datetime/datetime_picker_service";
 
+    import { dismissAlertService } from "@web/ui/alert/dismiss_alert_service";
     import { bottomSheetService } from "@web/ui/bottom_sheet/bottom_sheet_service";
     import { dialogService } from "@web/ui/dialog/dialog_service";
     import { effectService } from "@web/ui/effects/effect_service";
@@ -66,6 +67,7 @@ declare module "services" {
         demo_data: typeof demoDataService;
         density: typeof densityService;
         dialog: typeof dialogService;
+        dismiss_alert: typeof dismissAlertService;
         effect: typeof effectService;
         error: typeof errorService;
         field: typeof fieldService;
