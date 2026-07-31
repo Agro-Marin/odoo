@@ -53,6 +53,7 @@ import { session } from "@web/session";
  * @property {UserCompany[]} activeCompanies
  * @property {UserCompany} activeCompany
  * @property {(companyIds: number[], options?: {includeChildCompanies?: boolean, reload?: boolean}) => Promise<void>} activateCompanies
+ * @property {() => void} _onActiveCompaniesChanged
  */
 
 export const userBus = new EventBus();
