@@ -304,6 +304,14 @@ export class Field extends Component {
     static template = "web.Field";
     static props = ["fieldInfo?", "*"];
 
+    /**
+     * Recomputed on every render, before the first one, so every getter below
+     * reads a value.
+     *
+     * @type {{ readonly: boolean, required: boolean, invalid: boolean, empty: boolean }}
+     */
+    _visualFeedback;
+
     setup() {
         if (this.props.fieldInfo) {
             this.field = this.props.fieldInfo.field;

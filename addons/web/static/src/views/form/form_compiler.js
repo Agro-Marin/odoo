@@ -150,7 +150,7 @@ export class FormCompiler extends ViewCompiler {
     /**
      * @param {Element} el
      * @param {Record<string, any>} params
-     * @returns {Element}
+     * @returns {Element | null}
      */
     compileButtonBox(el, params) {
         if (!el.children.length) {
@@ -195,7 +195,7 @@ export class FormCompiler extends ViewCompiler {
             append(buttonBox, mainSlot);
         }
 
-        return hasContent ? buttonBox : undefined;
+        return hasContent ? buttonBox : null;
     }
 
     /**

@@ -26,6 +26,11 @@ function makeParent(params = {}) {
             </div>
         `;
 
+        /** @type {string[]} */
+        slides;
+        /** @type {ReturnType<typeof useCarousel>} */
+        carousel;
+
         setup() {
             this.slides = ["a", "b", "c"];
             this.carousel = useCarousel({ count: () => this.slides.length, ...params });

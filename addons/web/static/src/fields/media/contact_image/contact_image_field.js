@@ -26,17 +26,19 @@ export class ContactImageField extends ImageField {
         ) {
             const previewData = this.props.record.data[imageFieldName];
             if (isBinarySize(previewData)) {
-                this.lastURL = imageUrl(
+                const url = imageUrl(
                     this.props.record.resModel,
                     this.props.record.resId,
                     imageFieldName,
                     { unique: this.rawCacheKey },
                 );
-                return this.lastURL;
+                this.lastURL = { field: imageFieldName, url };
+                return url;
             } else if (previewData) {
                 const magic = fileTypeMagicWordMap[previewData[0]] || "png";
-                this.lastURL = `data:image/${magic};base64,${previewData}`;
-                return this.lastURL;
+                const url = `data:image/${magic};base64,${previewData}`;
+                this.lastURL = { field: imageFieldName, url };
+                return url;
             }
         }
         return super.getUrl(imageFieldName);

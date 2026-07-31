@@ -27,6 +27,9 @@ class Parent extends Component {
         </Offcanvas>
     `;
 
+    /** @type {{ open: boolean }} */
+    state;
+
     setup() {
         this.state = useState({ open: false });
     }

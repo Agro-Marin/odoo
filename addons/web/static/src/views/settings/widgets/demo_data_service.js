@@ -21,7 +21,7 @@ export const demoDataService = {
                         throw error;
                     },
                 );
-                return isDemoDataActiveProm;
+                return /** @type {Promise<boolean>} */ (isDemoDataActiveProm);
             },
         };
     },

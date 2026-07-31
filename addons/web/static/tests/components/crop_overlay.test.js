@@ -1,6 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
+import { queryOne } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
@@ -16,6 +17,8 @@ function makeHost({ onResize = () => {} } = {}) {
     class Host extends Component {
         static props = ["*"];
         static components = { CropOverlay };
+        /** @type {{ isReady: boolean, tick: number }} */
+        state;
         static template = xml`
             <CropOverlay isReady="state.isReady" onResize.bind="onResize">
                 <div style="width: 300px; height: 200px;">video</div>
@@ -87,8 +90,8 @@ test("a drag persists the position exactly once, on pointer up", async () => {
     await animationFrame();
     expect(storage.writes).toBe(0);
 
-    const icon = document.querySelector(".o_crop_icon");
-    const container = document.querySelector(".o_crop_container");
+    const icon = queryOne(".o_crop_icon");
+    const container = queryOne(".o_crop_container");
     icon.dispatchEvent(
         new PointerEvent("pointerdown", { bubbles: true, pointerId: 1 }),
     );

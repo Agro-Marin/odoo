@@ -108,6 +108,9 @@ declare module "registries" {
         callback?: () => any;
         href?: string;
         sequence?: number;
+        /** Read by UserMenu's filter; spreading the item drops the index signature. */
+        hide?: boolean;
+        show?: () => boolean;
         [key: string]: any;
     };
 

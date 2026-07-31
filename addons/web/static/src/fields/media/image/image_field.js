@@ -60,6 +60,8 @@ export class ImageField extends Component {
     orm;
     /** @type {{ isValid: boolean }} */
     state;
+    /** @type {{ field: string, url: string } | undefined} */
+    lastURL;
 
     setup() {
         this.notification = useService("notification");
@@ -156,7 +158,7 @@ export class ImageField extends Component {
         if (!this.props.record.data[this.props.name] || !this.state.isValid) {
             return placeholder;
         }
-        if (!this.props.reload && this.lastURL?.field === imageFieldName) {
+        if (!this.props.reload && this.lastURL && this.lastURL.field === imageFieldName) {
             return this.lastURL.url;
         }
         let url;

@@ -468,7 +468,7 @@ test("dismissing closes the dialog exactly once", async () => {
     const overlay = getService("overlay");
     const originalAdd = overlay.add;
     patchWithCleanup(overlay, {
-        add(/** @type {any[]} */ ...args) {
+        add(/** @type {[any, any, any?]} */ ...args) {
             const remove = originalAdd.apply(this, args);
             return (/** @type {any} */ ...removeArgs) => {
                 expect.step(`close(${JSON.stringify(removeArgs[0])})`);

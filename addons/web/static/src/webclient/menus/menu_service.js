@@ -41,6 +41,13 @@ async function fetchMenus(reload, cachedHash) {
 }
 
 class MenuTree {
+    /** @type {Object} */
+    menusData;
+    /** @type {Map<number|string, Object> | null} */
+    _appByAction = null;
+    /** @type {Map<number|string, Object>} */
+    _treeByMenuId = new Map();
+
     /** @param {Object} menusData */
     constructor(menusData) {
         this.setData(menusData);
@@ -56,9 +63,7 @@ class MenuTree {
             console.warn("Discarding a menu payload with no root entry");
         }
         this.menusData = menusData?.root ? menusData : EMPTY_MENUS;
-        /** @type {Map<number|string, Object> | null} */
         this._appByAction = null;
-        /** @type {Map<number|string, Object>} */
         this._treeByMenuId = new Map();
     }
 
@@ -103,9 +108,9 @@ class MenuTree {
         if (!tree) {
             tree = { ...menu, childrenTree: [] };
             this._treeByMenuId.set(menuID, tree);
-            tree.childrenTree = this._resolveChildren(menu).map((child) =>
-                this.getMenuAsTree(child.id),
-            );
+            tree.childrenTree = this._resolveChildren(menu)
+                .map((child) => this.getMenuAsTree(child.id))
+                .filter(Boolean);
         }
         return tree;
     }

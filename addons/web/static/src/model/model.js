@@ -158,6 +158,7 @@ function getSearchParams(props) {
  *
  * @type {boolean | null}
  */
+/** @type {boolean | null} */
 let _searchParamsFeatureFlag = null;
 
 /**
@@ -165,9 +166,9 @@ let _searchParamsFeatureFlag = null;
  */
 function _isSearchParamsValidationEnabled() {
     if (_searchParamsFeatureFlag === null) {
-        _searchParamsFeatureFlag = featureFlag("search_params_validation", {
-            default: false,
-        });
+        _searchParamsFeatureFlag = Boolean(
+            featureFlag("search_params_validation", { default: false }),
+        );
     }
     return Boolean(odoo.debug) || _searchParamsFeatureFlag;
 }
