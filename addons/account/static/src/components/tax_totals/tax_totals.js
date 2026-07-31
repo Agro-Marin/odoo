@@ -8,11 +8,11 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { formatMonetary } from "@web/core/formatters";
+import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { formatFloat } from "@web/core/utils/format/numbers";
-import { formatMonetary } from "@web/fields/formatters";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
-import { parseFloat } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 /**

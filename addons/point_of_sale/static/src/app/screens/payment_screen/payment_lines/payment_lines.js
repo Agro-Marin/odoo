@@ -5,8 +5,8 @@ import { NumberPopup } from "@point_of_sale/app/components/popups/number_popup/n
 import { PriceFormatter } from "@point_of_sale/app/components/price_formatter/price_formatter";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { _t } from "@web/core/l10n/translation";
+import { parseFloat } from "@web/core/parsers";
 import { useService } from "@web/core/utils/hooks";
-import { parseFloat } from "@web/fields/parsers";
 export class PaymentScreenPaymentLines extends Component {
     static template = "point_of_sale.PaymentScreenPaymentLines";
     static components = { PriceFormatter };

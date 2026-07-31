@@ -24,9 +24,9 @@ describe.current.tags("headless");
  * (e.g. the `Thread` model and `Thread` component both read
  * "Thread.prototype").
  *
- * A pair counts as double-patched only when two extensions *declared* the
- * method (see `patchDeclaredKeys()` — `patch()` mutates extension objects
- * into `super`-chain skeletons, so raw own-key inspection over-reports).
+ * A pair counts as double-patched only when two extensions declare the same
+ * method, which is exactly their own keys: `patch()` keeps its `super`-chain
+ * skeletons off the extension objects, so own-key inspection is exact.
  * The allowlist is seeded from an AST scan of every `patch()` call across
  * the community *and* enterprise checkouts, since enterprise addons
  * (whatsapp, knowledge, ai, documents, voip, ...) patch these same targets

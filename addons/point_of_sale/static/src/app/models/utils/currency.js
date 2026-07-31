@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { formatMonetary } from "@web/fields/formatters";
+import { formatMonetary } from "@web/core/formatters";
 export const formatCurrency = (value, currency, hasSymbol = true) =>
     formatMonetary(value, {
         currencyId: currency.id,

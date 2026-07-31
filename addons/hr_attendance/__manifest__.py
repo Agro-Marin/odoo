@@ -76,7 +76,7 @@ actions(Check in/Check out) performed by them.
             ('remove', 'hr_attendance/static/src/components/attendance_menu/**/*'),
 
             'hr_attendance/static/src/scss/kiosk/hr_attendance.scss',
-            "web/static/src/fields/formatters.js",
+            "web/static/src/core/formatters.js",
 
             # document link
             "web/static/src/session.js",

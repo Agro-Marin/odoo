@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { formatFloat, formatFloatTime, formatMonetary } from "@web/core/formatters";
 import { useBus } from "@web/core/utils/hooks";
-import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
 
 import { SHOW_OPTIONS } from "../mo_overview_display_filter/mrp_mo_overview_display_filter.js";
 import { MoOverviewLine } from "../mo_overview_line/mrp_mo_overview_line.js";

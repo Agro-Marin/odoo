@@ -1,9 +1,9 @@
 /** @odoo-module native */
+import { formatFloat } from "@web/core/formatters";
 import { formatDate } from "@web/core/l10n/dates";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
-import { formatFloat } from "@web/fields/formatters";
 
 export class ForecastWidgetField extends FloatField {
     static template = "stock.ForecastWidget";

@@ -1,11 +1,11 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { formatMonetary } from "@web/core/formatters";
 import { deserializeDate, formatDate } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
-import { formatMonetary } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { usePopover } from "@web/ui/popover/popover_hook";
 

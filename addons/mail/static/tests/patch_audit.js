@@ -1,4 +1,4 @@
-import { getPatchedTargets, patchDeclaredKeys, patchInfo } from "@web/core/utils/patch";
+import { getPatchedTargets, patchInfo } from "@web/core/utils/patch";
 
 /**
  * @module @mail/../tests/patch_audit
@@ -52,12 +52,7 @@ export function getDoublePatchedPairs() {
         const info = patchInfo(target);
         const counts = new Map();
         for (const extension of info.extensions) {
-            // Declared keys, not own keys: patch() copies previous descriptors
-            // onto extensions when chaining `super`, so own-key inspection
-            // counts a single patch of a pre-existing method as two owners.
-            const keys =
-                patchDeclaredKeys(extension) ?? Object.getOwnPropertyNames(extension);
-            for (const key of keys) {
+            for (const key of Object.getOwnPropertyNames(extension)) {
                 counts.set(key, (counts.get(key) ?? 0) + 1);
             }
         }

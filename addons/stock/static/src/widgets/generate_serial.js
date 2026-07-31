@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { Component, onMounted, onWillStart, useRef, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
+import { parseInteger } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { useDebounced } from "@web/core/utils/timing";
-import { parseInteger } from "@web/fields/parsers";
 import { x2ManyCommands } from "@web/model/relational_model/commands";
 import { user } from "@web/services/user";
 import { Dialog } from "@web/ui/dialog/dialog";

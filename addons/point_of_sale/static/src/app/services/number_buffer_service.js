@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { barcodeService } from "@barcodes/barcode_service";
 import { EventBus, onWillDestroy, useComponent } from "@odoo/owl";
+import { parseFloat as oParseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
-import { parseFloat as oParseFloat } from "@web/fields/parsers";
 import { session } from "@web/session";
 
 const INPUT_KEYS = new Set(

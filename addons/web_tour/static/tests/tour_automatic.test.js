@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test } from "@odoo/hoot";
 import { advanceTime, animationFrame, queryFirst } from "@odoo/hoot-dom";
 import { Component, xml } from "@odoo/owl";
 import {
+    clearRegistry,
     getService,
     makeMockEnv,
     mountWithCleanup,
@@ -33,6 +34,7 @@ async function waitForMacro() {
 }
 
 beforeEach(() => {
+    clearRegistry(tourRegistry);
     patchWithCleanup(Macro.prototype, {
         start() {
             super.start(...arguments);

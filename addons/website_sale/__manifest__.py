@@ -179,6 +179,7 @@
         'web.assets_unit_tests': [
             'website_sale/static/tests/interactions/**/*',
             'website_sale/static/tests/builder/**/*',
+            'website_sale/static/tests/notification/**/*',
         ],
         'web.assets_unit_tests_setup': [
             'delivery/static/src/js/location_selector/**/*',

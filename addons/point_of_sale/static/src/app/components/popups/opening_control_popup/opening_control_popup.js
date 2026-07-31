@@ -5,8 +5,8 @@ import { MoneyDetailsPopup } from "@point_of_sale/app/components/popups/money_de
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { _t } from "@web/core/l10n/translation";
 import { RPCError } from "@web/core/network/rpc";
+import { parseFloat } from "@web/core/parsers";
 import { useService } from "@web/core/utils/hooks";
-import { parseFloat } from "@web/fields/parsers";
 import { Dialog } from "@web/ui/dialog/dialog";
 class CustomDialog extends Dialog {
     onEscape() {}

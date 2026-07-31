@@ -300,7 +300,7 @@ export class ListDataSource extends OdooViewsDataSource {
      * @param {number} position
      * @param {string} fieldPath
      * @param {string} currencyFieldName
-     * @returns {import("@spreadsheet/currency/currency_data_source").Currency | undefined}
+     * @returns {import("@spreadsheet/currency/plugins/currency").Currency | undefined}
      */
     getListCurrency(position, fieldPath, currencyFieldName) {
         this.assertIsValid();

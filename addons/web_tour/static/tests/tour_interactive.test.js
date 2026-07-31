@@ -20,6 +20,7 @@ import {
 } from "@odoo/hoot-mock";
 import { Component, useState, xml } from "@odoo/owl";
 import {
+    clearRegistry,
     contains,
     defineModels,
     fields,
@@ -84,6 +85,8 @@ const tourRegistry = registry.category("web_tour.tours");
 const tourConsumed = [];
 
 beforeEach(() => {
+    clearRegistry(tourRegistry);
+    tourConsumed.length = 0;
     patchWithCleanup(console, {
         error: () => {},
         warn: () => {},

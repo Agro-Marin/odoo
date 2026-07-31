@@ -138,15 +138,11 @@ export const websiteEditService = {
         };
 
         const stopInteraction = (name) => {
-            publicInteractions.stopInteractionByName(name);
+            publicInteractions.stopInteractionsByName(name);
         };
 
         const stopDisconnectedInteractions = () => {
-            for (const interaction of publicInteractions.interactions) {
-                if (!interaction.el.isConnected) {
-                    stop(interaction.el);
-                }
-            }
+            publicInteractions.stopDisconnectedInteractions();
         };
 
         const isEditingTranslations = () =>
@@ -330,22 +326,6 @@ export const websiteEditService = {
                             );
                         }
                         return super.shouldStop(el, interaction);
-                    },
-
-                    stopInteractionByName(name) {
-                        const IToStop = registry
-                            .category("public.interactions")
-                            .get(name);
-                        const interactions = [];
-                        for (const interaction of this.interactions) {
-                            if (interaction.interaction.constructor === IToStop) {
-                                interaction.destroy();
-                                this.activeInteractions.delete(interaction.el, IToStop);
-                            } else {
-                                interactions.push(interaction);
-                            }
-                        }
-                        this.interactions = interactions;
                     },
                 }),
             );

@@ -6,8 +6,8 @@ import { SelectionPopup } from "@point_of_sale/app/components/popups/selection_p
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { ask, makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { _t } from "@web/core/l10n/translation";
+import { parseFloat } from "@web/core/parsers";
 import { patch } from "@web/core/utils/patch";
-import { parseFloat } from "@web/fields/parsers";
 import { AlertDialog } from "@web/ui/dialog/confirmation_dialog";
 patch(PosStore.prototype, {
     async onClickSaleOrder(clickedOrderId) {

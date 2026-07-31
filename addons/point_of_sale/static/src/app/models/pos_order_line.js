@@ -5,9 +5,9 @@ import {
 } from "@point_of_sale/utils";
 import { localization as l10n } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
+import { parseFloat } from "@web/core/parsers";
 import { registry } from "@web/core/registry";
 import { formatFloat } from "@web/core/utils/format/numbers";
-import { parseFloat } from "@web/fields/parsers";
 
 import { PosOrderlineAccounting } from "./accounting/pos_order_line_accounting.js";
 
@@ -232,7 +232,7 @@ export class PosOrderline extends PosOrderlineAccounting {
     }
 
     setDiscount(discount) {
-        // `parseFloat` (from @web/fields/parsers) throws on unparseable input, so
+        // `parseFloat` (from @web/core/parsers) throws on unparseable input, so
         // the old `isNaN(parseFloat(...)) ? 0 : ...` fallback was dead and let the
         // exception escape. Parse once, defensively, keeping locale-aware parsing.
         let parsed_discount;
@@ -424,7 +424,7 @@ export class PosOrderline extends PosOrderlineAccounting {
         const ProductPrice = this.models["decimal.precision"].find(
             (dp) => dp.name === "Product Price",
         );
-        // `parseFloat` (from @web/fields/parsers) throws on unparseable input, so
+        // `parseFloat` (from @web/core/parsers) throws on unparseable input, so
         // the old `isNaN(parseFloat(...)) ? 0 : ...` fallback was dead. `!isNaN`
         // already handles numbers/numeric-strings/empty; only genuinely
         // non-numeric strings reach the parse — do it defensively.

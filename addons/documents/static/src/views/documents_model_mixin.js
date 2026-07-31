@@ -6,6 +6,7 @@ import { _t } from "@web/core/l10n/translation";
 import { user } from "@web/services/user";
 import { useService } from "@web/core/utils/hooks";
 import { getCommonEmbeddedActions } from "@documents/views/utils";
+import { getSpecEvalContext } from "@web/model/relational_model/field_context";
 
 export const DocumentsModelMixin = (component) =>
     class extends component {
@@ -114,10 +115,15 @@ export const DocumentsModelMixin = (component) =>
                 return [];
             }
             const shortcutTargetRecords = [];
-            const targetRecords = await this._loadRecords({
-                ...this.config,
-                resIds: shortcuts.map((record) => record.data.shortcut_document_id.id),
-            });
+            const targetRecords = await this._loadRecords(
+                {
+                    ...this.config,
+                    resIds: shortcuts.map(
+                        (record) => record.data.shortcut_document_id.id,
+                    ),
+                },
+                getSpecEvalContext(this.config),
+            );
             for (const targetRecord of targetRecords) {
                 shortcutTargetRecords.push(this._createRecordDatapoint(targetRecord));
             }

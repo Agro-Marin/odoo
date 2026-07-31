@@ -6,17 +6,28 @@ import { registry } from "@web/core/registry";
 import { CartNotification } from "@website_sale/js/notification/cart_notification/cart_notification";
 
 export class CartNotificationContainer extends NotificationContainer {
+    static serviceName = "cartNotificationService";
+    static notificationComponent = CartNotification;
     static components = {
         ...NotificationContainer.components,
         Notification: CartNotification,
     };
+    // The `ErrorHandler` is not decoration: without it a single notification
+    // that throws while rendering escapes to `MainComponentsContainer`, which
+    // drops THIS container from the page and silently kills every later cart
+    // toast for the session. `CartNotification` dereferences its own optional
+    // `lines` prop, so that is one missing key away. The base
+    // `web.NotificationContainer` template has always wrapped the loop; this
+    // override lost it.
     static template = xml`
     <div class="position-fixed w-100 h-100 top-0 pe-none">
         <div class="d-flex flex-column container align-items-end">
             <t t-foreach="notifications" t-as="notification" t-key="notification">
-                <Transition leaveDuration="0" name="'o_notification_fade'" t-slot-scope="transition">
-                    <Notification t-props="notification_value.props" className="(notification_value.props.className || '') + ' ' + transition.className"/>
-                </Transition>
+                <ErrorHandler onError="(error) => this.handleError(notification, error)">
+                    <Transition leaveDuration="0" name="'o_notification_fade'" t-slot-scope="transition">
+                        <Notification t-props="notification_value.props" className="(notification_value.props.className || '') + ' ' + transition.className"/>
+                    </Transition>
+                </ErrorHandler>
             </t>
         </div>
     </div>`;

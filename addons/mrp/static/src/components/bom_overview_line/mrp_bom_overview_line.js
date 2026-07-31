@@ -1,8 +1,8 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { formatFloat, formatFloatTime, formatMonetary } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
 
 import { getForecastAction } from "../mrp_overview_utils.js";
 

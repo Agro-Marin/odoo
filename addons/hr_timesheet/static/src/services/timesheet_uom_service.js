@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { session } from "@web/session";
 import { registry } from "@web/core/registry";
-import { formatFloatTime, formatFloatFactor } from "@web/fields/formatters";
+import { formatFloatTime, formatFloatFactor } from "@web/core/formatters";
 import { formatFloat } from "@web/core/utils/format/numbers";
 import { FloatFactorField } from "@web/fields/basic/float_factor/float_factor_field";
 import { user } from "@web/services/user";

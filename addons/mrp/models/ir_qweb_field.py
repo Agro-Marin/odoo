@@ -10,7 +10,7 @@ class IrQwebFieldMonetaryOpt(models.AbstractModel):
     so it raises on ``False``. Reports that legitimately use ``False`` as a
     "not applicable" sentinel for a monetary column can opt into this
     ``monetary_opt`` widget instead. Its semantics mirror the web client's
-    ``formatMonetary`` (``@web/fields/formatters``): an unset value renders
+    ``formatMonetary`` (``@web/core/formatters``): an unset value renders
     empty — a ``0.00`` there would be misleading — while a genuine ``0`` is
     delegated to the parent converter and still renders.
 

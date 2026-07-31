@@ -1,7 +1,7 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { formatFloat, formatMonetary } from "@web/core/formatters";
 import { useService } from "@web/core/utils/hooks";
-import { formatFloat, formatMonetary } from "@web/fields/formatters";
 
 import { BomOverviewComponentsBlock } from "../bom_overview_components_block/mrp_bom_overview_components_block.js";
 import { BomOverviewLine } from "../bom_overview_line/mrp_bom_overview_line.js";

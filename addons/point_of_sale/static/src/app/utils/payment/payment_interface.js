@@ -4,7 +4,7 @@
  * register it (`'my_payment'` is its technical name in use_payment_terminal):
  *
  * import { PaymentInterface } from "@point_of_sale/app/utils/payment/payment_interface";
- * import { register_payment_method } from "@point_of_sale/app/store/pos_store";
+ * import { register_payment_method } from "@point_of_sale/app/services/pos_store";
  * class MyPayment extends PaymentInterface {}
  * register_payment_method('my_payment', MyPayment);
  */

@@ -1,10 +1,10 @@
 /** @odoo-module native */
 import { Component, markup } from "@odoo/owl";
+import { formatFloat } from "@web/core/formatters";
 import { formatDate } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import { formatFloat } from "@web/fields/formatters";
 
 export class ForecastedHeader extends Component {
     static template = "stock.ForecastedHeader";

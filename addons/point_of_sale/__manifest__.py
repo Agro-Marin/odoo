@@ -107,7 +107,7 @@
             # CSS files make html_editor tests fail
             ("remove", "point_of_sale/static/src/**/*.css"),
             # Adding error handler back since they are removed in the prod bundle
-            "web/static/src/components/errors/error_handlers.js",
+            "web/static/src/services/error_handlers.js",
             "web/static/src/ui/dialog/dialog.scss",
         ],
         "web.assets_unit_tests": [
@@ -129,7 +129,7 @@
             "web/static/src/libs/fontawesome7/css/solid.css",
             "web/static/src/libs/fontawesome7/css/regular.css",
             "web/static/src/libs/fontawesome7/css/brands.css",
-            "web/static/src/fields/formatters.js",
+            "web/static/src/core/formatters.js",
             "web/static/lib/odoo_ui_icons/*",
             "point_of_sale/static/src/utils.js",
             "bus/static/src/services/bus_service.js",
@@ -159,7 +159,7 @@
             "web/static/src/scss/ui.scss",
             (
                 "remove",
-                "web/static/src/components/errors/error_handlers.js",
+                "web/static/src/services/error_handlers.js",
             ),  # error handling in PoS is different from the webclient
             ("remove", "/web/static/src/ui/dialog/dialog.scss"),
             "web/static/src/services/currency.js",

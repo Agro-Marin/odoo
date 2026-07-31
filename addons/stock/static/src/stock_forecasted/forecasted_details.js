@@ -1,9 +1,9 @@
 /** @odoo-module native */
 import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
+import { formatFloat } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
-import { formatFloat } from "@web/fields/formatters";
 
 export class ForecastedDetails extends Component {
     static template = "stock.ForecastedDetails";

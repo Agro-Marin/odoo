@@ -1,6 +1,6 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
-import { formatFloat, formatFloatTime, formatMonetary } from "@web/fields/formatters";
+import { formatFloat, formatFloatTime, formatMonetary } from "@web/core/formatters";
 
 export class BomOverviewSpecialLine extends Component {
     static template = "mrp.BomOverviewSpecialLine";

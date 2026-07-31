@@ -81,7 +81,7 @@ capabilities so portal pages can be rendered without the ``website`` module.
             "web/static/src/webclient/actions/reports/report_hook.js",
             "web/static/src/views/view_utils.js",
             "web/static/src/fields/field_types.js",
-            "web/static/src/fields/formatters.js",
+            "web/static/src/core/formatters.js",
             # mail is consumed through its named sub-bundles; do not glob
             # mail/static/src/** internals here. The portal chatter is a
             # document chatter: it deliberately ships no discuss layer

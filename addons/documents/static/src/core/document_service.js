@@ -16,7 +16,7 @@ import { user } from "@web/services/user";
 import { debounce } from "@web/core/utils/timing";
 import { Deferred } from "@web/core/utils/concurrency";
 import { session } from "@web/session";
-import { formatFloat } from "@web/fields/formatters";
+import { formatFloat } from "@web/core/formatters";
 
 import { DateTime } from "luxon";
 
