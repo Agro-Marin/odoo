@@ -3,7 +3,7 @@
 
 /** @module @web/core/tree/domain_contains_expressions */
 
-/** @typedef {any} Tree */
+/** @import { Tree } from "@web/core/tree/condition_tree" */
 /** @import { DomainRepr } from "@web/core/domain" */
 
 import { Expression, isTree } from "@web/core/tree/condition_tree";
@@ -24,6 +24,12 @@ function treeContainsExpressions(tree) {
                 v instanceof Expression ||
                 (Array.isArray(v) && v.some((w) => w instanceof Expression)),
         );
+    }
+    // A complex_condition carries no children; only a connector does. The
+    // domain path this reads never produces one, but nothing in the signature
+    // said so, and the `for` would have iterated `undefined`.
+    if (tree.type === "complex_condition") {
+        return true;
     }
     for (const child of tree.children) {
         if (treeContainsExpressions(child)) {

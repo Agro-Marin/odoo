@@ -4,8 +4,8 @@
 /** @module @web/core/tree/construct_domain_from_tree */
 
 /** @typedef {import("../py_js/ast_type.js").AST} AST */
-/** @typedef {any} Tree */
-/** @typedef {any} Value */
+/** @import { Tree } from "./condition_tree.js" */
+/** @import { Value } from "./condition_tree.js" */
 /** @import { Condition } from "./condition_tree.js" */
 
 import { formatAST, parseExpr } from "@web/core/py_js/py";

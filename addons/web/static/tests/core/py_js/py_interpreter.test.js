@@ -1580,3 +1580,58 @@ describe("ordering stays total across types (see pytypeIndex)", () => {
         ).toBe(false);
     });
 });
+
+describe("attribute access raises like safe_eval, instead of yielding undefined", () => {
+    // The server answers `AttributeError("'dict' object has no attribute 'b'")`
+    // for every one of these. Reading them back as `undefined` did not stop the
+    // evaluation, so the expression came back with a *different result* rather
+    // than an error -- and `{'x': 'abc'.nope}` dropped the key entirely on its
+    // way through JSON.
+    test("absent member of a dict, str or set", () => {
+        expect(() => evaluateExpr("{'a': 1}.b")).toThrow(
+            /AttributeError: 'dict' object has no attribute 'b'/,
+        );
+        expect(() => evaluateExpr("'abc'.foo")).toThrow(
+            /AttributeError: 'str' object has no attribute 'foo'/,
+        );
+        expect(() => evaluateExpr("set([1]).foo")).toThrow(
+            /AttributeError: 'set' object has no attribute 'foo'/,
+        );
+    });
+
+    test("the comparison that used to answer false", () => {
+        expect(() => evaluateExpr("{'a': 1}.b == None")).toThrow(/AttributeError/);
+        expect(() => evaluateExpr("1 if 'abc'.nope else 2")).toThrow(/AttributeError/);
+    });
+
+    test("a dict literal no longer loses a key silently", () => {
+        expect(() => evaluateExpr("{'x': 'abc'.nope}")).toThrow(/AttributeError/);
+    });
+
+    test("Object.prototype members are not members of a py value", () => {
+        expect(() => evaluateExpr("{'a': 1}.toString")).toThrow(
+            /AttributeError: 'dict' object has no attribute 'toString'/,
+        );
+        expect(() => evaluateExpr("'abc'.constructor")).toThrow(/AttributeError/);
+    });
+
+    test("None has no attributes", () => {
+        expect(() => evaluateExpr("None.foo")).toThrow(
+            /AttributeError: 'NoneType' object has no attribute 'foo'/,
+        );
+    });
+
+    test("the members that do exist still resolve", () => {
+        expect(evaluateExpr("{'a': 1}.get('a')")).toBe(1);
+        expect(evaluateExpr("{'a': 1}.get('b', 9)")).toBe(9);
+        expect(evaluateExpr("'aBc'.lower()")).toBe("abc");
+        expect(evaluateExpr("set([1, 2]).union([3])")).toEqual(new Set([1, 2, 3]));
+    });
+
+    // The lenient read is deliberate for anything that is not a py value: a
+    // domain over a sparse record reaches `parent.some_field` for rows where
+    // the field was never loaded, and raising there crashes the view.
+    test("a host object still reads absent keys as undefined", () => {
+        expect(evaluateExpr("parent.absent", { parent: { a: 1 } })).toBe(undefined);
+    });
+});

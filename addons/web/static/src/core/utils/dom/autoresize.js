@@ -59,32 +59,33 @@ export function useAutoresize(ref, options = {}) {
 }
 
 /**
- * @param {HTMLInputElement} input
- * @returns {number}
- */
-/**
  * Properties that decide how wide a run of text renders. Copied from the input
  * onto the measuring span, which is appended to the input's *parent* and so
  * inherits the parent's typography -- and an `<input>` does not inherit the
  * page font to begin with, so the two routinely differ.
+ *
+ * Spelled as CSS property names, for `getPropertyValue`/`setProperty`: reading
+ * them off the declaration as camelCase keys types the whole loop against
+ * `CSSStyleDeclaration`, whose read-only members (`length`, `parentRule`) then
+ * have to be excluded by hand.
  */
 const TEXT_METRIC_PROPERTIES = [
-    "fontFamily",
-    "fontSize",
-    "fontStyle",
-    "fontWeight",
-    "fontStretch",
-    "fontVariant",
+    "font-family",
+    "font-size",
+    "font-style",
+    "font-weight",
+    "font-stretch",
+    "font-variant",
     // The shorthand does not carry `font-variant-numeric`: it computes to
     // "normal" on an element rendering tabular figures. Tabular and
     // proportional digits have different advances, so an input that sets a
     // numeric variant its parent lacks would otherwise be measured in the
     // wrong one.
-    "fontVariantNumeric",
-    "letterSpacing",
-    "textTransform",
-    "wordSpacing",
-    "textIndent",
+    "font-variant-numeric",
+    "letter-spacing",
+    "text-transform",
+    "word-spacing",
+    "text-indent",
 ];
 
 /**
@@ -98,7 +99,7 @@ function measureTextWidth(input) {
     span.style.whiteSpace = "pre";
     const inputStyle = window.getComputedStyle(input);
     for (const property of TEXT_METRIC_PROPERTIES) {
-        span.style[property] = inputStyle[property];
+        span.style.setProperty(property, inputStyle.getPropertyValue(property));
     }
     span.textContent = input.value;
     const container = input.parentNode || document.body;

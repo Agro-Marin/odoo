@@ -118,6 +118,13 @@ Object.defineProperty(browserImpl, "location", {
     configurable: true,
 });
 
+// An accessor, not the plain copy upstream takes: the property is what
+// `hasTouch()` tests, and a facade that simply omits it answers `undefined`
+// forever, which reads as "no touch" on every device.
+Object.defineProperty(browserImpl, "ontouchstart", {
+    get: () => window.ontouchstart,
+    configurable: true,
+});
 Object.defineProperty(browserImpl, "innerHeight", {
     get: () => window.innerHeight,
     configurable: true,
@@ -129,7 +136,12 @@ Object.defineProperty(browserImpl, "innerWidth", {
 
 export const browser =
     /**
-     * @type {typeof browserImpl & { location: typeof locationFacade, innerHeight: number, innerWidth: number }}
+     * @type {typeof browserImpl & {
+     *  location: typeof locationFacade,
+     *  innerHeight: number,
+     *  innerWidth: number,
+     *  ontouchstart: ((this: Window, ev: TouchEvent) => any) | null | undefined,
+     * }}
      */ (browserImpl);
 
 /**

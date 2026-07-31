@@ -799,7 +799,7 @@ export function makeDraggableHook(hookParams) {
                     if (params.iframeWindow) {
                         params.iframeWindow.addEventListener(type, listener, options);
                     }
-                    window.addEventListener(type, listener, options);
+                    browser.addEventListener(type, listener, options);
                 };
                 addWindowListener(
                     useMouseEvents ? "mousemove" : "pointermove",

@@ -31,6 +31,7 @@ export function memoize(func) {
                     cachesByArity.set(args.length, node);
                 }
                 for (let i = 0; i < args.length - 1; i++) {
+                    /** @type {Map<any, any>} */
                     let next = node.get(args[i]);
                     if (!next) {
                         next = new Map();

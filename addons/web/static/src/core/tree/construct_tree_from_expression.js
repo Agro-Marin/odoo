@@ -251,6 +251,7 @@ function _treeFromAST(ast, options, negate = false) {
         // The editor shows `a < b < c` as two editable conditions. Expanding
         // here rather than in the parser keeps that, without handing the
         // interpreter a shared operand it would evaluate twice.
+        /** @type {AST[]} */
         const comparisons = ast.operators.map((op, i) => ({
             type: ASTType.BinaryOperator,
             op,
@@ -258,7 +259,7 @@ function _treeFromAST(ast, options, negate = false) {
             right: ast.operands[i + 1],
         }));
         return _treeFromAST(
-            /** @type {AST} */ (comparisons.reduce((left, right) => and(left, right))),
+            comparisons.reduce((left, right) => and(left, right)),
             options,
             negate,
         );

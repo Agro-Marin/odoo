@@ -275,9 +275,36 @@ describe("UA cache", () => {
 });
 
 describe("hasTouch", () => {
-    test("detects touch via ontouchstart", () => {
-        patchWithCleanup(browser, { ontouchstart: () => {} });
+    // Asserted on the real facade, not on a patched one: the previous version
+    // installed `ontouchstart` itself and so passed while the facade had
+    // stopped exposing it at all, leaving `hasTouch()` reduced to its
+    // `pointer:coarse` half on every device.
+    test("browser exposes ontouchstart", () => {
+        expect("ontouchstart" in browser).toBe(true);
+    });
+
+    test("detects touch via ontouchstart, with a fine primary pointer", () => {
+        patchWithCleanup(browser, {
+            ontouchstart: () => {},
+            matchMedia: () => /** @type {any} */ ({ matches: false }),
+        });
         expect(hasTouch()).toBe(true);
+    });
+
+    test("detects touch via pointer:coarse alone", () => {
+        patchWithCleanup(browser, {
+            ontouchstart: undefined,
+            matchMedia: () => /** @type {any} */ ({ matches: true }),
+        });
+        expect(hasTouch()).toBe(true);
+    });
+
+    test("is false when neither signal is present", () => {
+        patchWithCleanup(browser, {
+            ontouchstart: undefined,
+            matchMedia: () => /** @type {any} */ ({ matches: false }),
+        });
+        expect(hasTouch()).toBe(false);
     });
 });
 

@@ -1084,6 +1084,31 @@ const allowedFns = new Set([
     ...Object.values(STRING),
 ]);
 
+/**
+ * A py-level dict, str or set exposes exactly the members of its table, so an
+ * absent one is an ``AttributeError`` on the server rather than ``undefined``.
+ * Reading it back as ``undefined`` did not stop the evaluation: ``{'a': 1}.b ==
+ * None`` answered ``false`` where safe_eval raises, and ``{'x': 'abc'.nope}``
+ * lost the key altogether on its way through JSON. Same contract as
+ * ``ASTType.Lookup``, which already raises for an absent subscript.
+ *
+ * ``Object.hasOwn``, not a truthiness test: the tables are object literals, so
+ * a plain lookup would resolve ``toString`` & co. through ``Object.prototype``.
+ *
+ * @param {object} table
+ * @param {string} typeName
+ * @param {string} key
+ * @returns {any}
+ */
+function attributeOf(table, typeName, key) {
+    if (!Object.hasOwn(table, key)) {
+        throw new EvaluationError(
+            `AttributeError: '${typeName}' object has no attribute '${key}'`,
+        );
+    }
+    return /** @type {Record<string, any>} */ (table)[key];
+}
+
 const unboundFn = Symbol("unbound function");
 
 /**
@@ -1235,12 +1260,17 @@ export function evaluate(ast, context = {}) {
                 case ASTType.ObjLookup: {
                     let left = _evaluate(ast.obj);
                     let result;
+                    if (left === null) {
+                        throw new EvaluationError(
+                            `AttributeError: 'NoneType' object has no attribute '${ast.key}'`,
+                        );
+                    }
                     if (dicts.has(left) || isPyDict(left)) {
-                        result = /** @type {Record<string, any>} */ (DICT)[ast.key];
+                        result = attributeOf(DICT, "dict", ast.key);
                     } else if (typeof left === "string") {
-                        result = /** @type {Record<string, any>} */ (STRING)[ast.key];
+                        result = attributeOf(STRING, "str", ast.key);
                     } else if (left instanceof Set) {
-                        result = /** @type {Record<string, any>} */ (SET)[ast.key];
+                        result = attributeOf(SET, "set", ast.key);
                     } else if (
                         ast.key === "get" &&
                         typeof left === "object" &&
