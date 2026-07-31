@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/boolean_toggle/list_boolean_toggle_field - List-view variant of the Boolean toggle switch */
+/** @module @web/fields/basic/boolean_toggle/list_boolean_toggle_field */
 
 import { registerField } from "@web/fields/_registry";
 
@@ -9,7 +9,6 @@ import { BooleanToggleField, booleanToggleField } from "./boolean_toggle_field.j
 export class ListBooleanToggleField extends BooleanToggleField {
     static template = "web.ListBooleanToggleField";
 
-    /** Toggles the boolean value on click when editable. */
     async onClick() {
         if (!this.props.readonly && this.props.record.isInEdition) {
             const changes = {

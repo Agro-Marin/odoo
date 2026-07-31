@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/boolean_favorite/boolean_favorite_field - Star toggle field for marking records as favorites */
+/** @module @web/fields/basic/boolean_favorite/boolean_favorite_field */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -48,6 +48,7 @@ export class BooleanFavoriteField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const booleanFavoriteField = {
     component: BooleanFavoriteField,
     displayName: _t("Favorite"),

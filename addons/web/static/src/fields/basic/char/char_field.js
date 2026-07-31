@@ -1,14 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/char/char_field - Single-line text input field for Char columns */
+/** @module @web/fields/basic/char/char_field */
 
 import { useRef } from "@odoo/owl";
+import { formatChar } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
-import { formatChar } from "@web/fields/formatters";
 import { useInputField } from "@web/fields/input_field_hook";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { TranslationButton } from "@web/fields/translation_button";
@@ -48,15 +48,15 @@ export class CharField extends TextInputFieldBase {
         });
     }
 
-    /** @returns {boolean} A password is stored exactly as typed, spaces included */
+    /** @returns {boolean} */
     get shouldTrim() {
         return super.shouldTrim && !this.props.isPassword;
     }
-    /** @returns {number | undefined} Field size limit */
+    /** @returns {number | undefined} */
     get maxLength() {
         return this.props.record.fields[this.props.name].size;
     }
-    /** @returns {string} Formatted display value (masked if password) */
+    /** @returns {string} */
     get formattedValue() {
         return formatChar(this.props.record.data[this.props.name], {
             isPassword: this.props.isPassword,
@@ -68,6 +68,7 @@ export class CharField extends TextInputFieldBase {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const charField = {
     component: CharField,
     displayName: _t("Text"),

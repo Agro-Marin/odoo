@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/phone/phone_field - Phone number input field with tel: link in readonly mode */
+/** @module @web/fields/basic/phone/phone_field */
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
@@ -23,12 +23,13 @@ export class PhoneField extends TextInputFieldBase {
             parse: (v) => this.parse(v),
         });
     }
-    /** @returns {string} tel: URI with whitespace stripped */
+    /** @returns {string} */
     get phoneHref() {
         return `tel:${(this.props.record.data[this.props.name] || "").replace(/\s+/g, "")}`;
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const phoneField = {
     component: PhoneField,
     displayName: _t("Phone"),

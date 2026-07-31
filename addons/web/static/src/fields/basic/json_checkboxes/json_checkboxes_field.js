@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/json_checkboxes/json_checkboxes_field - Checkbox group field backed by a JSON object of boolean flags */
+/** @module @web/fields/basic/json_checkboxes/json_checkboxes_field */
 
 import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
@@ -22,6 +22,11 @@ export class JsonCheckboxes extends Component {
         stacked: { type: Boolean, optional: true },
     };
 
+    /** @type {ReturnType<typeof useDebounced>} */
+    debouncedCommitChanges;
+    /** @type {Map<string, boolean>} */
+    pendingToggles;
+
     setup() {
         this.checkboxes = useState(
             deepCopy(this.props.record.data[this.props.name] || {}),
@@ -30,19 +35,6 @@ export class JsonCheckboxes extends Component {
             execBeforeUnmount: true,
         });
         /**
-         * Toggles the user has made that have not reached the record yet, as
-         * ``key -> checked``.
-         *
-         * A plain "something is pending" boolean was not enough. A click is
-         * only written to the record 100ms later, and any model patch arriving
-         * inside that window — an onchange on a NEIGHBOURING field is the
-         * ordinary case — re-ran the observer below, which assigned the
-         * record's value straight over the local state. The click was gone from
-         * the UI, and the debounced commit then wrote the clobbered state back:
-         * a silently discarded edit, with no error anywhere. Knowing WHICH keys
-         * are pending is what lets the incoming value stay authoritative for
-         * everything else.
-         *
          * @type {Map<string, boolean>}
          */
         this.pendingToggles = new Map();
@@ -65,8 +57,6 @@ export class JsonCheckboxes extends Component {
                 if (key in this.checkboxes) {
                     this.checkboxes[key].checked = checked;
                 } else {
-                    // The incoming value dropped the key entirely; there is
-                    // nothing left to re-apply it to.
                     this.pendingToggles.delete(key);
                 }
             }
@@ -74,8 +64,7 @@ export class JsonCheckboxes extends Component {
     }
 
     /**
-     * Writes a copy of the current checkbox state back to the record.
-     * @returns {Promise|undefined} the record update, or nothing if no toggle is pending
+     * @returns {Promise<void>|undefined}
      */
     commitChanges() {
         if (!this.pendingToggles.size) {
@@ -88,9 +77,6 @@ export class JsonCheckboxes extends Component {
     }
 
     /**
-     * Synchronously flush the debounced commit so a pending toggle reaches the
-     * record before the model runs an onchange/save, then hand the resulting
-     * update promise to the model so it waits for it.
      * @param {CustomEvent} ev
      */
     flushPendingCommit(ev) {
@@ -105,7 +91,7 @@ export class JsonCheckboxes extends Component {
     }
 
     /**
-     * @param {string} key - Checkbox key in the JSON object
+     * @param {string} key
      * @param {boolean} checked
      */
     onChange(key, checked) {
@@ -115,6 +101,7 @@ export class JsonCheckboxes extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const jsonCheckboxes = {
     component: JsonCheckboxes,
     supportedOptions: [

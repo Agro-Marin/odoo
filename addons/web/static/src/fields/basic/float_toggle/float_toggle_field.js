@@ -1,13 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/float_toggle/float_toggle_field - Cyclic button that steps through a list of float values on click */
+/** @module @web/fields/basic/float_toggle/float_toggle_field */
 
 import { Component } from "@odoo/owl";
+import { formatFloatFactor } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
+import { extractDigits } from "@web/core/utils/format/digits";
 import { registerField } from "@web/fields/_registry";
-import { extractDigits } from "@web/fields/field_utils";
-import { formatFloatFactor } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 export class FloatToggleField extends Component {
@@ -25,12 +25,13 @@ export class FloatToggleField extends Component {
         disableReadOnly: false,
     };
 
-    /** Advances to the next value in the range cycle and updates the record. */
     onChange() {
         const range = this.props.range;
         const current = this.props.record.data[this.props.name] * this.factor;
         const EPSILON = 1e-6;
-        let currentIndex = range.findIndex((v) => Math.abs(v - current) < EPSILON);
+        let currentIndex = range.findIndex(
+            (/** @type {number} */ v) => Math.abs(v - current) < EPSILON,
+        );
         currentIndex++;
         if (currentIndex > range.length - 1) {
             currentIndex = 0;
@@ -40,7 +41,7 @@ export class FloatToggleField extends Component {
         });
     }
 
-    /** @returns {number} multiplication factor, guarded against 0 */
+    /** @returns {number} */
     get factor() {
         const factor = this.props.factor;
         if (!factor) {
@@ -50,7 +51,7 @@ export class FloatToggleField extends Component {
         return factor;
     }
 
-    /** @returns {string} display value formatted with factor and digits */
+    /** @returns {string} */
     get formattedValue() {
         return formatFloatFactor(this.props.record.data[this.props.name], {
             digits: this.props.digits,
@@ -60,6 +61,7 @@ export class FloatToggleField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const floatToggleField = {
     component: FloatToggleField,
     supportedOptions: [

@@ -1,15 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/percentage/percentage_field - Numeric input field that displays and parses percentage values */
+/** @module @web/fields/basic/percentage/percentage_field */
 
+import { formatPercentage } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
+import { parsePercentage } from "@web/core/parsers";
+import { extractDigits } from "@web/core/utils/format/digits";
+import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";
-import { extractDigits, isFalseEmpty } from "@web/fields/field_utils";
-import { formatPercentage } from "@web/fields/formatters";
-import { parsePercentage } from "@web/fields/parsers";
+import { isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { Operation } from "@web/model/relational_model/operation";
 
 import { NumericInputFieldBase } from "../numeric_input_field_base.js";
 
@@ -20,7 +21,10 @@ export class PercentageField extends NumericInputFieldBase {
         digits: { type: Array, optional: true },
     };
 
-    /** @param {string} v @returns {number | Operation} */
+    /**
+     * @param {string} v
+     * @returns {number | Operation}
+     */
     parse(v) {
         const parsed = parsePercentage(v, { allowOperation: true });
         if (parsed instanceof Operation) {
@@ -33,9 +37,7 @@ export class PercentageField extends NumericInputFieldBase {
     }
 
     /**
-     * @returns {string} value formatted without the % symbol — this is what
-     *     is written into the input; the template renders the symbol in a
-     *     separate <span>.
+     * @returns {string}
      */
     get formattedValue() {
         return formatPercentage(this.value, {
@@ -45,7 +47,7 @@ export class PercentageField extends NumericInputFieldBase {
         });
     }
 
-    /** @returns {string} value formatted with the % symbol, for readonly display */
+    /** @returns {string} */
     get formattedValueWithSymbol() {
         return formatPercentage(this.value, {
             digits: this.props.digits,
@@ -54,15 +56,10 @@ export class PercentageField extends NumericInputFieldBase {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const percentageField = {
     component: PercentageField,
     displayName: _t("Percentage"),
-    // Float only. The widget's contract is "stored as a 0..1 ratio, displayed
-    // x100", which an integer column cannot hold: 4 renders as "400", typing
-    // "50" writes 0.5, and `Integer.convert_to_cache` truncates that to 0 (int
-    // truncation verified against Postgres). An integer percentage field can
-    // therefore only ever express 0% or 100%, so the combination is declared
-    // unsupported rather than silently destroying the value.
     supportedTypes: ["float"],
     isEmpty: isFalseEmpty,
     extractProps: ({ attrs, options }) => ({
