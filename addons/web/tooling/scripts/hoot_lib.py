@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -78,6 +79,7 @@ RE_FAILED_TEST = re.compile(r'Test "(.+?)" failed')
 RE_PASSED_TEST = re.compile(r'Test "(.+?)" passed')
 RE_FAILED_SUMMARY = re.compile(r"Failed (\d+) tests \((\d+) passed")
 RE_PASSED_SUMMARY = re.compile(r"Passed (\d+) tests \((\d+) assertions")
+RE_ASSET_URL = re.compile(r"/web/assets/[\w./-]+")
 
 _log = logging.getLogger("hoot")
 
@@ -582,6 +584,40 @@ def _authenticate(port: int, db: str) -> str:
     if not sid:
         raise RuntimeError("Authentication failed: no session_id cookie")
     return sid
+
+
+def warm_bundles(port: int, db: str, scope_params: Iterable[str]) -> float:
+    """Build the unit-test bundles before any suite is timed. Returns seconds.
+
+    ``_http_alive`` only proves the port answers: the bundles are compiled on
+    their first request, so on a freshly booted server that build lands *inside*
+    the first suite's page load. With ``hoot-shard -j 4`` four of them land at
+    once and the timing-sensitive tests in those first suites fail — a cold
+    ``-j 4`` desktop run reported 24 failures whose every member was in the
+    first suite of its shard (datetime_field, list_view selection, load_state,
+    domain_selector), and the same servers, warm, ran the same plan at 0 failed
+    / 14352 passed. Re-running is not the fix: the runner has to finish the
+    build it triggers before it starts measuring.
+
+    One page per ``&module_scope=`` the run will use, because each scope is a
+    bundle of its own (``ir.asset._get_active_addons_list`` narrows to that
+    addon's closure) and pays its own build.
+    """
+    import requests
+
+    start = time.time()
+    session = requests.Session()
+    session.cookies.set("session_id", _authenticate(port, db))
+    for scope in dict.fromkeys(scope_params):
+        url = f"http://{HOST}:{port}/web/tests?headless&loglevel=2{scope}"
+        try:
+            page = session.get(url, timeout=600)
+            page.raise_for_status()
+            for asset in dict.fromkeys(RE_ASSET_URL.findall(page.text)):
+                session.get(f"http://{HOST}:{port}{asset}", timeout=600).close()
+        except Exception as exc:
+            _log.warning("Bundle warmup failed for %s: %s", url, exc)
+    return time.time() - start
 
 
 @dataclass
