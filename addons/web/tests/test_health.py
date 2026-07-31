@@ -101,7 +101,11 @@ class TestWebMetrics(HttpCase):
         self.assertEqual(response.status_code, 404)
 
     def test_rejects_a_missing_or_wrong_token(self):
-        with patch.dict(os.environ, {"ODOO_METRICS_TOKEN": "right"}):
+        logger = "odoo.addons.web.controllers.home"
+        with (
+            patch.dict(os.environ, {"ODOO_METRICS_TOKEN": "right"}),
+            self.assertLogs(logger, "WARNING") as capture,
+        ):
             self.assertEqual(self.url_open("/web/metrics").status_code, 401)
             self.assertEqual(
                 self.url_open(
@@ -115,6 +119,9 @@ class TestWebMetrics(HttpCase):
                 ).status_code,
                 401,
             )
+        # The refusal is the audit trail a scrape endpoint exists to leave, so
+        # every rejected attempt has to be one record, not just a 401.
+        self.assertEqual(len(capture.output), 3)
 
     def test_serves_the_exposition_with_a_valid_token(self):
         with patch.dict(os.environ, {"ODOO_METRICS_TOKEN": "right"}):

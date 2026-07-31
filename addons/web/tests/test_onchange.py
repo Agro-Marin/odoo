@@ -9,6 +9,10 @@ from odoo.tests import common
 
 from odoo.addons.web.models.record_snapshot import RecordSnapshot
 
+# Dropping a stale name is only safe because it is reported; the warning is the
+# operator's only signal that a field disappeared from a form rather than failing.
+ONCHANGE_LOGGER = "odoo.addons.web.models.web_onchange"
+
 
 def _count_selects(cr, fn):
     """Run *fn* and return how many SELECT statements it issued on *cr*."""
@@ -61,11 +65,13 @@ class TestOnchange(common.TransactionCase):
         name is dropped (previously a single unknown name returned ``{}`` and
         silently stopped recomputing every valid field too).
         """
-        result = self.env["res.partner"].onchange(
-            {"company_type": "company", "is_company": False},
-            ["company_type", "field_that_does_not_exist"],
-            {"company_type": {}, "is_company": {}},
-        )
+        with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
+            result = self.env["res.partner"].onchange(
+                {"company_type": "company", "is_company": False},
+                ["company_type", "field_that_does_not_exist"],
+                {"company_type": {}, "is_company": {}},
+            )
+        self.assertIn("field_that_does_not_exist", capture.output[0])
         self.assertIn("value", result)
         self.assertTrue(
             result["value"].get("is_company"),
@@ -74,11 +80,13 @@ class TestOnchange(common.TransactionCase):
 
     def test_all_unknown_changed_fields_is_noop(self):
         """If every changed field is unknown, onchange is a no-op (``{}``)."""
-        result = self.env["res.partner"].onchange(
-            {"company_type": "company"},
-            ["field_that_does_not_exist"],
-            {"company_type": {}, "is_company": {}},
-        )
+        with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
+            result = self.env["res.partner"].onchange(
+                {"company_type": "company"},
+                ["field_that_does_not_exist"],
+                {"company_type": {}, "is_company": {}},
+            )
+        self.assertIn("field_that_does_not_exist", capture.output[0])
         self.assertEqual(result, {})
 
     def test_snapshot_diff_link_lines_are_batched(self):
@@ -112,16 +120,17 @@ class TestOnchange(common.TransactionCase):
             f"diff query count scales with link lines (N+1): {few} vs {many}",
         )
 
-
     def test_stale_top_level_spec_field_dropped(self):
         """An unknown name in the top-level fields_spec must be dropped, not
         500 (``self.fetch(fields_spec.keys())`` is strict and raised
         ValueError). Valid fields still recompute."""
-        result = self.env["res.partner"].onchange(
-            {"company_type": "company", "is_company": False},
-            ["company_type"],
-            {"company_type": {}, "is_company": {}, "stale_field_zz": {}},
-        )
+        with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
+            result = self.env["res.partner"].onchange(
+                {"company_type": "company", "is_company": False},
+                ["company_type"],
+                {"company_type": {}, "is_company": {}, "stale_field_zz": {}},
+            )
+        self.assertIn("stale_field_zz", capture.output[0])
         self.assertIn("value", result)
         self.assertTrue(result["value"].get("is_company"))
         self.assertNotIn("stale_field_zz", result["value"])
@@ -134,23 +143,27 @@ class TestOnchange(common.TransactionCase):
         Partner = self.env["res.partner"]
         child = Partner.create({"name": "OC Sub Child"})
         parent = Partner.create({"name": "OC Sub Parent", "child_ids": [(4, child.id)]})
-        result = parent.onchange(
-            {"name": "Renamed", "child_ids": [[4, child.id, False]]},
-            ["name"],
-            {
-                "name": {},
-                "child_ids": {"fields": {"name": {}, "stale_sub_zz": {}}},
-            },
-        )
+        with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
+            result = parent.onchange(
+                {"name": "Renamed", "child_ids": [[4, child.id, False]]},
+                ["name"],
+                {
+                    "name": {},
+                    "child_ids": {"fields": {"name": {}, "stale_sub_zz": {}}},
+                },
+            )
+        self.assertIn("stale_sub_zz", capture.output[0])
         self.assertIn("value", result)
 
     def test_first_call_stale_spec_dropped(self):
         """First call (empty field_names): a stale spec name must not KeyError
         in the defaults loop (``self._fields[field_name]``); defaults for the
         valid fields are still seeded."""
-        result = self.env["res.partner"].onchange(
-            {}, [], {"name": {}, "active": {}, "stale_first_zz": {}}
-        )
+        with self.assertLogs(ONCHANGE_LOGGER, "WARNING") as capture:
+            result = self.env["res.partner"].onchange(
+                {}, [], {"name": {}, "active": {}, "stale_first_zz": {}}
+            )
+        self.assertIn("stale_first_zz", capture.output[0])
         self.assertIn("value", result)
         self.assertTrue(result["value"].get("active"))
         self.assertNotIn("stale_first_zz", result["value"])

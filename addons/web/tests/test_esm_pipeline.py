@@ -1808,7 +1808,12 @@ class TestProdNodesDeclineNotCached(TransactionCase):
             "_save_esm_attachment",
             side_effect=ReadOnlySqlTransaction("no writable cursor"),
         ):
-            with self.assertRaises(_EsmFallbackError):
+            with (
+                self.assertLogs(
+                    f"{ASSET_ROOT}.attach", level=logging.WARNING
+                ) as caught,
+                self.assertRaises(_EsmFallbackError),
+            ):
                 ir_qweb._esm_prod_nodes(
                     self.BUNDLE,
                     self._fake_bundle(),
@@ -1817,6 +1822,7 @@ class TestProdNodesDeclineNotCached(TransactionCase):
                     [],
                     raise_on_decline=True,
                 )
+        self.assertIn("declined=True", caught.output[0])
 
     def test_uncached_rerun_still_inlines(self):
         """Without the flag (the uncached re-run) the inline degradation
@@ -1827,13 +1833,17 @@ class TestProdNodesDeclineNotCached(TransactionCase):
             "_save_esm_attachment",
             side_effect=ReadOnlySqlTransaction("no writable cursor"),
         ):
-            _pre, post = ir_qweb._esm_prod_nodes(
-                self.BUNDLE,
-                self._fake_bundle(),
-                EsbuildResult("CODE;", None, None),
-                None,
-                [],
-            )
+            with self.assertLogs(
+                f"{ASSET_ROOT}.attach", level=logging.WARNING
+            ) as caught:
+                _pre, post = ir_qweb._esm_prod_nodes(
+                    self.BUNDLE,
+                    self._fake_bundle(),
+                    EsbuildResult("CODE;", None, None),
+                    None,
+                    [],
+                )
+        self.assertIn("declined=False", caught.output[0])
         module_nodes = [
             attrs
             for tag, attrs in post
@@ -2038,11 +2048,15 @@ class TestImportMapMergeHelpers(TransactionCase):
         }
 
         import_map = dict(base_map)
-        resolved = qweb._resolve_bridge_specifiers_to_urls(
-            import_map,
-            ["@a/direct", "@b/shimmed", "@c/data", "bare-unresolvable", "@d/new"],
-            drop_unresolved=True,
-        )
+        # Each specifier without a readable source on disk is reported; the
+        # rewrite falling back silently is what made a stale bridge invisible.
+        with self.assertLogs(f"{ASSET_ROOT}.bridge", level=logging.WARNING) as captured:
+            resolved = qweb._resolve_bridge_specifiers_to_urls(
+                import_map,
+                ["@a/direct", "@b/shimmed", "@c/data", "bare-unresolvable", "@d/new"],
+                drop_unresolved=True,
+            )
+        self.assertEqual(len(captured.output), 3)
         self.assertEqual(import_map["@a/direct"], "/a/static/src/direct.js")
         self.assertNotIn("@a/direct", resolved)
         self.assertEqual(import_map["@b/shimmed"], "/b/static/src/shimmed.js")
