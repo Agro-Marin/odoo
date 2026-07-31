@@ -36,21 +36,31 @@ const COMPOSITE_DIRECTIVES = {
 
 const DIRECTIVE_RE = /%(%|[A-Za-z])/g;
 
+/**
+ * @param {string} format
+ * @param {Record<string, (this: any) => string>} converters
+ * @returns {string}
+ */
 function strftime(format, converters) {
-    const expanded = format.replace(DIRECTIVE_RE, (m, c) =>
-        c in COMPOSITE_DIRECTIVES
-            ? /** @type {Record<string, string>} */ (COMPOSITE_DIRECTIVES)[c]
-            : m,
+    const expanded = format.replace(
+        DIRECTIVE_RE,
+        (/** @type {string} */ m, /** @type {string} */ c) =>
+            c in COMPOSITE_DIRECTIVES
+                ? /** @type {Record<string, string>} */ (COMPOSITE_DIRECTIVES)[c]
+                : m,
     );
-    return expanded.replace(DIRECTIVE_RE, (m, c) => {
-        if (c === "%") {
-            return "%";
-        }
-        if (c in converters) {
-            return converters[c]();
-        }
-        throw new ValueError(`No known conversion for ${m}`);
-    });
+    return expanded.replace(
+        DIRECTIVE_RE,
+        (/** @type {string} */ m, /** @type {string} */ c) => {
+            if (c === "%") {
+                return "%";
+            }
+            if (c in converters) {
+                return converters[c]();
+            }
+            throw new ValueError(`No known conversion for ${m}`);
+        },
+    );
 }
 
 /**

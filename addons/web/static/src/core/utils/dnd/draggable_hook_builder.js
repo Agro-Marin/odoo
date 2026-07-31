@@ -67,23 +67,23 @@ export { DRAGGED_CLASS };
  *  [key: string]: any;
  * }} DraggableHookContext
  * @typedef {{
- *  container?: HTMLElement;
- *  containerRect?: DOMRect;
- *  element?: HTMLElement;
- *  elementRect?: DOMRect;
+ *  container: HTMLElement;
+ *  containerRect: DOMRect;
+ *  element: HTMLElement;
+ *  elementRect: DOMRect;
  *  scrollParentX?: HTMLElement | null;
  *  scrollParentXRect?: DOMRect | null;
  *  scrollParentY?: HTMLElement | null;
  *  scrollParentYRect?: DOMRect | null;
- *  timeout?: number;
- *  initialPosition?: Position;
- *  offset?: Position;
+ *  timeout?: ReturnType<typeof browser.setTimeout>;
+ *  initialPosition: Position;
+ *  offset: Position;
  *  [key: string]: any;
  * }} DraggableHookCurrentContext
  * @typedef EdgeScrollingOptions
  * @property {boolean} [enabled=true]
- * @property {number} [speed=10]
- * @property {number} [threshold=20]
+ * @property {number} speed
+ * @property {number} threshold
  * @property {"horizontal"|"vertical"} [direction]
  * @typedef Position
  * @property {number} x
@@ -410,8 +410,8 @@ export function makeDraggableHook(hookParams) {
 
                 dragEnd(null);
 
-                const fullSelectorEl = /** @type {HTMLElement} */ (
-                    target.closest(ctx.fullSelector)
+                const fullSelectorEl = /** @type {HTMLElement | null} */ (
+                    target.closest(/** @type {string} */ (ctx.fullSelector))
                 );
                 if (
                     ev.button !== LEFT_CLICK ||
@@ -427,8 +427,9 @@ export function makeDraggableHook(hookParams) {
                 target.focus();
                 let activeElement = document.activeElement;
                 while (activeElement?.nodeName === "IFRAME") {
-                    activeElement = /** @type {HTMLIFrameElement} */ (activeElement)
-                        .contentDocument?.activeElement;
+                    activeElement =
+                        /** @type {HTMLIFrameElement} */ (activeElement).contentDocument
+                            ?.activeElement ?? null;
                 }
                 if (activeElement && !activeElement.contains(target)) {
                     /** @type {HTMLElement} */ (activeElement).blur();
@@ -448,7 +449,9 @@ export function makeDraggableHook(hookParams) {
                     if (hasTouch()) {
                         if (ev.pointerType === "touch") {
                             dom.addClass(
-                                target.closest(ctx.elementSelector),
+                                target.closest(
+                                    /** @type {string} */ (ctx.elementSelector),
+                                ),
                                 "o_touch_bounce",
                             );
                         }
@@ -555,8 +558,8 @@ export function makeDraggableHook(hookParams) {
                 });
                 let iframeOffsetX = 0;
                 let iframeOffsetY = 0;
-                const iframeEl = /** @type {HTMLIFrameElement} */ (
-                    container.ownerDocument.defaultView.frameElement
+                const iframeEl = /** @type {HTMLIFrameElement | null} */ (
+                    container.ownerDocument.defaultView?.frameElement ?? null
                 );
                 if (iframeEl && !iframeEl.contentDocument?.contains(element)) {
                     const { x, y } = dom.getRect(/** @type {HTMLElement} */ (iframeEl));
@@ -611,10 +614,19 @@ export function makeDraggableHook(hookParams) {
              * @param {Element} target
              */
             const willStartDrag = (target) => {
-                ctx.current.element = target.closest(ctx.elementSelector);
+                const element = /** @type {HTMLElement | null} */ (
+                    target.closest(/** @type {string} */ (ctx.elementSelector))
+                );
+                if (!element || !ctx.ref.el) {
+                    return;
+                }
+                ctx.current.element = element;
                 ctx.current.container = ctx.ref.el;
 
-                cleanup.add(() => (ctx.current = {}));
+                cleanup.add(
+                    () =>
+                        (ctx.current = /** @type {DraggableHookCurrentContext} */ ({})),
+                );
                 state.willDrag = true;
 
                 callBuildHandler("onWillStartDrag");
@@ -682,14 +694,21 @@ export function makeDraggableHook(hookParams) {
                 followCursor: true,
                 cursor: null,
                 pointer: { x: 0, y: 0 },
-                edgeScrolling: { enabled: true },
+                edgeScrolling: {
+                    ...DEFAULT_DEFAULT_PARAMS.edgeScrolling,
+                    enabled: true,
+                },
                 get dragging() {
                     return state.dragging;
                 },
                 get willDrag() {
                     return state.willDrag;
                 },
-                current: {},
+                // Empty until `willStartDrag` fills it, and emptied again by
+                // the cleanup it registers. Everything that reads it runs
+                // between those two points, which is the state the type
+                // describes.
+                current: /** @type {DraggableHookCurrentContext} */ ({}),
             };
 
             setupHooks.setup(
