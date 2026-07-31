@@ -503,6 +503,102 @@ class TestReadFormatPrefetch(TransactionCase):
         self.assertEqual([vals["name"] for vals in result], ["new a", "new b"])
 
 
+class TestReadFormatMany2oneBatch(TransactionCase):
+    """``_read_format`` resolves a many2one column's access check once.
+
+    ``Many2one.convert_to_read`` hides a target the reader may not see, and it
+    used to ask per value. When the comodel's record rules are written on a
+    *search-defined* field the answer cannot come from the cache at all --
+    ``Domain._as_predicate`` falls through to ``_search_defined_predicate``,
+    which queries -- so reading such a many2one over N records cost N queries.
+    ``convert_to_read_multi`` asks once for the whole column; these tests pin
+    that it still answers exactly what the per-value path did.
+    """
+
+    def _cold(self, records):
+        records.env.flush_all()
+        records.env.invalidate_all()
+        return records.browse(records.ids)
+
+    def test_batched_conversion_matches_the_per_value_one(self):
+        parent = self.env["res.partner"].create({"name": "batch parent"})
+        children = self.env["res.partner"].create(
+            [{"name": f"batch child {i}", "parent_id": parent.id} for i in range(4)]
+        )
+        # One with no parent at all, so the falsy branch is covered too.
+        children |= self.env["res.partner"].create({"name": "batch orphan"})
+
+        field = self.env["res.partner"]._fields["parent_id"]
+        expected = [field.convert_to_read(child.parent_id, child) for child in children]
+        self.assertEqual(
+            field.convert_to_read_multi(
+                [child.parent_id for child in children], children
+            ),
+            expected,
+        )
+
+    def test_batched_conversion_without_display_name(self):
+        """``load=None`` must still yield bare ids, and check nothing."""
+        parent = self.env["res.partner"].create({"name": "bare parent"})
+        children = self.env["res.partner"].create(
+            [{"name": f"bare child {i}", "parent_id": parent.id} for i in range(3)]
+        )
+        rows = self._cold(children).read(["parent_id"], load=None)
+        self.assertEqual([row["parent_id"] for row in rows], [parent.id] * 3)
+
+    def test_unreadable_target_is_still_hidden(self):
+        """The point of the check: a target the reader cannot see is `False`."""
+        secret = self.env["res.partner"].create({"name": "SECRET BATCH PARENT"})
+        visible = self.env["res.partner"].create({"name": "VISIBLE BATCH PARENT"})
+        children = self.env["res.partner"].create(
+            [
+                {"name": "batch hidden child", "parent_id": secret.id},
+                {"name": "batch visible child", "parent_id": visible.id},
+            ]
+        )
+        # A global rule (no groups) is ANDed for every non-superuser.
+        self.env["ir.rule"].create(
+            {
+                "name": "hide the secret batch parent",
+                "model_id": self.env["ir.model"]._get_id("res.partner"),
+                "domain_force": [("id", "!=", secret.id)],
+            }
+        )
+        user = self.env["res.users"].create(
+            {
+                "name": "Batch reader",
+                "login": "batch_reader",
+                "group_ids": [Command.set([self.env.ref("base.group_user").id])],
+            }
+        )
+        rows = self._cold(children).with_user(user).read(["parent_id"])
+        by_name = {row["id"]: row["parent_id"] for row in rows}
+        self.assertFalse(
+            by_name[children[0].id],
+            "an unreadable parent must not be named, batched or not",
+        )
+        self.assertEqual(by_name[children[1].id][0], visible.id)
+
+    def test_missing_target_degrades_instead_of_raising(self):
+        """A value pointing at a row that is not there answers False.
+
+        The batch resolves access for the whole column at once, and a rule
+        evaluated in Python raises on a missing row rather than simply not
+        matching it -- so the batch has to fall back to asking per value.
+        """
+        Partner = self.env["res.partner"]
+        holder = Partner.create({"name": "holder"})
+        ghost = Partner.browse(
+            max(Partner.search([], order="id desc", limit=1).id, 0) + 10**6
+        )
+        field = Partner._fields["parent_id"]
+        self.assertEqual(
+            field.convert_to_read_multi([ghost, Partner.browse()], holder),
+            [False, False],
+        )
+        self.assertEqual(field.convert_to_read(ghost, holder), False)
+
+
 class TestOrdinaryTableMemo(TransactionCase):
     """``Registry.is_an_ordinary_table`` must survive a registry that grew."""
 
