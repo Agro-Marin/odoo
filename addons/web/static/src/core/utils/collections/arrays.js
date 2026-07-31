@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/collections/arrays - Array helpers: groupBy, sortBy, unique, intersection, cartesian, zip */
+/** @module @web/core/utils/collections/arrays */
 
 /**
  * @template T
@@ -10,14 +10,9 @@
  */
 
 /**
- * Same values returned as those returned by cartesian function for case n = 0
- * and n > 1. For n = 1, brackets are put around the unique parameter elements.
- *
  * @template T
  * @param {...T[]} args
- * @returns {(T[] | undefined)[]} ``[undefined]`` for n = 0 — the unit of the
- *   product, which is a one-element sequence holding the empty tuple rather
- *   than an empty sequence.
+ * @returns {(T[] | undefined)[]}
  */
 function _cartesian(...args) {
     if (!args.length) {
@@ -31,9 +26,6 @@ function _cartesian(...args) {
     const productOfOtherArrays = _cartesian(...args);
     for (const array of firstArray) {
         for (const tuple of productOfOtherArrays) {
-            // `?? []` is unreachable: the `[undefined]` unit is only produced
-            // for n = 0, and `args` is non-empty here. It states that for the
-            // checker, which cannot carry the length guard into the recursion.
             result.push([...array, ...(tuple ?? [])]);
         }
     }
@@ -41,9 +33,6 @@ function _cartesian(...args) {
 }
 
 /**
- * Returns an extraction handler that pulls a given attribute (or mutated
- * form) from an array element.
- *
  * @private
  * @template T
  * @template {string | number | symbol} K
@@ -51,15 +40,6 @@ function _cartesian(...args) {
  * @returns {(element: T) => any}
  */
 function _getExtractorFrom(criterion) {
-    // Only the ABSENCE of a criterion means "use the element itself". Guarding
-    // on truthiness instead conflated absence with the falsy values a caller can
-    // actually pass: `""` is a legitimate property name, and `0` is the kind of
-    // mistake the type check below exists to report. Both slipped through to the
-    // identity extractor, so `sortBy(rows, "")` compared the OBJECTS — never
-    // greater nor less, hence a stable no-op that reads as "already sorted" —
-    // and `groupBy(rows, "")` funnelled every row into one "[object Object]"
-    // bucket. Silent in both cases, and `0` never reached the error it was
-    // supposed to raise.
     if (criterion === undefined || criterion === null) {
         return (element) => element;
     }
@@ -76,10 +56,6 @@ function _getExtractorFrom(criterion) {
 }
 
 /**
- * Returns an array containing either:
- * - the elements contained in the given iterable OR
- * - the given element if it is not an iterable
- *
  * @template T
  * @param {T | Iterable<T>} [value]
  * @returns {T[]}
@@ -91,8 +67,6 @@ export function ensureArray(value) {
 }
 
 /**
- * Returns the array of elements contained in both arrays.
- *
  * @template T
  * @param {Iterable<T>} iter1
  * @param {Iterable<T>} iter2
@@ -104,8 +78,6 @@ export function intersection(iter1, iter2) {
 }
 
 /**
- * Returns whether the given value is an iterable object (excluding strings).
- *
  * @param {unknown} value
  * @returns {boolean}
  */
@@ -114,9 +86,6 @@ export function isIterable(value) {
 }
 
 /**
- * Group elements of ``iterable`` by a criterion — a property name (string)
- * or a function returning the group key — into a ``{ groupKey: T[] }`` map.
- *
  * @template T
  * @template {string | number | symbol} K
  * @param {Iterable<T>} iterable
@@ -131,9 +100,6 @@ export function groupBy(iterable, criterion) {
 }
 
 /**
- * Shallow copy of ``iterable``, sorted by a criterion (property name or a
- * key-extractor function), ascending by default.
- *
  * @template T
  * @template {string | number | symbol} K
  * @param {Iterable<T>} iterable
@@ -163,9 +129,6 @@ export function sortBy(iterable, criterion, order = "asc") {
 }
 
 /**
- * Returns the elements present in exactly one of the two iterables (the
- * symmetric difference).
- *
  * @template T
  * @param {Iterable<T>} iter1
  * @param {Iterable<T>} iter2
@@ -178,12 +141,6 @@ export function symmetricalDifference(iter1, iter2) {
 }
 
 /**
- * Returns the product of any number n of arrays.
- * The internal structures of their elements is preserved.
- * For n = 1, no brackets are put around the unique parameter elements
- * For n = 0, [undefined] is returned since it is the unit
- * of the cartesian product (up to isomorphism).
- *
  * @template T
  * @param {...T[]} args
  * @returns {(T | T[] | undefined)[]}
@@ -199,9 +156,6 @@ export function cartesian(...args) {
 }
 
 /**
- * Returns all initial sections of a given array, e.g. for [1, 2] the array
- * [[], [1], [1, 2]] is returned.
- *
  * @template T
  * @param {Iterable<T>} iterable
  * @returns {T[][]}
@@ -216,9 +170,6 @@ export function sections(iterable) {
 }
 
 /**
- * Returns an array containing all elements of the given
- * array but without duplicates.
- *
  * @template T
  * @param {Iterable<T>} iterable
  * @returns {T[]}
@@ -257,13 +208,10 @@ export function zipWith(iter1, iter2, mapFn) {
     return zip(iter1, iter2).map(([e1, e2]) => mapFn(e1, e2));
 }
 /**
- * Creates a sliding window over an array of a given width. Eg:
- * slidingWindow([1, 2, 3, 4], 2) => [[1, 2], [2, 3], [3, 4]]
- *
  * @template T
- * @param {T[]} arr the array over which to create a sliding window
- * @param {number} width the width of the window
- * @returns {T[][]} an array of tuples of size width
+ * @param {T[]} arr
+ * @param {number} width
+ * @returns {T[][]}
  */
 export function slidingWindow(arr, width) {
     const res = [];

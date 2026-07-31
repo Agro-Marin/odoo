@@ -28,6 +28,7 @@ function enableFormatting() {
  * @returns {{ add: (message: string, options?: any) => () => void, calls: {message: string, options: any}[] }}
  */
 function makeNotification() {
+    /** @type {{message: string, options: any}[]} */
     const calls = [];
     return {
         calls,

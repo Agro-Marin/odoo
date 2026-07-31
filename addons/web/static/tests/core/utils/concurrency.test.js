@@ -326,6 +326,39 @@ describe("KeepLast", () => {
         await tick();
         expect.verifySteps(["ok [2]"]);
     });
+
+    test("cancel() drops what is in flight without enqueuing a replacement", async () => {
+        const keepLast = new KeepLast();
+        const def = new Deferred();
+
+        keepLast.add(def).then(
+            () => expect.step("should not resolve"),
+            () => expect.step("should not reject"),
+        );
+        keepLast.cancel();
+
+        def.resolve();
+        await tick();
+        expect.verifySteps([]);
+
+        // The instance stays usable: a task added after a cancel still settles.
+        const next = new Deferred();
+        keepLast.add(next).then((v) => expect.step(`ok (${v})`));
+        next.resolve(7);
+        await tick();
+        expect.verifySteps(["ok (7)"]);
+    });
+
+    test("cancel() rejects the pending task in rejectSuperseded mode", async () => {
+        const keepLast = new KeepLast({ rejectSuperseded: true });
+        const def = new Deferred();
+
+        keepLast.add(def).catch((error) => expect.step(error.constructor.name));
+        keepLast.cancel();
+
+        await tick();
+        expect.verifySteps(["SupersededError"]);
+    });
 });
 
 describe("Race", () => {

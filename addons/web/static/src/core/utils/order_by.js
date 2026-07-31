@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/order_by - Converts between OrderTerm arrays and SQL-like "field ASC/DESC" strings */
+/** @module @web/core/utils/order_by */
 
 /**
  * @typedef {{
@@ -11,14 +11,6 @@
  */
 
 /**
- * An omitted ``asc`` means ASCENDING, matching every other reader and writer of
- * an order term: {@link stringToOrderBy} parses a bare ``"foo"`` as
- * ``{ name: "foo", asc: true }``, ``search_favorites`` serializes with
- * ``o.asc === false ? " desc" : ""``, and SQL's own default is ASC. This used
- * to test ``o.asc`` for truthiness, so a term built without the optional field
- * serialized as DESC and a round trip through ``stringToOrderBy`` flipped the
- * sort direction.
- *
  * @param {OrderTerm[]} orderBy
  * @returns {string}
  */
@@ -28,24 +20,41 @@ export function orderByToString(orderBy) {
         .join(", ");
 }
 
+export class InvalidOrderError extends Error {
+    name = "InvalidOrderError";
+}
+
 /**
+ * Mirrors the server's own rule (``models._check_qorder``): a comma-separated
+ * list of field names, each optionally followed by ``asc`` or ``desc``.
+ *
+ * Anything else throws rather than being coerced. Silently accepting it used to
+ * produce two distinct failures: an empty term round-tripped through
+ * ``orderByToString`` as ``" ASC"``, which the server rejects with
+ * ``ValueError: Invalid field 'ASC'`` instead of its own readable message; and
+ * an unrecognised direction word was read as DESC, so ``"id ASCENDING"``
+ * silently reversed the sort the server would have refused outright.
+ *
  * @param {string | null | undefined | false} string
  * @return {OrderTerm[]}
+ * @throws {InvalidOrderError} on an empty term or an unrecognised direction
  */
 export function stringToOrderBy(string) {
     if (!string) {
         return [];
     }
     return string.split(",").map((order) => {
-        const [name, direction, ...extra] = order.trim().split(/\s+/);
-        if (extra.length) {
-            // A term with trailing tokens (`"foo desc nulls last"`) used to
-            // fall through to the bare-name branch and come back ASC — the one
-            // reading that inverts the caller's stated intent. Nothing in Odoo
-            // emits such a term, so this is unreachable rather than a fix for
-            // an observed bug; it is here so the unreachable case is loud
-            // instead of silently wrong.
-            throw new Error(`Invalid order term: "${order.trim()}"`);
+        const term = order.trim();
+        const [name, direction, ...extra] = term.split(/\s+/);
+        if (!name || extra.length) {
+            throw new InvalidOrderError(
+                `Invalid order term "${term}" in "${string}": expected a field name optionally followed by "asc" or "desc"`,
+            );
+        }
+        if (direction !== undefined && !/^(asc|desc)$/i.test(direction)) {
+            throw new InvalidOrderError(
+                `Invalid order direction "${direction}" in "${string}": expected "asc" or "desc"`,
+            );
         }
         return {
             name,

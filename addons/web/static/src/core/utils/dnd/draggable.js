@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/draggable - useDraggable OWL hook for free-form element dragging */
+/** @module @web/core/utils/dnd/draggable */
 
 import { pick } from "@web/core/utils/collections/objects";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
@@ -10,32 +10,16 @@ import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_ow
 
 /**
  * @typedef DraggableParams
- *
- * MANDATORY
- *
  * @property {{ el: HTMLElement | null }} ref
- * @property {string} elements defines draggable elements
- *
- * OPTIONAL
- *
- * @property {boolean | (() => boolean)} [enable] whether the draggable system should
- *  be enabled.
- * @property {string | (() => string)} [handle] additional selector for when the dragging
- *  sequence must be initiated when dragging on a certain part of the element.
- * @property {string | (() => string)} [ignore] selector targetting elements that must
- *  initiate a drag.
- * @property {string | (() => string)} [cursor] cursor style during the dragging sequence.
- *
- * HANDLERS (also optional)
- *
+ * @property {string} elements
+ * @property {boolean | (() => boolean)} [enable]
+ * @property {string | (() => string)} [handle]
+ * @property {string | (() => string)} [ignore]
+ * @property {string | (() => string)} [cursor]
  * @property {(params: DraggableHandlerParams) => any} [onDragStart]
- *  called when a dragging sequence is initiated.
  * @property {(params: DraggableHandlerParams) => any} [onDrag]
- *  called on each "mousemove" during the drag sequence.
  * @property {(params: DraggableHandlerParams) => any} [onDragEnd]
- *  called when the dragging sequence ends, regardless of the reason.
- * @property {(params: DraggableHandlerParams) => any} [onDrop] called when the dragging sequence
- *  ends on a mouseup action.
+ * @property {(params: DraggableHandlerParams) => any} [onDrop]
  */
 
 /**

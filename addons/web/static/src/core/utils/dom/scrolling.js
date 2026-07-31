@@ -1,18 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/scrolling - Scroll detection, scrollIntoView, and scrollbar compensation utilities */
+/** @module @web/core/utils/dom/scrolling */
 
 import { browser } from "@web/core/browser/browser";
 
-/**
- * Maximum time (ms) to wait for a scroll to settle before resolving anyway.
- * Guards against environments that never fire "scrollend" (older Safari,
- * embedded webviews) and against the scrollable being detached mid-scroll.
- */
 const SCROLL_SETTLE_TIMEOUT = 1000;
 
-/** Whether this engine fires "scrollend" (absent on older Safari / webviews). */
 const SUPPORTS_SCROLLEND = "onscrollend" in window;
 
 function isScrollableX(/** @type {Element} */ el) {
@@ -33,8 +27,6 @@ export function couldBeScrollableX(/** @type {Element | null} */ el) {
 }
 
 /**
- * Get the closest horizontally scrollable for a given element.
- *
  * @param {HTMLElement | null} el
  * @returns {HTMLElement | null}
  */
@@ -66,8 +58,6 @@ export function couldBeScrollableY(/** @type {Element | null} */ el) {
 }
 
 /**
- * Get the closest vertically scrollable for a given element.
- *
  * @param {HTMLElement | null} el
  * @returns {HTMLElement | null}
  */
@@ -82,14 +72,12 @@ export function closestScrollableY(el) {
 }
 
 /**
- * Ensures that `element` will be visible in its `scrollable`.
- *
  * @param {HTMLElement} element
  * @param {object} options
- * @param {HTMLElement} [options.scrollable] a scrollable area
- * @param {boolean} [options.isAnchor] states if the scroll is to an anchor
- * @param {ScrollBehavior} [options.behavior] "smooth", "instant", "auto"
- * @param {number} [options.offset] applies a vertical offset
+ * @param {HTMLElement} [options.scrollable]
+ * @param {boolean} [options.isAnchor]
+ * @param {ScrollBehavior} [options.behavior]
+ * @param {number} [options.offset]
  * @returns {Promise<any[]> | void}
  */
 export function scrollTo(element, options = {}) {
@@ -108,16 +96,14 @@ export function scrollTo(element, options = {}) {
     const scrollPromises = [];
 
     /**
-     * Wait for the scroll to settle, but resolve immediately if no actual
-     * scrolling occurs. Never hangs: it feature-detects "scrollend" and always
-     * races the wait against a max-duration timer (which also cleans up the
-     * once-listener if the scrollable is detached mid-scroll).
      * @param {number} targetTop
      */
     function awaitScroll(targetTop) {
         const prevTop = scrollable.scrollTop;
+        const maxTop = scrollable.scrollHeight - scrollable.clientHeight;
+        const clampedTop = Math.max(0, Math.min(targetTop, maxTop));
         scrollable.scrollTo({ top: targetTop, behavior });
-        if (scrollable.scrollTop === prevTop) {
+        if (Math.abs(clampedTop - prevTop) < 1) {
             return Promise.resolve();
         }
         return new Promise((resolve) => {
@@ -139,11 +125,6 @@ export function scrollTo(element, options = {}) {
                 resolve(undefined);
             };
             timer = browser.setTimeout(finish, SCROLL_SETTLE_TIMEOUT);
-            // Probed on `window`, not on `scrollable`: scrollend is an ENGINE
-            // capability, not a per-element one, and testing it on the element
-            // narrows `scrollable` to `never` in the else branch — the polling
-            // fallback that exists precisely for the engines lib.dom describes
-            // as always having it.
             if (SUPPORTS_SCROLLEND) {
                 scrollable.addEventListener("scrollend", finish, { once: true });
             } else {

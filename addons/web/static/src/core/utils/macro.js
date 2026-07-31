@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/macro - Step-based macro engine for automated UI interaction sequences */
+/** @module @web/core/utils/macro */
 
 import { validate } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -90,12 +90,9 @@ async function waitForTrigger(trigger, signal) {
 }
 
 /**
- * Wait until a predicate returns a truthy value, polling via requestAnimationFrame.
- *
  * @template T
  * @param {() => T} predicate
- * @param {{ signal?: AbortSignal }} [options] abort the polling loop through
- *  `signal` (the returned promise then rejects with an "AbortError")
+ * @param {{ signal?: AbortSignal }} [options]
  * @returns {Promise<T>}
  */
 export async function waitUntil(predicate, { signal } = {}) {
@@ -140,10 +137,6 @@ export async function waitUntil(predicate, { signal } = {}) {
 
 export class Macro {
     /**
-     * Sentinel a step `action` can return to halt the macro without firing
-     * `onComplete`/`onError` (e.g. a step navigates away and later steps must
-     * not run). Prefer this over an ad-hoc truthy value (deprecated).
-     *
      * @type {symbol}
      */
     static STOP = Symbol("Macro.STOP");
@@ -171,14 +164,6 @@ export class Macro {
             );
         }
         Object.assign(this, descr);
-        // `this.x = this.x ?? default` — NOT a class field, and NOT `??=`.
-        //  - A class field creates an OWN property on every instance, shadowing
-        //    an `onError`/`onStep` a SUBCLASS defines on its prototype (pinned
-        //    by "subclass prototype onError receives { error, step, index }").
-        //  - `??=` performs no assignment when the value already resolves, so
-        //    the checker never sees these properties declared at all.
-        // Reading through the prototype chain first preserves the override, and
-        // the write then stores that same function, so behaviour is unchanged.
         /** @type {Function} */
         this.onComplete = this.onComplete ?? (() => {});
         /** @type {Function} */
@@ -195,62 +180,69 @@ export class Macro {
         await this.advance();
     }
 
+    /**
+     * Runs from the current index to the end. Iterative rather than
+     * self-recursive: every hop crossed an `await`, so a tour of N steps left N
+     * suspended frames alive until the last one returned, and `stop()` was only
+     * ever reached from the innermost.
+     */
     async advance() {
-        if (this.isComplete || this.currentIndex >= this.steps.length) {
-            this.stop();
-            return;
-        }
-        try {
-            const step = this.steps[this.currentIndex];
-            const timeoutDelay = step.timeout || this.timeout || 10000;
-            const abortController = new AbortController();
-            this.abortController = abortController;
-            const executeStep = async () => {
-                const trigger = await waitForTrigger(
-                    step.trigger,
-                    abortController.signal,
-                );
-                const result = await performAction(trigger, step.action);
-                await this.onStep({ step, trigger, index: this.currentIndex });
-                return result;
-            };
-            /** @type {ReturnType<typeof browser.setTimeout>} */
-            let timerHandle;
-            const timerPromise = new Promise((resolve, reject) => {
-                timerHandle = browser.setTimeout(() => {
-                    abortController.abort();
-                    reject(
-                        new MacroError(
-                            "Timeout",
-                            `TIMEOUT step failed to complete within ${timeoutDelay} ms.`,
-                        ),
-                    );
-                }, timeoutDelay);
-            });
-            const stepPromise = executeStep();
-            stepPromise.catch(() => {});
-            let actionResult;
-            try {
-                actionResult = await Promise.race([stepPromise, timerPromise]);
-            } finally {
-                browser.clearTimeout(timerHandle);
-            }
-            if (actionResult) {
-                if (actionResult !== Macro.STOP) {
-                    console.warn(
-                        "Macro: a step action returned a truthy value to halt the macro. " +
-                            "Return `Macro.STOP` instead; other truthy return values are deprecated.",
-                    );
-                }
+        while (true) {
+            if (this.isComplete || this.currentIndex >= this.steps.length) {
                 this.stop();
                 return;
             }
-        } catch (error) {
-            this.stop(error);
-            return;
+            try {
+                const step = this.steps[this.currentIndex];
+                const timeoutDelay = step.timeout || this.timeout || 10000;
+                const abortController = new AbortController();
+                this.abortController = abortController;
+                const executeStep = async () => {
+                    const trigger = await waitForTrigger(
+                        step.trigger,
+                        abortController.signal,
+                    );
+                    const result = await performAction(trigger, step.action);
+                    await this.onStep({ step, trigger, index: this.currentIndex });
+                    return result;
+                };
+                /** @type {ReturnType<typeof browser.setTimeout> | undefined} */
+                let timerHandle;
+                const timerPromise = new Promise((resolve, reject) => {
+                    timerHandle = browser.setTimeout(() => {
+                        abortController.abort();
+                        reject(
+                            new MacroError(
+                                "Timeout",
+                                `TIMEOUT step failed to complete within ${timeoutDelay} ms.`,
+                            ),
+                        );
+                    }, timeoutDelay);
+                });
+                const stepPromise = executeStep();
+                stepPromise.catch(() => {});
+                let actionResult;
+                try {
+                    actionResult = await Promise.race([stepPromise, timerPromise]);
+                } finally {
+                    browser.clearTimeout(timerHandle);
+                }
+                if (actionResult) {
+                    if (actionResult !== Macro.STOP) {
+                        console.warn(
+                            "Macro: a step action returned a truthy value to halt the macro. " +
+                                "Return `Macro.STOP` instead; other truthy return values are deprecated.",
+                        );
+                    }
+                    this.stop();
+                    return;
+                }
+            } catch (error) {
+                this.stop(error);
+                return;
+            }
+            this.currentIndex++;
         }
-        this.currentIndex++;
-        await this.advance();
     }
 
     /**
@@ -284,9 +276,9 @@ export class MacroMutationObserver {
     constructor(callback) {
         this.callback = callback;
         this.abortController = new AbortController();
-        /** @type {WeakSet<HTMLIFrameElement>} Guard against double-adding iframe "load" listeners. */
+        /** @type {WeakSet<HTMLIFrameElement>} */
         this.observedIframes = new WeakSet();
-        /** @type {WeakSet<Document>} Guard against double-adding contentDocument "load" listeners. */
+        /** @type {WeakSet<Document>} */
         this.observedContentDocuments = new WeakSet();
         this.observer = new MutationObserver((mutationList, observer) => {
             callback(mutationList);

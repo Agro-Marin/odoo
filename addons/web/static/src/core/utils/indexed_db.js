@@ -1,35 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/indexed_db - IndexedDB wrapper with versioned schema, quota management, and mutex locking */
+/** @module @web/core/utils/indexed_db */
 
 import { browser } from "../browser/browser.js";
 import { Mutex } from "./concurrency.js";
 
 const VERSION_TABLE = "__DBVersion__";
 const VERSION_KEY = "__version__";
-/**
- * How long a blocked `deleteDatabase` — or a blocked version-bump `open`
- * (schema upgrade adding a missing object store, see ``_execute``) — may
- * wait for the other connections to close before this instance gives up and
- * degrades to no-cache for the session. Both run inside the instance mutex,
- * so waiting forever (e.g. on a frozen/bfcached tab that never receives
- * `versionchange`) would queue every subsequent read/write behind it —
- * worst case hanging the webclient boot after a deploy that bumps the
- * registry hash.
- */
 const BLOCKED_DELETE_TIMEOUT = 1000;
 
 export class IDBQuotaExceededError extends Error {}
 
 /**
- * ``StorageEstimate``'s members are OPTIONAL per spec, and a browser that
- * reports a quota failure may still omit them — so this renders a missing
- * figure as "unknown" rather than throwing on ``undefined.toFixed``. It is
- * only ever called to build a diagnostic message, and throwing there would
- * replace the ``IDBQuotaExceededError`` its caller is about to raise (see
- * {@link IndexedDB._runCallback}).
- *
  * @param {number | undefined} size
  * @returns {string}
  */
@@ -51,28 +34,15 @@ export class IndexedDB {
         this.name = name;
         this._tables = new Set([VERSION_TABLE]);
         /**
-         * Cached open connection, reused across operations instead of
-         * reopening per read/write/invalidate. Dropped on a schema upgrade
-         * (new table), a version-change request from another context, or
-         * when the browser closes the connection.
-         *
          * @type {IDBDatabase | null}
          */
         this._db = null;
-        /**
-         * Set when a blocked database deletion timed out (see
-         * ``_deleteDatabase``): every subsequent operation short-circuits to
-         * the no-db path (read → miss, write → no-op) for the session
-         * instead of queueing behind the never-completing delete.
-         */
         this._degraded = false;
         this.mutex = new Mutex();
         this.mutex.exec(() => this._checkVersion(version)).catch(() => {});
     }
 
     /**
-     * Reads data from a given table.
-     *
      * @param {string} table
      * @param {string} key
      * @returns Promise
@@ -87,11 +57,9 @@ export class IndexedDB {
     }
 
     /**
-     * Write data into the given table
-     *
      * @param {string} table
      * @param {string} key
-     * @param  {any} value
+     * @param {any} value
      * @returns Promise
      */
     async write(table, key, value) {
@@ -104,9 +72,7 @@ export class IndexedDB {
     }
 
     /**
-     * Invalidates a table, or the whole database.
-     *
-     * @param {string|string[]|null} [tables=null] if not given, the whole database is invalidated
+     * @param {string|string[]|null} [tables=null]
      * @returns Promise
      */
     async invalidate(tables = null) {
@@ -121,16 +87,7 @@ export class IndexedDB {
     }
 
     /**
-     * Deletes entries from one or more tables via ``openKeyCursor``, keeping
-     * only those for which ``predicate(key)`` is falsy. Used by the RPC
-     * cache to scope ``CLEAR-CACHES`` invalidation without over-invalidating
-     * unrelated models; O(N) per table. Predicate errors are swallowed
-     * (entry kept) so one bad key can't abort the whole pass.
-     *
-     * @deprecated Production callers migrated to {@link invalidateByModel};
-     *   kept for its regression tests covering a transaction-commit
-     *   subtlety (no explicit ``commit()`` while cursors are pending).
-     *
+     * @deprecated
      * @param {string[]} tables
      * @param {(key: string) => boolean} predicate
      * @returns Promise
@@ -144,16 +101,8 @@ export class IndexedDB {
     }
 
     /**
-     * Deletes entries whose stored value has ``model === <model>``. Faster
-     * than :meth:`invalidateWhere` for this common case: the predicate is a
-     * fixed property check, and ``openCursor`` (not ``openKeyCursor``) is
-     * used since the discriminator lives on the value — extra I/O but no
-     * per-key parsing. Entries without a ``model`` property (e.g. written
-     * before this migration) are silently kept; they stay reachable via
-     * ``invalidate(table)`` but can't be scoped to a model.
-     *
      * @param {string[]} tables
-     * @param {string} model - Odoo model name, e.g. ``"res.partner"``
+     * @param {string} model
      * @returns Promise
      */
     async invalidateByModel(tables, model) {
@@ -165,8 +114,6 @@ export class IndexedDB {
     }
 
     /**
-     * Delete the whole database
-     *
      * @returns Promise
      */
     async deleteDatabase() {
@@ -174,8 +121,6 @@ export class IndexedDB {
     }
 
     /**
-     * open the database and execute the callback with the db as parameter.
-     *
      * @param {(db?: IDBDatabase) => any} callback
      * @returns Promise
      */
@@ -183,9 +128,6 @@ export class IndexedDB {
         return this.mutex.exec(() => this._execute(callback));
     }
 
-    /**
-     * Close and drop the cached connection (no-op when there is none).
-     */
     _closeCachedDB() {
         if (this._db) {
             this._db.close();
@@ -211,7 +153,7 @@ export class IndexedDB {
                     resolve(undefined);
                 }
             };
-            const request = indexedDB.deleteDatabase(this.name);
+            const request = browser.indexedDB.deleteDatabase(this.name);
             request.onsuccess = () => settle(true);
             request.onerror = (event) => {
                 console.error(
@@ -256,18 +198,6 @@ export class IndexedDB {
     }
 
     /**
-     * Run the callback against an open connection, translating quota
-     * errors. Extracted so the cached-connection fast path and the
-     * fresh-open path share the exact same error handling.
-     *
-     * The quota branch reports usage figures purely as a diagnostic, and
-     * gathering them must never be able to displace the
-     * ``IDBQuotaExceededError`` itself: that error is the ONLY signal
-     * ``rpc_cache`` matches on to drop the disk cache and recover, so a
-     * ``TypeError`` escaping here (absent ``navigator.storage``, a rejecting
-     * or partial ``estimate()``) turns a recoverable full cache into one
-     * that stays full and fails every later write for the session.
-     *
      * @param {IDBDatabase} db
      * @param {(db?: IDBDatabase) => any} callback
      */
@@ -279,7 +209,7 @@ export class IndexedDB {
                 /** @type {StorageEstimate} */
                 let estimate = {};
                 try {
-                    estimate = (await navigator.storage?.estimate()) ?? {};
+                    estimate = (await browser.navigator.storage?.estimate()) ?? {};
                 } catch {
                     // Diagnostics only — fall through with unknown figures.
                 }
@@ -297,6 +227,7 @@ export class IndexedDB {
     /**
      * @param {(db?: IDBDatabase) => any} callback
      * @param {number} [idbVersion]
+     * @returns {Promise<any>}
      */
     async _execute(callback, idbVersion) {
         if (this._degraded) {
@@ -334,7 +265,7 @@ export class IndexedDB {
                 fn();
             };
             try {
-                request = indexedDB.open(this.name, idbVersion);
+                request = browser.indexedDB.open(this.name, idbVersion);
             } catch (e) {
                 console.warn(`IndexedDB unavailable: ${e?.message}`);
                 this._degraded = true;
@@ -427,9 +358,6 @@ export class IndexedDB {
             const objectStoreNames = [...db.objectStoreNames].filter(
                 (table) => table !== VERSION_TABLE,
             );
-            // Bound to a new const rather than reassigning the parameter: the
-            // filter callback reads `tables`, and narrowing does not survive
-            // into a closure over a reassignable binding.
             const requested = tables;
             const targetTables = requested
                 ? objectStoreNames.filter((t) => requested.includes(t))
@@ -441,17 +369,18 @@ export class IndexedDB {
             const transaction = db.transaction(targetTables, "readwrite", {
                 durability: "relaxed",
             });
-            const proms = targetTables.map(
-                (table) =>
-                    new Promise((resolve) => {
-                        const objectStore = transaction.objectStore(table);
-                        const request = objectStore.clear();
-                        request.onsuccess = resolve;
-                    }),
-            );
+            // Settle on the transaction, not on the individual `clear()`
+            // requests: a request's `onsuccess` fires before the transaction
+            // commits, so resolving there reported success for a transaction
+            // that went on to abort -- the later `reject` lands on an already
+            // settled promise and is lost. `_invalidateByModel` and
+            // `_invalidateWhere` already wait for `oncomplete`.
+            for (const table of targetTables) {
+                transaction.objectStore(table).clear();
+            }
+            transaction.oncomplete = () => resolve(undefined);
             transaction.onerror = () => reject(transaction.error);
             transaction.onabort = () => reject(transaction.error);
-            Promise.all(proms).then(resolve);
 
             transaction.commit();
         });
@@ -542,9 +471,7 @@ export class IndexedDB {
                     let shouldDelete = false;
                     try {
                         shouldDelete = predicate(/** @type {string} */ (cursor.key));
-                    } catch {
-                        // Predicate error: treat as non-matching, keep the entry.
-                    }
+                    } catch {}
                     if (shouldDelete) {
                         objectStore.delete(cursor.key);
                     }

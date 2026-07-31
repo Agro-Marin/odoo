@@ -1,42 +1,63 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/functions - memoize and uniqueId general-purpose function helpers */
+/** @module @web/core/utils/functions */
 import { globalSingleton } from "@web/core/utils/global_singleton";
 
 /**
- * Creates a version of the function that's memoized on the value of its first
- * argument, if any.
+ * Caches on every argument, not just the first: keying on ``args[0]`` alone
+ * silently returned a stale value whenever a memoized function took more than
+ * one argument, and callers do (``variant_mixin`` memoizes per
+ * ``(interaction, productUniqueId)`` to get one throttler per product form).
  *
- * @template T, U
- * @param {(arg: T) => U} func the function to memoize
- * @returns {(arg: T) => U} a memoized version of the original function
+ * Arities get their own root so ``f(a)`` and ``f(a, b)`` cannot collide.
+ * Arguments are compared by ``Map`` key identity, so object arguments are held
+ * strongly — as before.
+ *
+ * @template {(...args: any[]) => any} T
+ * @param {T} func
+ * @returns {T}
  */
 export function memoize(func) {
-    const cache = new Map();
+    /** @type {Map<number, Map<any, any>>} */
+    const cachesByArity = new Map();
     const funcName = func.name ? `${func.name} (memoized)` : "memoized";
-    return {
-        [funcName](/** @type {any[]} */ ...args) {
-            if (!cache.has(args[0])) {
-                const value = /** @type {any} */ (func)(...args);
-                cache.set(args[0], value);
-                if (value && typeof value.then === "function") {
-                    Promise.resolve(value).catch(() => {
-                        if (cache.get(args[0]) === value) {
-                            cache.delete(args[0]);
-                        }
-                    });
+    return /** @type {any} */ (
+        {
+            [funcName](/** @type {any[]} */ ...args) {
+                let node = cachesByArity.get(args.length);
+                if (!node) {
+                    node = new Map();
+                    cachesByArity.set(args.length, node);
                 }
-            }
-            return cache.get(args[0]);
-        },
-    }[funcName];
+                for (let i = 0; i < args.length - 1; i++) {
+                    let next = node.get(args[i]);
+                    if (!next) {
+                        next = new Map();
+                        node.set(args[i], next);
+                    }
+                    node = next;
+                }
+                const key = args.length ? args[args.length - 1] : undefined;
+                if (!node.has(key)) {
+                    const value = func(...args);
+                    const leaf = node;
+                    leaf.set(key, value);
+                    if (value && typeof value.then === "function") {
+                        Promise.resolve(value).catch(() => {
+                            if (leaf.get(key) === value) {
+                                leaf.delete(key);
+                            }
+                        });
+                    }
+                }
+                return node.get(key);
+            },
+        }[funcName]
+    );
 }
 
 /**
- * Generate a unique integer id (unique within the entire client session).
- * Useful for temporary DOM ids.
- *
  * @param {string} prefix
  * @returns {string}
  */

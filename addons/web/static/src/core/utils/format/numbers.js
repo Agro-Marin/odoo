@@ -1,15 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/format/numbers - Locale-aware number formatting, parsing, rounding, and human-readable display */
+/** @module @web/core/utils/format/numbers */
 
 import { localization as l10n } from "@web/core/l10n/localization";
 import { _t } from "@web/core/l10n/translation";
 import { intersperse } from "@web/core/utils/format/strings";
 
 /**
- * Returns value clamped to the inclusive range of min and max.
- *
  * @param {number} num
  * @param {number} min
  * @param {number} max
@@ -20,11 +18,9 @@ export function clamp(num, min, max) {
 }
 
 /**
- * Returns a list of integers from start (inclusive) to stop (exclusive),
- * incremented (or decremented) by step. Handy for each/map loops.
- * @param {number} start default 0
+ * @param {number} start
  * @param {number} stop
- * @param {number} step default 1
+ * @param {number} step
  * @returns {number[]}
  */
 export function range(start, stop, step = 1) {
@@ -40,18 +36,9 @@ export function range(start, stop, step = 1) {
 }
 
 /**
- * Returns `value` rounded with `precision`, minimizing IEEE-754 floating point
- * representation errors, and applying the tie-breaking rule selected with
- * `method`, by default "HALF-UP" (away from zero).
- *
- * @param {number} value the value to be rounded
- * @param {number} precision a precision parameter. eg: 0.01 rounds to two digits.
- * @param {"HALF-UP" | "HALF-DOWN" | "HALF-EVEN" | "UP" | "DOWN"} [method="HALF-UP"] the rounding method used:
- *    - "HALF-UP" rounds to the closest number with ties going away from zero.
- *    - "HALF-DOWN" rounds to the closest number with ties going towards zero.
- *    - "HALF-EVEN" rounds to the closest number with ties going to the closest even number.
- *    - "UP" always rounds away from 0.
- *    - "DOWN" always rounds towards 0.
+ * @param {number} value
+ * @param {number} precision
+ * @param {"HALF-UP" | "HALF-DOWN" | "HALF-EVEN" | "UP" | "DOWN"} [method="HALF-UP"]
  */
 export function roundPrecision(value, precision, method = "HALF-UP") {
     if (value === 0) {
@@ -124,21 +111,19 @@ function formatFixedDecimals(value, decimals) {
     return rounded.toFixed(decimals);
 }
 
+const NEGATIVE_POWERS_OF_TEN = Object.freeze([
+    1, 1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8, 1e-9, 1e-10, 1e-11, 1e-12, 1e-13,
+    1e-14, 1e-15,
+]);
+
 /**
  * @param {number} value
  * @param {number} decimals
  * @returns {number}
  */
 export function roundDecimals(value, decimals) {
-    /**
-     * The following decimals introduce numerical errors:
-     * Math.pow(10, -4) = 0.00009999999999999999
-     * Math.pow(10, -5) = 0.000009999999999999999
-     *
-     * Such errors will propagate in roundPrecision and lead to inconsistencies between Python
-     * and JavaScript. To avoid this, we parse the scientific notation.
-     */
-    return roundPrecision(value, parseFloat("1e" + -decimals));
+    const precision = NEGATIVE_POWERS_OF_TEN[decimals] ?? parseFloat("1e" + -decimals);
+    return roundPrecision(value, precision);
 }
 
 /**
@@ -151,13 +136,9 @@ export function floatIsZero(value, decimals) {
 }
 
 /**
- * Inserts "thousands" separators in the provided number.
- *
- * @param {string} number string representing an integer
- * @param {string} [thousandsSep=","] the separator to insert
+ * @param {string} number
+ * @param {string} [thousandsSep=","]
  * @param {number[]} [grouping=[]]
- *   array of relative offsets at which to insert `thousandsSep`.
- *   See `strings.intersperse` method.
  * @returns {string}
  */
 export function insertThousandsSep(number, thousandsSep = ",", grouping = []) {
@@ -167,27 +148,22 @@ export function insertThousandsSep(number, thousandsSep = ",", grouping = []) {
 }
 
 /**
- * Format a number to a human readable format, e.g. 3000 -> "3k". Very large
- * numbers use scientific exponential notation instead.
+ * ``minIntegerDigits`` is how many digits are kept before a unit suffix is
+ * applied: at 3, 1500000 renders "1,500k" rather than "2M". It is deliberately
+ * *not* called ``minDigits`` — that is ``formatFloat``'s minimum number of
+ * *decimal* places, and the two used to share a name while ``formatFloat``
+ * forwarded its whole option object here.
  *
- * @param {number} number to format
- * @param {Object} [options] Options to format
- * @param {number} [options.decimals=0] number of decimals to use
- *    if minDigits > 1 is used and effective on the number then decimals
- *    will be shrunk to zero, to avoid displaying irrelevant figures ( 0.01 compared to 1000 )
- * @param {number} [options.minDigits=1]
- *    the minimum number of digits to preserve when switching to another
- *    level of thousands (e.g. with a value of '2', 4321 will still be
- *    represented as 4321 otherwise it will be down to one digit (4k))
+ * @param {number} number
+ * @param {Object} [options]
+ * @param {number} [options.decimals=0]
+ * @param {number} [options.minIntegerDigits=1]
  * @returns {string}
  */
-export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
+export function humanNumber(number, options = {}) {
     const decimals = options.decimals || 0;
-    const minDigits = options.minDigits || 1;
+    const minIntegerDigits = options.minIntegerDigits || 1;
     const d2 = 10 ** decimals;
-    // Decimal exponent. Splitting on "e+" alone yields undefined -> NaN for
-    // every |number| < 1 (0.001 renders as "1e-3"), which then only behaved
-    // because `NaN >= 21` is false; read the exponent whatever its sign.
     const numberMagnitude = Number(number.toExponential().split("e")[1]);
     number = roundDecimals(number, decimals);
     if (numberMagnitude >= 21) {
@@ -200,7 +176,7 @@ export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
     let symbol = "";
     for (let i = unitSymbols.length; i > 0; i--) {
         const s = 10 ** (i * 3);
-        if (s <= number / 10 ** (minDigits - 1)) {
+        if (s <= number / 10 ** (minIntegerDigits - 1)) {
             number = Math.round((number * d2) / s) / d2;
             symbol = unitSymbols[i - 1];
             break;
@@ -222,24 +198,17 @@ export function humanNumber(number, options = { decimals: 0, minDigits: 1 }) {
 }
 
 /**
- * Returns a string representing a float, using the user's locale settings
- * (e.g. the correct decimal separator).
- *
- * @param {number} value the value that should be formatted
+ * @param {number} value
  * @param {Object} [options]
- * @param {number[]} [options.digits] the number of digits that should be used,
- *   instead of the default digits precision in the field.
- * @param {number} [options.minDigits] the minimum number of decimal digits to display.
- *   Displays maximum 6 decimal places if no precision is provided.
- * @param {boolean} [options.humanReadable] if true, large numbers are formatted
- *   to a human readable format.
- * @param {string} [options.decimalPoint] decimal separating character
- * @param {string} [options.thousandsSep] thousands separator to insert
- * @param {number[]} [options.grouping] array of relative offsets at which to
- *   insert `thousandsSep`. See `insertThousandsSep` method.
- * @param {number} [options.decimals] used for humanNumber formmatter
- * @param {boolean} [options.trailingZeros=true] if false, the decimal part
- *   won't contain unnecessary trailing zeros.
+ * @param {number[]} [options.digits]
+ * @param {number} [options.minDigits] minimum number of decimal places
+ * @param {number} [options.minIntegerDigits] humanReadable only, see humanNumber
+ * @param {boolean} [options.humanReadable]
+ * @param {string} [options.decimalPoint]
+ * @param {string} [options.thousandsSep]
+ * @param {number[]} [options.grouping]
+ * @param {number} [options.decimals]
+ * @param {boolean} [options.trailingZeros=true]
  * @returns {string}
  */
 export function formatFloat(value, options = {}) {
@@ -315,12 +284,10 @@ const _INVERTDICT = Object.freeze({
 });
 
 /**
- * Invert a number with increased accuracy.
- *
  * @param {number} value
  * @returns {number}
  */
-export function invertFloat(value) {
+function invertFloat(value) {
     let res = /** @type {Record<number, number>} */ (_INVERTDICT)[value];
     if (res === undefined) {
         const [coeff, expt] = value.toExponential().split("e").map(Number.parseFloat);

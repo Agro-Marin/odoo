@@ -1,11 +1,12 @@
 // @ts-check
 
-import { expect, runAllTimers, test } from "@odoo/hoot";
-import { pointerDown, pointerUp, queryRect } from "@odoo/hoot-dom";
-import { animationFrame, mockTouch } from "@odoo/hoot-mock";
+import { expect, test } from "@odoo/hoot";
+import { pointerDown, pointerUp, press, queryRect } from "@odoo/hoot-dom";
+import { advanceTime, animationFrame, mockTouch } from "@odoo/hoot-mock";
 import { Component, reactive, useRef, useState, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
 import { useDraggable } from "@web/core/utils/dnd/draggable";
+import { DEFAULT_DEFAULT_PARAMS } from "@web/core/utils/dnd/draggable_hook_builder_utils";
 
 test("Parameters error handling", async () => {
     expect.assertions(2);
@@ -508,13 +509,112 @@ test("willDrag is lowered again when the press never becomes a drag", async () =
     // press and release without any movement: no drag sequence ever starts, so
     // `dragStart` — the only other place that lowers the flag — never runs.
     await pointerDown(".item:first-child");
-    // A touch press only arms the drag once it outlasts `touchDelay`; on mouse
-    // there is no pending timer and this is a no-op. Not tagged desktop-only:
-    // the stuck flag this guards against is reachable on touch too.
-    await runAllTimers();
+    // A touch press defers `willStartDrag` behind `touchDelay` (300ms), so the
+    // flag is only raised once that elapses; `delay` is 0 on desktop, where
+    // this is a no-op.
+    await advanceTime(DEFAULT_DEFAULT_PARAMS.touchDelay);
     expect(dragState.willDrag).toBe(true);
     await pointerUp(".item:first-child");
 
     expect(dragState.dragging).toBe(false);
     expect(dragState.willDrag).toBe(false);
+});
+
+/**
+ * `dragStart` puts `pe-none` and `user-select-none` on <body> and
+ * `o_dragged` on the element, and relies on the cleanup manager to take them
+ * off again. Every way a drag can end has to reach that cleanup: a leak leaves
+ * the whole document pointer-events:none, which is not recoverable without a
+ * reload. Only the nominal drop was covered.
+ *
+ * @param {Record<string, any>} [hookParams]
+ */
+function makeDraggableList(hookParams = {}) {
+    class List extends Component {
+        static template = xml`
+            <div t-ref="root" class="root">
+                <ul class="list">
+                    <li t-foreach="[1, 2, 3]" t-as="i" t-key="i" t-esc="i" class="item" />
+                </ul>
+            </div>`;
+        static props = ["*"];
+        setup() {
+            useDraggable({ ref: useRef("root"), elements: ".item", ...hookParams });
+        }
+    }
+    return List;
+}
+
+function expectNoDragResidue() {
+    expect(document.body).not.toHaveClass("pe-none");
+    expect(document.body).not.toHaveClass("user-select-none");
+    expect(".o_dragged").toHaveCount(0);
+}
+
+test("a non-whitelisted keydown mid-drag releases the document", async () => {
+    await mountWithCleanup(makeDraggableList());
+
+    const { drop, moveTo } = await contains(".item:first-child").drag();
+    await moveTo(".item:nth-child(2)");
+    expect(document.body).toHaveClass("pe-none");
+    expect(".o_dragged").toHaveCount(1);
+
+    await press("Escape");
+    await animationFrame();
+    expectNoDragResidue();
+
+    await drop();
+    expectNoDragResidue();
+});
+
+test("pointercancel mid-drag releases the document", async () => {
+    await mountWithCleanup(makeDraggableList());
+
+    const { moveTo } = await contains(".item:first-child").drag();
+    await moveTo(".item:nth-child(2)");
+    expect(document.body).toHaveClass("pe-none");
+
+    // what the browser sends when it takes the pointer over (touch gesture
+    // recognised as a scroll, device unplugged, ...)
+    window.dispatchEvent(new PointerEvent("pointercancel", { bubbles: true }));
+    await animationFrame();
+    expectNoDragResidue();
+});
+
+test("a throwing drop handler releases the document before rethrowing", async () => {
+    expect.errors(1);
+    await mountWithCleanup(
+        makeDraggableList({
+            onDrop() {
+                throw new Error("boom from onDrop");
+            },
+        }),
+    );
+
+    await contains(".item:first-child").dragAndDrop(".item:nth-child(2)");
+    await animationFrame();
+
+    expectNoDragResidue();
+    expect.verifyErrors(["Error: boom from onDrop"]);
+});
+
+test("unmounting mid-drag releases the document", async () => {
+    const state = reactive({ visible: true });
+    class Parent extends Component {
+        static components = { List: makeDraggableList() };
+        static template = xml`<t t-if="state.visible"><List/></t>`;
+        static props = ["*"];
+        setup() {
+            this.state = useState(state);
+        }
+    }
+    await mountWithCleanup(Parent);
+
+    const { moveTo } = await contains(".item:first-child").drag();
+    await moveTo(".item:nth-child(2)");
+    expect(document.body).toHaveClass("pe-none");
+
+    state.visible = false;
+    await animationFrame();
+    expectNoDragResidue();
 });

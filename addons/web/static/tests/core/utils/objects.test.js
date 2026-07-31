@@ -342,6 +342,41 @@ test("pick", () => {
     expect(pick(myClass, "a", "b")).toEqual({ a: 1, b: 2 });
 });
 
+test("deepMerge treats an own __proto__ key as data, never as a prototype", () => {
+    // Everything JSON.parse produces carries __proto__ as an OWN key, and both
+    // of deepMerge's writes used to go through [[Set]] — which for that one key
+    // name runs Object.prototype's accessor. The merged object came back with a
+    // REPLACED prototype: it inherited the extension's members while
+    // Object.keys reported nothing, and the key was lost as data.
+    const evil = JSON.parse('{"a": 1, "__proto__": {"isAdmin": true}}');
+    const out = deepMerge({ a: 0 }, evil);
+
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+    expect(out.isAdmin).toBe(undefined);
+    expect(/** @type {any} */ ({}).isAdmin).toBe(undefined);
+    expect(out.a).toBe(1);
+    expect(Object.hasOwn(out, "__proto__")).toBe(true);
+    expect(/** @type {any} */ (out).__proto__).toEqual({ isAdmin: true });
+
+    // Same for a nested subtree, which recursed through Object.prototype.
+    const nested = deepMerge({ n: {} }, JSON.parse('{"n": {"__proto__": {"x": 9}}}'));
+    expect(Object.getPrototypeOf(nested.n)).toBe(Object.prototype);
+    expect(nested.n.x).toBe(undefined);
+
+    // A __proto__ carried by the TARGET is copied as data too (the shallow
+    // copy of `target` was an Object.assign, with the same hazard).
+    const fromTarget = deepMerge(JSON.parse('{"__proto__": {"y": 1}}'), { b: 2 });
+    expect(Object.getPrototypeOf(fromTarget)).toBe(Object.prototype);
+    expect(/** @type {any} */ (fromTarget).y).toBe(undefined);
+    expect(fromTarget.b).toBe(2);
+
+    // Only ONE operand has to be a plain object to get past the early return,
+    // so `target` can still be a primitive here — it is boxed, exactly as
+    // `Object.assign({}, "foo")` used to do. `Reflect.ownKeys` throws on one.
+    expect(deepMerge("foo", { a: 1 })).toEqual({ 0: "f", 1: "o", 2: "o", a: 1 });
+    expect(deepMerge(7, { a: 1 })).toEqual({ a: 1 });
+});
+
 test("deepMerge", () => {
     expect(
         deepMerge(

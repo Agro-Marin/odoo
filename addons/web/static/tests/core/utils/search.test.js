@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { fuzzyLevenshteinLookup, fuzzyLookup, fuzzyTest } from "@web/core/utils/search";
+import { normalize } from "@web/core/l10n/utils";
 
 describe.current.tags("headless");
 
@@ -71,3 +72,54 @@ test("fuzzyTest", () => {
     expect(fuzzyTest("z", "Abby White")).toBe(false);
     expect(fuzzyTest("ba", "Abby White")).toBe(false);
 });
+
+test("fuzzyLevenshteinLookup: the length prefilter does not change results", () => {
+    const words = ["apple", "maple", "ape", "banana", "a", "applesauce"];
+    // A length gap larger than the correction budget cannot be within it, so
+    // skipping the matrix for those candidates is result-preserving.
+    for (const [pattern, errorRatio] of [
+        ["aple", 3],
+        ["aple", 5],
+        ["aple", 100],
+        ["app", 3],
+        ["b", 3],
+        ["banana", 2],
+        ["", 3],
+    ]) {
+        const got = fuzzyLevenshteinLookup(pattern, words, errorRatio);
+        // Recompute without the prefilter, straight from the definition.
+        const expected = words
+            .map((candidate) => {
+                const norm = normalize(candidate);
+                const pat = normalize(pattern);
+                return { candidate, score: norm.includes(pat) ? 0 : levenshtein(pat, norm) };
+            })
+            .filter(({ score }) => score <= Math.round(normalize(pattern).length / errorRatio))
+            .sort((a, b) => a.score - b.score)
+            .map((r) => r.candidate);
+        expect(got).toEqual(expected, {
+            message: `pattern=${JSON.stringify(pattern)} errorRatio=${errorRatio}`,
+        });
+    }
+});
+
+/** Straightforward reference implementation, used only to cross-check above. */
+function levenshtein(a, b) {
+    const rows = [];
+    for (let i = 0; i <= a.length; i++) {
+        rows.push(new Array(b.length + 1).fill(0));
+        rows[i][0] = i;
+    }
+    for (let j = 0; j <= b.length; j++) {
+        rows[0][j] = j;
+    }
+    for (let i = 1; i <= a.length; i++) {
+        for (let j = 1; j <= b.length; j++) {
+            rows[i][j] =
+                a[i - 1] === b[j - 1]
+                    ? rows[i - 1][j - 1]
+                    : 1 + Math.min(rows[i - 1][j], rows[i][j - 1], rows[i - 1][j - 1]);
+        }
+    }
+    return rows[a.length][b.length];
+}

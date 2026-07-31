@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/draggable_hook_builder - Factory for configurable drag-and-drop OWL hooks with touch and scroll support */
+/** @module @web/core/utils/dnd/draggable_hook_builder */
 
 import { browser } from "@web/core/browser/browser";
 import { hasTouch, isBrowserFirefox, isIOS } from "@web/core/browser/feature_detection";
@@ -28,16 +28,12 @@ export { DRAGGED_CLASS };
 
 /**
  * @typedef {ReturnType<typeof makeCleanupManager>} CleanupManager
- *
  * @typedef {ReturnType<typeof makeDOMHelpers>} DOMHelpers
- *
  * @typedef DraggableBuilderParams
- * Hook params
  * @property {string} [name="useAnonymousDraggable"]
  * @property {EdgeScrollingOptions} [edgeScrolling]
  * @property {Record<string, string[]>} [acceptedParams]
  * @property {Record<string, any>} [defaultParams]
- * Setup hooks
  * @property {{
  *  addListener?: typeof import("@odoo/owl")["useExternalListener"];
  *  setup: typeof import("@odoo/owl")["useEffect"];
@@ -45,23 +41,12 @@ export { DRAGGED_CLASS };
  *  throttle: typeof import("@web/core/utils/timing")["useThrottleForAnimation"];
  *  wrapState: typeof import("@odoo/owl")["reactive"];
  * }} setupHooks
- * Build hooks
  * @property {(params: DraggableBuildHandlerParams) => any} onComputeParams
- * Runtime hooks
  * @property {(params: DraggableBuildHandlerParams) => any} onDragStart
  * @property {(params: DraggableBuildHandlerParams) => any} onDrag
  * @property {(params: DraggableBuildHandlerParams) => any} onDragEnd
  * @property {(params: DraggableBuildHandlerParams) => any} onDrop
  * @property {(params: DraggableBuildHandlerParams) => any} onWillStartDrag
- *
- * The hook's own context. Everything the `ctx` object literal below sets
- * unconditionally is declared REQUIRED — it was all optional, which made the
- * ~20 reads of `ctx.enable()`, `ctx.preventDrag()`, `ctx.pointer` and
- * `ctx.edgeScrolling` report as possibly-undefined even though no code path
- * can observe them unset. Genuinely optional are the ones that only arrive
- * from user params (`elementSelector`, the delays) and everything under
- * `current`, which IS empty between drags.
- *
  * @typedef {{
  *  ref: { el: HTMLElement | null };
  *  elementSelector?: string | null;
@@ -81,7 +66,6 @@ export { DRAGGED_CLASS };
  *  current: DraggableHookCurrentContext;
  *  [key: string]: any;
  * }} DraggableHookContext
- *
  * @typedef {{
  *  container?: HTMLElement;
  *  containerRect?: DOMRect;
@@ -96,24 +80,20 @@ export { DRAGGED_CLASS };
  *  offset?: Position;
  *  [key: string]: any;
  * }} DraggableHookCurrentContext
- *
  * @typedef EdgeScrollingOptions
  * @property {boolean} [enabled=true]
  * @property {number} [speed=10]
  * @property {number} [threshold=20]
  * @property {"horizontal"|"vertical"} [direction]
- *
  * @typedef Position
  * @property {number} x
  * @property {number} y
- *
  * @typedef {DOMHelpers & {
  *  ctx: DraggableHookContext,
  *  addCleanup(cleanupFn: () => any): void,
  *  addEffectCleanup(cleanupFn: () => any): void,
  *  callHandler(handlerName: string, arg: Record<any, any>): void,
  * }} DraggableBuildHandlerParams
- *
  * @typedef {DOMHelpers & Position & { element: HTMLElement }} DraggableHandlerParams
  */
 
@@ -140,13 +120,6 @@ export function makeDraggableHook(hookParams) {
     const paramKeys = Object.keys(allAcceptedParams);
 
     /**
-     * Computes the current param values, in `paramKeys` order. Must return a
-     * flat array of stable values: owl's `useEffect` compares deps with
-     * `!==`, so a fresh wrapper here (e.g. `toFunction(enable)`) would make
-     * every dep differ each render, re-running the effect for all consumers
-     * on every patch. `enable` is wrapped with `toFunction` in the effect
-     * body instead, not here.
-     *
      * @param {Record<string, any>} params
      * @returns {any[]}
      */
@@ -166,7 +139,6 @@ export function makeDraggableHook(hookParams) {
         });
 
     /**
-     * Basic error builder for the hook.
      * @param {string} reason
      * @returns {Error}
      */
@@ -176,7 +148,6 @@ export function makeDraggableHook(hookParams) {
         [hookName](/** @type {Record<string, any>} */ params) {
             let preventClick = false;
             /**
-             * Executes a handler from the `hookParams`.
              * @param {string} hookHandlerName
              * @param {Record<any, any>} [arg]
              */
@@ -201,8 +172,6 @@ export function makeDraggableHook(hookParams) {
             };
 
             /**
-             * Safely executes a handler from the `params`, so that the drag sequence can
-             * be interrupted if an error occurs.
              * @param {string} handlerName
              * @param {Record<any, any>} arg
              */
@@ -218,10 +187,6 @@ export function makeDraggableHook(hookParams) {
                 }
             };
 
-            /**
-             * Returns whether the user has moved from at least the number of pixels
-             * that are tolerated from the initial pointer position.
-             */
             const canStartDrag = () => {
                 const {
                     pointer,
@@ -236,9 +201,6 @@ export function makeDraggableHook(hookParams) {
                 );
             };
 
-            /**
-             * Main entry function to start a drag sequence.
-             */
             const dragStart = () => {
                 state.dragging = true;
                 state.willDrag = false;
@@ -307,12 +269,8 @@ export function makeDraggableHook(hookParams) {
             };
 
             /**
-             * Main exit function to stop a drag sequence: can be called even if a
-             * drag sequence did not start yet, to clean up current context variables.
              * @param {HTMLElement | null} target
-             * @param {boolean} [inErrorState] can be set to true when an error
-             *  occurred to avoid falling into an infinite loop if the error
-             *  originated from one of the handlers.
+             * @param {boolean} [inErrorState]
              */
             const dragEnd = (target, inErrorState) => {
                 try {
@@ -334,10 +292,6 @@ export function makeDraggableHook(hookParams) {
                 }
             };
 
-            /**
-             * Applies scroll to the container if the current element is near
-             * the edge of the container.
-             */
             const handleEdgeScrolling = (/** @type {number} */ deltaTime) => {
                 const wereRectsDirty = ctx.current.rectsDirty;
                 if (wereRectsDirty) {
@@ -390,7 +344,10 @@ export function makeDraggableHook(hookParams) {
                             ctx.current.scrollParentY
                         );
                         const previousScrollTop = scrollParentY.scrollTop;
-                        scrollParentY.scrollBy({ top: diffToScroll(diff.y) });
+                        scrollParentY.scrollBy({
+                            top: diffToScroll(diff.y),
+                            behavior: "instant",
+                        });
                         scrolled ||= scrollParentY.scrollTop !== previousScrollTop;
                     }
                     if ((!direction || direction === "horizontal") && diff.x) {
@@ -398,7 +355,10 @@ export function makeDraggableHook(hookParams) {
                             ctx.current.scrollParentX
                         );
                         const previousScrollLeft = scrollParentX.scrollLeft;
-                        scrollParentX.scrollBy({ left: diffToScroll(diff.x) });
+                        scrollParentX.scrollBy({
+                            left: diffToScroll(diff.x),
+                            behavior: "instant",
+                        });
                         scrolled ||= scrollParentX.scrollLeft !== previousScrollLeft;
                     }
                     if (scrolled) {
@@ -411,8 +371,6 @@ export function makeDraggableHook(hookParams) {
             };
 
             /**
-             * Global (= ref) "click" event handler.
-             * Used to prevent click events after dragEnd
              * @param {PointerEvent} ev
              */
             const onClick = (ev) => {
@@ -422,7 +380,6 @@ export function makeDraggableHook(hookParams) {
             };
 
             /**
-             * Window "keydown" event handler.
              * @param {KeyboardEvent} ev
              */
             const onKeyDown = (ev) => {
@@ -436,15 +393,11 @@ export function makeDraggableHook(hookParams) {
                 }
             };
 
-            /**
-             * Global (= ref) "pointercancel" event handler.
-             */
             const onPointerCancel = () => {
                 dragEnd(null);
             };
 
             /**
-             * Global (= ref) "pointerdown" event handler.
              * @param {PointerEvent} ev
              */
             const onPointerDown = (ev) => {
@@ -537,7 +490,6 @@ export function makeDraggableHook(hookParams) {
             };
 
             /**
-             * Window "pointermove" event handler.
              * @param {PointerEvent} ev
              */
             const onPointerMove = (ev) => {
@@ -569,7 +521,6 @@ export function makeDraggableHook(hookParams) {
             };
 
             /**
-             * Window "pointerup" event handler.
              * @param {PointerEvent} ev
              */
             const onPointerUp = (ev) => {
@@ -577,10 +528,6 @@ export function makeDraggableHook(hookParams) {
                 dragEnd(/** @type {HTMLElement} */ (ev.target));
             };
 
-            /**
-             * Updates the position of the current dragged element according to
-             * the current pointer position.
-             */
             const updateElementPosition = () => {
                 const { containerRect, element, elementRect, offset } = ctx.current;
                 const { width: ew, height: eh } = elementRect;
@@ -593,7 +540,6 @@ export function makeDraggableHook(hookParams) {
             };
 
             /**
-             * Updates the current pointer position from a given event.
              * @param {PointerEvent} ev
              */
             const updatePointerPosition = (ev) => {
@@ -687,13 +633,6 @@ export function makeDraggableHook(hookParams) {
                 }
             };
 
-            // Ends the drag sequence's state whichever phase it reached:
-            // `willDrag` is raised by `willStartDrag` but only lowered by
-            // `dragStart`, so a press that never crosses the tolerance (an
-            // ordinary click on a draggable element) left it raised until some
-            // later drag happened to start. web_gantt gates its resize-handle
-            // affordance on `ctx.willDrag`, so that stuck flag hid the handles
-            // for the rest of the session.
             const cleanup = makeCleanupManager(() => {
                 state.dragging = false;
                 state.willDrag = false;
@@ -847,14 +786,7 @@ export function makeDraggableHook(hookParams) {
                 },
                 () => [ctx.ref.el],
             );
-            // Global drag-following event handlers. The (throttled) pointermove
             const throttledOnPointerMove = setupHooks.throttle(onPointerMove);
-            /**
-             * Attaches the global drag-following listeners ("pointermove",
-             * "pointerup", "pointercancel", capture "keydown") for the duration
-             * of a single drag sequence, removed via a single AbortController at
-             * drag end/cancel/unmount so idle hook instances do zero pointer work.
-             */
             const attachDragListeners = () => {
                 const controller = new AbortController();
                 /**

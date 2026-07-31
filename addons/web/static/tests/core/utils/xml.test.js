@@ -1,7 +1,7 @@
 // @ts-check
 
 import { describe, expect, test } from "@odoo/hoot";
-import { formatXML, parseXML } from "@web/core/utils/dom/xml";
+import { createElement, formatXML, parseXML } from "@web/core/utils/dom/xml";
 
 describe.current.tags("headless");
 
@@ -10,6 +10,39 @@ test("parse error throws an exception", () => {
     expect(() => parseXML("<div><div>Valid</div><div><Invalid</div></div>")).toThrow(
         "error occured while parsing",
     );
+});
+
+describe("createElement argument shapes", () => {
+    test("a string argument becomes a text child", () => {
+        // It used to match no branch at all -- isIterable excludes strings and a
+        // string is not typeof "object" -- so the element came back empty and
+        // nothing said so.
+        expect(createElement("div", "hello").textContent).toBe("hello");
+        expect(createElement("div", "a", "b").textContent).toBe("ab");
+        const withAttr = createElement("div", { class: "x" }, "t");
+        expect(withAttr.getAttribute("class")).toBe("x");
+        expect(withAttr.textContent).toBe("t");
+        expect(withAttr.childNodes.length).toBe(1);
+    });
+
+    test("attribute maps and iterable children still work", () => {
+        const child = createElement("span");
+        const el = createElement("div", { class: "x", id: "y" }, [child]);
+        expect(el.getAttribute("class")).toBe("x");
+        expect(el.getAttribute("id")).toBe("y");
+        expect(el.children.length).toBe(1);
+        // Falsy arguments stay skipped (callers pass `cond ? [child] : null`).
+        const empty = createElement("div", null, undefined, false, "");
+        expect(empty.childNodes.length).toBe(0);
+        expect(empty.attributes.length).toBe(0);
+        expect(createElement("t", []).childNodes.length).toBe(0);
+    });
+
+    test("an argument of an unusable type throws instead of being dropped", () => {
+        expect(() => createElement("div", 42)).toThrow(/cannot use a number/);
+        expect(() => createElement("div", true)).toThrow(/cannot use a boolean/);
+        expect(() => createElement("div", () => {})).toThrow(/cannot use a function/);
+    });
 });
 
 test("formatXML does not crash on unbalanced XML", () => {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/sortable - useSortable hook for reordering elements within and across groups */
+/** @module @web/core/utils/dnd/sortable */
 
 import { pick } from "@web/core/utils/collections/objects";
 import {
@@ -14,51 +14,27 @@ import {
 
 /**
  * @typedef SortableParams
- *
- * MANDATORY
- *
  * @property {{ el: HTMLElement | null }} ref
- * @property {string} elements defines sortable elements
- *
- * OPTIONAL
- *
- * @property {boolean | (() => boolean)} [enable] whether the sortable system should
- *  be enabled.
- * @property {number} [delay] delay before starting a sequence after a "pointerdown".
- * @property {number} [touchDelay] same as "delay", but specific to touch environments.
- * @property {string | (() => string)} [groups] defines parent groups of sortable
- *  elements, enabling `onGroupEnter`/`onGroupLeave` callbacks.
- * @property {string | (() => string)} [handle] additional selector for when the
- *  dragging sequence must be initiated when dragging on a certain part of the element.
- * @property {string | (() => string)} [ignore] selector targetting elements that
- *  must initiate a drag.
- * @property {boolean | (() => boolean)} [connectGroups] whether elements can be
- *  dragged accross different parent groups. Requires a `groups` param to work.
- * @property {string | (() => string)} [cursor] cursor style during the dragging
- *  sequence.
- * @property {boolean} [clone] the placeholder is a clone of the drag element.
- * @property {string[]} [placeholderClasses] array of classes added to the placeholder
- *  element.
- * @property {boolean} [applyChangeOnDrop] on drop the change is applied to the DOM.
- * @property {string[]} [followingElementClasses] array of classes added to the
- *  element that follow the pointer.
- *
- * HANDLERS (also optional)
- *
+ * @property {string} elements
+ * @property {boolean | (() => boolean)} [enable]
+ * @property {number} [delay]
+ * @property {number} [touchDelay]
+ * @property {string | false | (() => string | false)} [groups]
+ * @property {string | (() => string)} [handle]
+ * @property {string | (() => string)} [ignore]
+ * @property {boolean | (() => boolean)} [connectGroups]
+ * @property {string | (() => string)} [cursor]
+ * @property {boolean} [clone]
+ * @property {string[]} [placeholderClasses]
+ * @property {boolean} [applyChangeOnDrop]
+ * @property {string[]} [followingElementClasses]
  * @property {(params: SortableHandlerParams) => any} [onDragStart]
- *  called when a dragging sequence is initiated.
- * @property {(params: DraggableHandlerParams) => any} [onElementEnter] called when
- *  the cursor enters another sortable element.
- * @property {(params: DraggableHandlerParams) => any} [onElementLeave] called when
- *  the cursor leaves another sortable element.
- * @property {(params: SortableHandlerParams) => any} [onGroupEnter] (if a `groups`
- *  is specified): will be called when the cursor enters another group element.
- * @property {(params: SortableHandlerParams) => any} [onGroupLeave] (if a `groups`
- *  is specified): will be called when the cursor leaves another group element.
+ * @property {(params: DraggableHandlerParams) => any} [onElementEnter]
+ * @property {(params: DraggableHandlerParams) => any} [onElementLeave]
+ * @property {(params: SortableHandlerParams) => any} [onGroupEnter]
+ * @property {(params: SortableHandlerParams) => any} [onGroupLeave]
  * @property {(params: SortableHandlerParams) => any} [onDragEnd]
- *  called when the dragging sequence ends, regardless of the reason.
- * @property {(params: DropParams) => any} [onDrop] called on pointerup when the
- *  dragged element has moved elsewhere (@see DropParams).
+ * @property {(params: DropParams) => any} [onDrop]
  */
 
 /**
@@ -116,17 +92,13 @@ const hookParams = {
     },
 
     onDragStart(
-        /** @type {{ ctx: Record<string, any>, addListener: Function, addStyle: Function, callHandler: Function }} */ {
-            ctx,
-            addListener,
-            addStyle,
-            callHandler,
-        },
+        /**
+         * @type {{ ctx: Record<string, any>, addListener: Function, addStyle: Function, callHandler: Function }}
+         */ { ctx, addListener, addStyle, callHandler },
     ) {
         const { connectGroups, current, elementSelector, groupSelector, ref } = ctx;
 
         /**
-         * Called when the cursor enters another sortable element.
          * @param {HTMLElement} element
          */
         const onElementPointerEnter = (element) => {
@@ -146,7 +118,6 @@ const hookParams = {
         };
 
         /**
-         * Called when the cursor leaves another sortable element.
          * @param {HTMLElement} element
          */
         const onElementPointerLeave = (element) => {
@@ -154,8 +125,6 @@ const hookParams = {
         };
 
         /**
-         * Same as {@link onElementPointerEnter}, in complex (non-clone)
-         * placeholder mode.
          * @param {HTMLElement} element
          */
         const onElementComplexPointerEnter = (element) => {
@@ -201,8 +170,6 @@ const hookParams = {
         };
 
         /**
-         * Same as {@link onElementPointerLeave}, in complex (non-clone)
-         * placeholder mode.
          * @param {HTMLElement} element
          * @param {EventTarget | null} relatedTarget
          */
@@ -249,7 +216,6 @@ const hookParams = {
         };
 
         /**
-         * Called when the cursor enters another group element.
          * @param {HTMLElement} group
          */
         const onGroupPointerEnter = (group) => {
@@ -258,7 +224,6 @@ const hookParams = {
         };
 
         /**
-         * Called when the cursor leaves another group element.
          * @param {HTMLElement} group
          */
         const onGroupPointerLeave = (group) => {
@@ -284,10 +249,6 @@ const hookParams = {
             : onElementComplexPointerLeave;
 
         /**
-         * Resolves the sortable element containing the given event target:
-         * the same elements the previous per-element listeners were bound on
-         * (inside the ref, and neither the dragged element nor the
-         * placeholder).
          * @param {EventTarget | null} node
          * @returns {HTMLElement | null}
          */
@@ -307,7 +268,6 @@ const hookParams = {
         };
 
         /**
-         * Resolves the group element containing the given event target.
          * @param {EventTarget | null} node
          * @returns {HTMLElement | null}
          */
@@ -324,10 +284,6 @@ const hookParams = {
         const trackGroups = Boolean(connectGroups && groupSelector);
 
         /**
-         * Delegated "pointerover" event handler: dispatches group and element
-         * "enter" transitions by comparing the sortable group/element under
-         * the pointer with the one it comes from ("relatedTarget"), emulating
-         * the "pointerenter" semantics of the previous per-element listeners.
          * @param {PointerEvent} ev
          */
         const onPointerOver = (ev) => {
@@ -344,8 +300,6 @@ const hookParams = {
         };
 
         /**
-         * Delegated "pointerout" event handler: dispatches group and element
-         * "leave" transitions (@see onPointerOver).
          * @param {PointerEvent} ev
          */
         const onPointerOut = (ev) => {

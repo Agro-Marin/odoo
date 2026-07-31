@@ -5,7 +5,7 @@ import { queryOne, queryRect } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, useRef, xml } from "@odoo/owl";
 import { contains, mountWithCleanup } from "@web/../tests/web_test_helpers";
-import { useAutoresize } from "@web/core/utils/dom/autoresize";
+import { resizeTextArea, useAutoresize } from "@web/core/utils/dom/autoresize";
 
 test(`resizable input`, async () => {
     class ResizableInput extends Component {
@@ -101,4 +101,57 @@ test(`call onResize callback after resizing text area`, async () => {
     target.style.width = `500px`;
     await animationFrame();
     expect.verifySteps(["onResizeTextArea"]);
+});
+
+function makeStyledTextArea(inlineCss = "") {
+    const host = document.createElement("div");
+    const styleEl = document.createElement("style");
+    styleEl.textContent =
+        ".probe-ta { padding: 7px 3px; border: 2px solid red; box-sizing: border-box; }";
+    const ta = document.createElement("textarea");
+    ta.className = "probe-ta";
+    ta.style.cssText = inlineCss;
+    ta.value = "one\ntwo\nthree";
+    host.append(styleEl, ta);
+    document.body.appendChild(host);
+    return { host, ta };
+}
+
+// The save/restore around the measurement used to read *computed* values and
+// write them back as inline style, so a single resize stamped the stylesheet's
+// padding and border onto the element, where they outrank every later rule.
+test("resizeTextArea leaves no inline padding/border of its own", () => {
+    const { host, ta } = makeStyledTextArea();
+    resizeTextArea(ta);
+    const padding = ta.style.padding;
+    const borderTop = ta.style.borderTopWidth;
+    host.remove();
+    expect(padding).toBe("");
+    expect(borderTop).toBe("");
+});
+
+test("resizeTextArea preserves an author's inline padding", () => {
+    const { host, ta } = makeStyledTextArea("padding: 11px;");
+    resizeTextArea(ta);
+    const padding = ta.style.padding;
+    host.remove();
+    expect(padding).toBe("11px");
+});
+
+test("resizeTextArea preserves an author's inline padding longhand", () => {
+    const { host, ta } = makeStyledTextArea("padding-top: 9px;");
+    resizeTextArea(ta);
+    const top = ta.style.paddingTop;
+    const bottom = ta.style.paddingBottom;
+    host.remove();
+    expect(top).toBe("9px");
+    expect(bottom).toBe("");
+});
+
+test("resizeTextArea still applies a height", () => {
+    const { host, ta } = makeStyledTextArea();
+    resizeTextArea(ta, { minimumHeight: 123 });
+    const height = ta.style.height;
+    host.remove();
+    expect(Number.parseFloat(height)).toBeGreaterThan(0);
 });

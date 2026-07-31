@@ -1063,3 +1063,88 @@ describe("single-use extension", () => {
         expect(new A().fn()).toBe("2:a");
     });
 });
+
+describe("extension objects stay pristine", () => {
+    test("patching a second key does not stamp it onto the first extension", () => {
+        class A {
+            foo() {
+                return "foo";
+            }
+            bar() {
+                return "bar";
+            }
+        }
+        const extFoo = {
+            foo() {
+                return "F:" + super.foo();
+            },
+        };
+        const extBar = {
+            bar() {
+                return "B:" + super.bar();
+            },
+        };
+        const unFoo = patch(A.prototype, extFoo);
+        const unBar = patch(A.prototype, extBar);
+
+        // `patch()` used to reuse the previous extension as the skeleton store,
+        // so `extFoo` came back owning a `bar` it never declared. The
+        // double-patch audit in mail/ had to work around that.
+        expect(Object.getOwnPropertyNames(extFoo)).toEqual(["foo"]);
+        expect(Object.getOwnPropertyNames(extBar)).toEqual(["bar"]);
+
+        const a = new A();
+        expect(a.foo()).toBe("F:foo");
+        expect(a.bar()).toBe("B:bar");
+        unBar();
+        unFoo();
+        expect(a.foo()).toBe("foo");
+        expect(a.bar()).toBe("bar");
+    });
+
+    test("same key, two extensions, unpatched in either order", () => {
+        class A {
+            fn() {
+                return "orig";
+            }
+        }
+        const unA = patch(A.prototype, {
+            fn() {
+                return "A>" + super.fn();
+            },
+        });
+        const unB = patch(A.prototype, {
+            fn() {
+                return "B>" + super.fn();
+            },
+        });
+        expect(new A().fn()).toBe("B>A>orig");
+        unA();
+        expect(new A().fn()).toBe("B>orig");
+        unB();
+        expect(new A().fn()).toBe("orig");
+    });
+
+    test("a getter-only patch keeps the ancestor setter", () => {
+        const base = {
+            _v: 1,
+            get v() {
+                return this._v;
+            },
+            set v(x) {
+                this._v = x;
+            },
+        };
+        const target = Object.create(base);
+        const un = patch(target, {
+            get v() {
+                return super.v * 10;
+            },
+        });
+        expect(target.v).toBe(10);
+        target.v = 5;
+        expect(target.v).toBe(50);
+        un();
+        expect(target.v).toBe(5);
+    });
+});

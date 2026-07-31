@@ -1,11 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/draggable_hook_builder_utils - Stateless helpers, constants, and DOM utilities for the draggable hook builder */
+/** @module @web/core/utils/dnd/draggable_hook_builder_utils */
 
 import { closestScrollableX, closestScrollableY } from "@web/core/utils/dom/scrolling";
 
-export const DRAGGABLE_CLASS = "o_draggable";
+const DRAGGABLE_CLASS = "o_draggable";
 export const DRAGGED_CLASS = "o_dragged";
 
 export const DEFAULT_ACCEPTED_PARAMS = {
@@ -41,9 +41,6 @@ export const MANDATORY_PARAMS = ["ref"];
 export const WHITE_LISTED_KEYS = ["Alt", "Control", "Meta", "Shift"];
 
 /**
- * Transforms a camelCased string to return its kebab-cased version.
- * Typically used to generate CSS properties from JS objects.
- *
  * @param {string} str
  * @returns {string}
  */
@@ -64,9 +61,6 @@ export function getReturnValue(valueOrFn) {
 }
 
 /**
- * Returns the first scrollable parent of the given element (recursively), or null.
- * 'Scrollable' means scroll size exceeds client size on some axis AND the computed
- * overflow is "auto" or "scroll".
  * @param {HTMLElement} el
  * @returns {(HTMLElement | null)[]}
  */
@@ -75,7 +69,6 @@ export function getScrollParents(el) {
 }
 
 /**
- * Converts a CSS pixel value to a number, removing the 'px' part.
  * @param {string} val
  * @returns {number}
  */
@@ -106,16 +99,11 @@ export function toFunction(value) {
 }
 
 /**
- * Elements whose attribute a hook has modified. Global since multiple draggable
- * hooks can share elements; WeakSet lets removed elements be garbage-collected.
  * @type {Record<string, WeakSet<HTMLElement>>}
  */
 const elCache = {};
 
 /**
- * Save the current value of an element's attribute and return a restore function.
- * Uses the global `elCache` to avoid double-saving the same attribute.
- *
  * @param {HTMLElement} el
  * @param {string} attribute
  * @returns {(() => void) | undefined}
@@ -140,38 +128,22 @@ export function saveAttribute(el, attribute) {
     }
 
     cache.add(el);
-    // `getAttribute() !== null` IS `hasAttribute()` — the separate boolean was
-    // a second source of truth for the same fact, and the one the restore path
-    // branched on did not narrow the value it then passed to `setAttribute`.
     const originalValue = el.getAttribute(attribute);
 
     return restoreAttribute;
 }
 
 /**
- * Create a cleanup lifecycle manager.
- *
- * Registers cleanup functions that are all executed (in LIFO order) when
- * `cleanup()` is called. After cleanup, the optional default cleanup function
- * is re-registered for the next cycle.
- *
  * @param {() => any} [defaultCleanupFn]
- * @returns {{ add: (fn?: () => any) => void, cleanup: () => void }} ``add``
- *   takes an OPTIONAL function, as its implementation always has: callers hand
- *   it `saveAttribute(...)`, which returns `undefined` when the attribute was
- *   already saved, and the guard inside `add` exists for exactly that.
+ * @returns {{ add: (fn?: () => any) => void, cleanup: () => void }}
  */
 export function makeCleanupManager(defaultCleanupFn) {
     /**
-     * Registers the given cleanup function to be called when cleaning up hooks.
      * @param {() => any} [cleanupFn]
      */
     const add = (cleanupFn) =>
         typeof cleanupFn === "function" && cleanups.push(cleanupFn);
 
-    /**
-     * Runs all cleanup functions while clearing the cleanups list.
-     */
     const cleanup = () => {
         while (cleanups.length) {
             try {
@@ -192,18 +164,12 @@ export function makeCleanupManager(defaultCleanupFn) {
 }
 
 /**
- * Create DOM manipulation helpers bound to a cleanup manager.
- *
- * Each DOM operation (addClass, addStyle, setAttribute, etc.) automatically
- * registers an undo function with the cleanup manager so that all changes
- * can be reverted in one call.
- *
  * @param {ReturnType<typeof makeCleanupManager>} cleanup
  */
 export function makeDOMHelpers(cleanup) {
     /**
      * @param {HTMLElement} el
-     * @param  {...string} classNames
+     * @param {...string} classNames
      */
     const addClass = (el, ...classNames) => {
         if (!el || !classNames.length) {
@@ -214,8 +180,6 @@ export function makeDOMHelpers(cleanup) {
     };
 
     /**
-     * Adds an event listener to be cleaned up after the next drag sequence
-     * has stopped.
      * @param {EventTarget} el
      * @param {string} event
      * @param {(...args: any[]) => any} callback
@@ -225,20 +189,19 @@ export function makeDOMHelpers(cleanup) {
         if (!el || !event || !callback) {
             return;
         }
-        const { noAddedStyle } = options;
-        delete options.noAddedStyle;
-        el.addEventListener(event, callback, options);
+        // Strip the hook's own key by copying, not by deleting: `options` is
+        // the caller's object, and a shared or reused literal came back mutated.
+        const { noAddedStyle, ...listenerOptions } = options;
+        el.addEventListener(event, callback, listenerOptions);
         if (!noAddedStyle && /mouse|pointer|touch/.test(event)) {
             addStyle(/** @type {HTMLElement} */ (el), {
                 pointerEvents: "auto",
             });
         }
-        cleanup.add(() => el.removeEventListener(event, callback, options));
+        cleanup.add(() => el.removeEventListener(event, callback, listenerOptions));
     };
 
     /**
-     * Adds style to an element to be cleaned up after the next drag sequence has
-     * stopped.
      * @param {HTMLElement} el
      * @param {Record<string, string | number>} style
      */
@@ -254,8 +217,6 @@ export function makeDOMHelpers(cleanup) {
     };
 
     /**
-     * Returns the bounding rect of the given element. If the `adjust` option is set
-     * to true, the rect will be reduced by the padding of the element.
      * @param {HTMLElement} el
      * @param {Object} [options={}]
      * @param {boolean} [options.adjust=false]
@@ -311,8 +272,6 @@ export function makeDOMHelpers(cleanup) {
     };
 
     /**
-     * Adds style to an element to be cleaned up after the next drag sequence has
-     * stopped.
      * @param {HTMLElement} el
      * @param {...string} properties
      */

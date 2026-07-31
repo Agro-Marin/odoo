@@ -469,7 +469,7 @@ describe("throttleForAnimation", () => {
             Promise.reject(new Error("boom")),
         );
         let caught;
-        await throttledFn(1).catch((error) => (caught = error));
+        await throttledFn().catch((error) => (caught = error));
         expect(caught).toBeInstanceOf(Error);
         expect(caught.message).toBe("boom");
     });
@@ -480,8 +480,8 @@ describe("throttleForAnimation", () => {
             calls++;
             return calls === 1 ? "ok" : Promise.reject(new Error("boom2"));
         });
-        throttledFn(1);
-        const trailing = throttledFn(2);
+        throttledFn();
+        const trailing = throttledFn();
         let caught;
         const settled = trailing.catch((error) => (caught = error));
         await runAllTimers();
@@ -649,9 +649,12 @@ describe("useThrottleForAnimation", () => {
             static template = xml`<button class="c" t-on-click="throttled">C</button>`;
             static props = ["*"];
             setup() {
-                this.throttled = useThrottleForAnimation(
-                    () => expect.step("throttled"),
-                    1000,
+                // No delay argument: useThrottleForAnimation takes only the
+                // callback and throttles to the animation frame. The `1000`
+                // that used to sit here was silently ignored, so the test read
+                // as configuring a 1s throttle it never had.
+                this.throttled = useThrottleForAnimation(() =>
+                    expect.step("throttled"),
                 );
             }
         }

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/urls - URL construction, origin resolution, image URL generation, and redirect handling */
+/** @module @web/core/utils/urls */
 
 import { browser } from "@web/core/browser/browser";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -10,9 +10,6 @@ import { session } from "@web/session";
 class RedirectionError extends Error {}
 
 /**
- * Transforms a key value mapping to a string formatted as url hash, e.g.
- * {a: "x", b: 2} -> "a=x&b=2"
- *
  * @param {Object} obj
  * @returns {string}
  */
@@ -23,10 +20,8 @@ export function objectToUrlEncodedString(obj) {
 }
 
 /**
- * Gets the origin url of the page, or cleans a given one
- *
- * @param {string} [origin] a given origin url
- * @returns {string} a cleaned origin url
+ * @param {string} [origin]
+ * @returns {string}
  */
 export function getOrigin(origin) {
     if (origin) {
@@ -39,10 +34,10 @@ export function getOrigin(origin) {
 }
 
 /**
- * @param {string} route the relative route, or absolute in the case of cors urls
- * @param {object} [queryParams] parameters to be appended as the url's queryString
+ * @param {string} route
+ * @param {object} [queryParams]
  * @param {object} [options]
- * @param {string} [options.origin] a precomputed origin
+ * @param {string} [options.origin]
  * @returns {string}
  */
 export function url(route, queryParams, options = {}) {
@@ -94,17 +89,13 @@ export function imageUrl(
         urlParams.crop = crop;
     }
     if (unique) {
-        if (DateTime && unique instanceof DateTime) {
+        if (unique instanceof DateTime) {
             urlParams.unique = /** @type {any} */ (unique).ts;
-        } else if (DateTime && typeof unique === "string") {
+        } else if (typeof unique === "string") {
             const dateTimeFromUnique = DateTime.fromSQL(unique);
             if (dateTimeFromUnique.isValid) {
                 urlParams.unique = /** @type {any} */ (dateTimeFromUnique).ts;
             } else if (unique.length) {
-                urlParams.unique = unique;
-            }
-        } else if (typeof unique === "string") {
-            if (unique.length) {
                 urlParams.unique = unique;
             }
         } else {
@@ -115,12 +106,8 @@ export function imageUrl(
 }
 
 /**
- * Gets dataURL (base64 data) from the given file or blob.
- * Technically wraps FileReader.readAsDataURL in Promise.
- *
  * @param {Blob | File} file
- * @returns {Promise<string>} resolved with the dataURL, or rejected if the file is
- *  empty or if an error occurs.
+ * @returns {Promise<string>}
  */
 export function getDataURLFromFile(file) {
     if (!file) {
@@ -145,23 +132,9 @@ export function getDataURLFromFile(file) {
     });
 }
 
-/**
- * Schemes accepted as a hyperlink / navigation target. Anything else
- * (``javascript:``, ``data:``, ``vbscript:``, ``file:``, ...) can execute
- * script or exfiltrate and must be rejected.
- */
-export const SAFE_URL_SCHEMES = ["http", "https", "ftp", "ftps", "mailto", "tel"];
+const SAFE_URL_SCHEMES = ["http", "https", "ftp", "ftps", "mailto", "tel"];
 
 /**
- * Returns whether ``href`` is safe to use as a hyperlink or navigation target.
- * A value carrying an explicit scheme is allowed only when that scheme is in
- * {@link SAFE_URL_SCHEMES}; a protocol-relative ``//host`` is rejected (open
- * redirect / mixed content); scheme-less values (relative paths, queries,
- * fragments) are allowed. Leading whitespace is ignored so e.g. " javascript:"
- * cannot slip through, and embedded ASCII tab/newlines (which the WHATWG URL
- * parser strips before resolving) can't be used to obfuscate a scheme, so e.g.
- * "java\tscript:" cannot slip through either.
- *
  * @param {string} href
  * @returns {boolean}
  */
@@ -186,11 +159,9 @@ export function isSafeUrlScheme(href) {
 }
 
 /**
- * Safely redirects to the given url within the same origin.
- *
  * @param {string} url
  * @returns {void}
- * @throws {RedirectionError} if the given url has a different origin
+ * @throws {RedirectionError}
  */
 export function redirect(url) {
     const { origin, pathname } = browser.location;
@@ -202,11 +173,9 @@ export function redirect(url) {
 }
 
 /**
- * This function compares two URLs. It doesn't care about the order of the search parameters.
- *
  * @param {string} _url1
  * @param {string} _url2
- * @returns {boolean} true if the urls are identical, false otherwise
+ * @returns {boolean}
  */
 export function compareUrls(_url1, _url2) {
     const url1 = new URL(_url1);

@@ -1,41 +1,27 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dnd/nested_sortable - useNestedSortable OWL hook for drag-and-drop with hierarchical nesting */
+/** @module @web/core/utils/dnd/nested_sortable */
 
 import { localization } from "@web/core/l10n/localization";
 import { makeDraggableHook } from "@web/core/utils/dnd/draggable_hook_builder_owl";
 
 /** @import { DraggableHandlerParams } from "@web/core/utils/dnd/draggable_hook_builder" */
-/** @typedef {DraggableHandlerParams & { group: HTMLElement | null }} NestedSortableHandlerParams */
+/**
+ * @typedef {DraggableHandlerParams & { group: HTMLElement | null }} NestedSortableHandlerParams
+ */
 
 /**
  * @typedef {import("./sortable").SortableParams} NestedSortableParams
- *
- * OPTIONAL
- *
- * @property {(HTMLElement) => boolean} [preventDrag] returns whether the
- *  given target element can be dragged.
- * @property {boolean | () => boolean} [nest] whether elements are nested or not.
- * @property {string | () => string} [listTagName] type of lists ("ul" or "ol").
- * @property {number | () => number} [nestInterval] Horizontal distance needed to trigger
- * a change in the list hierarchy (i.e. changing parent when moving horizontally)
- * @property {number | () => number} [maxLevels] The maximum depth of nested items
- * the list can accept. If set to '0' the levels are unlimited. Default: 0
- * @property {(DraggableHookContext) => boolean} [isAllowed] Custom function
- * validating whether a drop location is allowed. Defaults to always true.
- * @property {boolean} [useElementSize] The placeholder use the dragged element size instead
- * of the small 8px lines. Default:false
- * @property {string[] | (() => string[])} [inertSelectors] selectors of the elements that
- * must be made inert (pointer-events: none) during a drag sequence, so the drag cursor is
- * shown across the whole screen while those zones stay non-interactive. Defaults to the
- * webclient chrome (`.o_navbar`, `.o_action_manager`); non-webclient embeddings should pass
- * their own zones (or `[]`) rather than relying on these layout-specific selectors.
- *
- * HANDLERS (also optional)
- *
- * @property {(params: MoveParams) => any} [onMove] called when the element has moved
- * (changed position) (@see MoveParams).
+ * @property {(HTMLElement) => boolean} [preventDrag]
+ * @property {boolean | () => boolean} [nest]
+ * @property {string | () => string} [listTagName]
+ * @property {number | () => number} [nestInterval]
+ * @property {number | () => number} [maxLevels]
+ * @property {(DraggableHookContext) => boolean} [isAllowed]
+ * @property {boolean} [useElementSize]
+ * @property {string[] | (() => string[])} [inertSelectors]
+ * @property {(params: MoveParams) => any} [onMove]
  */
 
 /**
@@ -236,10 +222,8 @@ export const useNestedSortable = /** @type {any} */ (
                     });
                 };
                 /**
-                 * Get the list element inside an element, or create one if it does not
-                 * exists.
                  * @param {HTMLElement} el
-                 * @return {HTMLElement} list
+                 * @return {HTMLElement}
                  */
                 const getChildList = (/** @type {Element} */ el) => {
                     const existing = el.querySelector(ctx.listTagName);
@@ -259,47 +243,11 @@ export const useNestedSortable = /** @type {any} */ (
                 });
                 const position = getPosition(ctx.current.placeHolder);
 
-                /** If nesting elements is allowed, horizontal moves may change the
-                 * parent of the placeholder element (the placeholder does not move
-                 * above or under an element, but it changes parent):
-                 *
-                 * - Moving to the left makes the placeholder a child of the previous
-                 *   element up in the nested hierarchy, only if the placeholder is the
-                 *   last child of its current parent:
-                 *
-                 *                    Allowed:
-                 *    el                           el
-                 *     ┣ parent                     ┣ parent
-                 *     ┃  ┣ child           -->     ┃  ┗ child
-                 *     ┃  ┗ placeholder             ┣ placeholder
-                 *     ┗ el                         ┗ el
-                 *
-                 *                  Not Allowed:
-                 *    el                           el
-                 *     ┣ parent                     ┣ parent
-                 *     ┃  ┣ placeholder     -->     ┣ p┃laceholder   <-- error
-                 *     ┃  ┗ child                   ┃  ┗ child
-                 *     ┗ el                         ┗ el
-                 *
-                 *
-                 * - Moving to the right makes the placeholder the last child of the
-                 * next element down in the nested hierarchy:
-                 *
-                 *    el                           el
-                 *     ┣ parent                    ┣ parent
-                 *     ┃  ┗ child           -->    ┃  ┣ child
-                 *     ┣ placeholder               ┃  ┗ placeholder
-                 *     ┗ el                        ┗ el
-                 */
                 if (ctx.nest) {
                     const xInterval = ctx.prevNestX - ctx.pointer.x;
                     if (ctx.nestInterval - (-1) ** ctx.isRTL * xInterval < 1) {
                         let nextElement = position.next;
                         if (nextElement === ctx.current.element) {
-                            // Read through `ctx.current.element`, which the
-                            // branch has just proved this to be: `position.next`
-                            // is nullable, and its non-nullness here follows
-                            // only from that equality.
                             nextElement = ctx.current.element.nextElementSibling;
                         }
                         if (!nextElement) {

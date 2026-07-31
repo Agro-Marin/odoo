@@ -425,6 +425,95 @@ describe("useService", () => {
         expect(nbCalls).toBe(8);
         useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
     });
+
+    // The resolve path above is withheld once the owner is destroyed. The
+    // reject path used to escape instead, reaching error_service's
+    // `unhandledrejection` listener and raising a crash dialog for a view the
+    // user had already left.
+    test("a rejection after destroy is withheld, like a resolution", async () => {
+        useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
+        const state = reactive({ child: true });
+        const def = new Deferred();
+        let failing;
+
+        class Child extends Component {
+            static props = ["*"];
+            static template = xml`<div/>`;
+            setup() {
+                failing = useService("failing_service");
+            }
+        }
+        class Parent extends Component {
+            static components = { Child };
+            static props = ["*"];
+            static template = xml`<Child t-if="state.child"/>`;
+            setup() {
+                this.state = useState(state);
+            }
+        }
+
+        registry.category("services").add("failing_service", {
+            name: "failing_service",
+            async: ["boom"],
+            start: () => ({
+                async boom() {
+                    await def;
+                    throw new Error("network down");
+                },
+            }),
+        });
+
+        await mountWithCleanup(Parent);
+
+        failing.boom().then(
+            () => expect.step("resolved"),
+            (error) => expect.step(`rejected:${error.message}`)
+        );
+        // No handler at all: this is the shape that used to surface globally.
+        failing.boom();
+
+        state.child = false;
+        await animationFrame();
+        def.resolve();
+        await animationFrame();
+        await animationFrame();
+
+        expect.verifySteps([]);
+        useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
+    });
+
+    test("a rejection while the owner is alive still propagates", async () => {
+        useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.original;
+        const def = new Deferred();
+        let failing;
+
+        class Child extends Component {
+            static props = ["*"];
+            static template = xml`<div/>`;
+            setup() {
+                failing = useService("live_failing_service");
+            }
+        }
+
+        registry.category("services").add("live_failing_service", {
+            name: "live_failing_service",
+            async: ["boom"],
+            start: () => ({
+                async boom() {
+                    await def;
+                    throw new Error("still mounted");
+                },
+            }),
+        });
+
+        await mountWithCleanup(Child);
+        failing.boom().catch((error) => expect.step(`rejected:${error.message}`));
+        def.resolve();
+        await animationFrame();
+        await animationFrame();
+        expect.verifySteps(["rejected:still mounted"]);
+        useServiceProtectMethodHandling.fn = useServiceProtectMethodHandling.mocked;
+    });
 });
 
 describe("useSpellCheck", () => {

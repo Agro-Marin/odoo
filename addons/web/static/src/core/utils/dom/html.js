@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/html - Safe HTML creation, text highlighting, and markup-aware content helpers */
+/** @module @web/core/utils/dom/html */
 
 import { htmlEscape as _htmlEscape, markup } from "@odoo/owl";
 
@@ -22,9 +22,6 @@ import {
 const Markup = markup("").constructor;
 
 /**
- * Safely creates a Document fragment from content. If content was flagged as safe HTML using
- * `markup` it is parsed as HTML. Otherwise it is escaped and parsed as text.
- *
  * @param {string | Markup} content
  */
 export function createDocumentFragmentFromContent(content) {
@@ -35,9 +32,6 @@ export function createDocumentFragmentFromContent(content) {
 }
 
 /**
- * Safely creates an element with the given content. If content was flagged as safe HTML using
- * `markup` it is set as innerHTML. Otherwise it is set as text.
- *
  * @param {string} elementName
  * @param {string | Markup} content
  * @returns {Element}
@@ -49,11 +43,6 @@ export function createElementWithContent(elementName, content) {
 }
 
 /**
- * Returns a markuped version of the input text where
- * the query is highlighted using the input classes
- * if it is part of the text. Will normalize the query
- * for advanced symbols matching
- *
  * @param {string | Markup} query
  * @param {string | Markup} text
  * @param {string | Markup} classes
@@ -82,11 +71,6 @@ export function highlightText(query, text, classes) {
             result,
             regex,
             (/** @type {string} */ _, /** @type {any} */ match) => {
-                /**
-                 * markup: text is a Markup object (either escaped inside htmlReplace or
-                 * flagged safe), `match` is directly coming from this value,
-                 * and the regex doesn't do anything crazy to unescape it.
-                 */
                 match = markup(match);
                 return markup`<span class="${classes}">${match}</span>`;
             },
@@ -96,10 +80,6 @@ export function highlightText(query, text, classes) {
 }
 
 /**
- * Same behavior as {@link formatList}, but producing safe HTML. If the values are
- * flagged as safe HTML using `markup()` they are set as it is. Otherwise they are
- * escaped.
- *
  * @param {Parameters<formatList>[0]} values
  * @param {Parameters<formatList>[1]} [options]
  * @returns {Markup}
@@ -111,8 +91,6 @@ export function htmlFormatList(values, options) {
 }
 
 /**
- * Applies list join on content and returns a markup result built for HTML.
- *
  * @param {Iterable<string | Markup>} list
  * @param {string | Markup} [separator]
  * @returns {Markup}
@@ -126,8 +104,6 @@ export function htmlJoin(list, separator = "") {
 }
 
 /**
- * Applies string replace on content and returns a markup result built for HTML.
- *
  * @param {any} content
  * @param {any} search
  * @param {any} replacer
@@ -151,8 +127,6 @@ export function htmlReplace(content, search, replacer) {
 }
 
 /**
- * Applies string replaceAll on content and returns a markup result built for HTML.
- *
  * @param {any} content
  * @param {any} search
  * @param {any} replacer
@@ -176,11 +150,8 @@ export function htmlReplaceAll(content, search, replacer) {
 }
 
 /**
- * Same behavior as sprintf, but produces safe HTML. If the string or values are flagged as safe HTML
- * using `markup()` they are set as it is. Otherwise they are escaped.
- *
- * @param {string} str The string with placeholders (%s) to insert values into.
- * @param  {...unknown[]} substitutions Primitive values to insert in place of placeholders.
+ * @param {string} str
+ * @param {...unknown[]} substitutions
  * @returns {string | Markup}
  */
 export function htmlSprintf(str, ...substitutions) {
@@ -192,8 +163,6 @@ export function htmlSprintf(str, ...substitutions) {
 }
 
 /**
- * Applies string trim on content and returns a markup result built for HTML.
- *
  * @param {string | Markup} content
  * @returns {string | Markup}
  */
@@ -203,14 +172,8 @@ export function htmlTrim(content) {
 }
 
 /**
- * Checks if a html content is empty. If there are only formatting tags
- * with style attributes or a void content. Famous use case is
- * '<p style="..." class=".."><br></p>' added by some web editor(s).
- * Because this method's use is limited, edge cases like a single <img> tag
- * are ignored: such content is still considered empty even though it's real.
- *
  * @param {string | Markup} [content]
- * @returns {boolean} true if no content found or if containing only formatting tags
+ * @returns {boolean}
  */
 export function isHtmlEmpty(content = "") {
     return (createElementWithContent("div", content).textContent ?? "").trim() === "";
@@ -224,23 +187,10 @@ export function isMarkup(content) {
 }
 
 /**
- * Formats the given `text` as follow:
- *  - \*\*text\*\* => puts `text` in bold.
- *  - --text-- => puts `text` in "muted" (i.e. grayed out).
- *  - \`text\` => puts `text` in a rounded badge (bg-primary).
- *  - \n => inserts a line break.
- *  - \t => inserts the equivalent of 4 spaces.
- *
  * @param {string | Markup} text
- * @returns {string | Markup} the formatted text
+ * @returns {string | Markup}
  */
 export function odoomark(text) {
-    /**
-     * Mapping of patterns to replacer functions for odoomarked strings. Content
-     * passed to `markup` here is safe because it comes from {@link htmlReplaceAll}
-     * (which uses {@link htmlEscape}). Declared inline so other functions can't
-     * reuse these marked-up replacers for injection.
-     */
     const replacers = [
         ["\n", markup`<br>`],
         ["\t", markup`<span style="margin-left: 2em"></span>`],
@@ -269,9 +219,6 @@ export function odoomark(text) {
 }
 
 /**
- * Safely sets content on element. If content was flagged as safe HTML using `markup` it is set as
- * innerHTML. Otherwise it is set as text.
- *
  * @param {Element} element
  * @param {string | Markup} content
  */

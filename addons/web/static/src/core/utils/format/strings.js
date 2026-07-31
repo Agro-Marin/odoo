@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/format/strings - String helpers: sprintf, escapeRegExp, email validation, intersperse */
+/** @module @web/core/utils/format/strings */
 
 import { isObject } from "@web/core/utils/collections/objects";
 
@@ -27,10 +27,6 @@ const HTML_ESCAPED_CHARACTERS = [
     ["`", "&#x60;"],
 ];
 
-/**
- * Based on:
- * {@link http://stackoverflow.com/questions/46155/validate-email-address-in-javascript}
- */
 const R_EMAIL =
     /^(([^<>()[\].,;:\s@"]+(\.[^<>()[\].,;:\s@"]+)*)|(".+"))@(([^<>()[\].,;:\s@"]+\.)+[^<>()[\].,;:\s@"]{2,})$/i;
 const R_FALSY = /^(false|0)$/i;
@@ -41,9 +37,7 @@ const R_REGEX_SPECIAL_CHARS = /[.*+?^${}()|[\]\\]/g;
 export const nbsp = "\u00a0";
 
 /**
- * Capitalizes a string: "abc def" => "Abc def"
- *
- * @param {string} str the input string
+ * @param {string} str
  * @returns {string}
  */
 export function capitalize(str) {
@@ -51,22 +45,6 @@ export function capitalize(str) {
 }
 
 /**
- * Escapes HTML special characters in a given value, returning a plain string.
- *
- * Escapes the SAME six characters as OWL's ``htmlEscape`` (re-exported as the
- * canonical markup-aware helper from ``@web/core/utils/dom/html``), but with
- * deliberately different trust semantics — so the two are NOT interchangeable:
- *
- *  - ``htmlEscape`` is Markup-aware: it passes a ``markup()`` value through
- *    UNESCAPED and returns Markup. Use it when composing safe HTML.
- *  - ``escape`` (this one) has NO passthrough: it coerces every input —
- *    including a String subclass / Markup / lazy ``_t`` string — to a plain
- *    string and always runs the replace (see the inline note below), returning
- *    an inert string. Use it where the result must never be treated as HTML.
- *
- * Prefer ``htmlEscape`` in markup-building contexts; keep ``escape`` where the
- * always-escape (no-trust) behavior is the point.
- *
  * @param {unknown} [value]
  * @returns {string}
  */
@@ -78,21 +56,14 @@ const _HTML_ESCAPE_MAP = Object.fromEntries(HTML_ESCAPED_CHARACTERS);
 const _HTML_ESCAPE_RE = /[&<>'"`]/g;
 
 /**
- * Escapes a pattern to use as a RegExp.
- *
- * {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Guide/Regular_expressions#escaping}
- *
  * @param {string} pattern
- * @returns {string} escaped string to use as a RegExp
+ * @returns {string}
  */
 export function escapeRegExp(pattern) {
     return pattern.replaceAll(R_REGEX_SPECIAL_CHARS, "\\$&");
 }
 
 /**
- * Parses the string as a boolean: empty, "0", "False" or "false" are false;
- * everything else is true.
- *
  * @param {string | null | undefined} str
  * @param {boolean} [trueIfEmpty=false]
  * @returns {boolean}
@@ -102,10 +73,6 @@ export function exprToBoolean(str, trueIfEmpty = false) {
 }
 
 /**
- * Generate a non-cryptographic hash (Java `String.hashCode()`-based) for the
- * given string(s). Not collision-resistant; use SubtleCrypto.digest() if a
- * cryptographic hash is needed.
- *
  * @param {...string} strings
  * @returns {string}
  */
@@ -123,11 +90,28 @@ export function hashCode(...strings) {
 const _HEX_8 = 16 ** 8;
 
 /**
- * Intersperses ``separator`` in ``str`` at positions given by ``indices``,
- * relative offsets from the previous insertion point (starting at the end
- * of the string). Special values: ``-1`` stops insertion; ``0`` repeats the
- * previous section until ``str`` is consumed.
+ * 53-bit hash: collision-safe enough to key caches whose entries must not be
+ * confused with one another.
  *
+ * @param {string} str
+ * @returns {number}
+ */
+export function cyrb53(str) {
+    let h1 = 0xdeadbeef;
+    let h2 = 0x41c6ce57;
+    for (let i = 0; i < str.length; i++) {
+        const ch = str.charCodeAt(i);
+        h1 = Math.imul(h1 ^ ch, 2654435761);
+        h2 = Math.imul(h2 ^ ch, 1597334677);
+    }
+    h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+    h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+    h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+    h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+    return 4294967296 * (2097151 & h2) + (h1 >>> 0);
+}
+
+/**
  * @param {string} str
  * @param {number[]} indices
  * @param {string} [separator=""]
@@ -166,8 +150,6 @@ export function isEmail(value) {
 }
 
 /**
- * Return true if the string is composed of only digits
- *
  * @param {string} value
  * @returns {boolean}
  */
@@ -199,34 +181,10 @@ export function mapSubstitutions(substitutions, mapFn) {
 }
 
 /**
- * Returns a string formatted using given values.
- *
- * If the value is an object:
- *  - its keys will replace `%(key)s` expressions;
- *  - these expressions CANNOT be escaped (e.g. '%%(key)s');
- *  - missing keys will yield empty strings.
- *
- * If the value(s) is a list of string(s):
- *  - they will replace `%s` expressions;
- *  - these expressions CAN be escaped by adding another '%';
- *  - surplus of "%s" expressions will be replaced by empty strings.
- *
- * If no value is given, the string will not be formatted at all.
- *
  * @template T
  * @param {string} str
  * @param {Substitutions<T>} substitutions
  * @returns {string}
- * @example
- *  // Generic substitutions
- *  sprintf("Hello %s!", "world"); // "Hello world!"
- *  sprintf("Hello %%s!", "world"); // "Hello %s!"
- *  // Keyed substitutions
- *  sprintf("Hello %(place)s!", { place: "world" }); // "Hello world!"
- *  sprintf("Hello %(missing)s!", { place: "world" }); // "Hello !"
- *  sprintf("Hello %%(place)s!", { place: "world" }); // "Hello %world!"
- *  // Unchanged because no substitutions
- *  sprintf("Hello %s!"); // "Hello %s!"
  */
 export function sprintf(str, ...substitutions) {
     if (!substitutions.length) {
@@ -263,7 +221,10 @@ export function sprintf(str, ...substitutions) {
 }
 
 /**
- * Generate a unique identifier (64 bits) in hexadecimal.
+ * 16 lowercase hex characters — 64 random bits, no dashes. Despite the name
+ * this is not an RFC 4122 UUID and never has been; `crypto.randomUUID()` is
+ * what you want if a caller needs that shape. Documented because callers have
+ * assumed otherwise (one stripped a dash that is never produced).
  *
  * @returns {string}
  */

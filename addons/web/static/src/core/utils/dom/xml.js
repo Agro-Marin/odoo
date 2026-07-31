@@ -1,14 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/core/utils/dom/xml - XML parse, serialize, create, and manipulate DOM elements */
+/** @module @web/core/utils/dom/xml */
 
 import { isIterable } from "@web/core/utils/collections/arrays";
 
-/**
- * XML document to create new elements from. The fact that this is a "text/xml"
- * document ensures that tagNames and attribute names are case sensitive.
- */
 const serializer = new XMLSerializer();
 const parser = new DOMParser();
 const xmlDocument = parser.parseFromString("<templates/>", "text/xml");
@@ -80,9 +76,6 @@ export function append(parent, node) {
 }
 
 /**
- * Combines the existing value of a node attribute with new given parts. The glue
- * is the string used to join the parts.
- *
  * @param {Element} el
  * @param {string} attr
  * @param {string | string[]} parts
@@ -100,8 +93,6 @@ export function combineAttributes(el, attr, parts, glue = " ") {
 }
 
 /**
- * XML equivalent of `document.createElement`.
- *
  * @param {string} tagName
  * @param {...any} args
  * @returns {Element}
@@ -112,20 +103,25 @@ export function createElement(tagName, ...args) {
         if (!arg) {
             continue;
         }
-        if (isIterable(arg)) {
+        if (typeof arg === "string") {
+            el.append(xmlDocument.createTextNode(arg));
+        } else if (isIterable(arg)) {
             el.append(...arg);
         } else if (typeof arg === "object") {
             for (const name of Object.keys(arg)) {
                 el.setAttribute(name, arg[name]);
             }
+        } else {
+            throw new TypeError(
+                `createElement("${tagName}"): cannot use a ${typeof arg} as a child ` +
+                    `or an attribute map (got ${String(arg)})`,
+            );
         }
     }
     return el;
 }
 
 /**
- * XML equivalent of `document.createTextNode`.
- *
  * @param {string} data
  * @returns {Text}
  */
@@ -134,7 +130,6 @@ export function createTextNode(data) {
 }
 
 /**
- * Removes the given attributes on the given element and returns them as a dictionnary.
  * @param {Element} el
  * @param {string[]} attributes
  * @returns {Record<string, string>}
@@ -169,14 +164,9 @@ export function setAttributes(node, attributes) {
 }
 
 /**
- * Pretty-print an XML string with proper indentation.
- *
- * Regex-based formatter that handles elements, comments, CDATA,
- * DOCTYPE, processing instructions, and xmlns attributes.
- *
- * @param {string} xml raw XML string
- * @param {number} [indent=4] spaces per indentation level
- * @returns {string} formatted XML
+ * @param {string} xml
+ * @param {number} [indent=4]
+ * @returns {string}
  */
 export function formatXML(xml, indent = 4) {
     const pad = " ".repeat(indent);
