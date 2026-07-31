@@ -18,9 +18,7 @@ const MAX_SEEN_KEYS = 512;
 const MAX_CAUSE = 4096;
 const MAX_CAUSE_DEPTH = 8;
 
-// Kinds the server accepts (web/controllers/observability.py::js_error).
-// Anything else is normalized to "error" there too; normalizing here as well
-// keeps a caller typo from being logged as a category that does not exist.
+// Kinds observability.py::js_error accepts; anything else falls back to error.
 const KINDS = new Set([
     "error",
     "unhandledrejection",
@@ -30,16 +28,8 @@ const KINDS = new Set([
 ]);
 
 /**
- * Java ``String.hashCode`` over one string, as 8 hex chars.
- *
- * Deliberately inlined rather than imported from
- * ``@web/core/utils/format/strings``: this module is loaded by
- * ``@web/core/registry`` at the very start of boot and exists to work when
- * everything else is broken, so it carries no imports at all.  The 32-bit
- * width is ample — ``seen`` holds a handful of entries per page, not the tens
- * of thousands that pushed ``core/templates.js`` to a 53-bit hash.
- *
- * ``module_loader.js`` has a byte-identical copy; keep both in step.
+ * Inlined, not imported: this module must carry no imports. Copy in
+ * module_loader.js — keep both in step.
  *
  * @param {string} str
  * @returns {string}
@@ -54,11 +44,8 @@ function hashCode(str) {
 }
 
 /**
- * ``JSON.stringify`` replacer that keeps the root's own scalars and elides any
- * nested object, so serializing an unknown cause is bounded by its own key
- * count rather than by the size of whatever graph it points into.
- *
- * ``module_loader.js`` has a byte-identical copy; keep both in step.
+ * ``JSON.stringify`` replacer that elides nested objects, bounding an unknown
+ * cause by its own key count. Copy in module_loader.js — keep both in step.
  *
  * @param {string} key
  * @param {unknown} value
@@ -72,17 +59,9 @@ function elideNested(key, value) {
 }
 
 /**
- * Flatten an error's ``cause`` chain into one string.
- *
- * OWL reports a lifecycle failure as "An error occured in the owl lifecycle
- * (see this Error's ``cause`` property)" — the message names the property but
- * the beacon never carried it, so the log told operators to inspect something
- * they could not reach.  Walks iteratively (a cause is any value: an Error, a
- * string, a plain object, or undefined) and never throws, because a reporter
- * that raises while reporting loses the original error too.
- *
- * ``module_loader.js`` has a logic-identical copy — same code, comments
- * wrapped differently; keep both in step.
+ * Flatten an error's ``cause`` chain — the property OWL's lifecycle message
+ * points at. Never throws. Logic-identical copy in module_loader.js (comments
+ * rewrap); keep both in step.
  *
  * @param {unknown} cause first ``.cause`` of the reported error
  * @returns {string} ``"Caused by: ..."`` segments, or ``""`` when there is none
@@ -94,8 +73,7 @@ function serializeCause(cause) {
     let depth = 0;
     while (current !== undefined && current !== null && depth < MAX_CAUSE_DEPTH) {
         if (typeof current === "object") {
-            // A cycle (e1.cause = e2; e2.cause = e1) would otherwise spin until
-            // the depth cap, filling the payload with repeats of two frames.
+            // A cycle would otherwise repeat two frames up to the depth cap.
             if (visited.has(current)) {
                 parts.push("Caused by: [circular]");
                 break;
@@ -107,17 +85,13 @@ function serializeCause(cause) {
             if (current instanceof Error) {
                 text = `${current.name}: ${current.message}`;
             } else if (typeof current === "object") {
-                // Elide nested objects instead of walking them: an OWL node or
-                // a store slice as a cause would otherwise be stringified whole
-                // — megabytes, synchronously, inside a handler for a page that
-                // is already failing — only to be discarded by the slice below.
+                // Elided, not walked: an OWL node would stringify whole.
                 text = JSON.stringify(current, elideNested);
             } else {
                 text = String(current);
             }
         } catch {
-            // Getters that throw, JSON cycles, exotic toString — the chain is
-            // best-effort, so record that a level existed and move on.
+            // Best-effort: record that a level existed and move on.
             text = "[unserializable]";
         }
         parts.push(`Caused by: ${text}`);
@@ -149,13 +123,9 @@ export function reportJsError(info) {
     const col = (info.col ?? 0) | 0;
     const stack = info.stack ? String(info.stack).slice(0, MAX_STACK) : "";
     const cause = serializeCause(info.cause);
-    // Stack AND cause discriminate. OWL reports every lifecycle failure with
-    // one generic message at 0:0, so a (message,line,col) key collapsed
-    // unrelated crashes into one beacon. The stack alone does not fix it: OWL
-    // builds that wrapper inside its own handleError (owl.es.js:1661), so the
-    // wrapper's stack is the scheduler frames — identical for two component
-    // crashes flushed in the same tick. The component frames are on the cause,
-    // which is why it belongs in the key.
+    // Cause is in the key, not just the stack: OWL wraps inside handleError
+    // (owl.es.js:1661), so the wrapper's stack is the scheduler frames and two
+    // component crashes in one tick collide. The component frames are the cause.
     const key = `${message}|${line}|${col}|${hashCode(stack + cause)}`;
     if (seen.has(key)) {
         return false;
