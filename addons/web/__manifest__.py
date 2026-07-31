@@ -71,8 +71,12 @@ This module provides the core of the Odoo Web Client.
             "web/static/src/scss/mimetypes.scss",
             "web/static/src/scss/ui.scss",
             "web/static/src/fields/translation_dialog.scss",
-            "web/static/src/libs/popper_compat.js",
-            "web/static/src/libs/bootstrap.js",
+            # Bootstrap's JS is deliberately absent from the backend. Nothing in
+            # the web client reaches it: dropdowns, dialogs, popovers, tooltips,
+            # collapses, offcanvases and carousels are served by
+            # `web/static/src/ui` and `components/dropdown`, and arch written
+            # against the data-api is rewritten by `ViewCompiler`. It is still
+            # shipped to the frontend, where website content depends on it.
             "base/static/src/css/modules.css",
             "web/static/src/model/**/*",
             "web/static/src/search/**/*",
@@ -331,6 +335,15 @@ This module provides the core of the Odoo Web Client.
                 "remove",
                 "web/static/src/components/emoji_picker/emoji_data.js",
             ),
+            # Every consumer of this fragment is a light bundle -- backend,
+            # frontend, the PoS apps, the public sign page -- and the dark
+            # bundles take the whole tree by glob anyway. Excluding here means
+            # a new component's dark skin cannot leak into a light bundle just
+            # because that bundle globs this directory.
+            (
+                "remove",
+                "web/static/src/**/*.dark.scss",
+            ),
         ],
         "web._assets_primary_variables": [
             "web/static/src/scss/primary_variables.scss",
@@ -394,6 +407,11 @@ This module provides the core of the Odoo Web Client.
             "web/static/tests/tours/**/*",
         ],
         "web.assets_unit_tests_setup": [
+            # Their suites import them directly, and the backend bundle no
+            # longer carries them — `website`, which does, is not installed in
+            # a web-only test database.
+            "web/static/src/libs/popper_compat.js",
+            "web/static/src/libs/bootstrap.js",
             "web/static/lib/hoot/**/*",
             "web/static/lib/hoot-dom/**/*",
             (

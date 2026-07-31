@@ -1,5 +1,7 @@
 /** @odoo-module native */
 import { Component, useEffect, useState } from "@odoo/owl";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { useService } from "@web/core/utils/hooks";
 import { ActionMenus } from "@web/search/action_menus/action_menus";
 import { SIZES } from "@web/ui/viewport";
@@ -8,6 +10,8 @@ export class DocumentsAction extends Component {
     static template = "documents.DocumentsAction";
     static components = {
         ActionMenus,
+        Dropdown,
+        DropdownItem,
     };
     static props = {
         targetRecords: Array,

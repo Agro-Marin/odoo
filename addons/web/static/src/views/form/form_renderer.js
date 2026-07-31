@@ -13,14 +13,15 @@ import {
     useSubEnv,
     xml,
 } from "@odoo/owl";
+import { Dropdown } from "@web/components/dropdown/dropdown";
 import { Notebook } from "@web/components/notebook/notebook";
 import { hasTouch } from "@web/core/browser/feature_detection";
 import { AppEvent } from "@web/core/events";
 import { evaluateBooleanExpr } from "@web/core/py_js/py";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
-import { useThrottleForAnimation } from "@web/core/utils/timing";
 import { Field } from "@web/fields/field";
+import { Dialog } from "@web/ui/dialog/dialog";
 import { ButtonBox } from "@web/views/form/button_box/button_box";
 import { InnerGroup, OuterGroup } from "@web/views/form/form_group/form_group";
 import { ViewButton } from "@web/views/view_button/view_button";
@@ -43,6 +44,8 @@ import { StatusBarButtons } from "./status_bar_buttons/status_bar_buttons.js";
 export class FormRenderer extends Component {
     static template = xml`<t t-call="{{ templates.FormRenderer }}" t-call-context="{ __comp__: Object.assign(Object.create(this), { this: this }) }" />`;
     static components = {
+        Dialog,
+        Dropdown,
         Field,
         FormLabel,
         ButtonBox,
@@ -76,12 +79,18 @@ export class FormRenderer extends Component {
         const { archInfo, Compiler, record } = this.props;
         const templates = { FormRenderer: archInfo.xmlDoc };
         this.state = useState(/** @type {any} */ ({}));
+        /**
+         * Open flags for `.modal` blocks declared in arch, keyed by the pairing
+         * `ViewCompiler` resolves between a modal and the controls addressing
+         * it. Empty for the overwhelming majority of views.
+         */
+        this.archDialogs = useState(/** @type {Record<string, boolean>} */ ({}));
         this.templates = useViewCompiler(Compiler || FormCompiler, templates);
         this.hasUnsavedEdits = useFieldIsDirty(record.model);
         useSubEnv({ model: record.model });
         this.uiService = useService("ui");
         useBus(this.uiService.bus, AppEvent.RESIZE, /** @type {any} */ (this.render));
-        this.onScrollThrottled = useThrottleForAnimation(this.onScroll);
+        this.setupStickyStatusbar();
 
         const { autofocusFieldIds } = archInfo;
         const rootRef = useRef("compiled_view_root");
@@ -159,9 +168,36 @@ export class FormRenderer extends Component {
         return !hasTouch() && !this.props.archInfo.disableAutofocus;
     }
 
-    onScroll(ev) {
-        this.state.isStatusbarStickyPinned =
-            !this.env.inDialog && !this.env.isSmall && ev.target.scrollTop !== 0;
+    /**
+     * Pin the statusbar's shadow while the sheet is scrolled away from its top.
+     *
+     * Watching a sentinel rather than the scroll position keeps the browser
+     * from calling into the component on every scroll frame: the answer only
+     * ever changes when the top of the sheet crosses the viewport edge, which
+     * is exactly what the observer reports.
+     */
+    setupStickyStatusbar() {
+        const sentinel = useRef("stickySentinel");
+        useEffect(
+            (el) => {
+                if (!el) {
+                    // Arch with no <sheet>: nothing scrolls, nothing to pin.
+                    return;
+                }
+                const observer = new IntersectionObserver(
+                    ([entry]) => {
+                        this.state.isStatusbarStickyPinned =
+                            !this.env.inDialog &&
+                            !this.env.isSmall &&
+                            !entry.isIntersecting;
+                    },
+                    { root: el.parentElement },
+                );
+                observer.observe(el);
+                return () => observer.disconnect();
+            },
+            () => [sentinel.el],
+        );
     }
 
     async onWillChangeNotebookPage(_notebookId, _page) {

@@ -8056,3 +8056,69 @@ class TestViewArchFileResolution(common.TransactionCase):
         self.assertIn("QUALIFIED", ir_ui_view.get_view_arch_from_file(path, "base.dup"))
         # other.dup does not: falling back to the bare "dup" is still correct.
         self.assertIn("SHORT", ir_ui_view.get_view_arch_from_file(path, "other.dup"))
+
+
+class TestSelfHandledArchMigration(ViewCase):
+    """`_migrate_self_handled_arch` rewrites Bootstrap's data-api spelling to
+    this fork's own, so the Bootstrap one can be withdrawn from the view layer.
+    """
+
+    def _make_view(self, arch, view_type="form"):
+        return self.View.create(
+            {
+                "name": "self-handled migration",
+                "model": "ir.ui.view",
+                "type": view_type,
+                "arch": arch,
+            }
+        )
+
+    def test_dropdown_toggle_is_renamed(self):
+        view = self._make_view(
+            """<form>
+                <div class="dropdown">
+                    <button type="button" data-bs-toggle="dropdown">M</button>
+                    <div class="dropdown-menu"><a class="dropdown-item">x</a></div>
+                </div>
+            </form>"""
+        )
+        self.assertIn(view, self.View._migrate_self_handled_arch())
+        self.assertIn('data-self-handled="dropdown"', view.arch)
+        self.assertNotIn("data-bs-toggle", view.arch)
+
+    def test_modal_control_takes_its_target_with_it(self):
+        view = self._make_view(
+            """<form>
+                <a data-bs-toggle="modal" data-bs-target=".m">open</a>
+                <div class="modal m">
+                    <button data-bs-dismiss="modal">close</button>
+                </div>
+            </form>"""
+        )
+        self.View._migrate_self_handled_arch()
+        self.assertIn('data-self-handled="modal"', view.arch)
+        self.assertIn('data-modal-target=".m"', view.arch)
+        self.assertIn("data-modal-dismiss", view.arch)
+        self.assertNotIn("data-bs-", view.arch)
+
+    def test_bs_target_survives_on_a_non_modal_control(self):
+        # `data-bs-target` also drives collapse and tab; renaming it there would
+        # silently unhook those from Bootstrap, which still ships to the frontend.
+        view = self._make_view(
+            """<form>
+                <a data-bs-toggle="collapse" data-bs-target="#c">more</a>
+                <div class="collapse" id="c">body</div>
+            </form>"""
+        )
+        self.View._migrate_self_handled_arch()
+        self.assertIn('data-bs-target="#c"', view.arch)
+        self.assertIn('data-bs-toggle="collapse"', view.arch)
+
+    def test_qweb_arch_is_left_alone(self):
+        # qweb renders server-side for website/portal, where Bootstrap's data-api
+        # is the real thing rather than a token this framework recognises.
+        view = self._make_view(
+            """<div><a data-bs-toggle="dropdown">m</a></div>""", view_type="qweb"
+        )
+        self.assertNotIn(view, self.View._migrate_self_handled_arch())
+        self.assertIn('data-bs-toggle="dropdown"', view.arch)

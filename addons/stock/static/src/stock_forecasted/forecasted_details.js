@@ -1,5 +1,5 @@
 /** @odoo-module native */
-import { Component, onWillUpdateProps } from "@odoo/owl";
+import { Component, onWillUpdateProps, useState } from "@odoo/owl";
 import { useOperationGuard } from "@stock/utils/use_operation_guard";
 import { _t } from "@web/core/l10n/translation";
 import { useService } from "@web/core/utils/hooks";
@@ -11,6 +11,7 @@ export class ForecastedDetails extends Component {
 
     setup() {
         this.orm = useService("orm");
+        this.state = useState({ collapsedProducts: {} });
         // Shared busy flag: while a reserve/unreserve/priority RPC (and the
         // reloadReport it triggers) is in flight, all three handlers are inert
         // and the template disables the controls.
@@ -347,6 +348,27 @@ export class ForecastedDetails extends Component {
 
     get multipleProducts() {
         return this.docs.multiple_product;
+    }
+
+    /** @param {number} productId */
+    toggleProduct(productId) {
+        this.state.collapsedProducts[productId] =
+            !this.state.collapsedProducts[productId];
+    }
+
+    /**
+     * The rows of one product group carry Bootstrap's `.collapse`, whose
+     * `:not(.show)` rule is the only thing hiding them — `.show` is deliberately
+     * not paired with a `display`, so the rows keep `display: table-row`.
+     *
+     * @param {number} productId
+     * @returns {string}
+     */
+    groupClass(productId) {
+        if (!this.multipleProducts) {
+            return "";
+        }
+        return this.state.collapsedProducts[productId] ? "collapse" : "collapse show";
     }
 
     get productIds() {

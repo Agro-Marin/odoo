@@ -348,6 +348,7 @@
             "website/static/tests/redirect_field.test.js",
             "website/static/tests/new_content_systray_item.test.js",
             "website/static/tests/page_url_field.test.js",
+            "website/static/tests/page_dependencies.test.js",
         ],
         "web.assets_unit_tests_setup": [
             "html_builder/static/src/utils/scrolling.js",

@@ -13,8 +13,9 @@ import {
     useSubEnv,
 } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { useDropdownState } from "@web/components/dropdown/dropdown_hooks";
 import { browser } from "@web/core/browser/browser";
-import { isBrowserSafari } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
 import { _t } from "@web/core/l10n/translation";
@@ -26,7 +27,6 @@ import { escapeRegExp } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { fuzzyLevenshteinLookup } from "@web/core/utils/search";
 import { getDataURLFromFile, redirect } from "@web/core/utils/urls";
-import { Dropdown } from "@web/libs/bootstrap";
 import { standardActionServiceProps } from "@web/webclient/actions/action_service";
 import { svgToPNG, webpToPNG } from "@website/js/utils";
 
@@ -153,7 +153,7 @@ export class WelcomeScreen extends Component {
 
 export class DescriptionScreen extends Component {
     static template = "website.Configurator.DescriptionScreen";
-    static components = { SkipButton, AutoComplete };
+    static components = { SkipButton, AutoComplete, Dropdown };
     static props = {
         navigate: Function,
         skip: Function,
@@ -194,7 +194,29 @@ export class DescriptionScreen extends Component {
             () => [this.state.selectedType, this.state.selectedIndustry],
         );
 
-        this.safariHackFocusedOutDropdown = null;
+        this.typeDropdown = useDropdownState();
+        this.purposeDropdown = useDropdownState();
+        // The guided flow leaves each menu open until its step is answered.
+        useEffect(
+            (selectedType) => {
+                if (selectedType) {
+                    this.typeDropdown.close();
+                } else {
+                    this.typeDropdown.open();
+                }
+            },
+            () => [this.state.selectedType],
+        );
+        useEffect(
+            (selectedPurpose) => {
+                if (selectedPurpose) {
+                    this.purposeDropdown.close();
+                } else {
+                    this.purposeDropdown.open();
+                }
+            },
+            () => [this.state.selectedPurpose],
+        );
     }
 
     onMounted() {
@@ -375,38 +397,6 @@ export class DescriptionScreen extends Component {
             this.props.navigate(ROUTES.paletteSelectionScreen);
         }
     }
-    onConfiguratorScreenFocusin(ev) {
-        // On safari, hide the previously focused out dropdown if focusin is
-        // outside of it
-        if (isBrowserSafari() && this.safariHackFocusedOutDropdown) {
-            // The dropdown is captured on focusout and only consulted on the
-            // next focusin, by which point a re-render may have replaced it.
-            if (
-                this.safariHackFocusedOutDropdown.isConnected &&
-                ev.target.closest(".dropdown") !== this.safariHackFocusedOutDropdown
-            ) {
-                Dropdown.getOrCreateInstance(this.safariHackFocusedOutDropdown).hide();
-            }
-            this.safariHackFocusedOutDropdown = null;
-        }
-    }
-    /**
-     * Hide the dropdown once the focus isn't contained within it anymore.
-     *
-     * @param {FocusEvent} ev
-     */
-    onDropdownFocusout(ev) {
-        // On safari, we are missing relatedTarget because we can't focus on a
-        // button, so we delay dropdown hiding to focusin of next element
-        if (isBrowserSafari()) {
-            this.safariHackFocusedOutDropdown = ev.currentTarget;
-            return;
-        }
-        if (ev.relatedTarget?.closest(".dropdown") !== ev.currentTarget) {
-            Dropdown.getOrCreateInstance(ev.currentTarget).hide();
-        }
-    }
-
     onAutocompleteInput({ inputValue }) {
         if (!inputValue) {
             this.state.selectIndustry(); // reset

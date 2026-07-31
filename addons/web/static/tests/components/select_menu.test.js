@@ -708,6 +708,10 @@ test("When they are a lot of choices, not all are show at first and scrolling lo
             queryOne(".o_select_menu_menu").scrollHeight -
             scrollSettings.distanceBeforeReload,
     });
+    // The end of the list is watched by an IntersectionObserver, which the
+    // browser delivers on its own schedule rather than during the scroll: the
+    // extra frame is that delivery, plus the re-render it triggers.
+    await animationFrame();
     await animationFrame();
 
     expect(".o_select_menu_item, .o_select_menu_group").toHaveCount(
@@ -1521,6 +1525,9 @@ test("sections render in the order they were declared", async () => {
     expect(queryAllTexts(".o_select_menu_item")).toEqual(["In Zebra", "In Alpha"]);
 });
 
+// `navigationOptions.shouldFocusFirstItem` is `!hasTouch()`, so opening the menu
+// activates no choice on touch and there is deliberately nothing to publish.
+test.tags("desktop");
 test("a searchable menu publishes its active choice via aria-activedescendant", async () => {
     // `searchable` turns on `virtualFocus`, so DOM focus stays in the search
     // input and the highlighted choice is conveyed ONLY by this attribute.

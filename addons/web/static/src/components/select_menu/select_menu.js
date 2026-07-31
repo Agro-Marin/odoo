@@ -135,8 +135,9 @@ export class SelectMenu extends Component {
         this.inputRef = useRef("inputRef");
         this.menuRef = useChildRef();
         this.onInputKeepLast = new KeepLast();
-        this.onScrollListener = (ev) => this.onScroll(ev);
-        this.scrollListenerEl = null;
+        this.loadMoreSentinel = useRef("loadMoreSentinel");
+        /** @type {IntersectionObserver | null} */
+        this.loadMoreObserver = null;
         this.props.menuRef?.(this.menuRef);
         this.debouncedOnInput = useDebounced((searchString) => {
             if (!this.dropdownState.isOpen) {
@@ -333,8 +334,7 @@ export class SelectMenu extends Component {
             if (this.displayInputInDropdown && !this.isBottomSheet) {
                 this.inputRef.el.focus();
             }
-            this.scrollListenerEl = /** @type {any} */ (this.menuRef).el ?? null;
-            this.scrollListenerEl?.addEventListener("scroll", this.onScrollListener);
+            this.observeLoadMore();
             const selectedElement = /** @type {any} */ (
                 this.menuRef
             ).el?.querySelectorAll(".selected")[0];
@@ -344,8 +344,8 @@ export class SelectMenu extends Component {
             this.props.onOpened();
         } else {
             this.debouncedOnInput.cancel();
-            this.scrollListenerEl?.removeEventListener("scroll", this.onScrollListener);
-            this.scrollListenerEl = null;
+            this.loadMoreObserver?.disconnect();
+            this.loadMoreObserver = null;
             this.state.searchValue = null;
             this.props.onClosed();
         }
@@ -518,26 +518,39 @@ export class SelectMenu extends Component {
     }
 
     /**
-     * Loads more choices as the user scrolls to the end of the dropdown.
+     * Load more choices as the end of the list comes within reach.
      *
-     * @param {*} event
+     * A marker after the last option is watched instead of the scroll
+     * position: the browser reports it approaching on its own, so a long list
+     * no longer measures itself on every scroll frame. `distanceBeforeReload`
+     * becomes the margin that decides how early "within reach" is.
      */
-    onScroll(event) {
-        const el = event.target;
-        const hasReachMax =
-            this.state.displayedOptions.length >= this.state.choices.length;
-        const remainingDistance = el.scrollHeight - el.scrollTop;
-        const distanceToReload =
-            el.clientHeight +
-            /** @type {any} */ (this.constructor).SCROLL_SETTINGS.distanceBeforeReload;
-
-        if (!hasReachMax && remainingDistance < distanceToReload) {
-            const displayCount =
-                this.state.displayedOptions.length +
-                /** @type {any} */ (this.constructor).SCROLL_SETTINGS.increaseAmount;
-
-            this.state.displayedOptions = this.state.choices.slice(0, displayCount);
+    observeLoadMore() {
+        this.loadMoreObserver?.disconnect();
+        const root = /** @type {any} */ (this.menuRef).el;
+        const sentinel = this.loadMoreSentinel.el;
+        if (!root || !sentinel) {
+            return;
         }
+        const { distanceBeforeReload, increaseAmount } = /** @type {any} */ (
+            this.constructor
+        ).SCROLL_SETTINGS;
+        this.loadMoreObserver = new IntersectionObserver(
+            ([entry]) => {
+                if (!entry.isIntersecting) {
+                    return;
+                }
+                if (this.state.displayedOptions.length >= this.state.choices.length) {
+                    return;
+                }
+                this.state.displayedOptions = this.state.choices.slice(
+                    0,
+                    this.state.displayedOptions.length + increaseAmount,
+                );
+            },
+            { root, rootMargin: `0px 0px ${distanceBeforeReload}px 0px` },
+        );
+        this.loadMoreObserver.observe(sentinel);
     }
 
     /**

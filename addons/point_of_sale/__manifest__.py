@@ -194,6 +194,10 @@
             ("remove", "web/static/src/webclient/actions/**/*css"),
             "partner_autocomplete/static/src/**/*",
             "google_address_autocomplete/static/src/**/*",
+            # The globs above reach past web._assets_core into fields/, views/
+            # and search/, so they need the same dark exclusion it makes.
+            # point_of_sale.assets_prod_dark adds the tree back by glob.
+            ("remove", "web/static/src/**/*.dark.scss"),
         ],
         "point_of_sale.base_tests": [
             "web/static/lib/hoot-dom/**/*",

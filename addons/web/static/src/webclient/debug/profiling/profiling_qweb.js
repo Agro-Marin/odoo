@@ -11,6 +11,8 @@ import {
     useRef,
     useState,
 } from "@odoo/owl";
+import { Dropdown } from "@web/components/dropdown/dropdown";
+import { DropdownItem } from "@web/components/dropdown/dropdown_item";
 import { loadBundle } from "@web/core/assets";
 import { useService } from "@web/core/utils/hooks";
 import { renderToString } from "@web/core/utils/render";
@@ -58,7 +60,7 @@ function processValue(value) {
 /** Text-field widget displaying QWeb XML/Python profiling data in an Ace editor. */
 export class ProfilingQwebView extends Component {
     static template = "web.ProfilingQwebView";
-    static components = { MenuItem };
+    static components = { Dropdown, DropdownItem, MenuItem };
     static props = { ...standardFieldProps };
 
     setup() {
@@ -66,7 +68,6 @@ export class ProfilingQwebView extends Component {
 
         this.orm = useService("orm");
         this.ace = useRef("ace");
-        this.selector = useRef("selector");
 
         this.value = processValue(this.props.record.data[this.props.name]);
         this.state = useState({
@@ -359,8 +360,9 @@ export class ProfilingQwebView extends Component {
      * @private
      * @param {MouseEvent} ev
      */
-    _onSelectView(ev) {
-        this.state.viewID = +(/** @type {HTMLElement} */ (ev.currentTarget).dataset.id);
+    /** @param {number} viewID */
+    _onSelectView(viewID) {
+        this.state.viewID = viewID;
         this._renderView();
     }
 }

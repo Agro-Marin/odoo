@@ -64,7 +64,7 @@ var VARIANT_FLIP_ORDER = { start: "se", middle: "m", end: "es", fit: "f" };
 function getIFrame(popperEl, targetEl) {
   return [...popperEl.ownerDocument.getElementsByTagName("iframe")].find(
     (iframe) => iframe.contentDocument?.contains(targetEl)
-  );
+  ) ?? null;
 }
 function reverseForRTL(direction, variant = "middle") {
   if (localization.direction === "rtl") {
@@ -76,7 +76,18 @@ function reverseForRTL(direction, variant = "middle") {
   }
   return [direction, variant];
 }
-function computePosition(popper, target, { container, extendedFlipping, flip, margin, position, shrink }) {
+function computePosition(popper, target, {
+  container,
+  extendedFlipping,
+  flip,
+  // `reposition` always spreads DEFAULTS underneath the caller's options,
+  // so these three are present on every call; defaulting them here says
+  // so rather than leaving `margin` to be read as possibly-undefined at
+  // the four places it enters the arithmetic below.
+  margin = DEFAULTS.margin ?? 0,
+  position = DEFAULTS.position ?? "bottom",
+  shrink
+}) {
   const [d, v] = position.split("-");
   const [direction, variant = "middle"] = reverseForRTL(
     /** @type {Direction} */
@@ -84,7 +95,7 @@ function computePosition(popper, target, { container, extendedFlipping, flip, ma
     /** @type {Variant} */
     v
   );
-  let directions = [direction.at(0)];
+  let directions = [direction[0]];
   if (flip) {
     directions = /** @type {any} */
     extendedFlipping ? EXTENDED_DIRECTION_FLIP_ORDER[direction] : DIRECTION_FLIP_ORDER[direction];

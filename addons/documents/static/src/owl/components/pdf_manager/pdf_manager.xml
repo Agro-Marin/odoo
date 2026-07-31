@@ -145,9 +145,11 @@
     </t>
 
     <div t-name="documents.component.PdfManager.ButtonsMobile" class="dropdown" data-dropdown-is-mobile="1">
-        <button class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">Action</button>
-        <div class="dropdown-menu" role="menu">
-            <t t-call="documents.component.PdfManager.GlobalButtons"/>
-        </div>
+        <Dropdown>
+            <button class="btn btn-primary dropdown-toggle">Action</button>
+            <t t-set-slot="content">
+                <t t-call="documents.component.PdfManager.GlobalButtons"/>
+            </t>
+        </Dropdown>
     </div>
 </templates>

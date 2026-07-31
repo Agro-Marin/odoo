@@ -17,25 +17,19 @@
 <t t-name="website.PageDependencies">
     <t t-if="!!Object.keys(state.dependencies).length">
         <t t-if="props.mode === 'popover'">
-            <t t-set="depTemplate">
-                <t t-call="{{ constructor.popoverTemplate }}"/>
-            </t>
-            <div t-att-data-bs-template="depTemplate" data-bs-html="true" title="Dependencies" t-ref="action">
+            <div t-ref="action">
                 Could be used in many places, see here: <a href="#" t-on-click="showDependencies">Dependencies</a>
             </div>
         </t>
         <t t-else="">
             <p class="text-warning">We found these links:</p>
             <div t-foreach="state.dependencies" t-as="dependency" t-key="dependency" class="ml16 mb16">
-                <a class="collapsed" data-bs-toggle="collapse"
-                t-attf-aria-controls="collapseDependencies{{ dependency_index }}"
-                t-attf-href="#collapseDependencies{{ dependency_index }}"
-                aria-expanded="false">
-                    <i class="fa-solid fa-caret-right me-1"/>
-                    <t t-esc="dependency"/>:
-                    <span class="text-muted"> <t t-esc="dependency_value.length"/> found(s)</span>
-                </a>
-                <div t-attf-id="collapseDependencies{{ dependency_index }}" class="collapse" aria-expanded="false">
+                <details t-attf-id="collapseDependencies{{ dependency_index }}">
+                    <summary>
+                        <i class="fa-solid fa-caret-right me-1"/>
+                        <t t-esc="dependency"/>:
+                        <span class="text-muted"> <t t-esc="dependency_value.length"/> found(s)</span>
+                    </summary>
                     <ul>
                         <li t-foreach="dependency_value" t-as="item" t-key="item_index">
                             <t t-set="link_text">This URL is contained in the “%(field)s” of the following “%(model)s”</t>
@@ -44,14 +38,15 @@
                             </a>
                         </li>
                     </ul>
-                </div>
+                </details>
             </div>
         </t>
     </t>
 </t>
 
 <t t-name="website.PageDependencies.Tooltip">
-    <t t-foreach="dependencies" t-as="dependency" t-key="dependency">
+    <h6 class="fw-bold">Dependencies</h6>
+    <t t-foreach="props.dependencies" t-as="dependency" t-key="dependency">
         <b><t t-esc="dependency"/></b>
         <ul>
             <li t-foreach="dependency_value" t-as="item" t-key="item_index">

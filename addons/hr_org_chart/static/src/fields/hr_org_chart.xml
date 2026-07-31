@@ -52,8 +52,6 @@
             t-att-data-emp-id="employee.id"
             t-att-data-emp-dir-subs="employee.direct_sub_count"
             t-att-data-emp-ind-subs="employee.indirect_sub_count"
-            data-bs-trigger="focus"
-            data-bs-toggle="popover"
             t-on-click="(event) => this._onOpenPopover(event, employee)">
         <span
             class="badge px-0"

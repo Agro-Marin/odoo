@@ -310,3 +310,8 @@ addons/web/static/src/core/utils/pdfjs.js
 addons/web/static/src/core/utils/render_instrumentation.js
 addons/web/static/src/core/utils/search.js
 addons/web/static/src/core/utils/virtual_grid.js
+addons/web/static/src/views/self_handled.js
+addons/web/static/src/ui/alert/dismiss_alert_service.js
+addons/web/static/src/ui/carousel/carousel_hook.js
+addons/web/static/src/ui/collapse/collapse.js
+addons/web/static/src/ui/offcanvas/offcanvas.js

@@ -143,11 +143,11 @@
                     <div t-if="hasLines" class="accordion">
                         <button
                             t-if="state.infos.lines.some(line => ['sent', 'confirmed'].includes(line.raw_state))"
-                            class="accordion-button collapsed py-2 px-0 bg-view shadow-none"
-                            data-bs-toggle="collapse"
-                            href="#o_lunch_passed_orders"
-                            role="button"
-                            aria-expanded="false"
+                            class="accordion-button py-2 px-0 bg-view shadow-none"
+                            t-att-class="{collapsed: !state.passedOrdersOpen}"
+                            type="button"
+                            t-on-click="() => state.passedOrdersOpen = !state.passedOrdersOpen"
+                            t-att-aria-expanded="state.passedOrdersOpen ? 'true' : 'false'"
                             aria-controls="o_lunch_passed_orders"
                         >
                             Passed orders
@@ -156,11 +156,9 @@
                                 t-out="state.infos.lines.filter(line => ['sent', 'confirmed'].includes(line.raw_state)).length"
                             />
                         </button>
-                        <div
-                            id="o_lunch_passed_orders"
-                            class="accordion-collapse collapse"
-                            tabindex="-1"
-                            aria-labelledby="o_lunch_passed_orders"
+                        <Collapse
+                            open="state.passedOrdersOpen"
+                            class="'accordion-collapse'"
                         >
                             <div class="accordion-body px-0 pt-0">
                                 <ul class="list-unstyled">
@@ -180,7 +178,7 @@
                                     </t>
                                 </ul>
                             </div>
-                        </div>
+                        </Collapse>
                     </div>
                     <span
                         class="d-flex justify-content-between p-2 bg-100 rounded"
@@ -259,24 +257,22 @@
                 <button
                     class="btn btn-primary w-100"
                     type="button"
-                    data-bs-toggle="offcanvas"
-                    data-bs-target="#lunch_order_mobile"
+                    t-on-click="() => state.cartOpen = true"
                     aria-controls="lunch_order_mobile"
                 >
                     Your Cart (<LunchCurrency currency="currency" amount="state.infos.total || 0"/>)
                 </button>
             </div>
-            <div
-                id="lunch_order_mobile"
-                class="offcanvas offcanvas-end bg-view"
-                tabindex="-1"
-                aria-labelledby="lunch_order_mobile"
+            <Offcanvas
+                open="state.cartOpen"
+                onClose="() => this.state.cartOpen = false"
+                class="'bg-view'"
             >
                 <div class="offcanvas-header">
                     <button
                         type="button"
                         class="btn btn-secondary oi oi-chevron-left"
-                        data-bs-dismiss="offcanvas"
+                        t-on-click="() => state.cartOpen = false"
                         aria-label="Close"
                     />
                 </div>
@@ -285,7 +281,7 @@
                         <t t-set="_user_classes" t-value="'rounded p-3 bg-100'"/>
                     </t>
                 </div>
-            </div>
+            </Offcanvas>
         </t>
     </t>
 </templates>

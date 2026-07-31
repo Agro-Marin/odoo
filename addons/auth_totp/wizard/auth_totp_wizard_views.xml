@@ -14,12 +14,10 @@
                             <div class="d-none d-md-block">
                                 <field name="qrcode" readonly="True" widget="image" options="{'reload': false }"/>
 
-                                <h3 class="fw-bold"><a data-bs-toggle="collapse"
-                                   href="#collapseTotpSecret" role="button" aria-expanded="false"
-                                   aria-controls="collapseTotpSecret">Cannot scan it?</a></h3>
-                                <div class="collapse" id="collapseTotpSecret">
+                                <details id="collapseTotpSecret">
+                                  <summary class="h3 fw-bold">Cannot scan it?</summary>
                                   <field name="secret" widget="CopyClipboardChar" readonly="1" class="mb-3 ps-3"/>
-                                </div>
+                                </details>
                             </div>
 
                             <!-- Mobile Version -->

@@ -6,6 +6,8 @@ import { useBus, useService } from "@web/core/utils/hooks";
 import { Many2XAutocomplete } from "@web/fields/relational/many2x_autocomplete";
 import { DateTimeInput } from '@web/components/datetime/datetime_input';
 import { Component, useState, onWillStart, markup, xml } from "@odoo/owl";
+import { Collapse } from "@web/ui/collapse/collapse";
+import { Offcanvas } from "@web/ui/offcanvas/offcanvas";
 const { DateTime } = luxon;
 
 export class LunchCurrency extends Component {
@@ -104,12 +106,14 @@ export class LunchLocation extends Component {
 
 export class LunchDashboard extends Component {
     static components = {
+        Collapse,
         LunchAlerts,
         LunchCurrency,
         LunchLocation,
         LunchOrderLine,
         LunchUser,
         Many2XAutocomplete,
+        Offcanvas,
         DateTimeInput,
     };
     static props = ["openOrderLine"];
@@ -119,6 +123,8 @@ export class LunchDashboard extends Component {
         this.state = useState({
             infos: {},
             date: DateTime.now(),
+            passedOrdersOpen: false,
+            cartOpen: false,
         });
 
         useBus(this.env.bus, 'lunch_update_dashboard', () => this._fetchLunchInfos());
