@@ -188,6 +188,10 @@ describe("RTL", () => {
         instance.destroy();
     });
 
+    // Desktop-only: the reference sits at x=300 and asks for the space to its
+    // right, which a mobile viewport does not have — the popper then correctly
+    // flips to the left and reports it, testing flipping rather than mirroring.
+    test.tags("desktop");
     test("the reported placement stays physical in RTL", async () => {
         patchWithCleanup(localization, { direction: "rtl" });
         const { reference, popper } = build({ refStyle: "top:200px;left:300px" });
@@ -198,6 +202,9 @@ describe("RTL", () => {
         instance.destroy();
     });
 
+    // Desktop-only for the same reason: a mobile viewport cannot fit the popper
+    // at the reference's x, so the alignment under test is never reached.
+    test.tags("desktop");
     test("the -start variant is not swapped in RTL", async () => {
         patchWithCleanup(localization, { direction: "rtl" });
         const { reference, popper } = build({ refStyle: "top:200px;left:300px" });

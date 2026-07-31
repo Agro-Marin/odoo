@@ -1,10 +1,13 @@
-import { ListPlugin } from "@html_editor/main/list/list_plugin";
 import { nodeSize } from "@html_editor/utils/position";
 import { before, test } from "@odoo/hoot";
-import { patchWithCleanup } from "@web/../tests/web_test_helpers";
 
 import { testEditor } from "../_helpers/editor.js";
-import { loadTestFont, pinFont, pinRootFontSize } from "../_helpers/font.js";
+import {
+    loadTestFont,
+    pinFont,
+    pinMarkerWidth,
+    pinRootFontSize,
+} from "../_helpers/font.js";
 import { unformat } from "../_helpers/format.js";
 import {
     setFontSize,
@@ -15,31 +18,6 @@ import {
 import { execCommand } from "../_helpers/userCommands.js";
 
 before(loadTestFont);
-
-/**
- * Pin the ``::marker`` width that {@link ListPlugin#adjustListPadding} reads.
- *
- * That width is produced by the browser's font rasterizer, so it is NOT stable
- * across environments: the very same markup measures 19px on Chromium 149 and
- * 20px on Chrome 150, and different again under another default font. Tests
- * that hard-coded the resulting ``padding-inline-start`` therefore encoded one
- * machine's rasterizer, and broke on any other — which is exactly what
- * happened here.
- *
- * Stubbing the single measured input makes the padding arithmetic
- * (``round(width) * (UL ? 2 : 1)``, applied only when it exceeds
- * ``2 * root font-size``) deterministic and genuinely assertable, while
- * production keeps measuring the real marker.
- *
- * @param {number} width marker width in px to report for every list item
- */
-function pinMarkerWidth(width) {
-    patchWithCleanup(ListPlugin.prototype, {
-        measureMarkerWidth() {
-            return width;
-        },
-    });
-}
 
 test("should apply font-size to completely selected list item (1)", async () => {
     // 60px marker on an OL -> round(60) * 1 = 60px, above the 28px default
@@ -269,7 +247,12 @@ test("should carry font-size of paragraph to list item", async () => {
 });
 
 test("should carry font-size of paragraph to list item (2)", async () => {
+    // The subject is which classes survive the merge, not the padding: stub the
+    // marker under the default so a heading-sized item cannot add one and
+    // change the expected markup.
+    pinMarkerWidth(19);
     await testEditor({
+        styleContent: pinRootFontSize("14px"),
         contentBefore:
             '<ol><li class="h3-fs">abc</li></ol><p><span class="h2-fs">[]def</span></p><ol><li>ghi</li></ol>',
         stepFunction: toggleOrderedList,
@@ -387,7 +370,14 @@ test("should change font-size of subpart of a list item (2)", async () => {
 
 test("should pad list based on font-size", async () => {
     const className = "h2-fs";
+    // 19px marker on an OL -> round(19) * 1 = 19px, below the 28px default
+    // (`:root` is pinned to 14px below, so the default is 2 * 14): a heading
+    // class this size must not add padding of its own. Stubbed rather than
+    // measured because the real marker width tracks `$o-type-scale-ratio`, so
+    // an unstubbed assertion silently re-tests the design scale.
+    pinMarkerWidth(19);
     await testEditor({
+        styleContent: pinRootFontSize("14px"),
         contentBefore: "<ol><li>[a]</li></ol>",
         stepFunction: (editor) =>
             execCommand(editor, "formatFontSizeClassName", { className }),

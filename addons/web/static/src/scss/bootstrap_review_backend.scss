@@ -1,4 +1,29 @@
 
+// Optical tracking, banded because the correction grows with size: the same
+// letter-spacing that settles a 35px h1 would visibly thin a 14px h6. Bootstrap
+// has no `$headings-letter-spacing`, so the ramp is spelled out here rather
+// than mapped through a variable.
+h1,
+.h1,
+h2,
+.h2 {
+    letter-spacing: $o-tracking-display;
+}
+
+h3,
+.h3,
+h4,
+.h4 {
+    letter-spacing: $o-tracking-heading;
+}
+
+h5,
+.h5,
+h6,
+.h6 {
+    letter-spacing: $o-tracking-tight;
+}
+
 .btn {
     --#{$variable-prefix}btn-disabled-border-color: transparent;
     font-weight: $o-font-weight-medium;
