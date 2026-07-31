@@ -1,18 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_arch_parser - Parses pivot view XML arch into measures, row/column groupBy, and display flags */
+/** @module @web/views/pivot/pivot_arch_parser */
 
-/** Parser for `<pivot>` view architecture definitions. */
 import { evaluateExpr } from "@web/core/py_js/py";
 import { visitXML } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 export class PivotArchParser {
     /**
-     * Parse a pivot arch XML node into measures, row/column group-bys,
-     * default ordering, field attributes, widgets, and display flags.
-     *
-     * @param {Element} arch - the root `<pivot>` XML element
+     * @param {Element} arch
      * @returns {{
      *   activeMeasures: string[],
      *   colGroupBys: string[],

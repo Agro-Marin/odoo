@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/graph/graph_model - Chart data fetching, groupBy processing, measure aggregation, and dataset preparation */
+/** @module @web/views/graph/graph_model */
 
 import { Domain } from "@web/core/domain";
 import { _t } from "@web/core/l10n/translation";
@@ -34,12 +34,6 @@ export class GraphModel extends Model {
         this.fetches = new InFlight();
         /** @type {any} */
         const _fetchDataPoints = this._fetchDataPoints.bind(this);
-        /**
-         * Was a shared ``Race``, which broke both jobs it was doing here — see
-         * {@link InFlight}: callers got whichever fetch finished first instead
-         * of their own result, and the "a fetch is running" guard went idle
-         * while later fetches were still pending.
-         */
         this._fetchDataPoints = (...args) =>
             this.fetches.track(_fetchDataPoints(...args));
 
@@ -102,8 +96,6 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Only supposed to be called to change one or several parameters among
-     * "measure", "mode", "order", "stacked" and "cumulated".
      * @param {Object} params
      */
     async updateMetaData(params) {
@@ -124,14 +116,6 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Fold the graph_* keys carried by the favorite/action context into
-     * this.metaData, but only for keys whose context value changed since the
-     * last load. A favorite/filter seeds measure/mode/order/stacked/cumulated
-     * when it is (de)activated; while it stays active the same value keeps
-     * arriving on every reload, and re-applying it would clobber an in-session
-     * choice made through updateMetaData. Tracking the last-seen value and
-     * acting only on changes lets both behaviours coexist.
-     *
      * @protected
      * @param {Object} context
      */
@@ -203,14 +187,9 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Fetch the data points determined by the metaData. This function has
-     * several side effects. It can alter this.metaData and set this.dataPoints.
      * @protected
      * @param {Object} metaData
-     * @returns {Promise<boolean>} false when a newer fetch superseded this one
-     *   and its result was discarded, so callers skip their follow-up instead of
-     *   acting on data that never landed. The ``keepLast`` used to swallow the
-     *   supersession by never settling, wedging every awaiting caller.
+     * @returns {Promise<boolean>}
      */
     async _fetchDataPoints(metaData) {
         let dataPoints;
@@ -229,9 +208,6 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Separates dataPoints coming from the read_group(s) into different
-     * datasets. This function returns the parameters data and labels used
-     * to produce the charts.
      * @protected
      * @param {Object[]} dataPoints
      * @param {boolean} forceUseAllDataPoints
@@ -345,7 +321,6 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Determines the dataset to which the data point belongs.
      * @protected
      * @param {Object} dataPoint
      * @returns {string}
@@ -368,7 +343,6 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Eventually filters and sort data points.
      * @protected
      * @returns {Object[]}
      */
@@ -410,8 +384,6 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Fetch and process graph data via read_group(s), with light processing to
-     * separate date groups, which may carry an aggregation function (e.g. my_date:week).
      * @protected
      * @param {Object} metaData
      * @returns {Promise<any[]>}
@@ -613,11 +585,6 @@ export class GraphModel extends Model {
     }
 
     /**
-     * Process metaData.groupBy to keep only the finest interval option for
-     * elements based on date/datetime field (e.g. 'date:year'). This means that
-     * 'week' is preferred to 'month'. The field stays at the place of its first occurrence.
-     * For instance,
-     * ['foo', 'date:month', 'bar', 'date:week'] becomes ['foo', 'date:week', 'bar'].
      * @protected
      * @param {Object} metaData
      */

@@ -2,10 +2,6 @@
 /** @odoo-module native */
 
 /**
- * Turns in-memory pivot data (group trees, measurements) into row/column
- * arrays for rendering an HTML table: header rows with col-group hierarchy
- * and spans, body rows with cell values and indentation.
- *
  * @module pivot_table
  */
 
@@ -20,8 +16,6 @@ import {
 } from "./pivot_measurements.js";
 
 /**
- * Header rows of the pivot table: the col group rows (per col groupby), then the measures row.
- *
  * @param {Object} data
  * @param {Object} metaData
  * @returns {Object[]}
@@ -34,6 +28,7 @@ export function getTableHeaders(data, metaData) {
     let headers = [];
     const measureColumns = [];
 
+    /** @type {Record<string, any>[][]} */
     const colGroupRows = Array.from({ length: height }, () => []);
     colGroupRows[0].push({
         height: height + 1,
@@ -91,8 +86,6 @@ export function getTableHeaders(data, metaData) {
 }
 
 /**
- * Body rows of the pivot table for a given tree.
- *
  * @param {Object} tree
  * @param {Object[]} columns
  * @param {Object} data
@@ -107,17 +100,12 @@ export function getTableRows(tree, columns, data, metaData) {
 }
 
 /**
- * Pre-order walk that pushes each tree node's row into a single shared
- * accumulator. Replaces the previous ``rows = [...rows, ...recurse()]`` which
- * re-copied the whole accumulated array at every node (O(N²) in tree size,
- * re-paid on every render / expand-all).
- *
  * @param {Object} tree
  * @param {Object[]} columns
- * @param {string[]} columnKeys stringified column group values, one per column
+ * @param {string[]} columnKeys
  * @param {Object} data
  * @param {Object} metaData
- * @param {Object[]} rows accumulator, mutated in place
+ * @param {Object[]} rows
  */
 function _collectTableRows(tree, columns, columnKeys, data, metaData, rows) {
     const group = tree.root;

@@ -3,10 +3,6 @@
 
 /**
  * @module @web/views/graph/graph_chart_config
- * Pure chart configuration building extracted from GraphRenderer: Chart.js
- * data styling, option building, and label generation for bar, line, pie,
- * and scatter modes. Functions depend only on model data/metaData, not on
- * component state or DOM.
  */
 
 import { markup } from "@odoo/owl";
@@ -20,9 +16,9 @@ import {
     lightenColor,
 } from "@web/core/colors/colors";
 import { getFieldCodec } from "@web/core/field_codec";
+import { formatFloat, formatMonetary } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { sortBy } from "@web/core/utils/collections/arrays";
-import { formatFloat, formatMonetary } from "@web/fields/formatters";
 
 import { SEP } from "./graph_model.js";
 
@@ -38,10 +34,6 @@ const GRAPH_GRID_COLOR = getCustomColor(
 const GRAPH_LABEL_COLOR = getCustomColor(colorScheme, "#111827", "#E4E4E4");
 const NO_DATA_COLOR = getCustomColor(colorScheme, DEFAULT_BG, "#3C3E4B");
 
-/**
- * Chart.js plugin: draws the scale grid on top of the chart data so it
- * stays visible.
- */
 export const gridOnTop = {
     id: "gridOnTop",
     afterDraw: (chart) => {
@@ -98,9 +90,8 @@ export function getMaxWidth(chartArea) {
 }
 
 /**
- * Used to avoid too long legend items.
  * @param {string} label
- * @returns {string} shortened version of the input label
+ * @returns {string}
  */
 function shortenLabel(label) {
     const groups = label.toString().split(SEP);
@@ -114,7 +105,6 @@ function shortenLabel(label) {
 }
 
 /**
- * Format a value for display in tooltips and Y axis labels.
  * @param {number} value
  * @param {boolean} [allIntegers=true]
  * @param {string} [formatType=""]
@@ -132,14 +122,13 @@ function formatValue(value, allIntegers = true, formatType = "") {
         return formatFloat(value, {
             humanReadable: true,
             decimals: 2,
-            minDigits: 1,
+            minIntegerDigits: 1,
         });
     }
     return formatFloat(value);
 }
 
 /**
- * Style bar chart datasets with colors and optional stacking/line overlay.
  * @param {Object} data
  * @param {Object} metaData
  * @param {Object} [lineOverlayDataset]
@@ -184,7 +173,6 @@ export function styleBarChartData(data, metaData, lineOverlayDataset) {
 }
 
 /**
- * Style line chart datasets with colors, cumulation, and single-point centering.
  * @param {Object} data
  * @param {Object} metaData
  * @returns {Object}
@@ -226,7 +214,6 @@ export function styleLineChartData(data, metaData) {
 }
 
 /**
- * Style pie chart datasets with colors, borders, and no-data fallback.
  * @param {Object} data
  * @returns {Object}
  */
@@ -271,12 +258,6 @@ export function stylePieChartData(data) {
 }
 
 /**
- * Style scatter chart datasets as point-only (no connecting lines).
- *
- * Uses Chart.js "line" type with `showLine: false` to show points without
- * connecting segments, while keeping the categorical X axis from the
- * existing data model.
- *
  * @param {Object} data
  * @returns {Object}
  */
@@ -302,7 +283,6 @@ export function styleScatterChartData(data) {
 }
 
 /**
- * Build animation options with progressive animation for bar/line and reduced duration for pie.
  * @param {string} mode
  * @param {number} labelsCount
  * @returns {Object}
@@ -334,7 +314,6 @@ export function buildAnimationOptions(mode, labelsCount) {
 }
 
 /**
- * Build element styling options independent from datasets.
  * @param {string} mode
  * @param {boolean} stacked
  * @returns {Object}
@@ -352,7 +331,6 @@ export function buildElementOptions(mode, stacked) {
 }
 
 /**
- * Build X/Y axis scale options.
  * @param {Object} data
  * @param {Object} metaData
  * @returns {Object}
@@ -405,10 +383,9 @@ export function buildScaleOptions(data, metaData) {
 }
 
 /**
- * Extract tooltip item data from Chart.js datapoints.
  * @param {Object} data
  * @param {Object} metaData
- * @param {Object} tooltipModel — Chart.js tooltip model
+ * @param {Object} tooltipModel
  * @param {Object} [lineOverlayDataset]
  * @returns {Object[]}
  */
@@ -457,8 +434,7 @@ export function buildTooltipItems(data, metaData, tooltipModel, lineOverlayDatas
 }
 
 /**
- * Generate legend labels for pie charts.
- * @param {Object} chart — Chart.js instance
+ * @param {Object} chart
  * @returns {Object[]}
  */
 export function generatePieLegendLabels(chart) {
@@ -483,9 +459,8 @@ export function generatePieLegendLabels(chart) {
 }
 
 /**
- * Generate legend labels for bar and line charts.
- * @param {Object} chart — Chart.js instance
- * @param {string} mode — "bar" or "line"
+ * @param {Object} chart
+ * @param {string} mode
  * @returns {Object[]}
  */
 export function generateBarLineLegendLabels(chart, mode) {

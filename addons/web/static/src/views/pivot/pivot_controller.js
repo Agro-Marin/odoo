@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_controller - Controller wiring PivotModel to PivotRenderer with search bar and scroll restoration */
+/** @module @web/views/pivot/pivot_controller */
 
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { useSetupAction } from "@web/core/action_hook";
@@ -14,14 +14,6 @@ import { ActionHelper } from "@web/views/action_helper";
 import { standardViewProps } from "@web/views/standard_view_props";
 import { computeModelOptions } from "@web/views/view_utils";
 
-/**
- * Controller for the pivot view.
- *
- * Wires the PivotModel (with sample data support) to the PivotRenderer
- * inside a Layout shell with search bar integration. Restores scroll
- * position from local state and persists pivot-specific context (measures,
- * column/row group-bys) for favorites.
- */
 export class PivotController extends Component {
     static template = "web.PivotView";
     static components = { Layout, SearchBar, CogMenu, ActionHelper };
@@ -33,7 +25,6 @@ export class PivotController extends Component {
         buttonTemplate: String,
     };
 
-    /** Initialize the pivot model, action hooks, scroll restoration, and search bar toggler. */
     /** @type {any} */
     model;
     /** @type {any} */
@@ -68,11 +59,6 @@ export class PivotController extends Component {
     }
 
     /**
-     * Whether the "no content" helper should be displayed.
-     *
-     * True when sample data is active, when the model reports no data,
-     * or when no measures are selected.
-     *
      * @returns {boolean}
      */
     get displayNoContent() {
@@ -85,14 +71,12 @@ export class PivotController extends Component {
         );
     }
 
-    /** @returns {Object} model options derived from env and display props */
+    /** @returns {Object} */
     get modelOptions() {
         return /** @type {any} */ (computeModelOptions(this.env, this.props.display));
     }
 
     /**
-     * Build the pivot-specific context for persistence in favorites.
-     *
      * @returns {Object}
      */
     getContext() {

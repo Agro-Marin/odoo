@@ -1,12 +1,10 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/pivot/pivot_group_tree - Tree data structure for managing pivot table row/column group hierarchies */
+/** @module @web/views/pivot/pivot_group_tree */
 
 import { sortBy } from "@web/core/utils/collections/arrays";
 /**
- * Add labels/values to groupTree, creating a new leaf for the group.
- *
  * @param {Object} groupTree
  * @param {string[]} labels
  * @param {Array} values
@@ -27,11 +25,9 @@ export function addGroup(groupTree, labels, values) {
 }
 
 /**
- * Find a group with given values in the provided groupTree.
- *
- * @param {Object} groupTree
- * @param {Array} values
- * @returns {Object}
+ * @param {Record<string, any>} groupTree
+ * @param {any[]} values
+ * @returns {Record<string, any> | undefined}
  */
 export function findGroup(groupTree, values) {
     let tree = groupTree;
@@ -45,8 +41,6 @@ export function findGroup(groupTree, values) {
 }
 
 /**
- * Make any group in tree a leaf if it was a leaf in oldTree.
- *
  * @param {Object} tree
  * @param {Object} oldTree
  */
@@ -68,8 +62,6 @@ export function pruneTree(tree, oldTree) {
 }
 
 /**
- * Sort recursively the subTrees of tree using sortFunction.
- *
  * @param {Function} sortFunction
  * @param {Object} tree
  */
@@ -81,14 +73,6 @@ export function sortTree(sortFunction, tree) {
 }
 
 /**
- * Recursively drop the cached ``sortedKeys`` from a tree and its subtrees.
- *
- * A node's ``sortedKeys`` is only valid for the exact key set it was computed
- * against. After a ``flip()`` transposes rows and columns the sorted order is
- * meaningless (and ``sortedColumn`` is reset), so leaving stale ``sortedKeys``
- * behind makes ``_collectTableRows`` iterate a key list that no longer matches
- * ``directSubTrees`` — a subsequently expanded group then renders no children.
- *
  * @param {Object} tree
  */
 export function stripSortedKeys(tree) {
@@ -99,8 +83,6 @@ export function stripSortedKeys(tree) {
 }
 
 /**
- * Returns the height of a given groupTree.
- *
  * @param {Object} tree
  * @returns {number}
  */
@@ -110,10 +92,8 @@ export function getTreeHeight(tree) {
 }
 
 /**
- * Returns the leaf counts of each group inside the given tree.
- *
  * @param {Object} tree
- * @returns {Object} keys are group ids
+ * @returns {Object}
  */
 export function getLeafCounts(tree) {
     const leafCounts = {};
@@ -133,7 +113,7 @@ export function getLeafCounts(tree) {
 
 /**
  * @param {Object} data
- * @returns {boolean} true iff there's data in the table
+ * @returns {boolean}
  */
 export function hasData(data) {
     const key = JSON.stringify([[], []]);

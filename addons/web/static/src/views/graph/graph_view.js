@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/graph/graph_view - Graph view descriptor registered in the view registry */
+/** @module @web/views/graph/graph_view */
 
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
@@ -13,13 +13,6 @@ import { GraphRenderer } from "./graph_renderer.js";
 import { GraphSearchModel } from "./graph_search_model.js";
 const viewRegistry = registry.category("views");
 
-/**
- * Graph view descriptor.
- *
- * Registers the graph view type with its Controller, Renderer, Model,
- * ArchParser and SearchModel. The `props` factory parses the arch and
- * builds `modelParams` consumed by `GraphModel`.
- */
 export const graphView = {
     type: "graph",
     Controller: GraphController,
@@ -31,9 +24,9 @@ export const graphView = {
     buttonTemplate: "web.GraphView.Buttons",
 
     /**
-     * @param {Object} genericProps - standard view props (arch, fields, resModel, state)
-     * @param {Object} view - view descriptor with Model, Renderer, ArchParser
-     * @returns {Object} controller props including modelParams
+     * @param {Record<string, any>} genericProps
+     * @param {Record<string, any>} view
+     * @returns {Record<string, any>}
      */
     props: (genericProps, view) => {
         let modelParams;
