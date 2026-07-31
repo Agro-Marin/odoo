@@ -822,6 +822,26 @@ def ci_runner_suites(addon: str | None = None) -> set[str]:
     return prefixes
 
 
+def mobile_suites(prefixes: list[str]) -> list[str]:
+    """The file suites under ``prefixes`` that own a mobile test.
+
+    Delegates to ``MobileWebSuite``'s own ``_mobile_suites_under`` so the two
+    cannot drift. The mobile preset excludes only ``desktop``-tagged tests, so
+    without this narrowing a whole-suite mobile run re-runs the desktop pass at
+    375x667 — 9467 tests against the 2225 CI runs — and every suite that owns no
+    mobile test resolves to an empty ``&id=`` filter, which ``hoot`` reports as
+    ``matched no tests: failing closed``. That is how a green mobile run
+    presented itself as three FAILed shards carrying zero failed tests.
+    """
+    _bootstrap_odoo()
+    import odoo.modules.module
+
+    odoo.modules.module.initialize_sys_path()
+    from odoo.addons.web.tests.test_js import _mobile_suites_under
+
+    return sorted(_mobile_suites_under(sorted(prefixes)))
+
+
 def _run_hoot_args(tree: ast.Module) -> set[str]:
     constants: dict[str, tuple[str, ...]] = {}
     for node in ast.walk(tree):

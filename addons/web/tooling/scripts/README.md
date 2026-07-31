@@ -180,6 +180,17 @@ on both presets — those same suites pass alone (1343 tests), exactly as
 and 1 mobile failures came from CPU contention between concurrent shards and did
 not reproduce on an idle box. Isolation costs ~4% and removes all of it.
 
+`--preset mobile` narrows the plan to the file suites that own a mobile test, by
+calling `MobileWebSuite`'s own `_mobile_suites_under` (via `hoot_lib.mobile_suites`)
+rather than restating it — the same read-from-the-runner rule the suite list
+follows. That narrowing landed in `test_js.py` but not here, so a bare
+`hoot-shard --preset mobile` still re-ran the desktop pass at 375x667: 9467 tests
+in 258 s instead of 2229 in 108 s. Worse, it read as a *failure* — a suite owning
+no mobile test resolves to an empty `&id=` filter, which `hoot` reports as
+`matched no tests: failing closed`, so three of four shards printed `FAIL` while
+carrying zero failed tests. Explicit suites are never narrowed, matching
+`MobileWebSuite._run_hoot`.
+
 ## `--watch`
 
 `--watch` polls the mtimes of every `*.js` under each addon's `static/src` and
