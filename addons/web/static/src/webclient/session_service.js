@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/session_service - Service that lazy-loads additional session info after the web client is ready */
+/** @module @web/webclient/session_service */
 
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
@@ -29,18 +29,9 @@ export const lazySession = {
         });
         return {
             /**
-             * Fetch a lazy session value.
-             *
-             * Returns a Promise resolving to the value (rejecting if the
-             * underlying fetch failed) so callers can ``await`` it and retry a
-             * transient failure rather than being stranded on defaults for the
-             * whole page. The optional ``callback`` is retained for back-compat
-             * (enterprise iot); it is invoked with the value on success and
-             * skipped on failure.
-             *
-             * @param {string} key - Session info key to retrieve
-             * @param {(value: any) => void} [callback] - Called with the value on success
-             * @returns {Promise<any>} the value (rejects on fetch failure)
+             * @param {string} key
+             * @param {(value: any) => void} [callback]
+             * @returns {Promise<any>}
              */
             getValue(key, callback) {
                 if (!lazyConfigPromise) {

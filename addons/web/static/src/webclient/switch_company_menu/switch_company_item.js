@@ -1,10 +1,11 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/switch_company_menu/switch_company_item - Single company row in the switch-company dropdown with toggle and log-into actions */
+/** @module @web/webclient/switch_company_menu/switch_company_item */
 
 import { Component, useState } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
+import { _t } from "@web/core/l10n/translation";
 import { user } from "@web/services/user";
 import { isCompanyAllowed } from "@web/webclient/switch_company_menu/company_selector";
 
@@ -20,29 +21,39 @@ export class SwitchCompanyItem extends Component {
         this.companySelector = useState(this.env.companySelector);
     }
 
-    /** @returns {boolean} Whether this company is currently selected (checked). */
+    /** @returns {boolean} */
     get isCompanySelected() {
         return this.companySelector.isCompanySelected(this.props.company.id);
     }
 
-    /** @returns {boolean} Whether the user is allowed to access this company. */
+    /** @returns {boolean} */
     get isCompanyAllowed() {
         return isCompanyAllowed(this.props.company.id);
     }
 
-    /** @returns {boolean} Whether this company is the currently active one. */
+    /** @returns {boolean} */
     get isCurrent() {
         return this.props.company.id === user.activeCompany.id;
     }
 
-    /** Switch to this company as the sole active company. */
+    /** @returns {string} */
+    get toggleTitle() {
+        return this.isCompanySelected
+            ? _t("Hide %s content.", this.props.company.name)
+            : _t("Show %s content.", this.props.company.name);
+    }
+
+    /** @returns {string} */
+    get logIntoTitle() {
+        return _t("Switch to %s", this.props.company.name);
+    }
+
     logIntoCompany() {
         if (this.isCompanyAllowed) {
             this.companySelector.switchCompany("loginto", this.props.company.id);
         }
     }
 
-    /** Toggle this company in/out of the multi-company selection. */
     toggleCompany() {
         if (this.isCompanyAllowed) {
             this.companySelector.switchCompany("toggle", this.props.company.id);

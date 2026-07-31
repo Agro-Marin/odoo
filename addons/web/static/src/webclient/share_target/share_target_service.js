@@ -1,19 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/share_target/share_target_service - Service receiving shared files from the PWA service worker (Web Share Target API) */
+/** @module @web/webclient/share_target/share_target_service */
 
 import { browser } from "@web/core/browser/browser";
 import { AppEvent } from "@web/core/events";
 import { registry } from "@web/core/registry";
-/** How long to wait for the service worker's ack before giving up (ms). */
 const SHARE_TARGET_ACK_TIMEOUT = 5000;
 
 /**
- * Request shared file data from the PWA service worker via postMessage.
- * Resolves once the worker responds with `odoo_share_target_ack`, with
- * `null` when the page is uncontrolled (e.g. after a hard refresh — see
- * webclient.js's registerServiceWorker) or when the worker never acks.
  * @returns {Promise<File[] | null>}
  */
 const getShareTargetDataFromServiceWorker = () =>
@@ -44,11 +39,8 @@ const getShareTargetDataFromServiceWorker = () =>
 export const shareTargetService = {
     dependencies: ["menu"],
     /**
-     * If the page was opened via the Web Share Target API, listen for the
-     * WEB_CLIENT_READY event, fetch shared files from the service worker,
-     * and navigate to the expenses app.
-     * @param {Object} env - Odoo environment
-     * @param {{ menu: Object }} services - injected service dependencies
+     * @param {Object} env
+     * @param {{ menu: Object }} services
      * @returns {{ hasSharedFiles: () => boolean, getSharedFilesToUpload: () => File[] | null }}
      */
     start(env, { menu }) {
@@ -60,10 +52,6 @@ export const shareTargetService = {
         ) {
             const app = menu.getApps().find((app) => "expenses" === app.actionPath);
             if (app) {
-                // `{ once: true }` rather than a self-removing listener: a
-                // removal placed last in an async body is skipped by a rejecting
-                // `selectMenu`, which then also surfaces as an unhandled
-                // rejection.
                 env.bus.addEventListener(
                     AppEvent.WEB_CLIENT_READY,
                     async () => {
@@ -82,12 +70,10 @@ export const shareTargetService = {
         }
         return {
             /**
-             * Return true if we receive share target files from service worker
              * @return {boolean}
              */
             hasSharedFiles: () => !!sharedFiles?.length,
             /**
-             * Return the shared files retrieve for upload
              * @return {null|File[]}
              */
             getSharedFilesToUpload: () => {

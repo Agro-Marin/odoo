@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/user_menu/user_menu_items - User menu item factories registered in user_menuitems registry (help, shortcuts, preferences, PWA install, log out) */
+/** @module @web/webclient/user_menu/user_menu_items */
 
 import { Component, markup } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
@@ -13,9 +13,8 @@ import { user } from "@web/services/user";
 import { session } from "@web/session";
 
 /**
- * User menu item factory: "Help" link to support URL.
  * @param {Object} env
- * @returns {Object} menu item descriptor
+ * @returns {Object}
  */
 function supportItem(env) {
     const url = session.support_url;
@@ -42,7 +41,6 @@ class ShortcutsFooterComponent extends Component {
 }
 
 /**
- * User menu item factory: keyboard shortcuts launcher (CMD/CTRL+K).
  * @param {Object} env
  * @returns {Object}
  */
@@ -73,7 +71,6 @@ function separator() {
 }
 
 /**
- * User menu item factory: "My Preferences" (opens res.users form).
  * @param {Object} env
  * @returns {Object}
  */
@@ -95,7 +92,6 @@ export function preferencesItem(env) {
 }
 
 /**
- * User menu item factory: "My Odoo.com Account" (opens external link).
  * @param {Object} env
  * @returns {Object}
  */
@@ -117,7 +113,6 @@ export function odooAccountItem(env) {
 }
 
 /**
- * User menu item factory: "Install App" (PWA install prompt or scoped app).
  * @param {Object} env
  * @returns {Object}
  */
@@ -152,7 +147,6 @@ function installPWAItem(env) {
 }
 
 /**
- * User menu item factory: "Log out".
  * @param {Object} env
  * @returns {Object}
  */

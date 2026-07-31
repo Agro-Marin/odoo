@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/clickbot/clickbot_loader - Debug menu item that loads and runs the click-everywhere automated test bot */
+/** @module @web/webclient/clickbot/clickbot_loader */
 
 /**
  * @param {string} [xmlId]

@@ -1,15 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/menus/menu_helpers - Utility functions to traverse the menu tree and compute flat app/menuItem lists for HomeMenu */
+/** @module @web/webclient/menus/menu_helpers */
 
 /**
- * Traverses the given menu tree, executes the given callback for each node with
- * the node itself and the list of its ancestors as arguments.
- *
- * @param {Object} tree tree of menus as exported by the menus service
+ * @param {Object} tree
  * @param {Function} cb
- * @param {Object[]} [parents] the ancestors of the tree root, if any
+ * @param {Object[]} [parents]
  */
 function traverseMenuTree(tree, cb, parents = []) {
     cb(tree, parents);
@@ -17,10 +14,8 @@ function traverseMenuTree(tree, cb, parents = []) {
 }
 
 /**
- * Computes the "apps" and "menuItems" from a given menu tree.
- *
- * @param {Object} menuTree tree of menus as exported by the menus service
- * @returns {Object} with keys "apps" and "menuItems" (HomeMenu props)
+ * @param {Object} menuTree
+ * @returns {Object}
  */
 export function computeAppsAndMenuItems(menuTree) {
     const apps = [];
@@ -64,10 +59,8 @@ export function computeAppsAndMenuItems(menuTree) {
 }
 
 /**
- * Sorts the apps in the homescreen menu according to the given order.
- *
- * @param {Object[]} apps - app menu items to sort in-place
- * @param {string[]} order - ordered array of xmlid strings
+ * @param {Object[]} apps
+ * @param {string[]} order
  */
 export function reorderApps(apps, order) {
     const pos = new Map(apps.map((a, i) => [a, i]));
@@ -75,7 +68,7 @@ export function reorderApps(apps, order) {
         const aIndex = order.indexOf(a.xmlid);
         const bIndex = order.indexOf(b.xmlid);
         if (aIndex === -1 && bIndex === -1) {
-            return pos.get(a) - pos.get(b);
+            return (pos.get(a) ?? 0) - (pos.get(b) ?? 0);
         }
         if (aIndex === -1) {
             return -1;

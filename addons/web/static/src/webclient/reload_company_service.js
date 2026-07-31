@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/reload_company_service - Service that triggers a page reload when res.company records are modified */
+/** @module @web/webclient/reload_company_service */
 
 import { browser } from "@web/core/browser/browser";
 import { onModelMutation } from "@web/core/network/model_mutation";

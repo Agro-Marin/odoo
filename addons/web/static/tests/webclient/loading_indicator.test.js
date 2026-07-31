@@ -13,7 +13,7 @@ import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { LoadingIndicator } from "@web/webclient/loading_indicator/loading_indicator";
 
-const payload = (id) => ({
+const payload = (/** @type {number} */ id) => ({
     data: { id, params: { model: "", method: "" } },
     settings: {},
 });

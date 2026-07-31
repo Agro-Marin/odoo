@@ -38,7 +38,7 @@ import {
  * synchronous (`deferred.resolve()`), and the mock-clock frame helper does not
  * resolve in a test with no pending timers.
  */
-async function hasSettled(promise) {
+async function hasSettled(/** @type {Promise<any>} */ promise) {
     let settled = false;
     promise.then(
         () => (settled = true),

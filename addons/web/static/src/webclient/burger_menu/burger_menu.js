@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/burger_menu/burger_menu - Fullscreen mobile menu displaying user menu, company switcher, and current app sub-menus */
+/** @module @web/webclient/burger_menu/burger_menu */
 
 import { Component, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
@@ -23,6 +23,11 @@ export class BurgerMenu extends Component {
         Transition,
     };
 
+    /** @type {{ isBurgerOpened: boolean }} */
+    state;
+    /** @type {SwipeTracker} */
+    swipe;
+
     setup() {
         this.user = user;
         this.state = useState({
@@ -36,8 +41,8 @@ export class BurgerMenu extends Component {
             this.env.bus,
             AppEvent.ACTION_MANAGER_UPDATE,
             /** @type {any} */ (
-                ({ detail: req }) => {
-                    if (req.id) {
+                (/** @type {{ detail: any }} */ ev) => {
+                    if (ev.detail.id) {
                         this._closeBurger();
                     }
                 }
@@ -50,9 +55,11 @@ export class BurgerMenu extends Component {
     _openBurger() {
         this.state.isBurgerOpened = true;
     }
+    /** @param {any} ev */
     _onSwipeStart(ev) {
         this.swipe.start(ev);
     }
+    /** @param {any} ev */
     _onSwipeEnd(ev) {
         if (this.swipe.end(ev)) {
             this._closeBurger();

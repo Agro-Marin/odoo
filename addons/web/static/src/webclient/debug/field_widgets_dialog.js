@@ -1,21 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/field_widgets_dialog - Debug dialog listing every registered field widget */
+/** @module @web/webclient/debug/field_widgets_dialog */
 
 import { Component, useState, xml } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { Dialog } from "@web/ui/dialog/dialog";
 
-/**
- * Modal dialog listing every entry in the ``fields`` registry, with a
- * client-side search filter.  Answers "which widget should I use?" without
- * grepping the source.
- *
- * Read-only — does not modify the registry.  Snapshot is taken on mount;
- * widgets registered after the dialog opens won't appear until reopen.
- */
 export class FieldWidgetsDialog extends Component {
     static components = { Dialog };
     static props = {
@@ -65,6 +57,11 @@ export class FieldWidgetsDialog extends Component {
                 </div>
             </div>
         </Dialog>`;
+
+    /** @type {{ filter: string }} */
+    state;
+    /** @type {[string, any][]} */
+    entries;
 
     setup() {
         this.title = _t("Field Widgets");

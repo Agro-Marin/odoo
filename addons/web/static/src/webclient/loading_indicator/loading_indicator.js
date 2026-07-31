@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/loading_indicator/loading_indicator - Loading indicator showing the count of active RPCs after a short display delay */
+/** @module @web/webclient/loading_indicator/loading_indicator */
 
 import { Component, onWillUnmount, useState } from "@odoo/owl";
 import { Transition } from "@web/components/transition";
@@ -10,14 +10,17 @@ import { RpcEvent } from "@web/core/events";
 import { rpcBus } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
 import { useBus } from "@web/core/utils/hooks";
-/**
- * Shows a "Loading" rectangle with the count of running RPCs, after a 250ms
- * delay so short bursts of fast RPCs don't flash it.
- */
 export class LoadingIndicator extends Component {
     static template = "web.LoadingIndicator";
     static components = { Transition };
     static props = {};
+
+    /** @type {Set} */
+    rpcIds;
+    /** @type {null | number} */
+    startShowTimer;
+    /** @type {{ count: number; show: boolean }} */
+    state;
 
     setup() {
         this.state = useState({

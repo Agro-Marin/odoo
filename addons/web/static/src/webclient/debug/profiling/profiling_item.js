@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/webclient/debug/profiling/profiling_item - Debug menu dropdown item for toggling SQL/trace profiling collectors */
+/** @module @web/webclient/debug/profiling/profiling_item */
 
 import { Component, EventBus } from "@odoo/owl";
 import { DropdownItem } from "@web/components/dropdown/dropdown_item";
@@ -12,6 +12,11 @@ export class ProfilingItem extends Component {
     static props = {
         bus: { type: EventBus },
     };
+    /** @type {import("services").ServiceFactories["action"]} */
+    action;
+    /** @type {import("services").ServiceFactories["profiling"]} */
+    profiling;
+
     setup() {
         this.profiling = useService("profiling");
         this.action = useService("action");
