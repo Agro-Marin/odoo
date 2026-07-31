@@ -1,20 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_date_range - Pure date range computation and domain construction for calendar views */
+/** @module @web/views/calendar/calendar_date_range */
 
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 /**
- * Compute the visible date range for a given calendar scale.
- *
- * For week scale, aligns to the configured first day of week.
- * For month with overflow, extends to full weeks (6 rows).
- *
- * @param {string} scale - "day" | "week" | "month" | "year"
- * @param {any} date - Luxon DateTime, the anchor date
- * @param {number} firstDayOfWeek - 0=Sunday, 1=Monday, etc.
- * @param {boolean} monthOverflow - whether month view shows overflow weeks
- * @returns {{ start: any, end: any }} Luxon DateTime range (start of day / end of day)
+ * @param {string} scale
+ * @param {any} date
+ * @param {number} firstDayOfWeek
+ * @param {boolean} monthOverflow
+ * @returns {{ start: any, end: any }}
  */
 export function computeCalendarRange(scale, date, firstDayOfWeek, monthOverflow) {
     let start = date;
@@ -38,12 +33,10 @@ export function computeCalendarRange(scale, date, firstDayOfWeek, monthOverflow)
 }
 
 /**
- * Build a domain restricting records to those overlapping the given date range.
- *
  * @param {{ date_start: string, date_stop?: string, date_delay?: string }} fieldMapping
- * @param {"date" | "datetime"} dateStartType - type of the date_start field
- * @param {{ start: any, end: any }} range - computed range from computeCalendarRange
- * @returns {any[][]} Odoo domain tuples
+ * @param {"date" | "datetime"} dateStartType
+ * @param {{ start: any, end: any }} range
+ * @returns {any[][]}
  */
 export function computeRangeDomain(fieldMapping, dateStartType, range) {
     const serializeFn = dateStartType === "date" ? serializeDate : serializeDateTime;
@@ -60,14 +53,9 @@ export function computeRangeDomain(fieldMapping, dateStartType, range) {
 }
 
 /**
- * Build a domain from active/inactive filter sections.
- *
- * Static filters (with writeResModel) use "in" for active values.
- * Dynamic filters use "not in" for inactive values.
- *
  * @param {Record<string, { filters: { active: boolean, value: any }[] }>} filterSections
  * @param {Record<string, { writeResModel?: string }>} filtersInfo
- * @returns {any[][]} Odoo domain tuples
+ * @returns {any[][]}
  */
 export function computeFiltersDomain(filterSections, filtersInfo) {
     const authorizedValues = {};

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_controller - Calendar view orchestrator: date navigation, event CRUD, quick-create, and multi-selection */
+/** @module @web/views/calendar/calendar_controller */
 
 import { Component, reactive, useState } from "@odoo/owl";
 import { CallbackRecorder, useSetupAction } from "@web/core/action_hook";
@@ -36,7 +36,6 @@ export const SCALE_LABELS = {
     year: _t("Year"),
 };
 
-/** Dialog hook that auto-closes the previous dialog when opening a new one. */
 function useUniqueDialog() {
     const displayDialog = useOwnedDialogs();
     let close = null;
@@ -48,7 +47,6 @@ function useUniqueDialog() {
     };
 }
 
-/** Orchestrates the model, renderer, side panel, search bar, and scale selector. */
 export class CalendarController extends Component {
     static components = {
         MobileFilterPanel: CalendarMobileFilterPanel,
@@ -301,9 +299,7 @@ export class CalendarController extends Component {
     }
 
     /**
-     * Create a new record via quick-create dialog, form dialog, or full form view.
-     *
-     * @param {Object} record - partial record with start, end, isAllDay
+     * @param {Object} record
      * @returns {Promise|undefined}
      */
     createRecord(record) {
@@ -338,10 +334,8 @@ export class CalendarController extends Component {
         }
     }
     /**
-     * Open a record for editing in a dialog or navigate to the form view.
-     *
-     * @param {Object} record - record to edit (must have id for existing records)
-     * @param {Object} [context={}] - additional context for the form view
+     * @param {Object} record
+     * @param {Object} [context={}]
      */
     async editRecord(record, context = {}) {
         if (this.model.hasEditDialog) {
@@ -433,9 +427,7 @@ export class CalendarController extends Component {
     }
 
     /**
-     * Navigate the calendar to a different date.
-     *
-     * @param {"next"|"previous"|"today"} move - navigation direction
+     * @param {"next"|"previous"|"today"} move
      */
     async setDate(move) {
         let date = null;

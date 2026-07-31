@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_model - Calendar event data loading, date range computation, filter sections, and timezone handling */
+/** @module @web/views/calendar/calendar_model */
 
 import { browser } from "@web/core/browser/browser";
 import { makeContext } from "@web/core/context";
@@ -30,20 +30,12 @@ import {
 } from "./calendar_date_range.js";
 import { normalizeCalendarRecord } from "./calendar_record.js";
 
-/**
- * Data model for the calendar view.
- *
- * Manages loading, normalization, and CRUD of calendar records. Computes date
- * ranges per scale, handles filter sections (static and dynamic), unusual days,
- * aggregated values, and domain construction. Stores view state (current date,
- * scale) and persists scale preference in localStorage.
- */
 export class CalendarModel extends Model {
     static DEBOUNCED_LOAD_DELAY = 600;
     static services = ["notification"];
 
     /**
-     * @param {Object} params - arch info including field mapping, scales, and filter config
+     * @param {Object} params
      * @param {{ notification: Object }} services
      */
     setup(params, { notification }) {
@@ -93,9 +85,7 @@ export class CalendarModel extends Model {
         );
     }
     /**
-     * Load or reload calendar data with optional parameter overrides.
-     *
-     * @param {Object} [params] - overrides for date, scale, context, etc.
+     * @param {Object} [params]
      */
     async load(params = {}) {
         const previousMeta = { ...this.meta };
@@ -278,22 +268,13 @@ export class CalendarModel extends Model {
         await this.load();
     }
 
-    /**
-     * Flush the unusual-days cache so the next load refetches them. Called on
-     * every record CRUD: get_unusual_days often depends on the very records
-     * being written (e.g. hr_leave), and the cache otherwise lives for the
-     * whole model lifetime, keeping stale shading.
-     */
     invalidateUnusualDays() {
         this._unusualDaysCache.invalidate();
     }
 
     /**
-     * Create records for the given dates. If there is a filter section, the
-     * first filter section's values are added to each record.
-     *
      * @param {Object} multiCreateData
-     * @param {any[]} dates array of Date
+     * @param {any[]} dates
      * @returns {Promise<*>}
      */
     async multiCreateRecords(multiCreateData, dates) {
@@ -433,11 +414,9 @@ export class CalendarModel extends Model {
     }
 
     /**
-     * Convert a UI record (with start/end DateTimes) into raw field values for ORM operations.
-     *
-     * @param {Object} partialRecord - record with start, end, isAllDay, title
-     * @param {Object} [options] - additional options like duration_hour, moved
-     * @returns {Object} raw field values keyed by field name
+     * @param {Object} partialRecord
+     * @param {Object} [options]
+     * @returns {Object}
      */
     buildRawRecord(partialRecord, options = {}) {
         const data = {};
@@ -492,10 +471,8 @@ export class CalendarModel extends Model {
         return data;
     }
     /**
-     * Build a context dict with default_* keys from a raw record for form view creation.
-     *
-     * @param {Object} rawRecord - raw field values from buildRawRecord
-     * @returns {Object} context with default values
+     * @param {Object} rawRecord
+     * @returns {Object}
      */
     makeContextDefaults(rawRecord) {
         const { fieldMapping, scale } = this.meta;

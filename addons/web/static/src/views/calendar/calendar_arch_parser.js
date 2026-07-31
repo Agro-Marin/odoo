@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_arch_parser - Parses calendar view XML arch into field mappings, scales, filters, and popover config */
+/** @module @web/views/calendar/calendar_arch_parser */
 
 import { evaluateExpr } from "@web/core/py_js/py";
 import { visitXML } from "@web/core/utils/dom/xml";
@@ -20,17 +20,13 @@ const SCALES = ["day", "week", "month", "year"];
 
 class CalendarParseArchError extends Error {}
 
-/** Parses a calendar view's XML arch into a structured configuration object. */
 export class CalendarArchParser {
     /**
-     * Parse the calendar arch XML document and extract view configuration.
-     *
-     * @param {Element} xmlDoc - root element of the calendar arch
-     * @param {Object} models - map of model names to their field definitions
-     * @param {string} modelName - technical name of the primary model
-     * @returns {Object} parsed arch info including field mapping, scales, filters,
-     *   permissions, and popover field nodes
-     * @throws {CalendarParseArchError} if required attributes are missing or invalid
+     * @param {Element} xmlDoc
+     * @param {Object} models
+     * @param {string} modelName
+     * @returns {Object}
+     * @throws {CalendarParseArchError}
      */
     parse(xmlDoc, models, modelName) {
         const fields = models[modelName].fields;

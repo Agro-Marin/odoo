@@ -1,14 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_year/calendar_year_popover - Popover listing grouped records when clicking a day cell in year view */
+/** @module @web/views/calendar/calendar_year/calendar_year_popover */
 
 import { Component } from "@odoo/owl";
 import { formatDate } from "@web/core/l10n/dates";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { getColor, getFormattedDateSpan } from "@web/views/calendar/calendar_utils";
 
-/** Popover shown when clicking a day cell in year view, listing grouped records. */
 export class CalendarYearPopover extends Component {
     static components = { Dialog };
     static template = "web.CalendarYearPopover";
@@ -28,23 +27,22 @@ export class CalendarYearPopover extends Component {
         editRecord: Function,
     };
 
-    /** @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>} grouped and sorted records */
+    /** @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>} */
     get recordGroups() {
         return this.computeRecordGroups();
     }
 
-    /** @returns {string} formatted date string for the dialog title */
+    /** @returns {string} */
     get dialogTitle() {
         return formatDate(this.props.date, { format: "DDD" });
     }
 
-    /** @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>} grouped and sorted records */
+    /** @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>} */
     computeRecordGroups() {
         const recordGroups = this.groupRecords();
         return this.getSortedRecordGroups(recordGroups);
     }
     /**
-     * Group popover records by their formatted date span.
      * @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>}
      */
     groupRecords() {
@@ -72,8 +70,8 @@ export class CalendarYearPopover extends Component {
         return Object.values(recordGroups);
     }
     /**
-     * @param {{ colorIndex: number | string }} record - calendar record
-     * @returns {string} CSS class for the record color, or empty string
+     * @param {{ colorIndex: number | string }} record
+     * @returns {string}
      */
     getRecordClass(record) {
         const { colorIndex } = record;
@@ -84,8 +82,8 @@ export class CalendarYearPopover extends Component {
         return "";
     }
     /**
-     * @param {{ colorIndex: number | string }} record - calendar record
-     * @returns {string} inline CSS style for the record color, or empty string
+     * @param {{ colorIndex: number | string }} record
+     * @returns {string}
      */
     getRecordStyle(record) {
         const { colorIndex } = record;
@@ -96,9 +94,8 @@ export class CalendarYearPopover extends Component {
         return "";
     }
     /**
-     * Sort record groups by start time, with same-day groups first.
      * @param {Array<{ title: string, start: Object, end: Object, records: Object[] }>} recordGroups
-     * @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>} sorted groups
+     * @returns {Array<{ title: string, start: Object, end: Object, records: Object[] }>}
      */
     getSortedRecordGroups(recordGroups) {
         return recordGroups.sort((a, b) => {
@@ -112,7 +109,6 @@ export class CalendarYearPopover extends Component {
         });
     }
 
-    /** Create a new all-day record on the popover's date and close. */
     onCreateButtonClick() {
         this.props.createRecord({
             start: this.props.date,
@@ -121,7 +117,7 @@ export class CalendarYearPopover extends Component {
         this.props.close();
     }
     /**
-     * @param {Object} record - calendar record to edit
+     * @param {Object} record
      */
     onRecordClick(record) {
         this.props.editRecord(record);

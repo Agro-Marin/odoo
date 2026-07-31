@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/hooks/full_calendar_hook - Hook managing FullCalendar instance lifecycle (load, render, refresh, destroy) */
+/** @module @web/views/calendar/hooks/full_calendar_hook */
 
 import {
     onMounted,
@@ -13,40 +13,12 @@ import {
 } from "@odoo/owl";
 import { DateTime, IANAZone, Settings } from "@web/core/l10n/luxon";
 /**
- * OWL hook that manages a FullCalendar instance lifecycle: loads the bundle,
- * creates/renders on mount, refreshes on patch, destroys on unmount.
- *
- * @param {string} refName - OWL template ref name for the calendar container element
- * @param {Object} params - FullCalendar configuration options (functions are bound to the component)
- * @returns {{ api: FullCalendar.Calendar, el: HTMLElement }} accessor for the calendar instance and DOM element
+ * @param {string} refName
+ * @param {Object} params
+ * @returns {{ api: FullCalendar.Calendar, el: HTMLElement }}
  */
 import { FullCalendar, loadFullCalendar } from "@web/core/lib/fullcalendar";
 
-/**
- * Returns a time-zone identifier safe to pass to ``new Calendar({ timeZone })``.
- *
- * FullCalendar v7 forwards the value to ``Intl.DateTimeFormat({ timeZone })``,
- * which only accepts IANA names (``UTC``, ``Europe/Brussels``, ...) — not Luxon's
- * ``FixedOffsetZone`` names like ``"UTC+1"``. For those we translate the
- * offset into the equivalent POSIX ``Etc/GMT±N`` IANA name (sign inverted:
- * UTC+2 -> ``Etc/GMT-2``), keeping FC's date arithmetic and Intl-based
- * formatting on the same zone so markers round-trip without drift. Earlier
- * attempts returning ``"UTC"`` or the magic ``"local"`` unchanged broke
- * day-boundary alignment / event-time formatting for non-zero offsets —
- * kept here as a warning against reintroducing them.
- *
- * Zones are classified by Luxon zone TYPE, never by name shape: slash-less
- * IANA zones with working DST (``CET``, ``EET``, ``GB``, ``NZ``, ``Israel``,
- * ...) are just as IANA as ``Europe/Brussels`` and MUST pass through by
- * name. An earlier ``name.includes("/")`` check dropped them into the
- * fixed-offset path below, freezing ``zone.offset(0)`` (January 1970) for
- * the whole year — a CET user in summer (CEST, +02:00) got a calendar
- * aligned to ``Etc/GMT-1``: every event rendered an hour early and drags
- * wrote back shifted times.
- *
- * :return: a time-zone identifier accepted by FullCalendar v7
- * :rtype: string
- */
 export function getFullCalendarTimeZone() {
     const zone = Settings.defaultZone;
     const name = zone.name;
@@ -73,26 +45,6 @@ export function getFullCalendarTimeZone() {
 }
 
 /**
- * Convert a Date received from FullCalendar into a Luxon DateTime in the
- * user's zone, marker-aware.
- *
- * FC v7 emits two Date conventions depending on its ``timeZone`` option (see
- * ``getFullCalendarTimeZone``):
- *
- * - IANA/named zone: a real-epoch Date — ``fromJSDate`` reads it correctly.
- * - ``"local"`` (FixedOffsetZone defaults that miss the ``Etc/GMT±N`` path):
- *   a MARKER Date whose UTC components encode the visible local-clock time,
- *   not the real instant. ``fromJSDate`` would apply the offset a second
- *   time (e.g. a cell at local midnight in a negative-offset zone lands on
- *   the previous day). Rebuild from UTC components instead, truncated to the
- *   minute — markers picked up during drag gestures can carry sub-minute
- *   drift from the (mocked) clock, meaningless on a 15-min snap grid.
- *
- * Use this for every ``info.date``/``event.start`` consumer (day-cell
- * classes, week numbers, headers, record conversion), not just
- * ``fcEventToRecord``. See fullcalendar.esm.js (``timestampToMarker`` /
- * ``toDate``) for the FC-side conversion mirrored here.
- *
  * @param {Date} date
  * @returns {import("@web/core/l10n/luxon").DateTime}
  */
@@ -109,22 +61,6 @@ export function fromFcDate(date) {
     });
 }
 
-/**
- * Class-name generator for FullCalendar's ``dayCellClass`` option that
- * re-injects v6-compatible state classes (``fc-day``, ``fc-day-other``,
- * ``fc-day-today``, ``fc-day-past``, ``fc-day-future``, ``fc-day-disabled``)
- * on top of v7's hashed class names.
- *
- * v7's render-props payload exposes ``isOther`` / ``isToday`` / ``isPast``
- * / ``isFuture`` / ``isDisabled`` flags per cell.  Returns a space-joined
- * string — FC v7's ``joinClassNames`` does ``.filter(Boolean).join(" ")``,
- * which stringifies arrays via comma-toString and produces broken class
- * names like ``"fc-day,fc-day-today"``.
- *
- * :param info: cell render-props supplied by FullCalendar
- * :return: space-joined v6-compatible day-cell class names
- * :rtype: string
- */
 export function dayCellClassNames(info) {
     const classes = ["fc-day"];
     if (info?.isOther) {
@@ -150,19 +86,6 @@ export function dayCellClassNames(info) {
     return classes.join(" ");
 }
 
-/**
- * Class-name generator for FullCalendar's ``dayHeaderClass`` option.
- *
- * v6's column headers carried BOTH ``fc-col-header-cell`` AND ``fc-day``
- * on the same element, plus per-state suffixes.  v7's hashed names hide
- * the v6 hooks, so we re-inject them.  Tests target compound selectors
- * like ``.fc-col-header-cell.fc-day`` so both classes must live on the
- * same element.
- *
- * :param info: header render-props supplied by FullCalendar
- * :return: space-joined v6-compatible header class names
- * :rtype: string
- */
 export function dayHeaderClassNames(info) {
     const classes = ["fc-col-header-cell", "fc-day"];
     if (info?.isToday) {
@@ -178,29 +101,15 @@ export function dayHeaderClassNames(info) {
 }
 
 /**
- * Resolve one of FullCalendar v7's build-hashed internal class names
- * (e.g. ``"internalScroller"``) for the loaded library build.
- *
- * v7 regenerates these hashes on every build — a bump reshuffles nearly all
- * of them and recycles a few onto unrelated roles, so a hard-coded hash can
- * silently match the wrong element rather than simply missing. Resolve
- * through the public ``ProtectedStyles`` name->hash map instead. Must be
- * called after ``web.fullcalendar_lib`` has loaded, when ``FullCalendar``
- * is available.
- *
- * @param {string} name internal class-name key from FC's ``classNames`` map
- * @returns {string} the hashed class name for the loaded build
+ * @param {string} name
+ * @returns {string}
  */
 export function fcInternalClassName(name) {
     return FullCalendar.ProtectedStyles.default[name];
 }
 
 /**
- * Cheap identity of the calendar's current event set (id + range), used to
- * decide whether the year view needs its synchronous rebuild after
- * ``refetchEvents``.
- *
- * @param {any} instance FullCalendar Calendar
+ * @param {any} instance
  * @returns {string}
  */
 function eventSetFingerprint(instance) {
@@ -241,7 +150,10 @@ export function useFullCalendar(refName, paramsOrGetter) {
 
     onMounted(() => {
         try {
-            ref.el.setAttribute("data-fc-portal-host", "true");
+            /** @type {HTMLElement} */ (ref.el).setAttribute(
+                "data-fc-portal-host",
+                "true",
+            );
             const mountParams = boundParams();
             instance = new FullCalendar.Calendar(ref.el, mountParams);
             instance.__lastInitialDate =
@@ -273,9 +185,7 @@ export function useFullCalendar(refName, paramsOrGetter) {
                 if (targetDate) {
                     try {
                         instance.gotoDate(targetDate);
-                    } catch {
-                        // Bad date — leave the calendar at its current position.
-                    }
+                    } catch {}
                 }
             }
             instance.__lastInitialDate = targetDate;
@@ -285,9 +195,7 @@ export function useFullCalendar(refName, paramsOrGetter) {
                 instance.gotoDate(targetDate);
                 instance.__lastInitialDate = targetDate;
                 viewOrDateChanged = true;
-            } catch {
-                // Bad date string — keep current position.
-            }
+            } catch {}
         }
         const recordsChanged = instance.__lastRecords !== component.props.model.records;
         instance.__lastRecords = component.props.model.records;

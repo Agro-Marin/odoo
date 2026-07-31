@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_filter_section/calendar_filter_section - Collapsible sidebar filter section for a calendar filter field (attendees, resources) */
+/** @module @web/views/calendar/calendar_filter_section/calendar_filter_section */
 
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete/autocomplete";
@@ -13,7 +13,6 @@ import { SelectCreateDialog } from "@web/views/view_dialogs/select_create_dialog
 
 let nextId = 1;
 
-/** Collapsible sidebar section for a single calendar filter field (e.g. attendees, resources). */
 export class CalendarFilterSection extends Component {
     static components = {
         AutoComplete,
@@ -27,6 +26,17 @@ export class CalendarFilterSection extends Component {
         model: Object,
         section: Object,
     };
+
+    /** @type {ReturnType<typeof useOwnedDialogs>} */
+    addDialog;
+    /** @type {number} */
+    filterIdSeq;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {{ collapsed: boolean; fieldRev: number }} */
+    state;
+    /** @type {Set} */
+    unlinkingFilterIds;
 
     setup() {
         this.state = useState({
@@ -83,16 +93,14 @@ export class CalendarFilterSection extends Component {
             : "";
     }
 
-    /** @returns {Object[]} filters sorted by type priority (user, record, dynamic) then label */
+    /** @returns {Object[]} */
     getSortedFilters() {
         return sortCalendarFilters(this.section.filters, ["user", "record", "dynamic"]);
     }
 
     /**
-     * Search for matching records to populate the autocomplete dropdown.
-     *
-     * @param {string} request - user search input text
-     * @returns {Promise<Object[]>} autocomplete option objects
+     * @param {string} request
+     * @returns {Promise<Object[]>}
      */
     async loadSource(request) {
         const resModel = this.props.model.fields[this.section.fieldName].relation;

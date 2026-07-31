@@ -191,7 +191,12 @@ test("getFullCalendarTimeZone passes slash-less IANA zones through by name", asy
 
 test("getFullCalendarTimeZone accepts a system zone resolving to an IANA name", async () => {
     patchWithCleanup(Settings, {
-        defaultZone: { type: "system", name: "CET", offset: () => 120, isValid: true },
+        defaultZone: /** @type {any} */ ({
+            type: "system",
+            name: "CET",
+            offset: () => 120,
+            isValid: true,
+        }),
     });
     expect(getFullCalendarTimeZone()).toBe("CET");
 });

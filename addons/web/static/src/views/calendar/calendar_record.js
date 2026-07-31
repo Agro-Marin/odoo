@@ -1,20 +1,18 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/calendar/calendar_record - Pure transformation of raw server records into normalized calendar event objects */
+/** @module @web/views/calendar/calendar_record */
 
 import { deserializeDate, deserializeDateTime } from "@web/core/l10n/dates";
 /**
- * Normalize a raw ORM record into a calendar event: date/datetime
- * deserialization, all-day detection, duration, color, and showTime logic.
- *
- * @param {Record<string, any>} rawRecord - server record from ORM searchRead
+ * @param {Record<string, any>} rawRecord
  * @param {Object} options
- * @param {Record<string, any>} options.fields - model field definitions
- * @param {Object} options.fieldMapping - arch field mapping (date_start, date_stop, etc.)
- * @param {boolean} options.isTimeHidden - arch isTimeHidden flag
- * @param {string} options.scale - current calendar scale
- * @param {boolean} options.isSmall - env.isSmall (responsive flag)
+ * @param {Record<string, any>} options.fields
+ * @param {{ date_start: string, date_stop?: string, date_delay?: string, all_day?: string,
+ *           color?: string, create_name_field?: string }} options.fieldMapping
+ * @param {boolean} options.isTimeHidden
+ * @param {string} options.scale
+ * @param {boolean} options.isSmall
  * @returns {{ id: number, title: string, isAllDay: boolean, start: any, startType: string,
  *             end: any, endType: string, duration: number, colorIndex: any,
  *             isHatched: boolean, isStriked: boolean, isTimeHidden: boolean,
@@ -42,7 +40,7 @@ export function normalizeCalendarRecord(
             : deserializeDateTime(rawRecord[fieldMapping.date_stop]);
     }
 
-    const duration = rawRecord[fieldMapping.date_delay] || 1;
+    const duration = rawRecord[/** @type {string} */ (fieldMapping.date_delay)] || 1;
 
     if (isAllDay) {
         start = start.startOf("day");
@@ -57,7 +55,7 @@ export function normalizeCalendarRecord(
         startType !== "date" &&
         start.hasSame(end, "day");
 
-    const colorValue = rawRecord[fieldMapping.color];
+    const colorValue = rawRecord[/** @type {string} */ (fieldMapping.color)];
     const colorIndex = Array.isArray(colorValue) ? colorValue[0] : colorValue;
 
     const title = rawRecord[fieldMapping.create_name_field || "display_name"];
