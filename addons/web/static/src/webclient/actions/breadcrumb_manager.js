@@ -13,7 +13,7 @@ import { actionStorage } from "./action_storage.js";
 /** @import { ActionManager } from "./action_service.js" */
 
 /**
- * The home-menu pseudo-controller (web_enterprise's "menu" client action) must
+ * The home-menu pseudo-controller (web's "menu" client action) must
  * never appear in breadcrumbs nor be fetched from the server. It is spelled two
  * ways depending on provenance: ``action.tag === "menu"`` for a live client
  * action loaded by registry key, ``action.id === "menu"`` for a URL-derived

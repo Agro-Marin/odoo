@@ -1333,7 +1333,10 @@ test("properties: date(time) property manipulations", async () => {
         resId: 5000,
         arch: `<form><field name="company_id"/><field name="properties"/></form>`,
     });
-    expect.verifySteps(["get_views", "web_read", "has_group"]);
+    // No `has_group`: the only caller on this screen is `html_editor`'s patch of
+    // PropertyValue, and `html_editor` sits outside `web`'s dependency closure,
+    // so `module_scope=web` never loads it.
+    expect.verifySteps(["get_views", "web_read"]);
 
     expect("[property-name=property_1] .o_property_field_value input").toHaveValue(
         "01/01/2019",

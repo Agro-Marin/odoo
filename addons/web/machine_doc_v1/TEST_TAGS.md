@@ -42,6 +42,12 @@ Quick reference for running targeted subsets of `core/addons/web/tests/`.
 that target specific hoot suite groups via `&id=HASH` URL filters. Use `--test-tags`
 to run individual groups instead of the full 1-2 hour suite.
 
+The two classes are not redundant: tests are selected by **tag**, not by
+directory, so each platform runs a different (overlapping, neither-a-superset)
+set. A change is only verified once both have run. The warm-server dev loop has
+the same split behind `hoot --preset desktop|mobile`, where the default hides a
+mobile-only suite as a silent zero — see `web/tooling/scripts/README.md`.
+
 | Method | Hoot suite(s) | Scope |
 |--------|---------------|-------|
 | `test_core` | `@web/core` | utils, registries, RPC, ORM, domain |

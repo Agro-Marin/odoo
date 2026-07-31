@@ -190,6 +190,23 @@ def modules_for_suites(suites: list[str]) -> tuple[str, ...]:
     return tuple(sorted(set(ALWAYS_MODULES) | addons_for_suites(suites)))
 
 
+def module_scope_param(suites: list[str]) -> str:
+    """Return the ``&module_scope=`` param for a run, or ``""``.
+
+    Mirrors ``web/tests/test_js.py::_get_module_scope_param`` so this runner
+    loads the same bundle the ``web_js`` gate does. Without it the unit-test
+    page executes the ``src`` of every installed addon, whose ``patch()`` calls
+    are global and unconditional: a test asserting the RPCs of its own addon
+    then sees a step from an addon outside its closure and fails here while
+    passing under ``odoo-bin``.
+
+    Suites spanning several addons have no single closure, so they stay
+    unscoped rather than dropping one side's ``src``.
+    """
+    addons = addons_for_suites(suites)
+    return f"&module_scope={addons.pop()}" if len(addons) == 1 else ""
+
+
 def db_for_modules(modules: tuple[str, ...]) -> str:
     """Deterministic warm-DB name for a module set.
 
@@ -593,7 +610,8 @@ def run_suites(
     id_filters = "".join(f"&id={generate_hash(s)}" for s in suites)
     url = (
         f"http://{HOST}:{port}/web/tests?headless&loglevel=2"
-        f"&preset={preset}&timeout={hoot_timeout_ms}{id_filters}{extra}"
+        f"&preset={preset}&timeout={hoot_timeout_ms}{id_filters}"
+        f"{module_scope_param(suites)}{extra}"
     )
 
     def unit_test_error_checker(message: str) -> bool:

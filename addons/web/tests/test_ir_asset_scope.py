@@ -1,5 +1,8 @@
 # Part of Odoo. See LICENSE file for full copyright and licensing details.
 
+from unittest.mock import patch
+
+from odoo.modules import Manifest
 from odoo.tests import TransactionCase, tagged
 
 
@@ -14,13 +17,33 @@ class TestUnitTestAssetScope(TransactionCase):
     """
 
     def test_closure_follows_manifest_dependencies(self):
-        closure = self.env["ir.asset"]._get_unit_test_scope_addons("mail")
+        """A dependency reached only through an intermediate is still included.
 
-        # mail declares only web_tour + html_editor, but html_editor -> bus
-        # -> web -> base, so the closure still covers what its JS needs.
-        self.assertLessEqual(
-            {"mail", "web_tour", "html_editor", "bus", "web", "base"}, closure
-        )
+        Driven off a synthetic graph rather than a real addon: the property is
+        about the walk, and every addon deep enough to exercise it (``mail``,
+        which reaches ``base`` only via ``html_editor`` → ``bus`` → ``web``)
+        sits *above* ``web`` in the dependency order, so it cannot be installed
+        in the database ``web``'s own suite runs against.
+        """
+        graph = {
+            "a": {"depends": ["b"]},
+            "b": {"depends": ["c"]},
+            "c": {"depends": ["base"]},
+            "base": {"depends": []},
+        }
+        IrAsset = self.env["ir.asset"]
+
+        with (
+            patch.object(
+                type(IrAsset),
+                "_get_installed_addons_list",
+                return_value=frozenset(graph),
+            ),
+            patch.object(Manifest, "for_addon", staticmethod(graph.get)),
+        ):
+            closure = IrAsset._get_unit_test_scope_addons("a")
+
+        self.assertEqual(closure, frozenset(graph))
 
     def test_closure_excludes_addons_that_merely_depend_on_the_scope(self):
         closure = self.env["ir.asset"]._get_unit_test_scope_addons("web")

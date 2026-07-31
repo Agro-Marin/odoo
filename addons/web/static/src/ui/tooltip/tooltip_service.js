@@ -284,10 +284,19 @@ export const tooltipService = {
          * "tap-to-show". Such a holder deliberately opens its tooltip from the
          * tap itself, so the `click` that ends the tap must not cancel it.
          *
+         * Only ever true where a tap is possible, which is exactly where the
+         * `touchstart` handler granting the exemption is registered. Without
+         * that guard a mouse got the exemption too, and since a mouse opens the
+         * very same tooltip from `mouseenter`, clicking a form label's "?" left
+         * its hover help up on top of the dropdown the click had just opened.
+         *
          * @param {HTMLElement} el
          * @returns {boolean}
          */
         function isTapToShow(el) {
+            if (!hasTouch()) {
+                return false;
+            }
             const holder = /** @type {HTMLElement | null} */ (
                 el.closest?.("[data-tooltip], [data-tooltip-template]")
             );

@@ -1284,21 +1284,38 @@ async function _hover(target, options, hoverOptions) {
 }
 
 /**
- * @param {EventTarget} target
+ * @template T
+ * @param {T | (() => T)} resolver
+ * @returns {T}
+ */
+function resolve(resolver) {
+    return typeof resolver === "function" ? resolver() : resolver;
+}
+
+/**
+ * @param {EventTarget | (() => EventTarget)} targetResolver
  * @param {KeyboardEventInit} eventInit
  */
-async function _keyDown(target, eventInit) {
+async function _keyDown(targetResolver, eventInit) {
     eventInit = { ...eventInit, ...currentEventInit.keydown };
     registerSpecialKey(eventInit, true);
 
     const repeat =
         typeof eventInit.repeat === "boolean" ? eventInit.repeat : runTime.key === eventInit.key;
     runTime.key = eventInit.key;
-    const keyDownEvent = await _dispatch(target, "keydown", { ...eventInit, repeat });
+    const keyDownEvent = await _dispatch(resolve(targetResolver), "keydown", {
+        ...eventInit,
+        repeat,
+    });
 
     if (isPrevented(keyDownEvent)) {
         return;
     }
+
+    // Re-resolved after 'keydown' was dispatched: a handler may have moved
+    // focus, and the browser routes the resulting input to wherever focus
+    // landed, not to the element the sequence started on.
+    const target = resolve(targetResolver);
 
     /**
      * @param {string} toInsert
@@ -1532,16 +1549,17 @@ async function _keyDown(target, eventInit) {
 }
 
 /**
- * @param {EventTarget} target
+ * @param {EventTarget | (() => EventTarget)} targetResolver
  * @param {KeyboardEventInit} eventInit
  */
-async function _keyUp(target, eventInit) {
+async function _keyUp(targetResolver, eventInit) {
     eventInit = { ...eventInit, ...currentEventInit.keyup };
-    await _dispatch(target, "keyup", eventInit);
+    await _dispatch(resolve(targetResolver), "keyup", eventInit);
 
     runTime.key = null;
     registerSpecialKey(eventInit, false);
 
+    const target = resolve(targetResolver);
     if (eventInit.key === " " && getTag(target) === "input" && target.type === "checkbox") {
         /**
          * Special action: input[type=checkbox] 'Space'
@@ -2333,7 +2351,7 @@ export async function keyDown(keyStrokes, options) {
     const finalizeEvents = setupEvents("keyDown", options);
     const eventInits = parseKeyStrokes(keyStrokes, options);
     for (const eventInit of eventInits) {
-        await _keyDown(getActiveElement(), eventInit);
+        await _keyDown(getActiveElement, eventInit);
     }
 
     return finalizeEvents();
@@ -2355,7 +2373,7 @@ export async function keyUp(keyStrokes, options) {
     const finalizeEvents = setupEvents("keyUp", options);
     const eventInits = parseKeyStrokes(keyStrokes, options);
     for (const eventInit of eventInits) {
-        await _keyUp(getActiveElement(), eventInit);
+        await _keyUp(getActiveElement, eventInit);
     }
 
     return finalizeEvents();
@@ -2508,13 +2526,12 @@ export async function pointerUp(target, options) {
 export async function press(keyStrokes, options) {
     const finalizeEvents = setupEvents("press", options);
     const eventInits = parseKeyStrokes(keyStrokes, options);
-    const activeElement = getActiveElement();
 
     for (const eventInit of eventInits) {
-        await _keyDown(activeElement, eventInit);
+        await _keyDown(getActiveElement, eventInit);
     }
     for (const eventInit of eventInits.reverse()) {
-        await _keyUp(activeElement, eventInit);
+        await _keyUp(getActiveElement, eventInit);
     }
 
     return finalizeEvents();

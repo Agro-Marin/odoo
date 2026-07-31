@@ -90,3 +90,31 @@ test("FileUploader multi-upload continues past a too-large file and resets input
     expect(uploaded).toEqual(["small_1.txt", "small_2.txt"]);
     expect(queryOne(".o_input_file").value).toBe("");
 });
+
+test("FileUploader checkSize accepts a per-file predicate", async () => {
+    // A caller that routes SOME files past the server (cloud storage) exempts
+    // exactly those; switching the check off wholesale removed the size warning
+    // from every other file too.
+    patchWithCleanup(session, { max_file_upload_size: 3 });
+    const notifications = [];
+    mockService("notification", { add: (message) => notifications.push(message) });
+    const uploaded = [];
+    await mountWithCleanup(Parent, {
+        props: {
+            multiUpload: true,
+            checkSize: (file) => !file.name.startsWith("cloud"),
+            onUploaded: (file) => uploaded.push(file.name),
+        },
+    });
+
+    await contains(".o_test_toggler").click();
+    await setInputFiles([
+        new File(["cloud-bound-and-huge"], "cloud_big.txt", { type: "text/plain" }),
+        new File(["way-too-big"], "local_big.txt", { type: "text/plain" }),
+        new File(["ab"], "local_small.txt", { type: "text/plain" }),
+    ]);
+    await waitUntil(() => uploaded.length === 2);
+
+    expect(uploaded).toEqual(["cloud_big.txt", "local_small.txt"]);
+    expect(notifications).toHaveLength(1);
+});

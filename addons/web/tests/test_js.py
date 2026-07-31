@@ -137,7 +137,6 @@ KNOWN_UNCOVERED_ADDONS = frozenset(
         "l10n_uk_reports",
         "lunch",
         "mail_enterprise",
-        "marketing_automation",
         "mass_mailing",
         "microsoft_calendar",
         "mrp",

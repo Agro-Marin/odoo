@@ -15,7 +15,10 @@ export class FileUploader extends Component {
         onUploaded: Function,
         onUploadComplete: { type: Function, optional: true },
         multiUpload: { type: Boolean, optional: true },
-        checkSize: { type: Boolean, optional: true },
+        // Boolean, or a per-file predicate `(file) => boolean`. A caller that
+        // routes SOME files past the server (cloud storage) must be able to
+        // exempt those without disabling the size warning for the rest.
+        checkSize: { type: [Boolean, Function], optional: true },
         inputName: { type: String, optional: true },
         fileUploadClass: { type: String, optional: true },
         acceptedFileExtensions: { type: String, optional: true },
@@ -66,10 +69,11 @@ export class FileUploader extends Component {
         }
         try {
             for (const file of files) {
-                if (
-                    this.props.checkSize &&
-                    !checkFileSize(file.size, this.notification)
-                ) {
+                const checkSize =
+                    typeof this.props.checkSize === "function"
+                        ? this.props.checkSize(file)
+                        : this.props.checkSize;
+                if (checkSize && !checkFileSize(file.size, this.notification)) {
                     continue;
                 }
                 this.state.isUploading = true;

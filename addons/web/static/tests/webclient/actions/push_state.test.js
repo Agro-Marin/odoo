@@ -630,7 +630,7 @@ test(`properly push globalState`, async () => {
             },
         ],
         globalState: {
-            searchModel: `{"nextGroupId":2,"nextGroupNumber":1,"nextId":2,"query":[{"searchItemId":1,"autocompleteValue":{"label":"blip","operator":"ilike","value":"blip"}}],"searchItems":{"1":{"type":"field","fieldName":"foo","fieldType":"char","description":"Foo","groupId":1,"id":1}},"orderByCount":false,"searchPanelInfo":{"className":"","viewTypes":["kanban","list"],"loaded":false,"shouldReload":true},"sections":[]}`,
+            searchModel: `{"nextGroupId":2,"nextGroupNumber":2,"nextId":2,"query":[{"searchItemId":1,"autocompleteValue":{"label":"blip","operator":"ilike","value":"blip"}}],"searchItems":{"1":{"type":"field","groupNumber":1,"fieldName":"foo","fieldType":"char","description":"Foo","groupId":1,"id":1}},"orderByCount":false,"searchPanelInfo":{"className":"","viewTypes":["kanban","list"],"loaded":false,"shouldReload":true},"sections":[]}`,
         },
     });
 
@@ -671,7 +671,7 @@ test(`properly push globalState`, async () => {
             },
         ],
         globalState: {
-            searchModel: `{"nextGroupId":2,"nextGroupNumber":1,"nextId":2,"query":[{"searchItemId":1,"autocompleteValue":{"label":"blip","operator":"ilike","value":"blip"}}],"searchItems":{"1":{"type":"field","fieldName":"foo","fieldType":"char","description":"Foo","groupId":1,"id":1}},"orderByCount":false,"searchPanelInfo":{"className":"","viewTypes":["kanban","list"],"loaded":false,"shouldReload":true},"sections":[]}`,
+            searchModel: `{"nextGroupId":2,"nextGroupNumber":2,"nextId":2,"query":[{"searchItemId":1,"autocompleteValue":{"label":"blip","operator":"ilike","value":"blip"}}],"searchItems":{"1":{"type":"field","groupNumber":1,"fieldName":"foo","fieldType":"char","description":"Foo","groupId":1,"id":1}},"orderByCount":false,"searchPanelInfo":{"className":"","viewTypes":["kanban","list"],"loaded":false,"shouldReload":true},"sections":[]}`,
         },
     });
 });

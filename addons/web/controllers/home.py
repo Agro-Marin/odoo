@@ -344,7 +344,7 @@ class Home(http.Controller):
         """
         token = env_str("ODOO_METRICS_TOKEN")
         if not token:
-            return request.not_found()
+            raise request.not_found()
         presented = request.httprequest.headers.get("Authorization", "")
         scheme, _, offered = presented.partition(" ")
         if scheme.lower() != "bearer" or not consteq(offered.strip(), token):

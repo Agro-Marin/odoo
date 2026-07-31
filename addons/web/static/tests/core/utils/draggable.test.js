@@ -1,6 +1,6 @@
 // @ts-check
 
-import { expect, test } from "@odoo/hoot";
+import { expect, runAllTimers, test } from "@odoo/hoot";
 import { pointerDown, pointerUp, queryRect } from "@odoo/hoot-dom";
 import { animationFrame, mockTouch } from "@odoo/hoot-mock";
 import { Component, reactive, useRef, useState, xml } from "@odoo/owl";
@@ -508,6 +508,10 @@ test("willDrag is lowered again when the press never becomes a drag", async () =
     // press and release without any movement: no drag sequence ever starts, so
     // `dragStart` — the only other place that lowers the flag — never runs.
     await pointerDown(".item:first-child");
+    // A touch press only arms the drag once it outlasts `touchDelay`; on mouse
+    // there is no pending timer and this is a no-op. Not tagged desktop-only:
+    // the stuck flag this guards against is reachable on touch too.
+    await runAllTimers();
     expect(dragState.willDrag).toBe(true);
     await pointerUp(".item:first-child");
 

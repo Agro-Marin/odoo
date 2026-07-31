@@ -127,17 +127,23 @@ export const useServiceProtectMethodHandling = {
  * Wrap a service method so that it returns a pending promise when the
  * owning component is destroyed, preventing post-teardown side effects.
  *
+ * ``resolve`` is called per invocation rather than closed over once: the
+ * wrapper is installed as an own property that shadows the service, so
+ * capturing the function at mount time would pin the component to that
+ * snapshot and silently ignore any later replacement of the method
+ * (``patch``, ``mockService``, a module patching the service in place).
+ *
  * @param {import("@odoo/owl").Component} component
- * @param {Function} fn
+ * @param {() => Function} resolve
  * @returns {Function}
  */
-function _protectMethod(component, fn) {
+function _protectMethod(component, resolve) {
     return function (/** @type {any[]} */ ...args) {
         if (status(component) === "destroyed") {
             return useServiceProtectMethodHandling.fn();
         }
 
-        const prom = Promise.resolve(fn.call(this, ...args));
+        const prom = Promise.resolve(resolve().call(this, ...args));
         const protectedProm = prom.then((result) =>
             status(component) === "destroyed" ? new Promise(() => {}) : result,
         );
@@ -176,7 +182,7 @@ export function useService(serviceName) {
     if (SERVICES_METADATA[serviceName]) {
         if (service instanceof Function) {
             return /** @type {import("services").ServiceFactories[K]} */ (
-                _protectMethod(component, service)
+                _protectMethod(component, () => services[serviceName])
             );
         }
         const methods = SERVICES_METADATA[serviceName] ?? [];
@@ -184,7 +190,7 @@ export function useService(serviceName) {
         // reactive while the listed async methods gain destroy-protection.
         const result = Object.create(observed);
         for (const method of methods) {
-            result[method] = _protectMethod(component, observed[method]);
+            result[method] = _protectMethod(component, () => observed[method]);
         }
         return result;
     }
