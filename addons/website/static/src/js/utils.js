@@ -3,10 +3,7 @@ import { urlFunctions } from "@html_editor/utils/url";
 import { App, Component } from "@odoo/owl";
 import { _t, appTranslateFn } from "@web/core/l10n/translation";
 import { getTemplate } from "@web/core/templates";
-import { intersection } from "@web/core/utils/collections/arrays";
 import { patch } from "@web/core/utils/patch";
-import { renderToElement } from "@web/core/utils/render";
-import { Modal } from "@web/libs/bootstrap";
 import { UrlAutoComplete } from "@website/components/autocomplete_with_pages/url_autocomplete";
 
 /**
@@ -117,117 +114,6 @@ function onceAllImagesLoaded(element, excluded) {
         });
     });
     return Promise.all(defs);
-}
-
-/**
- * @deprecated
- * @todo create Dialog.prompt instead of this
- */
-function prompt(options, _qweb) {
-    /**
-     * A bootstrapped version of prompt() albeit asynchronous
-     * This was built to quickly prompt the user with a single field.
-     * For anything more complex, please use editor.Dialog class
-     *
-     * Usage Ex:
-     *
-     * website.prompt("What... is your quest?").then(function (answer) {
-     *     arthur.reply(answer || "To seek the Holy Grail.");
-     * });
-     *
-     * website.prompt({
-     *     select: "Please choose your destiny",
-     *     init: function () {
-     *         return [ [0, "Sub-Zero"], [1, "Robo-Ky"] ];
-     *     }
-     * }).then(function (answer) {
-     *     mame_station.loadCharacter(answer);
-     * });
-     *
-     * @param {Object|String} options A set of options used to configure the prompt or the text field name if string
-     * @param {String} [options.window_title=''] title of the prompt modal
-     * @param {String} [options.input] tell the modal to use an input text field, the given value will be the field title
-     * @param {String} [options.textarea] tell the modal to use a textarea field, the given value will be the field title
-     * @param {String} [options.select] tell the modal to use a select box, the given value will be the field title
-     * @param {Object} [options.default=''] default value of the field
-     * @param {Function} [options.init] optional function that takes the `field` (enhanced with a fillWith() method) and the `dialog` as parameters [can return a promise]
-     */
-    if (typeof options === "string") {
-        options = {
-            text: options,
-        };
-    }
-    if (typeof _qweb === "undefined") {
-        _qweb = "website.prompt";
-    }
-    options = Object.assign(
-        {
-            window_title: "",
-            field_name: "",
-            default: "", // dict notation for IE<9
-            init: function () {},
-            btn_primary_title: _t("Create"),
-            btn_secondary_title: _t("Cancel"),
-        },
-        options || {},
-    );
-
-    let type = intersection(Object.keys(options), ["input", "textarea", "select"]);
-    type = type.length ? type[0] : "input";
-    options.field_type = type;
-    options.field_name = options.field_name || options[type];
-
-    const def = new Promise(function (resolve, reject) {
-        const dialog = renderToElement(_qweb, options);
-        document.body.appendChild(dialog);
-        options.$dialog = dialog;
-        const field = dialog.querySelector(options.field_type);
-        field.value = options["default"];
-        field.fillWith = function (data) {
-            if (field.tagName === "SELECT") {
-                data.forEach(function (item) {
-                    field.options[field.options.length] = new window.Option(
-                        item[1],
-                        item[0],
-                    );
-                });
-            } else {
-                field.value = data;
-            }
-        };
-        const init = options.init(field, dialog);
-        Promise.resolve(init).then(function (fill) {
-            if (fill) {
-                field.fillWith(fill);
-            }
-            const bsModal = Modal.getOrCreateInstance(dialog);
-            bsModal.show();
-            field.focus();
-            dialog.addEventListener("click", function (e) {
-                if (e.target.closest(".btn-primary")) {
-                    resolve({ val: field.value, field: field, dialog: dialog });
-                    bsModal.hide();
-                    dialog.remove();
-                    document.querySelector(".modal-backdrop")?.remove();
-                }
-            });
-        });
-        dialog.addEventListener("hidden.bs.modal", function () {
-            reject();
-            dialog.remove();
-            document.querySelector(".modal-backdrop")?.remove();
-        });
-        if (field.matches('input[type="text"], select')) {
-            field.addEventListener("keypress", function (e) {
-                if (e.key === "Enter") {
-                    e.preventDefault();
-                    dialog.querySelector(".btn-primary")?.click();
-                }
-            });
-        }
-    });
-
-    return def;
 }
 
 /**
@@ -581,7 +467,6 @@ export default {
     loadAnchors: loadAnchors,
     autocompleteWithPages: autocompleteWithPages,
     onceAllImagesLoaded: onceAllImagesLoaded,
-    prompt: prompt,
     sendRequest: sendRequest,
     isHTTPSorNakedDomainRedirection: isHTTPSorNakedDomainRedirection,
     svgToPNG: svgToPNG,

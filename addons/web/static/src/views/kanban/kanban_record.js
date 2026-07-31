@@ -23,6 +23,7 @@ import { useService } from "@web/core/utils/hooks";
 import { imageUrl } from "@web/core/utils/urls";
 import { Field } from "@web/fields/field";
 import { fileTypeMagicWordMap } from "@web/fields/media/image/image_field";
+import { SELF_HANDLED_SELECTOR } from "@web/views/self_handled";
 import { ViewButton } from "@web/views/view_button/view_button";
 import { useViewCompiler } from "@web/views/view_compiler";
 import { getFormattedValue } from "@web/views/view_utils";
@@ -41,7 +42,7 @@ export const CANCEL_GLOBAL_CLICK = [
     "a",
     ".dropdown",
     ".oe_kanban_action",
-    "[data-bs-toggle]",
+    SELF_HANDLED_SELECTOR,
 ].join(",");
 
 function getColorIndex(value) {

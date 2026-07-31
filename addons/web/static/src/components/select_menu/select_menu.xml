@@ -75,6 +75,7 @@
                             <t t-set="choice_index" t-value="choice_index" />
                         </t>
                     </t>
+                    <div t-ref="loadMoreSentinel"/>
                     <t t-if="props.slots and props.slots.bottomArea" t-slot="bottomArea" data="state"/>
                 </t>
             </Dropdown>

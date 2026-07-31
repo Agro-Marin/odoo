@@ -24,19 +24,16 @@
 </t>
 
 <t t-name="website.Configurator.DescriptionScreen">
-    <div class="o_configurator_screen h-100 d-flex flex-column o_description_screen"
-         t-on-focusin="onConfiguratorScreenFocusin">
+    <div class="o_configurator_screen h-100 d-flex flex-column o_description_screen">
         <div class="o_configurator_screen_content d-flex h-100 flex-grow-1">
             <div class="container align-self-center">
                 <div class="o_configurator_typing_text d-inline d-md-block mb-md-2 mb-lg-4 o_configurator_show">
                     <span>I want </span>
-                    <div t-attf-class="dropdown o_configurator_type_dd d-inline-block {{state.selectedType ? 'o_step_completed' : 'o_step_todo show'}}"
-                         t-on-focusout="onDropdownFocusout">
+                    <div t-attf-class="dropdown o_configurator_type_dd d-inline-block {{state.selectedType ? 'o_step_completed' : 'o_step_todo'}}">
+                        <Dropdown state="typeDropdown" menuClass="'border-0 shadow-lg'">
                         <button id="selectTypeToggle"
                                 class="o_btn_reset w-100 px-2"
-                                data-bs-toggle="dropdown"
                                 aria-haspopup="true"
-                                aria-expanded="true"
                                 aria-label="What type of website?"
                                 aria-controls="selectTypeMenu">
                             <span class="d-flex align-items-center">
@@ -46,20 +43,18 @@
                                 <i class="fa-solid fa-angle-down ms-auto ps-2" role="img"/>
                             </span>
                         </button>
-                        <div id="selectTypeMenu"
-                             t-attf-class="dropdown-menu border-0 shadow-lg {{state.selectedType ? 'o_step_completed' : 'o_step_todo show'}}"
-                             role="menu"
-                             aria-labelledby="selectTypeToggle">
+                        <t t-set-slot="content">
                             <t t-foreach="state.getWebsiteTypes()" t-as="type" t-key="type.name">
                                 <button t-att-title="type.name"
                                         t-on-click="() => this.selectWebsiteType(type.id)"
-                                        class="dropdown-item o_change_website_type"
+                                        class="dropdown-item o-navigable o_change_website_type"
                                         role="menuitem"
                                         t-ref="{{type.id === 1 ? 'autofocus' : type.name}}">
                                     <t t-esc="type.label"/>
                                 </button>
                             </t>
-                        </div>
+                        </t>
+                        </Dropdown>
                     </div>
                     <span t-if="state.selectedType" class="me-2 o_configurator_show"> for my</span>
                 </div>
@@ -83,13 +78,11 @@
                 </div>
                 <div t-if="state.selectedType and state.selectedIndustry" class="o_configurator_typing_text d-inline d-md-block mb-md-2 mb-lg-4 o_configurator_show">
                     <span>with the main objective to </span>
-                    <div t-attf-class="dropdown d-inline-block o_configurator_purpose_dd {{state.selectedPurpose ? 'o_step_completed' : 'o_step_todo'}}"
-                         t-on-focusout="onDropdownFocusout">
+                    <div t-attf-class="dropdown d-inline-block o_configurator_purpose_dd {{state.selectedPurpose ? 'o_step_completed' : 'o_step_todo'}}">
+                        <Dropdown state="purposeDropdown" menuClass="'border-0 shadow-lg'">
                         <button id="selectPurposeToggle"
                                 class="o_btn_reset w-100 px-2"
-                                data-bs-toggle="dropdown"
                                 aria-haspopup="true"
-                                aria-expanded="true"
                                 aria-label="To what purpose?"
                                 aria-controls="selectPurposeMenu">
                             <span class="d-flex align-items-center">
@@ -99,16 +92,17 @@
                                 <i class="fa-solid fa-angle-down ms-auto ps-2" role="img"/>
                             </span>
                         </button>
-                        <div id="selectPurposeMenu" class="dropdown-menu border-0 shadow-lg show" role="menu" aria-labelledby="selectPurposeToggle">
+                        <t t-set-slot="content">
                             <t t-foreach="state.getWebsitePurpose()" t-as="type" t-key="type.id">
                                 <button t-on-click="() => this.selectWebsitePurpose(type.id)"
-                                        class="dropdown-item o_change_website_purpose"
+                                        class="dropdown-item o-navigable o_change_website_purpose"
                                         role="menuitem"
                                         t-ref="{{type.id === 1 ? 'purposeSelection' : type.name}}">
                                     <t t-esc="type.label"/>
                                 </button>
                             </t>
-                        </div>
+                        </t>
+                        </Dropdown>
                     </div>
                 </div>
             </div>

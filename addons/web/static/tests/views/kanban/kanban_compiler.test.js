@@ -51,3 +51,25 @@ test("bootstrap dropdowns with kanban_ignore_dropdown class should be left as is
         </t>`;
     expect(compileTemplate(arch)).toHaveOuterHTML(expected);
 });
+
+test("data-self-handled is honoured like data-bs-toggle and left as is", async () => {
+    const arch = `
+        <kanban>
+            <templates>
+                <t t-name="card">
+                    <button name="menu" type="button" data-self-handled="1">Own click</button>
+                </t>
+            </templates>
+        </kanban>`;
+    const expected = `
+        <t t-translation="off">
+            <kanban>
+                <templates>
+                    <t t-name="card">
+                        <button name="menu" type="button" data-self-handled="1">Own click</button>
+                    </t>
+                </templates>
+            </kanban>
+        </t>`;
+    expect(compileTemplate(arch)).toHaveOuterHTML(expected);
+});

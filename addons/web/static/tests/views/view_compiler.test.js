@@ -341,3 +341,221 @@ describe("ViewCompiler — button disabled", () => {
         );
     });
 });
+
+test("a <details>/<summary> block compiles through with its field intact", async () => {
+    // `<details>` is how collapsible form arch is spelled now that Bootstrap's
+    // collapse data-api is gone: it needs no whitelist entry server-side and no
+    // JS client-side, but it must survive compileGenericNode with its children.
+    const compiler = new ViewCompiler({});
+    const arch = `
+        <form>
+            <details id="secret">
+                <summary class="h3">Cannot scan it?</summary>
+                <field name="secret"/>
+            </details>
+        </form>`;
+    const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
+    const compiled = compiler.compileNode(doc, {});
+
+    expect(compiled.querySelectorAll("details").length).toBe(1);
+    expect(compiled.querySelector("details").getAttribute("id")).toBe("secret");
+    expect(compiled.querySelectorAll("summary").length).toBe(1);
+    expect(compiled.querySelector("summary").textContent).toInclude("Cannot scan it?");
+});
+
+test("a bootstrap dropdown container compiles into an OWL Dropdown", async () => {
+    const compiler = new ViewCompiler({});
+    const arch = `
+        <form>
+            <div class="dropdown dropdown-sm">
+                <button class="btn border-0" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    <i class="fa-solid fa-ellipsis-v"/>
+                </button>
+                <div class="dropdown-menu extra-menu" role="menu">
+                    <a class="dropdown-item" type="object" name="do_thing" string="Do it"/>
+                </div>
+            </div>
+        </form>`;
+    const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
+    const compiled = compiler.compileNode(doc, {});
+
+    // The container survives; the toggle/menu pair becomes a Dropdown.
+    const container = compiled.querySelector("div.dropdown");
+    expect(container).not.toBe(null);
+    expect(compiled.querySelectorAll("Dropdown").length).toBe(1);
+    expect(compiled.querySelectorAll(".dropdown-menu").length).toBe(0);
+
+    const dropdown = compiled.querySelector("Dropdown");
+    expect(dropdown.getAttribute("menuClass")).toInclude("extra-menu");
+    // The toggle is the default slot and is no longer a Bootstrap control.
+    const toggle = dropdown.querySelector("button");
+    expect(toggle.hasAttribute("data-bs-toggle")).toBe(false);
+    expect(toggle.getAttribute("data-self-handled")).toBe("1");
+    // The menu's action item still compiled into a ViewButton.
+    const slot = dropdown.querySelector("t[t-set-slot='content']");
+    expect(slot.querySelectorAll("ViewButton").length).toBe(1);
+});
+
+test("dropdown-menu-end becomes a Dropdown position instead of a class", async () => {
+    const compiler = new ViewCompiler({});
+    const arch = `
+        <form>
+            <div class="btn-group">
+                <button type="button" data-bs-toggle="dropdown">Menu</button>
+                <div class="dropdown-menu dropdown-menu-end"><span>x</span></div>
+            </div>
+        </form>`;
+    const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
+    const dropdown = compiler.compileNode(doc, {}).querySelector("Dropdown");
+
+    expect(dropdown.getAttribute("position")).toInclude("bottom-end");
+    expect(dropdown.getAttribute("menuClass")).toBe(null);
+});
+
+test("a positioning class with no dropdown inside is left alone", async () => {
+    const compiler = new ViewCompiler({});
+    const arch = `
+        <form>
+            <div class="btn-group">
+                <button type="object" name="a">A</button>
+                <button type="object" name="b">B</button>
+            </div>
+        </form>`;
+    const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
+    const compiled = compiler.compileNode(doc, {});
+
+    expect(compiled.querySelectorAll("Dropdown").length).toBe(0);
+    expect(compiled.querySelectorAll("ViewButton").length).toBe(2);
+});
+
+/**
+ * The modal pairing runs in `compile()`, so these go through a real template
+ * rather than calling `compileNode` directly.
+ */
+function compileArch(arch) {
+    const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
+    return new ViewCompiler({ root: doc }).compile("root", {});
+}
+
+test("a bootstrap modal and its trigger compile into a Dialog driven by archDialogs", async () => {
+    const compiled = compileArch(`
+        <form>
+            <a href="#" data-bs-toggle="modal" data-bs-target=".o_my_modal" class="opener">Open</a>
+            <div class="modal o_my_modal">
+                <div class="modal-dialog"><div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Hide Tips</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"/>
+                    </div>
+                    <div class="modal-body"><p>Are you sure?</p></div>
+                    <div class="modal-footer">
+                        <a class="btn btn-secondary cancel" data-bs-dismiss="modal">Cancel</a>
+                    </div>
+                </div></div>
+            </div>
+        </form>`);
+
+    const dialog = compiled.querySelector("Dialog");
+    expect(dialog).not.toBe(null);
+    expect(dialog.getAttribute("title")).toInclude("Hide Tips");
+
+    // Both halves address the same archDialogs entry.
+    const openExpr = dialog.getAttribute("t-if");
+    expect(openExpr).toInclude("__comp__.archDialogs");
+    const key = openExpr.match(/\['(.+?)'\]/)[1];
+
+    const opener = compiled.querySelector(".opener");
+    expect(opener.getAttribute("t-on-click")).toInclude(`['${key}'] = true`);
+    expect(opener.hasAttribute("data-bs-toggle")).toBe(false);
+
+    // The footer's dismiss control closes that same entry.
+    const footer = dialog.querySelector("t[t-set-slot='footer']");
+    expect(footer.querySelector(".cancel").getAttribute("t-on-click")).toInclude(
+        `['${key}'] = false`,
+    );
+});
+
+test("a dismiss control that compiles to a component gets no DOM handler", async () => {
+    // OWL does not bind `t-on-*` on a component node; emitting one would make
+    // the compiled template fail to compile.
+    const compiled = compileArch(`
+        <form>
+            <a href="#" data-bs-toggle="modal" data-bs-target=".m" class="opener">Open</a>
+            <div class="modal m">
+                <div class="modal-body">body</div>
+                <div class="modal-footer">
+                    <a type="action" name="42" data-bs-dismiss="modal">Act</a>
+                </div>
+            </div>
+        </form>`);
+
+    const footer = compiled.querySelector("t[t-set-slot='footer']");
+    const action = footer.querySelector("ViewButton");
+    expect(action).not.toBe(null);
+    expect(action.hasAttribute("t-on-click")).toBe(false);
+});
+
+test("a modal nobody opens is left as ordinary markup", async () => {
+    const compiled = compileArch(`
+        <form>
+            <div class="modal orphan"><div class="modal-body">nothing opens me</div></div>
+        </form>`);
+
+    expect(compiled.querySelectorAll("Dialog").length).toBe(0);
+    expect(compiled.querySelectorAll(".modal").length).toBe(1);
+});
+
+test("a data-bs-target that is not valid CSS does not break compilation", async () => {
+    const compiled = compileArch(`
+        <form>
+            <a data-bs-toggle="modal" data-bs-target="#not a selector((" class="opener">Open</a>
+            <div class="modal real"><div class="modal-body">body</div></div>
+        </form>`);
+
+    expect(compiled.querySelectorAll("Dialog").length).toBe(0);
+    expect(compiled.querySelectorAll(".opener").length).toBe(1);
+});
+
+test("the Odoo spelling drives the same dropdown construct as the Bootstrap one", async () => {
+    const compiler = new ViewCompiler({});
+    const arch = `
+        <form>
+            <div class="dropdown">
+                <button type="button" data-self-handled="dropdown">Menu</button>
+                <div class="dropdown-menu">
+                    <a class="dropdown-item" type="object" name="go" string="Go"/>
+                </div>
+            </div>
+        </form>`;
+    const doc = new DOMParser().parseFromString(arch, "text/xml").documentElement;
+    const compiled = compiler.compileNode(doc, {});
+
+    expect(compiled.querySelectorAll("Dropdown").length).toBe(1);
+    expect(compiled.querySelectorAll(".dropdown-menu").length).toBe(0);
+    expect(
+        compiled.querySelector("t[t-set-slot='content'] ViewButton"),
+    ).not.toBe(null);
+});
+
+test("the Odoo spelling drives the same modal construct as the Bootstrap one", async () => {
+    const compiled = compileArch(`
+        <form>
+            <a href="#" data-self-handled="modal" data-modal-target=".m" class="opener">Open</a>
+            <div class="modal m">
+                <div class="modal-body">body</div>
+                <div class="modal-footer">
+                    <a class="cancel" data-modal-dismiss="1">Cancel</a>
+                </div>
+            </div>
+        </form>`);
+
+    const dialog = compiled.querySelector("Dialog");
+    expect(dialog).not.toBe(null);
+    const key = dialog.getAttribute("t-if").match(/\['(.+?)'\]/)[1];
+    expect(compiled.querySelector(".opener").getAttribute("t-on-click")).toInclude(
+        `['${key}'] = true`,
+    );
+    expect(
+        compiled.querySelector("t[t-set-slot='footer'] .cancel").getAttribute("t-on-click"),
+    ).toInclude(`['${key}'] = false`);
+});

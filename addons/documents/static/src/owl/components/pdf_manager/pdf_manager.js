@@ -7,6 +7,7 @@ import {
 } from "@documents/owl/components/pdf_manager/pdf_page_store";
 import { PdfPage } from "@documents/owl/components/pdf_page/pdf_page";
 import { Component, onWillStart, toRaw, useEffect, useRef, useState } from "@odoo/owl";
+import { Dropdown } from "@web/components/dropdown/dropdown";
 import { _t } from "@web/core/l10n/translation";
 import { uniqueId } from "@web/core/utils/functions";
 import { useService } from "@web/core/utils/hooks";
@@ -25,6 +26,7 @@ const NON_LEAVING_MENUS = ["shortcuts", "settings", "support", "documentation"];
 export class PdfManager extends Component {
     static components = {
         Dialog,
+        Dropdown,
         PdfPage,
         PdfGroupName,
     };

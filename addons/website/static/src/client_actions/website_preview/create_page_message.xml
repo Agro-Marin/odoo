@@ -10,7 +10,7 @@
                 <span class="me-auto">This page does not exist yet. Would you like to create it?</span>
                 <a role="button" class="btn btn-primary" t-on-click="this.props.createPage">Create Page</a>
             </div>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            <button type="button" class="btn-close" data-dismiss-alert="1" aria-label="Close"></button>
         </div>
     </div>
 </t>

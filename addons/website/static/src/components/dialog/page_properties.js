@@ -1,28 +1,29 @@
 /** @odoo-module native */
-import { Component, onWillDestroy, useEffect, useRef, useState, xml } from "@odoo/owl";
+import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { sprintf } from "@web/core/utils/format/strings";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
-import { renderToFragment } from "@web/core/utils/render";
 import { standardFieldProps } from "@web/fields/standard_field_props";
-import { Popover } from "@web/libs/bootstrap";
+import { usePopover } from "@web/ui/popover/popover_hook";
 import { FormController } from "@web/views/form/form_controller";
 import { formView } from "@web/views/form/form_view";
 import { FormViewDialog } from "@web/views/view_dialogs/form_view_dialog";
 
 import { WebsiteDialog } from "./dialog.js";
 
+/** Content of the "Dependencies" popover; rendered by the popover service. */
+class PageDependenciesPopover extends Component {
+    static template = "website.PageDependencies.Tooltip";
+    static props = {
+        dependencies: { type: Object },
+        close: { type: Function, optional: true },
+    };
+}
+
 export class PageDependencies extends Component {
     static template = "website.PageDependencies";
-    static popoverTemplate = xml`
-        <div class="popover o_page_dependencies" role="tooltip">
-            <div class="arrow"/>
-            <h3 class="popover-header"/>
-            <div class="popover-body"/>
-        </div>
-    `;
     static props = {
         resIds: Array,
         resModel: String,
@@ -35,6 +36,10 @@ export class PageDependencies extends Component {
 
         this.action = useRef("action");
         this.sprintf = sprintf;
+        this.dependenciesPopover = usePopover(PageDependenciesPopover, {
+            position: "right",
+            popoverClass: "o_page_dependencies",
+        });
 
         useEffect(
             () => {
@@ -44,10 +49,6 @@ export class PageDependencies extends Component {
         );
         this.state = useState({
             dependencies: {},
-        });
-
-        onWillDestroy(async () => {
-            await this.destroyDependenciesPopover();
         });
     }
 
@@ -64,36 +65,9 @@ export class PageDependencies extends Component {
     }
 
     showDependencies() {
-        const popover = Popover.getOrCreateInstance(this.action.el, {
-            title: _t("Dependencies"),
-            boundary: "viewport",
-            placement: "right",
-            trigger: "focus",
-            content: () =>
-                renderToFragment("website.PageDependencies.Tooltip", {
-                    dependencies: this.state.dependencies,
-                }),
+        this.dependenciesPopover.open(this.action.el, {
+            dependencies: this.state.dependencies,
         });
-        popover.toggle();
-    }
-
-    async destroyDependenciesPopover() {
-        const actionEl = this.action.el;
-        const popover = Popover.getInstance(actionEl);
-        if (popover) {
-            // If popover is hiding (animation), wait for the animation to
-            // complete.
-            if (!popover.tip.classList.contains("show")) {
-                await new Promise((resolve) => {
-                    const handler = () => {
-                        actionEl.removeEventListener("hidden.bs.popover", handler);
-                        resolve();
-                    };
-                    actionEl.addEventListener("hidden.bs.popover", handler);
-                });
-            }
-            popover.dispose();
-        }
     }
 }
 

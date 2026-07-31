@@ -20,10 +20,44 @@ import {
 } from "@web/core/utils/dom/xml";
 import { exprToBoolean } from "@web/core/utils/format/strings";
 
+import {
+    MODAL_TARGET_ATTRS,
+    NOT_SELF_HANDLED,
+    SELF_HANDLED_ATTR,
+    selfHandledSelector,
+} from "./self_handled.js";
 import { BUTTON_CLICK_PARAMS } from "./view_buttons.js";
 import { toStringExpression } from "./view_utils.js";
 const BUTTON_STRING_PROPS = ["string", "size", "title", "icon", "id"];
 const INTERP_REGEXP = /(\{\{|#\{)(.*?)(\}{1,2})/g;
+
+/** Modifiers consumed by the compiler itself; never copied onto the output. */
+const MODIFIER_ATTRS = ["column_invisible", "invisible", "readonly", "required"];
+
+/**
+ * Elements Bootstrap accepts as a dropdown's positioning parent. A construct is
+ * only recognised when one of these directly contains both the toggle and the
+ * menu, which is also the shape Bootstrap itself documents. A bare
+ * toggle/menu pair with no such parent is left alone.
+ */
+const DROPDOWN_CONTAINER_SELECTOR =
+    ".dropdown,.dropup,.dropend,.dropstart,.btn-group,.btn-group-vertical";
+const DROPDOWN_TOGGLE_SELECTOR = selfHandledSelector("dropdown");
+
+/**
+ * Marks the two halves of a modal construct — the control that opens it and the
+ * `.modal` itself — with a shared key, so each can compile to the same entry of
+ * the renderer's `archDialogs` state. Bootstrap pairs them with a CSS selector
+ * in `data-bs-target`, which only resolves at runtime; the pairing has to be
+ * resolved once, up front, while the whole arch tree is still in hand.
+ */
+const ARCH_DIALOG_KEY_ATTR = "data-arch-dialog";
+const MODAL_TRIGGER_SELECTOR = selfHandledSelector("modal")
+    .split(",")
+    .flatMap((control) => MODAL_TARGET_ATTRS.map((attr) => `${control}[${attr}]`))
+    .join(",");
+const MODAL_DISMISS_SELECTOR = '[data-modal-dismiss],[data-bs-dismiss="modal"]';
+const ARCH_DIALOGS_EXPR = "__comp__.archDialogs";
 
 /**
  * @param {string} str
@@ -228,12 +262,27 @@ export class ViewCompiler {
         /** @type {Compiler[]} */
         this.compilers = [
             {
-                selector:
-                    "a[type]:not([data-bs-toggle]),a[data-type]:not([data-bs-toggle])",
+                // The modal itself carries the key too, hence the exclusion.
+                selector: `[${ARCH_DIALOG_KEY_ATTR}]:not(.modal)`,
+                fn: this.compileModalControl,
+                doNotCopyAttributes: true,
+            },
+            {
+                selector: ".modal",
+                fn: this.compileModal,
+                doNotCopyAttributes: true,
+            },
+            {
+                selector: DROPDOWN_CONTAINER_SELECTOR,
+                fn: this.compileDropdown,
+                doNotCopyAttributes: true,
+            },
+            {
+                selector: `a[type]${NOT_SELF_HANDLED},a[data-type]${NOT_SELF_HANDLED}`,
                 fn: this.compileButton,
             },
             {
-                selector: "button:not([data-bs-toggle])",
+                selector: `button${NOT_SELF_HANDLED}`,
                 fn: this.compileButton,
                 doNotCopyAttributes: true,
             },
@@ -281,6 +330,7 @@ export class ViewCompiler {
      */
     compile(key, params = {}) {
         const root = this.templates[key].cloneNode(true);
+        this.pairArchDialogs(root);
         const child = this.compileNode(root, params);
         const newRoot = createElement("t", child ? [child] : []);
         newRoot.setAttribute("t-translation", "off");
@@ -331,6 +381,214 @@ export class ViewCompiler {
             compiledNode = this.applyInvisible(invisible, compiledNode, params);
         }
         return compiledNode;
+    }
+
+    /**
+     * Resolve every `data-bs-target` selector to the `.modal` it names and stamp
+     * both ends with a shared key. Run once per template, before compilation,
+     * because a trigger and its modal sit in different branches of the arch and
+     * are compiled independently.
+     *
+     * A modal nobody opens, or a trigger pointing at nothing, is left unpaired
+     * and so compiles as ordinary markup.
+     *
+     * @param {Element} root
+     */
+    pairArchDialogs(root) {
+        for (const trigger of root.querySelectorAll(MODAL_TRIGGER_SELECTOR)) {
+            const selector = MODAL_TARGET_ATTRS.map((a) =>
+                trigger.getAttribute(a),
+            ).find(Boolean);
+            if (!selector) {
+                continue;
+            }
+            let modal;
+            try {
+                modal = root.querySelector(selector);
+            } catch {
+                // `data-bs-target` is author-written and need not be valid CSS.
+                continue;
+            }
+            if (!modal?.classList.contains("modal")) {
+                continue;
+            }
+            const key =
+                modal.getAttribute(ARCH_DIALOG_KEY_ATTR) || `archDialog${this.id++}`;
+            modal.setAttribute(ARCH_DIALOG_KEY_ATTR, key);
+            trigger.setAttribute(ARCH_DIALOG_KEY_ATTR, key);
+            for (const dismiss of modal.querySelectorAll(MODAL_DISMISS_SELECTOR)) {
+                dismiss.setAttribute(ARCH_DIALOG_KEY_ATTR, key);
+            }
+        }
+    }
+
+    /**
+     * Compile a `.modal` written in arch into the web client's own `Dialog`.
+     *
+     * Bootstrap's modal is a block of markup that is present but hidden until
+     * its data-api shows it; `Dialog` is mounted into the overlay only while
+     * open. The open flag therefore has to live somewhere, and the renderer
+     * owns it: `archDialogs` is keyed by the pairing above, so the trigger and
+     * every dismiss control inside the modal address the same entry.
+     *
+     * @param {Element} el
+     * @param {Record<string, any>} params
+     * @returns {Element}
+     */
+    compileModal(el, params) {
+        const key = el.getAttribute(ARCH_DIALOG_KEY_ATTR);
+        if (!key) {
+            // No control in this arch opens it, so there is nothing to drive.
+            return this.compileGenericNode(el, params);
+        }
+        const openExpr = `${ARCH_DIALOGS_EXPR}['${key}']`;
+
+        const dialog = createElement("Dialog", { "t-if": openExpr });
+        dialog.setAttribute("close", `() => ${openExpr} = false`);
+
+        const titleEl = el.querySelector(".modal-title");
+        if (titleEl) {
+            dialog.setAttribute(
+                "title",
+                toStringExpression(titleEl.textContent.trim()),
+            );
+        }
+        const footerEl = el.querySelector(".modal-footer");
+        if (!footerEl) {
+            dialog.setAttribute("footer", "false");
+        }
+
+        const bodyEl = el.querySelector(".modal-body");
+        for (const child of (bodyEl || el).childNodes) {
+            append(dialog, this.compileNode(child, params));
+        }
+        if (footerEl) {
+            const footerSlot = createElement("t", { "t-set-slot": "footer" });
+            for (const child of footerEl.childNodes) {
+                append(footerSlot, this.compileNode(child, params));
+            }
+            append(dialog, footerSlot);
+        }
+        return dialog;
+    }
+
+    /**
+     * Compile a control that opens or closes a paired modal.
+     *
+     * @param {Element} el
+     * @param {Record<string, any>} params
+     * @returns {Element}
+     */
+    compileModalControl(el, params) {
+        const key = el.getAttribute(ARCH_DIALOG_KEY_ATTR);
+        const opens = [SELF_HANDLED_ATTR, "data-bs-toggle"].some(
+            (a) => el.getAttribute(a) === "modal",
+        );
+        for (const attr of [
+            SELF_HANDLED_ATTR,
+            "data-bs-toggle",
+            "data-bs-dismiss",
+            "data-modal-dismiss",
+            ...MODAL_TARGET_ATTRS,
+        ]) {
+            el.removeAttribute(attr);
+        }
+        el.removeAttribute(ARCH_DIALOG_KEY_ATTR);
+        // The control keeps whatever else it declares, so a dismissing
+        // `<a type="action">` still compiles to its action button.
+        const compiled = this.compileNode(el, params, false);
+        // `compileNode` also answers with text nodes and with nothing at all;
+        // only an element can carry the handler.
+        const element =
+            compiled && !isTextNode(compiled)
+                ? /** @type {Element} */ (compiled)
+                : null;
+        // A control that compiled to a component takes no DOM handler: OWL
+        // does not bind `t-on-*` on a component node, and emitting one would
+        // produce a template that fails to compile. Such a control runs its
+        // own action and leaves the dialog to whatever that action triggers.
+        if (element && !isComponentNode(element)) {
+            element.setAttribute(
+                "t-on-click",
+                `() => ${ARCH_DIALOGS_EXPR}['${key}'] = ${opens}`,
+            );
+        }
+        return /** @type {Element} */ (element);
+    }
+
+    /**
+     * Compile a Bootstrap dropdown written in arch into an OWL `Dropdown`.
+     *
+     * Arch — including arch stored in the database, which no source grep can
+     * reach — has always spelled a dropdown as a positioning container holding
+     * a `data-bs-toggle="dropdown"` control and a sibling `.dropdown-menu`.
+     * Recognising that shape here is what lets those views keep working once
+     * Bootstrap's JS is gone, rather than each one having to be rewritten.
+     *
+     * The container itself is kept and compiled as an ordinary element: its
+     * classes and modifiers belong to the surrounding layout, and `Dropdown`
+     * takes no class of its own. Only the toggle/menu pair inside it is
+     * replaced.
+     *
+     * @param {Element} el
+     * @param {Record<string, any>} params
+     * @returns {Element}
+     */
+    compileDropdown(el, params) {
+        const children = [...el.children];
+        const toggleEl = children.find((c) => c.matches(DROPDOWN_TOGGLE_SELECTOR));
+        const menuEl = children.find((c) => c.classList.contains("dropdown-menu"));
+        if (!toggleEl || !menuEl) {
+            // A positioning class used for layout only, with no dropdown in it.
+            return this.compileGenericNode(el, params);
+        }
+
+        const compiled = createElement(el.nodeName.toLowerCase());
+        for (const attr of el.attributes) {
+            if (!MODIFIER_ATTRS.includes(attr.name)) {
+                compiled.setAttribute(attr.name, attr.value);
+            }
+        }
+
+        const dropdown = createElement("Dropdown");
+        const menuClasses = [...menuEl.classList].filter(
+            (c) => c !== "dropdown-menu" && c !== "dropdown-menu-end",
+        );
+        if (menuClasses.length) {
+            dropdown.setAttribute(
+                "menuClass",
+                toStringExpression(menuClasses.join(" ")),
+            );
+        }
+        if (menuEl.classList.contains("dropdown-menu-end")) {
+            // Bootstrap aligns the menu with a class; `Dropdown` positions it.
+            dropdown.setAttribute("position", toStringExpression("bottom-end"));
+        }
+
+        // Swapped rather than dropped: the toggle must stop being a Bootstrap
+        // control (or the data-api would open a second menu once both are on
+        // the page) while still being excluded from `compileButton`, which
+        // would otherwise read its `type="button"` as an Odoo action type.
+        toggleEl.removeAttribute("data-bs-toggle");
+        toggleEl.removeAttribute("aria-expanded");
+        toggleEl.setAttribute("data-self-handled", "1");
+        append(dropdown, this.compileNode(toggleEl, params));
+
+        const contentSlot = createElement("t");
+        contentSlot.setAttribute("t-set-slot", "content");
+        for (const child of menuEl.childNodes) {
+            append(contentSlot, this.compileNode(child, params));
+        }
+        append(dropdown, contentSlot);
+
+        for (const child of el.childNodes) {
+            if (child === toggleEl) {
+                append(compiled, dropdown);
+            } else if (child !== menuEl) {
+                append(compiled, this.compileNode(child, params));
+            }
+        }
+        return compiled;
     }
 
     /**
@@ -438,9 +696,8 @@ export class ViewCompiler {
      */
     compileGenericNode(el, params) {
         const compiled = createElement(el.nodeName.toLowerCase());
-        const metaAttrs = ["column_invisible", "invisible", "readonly", "required"];
         for (const attr of el.attributes) {
-            if (metaAttrs.includes(attr.name)) {
+            if (MODIFIER_ATTRS.includes(attr.name)) {
                 continue;
             }
             compiled.setAttribute(attr.name, attr.value);

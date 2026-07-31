@@ -88,6 +88,19 @@ export class FormCompiler extends ViewCompiler {
         if (!params.isSubView) {
             compiled.children[0].setAttribute("t-ref", "compiled_view_root");
         }
+        // Zero-height marker for the top of the scrolling sheet, which the
+        // statusbar's shadow tracks. Inserted once the form is assembled: the
+        // header and anything declared before <sheet> are moved into the same
+        // container afterwards, and the marker has to stay its first child.
+        const sheetBG = compiled.querySelector(".o_form_sheet_bg");
+        if (sheetBG) {
+            sheetBG.prepend(
+                createElement("div", {
+                    "t-ref": "stickySentinel",
+                    class: "o_form_sheet_scroll_sentinel",
+                }),
+            );
+        }
         return compiled;
     }
 
@@ -732,9 +745,7 @@ export class FormCompiler extends ViewCompiler {
      * @returns {Element}
      */
     compileSheet(el, params) {
-        const sheetBG = createElement("div", {
-            "t-on-scroll": "__comp__.onScrollThrottled",
-        });
+        const sheetBG = createElement("div");
         sheetBG.className = "o_form_sheet_bg";
 
         const sheetFG = createElement("div");
