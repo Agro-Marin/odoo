@@ -47,7 +47,9 @@ describe("connection recovery outlives nothing", () => {
         });
 
         const error = new UncaughtPromiseError();
-        error.unhandledRejectionEvent = { preventDefault: () => {} };
+        error.unhandledRejectionEvent = /** @type {any} */ ({
+            preventDefault: () => {},
+        });
         /** @type {string[]} */
         const notifications = [];
         const env = {
@@ -61,14 +63,18 @@ describe("connection recovery outlives nothing", () => {
             },
         };
 
-        const recovery = connectionRecoveryService.start(env);
+        const recovery = connectionRecoveryService.start(/** @type {any} */ (env));
         recovery.destroy();
 
         // Destroy used to DELETE the per-env state, so a late error allocated a
         // fresh `destroyed: false` one and started polling an env nobody shows.
-        expect(lostConnectionHandler(env, error, new ConnectionLostError("/x"))).toBe(
-            true,
-        );
+        expect(
+            lostConnectionHandler(
+                /** @type {any} */ (env),
+                error,
+                new ConnectionLostError("/x"),
+            ),
+        ).toBe(true);
         await advanceTime(120_000);
         expect.verifySteps([]);
         expect(notifications).toEqual([]);
@@ -138,7 +144,7 @@ describe("file upload teardown", () => {
         const created = [];
         patchWithCleanup(fileUploadService, {
             createXhr() {
-                const xhr = {
+                const xhr = /** @type {any} */ ({
                     status: 0,
                     responseText: "",
                     upload: { addEventListener() {} },
@@ -157,7 +163,7 @@ describe("file upload teardown", () => {
                     ) {
                         this.listeners[type] = cb;
                     },
-                };
+                });
                 created.push(xhr);
                 return xhr;
             },
@@ -249,7 +255,7 @@ describe("user cache invalidation ownership", () => {
 
 describe("pwa install-prompt latch", () => {
     test("a parked prompt does not survive into the next test", async () => {
-        const ev = new CustomEvent("beforeinstallprompt");
+        const ev = /** @type {any} */ (new CustomEvent("beforeinstallprompt"));
         ev.preventDefault = () => {};
         ev.prompt = async () => ({ outcome: "accepted" });
         browser.BeforeInstallPromptEvent = ev;
@@ -265,7 +271,7 @@ describe("pwa install-prompt latch", () => {
     });
 
     test("a prompt parked before start is still claimed by the service", async () => {
-        const ev = new CustomEvent("beforeinstallprompt");
+        const ev = /** @type {any} */ (new CustomEvent("beforeinstallprompt"));
         ev.preventDefault = () => {};
         ev.prompt = async () => ({ outcome: "accepted" });
         browser.BeforeInstallPromptEvent = ev;
@@ -280,7 +286,8 @@ describe("pwa install-prompt latch", () => {
 describe("async service protection", () => {
     test("a pwa manifest landing after unmount does not reach the component", async () => {
         /** @type {(value: any) => void} */
-        let releaseManifest;
+        /** @type {(value: any) => void} */
+        let releaseManifest = () => {};
         const manifestPromise = new Promise((resolve) => {
             releaseManifest = resolve;
         });

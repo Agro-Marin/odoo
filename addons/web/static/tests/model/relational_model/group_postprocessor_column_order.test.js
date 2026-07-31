@@ -40,11 +40,12 @@ class Task extends models.Model {
 defineModels({ ...webModels, Product, Task });
 
 test("grouped kanban keeps column order after three columns empty out", async () => {
+    /** @type {any} */
     let model;
     patchWithCleanup(KanbanController.prototype, {
         setup() {
             super.setup();
-            model = this.model;
+            model = /** @type {any} */ (this).model;
         },
     });
 

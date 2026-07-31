@@ -37,6 +37,7 @@ function makeChild({ resId, dirty, changes }) {
     };
 }
 
+/** @returns {any} a partial RelationalRecord, enough for checkValidity */
 function makeParent(child) {
     const list = {
         count: 1,

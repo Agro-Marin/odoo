@@ -21,9 +21,13 @@ function mountSelectionHost(onToggle) {
     class Host extends Component {
         static template = xml`<div/>`;
         static props = {};
+        /** @type {ReturnType<typeof useListSelection>} */
+        sel;
+
         setup() {
             this.sel = useListSelection({
-                getProps: () => ({ list: { selection: [], records: [] } }),
+                getProps: () =>
+                    /** @type {any} */ ({ list: { selection: [], records: [] } }),
                 getAllowSelectors: () => true,
                 toggleRecordSelection: onToggle,
                 longTouchThreshold: LONG_TOUCH_THRESHOLD,
@@ -38,7 +42,10 @@ test("a pending long touch is cancelled when the component is destroyed", async 
     let toggled = 0;
     const host = await mountSelectionHost(() => toggled++);
 
-    host.sel.onRowTouchStart({ id: "rec1" }, { stopPropagation() {} });
+    host.sel.onRowTouchStart(
+        /** @type {any} */ ({ id: "rec1" }),
+        /** @type {any} */ ({ stopPropagation() {} }),
+    );
     destroy(host);
     await advanceTime(LONG_TOUCH_THRESHOLD * 2);
 
@@ -49,7 +56,10 @@ test("a long touch that completes before destroy still toggles selection", async
     let toggled = 0;
     const host = await mountSelectionHost(() => toggled++);
 
-    host.sel.onRowTouchStart({ id: "rec1" }, { stopPropagation() {} });
+    host.sel.onRowTouchStart(
+        /** @type {any} */ ({ id: "rec1" }),
+        /** @type {any} */ ({ stopPropagation() {} }),
+    );
     await advanceTime(LONG_TOUCH_THRESHOLD * 2);
 
     expect(toggled).toBe(1);
