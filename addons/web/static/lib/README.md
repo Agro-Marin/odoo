@@ -79,9 +79,18 @@ missing. Never write an `fc-<hash>` literal; resolve names through
 `fcInternalClassName()` in `@web/views/calendar/hooks/full_calendar_hook`.
 
 **`pdfjs/`** ships the full viewer, which the npm package does not carry, so a bump
-starts from the `pdfjs-<v>-dist.zip` on the GitHub releases page. That archive does not
-match the vendored layout: `addons/web/tooling/scripts/mechanise_pdfjs.sh
-<unzipped-dir>`
+starts from a release archive on the GitHub releases page — specifically the
+**legacy** one, `pdfjs-<v>-legacy-dist.zip`, never the plain `-dist.zip`. The modern
+build calls `Map.prototype.getOrInsertComputed` with no feature detection and never
+defines it, and that method only reached Baseline in February 2026 (Firefox 144,
+Safari 26.2, Chrome 145) — so taking that build breaks PDF preview on every older
+browser, which is not hypothetical: t24581 was reported from Chrome 141. Only the
+legacy build bundles the core-js polyfill, in both `build/pdf.js` and
+`build/pdf.worker.js`. `addons/web/tests/test_pdfjs_dist.py` gates the flavour
+against the bundle files, which is the only place it can be gated — a browser that
+ships the method natively satisfies any runtime check whatever build is vendored.
+`pdfjs-<v>-legacy-dist.zip` does not match the vendored layout:
+`addons/web/tooling/scripts/mechanise_pdfjs.sh <unzipped-dir>`
 reshapes it (`.mjs` to `.js`, source-map references stripped, scripting sandbox and
 sample assets dropped), and its header explains each choice. Run it first, then
 re-apply the 12 `AgroMarin:` markers in `web/viewer.js`.

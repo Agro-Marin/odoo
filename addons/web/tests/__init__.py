@@ -23,6 +23,7 @@ from . import test_load_menus
 from . import test_login
 from . import test_onchange
 from . import test_partner
+from . import test_pdfjs_dist
 from . import test_perf_load_menu
 from . import test_pivot_export
 from . import test_profiler
