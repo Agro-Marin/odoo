@@ -156,11 +156,24 @@ class PosSelfOrderController(http.Controller):
     @http.route('/pos-self-order/validate-partner', auth='public', type='jsonrpc', website=True)
     def validate_partner(self, access_token, name, phone, street, zip, city, country_id, state_id=None, partner_id=None, email=None):
         pos_config = self._verify_pos_config(access_token)
-        existing_partner = pos_config.env['res.partner'].sudo().browse(int(partner_id)) if partner_id else False
+        # partner_id comes from the caller, so *record* access must be decided
+        # with the service user's rights. Looking the partner up under sudo()
+        # returned partners of other companies to anyone holding the kiosk
+        # access_token, which is public. search() makes the access check part of
+        # the lookup: an unreachable id yields an empty set and falls through to
+        # the create branch, rather than raising out of a public endpoint.
+        existing_partner = pos_config.env['res.partner'].search(
+            [('id', '=', int(partner_id))]
+        ) if partner_id else False
 
-        if existing_partner and existing_partner.exists():
+        if existing_partner:
+            # sudo: *field* access only, on a record whose record-level access
+            # was just established above. _load_pos_data_fields is extensible
+            # and includes accounting fields (pos_settle_due adds credit_limit)
+            # that a POS service user cannot read. Do not widen this back into a
+            # sudo() lookup -- that is what disclosed other companies' partners.
             return {
-                'res.partner': self.env['res.partner']._load_pos_self_data_read(existing_partner, pos_config),
+                'res.partner': self.env['res.partner']._load_pos_self_data_read(existing_partner.sudo(), pos_config),
             }
 
         state_id = pos_config.env['res.country.state'].browse(int(state_id)) if state_id else False
