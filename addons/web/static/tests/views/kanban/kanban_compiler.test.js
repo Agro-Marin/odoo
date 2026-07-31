@@ -3,7 +3,7 @@
 import { expect, test } from "@odoo/hoot";
 import { KanbanCompiler } from "@web/views/kanban/kanban_compiler";
 
-function compileTemplate(arch) {
+function compileTemplate(/** @type {string} */ arch) {
     const parser = new DOMParser();
     const xml = parser.parseFromString(arch, "text/xml");
     const compiler = new KanbanCompiler({ kanban: xml.documentElement });

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_renderer - Card layout, column grouping, drag-and-drop reorder, and quick-create for kanban view */
+/** @module @web/views/kanban/kanban_renderer */
 
 import { Component, onPatched, onWillDestroy, useRef, useState } from "@odoo/owl";
 import { Dropdown } from "@web/components/dropdown/dropdown";
@@ -85,7 +85,9 @@ export class KanbanRenderer extends Component {
 
     /** @type {any[]} */
     dialogClose;
-    /** @type {{ selectionAvailable: boolean; processedIds: string[]; columnQuickCreateIsFolded: boolean }} */
+    /**
+     * @type {{ selectionAvailable: boolean; processedIds: string[]; columnQuickCreateIsFolded: boolean }}
+     */
     state;
     /** @type {any} */
     dialog;
@@ -305,8 +307,6 @@ export class KanbanRenderer extends Component {
     }
 
     /**
-     * When the kanban records are grouped, the 'false' or 'undefined' group
-     * must appear first.
      * @returns {any[]}
      */
     getGroupsOrRecords() {
@@ -344,9 +344,6 @@ export class KanbanRenderer extends Component {
         if (this.props.progressBarState && !group.isFolded) {
             const progressBarInfo = this.props.progressBarState.getGroupInfo(group);
             if (progressBarInfo.activeBar) {
-                // A restored active bar whose value is no longer among the
-                // arch's `colors` keys resolves to nothing; that must not take
-                // the whole kanban render down over a colour class.
                 const progressBar = progressBarInfo.bars.find(
                     (b) => b.value === progressBarInfo.activeBar,
                 );
@@ -626,11 +623,9 @@ export class KanbanRenderer extends Component {
     }
 
     /**
-     * Focus next card in the area within the chosen direction.
-     *
      * @param {HTMLElement} area
      * @param {"down"|"up"|"right"|"left"} direction
-     * @returns {true | undefined} true if the next card has been focused
+     * @returns {true | undefined}
      */
     focusNextCard(area, direction) {
         const { isGrouped } = this.props.list;

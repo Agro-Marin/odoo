@@ -1,20 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_column_examples_dialog - Dialog showcasing example column layouts for kanban board setup */
+/** @module @web/views/kanban/kanban_column_examples_dialog */
 
 import { Component, useRef } from "@odoo/owl";
 import { Notebook } from "@web/components/notebook/notebook";
 import { Dialog } from "@web/ui/dialog/dialog";
 
 /**
- * @param {number} min - Inclusive lower bound.
- * @param {number} max - Exclusive upper bound.
- * @returns {number} Random integer in [min, max).
+ * @param {number} min
+ * @param {number} max
+ * @returns {number}
  */
 const random = (min, max) => Math.floor(Math.random() * (max - min) + min);
 
-/** Renders a single example tab with randomized placeholder records. */
 class KanbanExamplesNotebookTemplate extends Component {
     static template = "web.KanbanExamplesNotebookTemplate";
     static props = {
@@ -33,9 +32,11 @@ class KanbanExamplesNotebookTemplate extends Component {
         const hasBullet = this.props.bullets && this.props.bullets.length;
         const allColumns = [...this.props.columns, ...this.props.foldedColumns];
         for (const title of allColumns) {
-            const col = { title, records: [] };
-            this.columns.push(col);
+            /** @type {Record<string, any>[]} */
+            const records = [];
+            this.columns.push({ title, records });
             for (let i = 0; i < random(1, 5); i++) {
+                /** @type {Record<string, any>} */
                 const rec = { id: i };
                 if (hasBullet && Math.random() > 0.3) {
                     const sampleId = Math.floor(
@@ -43,16 +44,12 @@ class KanbanExamplesNotebookTemplate extends Component {
                     );
                     rec.bullet = this.props.bullets[sampleId];
                 }
-                col.records.push(rec);
+                records.push(rec);
             }
         }
     }
 }
 
-/**
- * Dialog presenting predefined column layouts a user can apply to
- * auto-create columns on a grouped kanban that has none yet.
- */
 export class KanbanColumnExamplesDialog extends Component {
     static template = "web.KanbanColumnExamplesDialog";
     static components = { Dialog, Notebook };
@@ -62,6 +59,11 @@ export class KanbanColumnExamplesDialog extends Component {
         applyExamplesText: { type: String, optional: true },
         close: Function,
     };
+
+    /** @type {Record<string, any>[]} */
+    pages;
+    /** @type {string | null} */
+    activePage;
 
     setup() {
         this.navList = useRef("navList");
@@ -78,14 +80,12 @@ export class KanbanColumnExamplesDialog extends Component {
     }
 
     /**
-     * Track the currently selected notebook tab.
-     * @param {string} page - Tab identifier (example name).
+     * @param {string} page
      */
     onPageUpdate(page) {
         this.activePage = page;
     }
 
-    /** Apply the selected example layout and close the dialog. */
     applyExamples() {
         const index = this.props.examples.findIndex((e) => e.name === this.activePage);
         this.props.applyExamples(index);

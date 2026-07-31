@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_view - Kanban view descriptor registered in the view registry */
+/** @module @web/views/kanban/kanban_view */
 
 import { registry } from "@web/core/registry";
 import { RelationalModel } from "@web/model/relational_model/relational_model";
@@ -12,10 +12,6 @@ import { KanbanController } from "./kanban_controller.js";
 import { KanbanRenderer } from "./kanban_renderer.js";
 
 /**
- * Kanban view descriptor registered in the "views" registry. The `props`
- * factory parses the arch XML and merges the result into the controller's
- * component props.
- *
  * @type {{
  *   type: string,
  *   ArchParser: typeof KanbanArchParser,

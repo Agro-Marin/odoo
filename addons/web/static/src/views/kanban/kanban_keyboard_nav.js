@@ -1,44 +1,22 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_keyboard_nav - Hotkey wiring for Enter/Space/Arrow card navigation in kanban view */
+/** @module @web/views/kanban/kanban_keyboard_nav */
 
 import { SearchModelEvent } from "@web/core/events";
 import { useHotkey } from "@web/services/hotkeys/hotkey_hook";
 
 /**
  * @typedef {object} KanbanKeyboardNavOptions
- * @property {{ el: HTMLElement | null }} rootRef OWL ref to the kanban root.
- * @property {() => boolean} getCanOpenRecords Whether ``Enter`` on a
- *   focused card should open the record (vs. clicking the first
- *   embedded link/button). Defaults to the arch's ``canOpenRecords``.
- * @property {() => boolean} getQuickCreateActive Whether a quick-create
- *   input is currently open; hotkeys other than Enter disable while
- *   the user is typing into the quick-create form.
+ * @property {{ el: HTMLElement | null }} rootRef
+ * @property {() => boolean} getCanOpenRecords
+ * @property {() => boolean} getQuickCreateActive
  * @property {(target: HTMLElement, isRange?: boolean) => void} onSpace
- *   Renderer-supplied space/shift+space handler (kept on the prototype
- *   so subclasses can override).
- * @property {(area: HTMLElement, direction: "up" | "down" | "left" | "right") => boolean}
- *   onArrowNav Renderer-supplied focus mover. Returns ``false`` when
- *   the move falls off the top edge, so the caller can hand focus
- *   back to the search bar (handled internally for ``up`` only).
- * @property {any} [searchModel] Optional searchModel reference used
- *   to bubble ``focus-search`` when ArrowUp leaves the top row.
- *   Omitted when the renderer mounts without a search context.
+ * @property {(area: HTMLElement, direction: "up" | "down" | "left" | "right") => boolean} onArrowNav
+ * @property {any} [searchModel]
  */
 
 /**
- * Install kanban keyboard navigation: ``Enter`` opens / clicks,
- * ``Space`` / ``Shift+Space`` invoke the range-select hook, arrows
- * walk the focused card.
- *
- * All hotkeys are scoped to ``rootRef.el`` via ``area`` so they don't
- * leak into ancestor components (e.g. a kanban embedded in a form
- * dialog still lets the form swallow its own keys).
- *
- * The hook does not own selection state — that lives on the renderer
- * (see {@link useKanbanSelection} for the Alt-key affordance).
- *
  * @param {KanbanKeyboardNavOptions} options
  */
 export function useKanbanKeyboardNavigation(options) {

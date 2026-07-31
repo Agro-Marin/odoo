@@ -1,27 +1,19 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/kanban_sortable_hook - useSortable wiring for record + group reordering in kanban view */
+/** @module @web/views/kanban/kanban_sortable_hook */
 
 import { useSortable } from "@web/core/utils/dnd/sortable_owl";
 
 /**
  * @typedef {object} KanbanSortableOptions
- * @property {{ el: HTMLElement | null }} rootRef OWL ref to the kanban root.
- * @property {() => boolean} getCanUseSortable One-time guard (e.g.
- *   ``!env.isSmall``); when false, no sortable listeners are installed.
- * @property {() => boolean} getCanResequenceRecords Per-call gate from
- *   {@link useSortable} for the record-drag instance.
- * @property {() => boolean} getCanResequenceGroups Per-call gate for
- *   the group-drag instance.
- * @property {() => boolean} getCanMoveRecords Whether records can cross
- *   column boundaries; forwarded to ``useSortable``'s ``connectGroups``.
- * @property {() => boolean} getIsGrouped Drives ``useSortable``'s
- *   ``groups`` selector so only grouped kanbans get ``.o_kanban_group``
- *   wired up.
- * @property {() => { length: number; forEach: (cb: (r: any) => void) => void } | null | undefined}
- *   getSelection Currently-selected records, cleared on drag start so a
- *   multi-select drag only moves the dragged card. May be nullish.
+ * @property {{ el: HTMLElement | null }} rootRef
+ * @property {() => boolean} getCanUseSortable
+ * @property {() => boolean} getCanResequenceRecords
+ * @property {() => boolean} getCanResequenceGroups
+ * @property {() => boolean} getCanMoveRecords
+ * @property {() => boolean} getIsGrouped
+ * @property {() => { length: number; forEach: (cb: (r: any) => void) => void } | null | undefined} getSelection
  * @property {(params: any) => any} onSortStart
  * @property {(params: any) => any} onSortStop
  * @property {(params: any) => any} onSortRecordGroupEnter
@@ -31,10 +23,6 @@ import { useSortable } from "@web/core/utils/dnd/sortable_owl";
  */
 
 /**
- * Wire the two ``useSortable`` instances the kanban renderer needs: one
- * for record drag (with optional cross-group connection), one for
- * column reorder. Both are skipped when ``getCanUseSortable()`` is false.
- *
  * @param {KanbanSortableOptions} options
  */
 export function useKanbanSortable(options) {

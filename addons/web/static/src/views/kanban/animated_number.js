@@ -1,16 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/animated_number - Numeric display with smooth CSS animation on value changes and optional multi-currency popover */
+/** @module @web/views/kanban/animated_number */
 
 import { Component, onWillUnmount, onWillUpdateProps, useState } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
-import { formatInteger, formatMonetary } from "@web/fields/formatters";
+import { formatInteger, formatMonetary } from "@web/core/formatters";
 import { user } from "@web/services/user";
 import { usePopover } from "@web/ui/popover/popover_hook";
 import { MultiCurrencyPopover } from "@web/views/view_components/multi_currency_popover";
 
-/** Displays a numeric value with a smooth CSS animation when it increases, optionally formatted as monetary with multi-currency popover. */
 export class AnimatedNumber extends Component {
     static template = "web.AnimatedNumber";
     static props = {
@@ -65,7 +64,6 @@ export class AnimatedNumber extends Component {
     }
 
     /**
-     * Format the value as monetary (if a currency is set) or as a human-readable integer.
      * @param {number} value
      * @returns {string}
      */
@@ -75,18 +73,18 @@ export class AnimatedNumber extends Component {
                 currencyId: this.currencyId,
                 humanReadable: true,
                 digits: [null, 0],
-                minDigits: 3,
+                minIntegerDigits: 3,
             });
         }
-        return formatInteger(value, { humanReadable: true, minDigits: 3 });
+        return formatInteger(value, { humanReadable: true, minIntegerDigits: 3 });
     }
 
-    /** Open a popover showing equivalent values in other currencies. */
-    openMultiCurrencyPopover(ev) {
+    openMultiCurrencyPopover(/** @type {MouseEvent} */ ev) {
         if (!this.multiCurrencyPopover.isOpen) {
-            this.multiCurrencyPopover.open(ev.target, {
+            const target = /** @type {HTMLElement} */ (ev.target);
+            this.multiCurrencyPopover.open(target, {
                 currencyIds: this.props.currencies,
-                target: ev.target,
+                target,
                 value: this.props.value,
             });
         }

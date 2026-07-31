@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/views/kanban/progress_bar_hook - Progress bar state computation, active bar filtering, and per-group aggregate tracking for kanban columns */
+/** @module @web/views/kanban/progress_bar_hook */
 
 import { onWillDestroy, reactive } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
@@ -19,11 +19,6 @@ const FALSE = Symbol("False");
 const MOVE_RECONCILE_DELAY = 300;
 
 /**
- * Shared, immutable "bars not loaded yet" reply from {@link
- * ProgressBarState#getGroupInfo}. One frozen instance, not a fresh literal per
- * call: this is read once per group per render and handed to `ColumnProgress`
- * as a prop, and OWL compares props with `!==` — a new object every render made
- * the child un-skippable for the whole pre-load window.
  * @type {{ activeBar: string | null, bars: Object[], total: number, isReady: boolean }}
  */
 const EMPTY_GROUP_INFO = Object.freeze({
@@ -34,22 +29,20 @@ const EMPTY_GROUP_INFO = Object.freeze({
 });
 
 /**
- * Find a group entry matching a specific group-by field value.
- * @param {Object[]} groups - Aggregate group data from formatted_read_group.
- * @param {Object} groupByField - Field descriptor with a `name` property.
- * @param {*} value - The group value to match.
- * @returns {Object} The matching group entry, or an empty object.
+ * @param {Object[]} groups
+ * @param {Object} groupByField
+ * @param {*} value
+ * @returns {Object}
  */
 function _findGroup(groups, groupByField, value) {
     return groups.find((g) => g[groupByField.name] === value) || {};
 }
 
 /**
- * Build a domain filter for a selected progress bar segment.
- * @param {string} fieldName - The progress bar field name.
- * @param {Object[]} bars - All bar segments (including the "Other" sentinel).
- * @param {*} value - The selected bar value, or FALSE symbol for "Other".
- * @returns {Array} An Odoo domain expression.
+ * @param {string} fieldName
+ * @param {Object[]} bars
+ * @param {*} value
+ * @returns {Array}
  */
 function _createFilterDomain(fieldName, bars, value) {
     let filterDomain;
@@ -63,11 +56,10 @@ function _createFilterDomain(fieldName, bars, value) {
 }
 
 /**
- * Convert raw formatted_read_group results into aggregate value maps.
- * @param {Object[]} groups - Raw group data from formatted_read_group.
- * @param {string[]} groupBy - The group-by specification.
- * @param {Object} fields - Field definitions.
- * @returns {Object[]} Array of aggregate value objects keyed by field name.
+ * @param {Object[]} groups
+ * @param {string[]} groupBy
+ * @param {Object} fields
+ * @returns {Object[]}
  */
 function _groupsToAggregateValues(groups, groupBy, fields) {
     const groupByFieldName = groupBy[0].split(":")[0];
@@ -81,19 +73,12 @@ function _groupsToAggregateValues(groups, groupBy, fields) {
     });
 }
 
-/**
- * Reactive state manager for kanban column progress bars.
- *
- * Tracks per-group bar segment counts, active bar selection (filtering),
- * and aggregate values. Coordinates with the model to load progress bar
- * data via `read_progress_bar` RPC and refresh counts after record changes.
- */
 class ProgressBarState {
     /**
-     * @param {Object} progressAttributes - Parsed `<progressbar>` arch config.
-     * @param {Object} model - The kanban RelationalModel instance.
-     * @param {Object[]} aggregateFields - Fields to compute aggregates for.
-     * @param {Object} [activeBars={}] - Restored active bar selections keyed by group serverValue.
+     * @param {Object} progressAttributes
+     * @param {Object} model
+     * @param {Object[]} aggregateFields
+     * @param {Object} [activeBars={}]
      */
     constructor(progressAttributes, model, aggregateFields, activeBars = {}) {
         this.progressAttributes = progressAttributes;
@@ -105,15 +90,14 @@ class ProgressBarState {
         this._pbCounts = null;
         this._pbEpoch = 0;
         this._aggEpoch = 0;
-        /** @type {Map<*, number>} keyed by group serverValue */
+        /** @type {Map<*, number>} */
         this._groupAggEpochs = new Map();
         this._pendingBarDeselections = new Set();
         this._recordMoves = new Map();
     }
 
     /**
-     * Get or compute progress bar info for a group (bars, active selection, readiness).
-     * @param {Group} group - The kanban group datapoint.
+     * @param {Group} group
      * @returns {{ activeBar: string | null, bars: Object[], total: number, isReady: boolean }}
      */
     getGroupInfo(group) {
@@ -127,16 +111,7 @@ class ProgressBarState {
     }
 
     /**
-     * Build a group's progress-bar info and cache it in ``_groupsInfo``,
-     * performing the reactive bookkeeping that must accompany it: refresh the
-     * group's entry in ``_aggregateValues`` and, for an active bar, sync its
-     * ``count``/``aggregates``. This is the single home of those mutations, so
-     * they can be driven from data-update paths rather than from a render.
-     *
-     * Deselecting an emptied active bar is NOT done here: that issues an
-     * applyFilter RPC and lives in ``_deselectEmptyActiveBars`` (data-update
-     * paths) so it never fires from the render-triggered lazy seed.
-     * @param {Group} group - The kanban group datapoint.
+     * @param {Group} group
      */
     _seedGroupInfo(group) {
         const aggValues = _findGroup(
@@ -209,9 +184,8 @@ class ProgressBarState {
     }
 
     /**
-     * Compute the displayed aggregate value for a group's progress bar header.
-     * @param {Group} group - The kanban group datapoint.
-     * @param {Object} aggregateField - The sum field definition.
+     * @param {Group} group
+     * @param {Object} aggregateField
      * @returns {{ title: string, value: number, currencies?: Array }}
      */
     getAggregateValue(group, aggregateField) {
@@ -264,9 +238,8 @@ class ProgressBarState {
     }
 
     /**
-     * Toggle a progress bar segment selection, filtering the group's records.
-     * @param {string} groupId - The group datapoint ID.
-     * @param {{ value: * }} bar - The bar segment that was clicked.
+     * @param {string} groupId
+     * @param {{ value: * }} bar
      */
     async selectBar(groupId, bar) {
         const group = this.model.root.groups.find((group) => group.id === groupId);
@@ -304,10 +277,9 @@ class ProgressBarState {
     }
 
     /**
-     * Re-fetch aggregate values for a single group after bar selection changes.
-     * @param {Group} group - The group to update.
-     * @param {Object[]} bars - Current bar segments.
-     * @param {Object} activeBar - The active bar selection with `value` and `aggregates`.
+     * @param {Group} group
+     * @param {Object[]} bars
+     * @param {Object} activeBar
      * @returns {Promise<void>}
      */
     async _updateAggregateGroup(group, bars, activeBar) {
@@ -346,18 +318,8 @@ class ProgressBarState {
     }
 
     /**
-     * Refresh progress bar counts and aggregates after a record change.
-     *
-     * For a drag & drop between two groups (registered beforehand via
-     * `registerRecordMove`), the two affected groups' bars are reconciled
-     * locally and aggregates are refetched for those two groups only, instead
-     * of firing `read_progress_bar` + `formatted_read_group` over the full
-     * domain. Every other change (quick create, edited record, bar
-     * (de)selection) still triggers a full refresh.
-     *
-     * @param {Group} group - The group where the change occurred.
-     * @param {Object} [record] - The saved record datapoint, when the change
-     *   comes from a record save.
+     * @param {Group} group
+     * @param {Object} [record]
      */
     updateCounts(group, record) {
         const move = record && this._recordMoves.get(record.id);
@@ -372,28 +334,31 @@ class ProgressBarState {
             }
         }
 
-        for (const emptyGroup of this.model.root.groups) {
+        this._deselectActiveBars((group) => group.list.count === 0);
+    }
+
+    /**
+     * @param {(group: Group, activeBar: Object) => boolean} shouldDeselect
+     */
+    _deselectActiveBars(shouldDeselect) {
+        for (const group of this.model.root.groups) {
+            const activeBar = this.activeBars[group.serverValue];
             if (
-                this.activeBars[emptyGroup.serverValue] &&
-                emptyGroup.list.count === 0 &&
-                !this._pendingBarDeselections.has(emptyGroup.serverValue)
+                !activeBar ||
+                this._pendingBarDeselections.has(group.serverValue) ||
+                !shouldDeselect(group, activeBar)
             ) {
-                this._pendingBarDeselections.add(emptyGroup.serverValue);
-                this.selectBar(emptyGroup.id, { value: null })
-                    .catch((error) => console.error(error))
-                    .finally(() =>
-                        this._pendingBarDeselections.delete(emptyGroup.serverValue),
-                    );
+                continue;
             }
+            this._pendingBarDeselections.add(group.serverValue);
+            this.selectBar(group.id, { value: null })
+                .catch((error) => console.error(error))
+                .finally(() => this._pendingBarDeselections.delete(group.serverValue));
         }
     }
 
     /**
-     * Notify that a record is about to be moved between two groups (drag &
-     * drop). The `updateCounts` call triggered by the resulting save will
-     * reconcile the two groups locally instead of refetching all counts.
-     *
-     * @param {string} recordId - The record datapoint id.
+     * @param {string} recordId
      * @param {string} sourceGroupId
      * @param {string} targetGroupId
      */
@@ -412,27 +377,16 @@ class ProgressBarState {
     }
 
     /**
-     * Drop a pending move registration (no-op if it was already consumed by
-     * `updateCounts`). Called when the move failed or was reverted.
-     * @param {string} recordId - The record datapoint id.
+     * @param {string} recordId
      */
     cancelRecordMove(recordId) {
         this._recordMoves.delete(recordId);
     }
 
     /**
-     * Locally reconcile the bars after a record was dragged from one group to
-     * another: decrement the source group's bucket, increment the target
-     * group's, and refetch aggregates for those two groups only (domain
-     * scoped to the groups) instead of over the full domain.
-     *
-     * @param {Object} record - The moved record datapoint (already saved).
-     * @param {Object} move - `{ sourceGroupId, targetGroupId, sourceValue }`.
-     * @returns {boolean} Whether the move was reconciled locally. When false,
-     *   the caller falls back to a full refresh: local reconcile is
-     *   impossible (bars not loaded yet, groups reloaded under us, progress
-     *   field not part of the fetched fields) or ambiguous (grouped on the
-     *   progress field itself, whose old value is unknown).
+     * @param {Object} record
+     * @param {Object} move
+     * @returns {boolean}
      */
     _reconcileMove(record, move) {
         const groups = this.model.root.groups || [];
@@ -463,15 +417,9 @@ class ProgressBarState {
     }
 
     /**
-     * Apply a +1/-1 delta to a group's bar bucket for a given progress field
-     * value, keeping the `_pbCounts` snapshot, the cached bars, the snapshot
-     * ``total`` and the active bar count in sync. The "Other" (FALSE) bar is
-     * recomputed as the remainder against the group's live count, as in
-     * `_refreshBars`.
-     *
      * @param {Group} group
-     * @param {*} value - The moved record's progress field value.
-     * @param {number} delta - +1 or -1.
+     * @param {*} value
+     * @param {number} delta
      */
     _applyMoveDelta(group, value, delta) {
         const { colors } = this.progressAttributes;
@@ -509,9 +457,6 @@ class ProgressBarState {
     }
 
     /**
-     * Re-fetch aggregate values for the given groups only, with a domain
-     * scoped to those groups, and merge the result into `_aggregateValues`.
-     *
      * @param {Group[]} groupsToUpdate
      * @returns {Promise<void>}
      */
@@ -547,14 +492,6 @@ class ProgressBarState {
         }
     }
 
-    /**
-     * Schedule a trailing, authoritative refresh after a burst of locally
-     * reconciled moves: one full `read_progress_bar` (and aggregate re-read
-     * when relevant) fires once no move has happened for
-     * MOVE_RECONCILE_DELAY ms. This bounds the drift a purely local reconcile
-     * could accumulate (e.g. concurrent edits from other tabs/users, or
-     * server-side writes triggered by the move) to a single burst window.
-     */
     _scheduleMoveReconcile() {
         if (!this._moveReconcileDebounced) {
             this._moveReconcileDebounced = debounce(() => {
@@ -570,14 +507,6 @@ class ProgressBarState {
         this._moveReconcileDebounced();
     }
 
-    /**
-     * Schedule a single debounced ``_updateProgressBar`` retry after a fetch
-     * was discarded because the group set changed while its RPC was in
-     * flight (see the membership bail in ``_updateProgressBar``). Debounced
-     * so a burst of membership changes (several quick group adds/removals)
-     * coalesces into one trailing re-fetch; epochs still guard against
-     * out-of-order resolutions.
-     */
     _scheduleMembershipRetry() {
         if (!this._membershipRetryDebounced) {
             this._membershipRetryDebounced = debounce(() => {
@@ -588,8 +517,7 @@ class ProgressBarState {
     }
 
     /**
-     * Re-fetch aggregates for a group if it has an active bar selection.
-     * @param {Group} group - The group to update.
+     * @param {Group} group
      */
     updateAggregateGroup(group) {
         if (group && this.activeBars[group.serverValue]) {
@@ -602,7 +530,6 @@ class ProgressBarState {
         }
     }
 
-    /** Re-fetch aggregate values for all groups from the server. */
     async _updateAggregates() {
         const epoch = ++this._aggEpoch;
         const { context, fields, groupBy, domain, resModel } = this.model.root;
@@ -620,21 +547,30 @@ class ProgressBarState {
         this._aggregateValues = _groupsToAggregateValues(groups, groupBy, fields);
     }
 
-    /** Re-fetch progress bar segment counts for all groups via `read_progress_bar`. */
+    /**
+     * @param {{ context: Object, domain: Array, groupBy: string[], resModel: string }} params
+     * @returns {Promise<Object>}
+     */
+    _fetchProgressBarCounts({ context, domain, groupBy, resModel }) {
+        const { colors, fieldName: field, help } = this.progressAttributes;
+        return this.model.orm.call(resModel, "read_progress_bar", [], {
+            domain,
+            group_by: groupBy[0],
+            progress_bar: { colors, field, help },
+            context,
+        });
+    }
+
     async _updateProgressBar() {
-        const groupBy = this.model.root.groupBy;
+        const { context, domain, groupBy, resModel } = this.model.root;
         if (groupBy.length) {
             const epoch = ++this._pbEpoch;
-            const resModel = this.model.root.resModel;
-            const domain = this.model.root.domain;
-            const context = this.model.root.context;
-            const { colors, fieldName: field, help } = this.progressAttributes;
             const groupIds = new Set(this.model.root.groups.map((g) => g.id));
-            const res = await this.model.orm.call(resModel, "read_progress_bar", [], {
-                domain,
-                group_by: groupBy[0],
-                progress_bar: { colors, field, help },
+            const res = await this._fetchProgressBarCounts({
                 context,
+                domain,
+                groupBy,
+                resModel,
             });
             if (epoch !== this._pbEpoch) {
                 return;
@@ -652,13 +588,6 @@ class ProgressBarState {
         }
     }
 
-    /**
-     * Re-sync every visible group's bar counts and snapshot ``total`` from
-     * ``_pbCounts``, mutating cached bar objects in place (not discarding
-     * ``_groupsInfo``) to preserve object identity and active-bar/filter
-     * state — safe to call after a (re)load to fix bars rendered from a
-     * half-loaded epoch (only one of read_progress_bar/web_read_group resolved).
-     */
     _refreshBars() {
         if (this._pbCounts === null) {
             return;
@@ -689,56 +618,29 @@ class ProgressBarState {
         this._deselectEmptyActiveBars();
     }
 
-    /**
-     * Drop active bar selections whose segment count reached 0 (e.g. a
-     * restored selection whose records are gone, or a reload that emptied
-     * the bar), removing the group filter. Data-update counterpart of the
-     * count sync done in ``getGroupInfo``, which runs on render paths and
-     * must stay side-effect free.
-     */
     _deselectEmptyActiveBars() {
         if (this._pbCounts === null) {
             return;
         }
-        for (const group of this.model.root.groups) {
-            if (group.isFolded) {
-                continue;
-            }
-            const activeBar = this.activeBars[group.serverValue];
-            if (!activeBar || this._pendingBarDeselections.has(group.serverValue)) {
-                continue;
-            }
-            const { bars } = this.getGroupInfo(group);
-            const count = bars.find((x) => x.value === activeBar.value)?.count || 0;
-            if (count === 0) {
-                this._pendingBarDeselections.add(group.serverValue);
-                group
-                    .applyFilter(undefined)
-                    .then(() => {
-                        delete this.activeBars[group.serverValue];
-                        group.model.notify();
-                    })
-                    .catch((error) => console.error(error))
-                    .finally(() =>
-                        this._pendingBarDeselections.delete(group.serverValue),
-                    );
-            }
-        }
+        this._deselectActiveBars(
+            (group, activeBar) =>
+                !group.isFolded &&
+                (this.getGroupInfo(group).bars.find((x) => x.value === activeBar.value)
+                    ?.count || 0) === 0,
+        );
     }
 
     /**
-     * Initial load of progress bar data. Called during model root loading.
      * @param {{ context: Object, domain: Array, groupBy: string[], resModel: string }} params
      */
     async loadProgressBar({ context, domain, groupBy, resModel }) {
         if (groupBy.length) {
             const epoch = ++this._pbEpoch;
-            const { colors, fieldName: field, help } = this.progressAttributes;
-            const res = await this.model.orm.call(resModel, "read_progress_bar", [], {
-                domain,
-                group_by: groupBy[0],
-                progress_bar: { colors, field, help },
+            const res = await this._fetchProgressBarCounts({
                 context,
+                domain,
+                groupBy,
+                resModel,
             });
             if (epoch !== this._pbEpoch) {
                 return;
@@ -748,30 +650,18 @@ class ProgressBarState {
     }
 
     /**
-     * Get the filtered record count for a group with an active bar.
      * @param {Group} group
-     * @returns {number | undefined} Count if a bar is active, undefined otherwise.
+     * @returns {number | undefined}
      */
     getGroupCount(group) {
         const progressBarInfo = this.getGroupInfo(group);
         if (progressBarInfo.activeBar) {
-            // `?.` for the same reason `_seedGroupInfo` and `_applyMoveDelta`
-            // already use it: `activeBars` can be restored from a previous
-            // session's exported state, and nothing revalidates its value
-            // against the arch's current `colors` keys.
             return progressBarInfo.bars.find(
                 (b) => b.value === progressBarInfo.activeBar,
             )?.count;
         }
     }
 
-    /**
-     * Drop cached per-group progress bar info for groups that no longer exist in
-     * the current root (e.g. after a reload with a different filter/groupBy).
-     * ``_groupsInfo`` is keyed by datapoint id and lazily filled by
-     * ``getGroupInfo``; without pruning, stale entries (and the record lists
-     * they retain through closures) would accumulate forever.
-     */
     _pruneGroupsInfo() {
         const groupIds = new Set(
             (this.model.root.groups || []).map((group) => group.id),
@@ -784,13 +674,6 @@ class ProgressBarState {
     }
 
     /**
-     * Match groups from read_progress_bar with those from formatted_read_group.
-     * Boolean fields: "True"/"False". Falsy (e.g. unset many2one): "False".
-     * Otherwise (including date/datetime periods): the group's ``serverValue``
-     * — this is what ``read_progress_bar`` keys its result by, NOT the period's
-     * displayName. Do not "fix" this to return displayName: date bars would
-     * then fail to match and render as zero.
-     *
      * @param {Group} group
      * @return string
      */
@@ -805,18 +688,11 @@ class ProgressBarState {
 }
 
 /**
- * OWL composition hook that creates and wires a reactive ProgressBarState.
- *
- * Intercepts the model's `onWillLoadRoot` and `onRootLoaded` hooks to
- * trigger parallel progress bar data loading alongside the main data fetch.
- * On first load, the progress bar loads asynchronously (non-blocking) so
- * the kanban view appears as fast as possible.
- *
- * @param {Object} progressAttributes - Parsed `<progressbar>` arch config.
- * @param {Object} model - The kanban RelationalModel instance.
- * @param {Object[]} aggregateFields - Fields to compute aggregates for.
- * @param {Object} [activeBars] - Restored active bar state from a previous session.
- * @returns {ProgressBarState} Reactive progress bar state.
+ * @param {Object} progressAttributes
+ * @param {Object} model
+ * @param {Object[]} aggregateFields
+ * @param {Object} [activeBars]
+ * @returns {ProgressBarState}
  */
 export function useProgressBar(progressAttributes, model, aggregateFields, activeBars) {
     const progressBarState = reactive(
@@ -843,14 +719,13 @@ export function useProgressBar(progressAttributes, model, aggregateFields, activ
                 ?.then(() => progressBarState._refreshBars())
                 .catch((error) => console.error(error));
         }
-        // `prom` is only assigned by the patched `onWillLoadRoot`; nothing
-        // enforces that it ran first, and an unset `prom` should skip the
-        // follow-up, not throw inside a lifecycle hook.
         prom?.then(() => progressBarState._deselectEmptyActiveBars()).catch((error) =>
             console.error(error),
         );
     };
     onWillDestroy(() => {
+        model.hooks.lifecycle.onWillLoadRoot = onWillLoadRoot;
+        model.hooks.lifecycle.onRootLoaded = onRootLoaded;
         progressBarState._moveReconcileDebounced?.cancel();
         progressBarState._membershipRetryDebounced?.cancel();
     });
