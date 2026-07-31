@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/image/image_field - Image upload, preview, and zoom field for Binary image columns */
+/** @module @web/fields/media/image/image_field */
 
 import { Component, onWillRender, status, useState } from "@odoo/owl";
 import { isMobileOS } from "@web/core/browser/feature_detection";
@@ -19,6 +19,7 @@ import {
 } from "@web/fields/media/image/image_variants";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
+/** @type {Record<string, string>} */
 export const fileTypeMagicWordMap = {
     "/": "jpg",
     R: "gif",
@@ -52,6 +53,13 @@ export class ImageField extends Component {
         imgClass: "",
         reload: true,
     };
+
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {import("services").ServiceFactories["orm"]} */
+    orm;
+    /** @type {{ isValid: boolean }} */
+    state;
 
     setup() {
         this.notification = useService("notification");
@@ -148,18 +156,19 @@ export class ImageField extends Component {
         if (!this.props.record.data[this.props.name] || !this.state.isValid) {
             return placeholder;
         }
-        if (!this.props.reload && this.lastURL) {
-            return this.lastURL;
+        if (!this.props.reload && this.lastURL?.field === imageFieldName) {
+            return this.lastURL.url;
         }
+        let url;
         if (this.fieldType === "many2one") {
-            this.lastURL = imageUrl(
+            url = imageUrl(
                 this.props.record.fields[this.props.name].relation,
                 this.props.record.data[this.props.name].id,
                 imageFieldName,
                 { unique: this.rawCacheKey },
             );
         } else if (isBinarySize(this.props.record.data[this.props.name])) {
-            this.lastURL = imageUrl(
+            url = imageUrl(
                 this.props.record.resModel,
                 this.props.record.resId,
                 imageFieldName,
@@ -169,9 +178,10 @@ export class ImageField extends Component {
             const magic =
                 fileTypeMagicWordMap[this.props.record.data[this.props.name][0]] ||
                 "png";
-            this.lastURL = `data:image/${magic};base64,${this.props.record.data[this.props.name]}`;
+            url = `data:image/${magic};base64,${this.props.record.data[this.props.name]}`;
         }
-        return this.lastURL;
+        this.lastURL = { field: imageFieldName, url };
+        return url;
     }
     onFileRemove() {
         this.state.isValid = true;

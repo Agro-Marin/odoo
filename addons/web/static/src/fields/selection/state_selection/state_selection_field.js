@@ -1,15 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/state_selection/state_selection_field - Kanban-style colored state dot dropdown for Selection columns */
+/** @module @web/fields/selection/state_selection/state_selection_field */
 
 import { Component } from "@odoo/owl";
 import { CheckboxItem } from "@web/components/dropdown/checkbox_item";
 import { Dropdown } from "@web/components/dropdown/dropdown";
+import { formatSelection } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
 import { extractAutosave } from "@web/fields/field_utils";
-import { formatSelection } from "@web/fields/formatters";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { useCommand } from "@web/services/commands/command_hook";
 
@@ -58,20 +58,20 @@ export class StateSelectionField extends Component {
             }
         }
     }
-    /** @returns {Array<[string, string]>} Selection options with legend label overrides */
+    /** @returns {Array<[string, string]>} */
     get options() {
         return this.props.record.fields[this.props.name].selection.map(
-            ([state, label]) => [
+            (/** @type {[any, any]} */ [state, label]) => [
                 state,
                 this.props.record.data[`legend_${state}`] || label,
             ],
         );
     }
-    /** @returns {string} Current state value or first option as default */
+    /** @returns {string} */
     get currentValue() {
         return this.props.record.data[this.props.name] || this.options[0][0];
     }
-    /** @returns {string} Display label with legend override if available */
+    /** @returns {string} */
     get label() {
         const stateValue = this.props.record.data[this.props.name];
         if (stateValue && this.props.record.data[`legend_${stateValue}`]) {
@@ -81,14 +81,14 @@ export class StateSelectionField extends Component {
     }
 
     /**
-     * @param {string} value State value (e.g. "blocked", "done")
-     * @returns {string} CSS color class for the status dot
+     * @param {string} value
+     * @returns {string}
      */
     statusColor(value) {
         return this.colors[value] ? this.colorPrefix + this.colors[value] : "";
     }
 
-    /** @param {string} value New state value to set on the record */
+    /** @param {string} value */
     async updateRecord(value) {
         await this.props.record.update(
             { [this.props.name]: value },
@@ -97,6 +97,7 @@ export class StateSelectionField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const stateSelectionField = {
     component: StateSelectionField,
     displayName: _t("State Selection"),

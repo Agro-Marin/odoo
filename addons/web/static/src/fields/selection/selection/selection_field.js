@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/selection/selection_field - Standard dropdown selection field for Selection and Many2one columns */
+/** @module @web/fields/selection/selection/selection_field */
 
 import { SelectMenu } from "@web/components/select_menu/select_menu";
 import { hasTouch } from "@web/core/browser/feature_detection";
@@ -37,7 +37,7 @@ export class SelectionField extends SelectionLikeField {
     get options() {
         switch (this.type) {
             case "many2one":
-                return [...this.specialData.data];
+                return this.specialData.data;
             case "selection":
                 return this.props.record.fields[this.props.name].selection.filter(
                     (option) => option[1] !== "",

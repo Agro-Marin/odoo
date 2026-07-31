@@ -1,15 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/progress_bar/progress_bar_field - Editable progress bar displaying current/max numeric values */
+/** @module @web/fields/display/progress_bar/progress_bar_field */
 
 import { Component, useRef, useState } from "@odoo/owl";
 import { getFieldCodec } from "@web/core/field_codec";
 import { _t } from "@web/core/l10n/translation";
+import { parseFloat, parseInteger } from "@web/core/parsers";
 import { registerField } from "@web/fields/_registry";
 import { useInputField } from "@web/fields/input_field_hook";
 import { useNumpadDecimal } from "@web/fields/numpad_decimal_hook";
-import { parseFloat, parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 /**
@@ -26,10 +26,6 @@ import { standardFieldProps } from "@web/fields/standard_field_props";
  */
 
 /**
- * Coerce a raw ``max_value`` option to a finite number, or ``undefined`` when
- * it names a field instead of stating a bound. Both ``200`` and ``"200"`` are
- * literals; ``"total_employee"`` is not.
- *
  * @param {string | number | undefined} value
  * @returns {number | undefined}
  */
@@ -51,12 +47,6 @@ export class ProgressBarField extends Component {
         isEditable: { type: Boolean, optional: true },
         isCurrentValueEditable: { type: Boolean, optional: true },
         isMaxValueEditable: { type: Boolean, optional: true },
-        // The template has always rendered `t-att-required="props.required"` on
-        // the current-value input, but the prop was neither declared nor
-        // extracted, so it read `undefined` on every render and the attribute
-        // never appeared. Declared and extracted here rather than deleting the
-        // template attribute: `required="1"` on a progressbar is a legitimate
-        // modifier, and the two editable branches disagreed about honouring it.
         required: { type: Boolean, optional: true },
         title: { type: String, optional: true },
         overflowClass: { type: String, optional: true },
@@ -73,11 +63,6 @@ export class ProgressBarField extends Component {
         } = this.props;
         this.currentValueField = currentValueField ? currentValueField : name;
 
-        // `max_value` is authored either as a field name ("total_employee") or
-        // as a literal bound (200). Resolve which exactly once — the option
-        // comes from the static arch, so it cannot change over the component's
-        // life — and keep the two forms in separate slots so no getter has to
-        // re-guess by type-sniffing.
         this.maxValueLiteral = toFiniteNumber(maxValueFieldProp);
         this.maxValueFieldName =
             this.maxValueLiteral === undefined && maxValueFieldProp
@@ -95,9 +80,6 @@ export class ProgressBarField extends Component {
             getValue: () => this.formatValue(this.maxValueFieldName, this.maxValue),
             parse: (v) => this.parseValue(this.maxValueFieldName, v),
             refName: "maxValue",
-            // `undefined` when the max is a literal bound rather than a field:
-            // `useInputField` then leaves this hook unbound instead of falling
-            // back to the progress field's own name.
             fieldName: this.maxValueFieldName,
             shouldSave: () => this.props.readonly,
         });
@@ -107,48 +89,47 @@ export class ProgressBarField extends Component {
         });
     }
 
-    /** @returns {boolean} Whether the progress bar is editable in the current context. */
+    /** @returns {boolean} */
     get isEditable() {
         return this.props.isEditable && !this.props.readonly;
     }
 
     /**
-     * Percentage mode ("42%") applies only when no maximum was configured at
-     * all; any configured maximum renders as "current / max".
-     *
-     * This used to also treat a *numeric* ``max_value`` as percentage mode
-     * (``!isNaN(maxValueField)``), which contradicted both ``maxValue``'s
-     * explicit literal branch and the option's own help text ("e.g. 10 / 200"):
-     * ``max_value: 200`` on a value of 7 rendered "7%" while the bar filled to
-     * 3.5%, and ``edit_max_value`` produced no input at all.
-     *
      * @returns {boolean}
      */
     get isPercentage() {
         return this.maxValueLiteral === undefined && !this.maxValueFieldName;
     }
 
-    /** @returns {boolean} Whether the max value is backed by an editable field. */
+    /** @returns {boolean} */
     get canEditMaxValue() {
         return Boolean(
             this.isEditable && this.props.isMaxValueEditable && this.maxValueFieldName,
         );
     }
 
-    /** @returns {number} Current progress value from the record, defaulting to 0. */
+    /** @returns {number} */
     get currentValue() {
-        return this.props.record.data[this.currentValueField] || 0;
+        return (
+            /** @type {Record<string, any>} */ (this.props.record.data)[
+                this.currentValueField
+            ] || 0
+        );
     }
 
-    /** @returns {number} Maximum value: literal bound, record field, or 100 as default. */
+    /** @returns {number} */
     get maxValue() {
         if (this.maxValueLiteral !== undefined) {
             return this.maxValueLiteral;
         }
-        return this.props.record.data[this.maxValueFieldName] || 100;
+        return (
+            /** @type {Record<string, any>} */ (this.props.record.data)[
+                this.maxValueFieldName
+            ] || 100
+        );
     }
 
-    /** @returns {string} CSS class for the bar color; overflow class when value exceeds max. */
+    /** @returns {string} */
     get progressBarColorClass() {
         return this.currentValue > this.maxValue
             ? this.props.overflowClass
@@ -156,10 +137,10 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * @param {string} fieldName - Record field to determine the formatter type
-     * @param {number} value - Numeric value to format
-     * @param {boolean} [humanReadable] - Use human-readable format (defaults to true when not editing)
-     * @returns {string} Formatted string representation
+     * @param {string} fieldName
+     * @param {number} value
+     * @param {boolean} [humanReadable]
+     * @returns {string}
      */
     formatValue(fieldName, value, humanReadable = !this.state.isEditing) {
         const type = this.props.record.fields[fieldName]?.type ?? "integer";
@@ -167,8 +148,8 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * @param {boolean} [humanReadable] - Use human-readable format
-     * @returns {string} Formatted current value
+     * @param {boolean} [humanReadable]
+     * @returns {string}
      */
     formatCurrentValue(humanReadable = !this.state.isEditing) {
         return this.formatValue(
@@ -179,17 +160,17 @@ export class ProgressBarField extends Component {
     }
 
     /**
-     * @param {boolean} [humanReadable] - Use human-readable format
-     * @returns {string} Formatted max value
+     * @param {boolean} [humanReadable]
+     * @returns {string}
      */
     formatMaxValue(humanReadable = !this.state.isEditing) {
         return this.formatValue(this.maxValueFieldName, this.maxValue, humanReadable);
     }
 
     /**
-     * @param {string} fieldName - Record field to determine the parser type
-     * @param {string} value - Raw input string to parse
-     * @returns {number} Parsed numeric value
+     * @param {string} fieldName
+     * @param {string} value
+     * @returns {number}
      */
     parseValue(fieldName, value) {
         return this.props.record.fields[fieldName]?.type === "integer"
@@ -197,7 +178,6 @@ export class ProgressBarField extends Component {
             : parseFloat(value, { allowOperation: true });
     }
 
-    /** Exits editing mode when focus leaves both input fields. */
     onInputBlur() {
         if (
             document.activeElement !== this.maxValueRef.el &&
@@ -206,12 +186,12 @@ export class ProgressBarField extends Component {
             this.state.isEditing = false;
         }
     }
-    /** Enters editing mode when an input field gains focus. */
     onInputFocus() {
         this.state.isEditing = true;
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const progressBarField = {
     component: ProgressBarField,
     displayName: _t("Progress Bar"),
@@ -256,14 +236,6 @@ export const progressBarField = {
         },
     ],
     supportedTypes: ["integer", "float"],
-    // `current_value` and `max_value` name fields of THIS record that the arch
-    // is not required to render. Nothing else puts an option-named field into
-    // the read spec, so a view naming one it does not also render read
-    // `undefined` and silently fell back to 0 / 100 — a bar stuck empty or
-    // scaled against the wrong maximum. `max_value` is polymorphic (a literal
-    // bound like 200 is not a field name), so only non-numeric values qualify.
-    // `optional` skips a name this model does not have rather than injecting it
-    // into the spec and failing the read server-side.
     fieldDependencies: ({ options }) => {
         const deps = [];
         if (options.current_value) {

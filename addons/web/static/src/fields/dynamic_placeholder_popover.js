@@ -1,36 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/dynamic_placeholder_popover - Popover component for selecting dynamic placeholder field paths */
+/** @module @web/fields/dynamic_placeholder_popover */
 
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { ModelFieldSelectorPopover } from "@web/components/model_field_selector/model_field_selector_popover";
-import { registry } from "@web/core/registry";
-import { useAutofocus } from "@web/core/utils/hooks";
+import { useAutofocus, useService } from "@web/core/utils/hooks";
 import { user } from "@web/services/user";
-
-export const allowedQwebExpressionsService = {
-    dependencies: ["orm"],
-    start(env, { orm }) {
-        const cache = new Map();
-        return (resModel) => {
-            if (cache.has(resModel)) {
-                return cache.get(resModel);
-            }
-            const prom = orm
-                .call(resModel, "mail_allowed_qweb_expressions")
-                .catch((e) => {
-                    cache.delete(resModel);
-                    return Promise.reject(e);
-                });
-            cache.set(resModel, prom);
-            return prom;
-        };
-    },
-};
-registry
-    .category("services")
-    .add("allowed_qweb_expressions", allowedQwebExpressionsService);
 
 export class DynamicPlaceholderPopover extends Component {
     static template = "web.DynamicPlaceholderPopover";
@@ -39,6 +15,9 @@ export class DynamicPlaceholderPopover extends Component {
     };
     static props = ["resModel", "validate", "close"];
 
+    /** @type {{ path: string; isPathSelected: boolean; defaultValue: string }} */
+    state;
+
     setup() {
         useAutofocus();
         this.state = useState({
@@ -46,19 +25,20 @@ export class DynamicPlaceholderPopover extends Component {
             isPathSelected: false,
             defaultValue: "",
         });
+        this.getAllowedQwebExpressions = useService("allowed_qweb_expressions");
         onWillStart(() => this._loadAllowedExpressions());
     }
 
     async _loadAllowedExpressions() {
-        // eslint-disable-next-line no-restricted-syntax
-        const getAllowedQwebExpressions = this.env.services["allowed_qweb_expressions"];
         [
             /** @type {any} */ (this).isTemplateEditor,
             /** @type {any} */ (this).allowedQwebExpressions,
         ] = /** @type {any} */ (
             await Promise.all([
                 user.hasGroup("mail.group_mail_template_editor"),
-                getAllowedQwebExpressions(/** @type {any} */ (this.props).resModel),
+                this.getAllowedQwebExpressions(
+                    /** @type {any} */ (this.props).resModel,
+                ),
             ])
         );
     }

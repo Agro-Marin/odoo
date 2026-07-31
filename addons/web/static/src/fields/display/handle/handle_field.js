@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/handle/handle_field - Drag handle icon for manual record reordering in list views */
+/** @module @web/fields/display/handle/handle_field */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -15,6 +15,7 @@ export class HandleField extends Component {
     };
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const handleField = {
     component: HandleField,
     displayName: _t("Handle"),

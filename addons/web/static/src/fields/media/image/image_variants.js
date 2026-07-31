@@ -1,29 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/image/image_variants - Webp re-encoding and resized-variant attachments for uploaded images */
+/** @module @web/fields/media/image/image_variants */
 
-/** Longest-edge sizes a smaller variant is generated for, when the source exceeds them. */
 const VARIANT_SIZES = [1920, 1024, 512, 256, 128];
 
-/**
- * Uploaded types that are never re-encoded: gif would lose its animation,
- * svg is not raster, and webp is already the target format.
- */
 const NON_CONVERTIBLE_TYPES = ["image/gif", "image/svg+xml", "image/webp"];
 
-/**
- * The browser could not decode the uploaded bytes.
- *
- * Raised rather than notifying from here, so this module stays free of UI
- * concerns and the caller decides how to surface it. Anything else escaping
- * these functions (an ORM failure, say) is a genuine error and must keep
- * propagating.
- */
 export class ImageDecodeError extends Error {}
 
 /**
- * @param {string} src a `data:` URL
+ * @param {string} src
  * @returns {Promise<HTMLImageElement>}
  */
 async function decodeImage(src) {
@@ -39,7 +26,7 @@ async function decodeImage(src) {
     return image;
 }
 
-/** @returns {boolean} whether this browser can encode a canvas as webp. */
+/** @returns {boolean} */
 function canEncodeWebp() {
     return document
         .createElement("canvas")
@@ -48,9 +35,6 @@ function canEncodeWebp() {
 }
 
 /**
- * Full-size copy, drawn without scaling or resampling — used purely to
- * re-encode the same pixels into another container format.
- *
  * @param {HTMLImageElement} image
  * @returns {HTMLCanvasElement}
  */
@@ -63,10 +47,6 @@ function drawFullSize(image) {
 }
 
 /**
- * Scaled copy. Unlike {@link drawFullSize} this resamples, so it asks for
- * high-quality smoothing and pre-fills transparent to keep the alpha channel
- * of formats that have one.
- *
  * @param {HTMLImageElement} image
  * @param {number} ratio
  * @returns {HTMLCanvasElement}
@@ -95,12 +75,6 @@ function drawScaled(image, ratio) {
 }
 
 /**
- * Re-encode an uploaded file as webp.
- *
- * Returns the upload unchanged when the type is not convertible or the
- * browser cannot encode webp — callers detect that by checking ``type``,
- * which is the same signal that gates variant generation.
- *
  * @param {{ data: string, type: string, name: string }} info
  * @returns {Promise<{ data: string, type: string, name: string }>}
  * @throws {ImageDecodeError}
@@ -123,13 +97,6 @@ export async function convertUploadToWebp(info) {
 }
 
 /**
- * Persist a webp upload as an ``ir.attachment`` set: the original, a smaller
- * webp variant per size below it, and a jpeg fallback for each of those.
- *
- * The resized variants and the jpeg fallbacks are each created in one
- * ``create_unique`` call rather than one per size, so the whole set costs
- * three round trips whatever the source resolution.
- *
  * @param {{ call: (model: string, method: string, args: any[]) => Promise<any> }} orm
  * @param {{ data: string, name: string }} info
  * @throws {ImageDecodeError}
@@ -145,8 +112,6 @@ export async function createWebpVariantAttachments(orm, info) {
         canvas: drawScaled(image, size / originalSize),
     }));
 
-    // The original keeps the bytes as uploaded; only the smaller ones are
-    // re-drawn, so the source image never loses a generation to resampling.
     const [originalId] = await orm.call("ir.attachment", "create_unique", [
         [
             {
@@ -173,12 +138,12 @@ export async function createWebpVariantAttachments(orm, info) {
           ])
         : [];
 
-    // Each jpeg hangs off the webp of its own size, so a client that cannot
-    // read webp resolves to a fallback of matching resolution.
-    const idBySize = new Map([
-        [originalSize, originalId],
-        ...resizedVariants.map(({ size }, index) => [size, resizedIds[index]]),
-    ]);
+    const idBySize = new Map(
+        /** @type {[number, number][]} */ ([
+            [originalSize, originalId],
+            ...resizedVariants.map(({ size }, index) => [size, resizedIds[index]]),
+        ]),
+    );
     await orm.call("ir.attachment", "create_unique", [
         variants.map(({ size, canvas }) => ({
             name: info.name.replace(/\.webp$/, ".jpg"),

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/image_url/image_url_field - Image display field that loads from a URL stored in a Char column */
+/** @module @web/fields/media/image_url/image_url_field */
 
 import { Component, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -20,6 +20,9 @@ export class ImageUrlField extends Component {
     };
 
     static fallbackSrc = "/web/static/img/placeholder.png";
+
+    /** @type {{ src: any }} */
+    state;
 
     setup() {
         this.notification = useService("notification");
@@ -51,6 +54,7 @@ export class ImageUrlField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const imageUrlField = {
     component: ImageUrlField,
     displayName: _t("Image"),

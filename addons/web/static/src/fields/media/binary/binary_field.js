@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/binary/binary_field - File upload/download field for Binary columns */
+/** @module @web/fields/media/binary/binary_field */
 
 import { Component } from "@odoo/owl";
 import { FileUploader } from "@web/core/file_upload/file_handler";
@@ -17,10 +17,6 @@ export const MAX_FILENAME_SIZE_BYTES = 0xff;
 const textEncoder = new TextEncoder();
 
 /**
- * Truncates a string to at most `maxBytes` UTF-8 bytes without splitting a
- * multi-byte character. `String.prototype.slice` counts UTF-16 code units, so a
- * name of multibyte characters could exceed the byte cap.
- *
  * @param {string} str
  * @param {number} maxBytes
  * @returns {string}
@@ -61,7 +57,7 @@ export class BinaryField extends Component {
         this.notification = useService("notification");
     }
 
-    /** @returns {string} Display filename, truncated to max filesystem length */
+    /** @returns {string} */
     get fileName() {
         const fileName = this.props.record.data[this.props.fileNameField];
         if (fileName) {
@@ -73,8 +69,8 @@ export class BinaryField extends Component {
     }
 
     /**
-     * @param {{ data: string|false, name: string }} payload Uploaded file data and name
-     * @returns {Promise} Record update promise
+     * @param {{ data: string|false, name: string }} payload
+     * @returns {Promise<any>}
      */
     update({ data, name }) {
         const { fileNameField, record } = this.props;
@@ -85,7 +81,7 @@ export class BinaryField extends Component {
         return this.props.record.update(changes);
     }
 
-    /** @returns {Object} Parameters for the /web/content download endpoint */
+    /** @returns {{ model: string, field: string, id: number } & Record<string, any>} */
     getDownloadData() {
         return {
             model: this.props.record.resModel,
@@ -100,7 +96,6 @@ export class BinaryField extends Component {
         };
     }
 
-    /** Triggers a browser download of the binary field content */
     async onFileDownload() {
         await download({
             data: this.getDownloadData(),
@@ -113,6 +108,7 @@ export class ListBinaryField extends BinaryField {
     static template = "web.ListBinaryField";
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const binaryField = {
     component: BinaryField,
     displayName: _t("File"),

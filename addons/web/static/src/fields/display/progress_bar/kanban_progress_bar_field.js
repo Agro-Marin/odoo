@@ -1,15 +1,15 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/progress_bar/kanban_progress_bar_field - Kanban-view variant of the progress bar field */
+/** @module @web/fields/display/progress_bar/kanban_progress_bar_field */
 
 import { registerField } from "@web/fields/_registry";
 
 import { ProgressBarField, progressBarField } from "./progress_bar_field.js";
 export class KanbanProgressBarField extends ProgressBarField {
-    /** @returns {boolean} Whether the bar is editable (ignores readonly, unlike parent). */
+    /** @returns {boolean} */
     get isEditable() {
-        return this.props.isEditable;
+        return Boolean(this.props.isEditable);
     }
 }
 

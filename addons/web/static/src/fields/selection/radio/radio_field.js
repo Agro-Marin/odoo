@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/radio/radio_field - Radio button group field for Selection and Many2one columns */
+/** @module @web/fields/selection/radio/radio_field */
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
@@ -37,7 +37,7 @@ export class RadioField extends SelectionLikeField {
         this.id = `radio_field_${nextId++}`;
     }
 
-    /** @returns {Array<[any, string]>} Options as `[value, label]` pairs */
+    /** @returns {Array<[any, string]>} */
     get items() {
         switch (this.type) {
             case "selection":
@@ -50,7 +50,7 @@ export class RadioField extends SelectionLikeField {
     }
 
     /**
-     * @param {[any, string]} value the clicked `[value, label]` option
+     * @param {[any, string]} value
      */
     onChange(value) {
         switch (this.type) {
@@ -69,6 +69,7 @@ export class RadioField extends SelectionLikeField {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const radioField = {
     component: RadioField,
     displayName: _t("Radio"),

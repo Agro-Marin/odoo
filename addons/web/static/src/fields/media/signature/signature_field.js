@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/signature/signature_field - Signature pad field for capturing and storing handwritten signatures */
+/** @module @web/fields/media/signature/signature_field */
 
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { SignatureDialog } from "@web/components/signature/signature_dialog";
@@ -34,6 +34,15 @@ export class SignatureField extends Component {
         type: "signature",
     };
 
+    /** @type {import("services").ServiceFactories["dialog"]} */
+    dialogService;
+    /** @type {number} */
+    displaySignatureRatio;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {{ isValid: boolean }} */
+    state;
+
     setup() {
         this.displaySignatureRatio = 3;
 
@@ -55,12 +64,12 @@ export class SignatureField extends Component {
         });
     }
 
-    /** @returns {string} Cache-busting key based on record write date */
+    /** @returns {string} */
     get rawCacheKey() {
         return this.props.record.data.write_date;
     }
 
-    /** @returns {string} Image URL for the signature or a placeholder */
+    /** @returns {string} */
     get getUrl() {
         const { name, previewImage, record } = this.props;
         if (this.state.isValid && this.value) {
@@ -76,7 +85,7 @@ export class SignatureField extends Component {
         return placeholder;
     }
 
-    /** @returns {string} Inline CSS style string for signature dimensions */
+    /** @returns {string} */
     get sizeStyle() {
         let { width, height } = this.props;
 
@@ -101,12 +110,11 @@ export class SignatureField extends Component {
         return style;
     }
 
-    /** @returns {string|false} Raw binary data of the signature field */
+    /** @returns {string|false} */
     get value() {
         return this.props.record.data[this.props.name];
     }
 
-    /** Opens the signature dialog when the field is editable */
     onClickSignature() {
         if (!this.props.readonly) {
             const nameAndSignatureProps = {
@@ -138,7 +146,6 @@ export class SignatureField extends Component {
         }
     }
 
-    /** Marks the image as invalid and shows an error notification */
     onLoadFailed() {
         this.state.isValid = false;
         this.notification.add(_t("Could not display the selected image"), {
@@ -154,10 +161,9 @@ export class SignatureField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const signatureField = {
     component: SignatureField,
-    // `full_name` names a same-record field read to pre-fill the signature
-    // dialog; it is not otherwise required to be in the arch.
     fieldDependencies: ({ options }) => [
         { name: "write_date", type: "datetime" },
         ...(options.full_name

@@ -1,7 +1,9 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/badge_selection_with_filter/badge_selection_field_with_filter - Badge selection field filtered by an allowed-values field */
+/**
+ * @module @web/fields/selection/badge_selection_with_filter/badge_selection_field_with_filter
+ */
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
@@ -16,14 +18,17 @@ export class BadgeSelectionWithFilterField extends BadgeSelectionField {
         allowedSelectionField: { type: String },
     };
 
-    /** @returns {Array<[string, string]>} Selection options filtered by the allowed selection field */
+    /** @returns {Array<[string, string]>} */
     get options() {
         const allowedSelection =
             this.props.record.data[this.props.allowedSelectionField] || [];
-        return super.options.filter(([value, _]) => allowedSelection.includes(value));
+        return super.options.filter((/** @type {[any, any]} */ [value, _]) =>
+            allowedSelection.includes(value),
+        );
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const badgeSelectionFieldWithFilter = {
     ...badgeSelectionField,
     component: BadgeSelectionWithFilterField,

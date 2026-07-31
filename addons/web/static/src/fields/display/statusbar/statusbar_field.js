@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/display/statusbar/statusbar_field - Horizontal pipeline status bar for Selection and Many2one columns */
+/** @module @web/fields/display/statusbar/statusbar_field */
 
 import {
     Component,
@@ -31,13 +31,11 @@ import { useCommand } from "@web/services/commands/command_hook";
  *  visibleSelection?: string[];
  *  withCommand?: boolean;
  * }} StatusBarFieldProps
- *
  * @typedef StatusBarItem
  * @property {number} value
  * @property {string} label
  * @property {boolean} isFolded
  * @property {boolean} isSelected
- *
  * @typedef StatusBarList
  * @property {string} label
  * @property {StatusBarItem[]} items
@@ -187,26 +185,14 @@ export class StatusBarField extends Component {
         return /** @type {any} */ (this.props.record.fields[this.props.name]);
     }
 
-    /**
-     * Override this to force a dynamic domain on the records
-     */
     getDomain(props) {
         return [];
     }
 
-    /**
-     * Override this to change the fields to fetch
-     */
     getFieldNames(props) {
         return ["display_name"];
     }
 
-    /**
-     * Determines what items are visible and how they're displayed. Adjusts
-     * incrementally as space runs out: (1) all items inline; (2) items before
-     * the selected one collapse into a leading dropdown; (3) items after it
-     * (plus initially folded ones) also collapse; (4) last resort: single dropdown.
-     */
     adjustVisibleItems() {
         const itemEls = [
             ...this.rootRef.el.querySelectorAll(
@@ -353,22 +339,12 @@ export class StatusBarField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const statusBarField = {
     component: StatusBarField,
     displayName: _t("Status"),
     supportedOptions: [
         {
-            // A statusbar is NOT clickable unless the view opts in — that is
-            // the long-standing convention every arch in the codebase follows
-            // (`options="{'clickable': '1'}"`), and `extractProps` below
-            // implements it. The declared default said the opposite, and it is
-            // not inert documentation: Studio's property panel seeds a missing
-            // option's DISPLAYED value from `default`
-            // (web_studio/.../type_widget_properties.js `getPropertyFromOptions`),
-            // so it showed "Clickable: on" over a statusbar whose buttons
-            // render disabled. Corrected here rather than in `extractProps`,
-            // because flipping the runtime default would silently make every
-            // statusbar in every addon writable.
             label: _t("Clickable"),
             name: "clickable",
             type: "boolean",
@@ -378,10 +354,6 @@ export const statusBarField = {
             label: _t("Fold field"),
             name: "fold_field",
             type: "field",
-            // On the RELATION, not on this record: it is appended to the
-            // `searchRead` field list in `useSpecialData`, never read off
-            // `record.data`. Flagged so it is not mistaken for a same-record
-            // dependency (and so Studio offers the co-model's fields).
             isRelationalField: true,
             availableTypes: ["boolean"],
             help: _t(

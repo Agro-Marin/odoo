@@ -1,32 +1,17 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/selection_like_field - Abstract base class for selection-like fields with special data loading */
+/** @module @web/fields/selection/selection_like_field */
 
 import { Component } from "@odoo/owl";
 import { Domain } from "@web/core/domain";
 import { useSpecialData } from "@web/fields/relational/special_data";
 import { getFieldDomain } from "@web/model/relational_model/utils";
 
-/**
- * Base class for selection-like fields that can target either a `selection`
- * or a `many2one` ORM field type (badge, radio, plain selection).
- *
- * Provides:
- *   - type detection in `setup()`
- *   - `useSpecialData` for many2one options loaded via `name_search`
- *   - `get string()`, `get value()`, `stringify()` — identical across subclasses
- *
- * Subclasses must implement:
- *   - static template
- *   - static props
- *   - onChange()
- *   - their own option-list accessor for their template (`get options()` for
- *     SelectionField/BadgeSelectionField, `get items()` for RadioField). The
- *     base class deliberately does NOT depend on it — `get string()` resolves
- *     labels from the field's `selection` metadata directly.
- */
 export class SelectionLikeField extends Component {
+    /** Only assigned when {@link type} is `"many2one"`. @type {{ data: [number, string][] }} */
+    specialData;
+
     setup() {
         this.type = this.props.record.fields[this.props.name].type;
         if (this.type === "many2one") {

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/temporal/timezone_mismatch/timezone_mismatch_field - Timezone selection field that warns when browser and user timezones differ */
+/** @module @web/fields/temporal/timezone_mismatch/timezone_mismatch_field */
 
 import { formatDateTime } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -27,7 +27,7 @@ export class TimezoneMismatchField extends SelectionField {
         ),
     };
 
-    /** @returns {boolean} Whether the user's timezone offset differs from the browser's */
+    /** @returns {boolean} */
     get mismatch() {
         const userOffset = this.props.record.data[this.props.tzOffsetField];
         if (userOffset && this.props.record.data[this.props.name]) {
@@ -45,19 +45,19 @@ export class TimezoneMismatchField extends SelectionField {
         }
         return false;
     }
-    /** @returns {string} Warning message for the timezone mismatch tooltip */
+    /** @returns {string} */
     get mismatchTitle() {
         if (!this.props.record.data[this.props.name]) {
             return _t("Set a timezone on your user");
         }
         return this.props.mismatchTitle;
     }
-    /** @returns {Array<[string, string]>} Selection options with local time appended on mismatch */
+    /** @returns {Array<[string, string]>} */
     get options() {
         if (!this.mismatch) {
             return super.options;
         }
-        return super.options.map((option) => {
+        return super.options.map((/** @type {any} */ option) => {
             const [value, label] = option;
             if (value === this.props.record.data[this.props.name]) {
                 const offset = this.props.record.data[this.props.tzOffsetField]?.match(
@@ -100,12 +100,12 @@ export const timezoneMismatchField = {
             availableTypes: ["char"],
         },
     ],
-    extractProps: (fieldInfo, dynamicInfo) => ({
+    extractProps: (/** @type {any} */ fieldInfo, /** @type {any} */ dynamicInfo) => ({
         ...selectionField.extractProps(fieldInfo, dynamicInfo),
         tzOffsetField: fieldInfo.options.tz_offset_field,
         mismatchTitle: fieldInfo.options.mismatch_title,
     }),
-    fieldDependencies: ({ options }) => [
+    fieldDependencies: (/** @type {any} */ { options }) => [
         { name: options.tz_offset_field || "tz_offset", type: "char" },
     ],
 };

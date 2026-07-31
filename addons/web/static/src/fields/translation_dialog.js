@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/translation_dialog - Dialog for editing field translation values across installed languages */
+/** @module @web/fields/translation_dialog */
 
 import { Component, onWillStart } from "@odoo/owl";
 import { _t, loadLanguages } from "@web/core/l10n/translation";
@@ -66,7 +66,6 @@ export class TranslationDialog extends Component {
         });
     }
 
-    /** Load translation terms for the installed languages, for this record. */
     async loadTranslations() {
         return this.orm.call(this.props.resModel, "get_field_translations", [
             [this.props.resId],

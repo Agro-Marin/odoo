@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/selection/priority/priority_field - Star rating field for priority Selection columns */
+/** @module @web/fields/selection/priority/priority_field */
 
 import { Component, onWillRender, useState } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -78,6 +78,7 @@ export class PriorityField extends Component {
         return this.state.index > -1 ? this.state.index : this._selectedIndex;
     }
 
+    /** @param {any} value */
     getTooltip(value) {
         return this.tooltipLabel && this.tooltipLabel !== value
             ? `${this.tooltipLabel}: ${value}`
@@ -95,6 +96,7 @@ export class PriorityField extends Component {
         }
     }
 
+    /** @param {any} value */
     async updateRecord(value) {
         await this.props.record.update(
             { [this.props.name]: value },
@@ -103,6 +105,7 @@ export class PriorityField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const priorityField = {
     component: PriorityField,
     displayName: _t("Priority"),

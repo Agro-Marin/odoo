@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/media/pdf_viewer/pdf_viewer_field - Embedded PDF viewer field for Binary columns using PDF.js */
+/** @module @web/fields/media/pdf_viewer/pdf_viewer_field */
 
 import {
     Component,
@@ -30,6 +30,15 @@ export class PdfViewerField extends Component {
         fileNameField: { type: String, optional: true },
     };
 
+    /** @type {import("services").ServiceFactories["action"]} */
+    action;
+    /** @type {import("@odoo/owl").Ref} */
+    iframeViewerPdfRef;
+    /** @type {import("services").ServiceFactories["notification"]} */
+    notification;
+    /** @type {{ isValid: boolean; objectUrl: string }} */
+    state;
+
     setup() {
         this.notification = useService("notification");
         this.action = useService("action");
@@ -56,7 +65,7 @@ export class PdfViewerField extends Component {
         useEffect(
             (el) => {
                 if (el) {
-                    hidePDFJSButtons(this.iframeViewerPdfRef.el, {
+                    hidePDFJSButtons(el, {
                         hideDownload: true,
                         hidePrint: true,
                     });
@@ -67,8 +76,6 @@ export class PdfViewerField extends Component {
     }
 
     /**
-     * Replaces the current object URL, revoking the previous one so the
-     * underlying blob doesn't leak.
      * @param {string} objectUrl
      */
     setObjectUrl(objectUrl) {
@@ -142,6 +149,7 @@ export class PdfViewerField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const pdfViewerField = {
     component: PdfViewerField,
     displayName: _t("PDF Viewer"),
