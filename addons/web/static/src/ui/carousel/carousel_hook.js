@@ -44,10 +44,8 @@ export function useCarousel({ count, startIndex = 0, interval = 0, wrap = true }
             : Math.min(Math.max(target, 0), total - 1);
     };
 
-    /** @type {ReturnType<typeof browser.setInterval> | null} */
-    let timer = null;
     if (interval > 0) {
-        timer = browser.setInterval(() => {
+        const timer = browser.setInterval(() => {
             // A backgrounded tab throttles the timer without stopping it, so
             // the slides would otherwise all advance at once on return.
             if (!document.hidden) {
