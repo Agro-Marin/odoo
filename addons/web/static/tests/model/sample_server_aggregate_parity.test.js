@@ -23,8 +23,8 @@ import { SampleServer } from "@web/model/sample_server";
 
 /** Deterministic subclass, mirroring sample_server.test.js. */
 class DeterministicSampleServer extends SampleServer {
-    constructor() {
-        super(...arguments);
+    constructor(/** @type {any[]} */ ...args) {
+        super(...args);
         this.arrayElCpt = 0;
         this.boolCpt = 0;
         this.subRecordIdCpt = 0;

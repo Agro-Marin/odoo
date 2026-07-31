@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/sample_field_generators - Pure functions generating realistic fake field values by type */
+/** @module @web/model/sample_field_generators */
 
 import { serializeDate, serializeDateTime } from "@web/core/l10n/dates";
 import { DateTime } from "@web/core/l10n/luxon";
@@ -35,7 +35,7 @@ export function getRandomBool() {
     return Math.random() < 0.5;
 }
 
-/** @returns {any} Luxon DateTime near today (±60 days) */
+/** @returns {any} */
 export function getRandomDate() {
     const delta = Math.floor((Math.random() - Math.random()) * DATE_DELTA);
     return DateTime.local().plus({ hours: delta });
@@ -43,7 +43,7 @@ export function getRandomDate() {
 
 /**
  * @param {number} max
- * @returns {number} float in [0, max)
+ * @returns {number}
  */
 export function getRandomFloat(max) {
     return sanitizeNumber(Math.random() * max);
@@ -51,19 +51,18 @@ export function getRandomFloat(max) {
 
 /**
  * @param {number} max
- * @returns {number} int in [0, max)
+ * @returns {number}
  */
 export function getRandomInt(max) {
     return Math.floor(Math.random() * max);
 }
 
-/** @returns {number} id in [1, SUB_RECORDSET_SIZE] */
+/** @returns {number} */
 export function getRandomSubRecordId() {
     return Math.floor(Math.random() * SUB_RECORDSET_SIZE) + 1;
 }
 
 /**
- * Round to configured float precision.
  * @param {number} value
  * @returns {number}
  */
@@ -80,14 +79,11 @@ export function sanitizeNumber(value) {
  */
 
 /**
- * Generate a realistic fake value for one field based on its type and name.
- *
  * @param {string} modelName
  * @param {string} fieldName
- * @param {Record<string, any>} field - field definition (type, relation, selection, etc.)
- * @param {number} id - the record id (used for deterministic cycling)
- * @param {FieldGeneratorHooks} [hooks] - optional overrides for random functions, allowing
- *   subclasses (e.g. DeterministicSampleServer in tests) to inject deterministic behaviour.
+ * @param {Record<string, any>} field
+ * @param {number} id
+ * @param {FieldGeneratorHooks} [hooks]
  * @returns {any}
  */
 export function generateFieldValue(modelName, fieldName, field, id, hooks = {}) {
@@ -121,7 +117,6 @@ export function generateFieldValue(modelName, fieldName, field, id, hooks = {}) 
             return getRandomInt(MAX_MONETARY);
         case "many2one":
             if (field.relation === "res.currency") {
-                /** @todo return session.company_currency_id */
                 return 1;
             }
             if (field.relation === "ir.attachment") {
@@ -144,7 +139,6 @@ export function generateFieldValue(modelName, fieldName, field, id, hooks = {}) 
 }
 
 /**
- * Generate text/char field value based on field name heuristics.
  * @param {string} modelName
  * @param {string} fieldName
  * @param {number} id

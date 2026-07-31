@@ -14,6 +14,8 @@ import {
     shouldEmitUnlink,
 } from "@web/model/relational_model/command_builder";
 
+describe.current.tags("headless");
+
 const CREATE = 0;
 const UPDATE = 1;
 const DELETE = 2;

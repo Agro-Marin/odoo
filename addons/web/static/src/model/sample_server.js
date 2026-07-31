@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/sample_server - Fake ORM server generating realistic sample data for empty views */
+/** @module @web/model/sample_server */
 
 import {
     deserializeDate,
@@ -16,25 +16,15 @@ import {
     unique,
 } from "@web/core/utils/collections/arrays";
 
-registry
-    .category("sample_server")
-    .addValidation((entry) => typeof entry === "function");
 import { parseServerValue } from "./relational_model/utils.js";
 import {
     DISPLAY_FORMATS,
     FORMATS,
     getSampleFromId,
-    INTERVALS,
     MAIN_RECORDSET_SIZE,
-    MAX_COLOR_INT,
-    MAX_FLOAT,
     MAX_INTEGER,
-    MAX_MONETARY,
     MAX_NUMBER_OPENED_GROUPS,
     MEASURE_SPEC_REGEX,
-    SAMPLE_COUNTRIES,
-    SAMPLE_PEOPLE,
-    SAMPLE_TEXTS,
     SEARCH_READ_LIMIT,
     SUB_RECORDSET_SIZE,
 } from "./sample_data.js";
@@ -53,12 +43,10 @@ import {
  *   func: string;
  *   name: string;
  * }} MeasureSpec
- *
  * @typedef {{
  *   fields: Record<string, any>;
  *   records: Record<string, any>[];
  * }} ModelData
- *
  * @typedef {{
  *   model: string;
  *   method?: string;
@@ -75,6 +63,10 @@ import {
  *   [key: string]: any;
  * }} MockRpcParams
  */
+
+registry
+    .category("sample_server")
+    .addValidation((entry) => typeof entry === "function");
 
 class UnimplementedRouteError extends Error {}
 
@@ -93,11 +85,6 @@ function serializeGroupDateValue(range, field) {
         : serializeDateTime(dateValue);
 }
 
-/**
- * Static server that generates fake data, in the RPC's expected format, when
- * a call returns empty values/groups while the view's 'sample' attribute is
- * set to true.
- */
 export class SampleServer {
     /**
      * @param {string} modelName
@@ -128,11 +115,9 @@ export class SampleServer {
     }
 
     /**
-     * Main entry point. Mocks a request to the server with sample data.
-     *
      * @param {MockRpcParams} params
      * @returns {any}
-     * @throws {Error} If called on a route/method we do not handle
+     * @throws {Error}
      */
     mockRpc(params) {
         if (!(params.model in this.data)) {
@@ -173,7 +158,10 @@ export class SampleServer {
         this.existingGroups = groups;
     }
 
-    /** @param {any[]} array @returns {any} */
+    /**
+     * @param {any[]} array
+     * @returns {any}
+     */
     _getRandomArrayEl(array) {
         return getRandomArrayEl(array);
     }
@@ -183,16 +171,12 @@ export class SampleServer {
         return getRandomBool();
     }
 
-    /** @returns {number} id in [1, SUB_RECORDSET_SIZE] */
+    /** @returns {number} */
     _getRandomSubRecordId() {
         return getRandomSubRecordId();
     }
 
     /**
-     * Generate a value for one field, routing random calls through overridable
-     * instance methods so subclasses (e.g. DeterministicSampleServer in tests)
-     * can inject deterministic behaviour.
-     *
      * @param {string} modelName
      * @param {string} fieldName
      * @param {Record<string, any>} field
@@ -207,7 +191,12 @@ export class SampleServer {
         });
     }
 
-    /** @deprecated Use standalone getRandomInt() from sample_field_generators */
+    /**
+     * Overridable hook: `web_cohort`'s sample server calls this.
+     *
+     * @param {number} max
+     * @returns {number}
+     */
     _getRandomInt(max) {
         return getRandomInt(max);
     }
@@ -259,24 +248,6 @@ export class SampleServer {
     }
 
     /**
-     * Resolve a group-by spec (``field`` or ``field:interval``) against this
-     * server's schema, or ``undefined`` when this schema has no such field.
-     *
-     * ``_mockFormattedReadGroup`` always meant to skip an axis it cannot
-     * resolve — it guards on ``if (type)`` — but it destructured the schema
-     * entry one line before that guard, so the guard could never execute and an
-     * absent field threw instead. ``_populateExistingGroups`` and
-     * ``_tweakExistingGroups`` read the same entry with no guard at all.
-     * Routing all three through here is what makes the intended behaviour
-     * actual.
-     *
-     * NB no app-level trigger is known: a view hands the same ``fields`` object
-     * to ``buildSampleORM`` and to the model config, so the property axes
-     * ``_getPropertyDefinition`` adds at runtime land in this schema too (a
-     * sample view grouped by a property is covered by
-     * sample_property_groupby.test.js and does NOT crash without this helper).
-     * It is the unreachable guard, not a reproduced failure, that this fixes.
-     *
      * @param {string} modelName
      * @param {string} groupBySpec
      * @returns {{ fieldName: string, type: string, interval: string | undefined,
@@ -493,12 +464,6 @@ export class SampleServer {
             if (Array.isArray(groupByValue)) {
                 groupByValue = groupByValue[0];
             }
-            // A boolean axis always keys as "True"/"False", the shape the real
-            // read_progress_bar returns. Gating that on ``groupByValue in data``
-            // could never fire for the boolean itself — only the normalised key
-            // is ever inserted, so the raw ``true``/``false`` lookup missed
-            // every time. All the guard could do was let a char group literally
-            // named "true" swallow the boolean group's counts.
             if (typeof groupByValue === "boolean") {
                 groupByValue = groupByValue ? "True" : "False";
             }
@@ -540,10 +505,6 @@ export class SampleServer {
         for (const fieldName of Object.keys(params.specification)) {
             const field = this.data[params.model].fields[fieldName];
             if (!field) {
-                // A specification may name a field this sample schema doesn't
-                // carry; ``_mockRead`` already answers ``false`` for those
-                // rather than throwing, so the post-processing must skip them
-                // instead of dereferencing ``undefined.type``.
                 continue;
             }
             if (field.type === "many2one") {
@@ -653,7 +614,6 @@ export class SampleServer {
     }
 
     /**
-     * Generates sample records for all models in this.data.
      * @private
      */
     _populateModels() {
@@ -690,8 +650,6 @@ export class SampleServer {
         const groups = this.existingGroups;
         const gb = this._resolveGroupBy(params.model, params.groupBy[0]);
         if (!gb) {
-            // Nothing to redistribute the sample records over: leave the real
-            // groups exactly as the server sent them.
             return;
         }
         this._populateExistingGroups(params);
@@ -724,13 +682,6 @@ export class SampleServer {
                         modelFields[aggFieldName]?.type,
                     )
                 ) {
-                    // Rounded like ``_aggregateFields`` does. These two are the
-                    // only paths that produce a sample group's aggregates —
-                    // which one runs depends solely on whether the real server
-                    // returned groups to hang the records on — so they have to
-                    // agree. Summing 2-decimal sample floats with a bare
-                    // ``reduce`` yielded binary-float noise (57.97000000000001)
-                    // here and 57.97 there, for the same records.
                     g[aggregateSpec] = sanitizeNumber(
                         recordsInGroup.reduce((acc, r) => acc + r[aggFieldName], 0),
                     );
@@ -741,30 +692,16 @@ export class SampleServer {
 }
 
 SampleServer.FORMATS = FORMATS;
-SampleServer.INTERVALS = INTERVALS;
 SampleServer.DISPLAY_FORMATS = DISPLAY_FORMATS;
 SampleServer.MAIN_RECORDSET_SIZE = MAIN_RECORDSET_SIZE;
 SampleServer.SUB_RECORDSET_SIZE = SUB_RECORDSET_SIZE;
-SampleServer.SEARCH_READ_LIMIT = SEARCH_READ_LIMIT;
-SampleServer.MAX_COLOR_INT = MAX_COLOR_INT;
-SampleServer.MAX_FLOAT = MAX_FLOAT;
 SampleServer.MAX_INTEGER = MAX_INTEGER;
-SampleServer.MAX_MONETARY = MAX_MONETARY;
-SampleServer.SAMPLE_COUNTRIES = SAMPLE_COUNTRIES;
-SampleServer.SAMPLE_PEOPLE = SAMPLE_PEOPLE;
-SampleServer.SAMPLE_TEXTS = SAMPLE_TEXTS;
 SampleServer.UnimplementedRouteError = UnimplementedRouteError;
 
 /**
- * Build an ORM instance backed by a SampleServer for fake data rendering.
- *
- * Clones the real ORM instance via prototype delegation, overriding only the
- * RPC transport so all calls route to the in-memory SampleServer. The real
- * ORM's methods (call, read, searchRead, etc.) and user context are inherited.
- *
  * @param {string} resModel
  * @param {{[key: string]: any}} fields
- * @param {any} orm - the real ORM instance (from services.orm)
+ * @param {any} orm
  * @returns {any}
  */
 export function buildSampleORM(resModel, fields, orm) {

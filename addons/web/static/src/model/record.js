@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/record - Standalone OWL component for loading and displaying a single record */
+/** @module @web/model/record */
 
 import { Component, onWillStart, onWillUpdateProps, useState, xml } from "@odoo/owl";
 import { isObject, pick } from "@web/core/utils/collections/objects";
@@ -29,21 +29,19 @@ const defaultActiveField = { attrs: {}, options: {}, domain: "[]", string: "" };
 
 class StandaloneRelationalModel extends RelationalModel {
     /**
-     * Override that supports loading from provided values instead of fetching.
-     *
      * @param {Partial<import("@web/model/types").SearchParams> & { values?: {[key: string]: any} }} [params]
      * @returns {Promise<void>}
      */
-    load(params = {}) {
-        if (params.values) {
-            const data = params.values;
-            const config = this._getNextConfig(this.config, params);
-            this.root = this._createRoot(config, data);
-            this.config = config;
-            this.hooks.lifecycle.onRootLoaded(this.root);
-            return Promise.resolve();
+    async load(params = {}) {
+        if (!params.values) {
+            return super.load(params);
         }
-        return super.load(params);
+        const config = this._getNextConfig(this.config, params);
+        this.hooks.lifecycle.onWillLoadRoot(config);
+        this.root = this._createRoot(config, params.values);
+        this.config = config;
+        this.isReady = true;
+        await this.hooks.lifecycle.onRootLoaded(this.root);
     }
 }
 
@@ -83,9 +81,6 @@ class _Record extends Component {
         );
 
         /**
-         * Resolve relational field values (many2one, x2many) by fetching
-         * display names and nested records from the server.
-         *
          * @param {{[key: string]: any}} values
          * @returns {Promise<{[key: string]: any}>}
          */
@@ -123,7 +118,7 @@ class _Record extends Component {
                     }
                 }
                 if (this.props.fields[fieldName].type === "many2one") {
-                    const loadDisplayName = async (resId) => {
+                    const loadDisplayName = async (/** @type {number} */ resId) => {
                         const resModel = this.props.fields[fieldName].relation;
                         const activeField = modelParams.config.activeFields[fieldName];
                         const kwargs = {
@@ -207,12 +202,11 @@ class _Record extends Component {
     }
 
     /**
-     * Build the activeFields map from props, filling defaults.
-     *
      * @returns {{[key: string]: any}}
      */
     getActiveFields() {
         if (this.props.info.activeFields) {
+            /** @type {{[key: string]: any}} */
             const activeFields = {};
             for (const [fName, fInfo] of Object.entries(this.props.info.activeFields)) {
                 activeFields[fName] = { ...defaultActiveField, ...fInfo };
@@ -220,15 +214,14 @@ class _Record extends Component {
             return activeFields;
         }
         return Object.fromEntries(
-            this.props.info.fieldNames.map((f) => [f, { ...defaultActiveField }]),
+            this.props.info.fieldNames.map((/** @type {string} */ f) => [
+                f,
+                { ...defaultActiveField },
+            ]),
         );
     }
 }
 
-/**
- * Public Record component that resolves field definitions and delegates
- * to _Record for model instantiation.
- */
 export class Record extends Component {
     static template = xml`<_Record fields="fields" slots="props.slots" values="props.values" info="props" />`;
     static components = { _Record };

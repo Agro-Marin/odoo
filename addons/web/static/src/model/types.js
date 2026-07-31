@@ -2,15 +2,16 @@
 /** @odoo-module native */
 
 /**
- * @module @web/model/types - Shared type definitions for ORM field metadata and search parameters
- *
- * These types describe the shape of field definitions and view parameters
- * used across model/, search/, and views/ layers.
+ * @module @web/model/types
  */
 
 /** @import { Context } from "@web/core/context" */
 /** @import { DomainListRepr } from "@web/core/domain" */
 /** @import { OrderTerm } from "@web/core/utils/order_by" */
+
+/**
+ * @typedef {number | string} DatapointId
+ */
 
 /**
  * @typedef {{

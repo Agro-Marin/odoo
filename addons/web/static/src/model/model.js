@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/model/model - Abstract base Model class with OWL lifecycle integration and sample data fallback */
+/** @module @web/model/model */
 
 import {
     EventBus,
@@ -45,53 +45,30 @@ export class Model extends SignalStore {
         this.bus = new EventBus();
         this.isReady = false;
         /**
-         * Whether the component that owns this model is still mounted. The
-         * model's services are that component's ``useService`` proxies, so an
-         * RPC issued after it is destroyed throws "Component is destroyed"
-         * out of a promise nobody awaits. Supplied by ``useModel`` /
-         * ``useModelWithSampleData``; defaults to "always alive" for models
-         * constructed directly (tests, standalone callers).
-         *
          * @type {() => boolean}
          */
         this.isAlive = params?.isAlive || (() => true);
         /**
-         * Bumped by every ``notify()`` — the reactive key
-         * ``useReactiveModel`` subscribes renderers to.
          * @type {number}
          */
         this._updateEpoch = 0;
         /**
-         * Observable sample-data state. Read via {@link useSampleModel}
-         * getter for backward-compat across the 11 historical reader
-         * sites; write via ``this.sampleData.enter()`` / ``.exit()``
-         * (or the legacy ``this.useSampleModel = bool`` setter for the
-         * two existing PivotModel / GraphModel write sites).
-         *
          * @type {SampleDataCoordinator}
          */
         this.sampleData = new SampleDataCoordinator();
         /**
-         * The root data point, set by subclass `load()` implementations
-         * (e.g. a Record, DynamicRecordList, or DynamicGroupList).
          * @type {any}
          */
         this.root = undefined;
         /**
-         * Model metadata, set by subclass implementations
-         * (e.g. GraphModel, PivotModel).
          * @type {any}
          */
         this.metaData = undefined;
         /**
-         * Model data, set by subclass implementations
-         * (e.g. PivotModel, GraphModel).
          * @type {any}
          */
         this.data = undefined;
         /**
-         * Model configuration, set by subclass implementations
-         * (e.g. RelationalModel).
          * @type {any}
          */
         this.config = undefined;
@@ -110,12 +87,6 @@ export class Model extends SignalStore {
     setup(_params, _services) {}
 
     /**
-     * Backward-compat alias for ``sampleData.isActive``. The 11
-     * historical readers across views/ (pivot_controller, list_renderer,
-     * list_keyboard_nav, list_controller, list_styling, kanban
-     * renderer, etc.) continue to work unchanged via this getter; new
-     * code should prefer ``model.sampleData.isActive``.
-     *
      * @returns {boolean}
      */
     get useSampleModel() {
@@ -123,10 +94,6 @@ export class Model extends SignalStore {
     }
 
     /**
-     * Backward-compat alias for ``sampleData.set(value)``. Used by the
-     * two write sites in {@link PivotModel} and {@link GraphModel}
-     * that historically did ``this.useSampleModel = false``.
-     *
      * @param {boolean} value
      */
     set useSampleModel(value) {
@@ -139,25 +106,10 @@ export class Model extends SignalStore {
     async load(_params) {}
 
     /**
-     * Override to implement sample data: return true iff the last loaded
-     * state contains data. If false (and the feature is enabled), another
-     * load is done with the orm substituted by a SampleServer-backed one,
-     * to show sample data instead of an empty screen.
-     *
      * @returns {boolean}
      */
     hasData() {
         return true;
-    }
-
-    /**
-     * Override to combine sample data with real groups that exist on the
-     * server.
-     *
-     * @returns {boolean}
-     */
-    getGroups() {
-        return null;
     }
 
     notify() {
@@ -167,19 +119,9 @@ export class Model extends SignalStore {
 }
 
 /**
- * Subscribes the current component to a model's ``notify()`` signal and
- * returns a component-bound reactive view of the model.
- *
- * Use this in renderers that snapshot derived state from the model
- * (e.g. PivotRenderer's ``getTable()``): reading ``_updateEpoch`` during
- * render subscribes the component, so every ``model.notify()`` re-renders
- * it directly — no parent deep render required. Model classes whose whole
- * view tree relies on this pattern opt out of the legacy listener with
- * ``static reactiveRenderers = true``.
- *
  * @template {Model} M
  * @param {M} model
- * @returns {M} component-bound reactive proxy of ``model``
+ * @returns {M}
  */
 export function useReactiveModel(model) {
     const reactiveModel = useState(model);
@@ -194,13 +136,6 @@ export function useReactiveModel(model) {
 function getSearchParams(props) {
     const params = {};
     for (const key of SEARCH_KEYS) {
-        // Only materialize keys the caller actually supplied: every consumer
-        // downstream (``computeNextConfig``) branches on ``"domain" in params``
-        // to mean "the caller wants to change the domain". Copying an absent
-        // prop as an explicit ``undefined`` made that test vacuously true, so
-        // a missing prop would have overwritten a good config value with
-        // ``undefined`` — and ``config.context = {...undefined}`` silently
-        // empties the context rather than failing loudly.
         if (props[key] !== undefined) {
             params[key] = props[key];
         }
@@ -218,27 +153,41 @@ function getSearchParams(props) {
 }
 
 /**
- * Cached one-shot check. Validation is opt-in (off by default in production
- * to avoid per-load overhead). Three activation sources, in order:
+ * `odoo.debug` is toggled at runtime, so it is read on every call; only the
+ * flag lookup is memoised.
  *
- *   1. ``odoo.debug`` truthy → auto-enables.
- *   2. ``featureFlag("search_params_validation")`` — explicit opt-in for
- *      staged rollout (URL > localStorage > server cascade).
- *   3. Both ``false`` → validator skipped.
- *
- * Cached because the answer never changes within a session.
- *
+ * @type {boolean | null}
+ */
+let _searchParamsFeatureFlag = null;
+
+/**
  * @returns {boolean}
  */
-let _searchParamsValidationCache = null;
 function _isSearchParamsValidationEnabled() {
-    if (_searchParamsValidationCache !== null) {
-        return _searchParamsValidationCache;
+    if (_searchParamsFeatureFlag === null) {
+        _searchParamsFeatureFlag = featureFlag("search_params_validation", {
+            default: false,
+        });
     }
-    _searchParamsValidationCache = Boolean(
-        odoo.debug || featureFlag("search_params_validation", { default: false }),
-    );
-    return _searchParamsValidationCache;
+    return Boolean(odoo.debug) || _searchParamsFeatureFlag;
+}
+
+/**
+ * `useService` is a hook: it must run at the same point of `setup()` in both
+ * model hooks, or the `onWillStart` callbacks services register change order
+ * and so does the RPC sequence.
+ *
+ * @param {typeof Model} ModelClass
+ * @returns {Record<string, any>}
+ */
+function useModelServices(ModelClass) {
+    /** @type {Record<string, any>} */
+    const services = {};
+    for (const key of ModelClass.services) {
+        services[key] = useService(/** @type {any} */ (key));
+    }
+    services.orm = services.orm || useService("orm");
+    return services;
 }
 
 /**
@@ -250,19 +199,8 @@ function _isSearchParamsValidationEnabled() {
  */
 export function useModel(ModelClass, params, options = {}) {
     const component = useComponent();
-    /** @type {Record<string, any>} */
-    const services = {};
-    for (const key of ModelClass.services) {
-        services[key] = useService(key);
-    }
-    services.orm = services.orm || useService("orm");
+    const services = useModelServices(ModelClass);
     const model = new ModelClass(/** @type {any} */ (component.env), params, services);
-    // Bound to THIS component, on the instance — deliberately not written into
-    // ``params``: callers hand the same params object to more than one model,
-    // and a leftover ``isAlive`` closing over an already-destroyed component
-    // would make the next model consider itself dead and silently no-op every
-    // onchange. ``useModelWithSampleData`` still seeds it through params
-    // because google/microsoft_calendar read ``params.isAlive`` in setup().
     model.isAlive = () => status(component) !== "destroyed";
     onWillStart(async () => {
         await options.beforeFirstLoad?.();
@@ -271,7 +209,7 @@ export function useModel(ModelClass, params, options = {}) {
     });
     onWillUpdateProps(async (nextProps) => {
         if (/** @type {any} */ (model).mutex?.locked) {
-            await model._askChanges?.();
+            await /** @type {any} */ (model)._askChanges?.();
         }
         return model.load(getSearchParams(nextProps));
     });
@@ -290,20 +228,8 @@ export function useModelWithSampleData(ModelClass, params, options = {}) {
     if (!(ModelClass.prototype instanceof Model)) {
         throw new Error(`the model class should extend Model`);
     }
-    /** @type {Record<string, any>} */
-    const services = {};
-    for (const key of ModelClass.services) {
-        services[key] = useService(key);
-    }
-    services.orm = services.orm || useService("orm");
+    const services = useModelServices(ModelClass);
 
-    // Own copy, never the caller's object. ``useModel`` documents why (callers
-    // hand the same params to more than one model, and a stale ``isAlive``
-    // closing over a destroyed component makes the NEXT model consider itself
-    // dead and silently no-op every onchange) — but this hook was still writing
-    // ``isAlive`` and ``canUseSampleModel`` straight into it. The copy keeps
-    // both readable from ``setup(params)`` (google/microsoft_calendar do read
-    // ``params.isAlive``) without the cross-model leak.
     const modelParams = {
         ...params,
         canUseSampleModel: Boolean(component.props.useSampleModel),
@@ -429,7 +355,13 @@ export async function addPropertyFieldDefs(orm, resModel, context, fields, group
                         );
                     })
                     .catch(() => {
-                        fields[gb] = _makeFieldFromPropertyDefinition(gb, {}, field);
+                        // same fallback as RelationalModel#_getPropertyDefinition:
+                        // a field with no type reaches the codecs untyped
+                        fields[gb] = _makeFieldFromPropertyDefinition(
+                            gb,
+                            { type: "char" },
+                            field,
+                        );
                     }),
             );
         }
