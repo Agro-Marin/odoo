@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/copy_clipboard/copy_clipboard_field - Wrapper field that adds a copy-to-clipboard button to Char/URL fields */
+/** @module @web/fields/basic/copy_clipboard/copy_clipboard_field */
 
 import { Component } from "@odoo/owl";
 import { CopyButton } from "@web/components/copy_button/copy_button";
@@ -26,19 +26,19 @@ class CopyClipboardField extends Component {
         this.successText = _t("Copied");
     }
 
-    /** @returns {string} CSS class for the copy button */
+    /** @returns {string} */
     get copyButtonClassName() {
         return `o_btn_${this.type}_copy btn-sm`;
     }
-    /** @returns {Object} Props forwarded to the inner field component */
+    /** @returns {Object} */
     get fieldProps() {
         return omit(this.props, "string", "disabledExpr");
     }
-    /** @returns {string} ORM field type */
+    /** @returns {string} */
     get type() {
         return this.props.record.fields[this.props.name].type;
     }
-    /** @returns {boolean} Whether the copy button is disabled (from expression evaluation) */
+    /** @returns {boolean} */
     get disabled() {
         return this.props.disabledExpr
             ? evaluateBooleanExpr(
@@ -49,7 +49,6 @@ class CopyClipboardField extends Component {
     }
 }
 
-/** Copy-to-clipboard variant rendered as a standalone button. */
 export class CopyClipboardButtonField extends CopyClipboardField {
     static template = "web.CopyClipboardButtonField";
     static components = { CopyButton };
@@ -72,7 +71,7 @@ export class CopyClipboardCharField extends CopyClipboardField {
     static props = { ...CopyClipboardField.props, ...CharField.props };
     static defaultProps = { ...CharField.defaultProps };
 
-    /** @returns {string} Font Awesome icon class */
+    /** @returns {string} */
     get copyButtonIcon() {
         return "fa-clipboard";
     }
@@ -83,7 +82,7 @@ export class CopyClipboardURLField extends CopyClipboardField {
     static props = { ...CopyClipboardField.props, ...UrlField.props };
     static defaultProps = { ...UrlField.defaultProps };
 
-    /** @returns {string} Font Awesome icon class */
+    /** @returns {string} */
     get copyButtonIcon() {
         return "fa-link";
     }
@@ -103,7 +102,7 @@ function extractProps({ string, attrs }) {
 export const copyClipboardButtonField = {
     component: CopyClipboardButtonField,
     displayName: _t("Copy to Clipboard"),
-    extractProps: (fieldInfo) => ({
+    extractProps: (/** @type {any} */ fieldInfo) => ({
         ...extractProps(fieldInfo),
         btnClass: fieldInfo.options.btn_class,
     }),
@@ -112,24 +111,8 @@ export const copyClipboardButtonField = {
 registerField("CopyClipboardButton", copyClipboardButtonField);
 
 /**
- * Build the descriptor for a copy-to-clipboard wrapper around an existing
- * field descriptor.
- *
- * The wrapper renders the wrapped widget and forwards it ``fieldProps``, so it
- * has to CARRY that widget's props — and therefore has to run that widget's
- * own ``extractProps``. Declaring only ``{string, disabledExpr}`` meant every
- * option and attribute the inner widget understands was silently dropped:
- * ``<field widget="CopyClipboardChar" placeholder="…"/>`` rendered no
- * placeholder, and ``password``, ``autocomplete``, the dynamic-placeholder
- * options (char) and ``website_path``/``text`` (url) were all inert. They are
- * all optional props, so nothing ever raised.
- *
- * ``supportedOptions``/``supportedAttributes`` are inherited for the same
- * reason: the wrapper accepts exactly what the wrapped widget accepts, and
- * restating the list would let the two drift.
- *
  * @param {import("@odoo/owl").ComponentConstructor} component
- * @param {Record<string, any>} wrapped the wrapped widget's descriptor
+ * @param {Record<string, any>} wrapped
  * @returns {Record<string, any>}
  */
 function buildCopyClipboardField(component, wrapped) {
@@ -138,7 +121,10 @@ function buildCopyClipboardField(component, wrapped) {
         supportedTypes: wrapped.supportedTypes,
         supportedOptions: wrapped.supportedOptions,
         supportedAttributes: wrapped.supportedAttributes,
-        extractProps: (fieldInfo, dynamicInfo) => ({
+        extractProps: (
+            /** @type {any} */ fieldInfo,
+            /** @type {any} */ dynamicInfo,
+        ) => ({
             ...wrapped.extractProps?.(fieldInfo, dynamicInfo),
             ...extractProps(fieldInfo),
         }),

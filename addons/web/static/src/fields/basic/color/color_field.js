@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/color/color_field - Native color picker input field for Char columns */
+/** @module @web/fields/basic/color/color_field */
 
 import { Component, useState } from "@odoo/owl";
 import { exprToBoolean } from "@web/core/utils/format/strings";
@@ -48,6 +48,7 @@ export class ColorField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const colorField = {
     component: ColorField,
     supportedTypes: ["char"],

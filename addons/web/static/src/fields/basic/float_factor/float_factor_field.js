@@ -1,12 +1,12 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/float_factor/float_factor_field - Float field that applies a multiplication factor for display and storage */
+/** @module @web/fields/basic/float_factor/float_factor_field */
 
 import { _t } from "@web/core/l10n/translation";
+import { Operation } from "@web/core/utils/operation";
 import { registerField } from "@web/fields/_registry";
 import { FloatField, floatField } from "@web/fields/basic/float/float_field";
-import { Operation } from "@web/model/relational_model/operation";
 
 export class FloatFactorField extends FloatField {
     static props = {
@@ -18,7 +18,7 @@ export class FloatFactorField extends FloatField {
         factor: 1,
     };
 
-    /** @returns {number} the multiplication factor, guarded against 0 */
+    /** @returns {number} */
     get factor() {
         const factor = this.props.factor;
         if (!factor) {
@@ -29,8 +29,8 @@ export class FloatFactorField extends FloatField {
     }
 
     /**
-     * @param {string} value - user input to parse
-     * @returns {number|Operation} parsed float divided by the factor
+     * @param {string} value
+     * @returns {number|Operation}
      */
     parse(value) {
         const parsed = super.parse(value);
@@ -43,13 +43,14 @@ export class FloatFactorField extends FloatField {
         return parsed / this.factor;
     }
 
-    /** @returns {number|false} stored value multiplied by the factor, or false when unset */
+    /** @returns {number|false} */
     get value() {
         const value = this.props.record.data[this.props.name];
         return value === false ? false : value * this.factor;
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const floatFactorField = {
     ...floatField,
     component: FloatFactorField,

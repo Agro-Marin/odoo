@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/boolean_toggle/boolean_toggle_field - Toggle switch field widget for Boolean columns */
+/** @module @web/fields/basic/boolean_toggle/boolean_toggle_field */
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
@@ -19,7 +19,10 @@ export class BooleanToggleField extends BooleanField {
         autosave: true,
     };
 
-    /** @param {boolean} newValue @returns {Promise<void>} */
+    /**
+     * @param {boolean} newValue
+     * @returns {Promise<void>}
+     */
     async onChange(newValue) {
         this.state.value = newValue;
         const changes = { [this.props.name]: newValue };
@@ -32,6 +35,7 @@ export class BooleanToggleField extends BooleanField {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const booleanToggleField = {
     ...booleanField,
     component: BooleanToggleField,

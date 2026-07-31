@@ -1,16 +1,16 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/monetary/monetary_field - Currency-aware numeric input field for Monetary columns */
+/** @module @web/fields/basic/monetary/monetary_field */
 
 import { useEffect, useRef } from "@odoo/owl";
+import { formatMonetary } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
+import { parseMonetary } from "@web/core/parsers";
 import { nbsp } from "@web/core/utils/format/strings";
 import { useRenderCounter } from "@web/core/utils/render_instrumentation";
 import { registerField } from "@web/fields/_registry";
 import { isFalseEmpty } from "@web/fields/field_utils";
-import { formatMonetary } from "@web/fields/formatters";
-import { parseMonetary } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { getCurrency } from "@web/services/currency";
 
@@ -33,12 +33,6 @@ export class MonetaryField extends NumericInputFieldBase {
     };
 
     /**
-     * Declared here rather than left to inference from the ``setup()``
-     * assignment: TypeScript widens a JS property that is only ever assigned
-     * outside the constructor to ``T | undefined``, which made every read of
-     * the ref report as possibly-undefined even though ``setup()`` assigns it
-     * unconditionally.
-     *
      * @type {ReturnType<typeof useRef>}
      */
     ghostRef;
@@ -48,23 +42,9 @@ export class MonetaryField extends NumericInputFieldBase {
         super.setup();
         this.nbsp = nbsp;
         this.ghostRef = useRef("ghostValue");
-        // The input is uncontrolled (useInputField writes input.value
-        // directly), so a model-driven change patches no DOM the renderer
-        // owns. This unconditional effect re-syncs the ghost after every
-        // patch; onInput covers the keystrokes in between.
         useEffect(() => this.syncGhostValue());
     }
 
-    /**
-     * Mirrors the input's text into the hidden ghost span that reserves the
-     * inline space the currency symbol is positioned against.
-     *
-     * Written straight to the DOM rather than held in ``useState``: the ghost
-     * is presentational and always equals the input's own value, so routing it
-     * through reactive state made every keystroke re-render the component
-     * (measured: 4 renders for 3 characters, against 0 for CharField, whose
-     * input is likewise uncontrolled).
-     */
     syncGhostValue() {
         const ghostEl = this.ghostRef.el;
         const inputEl = this.inputRef?.el;
@@ -73,7 +53,10 @@ export class MonetaryField extends NumericInputFieldBase {
         }
     }
 
-    /** @param {string} v @returns {number} */
+    /**
+     * @param {string} v
+     * @returns {number}
+     */
     parse(v) {
         return this.parseNumericInput(v, (val) =>
             parseMonetary(val, { allowOperation: true }),
@@ -136,6 +119,7 @@ export class MonetaryField extends NumericInputFieldBase {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const monetaryField = {
     component: MonetaryField,
     supportedOptions: [

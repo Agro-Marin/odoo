@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/boolean/boolean_field - Checkbox field widget for Boolean columns */
+/** @module @web/fields/basic/boolean/boolean_field */
 
 import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox/checkbox";

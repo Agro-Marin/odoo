@@ -1,17 +1,14 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/float/float_field - Numeric input field for Float columns with locale-aware formatting */
+/** @module @web/fields/basic/float/float_field */
 
+import { formatFloat } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
+import { parseFloat } from "@web/core/parsers";
+import { extractDigits } from "@web/core/utils/format/digits";
 import { registerField } from "@web/fields/_registry";
-import {
-    extractDigits,
-    extractNumericOptions,
-    isFalseEmpty,
-} from "@web/fields/field_utils";
-import { formatFloat } from "@web/fields/formatters";
-import { parseFloat } from "@web/fields/parsers";
+import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { NumericInputFieldBase } from "../numeric_input_field_base.js";
@@ -39,8 +36,7 @@ export class FloatField extends NumericInputFieldBase {
 
     /**
      * @param {string} value
-     * @returns {number | import("@web/model/relational_model/operation").Operation}
-     *     an Operation when the input is a multi-edit expression ("+= 5", ...)
+     * @returns {number | import("@web/core/utils/operation").Operation}
      */
     parse(value) {
         return this.parseNumericInput(value, (v) =>
@@ -97,7 +93,7 @@ export const floatField = {
         },
         {
             label: _t("Minimum Digits"),
-            name: "minDigits",
+            name: "min_display_digits",
             type: "digits",
         },
         {
@@ -138,11 +134,10 @@ export const floatField = {
     ],
     supportedTypes: ["float", "monetary"],
     isEmpty: isFalseEmpty,
-    // Declares the registry's full ``(fieldInfo, dynamicInfo)`` signature even
-    // though it reads only ``fieldInfo``: derived fields forward BOTH arguments
-    // to their base (float_factor, and 7 other fields onto their own bases), and
-    // a base that declares one parameter makes every such forward an arity error
-    // — which is what it was.
+    /**
+     * @param {{ attrs: any, options: any }} param0
+     * @param {any} _dynamicInfo
+     */
     extractProps: ({ attrs, options }, _dynamicInfo) => ({
         ...extractNumericOptions({ options }),
         digits: extractDigits({ attrs, options }),

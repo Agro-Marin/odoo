@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/boolean_icon/boolean_icon_field - Clickable icon field that toggles a Boolean value */
+/** @module @web/fields/basic/boolean_icon/boolean_icon_field */
 
 import { Component } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -19,7 +19,6 @@ export class BooleanIconField extends Component {
         icon: "fa-regular fa-square-check",
     };
 
-    /** Toggles the boolean value and updates the record. */
     update() {
         if (this.props.readonly) {
             return;
@@ -30,6 +29,7 @@ export class BooleanIconField extends Component {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const booleanIconField = {
     component: BooleanIconField,
     displayName: _t("Boolean Icon"),

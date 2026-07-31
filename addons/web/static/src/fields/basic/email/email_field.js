@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/email/email_field - Email input field with mailto link in readonly mode */
+/** @module @web/fields/basic/email/email_field */
 
 import { _t } from "@web/core/l10n/translation";
 import { registerField } from "@web/fields/_registry";
@@ -25,6 +25,7 @@ export class EmailField extends TextInputFieldBase {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const emailField = {
     component: EmailField,
     displayName: _t("Email"),

@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/text/text_field - Multi-line textarea input field for Text columns */
+/** @module @web/fields/basic/text/text_field */
 
 import { useRef } from "@odoo/owl";
 import { _t } from "@web/core/l10n/translation";
@@ -73,6 +73,7 @@ export class TextField extends TextInputFieldBase {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const textField = {
     component: TextField,
     displayName: _t("Multiline Text"),

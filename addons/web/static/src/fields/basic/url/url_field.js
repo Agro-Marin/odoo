@@ -1,7 +1,7 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/url/url_field - URL input field with clickable hyperlink in readonly mode */
+/** @module @web/fields/basic/url/url_field */
 
 import { _t } from "@web/core/l10n/translation";
 import { isSafeUrlScheme } from "@web/core/utils/urls";
@@ -27,16 +27,13 @@ export class UrlField extends TextInputFieldBase {
         });
     }
 
-    /** @returns {string} raw field value or empty string */
+    /** @returns {string} */
     get value() {
         return this.props.record.data[this.props.name] || "";
     }
 
     /**
-     * @returns {string} a safe hyperlink target: the value prefixed with
-     * http:// when it carries no protocol, restricted to safe schemes. Unsafe
-     * values (javascript:/data:/vbscript:, protocol-relative //host) are
-     * dropped so they never reach the rendered t-att-href.
+     * @returns {string}
      */
     get formattedHref() {
         let value = this.props.record.data[this.props.name];
@@ -51,6 +48,7 @@ export class UrlField extends TextInputFieldBase {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const urlField = {
     component: UrlField,
     displayName: _t("URL"),

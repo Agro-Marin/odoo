@@ -1,13 +1,13 @@
 // @ts-check
 /** @odoo-module native */
 
-/** @module @web/fields/basic/integer/integer_field - Numeric input field for Integer columns with locale-aware formatting */
+/** @module @web/fields/basic/integer/integer_field */
 
+import { formatInteger } from "@web/core/formatters";
 import { _t } from "@web/core/l10n/translation";
+import { parseInteger } from "@web/core/parsers";
 import { registerField } from "@web/fields/_registry";
 import { extractNumericOptions, isFalseEmpty } from "@web/fields/field_utils";
-import { formatInteger } from "@web/fields/formatters";
-import { parseInteger } from "@web/fields/parsers";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 
 import { NumericInputFieldBase } from "../numeric_input_field_base.js";
@@ -31,7 +31,10 @@ export class IntegerField extends NumericInputFieldBase {
         decimals: 0,
     };
 
-    /** @param {string} v @returns {number} */
+    /**
+     * @param {string} v
+     * @returns {number}
+     */
     parse(v) {
         return this.parseNumericInput(
             v,
@@ -59,6 +62,7 @@ export class IntegerField extends NumericInputFieldBase {
     }
 }
 
+/** @type {import("registries").FieldsRegistryItemShape} */
 export const integerField = {
     component: IntegerField,
     displayName: _t("Integer"),
