@@ -1,7 +1,7 @@
 // @ts-check
 
 import { expect, test } from "@odoo/hoot";
-import { click, edit, queryOne, queryText, queryValue } from "@odoo/hoot-dom";
+import { click, edit, press, queryOne, queryText, queryValue } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     clickSave,
@@ -577,4 +577,79 @@ test("ProgressBarField: a field-backed max_value stays editable", async () => {
     });
     expect(".o_progressbar_value input").toHaveCount(1);
     expect(queryValue(".o_progressbar_value input")).toBe("200");
+});
+
+test("ProgressBarField: an editable current_value is written back", async () => {
+    // `current_value` used to be declared as a *readonly* field dependency while
+    // the widget still rendered a writable input for it. A readonly field is
+    // dropped from web_save, so the edit was accepted, echoed back into the
+    // input and then silently discarded -- with no invalid marker and no
+    // notification, leaving the form permanently "unsaved".
+    Partner._records[0].int_field = 10;
+    Partner._records[0].int_field2 = 20;
+    onRpc("web_save", ({ args }) => {
+        expect.step(args[1]);
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="int_field" widget="progressbar"
+                    options="{'editable': true, 'current_value': 'int_field2'}"/>
+            </form>`,
+    });
+    await click(".o_progressbar_value input");
+    await edit("55");
+    await press("Tab");
+    await clickSave();
+    expect.verifySteps([{ int_field2: 55 }]);
+});
+
+test("ProgressBarField: an editable max_value is written back", async () => {
+    Partner._records[0].int_field = 7;
+    Partner._records[0].int_field2 = 200;
+    onRpc("web_save", ({ args }) => {
+        expect.step(args[1]);
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="int_field" widget="progressbar"
+                    options="{'max_value': 'int_field2', 'editable': true, 'edit_max_value': true}"/>
+            </form>`,
+    });
+    await click(".o_progressbar_value input");
+    await edit("300");
+    await press("Tab");
+    await clickSave();
+    expect.verifySteps([{ int_field2: 300 }]);
+});
+
+test("ProgressBarField: a parse error on current_value marks the bar invalid", async () => {
+    // The bar writes to `current_value`, so the default
+    // `record.isFieldInvalid(props.name)` never saw the parse error and the
+    // widget stayed unhighlighted while the save silently refused.
+    Partner._records[0].int_field = 10;
+    Partner._records[0].int_field2 = 20;
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `
+            <form>
+                <field name="int_field" widget="progressbar"
+                    options="{'editable': true, 'current_value': 'int_field2'}"/>
+            </form>`,
+    });
+    expect(".o_field_progressbar").not.toHaveClass("o_field_invalid");
+    await click(".o_progressbar_value input");
+    await edit("not-a-number");
+    await press("Tab");
+    await animationFrame();
+    expect(".o_field_progressbar").toHaveClass("o_field_invalid");
 });

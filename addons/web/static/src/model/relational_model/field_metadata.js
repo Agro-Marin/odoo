@@ -56,6 +56,7 @@ export const FIELD_DEPENDENCIES_VALIDATION = {
                     type: { type: String, optional: true },
                     optional: { type: Boolean, optional: true },
                     readonly: { type: [Boolean, String], optional: true },
+                    written: { type: Boolean, optional: true },
                     "*": true,
                 },
             },
@@ -118,11 +119,27 @@ export function addFieldDependencies(activeFields, fields, fieldDependencies = [
         if (field.optional && !fields[field.name]) {
             continue;
         }
+        // A dependency is a *read* by default, and that default is load-bearing:
+        // a readonly active field is dropped from web_save, so leaving it
+        // implicit on a field the widget writes makes the write vanish -- the
+        // value round-trips through the input and is silently lost.
+        //
+        // `readonly: false` is not the cure, because it is not "don't care":
+        // patchActiveFields combines readonly with AND, so a false dependency
+        // *overrides* an arch `readonly="..."` on the same field and unlocks it.
+        //
+        // `written: true` is the third case -- "this widget edits the field".
+        // It must be writable when this declaration is what puts it in the view,
+        // and when the arch already carries the field the arch keeps ownership
+        // of its modifiers, so no patch is applied at all.
+        const alreadyActive = field.name in activeFields;
         if (!("readonly" in field)) {
-            field.readonly = true;
+            field.readonly = !field.written;
         }
-        if (field.name in activeFields) {
-            patchActiveFields(activeFields[field.name], makeActiveField(field));
+        if (alreadyActive) {
+            if (!field.written) {
+                patchActiveFields(activeFields[field.name], makeActiveField(field));
+            }
         } else {
             activeFields[field.name] = makeActiveField(field);
             if (["one2many", "many2many"].includes(field.type)) {

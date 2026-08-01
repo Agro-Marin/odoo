@@ -154,6 +154,10 @@ export const pdfViewerField = {
     component: PdfViewerField,
     displayName: _t("PDF Viewer"),
     supportedTypes: ["binary"],
+    // Written on upload and compared against on every update; a value that is
+    // never loaded makes that comparison always mismatch.
+    fieldDependencies: ({ attrs }) =>
+        attrs.filename ? [{ name: attrs.filename, optional: true, written: true }] : [],
     extractProps: ({ attrs }) => ({ fileNameField: attrs.filename }),
 };
 
