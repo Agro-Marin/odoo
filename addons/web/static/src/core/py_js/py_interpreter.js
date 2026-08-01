@@ -15,14 +15,7 @@ import {
     pyTypeName,
 } from "./py_builtin.js";
 import { isEqual, isIn, isLess } from "./py_compare.js";
-import {
-    NotSupportedError,
-    PyDate,
-    PyDateTime,
-    PyRelativeDelta,
-    PyTime,
-    PyTimeDelta,
-} from "./py_date.js";
+import { PyDate, PyDateTime, PyRelativeDelta, PyTime, PyTimeDelta } from "./py_date.js";
 import { isPyTuple, markPyTuple } from "./py_tuple.js";
 import { isPyDict, isPyMapping, toPyDict } from "./py_utils.js";
 
@@ -810,19 +803,15 @@ function _applyBinaryOp(ast, recurse) {
             if (timeDeltaOnLeft && timeDeltaOnRight) {
                 return left.add(right);
             }
-            if (timeDeltaOnLeft) {
-                if (right instanceof PyDate || right instanceof PyDateTime) {
-                    return right.add(left);
-                } else {
-                    throw new NotSupportedError();
+            if (timeDeltaOnLeft || timeDeltaOnRight) {
+                const date = timeDeltaOnLeft ? right : left;
+                const delta = timeDeltaOnLeft ? left : right;
+                if (!(date instanceof PyDate) && !(date instanceof PyDateTime)) {
+                    throw new EvaluationError(
+                        `unsupported operand type(s) for +: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+                    );
                 }
-            }
-            if (timeDeltaOnRight) {
-                if (left instanceof PyDate || left instanceof PyDateTime) {
-                    return left.add(right);
-                } else {
-                    throw new NotSupportedError();
-                }
+                return date.add(delta);
             }
             if (Array.isArray(left) && Array.isArray(right)) {
                 return [...left, ...right];
@@ -848,16 +837,37 @@ function _applyBinaryOp(ast, recurse) {
 
             const timeDeltaOnRight = right instanceof PyTimeDelta;
             if (timeDeltaOnRight) {
-                if (left instanceof PyTimeDelta) {
+                if (
+                    left instanceof PyTimeDelta ||
+                    left instanceof PyDate ||
+                    left instanceof PyDateTime
+                ) {
                     return left.subtract(right);
-                } else if (left instanceof PyDate || left instanceof PyDateTime) {
-                    return left.subtract(right);
-                } else {
-                    throw new NotSupportedError();
                 }
+                throw new EvaluationError(
+                    `unsupported operand type(s) for -: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+                );
             }
 
-            if (left instanceof PyDate || left instanceof PyDateTime) {
+            // One branch per class rather than one for the union: a `date` and
+            // a `datetime` may only be subtracted from their own kind, and the
+            // check belongs here, where `pyTypeName` is in scope. Delegating it
+            // to `subtract` produced a bare `NotSupportedError` whose empty
+            // message reached the user as "Error:" with nothing after it.
+            if (left instanceof PyDateTime) {
+                if (!(right instanceof PyDateTime)) {
+                    throw new EvaluationError(
+                        `unsupported operand type(s) for -: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+                    );
+                }
+                return left.subtract(right);
+            }
+            if (left instanceof PyDate) {
+                if (!(right instanceof PyDate)) {
+                    throw new EvaluationError(
+                        `unsupported operand type(s) for -: '${pyTypeName(left)}' and '${pyTypeName(right)}'`,
+                    );
+                }
                 return left.subtract(right);
             }
             if (left instanceof Set && right instanceof Set) {

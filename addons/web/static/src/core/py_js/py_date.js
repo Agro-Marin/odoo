@@ -228,7 +228,7 @@ export class PyDate {
      * @returns {boolean}
      */
     isEqual(other) {
-        if (!(other instanceof PyDate) || other instanceof PyTime) {
+        if (!(other instanceof PyDate)) {
             return false;
         }
         return (
@@ -275,10 +275,12 @@ export class PyDate {
         if (other instanceof PyTimeDelta) {
             return this.add(new PyTimeDelta(-other.days, 0, 0));
         }
-        if (other instanceof PyDate && !(other instanceof PyTime)) {
+        if (other instanceof PyDate) {
             return PyTimeDelta.create(this.toordinal() - other.toordinal());
         }
-        throw new NotSupportedError();
+        throw new NotSupportedError(
+            "date can only be subtracted from a date or a timedelta",
+        );
     }
 
     /** @returns {string} */
@@ -499,7 +501,9 @@ export class PyDateTime {
                 microseconds: usDiff,
             });
         }
-        throw new NotSupportedError();
+        throw new NotSupportedError(
+            "datetime can only be subtracted from a datetime or a timedelta",
+        );
     }
 
     /** @returns {number} */
@@ -557,16 +561,26 @@ export class PyDateTime {
     }
 }
 
-export class PyTime extends PyDate {
+/**
+ * A wall-clock time, deliberately **not** a ``PyDate``.
+ *
+ * ``PyTime`` used to extend ``PyDate`` (fixing year/month/day at 1900-01-01),
+ * which made ``time`` pass every ``instanceof PyDate`` guard in the engine.
+ * ``PyRelativeDelta.add`` is one such guard, so ``datetime.time(1, 2, 3) +
+ * relativedelta(days=1)`` silently answered ``1900-01-02`` where the server's
+ * ``safe_eval`` raises ``TypeError``. CPython agrees the two are unrelated:
+ * ``isinstance(time(0, 0), date)`` is ``False``.
+ */
+export class PyTime {
     /**
      * @param {...any} args
      * @returns {PyTime}
      */
     static create(...args) {
         const namedArgs = bindArgs(args, ["hour", "minute", "second"], "time");
-        const hour = namedArgs.hour || 0;
-        const minute = namedArgs.minute || 0;
-        const second = namedArgs.second || 0;
+        const hour = namedArgs.hour ?? 0;
+        const minute = namedArgs.minute ?? 0;
+        const second = namedArgs.second ?? 0;
         assertTimeComponents(hour, minute, second);
         return new PyTime(hour, minute, second);
     }
@@ -577,26 +591,9 @@ export class PyTime extends PyDate {
      * @param {number} second
      */
     constructor(hour, minute, second) {
-        super(1900, 1, 1);
         this.hour = hour;
         this.minute = minute;
         this.second = second;
-    }
-
-    /**
-     * @param {PyTimeDelta} [timedelta]
-     * @returns {PyDate}
-     */
-    add(timedelta) {
-        throw new NotSupportedError();
-    }
-
-    /**
-     * @param {PyTimeDelta | PyDate} [other]
-     * @returns {PyDate | PyTimeDelta}
-     */
-    subtract(other) {
-        throw new NotSupportedError();
     }
 
     /**
@@ -643,8 +640,14 @@ export class PyTime extends PyDate {
         });
     }
 
+    /** @returns {string} */
     toJSON() {
         return this.strftime("%H:%M:%S");
+    }
+
+    /** @returns {string} */
+    toString() {
+        return this.toJSON();
     }
 
     /**
@@ -816,7 +819,9 @@ export class PyRelativeDelta {
      */
     static add(date, delta) {
         if (!(date instanceof PyDate || date instanceof PyDateTime)) {
-            throw new NotSupportedError();
+            throw new NotSupportedError(
+                "relativedelta can only be added to a date or a datetime",
+            );
         }
 
         let year = (delta.year ?? date.year) + delta.years;
@@ -944,9 +949,40 @@ export class PyRelativeDelta {
     }
 
     /**
-     * @param {PyRelativeDelta} other
+     * Field-by-field, like ``dateutil``'s own ``__eq__``. ``create()`` has
+     * already folded ``weeks`` into ``days`` and cascaded every overflow, so
+     * two deltas that mean the same thing carry the same fields.
+     *
+     * @param {any} other
+     * @returns {boolean}
      */
     isEqual(other) {
-        throw new NotSupportedError();
+        if (!(other instanceof PyRelativeDelta)) {
+            return false;
+        }
+        return RELATIVE_DELTA_FIELDS.every(
+            (field) =>
+                /** @type {any} */ (this)[field] === /** @type {any} */ (other)[field],
+        );
     }
 }
+
+/** @type {string[]} */
+const RELATIVE_DELTA_FIELDS = [
+    "years",
+    "months",
+    "days",
+    "hours",
+    "minutes",
+    "seconds",
+    "microseconds",
+    "leapDays",
+    "year",
+    "month",
+    "day",
+    "hour",
+    "minute",
+    "second",
+    "microsecond",
+    "weekday",
+];
