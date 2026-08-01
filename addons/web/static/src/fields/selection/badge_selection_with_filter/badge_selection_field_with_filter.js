@@ -45,6 +45,20 @@ export const badgeSelectionFieldWithFilter = {
             ),
         },
     ],
+    // Read to decide which values stay selectable, so it has to be loaded even
+    // when the view does not render it. Without this every consumer had to
+    // remember an `<field name="..." invisible="1"/>` of its own, and forgetting
+    // it filtered every option away rather than failing.
+    fieldDependencies: ({ options }) =>
+        options.allowed_selection_field
+            ? [
+                  {
+                      name: options.allowed_selection_field,
+                      optional: true,
+                      readonly: true,
+                  },
+              ]
+            : [],
     extractProps: (fieldInfo, dynamicInfo) => ({
         ...badgeSelectionField.extractProps(fieldInfo, dynamicInfo),
         allowedSelectionField: fieldInfo.options.allowed_selection_field,

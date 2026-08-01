@@ -58,6 +58,12 @@ export const googleSlideViewer = {
     ...charField,
     component: GoogleSlideViewer,
     displayName: _t("Google Slide Viewer"),
+    // See the same declaration on `pdf_viewer`: `<name>_page` was read out of
+    // `record.data` without being declared, so it was never loaded and the
+    // viewer always opened on the first slide.
+    fieldDependencies: ({ name }) => [
+        { name: `${name}_page`, optional: true, readonly: true },
+    ],
 };
 
 registerField("google_slide_viewer", googleSlideViewer);

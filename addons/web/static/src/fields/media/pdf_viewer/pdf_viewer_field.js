@@ -156,8 +156,18 @@ export const pdfViewerField = {
     supportedTypes: ["binary"],
     // Written on upload and compared against on every update; a value that is
     // never loaded makes that comparison always mismatch.
-    fieldDependencies: ({ attrs }) =>
-        attrs.filename ? [{ name: attrs.filename, optional: true, written: true }] : [],
+    //
+    // `<name>_page` is the page the viewer opens on. It was read straight out of
+    // `record.data` without ever being declared, so it was absent from every
+    // record and the viewer always opened on page 1 -- the option could not work
+    // even on a model that defines the field. `optional` makes the declaration a
+    // no-op on the models that do not.
+    fieldDependencies: ({ name, attrs }) => [
+        ...(attrs.filename
+            ? [{ name: attrs.filename, optional: true, written: true }]
+            : []),
+        { name: `${name}_page`, optional: true, readonly: true },
+    ],
     extractProps: ({ attrs }) => ({ fileNameField: attrs.filename }),
 };
 
