@@ -4,15 +4,9 @@
 /** @module @web/public/error_notifications */
 
 import { odooExceptionTitleMap } from "@web/components/errors/error_dialogs";
+import { browser } from "@web/core/browser/browser";
 import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
-odooExceptionTitleMap.forEach((title, exceptionName) => {
-    registry.category("error_notifications").add(exceptionName, {
-        title: title,
-        type: "warning",
-        sticky: true,
-    });
-});
 
 /**
  * @type {{ title: string, message: string, type: string, sticky: boolean, buttons: Array<{ text: string, click: () => void, close: boolean }> }}
@@ -27,7 +21,7 @@ const sessionExpired = {
     buttons: [
         {
             text: _t("Ok"),
-            click: () => window.location.reload(),
+            click: () => browser.location.reload(),
             close: true,
         },
     ],
@@ -43,7 +37,14 @@ const forbidden = {
     sticky: true,
 };
 
-registry
-    .category("error_notifications")
+const notifications = registry.category("error_notifications");
+odooExceptionTitleMap.forEach((title, exceptionName) => {
+    notifications.add(exceptionName, {
+        title: title,
+        type: "warning",
+        sticky: true,
+    });
+});
+notifications
     .add("odoo.http.SessionExpiredException", sessionExpired, { force: true })
     .add("werkzeug.exceptions.Forbidden", forbidden, { force: true });
