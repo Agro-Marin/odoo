@@ -95,6 +95,26 @@ jobs:
           set -e
           python tooling/architecture/js_layer_check.py --check
 
+      - name: Run JS import-cycle check
+        id: js_cycles
+        # Complements the layering gate, which locks import *direction* and is
+        # blind to *cycles*: every edge of a cycle can sit inside one layer and
+        # break no contract. Scans EVERY addon's client source, not just web's,
+        # for the same reason the named-export gate does — a cycle in mail or
+        # point_of_sale fails identically. Blocking, because a cycle's damage
+        # depends on
+        # evaluation order rather than on the code — `core/py_js` carried a
+        # six-module cycle whose unsafe entry orders threw a ReferenceError
+        # under native ESM and, under `esbuild --bundle`, silently built a
+        # lookup table with `undefined` keys. The shipped order happened to be
+        # the safe one, so 1904 passing JS tests said nothing about it.
+        run: |
+          set +e
+          python tooling/architecture/js_cycle_check.py | tee /tmp/js_cycles.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set -e
+          python tooling/architecture/js_cycle_check.py --check
+
       - name: Run named-export coherence check
         id: named_exports
         # Blocking, and at zero from day one: an `import { x }` with no
@@ -132,6 +152,11 @@ jobs:
             cat /tmp/js_layers.log
             echo '```'
             echo ""
+            echo "### JavaScript (import cycles)"
+            echo '```'
+            cat /tmp/js_cycles.log
+            echo '```'
+            echo ""
             echo "### JavaScript (named-export coherence)"
             echo '```'
             cat /tmp/named_exports.log
@@ -141,7 +166,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Annotate PR on failure
-        if: always() && (steps.layers.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0')
+        if: always() && (steps.layers.outputs.exit_code != '0' || steps.js_layers.outputs.exit_code != '0' || steps.js_cycles.outputs.exit_code != '0')
         uses: actions/github-script@v7
         with:
           script: |
