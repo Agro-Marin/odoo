@@ -1905,3 +1905,134 @@ test("a selected choice that leaves the choices keeps its label", async () => {
     await animationFrame();
     expect(queryAllTexts(".o_tag")).toEqual(["Alpha"]);
 });
+
+test("a choice renamed in place is re-sorted", async () => {
+    // Callers hand over the same objects render after render and edit them
+    // field by field, so identity cannot answer whether the menu is still
+    // derived from them: the order was computed from the old spelling.
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`
+            <SelectMenu choices="state.choices" value="'a'" onSelect="() => {}"/>
+        `;
+        setup() {
+            this.state = useState({
+                choices: [
+                    { label: "Alpha", value: "a" },
+                    { label: "Bravo", value: "b" },
+                ],
+            });
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    await open();
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha", "Bravo"]);
+
+    parent.state.choices[0].label = "Zulu";
+    await animationFrame();
+
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Bravo", "Zulu"]);
+});
+
+test("a choice renamed in place is re-matched against the live query", async () => {
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`
+            <SelectMenu choices="state.choices" value="'a'" onSelect="() => {}"/>
+        `;
+        setup() {
+            this.state = useState({
+                choices: [
+                    { label: "Alpha", value: "a" },
+                    { label: "Bravo", value: "b" },
+                ],
+            });
+        }
+    }
+    const parent = await mountSingleApp(MyParent);
+    await open();
+    await editInput("alp");
+    expect(queryAllTexts(".o_select_menu_item")).toEqual(["Alpha"]);
+
+    // The renamed choice no longer answers the query it is on screen for.
+    parent.state.choices[0].label = "Zulu";
+    await animationFrame();
+
+    expect(queryAllTexts(".o_select_menu_item")).toEqual([]);
+});
+
+test("a single-select listbox leaves aria-selected to the cursor", async () => {
+    // Deliberate: one held value is already announced, because it IS the text
+    // in the combobox. So `aria-selected` stays where the combobox convention
+    // puts it, on the cursor, and the multi-select case below is the only one
+    // that has to take it back.
+    await mountSingleApp(Parent);
+    await open();
+
+    expect(`[role="listbox"]`).not.toHaveAttribute("aria-multiselectable");
+    expect(queryOne(".o_select_menu_item.selected")).toHaveAttribute(
+        "aria-selected",
+        "false",
+    );
+});
+
+test("a multiSelect listbox says so, and marks every picked choice", async () => {
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`
+            <SelectMenu multiSelect="true" choices="choices" value="state.value"
+                        onSelect="() => {}"/>
+        `;
+        setup() {
+            this.state = useState({ value: ["hello", "moon"] });
+            this.choices = [
+                { label: "Hello", value: "hello" },
+                { label: "World", value: "world" },
+                { label: "Moon", value: "moon" },
+            ];
+        }
+    }
+    await mountSingleApp(MyParent);
+    await open();
+
+    expect(`[role="listbox"]`).toHaveAttribute("aria-multiselectable", "true");
+    expect(
+        queryAll(`[role="option"]`).map((o) => [
+            o.textContent.trim(),
+            o.getAttribute("aria-selected"),
+        ]),
+    ).toEqual([
+        ["Hello", "true"],
+        ["Moon", "true"],
+        ["World", "false"],
+    ]);
+});
+
+test.tags("mobile");
+test("a bottom sheet has one combobox, and one holder of id and name", async () => {
+    // The search box is rendered twice here -- toggler and sheet -- and only
+    // the one the user types into may be the combobox: two controls for one
+    // listbox, and an `id` a `<label for>` resolves to the wrong box.
+    class MyParent extends Component {
+        static components = { SelectMenu };
+        static props = ["*"];
+        static template = xml`
+            <SelectMenu id="'sm-id'" name="'sm-name'" choices="choices"
+                        value="'world'" onSelect="() => {}"/>
+        `;
+        setup() {
+            this.choices = [{ label: "World", value: "world" }];
+        }
+    }
+    await mountSingleApp(MyParent);
+    await open();
+
+    expect(`input`).toHaveCount(2);
+    expect(`[role="combobox"]`).toHaveCount(1);
+    expect(`[role="combobox"]`).toHaveClass("o_select_menu_input");
+    expect(queryAll(`[id="sm-id"]`)).toHaveLength(1);
+    expect(queryAll(`[name="sm-name"]`)).toHaveLength(1);
+});

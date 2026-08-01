@@ -31,7 +31,6 @@ const DEFAULT_COLOR = "#FF0000";
 export class CustomColorPicker extends Component {
     static template = "web.CustomColorPicker";
     static props = {
-        document: { type: true, optional: true },
         defaultColor: { type: String, optional: true },
         selectedColor: { type: String, optional: true },
         noTransparency: { type: Boolean, optional: true },
@@ -44,7 +43,6 @@ export class CustomColorPicker extends Component {
         setOperationCallbacks: { type: Function, optional: true },
     };
     static defaultProps = {
-        document: window.document,
         defaultColor: DEFAULT_COLOR,
         defaultOpacity: 100,
         noTransparency: false,
@@ -85,13 +83,15 @@ export class CustomColorPicker extends Component {
         this.opacitySliderRef = useRef("opacitySlider");
         this.opacitySliderPointerRef = useRef("opacitySliderPointer");
 
-        const baseDocument = this.props.document ?? document;
+        // A drag that starts on a slider must keep tracking once the pointer
+        // crosses into an iframe -- the builder's preview is one -- so the move
+        // and release are listened for in every document this one can reach,
+        // and `getLocalPoint` puts the coordinates back into this frame.
         let documents;
         try {
-            const baseWindow = baseDocument.defaultView ?? window;
             documents = [
-                baseWindow.top,
-                ...Array.from(baseWindow.top.frames).filter((frame) => {
+                window.top,
+                ...Array.from(window.top.frames).filter((frame) => {
                     try {
                         return !!frame.document;
                     } catch {
@@ -100,7 +100,8 @@ export class CustomColorPicker extends Component {
                 }),
             ].map((w) => w.document);
         } catch {
-            documents = [baseDocument];
+            // Cross-origin ancestors are unreachable; ours is always ours.
+            documents = [document];
         }
         this.throttleOnPointerMove = useThrottleForAnimation((ev) => {
             this.onPointerMovePicker(ev);
