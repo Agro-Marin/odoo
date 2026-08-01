@@ -606,13 +606,19 @@ export const assets = {
                     linkEl,
                     resolve,
                     async (error) => {
+                        // Detached on *every* failure, not just before a retry.
+                        // A dead `<link>` left in the head is not merely litter:
+                        // `seedFromDocument` walks `link[rel=stylesheet][href]`
+                        // and seeds each href it finds with a resolved promise,
+                        // so the next `loadCSS` for this url would be told the
+                        // stylesheet was already delivered.
+                        linkEl.remove();
                         const retryable = !url.includes("/web/assets/");
                         if (retryable && attempt < assets.retries.count) {
                             const delay =
                                 assets.retries.delay +
                                 assets.retries.extraDelay * attempt;
                             await new Promise((res) => browser.setTimeout(res, delay));
-                            linkEl.remove();
                             runAttempt(attempt + 1).then(resolve, reject);
                         } else {
                             reject(
@@ -659,6 +665,10 @@ export const assets = {
                 scriptEl,
                 resolve,
                 (error) => {
+                    // See `loadCSS`: a failed `<script src>` left in the head is
+                    // what `seedFromDocument` would later read as "already
+                    // delivered", masking the failure from the next caller.
+                    scriptEl.remove();
                     evictIfCurrent(cacheMap, url, () => promise);
                     reject(
                         new AssetsLoadingError(`The loading of ${url} failed`, {

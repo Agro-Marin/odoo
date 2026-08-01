@@ -123,6 +123,60 @@ test("loadCSS: content-addressed bundle URLs fail fast without retries", async (
     expect(appended).toBe(1);
 });
 
+// These two really attach the element, unlike the tests above which stub
+// `appendChild` away: "was it detached again?" is only a meaningful question
+// about a node that was actually connected. A dead `<link>`/`<script src>` left
+// behind is what `seedFromDocument` reads as "the page already delivered this",
+// seeding a resolved promise for a url that never loaded.
+//
+// `data:` urls, so attaching for real still costs no request — an earlier
+// version pointed at a 404 and its response landed in whatever test happened to
+// be running when it arrived, mutating the head mid-test. The failure is
+// dispatched synthetically either way, so the url is never fetched.
+/**
+ * @param {(node: Node) => void} [afterAppend]
+ */
+const attachForRealThenFail = (afterAppend) => {
+    const realAppendChild = document.head.appendChild.bind(document.head);
+    mockHeadAppendChild((node) => {
+        realAppendChild(node);
+        afterAppend?.(node);
+        manuallyDispatchProgrammaticEvent(node, "error");
+        return node;
+    });
+};
+
+test("loadCSS: a failed link is detached from the head", async () => {
+    patchWithCleanup(assets, { retries: { count: 0, delay: 1, extraDelay: 1 } });
+    const url = "data:text/css,/*never-loads*/";
+    /** @type {Node | null} */
+    let attached = null;
+    attachForRealThenFail((node) => {
+        attached = node;
+        expect(/** @type {Element} */ (node).isConnected).toBe(true);
+    });
+
+    await expect(loadCSS(url)).rejects.toThrow(/failed/);
+    expect(/** @type {any} */ (attached).isConnected).toBe(false, {
+        message: "the failed <link> must not stay in the head",
+    });
+});
+
+test("loadJS: a failed script is detached from the head", async () => {
+    const url = "data:text/javascript,/*never-loads*/";
+    /** @type {Node | null} */
+    let attached = null;
+    attachForRealThenFail((node) => {
+        attached = node;
+        expect(/** @type {Element} */ (node).isConnected).toBe(true);
+    });
+
+    await expect(loadJS(url)).rejects.toThrow(/failed/);
+    expect(/** @type {any} */ (attached).isConnected).toBe(false, {
+        message: "the failed <script> must not stay in the head",
+    });
+});
+
 test("loadBundle: load js and css files", async () => {
     mockFetch((route) => {
         expect.step(`fetch bundle: ${route.pathname}`);
