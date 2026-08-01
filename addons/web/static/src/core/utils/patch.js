@@ -136,9 +136,21 @@ export function patch(objToPatch, extension) {
     description.skeleton = extension;
 
     return () => {
+        // Read the description back rather than closing over the one captured
+        // above: unpatching re-applies the surviving extensions, and each of
+        // those `patch()` calls builds a *fresh* description. A closure holding
+        // the stale one would restore the wrong originals when two patches are
+        // undone in registration order.
+        const current = patchDescriptions.get(objToPatch);
+        // Nothing left to undo: this closure already ran, or the target has
+        // since been patched by someone else. Undoing anyway used to wipe that
+        // unrelated patch and deregister it, so its own unpatch became a no-op.
+        if (!current?.extensions.has(extension)) {
+            return;
+        }
         patchDescriptions.delete(objToPatch);
 
-        for (const [key, property] of description.originalProperties) {
+        for (const [key, property] of current.originalProperties) {
             if (property) {
                 Object.defineProperty(objToPatch, key, property);
             } else {
@@ -146,11 +158,11 @@ export function patch(objToPatch, extension) {
             }
         }
 
-        description.extensions.delete(extension);
+        current.extensions.delete(extension);
         usedExtensions.delete(extension);
-        for (const extension of description.extensions) {
-            usedExtensions.delete(extension);
-            patch(objToPatch, extension);
+        for (const survivor of current.extensions) {
+            usedExtensions.delete(survivor);
+            patch(objToPatch, survivor);
         }
     };
 }

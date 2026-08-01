@@ -1147,4 +1147,61 @@ describe("extension objects stay pristine", () => {
         un();
         expect(target.v).toBe(5);
     });
+
+    test("calling an unpatch twice is a no-op", () => {
+        class A {
+            fn() {
+                return "orig";
+            }
+        }
+        const unA = patch(A.prototype, {
+            fn() {
+                return "A>" + super.fn();
+            },
+        });
+        const unB = patch(A.prototype, {
+            fn() {
+                return "B>" + super.fn();
+            },
+        });
+        unB();
+        unB();
+        expect(new A().fn()).toBe("A>orig");
+        expect(patchInfo(A.prototype).extensions).toHaveLength(1);
+        unA();
+        expect(new A().fn()).toBe("orig");
+        expect(patchInfo(A.prototype)).toBe(null);
+    });
+
+    test("a stale unpatch leaves a later, unrelated patch alone", () => {
+        class A {
+            fn() {
+                return "orig";
+            }
+        }
+        const unA = patch(A.prototype, {
+            fn() {
+                return "A>" + super.fn();
+            },
+        });
+        unA();
+        expect(new A().fn()).toBe("orig");
+
+        // Another module patches the same target afterwards. The first
+        // unpatch no longer owns anything here and must not touch it.
+        const unC = patch(A.prototype, {
+            fn() {
+                return "C>" + super.fn();
+            },
+        });
+        unA();
+        expect(new A().fn()).toBe("C>orig");
+        expect(patchInfo(A.prototype).extensions).toHaveLength(1);
+
+        // ...and C's own unpatch still works, rather than having been
+        // silently deregistered.
+        unC();
+        expect(new A().fn()).toBe("orig");
+        expect(patchInfo(A.prototype)).toBe(null);
+    });
 });
