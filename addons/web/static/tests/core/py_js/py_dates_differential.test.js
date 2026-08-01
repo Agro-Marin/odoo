@@ -52,11 +52,14 @@ function canon(v) {
     }
     const pad = (n, w) => String(Math.abs(n)).padStart(w, "0");
     // duck-typed on purpose: importing PyDate/PyTime to instanceof-check would
-    // let a class-identity mixup pass as a match.
-    if ("hour" in v && "year" in v && "microsecond" in v) {
+    // let a class-identity mixup pass as a match. Only a datetime carries both
+    // halves; a time has no date part and a date has no time part. (This used
+    // to have to test `microsecond` to tell a time from a datetime, because
+    // `PyTime` extended `PyDate` and so answered to `year`.)
+    if ("year" in v && "hour" in v) {
         return `DT(${pad(v.year, 4)}-${pad(v.month, 2)}-${pad(v.day, 2)} ${pad(v.hour, 2)}:${pad(v.minute, 2)}:${pad(v.second, 2)}.${pad(v.microsecond, 6)})`;
     }
-    if ("hour" in v && "year" in v) {
+    if ("hour" in v) {
         return `T(${pad(v.hour, 2)}:${pad(v.minute, 2)}:${pad(v.second, 2)})`;
     }
     if ("year" in v) {

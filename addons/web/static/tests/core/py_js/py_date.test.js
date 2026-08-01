@@ -818,3 +818,79 @@ describe("construction validation", () => {
         );
     });
 });
+
+describe("time is not a date", () => {
+    test("relativedelta refuses a time, as safe_eval does", () => {
+        // `PyTime extends PyDate` used to make this answer "1900-01-02".
+        expect(() =>
+            evaluateExpr("datetime.time(1, 2, 3) + relativedelta(days=1)"),
+        ).toThrow(/relativedelta can only be added to a date or a datetime/);
+    });
+
+    test("a time is not equal to the date it used to impersonate", () => {
+        expect(
+            evaluateExpr("datetime.date(1900, 1, 1) == datetime.time(0, 0, 0)"),
+        ).toBe(false);
+        expect(
+            evaluateExpr("datetime.time(0, 0, 0) == datetime.date(1900, 1, 1)"),
+        ).toBe(false);
+    });
+
+    test("time keeps its own formatting and comparisons", () => {
+        expect(evaluateExpr("str(datetime.time(1, 2, 3))")).toBe("01:02:03");
+        expect(evaluateExpr("datetime.time(13, 2, 3).strftime('%I:%M %p')")).toBe(
+            "01:02 PM",
+        );
+        expect(
+            evaluateExpr("datetime.time(1, 2, 3).replace(hour=5).strftime('%H:%M:%S')"),
+        ).toBe("05:02:03");
+        expect(evaluateExpr("datetime.time(1, 3) > datetime.time(1, 2)")).toBe(true);
+        expect(evaluateExpr("datetime.time(0, 0, 0) == datetime.time(0, 0, 0)")).toBe(
+            true,
+        );
+    });
+
+    test("arithmetic on a time reports the operand types", () => {
+        expect(() =>
+            evaluateExpr("datetime.time(1, 2, 3) + datetime.timedelta(days=1)"),
+        ).toThrow(/unsupported operand type\(s\) for \+: 'time' and 'timedelta'/);
+        expect(() =>
+            evaluateExpr("datetime.time(1, 2, 3) - datetime.date(1900, 1, 1)"),
+        ).toThrow(/unsupported operand type\(s\) for -: 'time' and 'date'/);
+    });
+
+    test("a date minus a non-date names both operands instead of nothing", () => {
+        // This used to surface as a `NotSupportedError` with an empty message.
+        expect(() => evaluateExpr("datetime.date(2024, 1, 1) - 5")).toThrow(
+            /unsupported operand type\(s\) for -: 'date' and 'int'/,
+        );
+    });
+});
+
+describe("relativedelta equality", () => {
+    test("equal deltas compare equal, as dateutil does", () => {
+        expect(evaluateExpr("relativedelta(days=1) == relativedelta(days=1)")).toBe(
+            true,
+        );
+        expect(evaluateExpr("relativedelta(days=1) == relativedelta(days=2)")).toBe(
+            false,
+        );
+    });
+
+    test("weeks are folded into days before comparing", () => {
+        expect(evaluateExpr("relativedelta(weeks=1) == relativedelta(days=7)")).toBe(
+            true,
+        );
+    });
+
+    test("an absolute field never equals the relative one", () => {
+        expect(evaluateExpr("relativedelta(day=1) == relativedelta(days=1)")).toBe(
+            false,
+        );
+    });
+
+    test("a delta never equals a non-delta", () => {
+        expect(evaluateExpr("relativedelta(days=1) == 5")).toBe(false);
+        expect(evaluateExpr("relativedelta(days=1) != 5")).toBe(true);
+    });
+});
