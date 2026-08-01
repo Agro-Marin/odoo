@@ -33,6 +33,7 @@ const __odoo_assets_state__ = globalSingleton("assets", () => ({
     assetCacheByDocument: new WeakMap(),
     crossDocESMBundleCache: new WeakMap(),
     injectedImportMapKeys: new Set(),
+    crossDocImportMapKeys: new WeakMap(),
     crossDocLoadSeq: 0,
 }));
 
@@ -40,16 +41,40 @@ export const globalBundleCache = __odoo_assets_state__.globalBundleCache;
 export const assetCacheByDocument = __odoo_assets_state__.assetCacheByDocument;
 const crossDocESMBundleCache = __odoo_assets_state__.crossDocESMBundleCache;
 const injectedImportMapKeys = __odoo_assets_state__.injectedImportMapKeys;
+const crossDocImportMapKeys = __odoo_assets_state__.crossDocImportMapKeys;
+
+/**
+ * A specifier already mapped in a document cannot be remapped: a later import
+ * map carrying the same key has that rule dropped ("An import map rule for
+ * specifier X was removed, as it conflicted with an existing rule"). So every
+ * document gets its own record of what has been mapped in it.
+ *
+ * @param {Document} targetDoc
+ * @returns {Set<string>}
+ */
+function getInjectedImportMapKeys(targetDoc) {
+    if (targetDoc === document || targetDoc.defaultView === window) {
+        return injectedImportMapKeys;
+    }
+    let keys = crossDocImportMapKeys.get(targetDoc);
+    if (!keys) {
+        keys = new Set();
+        crossDocImportMapKeys.set(targetDoc, keys);
+    }
+    return keys;
+}
 
 /**
  * @param {Document} targetDoc
+ * @param {Set<string>} [keys]
  * @returns {number}
  */
-function seedInjectedImportMapKeys(targetDoc) {
+function seedInjectedImportMapKeys(targetDoc, keys) {
     const head = targetDoc.head || targetDoc.documentElement;
     if (!head) {
         return 0;
     }
+    const injected = keys ?? getInjectedImportMapKeys(targetDoc);
     let seeded = 0;
     for (const script of head.querySelectorAll('script[type="importmap"]')) {
         const text = script.textContent || "";
@@ -61,8 +86,8 @@ function seedInjectedImportMapKeys(targetDoc) {
             const imports = parsed && parsed.imports;
             if (imports && typeof imports === "object") {
                 for (const spec of Object.keys(imports)) {
-                    if (!injectedImportMapKeys.has(spec)) {
-                        injectedImportMapKeys.add(spec);
+                    if (!injected.has(spec)) {
+                        injected.add(spec);
                         seeded++;
                     }
                 }
@@ -498,14 +523,34 @@ export const assets = {
             }
         }
         Object.assign(extraMap, serverMap);
-        if (Object.keys(extraMap).length) {
+        // Same filtering the same-document branch does: a second bundle loaded
+        // into this iframe repeats every specifier the first one mapped, and
+        // re-declaring one is not an error -- the browser silently drops the
+        // new rule and keeps the old target.
+        const injected = getInjectedImportMapKeys(targetDoc);
+        seedInjectedImportMapKeys(targetDoc, injected);
+        /** @type {Record<string, any>} */
+        const freshEntries = {};
+        let nDup = 0;
+        for (const [spec, url] of Object.entries(extraMap)) {
+            if (injected.has(spec)) {
+                nDup++;
+            } else {
+                freshEntries[spec] = url;
+                injected.add(spec);
+            }
+        }
+        const nFresh = Object.keys(freshEntries).length;
+        if (nFresh) {
             log(
                 "loadESMBundle:crossDoc injecting extra import map entries=",
-                Object.keys(extraMap).length,
+                nFresh,
+                "dup=",
+                nDup,
             );
             const mapEl = targetDoc.createElement("script");
             mapEl.type = "importmap";
-            mapEl.textContent = JSON.stringify({ imports: extraMap });
+            mapEl.textContent = JSON.stringify({ imports: freshEntries });
             (targetDoc.head || targetDoc.documentElement).appendChild(mapEl);
         }
         const token = ++__odoo_assets_state__.crossDocLoadSeq;

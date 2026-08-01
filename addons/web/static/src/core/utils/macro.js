@@ -278,8 +278,6 @@ export class MacroMutationObserver {
         this.abortController = new AbortController();
         /** @type {WeakSet<HTMLIFrameElement>} */
         this.observedIframes = new WeakSet();
-        /** @type {WeakSet<Document>} */
-        this.observedContentDocuments = new WeakSet();
         this.observer = new MutationObserver((mutationList, observer) => {
             callback(mutationList);
             mutationList.forEach((mutationRecord) =>
@@ -348,27 +346,19 @@ export class MacroMutationObserver {
      */
     observeIframe(iframeEl, observer, callback) {
         const { signal } = this.abortController;
+        // No listener on `contentDocument` itself: `load` is fired at the
+        // window, so a listener bound to the document never runs, and by the
+        // time the iframe's own `load` brings us here that document has
+        // finished loading anyway. The `iframeEl` listener below is the one
+        // that fires on every subsequent navigation.
         const observeIframeContent = () => {
             const contentDocument = iframeEl.contentDocument;
-            if (contentDocument) {
-                if (!this.observedContentDocuments.has(contentDocument)) {
-                    this.observedContentDocuments.add(contentDocument);
-                    contentDocument.addEventListener(
-                        "load",
-                        (event) => {
-                            callback();
-                            observer.observe(
-                                /** @type {Node} */ (event.target),
-                                this.observerOptions,
-                            );
-                        },
-                        { signal },
-                    );
-                }
-                if (!iframeEl.src || contentDocument.readyState === "complete") {
-                    callback();
-                    observer.observe(contentDocument, this.observerOptions);
-                }
+            if (
+                contentDocument &&
+                (!iframeEl.src || contentDocument.readyState === "complete")
+            ) {
+                callback();
+                observer.observe(contentDocument, this.observerOptions);
             }
         };
         observeIframeContent();
