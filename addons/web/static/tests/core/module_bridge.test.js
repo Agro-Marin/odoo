@@ -19,7 +19,8 @@ describe("bridge source generation", () => {
                 `const _m = odoo.loader.modules.get("@web/core/x");`,
                 `const _d = _m?.default ?? _m;`,
                 `export default _d;`,
-                `export const alpha = _m?.alpha;`,
+                `const _e0 = _m?.alpha;`,
+                `export { _e0 as alpha };`,
             ].join("\n"),
         );
     });
@@ -31,7 +32,8 @@ describe("bridge source generation", () => {
             "invalid-name",
             "0invalid",
         ]);
-        expect(source).toInclude("export const valid_name = _m?.valid_name;");
+        expect(source).toInclude("const _e0 = _m?.valid_name;");
+        expect(source).toInclude("export { _e0 as valid_name };");
         expect(source).not.toInclude("invalid-name");
         expect(source).not.toInclude("0invalid");
         expect(source.match(/export default/g)).toHaveLength(1);
@@ -116,5 +118,34 @@ describe("makeLazyFacade (bridge-safe lazy exports)", () => {
         const awaited = await Promise.resolve(facade);
         expect(awaited).toBe(facade);
         expect(awaited.value).toBe(42);
+    });
+});
+
+describe("bridge source with awkward export names", () => {
+    test("a reserved word is re-exported under an alias, not `export const`", () => {
+        const source = buildBridgeModuleSource("@web/x", ["foo", "class", "await"]);
+        expect(source).not.toInclude("export const class");
+        expect(source).toInclude("_m?.class");
+        expect(source).toInclude("as class");
+        expect(source).toInclude("as await");
+        expect(source).toInclude("as foo");
+    });
+
+    test("the generated source parses as a module", async () => {
+        // A single `export const class = ...` is a SyntaxError that takes the
+        // whole bridge down, every other export of it included.
+        const source = buildBridgeModuleSource("@web/x", [
+            "ok",
+            "class",
+            "new",
+            "yield",
+            "default",
+            "1invalid",
+        ]);
+        globalThis.odoo.loader.modules.set("@web/x", { ok: 1, class: 2 });
+        const mod = await import(toDataModuleUrl(source));
+        expect(mod.ok).toBe(1);
+        expect(mod["class"]).toBe(2);
+        expect("1invalid" in mod).toBe(false);
     });
 });

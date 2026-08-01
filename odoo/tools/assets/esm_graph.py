@@ -552,6 +552,12 @@ class _BridgeExportResolver:
         return result
 
 
+# `\Z`, not `$`: Python's `$` also matches before a trailing newline, and this
+# must accept exactly what `VALID_EXPORT_NAME` in `@web/core/module_bridge`
+# accepts -- the two generators emit interchangeable bridges.
+_VALID_EXPORT_NAME = re.compile(r"[A-Za-z_$][A-Za-z0-9_$]*\Z")
+
+
 def _bridge_shim_source(
     specifier: str,
     kinds: set[str],
@@ -579,20 +585,35 @@ def _bridge_shim_source(
     fallback.  The flag feeds the ``star_fallback`` telemetry counter in
     ``esm_bridges``.
 
-    CONTRACT (mirrored in ``@web/core/module_bridge``): each
-    ``export const <name> = _m?.<name>`` line is a VALUE SNAPSHOT taken when
-    the bridge evaluates — ES-module live bindings cannot be reproduced by a
-    generated module.  Bridged modules therefore must not rely on mutable
-    ``export let`` bindings reassigned after load; lazily-loaded values must
-    be exposed through a stable ``const`` facade instead (see
-    ``makeLazyFacade`` in ``@web/core/module_bridge`` and its use in
-    ``@web/core/lib/chartjs``/``fullcalendar`` and ``@web/core/utils/pdfjs``).
+    CONTRACT (mirrored in ``@web/core/module_bridge``): each bridged name is
+    bound to a generated local and re-exported under an alias, and that binding
+    is a VALUE SNAPSHOT taken when the bridge evaluates — ES-module live
+    bindings cannot be reproduced by a generated module.  Bridged modules
+    therefore must not rely on mutable ``export let`` bindings reassigned after
+    load; lazily-loaded values must be exposed through a stable ``const``
+    facade instead (see ``makeLazyFacade`` in ``@web/core/module_bridge`` and
+    its use in ``@web/core/lib/chartjs``/``fullcalendar`` and
+    ``@web/core/utils/pdfjs``).
+
+    The alias form is what makes an awkward name survivable: an export name
+    only has to be an IdentifierName, so ``export {x as class}`` is legal and
+    reaches us through the source's export surface, whereas ``export const
+    class = ...`` is a SyntaxError that takes down the whole bridge — every
+    other name it carries included.
     """
     lines = [
         f"const _m = odoo.loader.modules.get({json.dumps(specifier)});",
         "const _d = _m?.default ?? _m;",
         "export default _d;",
     ]
-    lines.extend(f"export const {name} = _m?.{name};" for name in sorted(src_names))
+    aliases = []
+    for name in sorted(src_names):
+        if name == "default" or not _VALID_EXPORT_NAME.match(name):
+            continue
+        local = f"_e{len(aliases)}"
+        lines.append(f"const {local} = _m?.{name};")
+        aliases.append(f"{local} as {name}")
+    if aliases:
+        lines.append("export { " + ", ".join(aliases) + " };")
     is_star_fallback = not src_names and not has_default and "__default__" not in kinds
     return "\n".join(lines), is_star_fallback

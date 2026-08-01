@@ -1195,9 +1195,9 @@ class TestBridgeHelpers(TransactionCase):
         self.assertIn('const _m = odoo.loader.modules.get("@web/foo");', shim)
         self.assertIn("const _d = _m?.default ?? _m;", shim)
         self.assertIn("export default _d;", shim)
-        self.assertIn("export const a = _m?.a;", shim)
-        self.assertIn("export const b = _m?.b;", shim)
-        self.assertLess(shim.index("export const a"), shim.index("export const b"))
+        self.assertIn("const _e0 = _m?.a;", shim)
+        self.assertIn("const _e1 = _m?.b;", shim)
+        self.assertIn("export { _e0 as a, _e1 as b };", shim)
 
     def test_shim_source_star_fallback(self):
         """No names and no default -> flagged, but same interop default shape."""
@@ -1205,7 +1205,7 @@ class TestBridgeHelpers(TransactionCase):
         self.assertTrue(star)
         self.assertIn("const _d = _m?.default ?? _m;", shim)
         self.assertIn("export default _d;", shim)
-        self.assertNotIn("export const", shim)
+        self.assertNotIn("export {", shim)
 
     def test_shim_source_named_only_still_exports_default(self):
         """Named-only surfaces still emit the interop default block.
@@ -1216,7 +1216,8 @@ class TestBridgeHelpers(TransactionCase):
         """
         shim, star = AssetsBundle._bridge_shim_source("@web/baz", set(), {"x"}, False)
         self.assertFalse(star)
-        self.assertIn("export const x = _m?.x;", shim)
+        self.assertIn("const _e0 = _m?.x;", shim)
+        self.assertIn("export { _e0 as x };", shim)
         self.assertIn("export default _d;", shim)
 
     def test_shim_source_star_kind_no_duplicate_default(self):
@@ -2220,7 +2221,8 @@ class TestSecondaryBundleSingletons(TransactionCase):
             'odoo.loader.modules.get("@web/core/browser/browser")',
             browser_stub,
         )
-        self.assertIn("export const browser", browser_stub)
+        self.assertIn("_m?.browser;", browser_stub)
+        self.assertIn(" as browser", browser_stub)
 
 
 @tagged("web_unit", "web_assets")
