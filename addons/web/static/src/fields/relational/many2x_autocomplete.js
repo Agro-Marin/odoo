@@ -9,7 +9,6 @@ import { makeContext } from "@web/core/context";
 import { _t } from "@web/core/l10n/translation";
 import { RPCError } from "@web/core/network/rpc";
 import { registry } from "@web/core/registry";
-import { deepEqual } from "@web/core/utils/collections/objects";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { highlightText, odoomark } from "@web/core/utils/dom/html";
 import {
@@ -17,6 +16,13 @@ import {
     useOwnedDialogs,
     useService,
 } from "@web/core/utils/hooks";
+
+/**
+ * Terms kept per (domain, context) before the memo is dropped. A user cannot
+ * type unboundedly many distinct empty searches, but the set is scoped to a
+ * long-lived component, so it gets a ceiling.
+ */
+const EMPTY_SEARCH_MEMO_LIMIT = 64;
 
 /**
  * @param {Object} params
@@ -84,6 +90,11 @@ export class Many2XAutocomplete extends Component {
         searchMoreLimit: { type: Number, optional: true },
         searchThreshold: { type: Number, optional: true },
         setInputFloats: { type: Function, optional: true },
+        searchMemoization: {
+            type: String,
+            optional: true,
+            validate: (v) => ["none", "exact", "substring"].includes(v),
+        },
         preventMemoization: { type: Boolean, optional: true },
         slots: { optional: true },
         specification: { type: Object, optional: true },
@@ -97,6 +108,7 @@ export class Many2XAutocomplete extends Component {
         otherSources: [],
         quickCreate: null,
         searchLimit: 7,
+        searchMemoization: "exact",
         searchThreshold: 0,
         searchMoreLimit: 320,
         setInputFloats: () => {},
@@ -112,9 +124,21 @@ export class Many2XAutocomplete extends Component {
     /** @type {any} */
     selectCreate;
     /**
-     * @type {{ value: { context: Object, domain: any[], name: string } | null }}
+     * Terms already known to return nothing for the *current* domain/context.
+     *
+     * Only the last term used to be remembered, so the very next keystroke
+     * overwrote it and the memo never fired -- every keystroke past an empty
+     * result paid a provably empty RPC.
+     *
+     * This container is allocated once and only ever mutated in place. The
+     * component is reached through more than one reactive proxy, and
+     * *reassigning* the field makes a writer and a reader end up on two
+     * different objects -- which is why invalidation silently stopped working
+     * when this was a plain reassignment.
+     *
+     * @type {{ signature: string | null, names: Set<string> }}
      */
-    emptySearchMemo = { value: null };
+    emptySearchMemo = { signature: null, names: new Set() };
 
     setup() {
         this.orm = useService("orm");
@@ -269,13 +293,8 @@ export class Many2XAutocomplete extends Component {
     async search(name) {
         const domain = this.props.getDomain();
         const context = this.props.context;
-        if (
-            !this.props.preventMemoization &&
-            this.lastEmptySearch &&
-            deepEqual(this.lastEmptySearch.domain, domain) &&
-            deepEqual(this.lastEmptySearch.context, context) &&
-            name === this.lastEmptySearch.name
-        ) {
+        const memo = this.rememberedEmptySearches(domain, context);
+        if (memo && this.isKnownEmpty(memo.names, name)) {
             return [];
         }
         const records = await this.nameSearch({
@@ -284,29 +303,76 @@ export class Many2XAutocomplete extends Component {
             domain,
             context,
         });
-        if (!records.length) {
-            this.lastEmptySearch = {
-                context,
-                domain,
-                name,
-            };
+        if (!records.length && memo) {
+            if (memo.names.size >= EMPTY_SEARCH_MEMO_LIMIT) {
+                memo.names.clear();
+            }
+            memo.names.add(name);
         }
         return records;
     }
 
     /**
-     * @returns {{ context: Object, domain: any[], name: string } | null}
+     * @returns {"none" | "exact" | "substring"}
      */
-    get lastEmptySearch() {
-        return this.emptySearchMemo.value;
+    get searchMemoization() {
+        if (this.props.preventMemoization) {
+            return "none";
+        }
+        return this.props.searchMemoization;
     }
 
-    set lastEmptySearch(memo) {
-        this.emptySearchMemo.value = memo;
+    /**
+     * The memo is scoped to one (domain, context) pair: a change to either can
+     * turn a previously empty search into a matching one.
+     *
+     * @param {any[]} domain
+     * @param {Object} context
+     * @returns {{ names: Set<string> } | null}
+     */
+    rememberedEmptySearches(domain, context) {
+        if (this.searchMemoization === "none") {
+            return null;
+        }
+        const memo = this.emptySearchMemo;
+        const signature = JSON.stringify([domain, context]);
+        if (memo.signature !== signature) {
+            memo.signature = signature;
+            memo.names.clear();
+        }
+        return memo;
+    }
+
+    /**
+     * `substring` exploits the monotonicity of `ilike '%term%'`: if `%ab%`
+     * matched nothing then `%abc%` cannot match either. That only holds for
+     * models whose `name_search` is a pure ilike -- `product.product`, for one,
+     * ORs in `barcode = term`, so a longer term can match where a shorter one
+     * did not. Hence `exact` is the default: it never skips a search that was
+     * not literally performed already.
+     *
+     * @param {Set<string>} names
+     * @param {string} name
+     * @returns {boolean}
+     */
+    isKnownEmpty(names, name) {
+        if (names.has(name)) {
+            return true;
+        }
+        if (this.searchMemoization !== "substring") {
+            return false;
+        }
+        for (const empty of names) {
+            if (empty && name.includes(empty)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     invalidateEmptySearch() {
-        this.lastEmptySearch = null;
+        this.emptySearchMemo.signature = null;
+        this.emptySearchMemo.names.clear();
     }
 
     /**

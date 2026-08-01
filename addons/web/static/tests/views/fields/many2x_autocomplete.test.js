@@ -254,6 +254,60 @@ describe("empty-search memoization", () => {
         expect(`${RECORD_ITEM_SELECTOR}:contains(Foo)`).toHaveCount(1);
     });
 
+    test("a term already known to be empty is not searched again", async () => {
+        onRpc("product", "web_name_search", ({ kwargs }) => {
+            expect.step(`web_name_search: ${kwargs.name}`);
+            return [];
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><field name="product_id"/></form>`,
+        });
+
+        // Only the *last* empty term used to be remembered, so going back to a
+        // term already proven empty re-issued the very same RPC.
+        for (const term of ["zz", "zzz", "zz", "zzz"]) {
+            await contains(INPUT_SELECTOR).edit(term, { confirm: false });
+            await runAllTimers();
+        }
+
+        expect.verifySteps(["web_name_search: zz", "web_name_search: zzz"]);
+    });
+
+    test("a changed domain re-enables a term already known to be empty", async () => {
+        Partner._fields.name = fields.Char();
+        onRpc("product", "web_name_search", ({ kwargs }) => {
+            expect.step(`web_name_search: ${kwargs.name}`);
+            return [];
+        });
+
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form>
+                <field name="name"/>
+                <field name="product_id" domain="[('name', '=', name)]"/>
+            </form>`,
+        });
+
+        await contains(INPUT_SELECTOR).edit("zz", { confirm: false });
+        await runAllTimers();
+        await contains(INPUT_SELECTOR).edit("zz", { confirm: false });
+        await runAllTimers();
+        expect.verifySteps(["web_name_search: zz"]);
+
+        await contains(".o_field_widget[name=name] input").edit("other", {
+            confirm: "blur",
+        });
+        await contains(INPUT_SELECTOR).edit("zz", { confirm: false });
+        await runAllTimers();
+        expect.verifySteps(["web_name_search: zz"]);
+    });
+
     test("creating a record via the dialog invalidates the memoized empty search", async () => {
         onRpc("product", "web_name_search", ({ kwargs }) => {
             expect.step(`web_name_search: ${kwargs.name}`);
