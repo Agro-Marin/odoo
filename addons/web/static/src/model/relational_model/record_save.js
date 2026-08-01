@@ -166,7 +166,6 @@ export async function save(record, { reload = true, onError, nextId } = {}) {
         return false;
     }
     const changes = record._getChanges();
-    delete changes.id;
     record._urgentBeaconFired = false;
     const concurrencyBaseline = buildConcurrencyBaseline(record, Object.keys(changes));
     if (!creation && !Object.keys(changes).length) {

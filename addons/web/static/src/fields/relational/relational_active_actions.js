@@ -84,8 +84,12 @@ export function useActiveActions({
         if (crudOptions[actionName] != null) {
             const action = crudOptions[actionName];
             let domain;
+            let domainResolved = false;
             evalFn = (evalContext) => {
-                domain ??= action ? new Domain(action) : null;
+                if (!domainResolved) {
+                    domain = action ? new Domain(action) : null;
+                    domainResolved = true;
+                }
                 return Boolean(domain && domain.contains(evalContext));
             };
         }
