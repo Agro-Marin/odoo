@@ -3,9 +3,10 @@
 
 /** @module @web/core/py_js/py_compare */
 
-import { EvaluationError, pyTypeName } from "./py_builtin.js";
 import { NotSupportedError, PyDate, PyDateTime, PyTime } from "./py_date.js";
+import { EvaluationError } from "./py_errors.js";
 import { isPyTuple } from "./py_tuple.js";
+import { pyTypeName } from "./py_type_name.js";
 
 /**
  * @param {any} val

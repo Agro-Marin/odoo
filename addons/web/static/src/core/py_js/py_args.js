@@ -3,7 +3,7 @@
 
 /** @module @web/core/py_js/py_args */
 
-import { EvaluationError } from "./py_builtin.js";
+import { EvaluationError } from "./py_errors.js";
 
 /**
  * Bind a call's arguments onto ``spec``'s parameter names.
