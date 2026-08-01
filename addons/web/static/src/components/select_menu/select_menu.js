@@ -131,6 +131,12 @@ export class SelectMenu extends Component {
     setup() {
         this.selectMenuId = uniqueId("o_select_menu_");
         this.menuId = `${this.selectMenuId}_menu`;
+        // The menu is the scroller, and it holds the search box, the empty
+        // notice and the load-more marker as well as the choices. A listbox
+        // owns options and nothing else, so the role goes on an inner element
+        // wrapping only them -- and that, not the menu, is what the combobox
+        // points `aria-controls` at.
+        this.listboxId = `${this.selectMenuId}_listbox`;
         this.state = useState({
             choices: [],
             displayedOptions: [],
@@ -328,14 +334,6 @@ export class SelectMenu extends Component {
 
     onStateChanged(open) {
         if (open) {
-            // The popover owns the menu element, so this is the first moment
-            // it exists. Without it a reader has no way to know several
-            // choices can be held at once, and reads each `aria-selected` as
-            // the single current value.
-            const menuEl = /** @type {any} */ (this.menuRef).el;
-            if (menuEl && this.props.multiSelect) {
-                menuEl.setAttribute("aria-multiselectable", "true");
-            }
             if (this.isBottomSheet) {
                 /** @type {HTMLElement} */ (document.activeElement).blur();
             }

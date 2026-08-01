@@ -1556,8 +1556,13 @@ test("a searchable menu publishes its active choice via aria-activedescendant", 
     expect(document.activeElement).toBe(input);
     expect(input).toHaveAttribute("role", "combobox");
     expect(input).toHaveAttribute("aria-expanded", "true");
-    expect(input).toHaveAttribute("aria-controls", queryOne(".o_select_menu_menu").id);
-    expect(queryOne(".o_select_menu_menu")).toHaveAttribute("role", "listbox");
+    // The listbox is an element inside the menu, not the menu: the menu also
+    // holds the search box, the empty notice and the load-more marker, none of
+    // which a listbox may own.
+    const listbox = queryOne("[role=listbox]");
+    expect(input).toHaveAttribute("aria-controls", listbox.id);
+    expect(listbox).not.toBe(queryOne(".o_select_menu_menu"));
+    expect(queryOne(".o_select_menu_menu")).not.toHaveAttribute("role", "listbox");
 
     const active = input.getAttribute("aria-activedescendant");
     expect(active).not.toBe(null);
@@ -1598,11 +1603,11 @@ test("a searchable BottomSheet publishes its active choice once its input is foc
     await animationFrame();
 
     expect(document.activeElement).toBe(input);
-    // Resolvable, not dangling: the sheet renders the menu id the toggler's
+    // Resolvable, not dangling: the sheet renders the listbox the toggler's
     // `aria-controls` names, which it dropped while only the popover did.
-    const menuId = input.getAttribute("aria-controls");
-    expect(document.getElementById(menuId)).toBe(queryOne(".o_select_menu_menu"));
-    expect(queryOne(".o_select_menu_menu")).toHaveAttribute("role", "listbox");
+    const controlled = document.getElementById(input.getAttribute("aria-controls"));
+    expect(controlled).toBe(queryOne("[role=listbox]"));
+    expect(controlled).not.toBe(queryOne(".o_select_menu_menu"));
 
     const activeEl = document.getElementById(
         input.getAttribute("aria-activedescendant"),
@@ -2035,4 +2040,95 @@ test("a bottom sheet has one combobox, and one holder of id and name", async () 
     expect(`[role="combobox"]`).toHaveClass("o_select_menu_input");
     expect(queryAll(`[id="sm-id"]`)).toHaveLength(1);
     expect(queryAll(`[name="sm-name"]`)).toHaveLength(1);
+});
+
+test("the listbox owns options and nothing else", async () => {
+    /** @param {string} label */
+    const rolesInListbox = (label) => {
+        const listbox = queryOne("[role=listbox]");
+        const roles = queryAll(":scope > *", { root: listbox }).map(
+            (el) => el.getAttribute("role") || `<${el.tagName.toLowerCase()}>`,
+        );
+        return `${label}: ${[...new Set(roles)].sort().join(",")}`;
+    };
+
+    await mountSingleApp(SelectMenu, {
+        choices: [
+            { label: "Alpha", value: "a" },
+            { label: "Beta", value: "b" },
+        ],
+        groups: [{ label: "Group", choices: [{ label: "Gamma", value: "c" }] }],
+        searchable: true,
+        onSelect: () => {},
+    });
+    await click(".o_select_menu_toggler");
+    await animationFrame();
+    expect(rolesInListbox("with choices")).toBe("with choices: option,presentation");
+
+    // The search box the combobox lives in is not an option either -- and in a
+    // bottom sheet it is rendered inside the menu.
+    expect("[role=listbox] input").toHaveCount(0);
+});
+
+test("the empty notice is a live region outside the listbox", async () => {
+    await mountSingleApp(SelectMenu, {
+        choices: [],
+        searchable: true,
+        onSelect: () => {},
+    });
+    await click(".o_select_menu_toggler");
+    await animationFrame();
+
+    // A listbox that owns a <p> is not a listbox any reader can count options
+    // in, and the notice still has to be announced.
+    expect("[role=status]").toHaveCount(1);
+    expect("[role=status]").toHaveText("No results");
+    expect("[role=listbox] [role=status]").toHaveCount(0);
+    expect(queryAll(":scope > *", { root: queryOne("[role=listbox]") })).toHaveLength(
+        0,
+    );
+});
+
+test.tags("desktop");
+test("the listbox wrapper is transparent to the menu's layout", async () => {
+    await mountSingleApp(SelectMenu, {
+        groups: [
+            {
+                label: "Group A",
+                choices: Array.from({ length: 40 }, (_, i) => ({
+                    label: `A${i}`,
+                    value: `a${i}`,
+                })),
+            },
+        ],
+        searchable: true,
+        onSelect: () => {},
+    });
+    await click(".o_select_menu_toggler");
+    await animationFrame();
+
+    // The menu, not the wrapper, stays the scroller: the load-more observer
+    // roots on it and the sticky headers stick to it.
+    const menu = queryOne(".o_select_menu_menu");
+    const listbox = queryOne("[role=listbox]");
+    expect(menu.scrollHeight).toBeGreaterThan(menu.clientHeight);
+    expect(listbox.scrollHeight).toBe(listbox.clientHeight);
+
+    // The wrapper contributes no box of its own.
+    expect(Math.round(listbox.getBoundingClientRect().width)).toBe(
+        Math.round(menu.clientWidth),
+    );
+
+    // The group header still sticks to the menu while the options scroll out
+    // from under it.
+    const header = queryOne(".o_select_menu_group");
+    const firstTop = queryAll(".o_select_menu_item")[0].getBoundingClientRect().top;
+    menu.scrollTop = 200;
+    await animationFrame();
+    expect(menu.scrollTop).toBe(200);
+    const menuTop = menu.getBoundingClientRect().top;
+    expect(header.getBoundingClientRect().top - menuTop).toBeLessThan(4);
+    expect(queryAll(".o_select_menu_item")[0].getBoundingClientRect().top).toBeLessThan(
+        firstTop - 100,
+    );
 });

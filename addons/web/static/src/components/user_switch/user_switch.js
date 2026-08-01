@@ -4,6 +4,7 @@
 /** @module @web/components/user_switch/user_switch */
 
 import { Component, onMounted, useEffect, useRef, useState } from "@odoo/owl";
+import { _t } from "@web/core/l10n/translation";
 import { registry } from "@web/core/registry";
 import { imageUrl } from "@web/core/utils/urls";
 import { getLastConnectedUsers, setLastConnectedUsers } from "@web/services/user";
@@ -51,6 +52,18 @@ export class UserSwitch extends Component {
     /** @param {{ partnerId: number, partnerWriteDate: any }} param0 */
     getAvatarUrl({ partnerId, partnerWriteDate: unique }) {
         return imageUrl("res.partner", partnerId, "avatar_128", { unique });
+    }
+
+    /**
+     * One label per row rather than one shared wording: a reader moving
+     * through the list would otherwise hear the same sentence at every stop,
+     * with nothing to say which account it drops.
+     *
+     * @param {{ name: string }} user
+     * @returns {string}
+     */
+    removeLabel({ name }) {
+        return _t("Remove %s from the list", name);
     }
 
     /** @param {any} deletedUser */
