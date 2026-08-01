@@ -28,6 +28,7 @@
  * @typedef {Object} ComplexCondition
  * @property {"complex_condition"} type
  * @property {string} value
+ * @property {boolean} negate
  */
 
 /**
@@ -93,12 +94,18 @@ export function connector(value, children = [], negate = false) {
 }
 
 /**
+ * ``negate`` is carried here for the same reason ``Condition`` and ``Connector``
+ * carry it: ``normalizeConnector`` folds a negated connector into its only
+ * child, so every node type must be able to hold the negation. While this one
+ * could not, ``not(complex)`` came back out of the pipeline as ``complex``.
+ *
  * @param {string} value
+ * @param {boolean} [negate=false]
  * @returns {ComplexCondition}
  */
-export function complexCondition(value) {
+export function complexCondition(value, negate = false) {
     parseExpr(value);
-    return { type: "complex_condition", value };
+    return { type: "complex_condition", value, negate };
 }
 
 /**

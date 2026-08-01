@@ -57,7 +57,7 @@ function getASTs(tree, isSubTree = false) {
 
     if (tree.type === "complex_condition") {
         const ast = parseExpr(tree.value);
-        return getASTs(condition(new Expression(bool(ast)), "=", 1));
+        return getASTs(condition(new Expression(bool(ast)), "=", 1, tree.negate));
     }
 
     const length = tree.children.length;
