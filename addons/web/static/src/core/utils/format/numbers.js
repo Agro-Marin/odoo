@@ -36,6 +36,30 @@ export function range(start, stop, step = 1) {
 }
 
 /**
+ * Tie-break away from zero, like ``float_round``'s private ``round()``
+ * (``odoo/libs/numbers/float_utils.py``). ``Math.round`` breaks ties toward
+ * +Infinity instead, so it answers -2 for -2.5 where the server answers -3;
+ * rounding the magnitude and reapplying the sign is what realigns them. The
+ * first branch reproduces the server's ``round(f + 1) - round(f) != 1`` guard
+ * for magnitudes where consecutive integers are no longer one ULP apart.
+ *
+ * @param {number} value
+ * @returns {number}
+ */
+function roundHalfAwayFromZero(value) {
+    const magnitude = Math.abs(value);
+    if (Math.round(magnitude + 1) - Math.round(magnitude) !== 1) {
+        return value + Math.sign(value) * 0.5;
+    }
+    return Math.round(magnitude) * Math.sign(value);
+}
+
+/**
+ * Mirrors ``odoo.libs.numbers.float_utils.float_round``. The two must agree:
+ * tax and Point of Sale compute the same amounts on both sides and compare
+ * them (``base_tax/static/src/helpers/account_tax.js``), so any divergence
+ * shows up as a client total that disagrees with the server's.
+ *
  * @param {number} value
  * @param {number} precision
  * @param {"HALF-UP" | "HALF-DOWN" | "HALF-EVEN" | "UP" | "DOWN"} [method="HALF-UP"]
@@ -58,36 +82,50 @@ export function roundPrecision(value, precision, method = "HALF-UP") {
         [normalize, denormalize] = [denormalize, normalize];
     }
     const normalizedValue = normalize(value);
+    if (normalizedValue === 0) {
+        return 0;
+    }
     const sign = Math.sign(normalizedValue);
     const epsilonMagnitude = Math.log2(Math.abs(normalizedValue));
     const epsilon = 2 ** (epsilonMagnitude - 50);
     const halfEpsilon = Math.max(0, Math.min(epsilon, 0.5 - epsilon / 2));
+    // Past |normalizedValue| = 2^49 the raw epsilon exceeds 0.5 (and past 2^50
+    // it exceeds 1, which would make `UP` nudge *downward*). The server clamps
+    // it for the two truncating methods; `halfEpsilon` has its own clamp.
+    const truncEpsilon = Math.min(epsilon, 0.5);
     let roundedValue;
 
     switch (method) {
         case "DOWN": {
-            roundedValue = Math.trunc(normalizedValue + sign * epsilon);
+            roundedValue = Math.trunc(normalizedValue + sign * truncEpsilon);
             break;
         }
         case "HALF-DOWN": {
-            roundedValue = Math.round(normalizedValue - sign * halfEpsilon);
+            const integral = Math.floor(Math.abs(normalizedValue));
+            const remainder = Math.abs(normalizedValue) - integral;
+            // `halfEpsilon` collapses to 0 at |normalizedValue| >= 2^50, where
+            // the strict inequality can no longer detect an exact tie.
+            const isHalf = remainder === 0.5 || Math.abs(0.5 - remainder) < halfEpsilon;
+            roundedValue = isHalf
+                ? sign * integral
+                : roundHalfAwayFromZero(normalizedValue - sign * halfEpsilon);
             break;
         }
         case "HALF-UP": {
-            roundedValue = Math.round(normalizedValue + sign * halfEpsilon);
+            roundedValue = roundHalfAwayFromZero(normalizedValue + sign * halfEpsilon);
             break;
         }
         case "HALF-EVEN": {
             const integral = Math.floor(normalizedValue);
             const remainder = Math.abs(normalizedValue - integral);
-            const isHalf = Math.abs(0.5 - remainder) < halfEpsilon;
+            const isHalf = remainder === 0.5 || Math.abs(0.5 - remainder) < halfEpsilon;
             roundedValue = isHalf
                 ? integral + (integral & 1)
-                : Math.round(normalizedValue);
+                : roundHalfAwayFromZero(normalizedValue);
             break;
         }
         case "UP": {
-            roundedValue = Math.trunc(normalizedValue + sign * (1 - epsilon));
+            roundedValue = Math.trunc(normalizedValue + sign * (1 - truncEpsilon));
             break;
         }
         default: {

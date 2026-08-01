@@ -2,6 +2,7 @@
 
 import { describe, expect, test } from "@odoo/hoot";
 import { allowTranslations, patchWithCleanup } from "@web/../tests/web_test_helpers";
+import { formatFloat as formatterFloat } from "@web/core/formatters";
 import { localization } from "@web/core/l10n/localization";
 import {
     clamp,
@@ -12,7 +13,6 @@ import {
     roundDecimals,
     roundPrecision,
 } from "@web/core/utils/format/numbers";
-import { formatFloat as formatterFloat } from "@web/core/formatters";
 
 describe.current.tags("headless");
 
@@ -139,6 +139,43 @@ describe("roundPrecision", () => {
         expect(roundPrecision(-357.4555, 0.001, "HALF-EVEN")).toBe(-357.456);
         expect(roundPrecision(457.4554, 0.001, "HALF-EVEN")).toBe(457.455);
         expect(roundPrecision(-457.4554, 0.001, "HALF-EVEN")).toBe(-457.455);
+    });
+
+    // Every expectation below is the value `float_round` returns for the same
+    // (value, precision, method) triple. They cover the three ways this
+    // function used to disagree with it; each one is a case the corresponding
+    // branch got wrong before.
+    test("parity with the server's float_round", () => {
+        // Ties go away from zero, where `Math.round` sends them to +Infinity.
+        expect(roundPrecision(-2.5, 1, "HALF-UP")).toBe(-3);
+        expect(roundPrecision(-2.5, 1, "HALF-DOWN")).toBe(-2);
+        expect(roundPrecision(-2.5, 1, "HALF-EVEN")).toBe(-2);
+        expect(roundPrecision(-3.5, 1, "HALF-EVEN")).toBe(-4);
+        expect(roundPrecision(-504607249.8149996, 0.01, "HALF-UP")).toBe(-504607249.82);
+        expect(roundPrecision(-259351980657.49976, 1, "HALF-UP")).toBe(-259351980658);
+
+        // |value / precision| past 2^49: the epsilon the truncating methods add
+        // exceeds 0.5, and past 2^50 it exceeds 1 -- which made `UP` round down.
+        expect(roundPrecision(6396313.599999995, 1e-8, "UP")).toBe(6396313.6);
+        expect(roundPrecision(-6396313.599999995, 1e-8, "UP")).toBe(-6396313.6);
+        expect(roundPrecision(6396313.600000004, 1e-8, "DOWN")).toBe(6396313.6);
+        expect(roundPrecision(-6396313.600000004, 1e-8, "DOWN")).toBe(-6396313.6);
+        expect(roundPrecision(644245094.4000005, 1e-6, "UP")).toBe(644245094.400001);
+        expect(roundPrecision(644245094.4000003, 1e-6, "DOWN")).toBe(644245094.4);
+        expect(roundPrecision(63565515980.79995, 1e-4, "UP")).toBe(63565515980.8);
+        expect(roundPrecision(63565515980.80003, 1e-4, "DOWN")).toBe(63565515980.8);
+        expect(roundPrecision(6377167441100.805, 0.01, "UP")).toBe(6377167441100.81);
+        expect(roundPrecision(6487118603878.403, 0.01, "DOWN")).toBe(6487118603878.4);
+
+        // Same band: `halfEpsilon` collapses to 0, so only an exact `=== 0.5`
+        // still recognises a tie.
+        expect(roundPrecision(11324620.800000004, 1e-8, "HALF-EVEN")).toBe(11324620.8);
+        expect(roundPrecision(1127428915.2000005, 1e-6, "HALF-EVEN")).toBe(
+            1127428915.2,
+        );
+        expect(roundPrecision(11434920928870.406, 0.01, "HALF-EVEN")).toBe(
+            11434920928870.4,
+        );
     });
 
     test("UP", () => {
@@ -488,6 +525,14 @@ describe("formatFloat", () => {
 });
 
 test("humanNumber reads a negative decimal exponent", () => {
+    // Every branch but the >= 1e21 one reads `localization.decimalPoint`, which
+    // throws until the parameters are loaded.
+    allowTranslations();
+    patchWithCleanup(localization, {
+        decimalPoint: ".",
+        grouping: [3, 0],
+        thousandsSep: ",",
+    });
     // The magnitude used to be parsed by splitting on "e+", which is absent
     // from the exponential form of any |x| < 1 ("1e-3") and yielded NaN.
     expect(humanNumber(0.001, { decimals: 3 })).toBe("0.001");
@@ -524,7 +569,7 @@ describe("minDigits and minIntegerDigits are distinct options", () => {
         expect(humanNumber(1500000)).toBe("2M");
         expect(humanNumber(1500000, { minIntegerDigits: 3 })).toBe("1,500k");
         expect(formatFloat(1500000, { humanReadable: true, minIntegerDigits: 3 })).toBe(
-            "1,500k"
+            "1,500k",
         );
     });
 
