@@ -85,10 +85,26 @@ export class StatusBarField extends Component {
             this.render();
         };
 
+        // What the visible window actually depends on: the items themselves and
+        // the room available for them. Every render used to schedule a full
+        // adjust pass, so editing an unrelated field elsewhere on the form paid
+        // one -- and a pass hides items one at a time, forcing a layout per
+        // step. Re-check both cheaply and skip the pass when neither moved.
+        let lastSignature = null;
+        let lastWidth = null;
         useEffect(() => {
-            if (status === "shouldAdjust") {
-                adjust();
+            if (status !== "shouldAdjust") {
+                return;
             }
+            const signature = JSON.stringify(this.allItems);
+            const width = this.rootRef.el?.getBoundingClientRect().width ?? null;
+            if (signature === lastSignature && width === lastWidth) {
+                status = "idle";
+                return;
+            }
+            lastSignature = signature;
+            lastWidth = width;
+            adjust();
         });
 
         let forceRecomputeItems = false;
@@ -225,32 +241,43 @@ export class StatusBarField extends Component {
             return;
         }
 
-        while (this.areItemsWrapping()) {
-            if (itemsBefore.length) {
-                show(this.beforeRef.el);
-                hide(itemsBefore.shift());
-                this.items.before.push(itemsToAssign.shift());
-            } else if (itemsAfter.length) {
-                show(this.afterRef.el);
-                hide(itemsAfter.pop());
-                this.items.after.unshift(itemsToAssign.pop());
-            } else {
-                show(this.dropdownRef.el);
-                hide(this.beforeRef.el, this.afterRef.el, ...itemEls);
-                break;
+        // Every item hidden below costs a forced synchronous layout, and the
+        // loop used to pay two of them per step: one for the root, one to
+        // re-derive the height of a single row. The children all sit in the
+        // same wrapping flex row, so that second measurement is invariant for
+        // the whole pass -- take it once.
+        this._rowHeight = null;
+        try {
+            while (this.areItemsWrapping()) {
+                if (itemsBefore.length) {
+                    show(this.beforeRef.el);
+                    hide(itemsBefore.shift());
+                    this.items.before.push(itemsToAssign.shift());
+                } else if (itemsAfter.length) {
+                    show(this.afterRef.el);
+                    hide(itemsAfter.pop());
+                    this.items.after.unshift(itemsToAssign.pop());
+                } else {
+                    show(this.dropdownRef.el);
+                    hide(this.beforeRef.el, this.afterRef.el, ...itemEls);
+                    break;
+                }
             }
+        } finally {
+            this._rowHeight = null;
         }
     }
 
     areItemsWrapping() {
         const root = this.rootRef.el;
-        const firstItem = root.querySelector(":scope > :not(.d-none)");
-        if (!firstItem) {
-            return false;
+        if (this._rowHeight === null) {
+            const firstItem = root.querySelector(":scope > :not(.d-none)");
+            if (!firstItem) {
+                return false;
+            }
+            this._rowHeight = firstItem.getBoundingClientRect().height;
         }
-        const { height: currentHeight } = root.getBoundingClientRect();
-        const { height: targetHeight } = firstItem.getBoundingClientRect();
-        return currentHeight > targetHeight;
+        return root.getBoundingClientRect().height > this._rowHeight;
     }
 
     /**

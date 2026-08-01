@@ -30,6 +30,8 @@ import {
     pagerPrevious,
     serverState,
 } from "@web/../tests/web_test_helpers";
+import { patch } from "@web/core/utils/patch";
+import { StatusBarField } from "@web/fields/display/statusbar/statusbar_field";
 import { WebClient } from "@web/webclient/webclient";
 
 class Partner extends models.Model {
@@ -1323,4 +1325,89 @@ test("[adjust] statusbar with a lot of stages, click to change stage", async () 
         "Stage with very long name 5",
         "Stage with very long name 6",
     ]);
+});
+
+test("statusbar: overflow measurement is not re-taken per hidden item", async () => {
+    // The wrap loop hides one item per iteration and re-measures. It used to
+    // take two forced layouts per step -- the root plus a single row's height,
+    // which cannot change while the pass runs. Only the root reading is
+    // per-step now; the visible outcome must be identical.
+    const selection = [];
+    for (let i = 0; i < 40; i++) {
+        selection.push([`s${i}`, `A Rather Long Stage Name Number ${i}`]);
+    }
+    Partner._fields.color = fields.Selection({ selection, default: "s0" });
+    Partner._records[0].color = "s0";
+
+    const original = Element.prototype.getBoundingClientRect;
+    let rects = 0;
+    Element.prototype.getBoundingClientRect = function (...args) {
+        rects++;
+        return original.apply(this, args);
+    };
+    try {
+        await mountView({
+            type: "form",
+            resModel: "partner",
+            resId: 1,
+            arch: `<form><header><field name="color" widget="statusbar"/></header></form>`,
+        });
+        await animationFrame();
+
+        expect(rects).toBeLessThan(50, {
+            message: "40 stages used to cost 74 forced layouts",
+        });
+        expect(
+            ".o_statusbar_status .o_arrow_button:not(.d-none):not(.dropdown-toggle)",
+        ).toHaveCount(4, {
+            message: "same items stay visible as before the change",
+        });
+    } finally {
+        Element.prototype.getBoundingClientRect = original;
+    }
+});
+
+test("statusbar: an unrelated field edit does not re-run the overflow pass", async () => {
+    // Any render used to schedule a full adjust pass, and a pass hides items
+    // one at a time with a forced layout per step -- so typing in a sibling
+    // field on the same form paid for the whole thing.
+    let adjusts = 0;
+    patch(StatusBarField.prototype, {
+        adjustVisibleItems() {
+            adjusts++;
+            return super.adjustVisibleItems();
+        },
+    });
+
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form>
+            <header><field name="color" widget="statusbar" options="{'clickable': true}"/></header>
+            <field name="foo"/>
+            <field name="name"/>
+        </form>`,
+    });
+    await animationFrame();
+
+    // one warm-up pass once the form has settled at its final width
+    await contains(".o_field_widget[name=foo] input").edit("a", { confirm: "blur" });
+    await animationFrame();
+    const settled = adjusts;
+
+    await contains(".o_field_widget[name=foo] input").edit("b", { confirm: "blur" });
+    await animationFrame();
+    await contains(".o_field_widget[name=name] input").edit("c", { confirm: "blur" });
+    await animationFrame();
+    expect(adjusts).toBe(settled, {
+        message: "editing sibling fields must not re-measure the statusbar",
+    });
+
+    // ...but the bar's own value still does
+    await contains(".o_statusbar_status button:contains(Black)").click();
+    await animationFrame();
+    expect(adjusts).toBeGreaterThan(settled, {
+        message: "changing the selected stage must re-measure",
+    });
 });
