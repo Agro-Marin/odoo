@@ -101,7 +101,7 @@ unless the floor moved with it.
      - all checked JS
      - ``typecheck.yml``
    * - layer boundaries
-     - ``tooling/`` layer + named-export checks
+     - ``tooling/`` layer, import-cycle + named-export checks
      - **drift-zero**
      - ``architecture.yml``
 
@@ -113,7 +113,13 @@ Three consequences you must internalise:
 * **A finding on a file you touched may predate you.** Compare against ``git diff``,
   not against a whole-file lint report.
 * **The architecture gate is different**: layer crossings are held at exactly
-  zero and any new one fails outright. It is not a ratchet.
+  zero and any new one fails outright. It is not a ratchet. The same job also
+  holds JS *import cycles* at zero (``tooling/architecture/js_cycle_check.py``),
+  because a cycle's damage depends on evaluation order rather than on the code:
+  the same cycle throws a ``ReferenceError`` under debug's per-file native ESM
+  and silently substitutes ``undefined`` under ``esbuild --bundle``. Pre-existing
+  cycles are pinned in ``KNOWN_CYCLES`` with a rationale, like the layer gate's
+  ``KNOWN_VIOLATIONS``.
 
 Each gate runs on ``pull_request`` and on ``push`` to ``19.0-marin`` / ``19.0``,
 so direct commits and merge skew cannot silently move a floor.
