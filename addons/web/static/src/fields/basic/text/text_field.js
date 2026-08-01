@@ -87,6 +87,21 @@ export const textField = {
         },
         {
             label: _t("Dynamic Placeholder"),
+            name: "dynamic_placeholder",
+            type: "boolean",
+            help: _t(
+                "Offer a picker that inserts a {{object.field}} expression into the text.",
+            ),
+        },
+        {
+            label: _t("Dynamic Placeholder model reference"),
+            name: "dynamic_placeholder_model_reference_field",
+            type: "field",
+            availableTypes: ["char"],
+            help: _t("Field holding the model name whose fields the picker offers."),
+        },
+        {
+            label: _t("Dynamic Placeholder"),
             name: "placeholder_field",
             type: "field",
             availableTypes: ["char", "text"],

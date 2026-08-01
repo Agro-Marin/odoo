@@ -34,6 +34,17 @@ export const badgeSelectionFieldWithFilter = {
     component: BadgeSelectionWithFilterField,
     displayName: _t("Badges for Selection With Filter"),
     supportedTypes: ["selection"],
+    supportedOptions: [
+        ...(badgeSelectionField.supportedOptions || []),
+        {
+            label: _t("Allowed values field"),
+            name: "allowed_selection_field",
+            type: "field",
+            help: _t(
+                "Field holding the list of selection values that stay selectable.",
+            ),
+        },
+    ],
     extractProps: (fieldInfo, dynamicInfo) => ({
         ...badgeSelectionField.extractProps(fieldInfo, dynamicInfo),
         allowedSelectionField: fieldInfo.options.allowed_selection_field,

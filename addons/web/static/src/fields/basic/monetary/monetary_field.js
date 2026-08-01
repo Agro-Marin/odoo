@@ -135,6 +135,12 @@ export const monetaryField = {
             availableTypes: ["many2one"],
         },
         {
+            label: _t("Use the field's digits"),
+            name: "field_digits",
+            type: "boolean",
+            help: _t("Round using the field's own digits instead of the currency's."),
+        },
+        {
             label: _t("Hide trailing zeros"),
             name: "hide_trailing_zeros",
             type: "boolean",

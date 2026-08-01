@@ -56,6 +56,20 @@ export const m2oSupportedOptions = [
         type: "field",
         availableTypes: ["char"],
     },
+    {
+        label: _t("Quick-create field"),
+        name: "create_name_field",
+        type: "string",
+        help: _t(
+            "Field filled in with the typed text when creating a record from the dropdown. Defaults to 'name'.",
+        ),
+    },
+    {
+        label: _t("Scan barcode"),
+        name: "can_scan_barcode",
+        type: "boolean",
+        help: _t("Offer a barcode scanner button on mobile devices."),
+    },
 ];
 /** @type {import("registries").FieldsRegistryItemShape["supportedTypes"]} */
 export const m2oSupportedTypes = ["many2one"];
@@ -75,6 +89,26 @@ export function buildM2OFieldDescription(component) {
 }
 
 /**
+ * The `can_create` attribute crossed with the `no_create` / `no_quick_create` /
+ * `no_create_edit` option triad. Shared with the tags widgets, which used to
+ * re-derive it by hand and drift from this one.
+ *
+ * @param {{ attrs: Record<string, any>, options: Record<string, any> }} staticInfo
+ * @returns {{ canCreate: boolean, canCreateEdit: boolean, canQuickCreate: boolean }}
+ */
+export function extractCreatePermissions({ attrs, options }) {
+    const hasCreatePermission = attrs.can_create
+        ? evaluateBooleanExpr(attrs.can_create)
+        : true;
+    const canCreate = options.no_create ? false : hasCreatePermission;
+    return {
+        canCreate,
+        canCreateEdit: canCreate && !options.no_create_edit,
+        canQuickCreate: canCreate && !options.no_quick_create,
+    };
+}
+
+/**
  * @param {Record<string, any>} staticInfo
  * @param {Record<string, any>} dynamicInfo
  * @returns {Record<string, any>}
@@ -82,18 +116,12 @@ export function buildM2OFieldDescription(component) {
 export function extractM2OFieldProps(staticInfo, dynamicInfo) {
     const { attrs, context, decorations, options, string, placeholder } = staticInfo;
 
-    const hasCreatePermission = attrs.can_create
-        ? evaluateBooleanExpr(attrs.can_create)
-        : true;
     const hasWritePermission = attrs.can_write
         ? evaluateBooleanExpr(attrs.can_write)
         : true;
-    const canCreate = options.no_create ? false : hasCreatePermission;
     return {
-        canCreate,
-        canCreateEdit: canCreate && !options.no_create_edit,
+        ...extractCreatePermissions(staticInfo),
         canOpen: !options.no_open,
-        canQuickCreate: canCreate && !options.no_quick_create,
         canScanBarcode: !!options.can_scan_barcode,
         canWrite: hasWritePermission,
         context: dynamicInfo.context,

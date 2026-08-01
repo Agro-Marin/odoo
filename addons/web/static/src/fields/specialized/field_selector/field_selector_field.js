@@ -88,6 +88,13 @@ export const fieldSelectorField = {
             name: "only_searchable",
             type: "string",
         },
+        {
+            label: _t("Allow properties"),
+            name: "allow_properties",
+            type: "boolean",
+            default: true,
+            help: _t("Let the selector descend into properties fields."),
+        },
     ],
     extractProps({ options }, dynamicInfo) {
         return {

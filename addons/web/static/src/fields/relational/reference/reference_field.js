@@ -12,6 +12,7 @@ import { useRecordObserver } from "@web/fields/hooks/record_observer";
 import { computeM2OProps, Many2One } from "@web/fields/relational/many2one/many2one";
 import {
     extractM2OFieldProps,
+    m2oSupportedOptions,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
 
@@ -214,7 +215,10 @@ export class ReferenceField extends Component {
 export const referenceField = {
     component: ReferenceField,
     displayName: _t("Reference"),
+    // extractM2OFieldProps is what builds the props, so every many2one option
+    // is honoured here too and belongs in the declaration.
     supportedOptions: [
+        ...m2oSupportedOptions,
         {
             label: _t("Hide model"),
             name: "hide_model",

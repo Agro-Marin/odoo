@@ -87,6 +87,22 @@ export const integerField = {
             type: "number",
         },
         {
+            label: _t("Minimum"),
+            name: "min",
+            type: "number",
+            help: _t(
+                "Lower bound of the number input. Only applies with Type 'number'.",
+            ),
+        },
+        {
+            label: _t("Maximum"),
+            name: "max",
+            type: "number",
+            help: _t(
+                "Upper bound of the number input. Only applies with Type 'number'.",
+            ),
+        },
+        {
             label: _t("User-friendly format"),
             name: "human_readable",
             type: "boolean",
