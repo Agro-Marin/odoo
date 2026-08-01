@@ -22,6 +22,7 @@ import { MainComponentsContainer } from "@web/components/main_components_contain
 import { ConfirmationDialog } from "@web/ui/dialog/confirmation_dialog";
 import { Dialog } from "@web/ui/dialog/dialog";
 import { RainbowMan } from "@web/ui/effects/rainbow_man";
+import { makeOverlayPresenter } from "@web/ui/overlay/presenter";
 import {
     getDetachedTargetObserverCount,
     watchForDetachedTarget,
@@ -373,4 +374,41 @@ test("unblocking more than blocking does not broadcast a phantom unblock", async
     ui.block();
     ui.unblock();
     expect.verifySteps(["UNBLOCK"]);
+});
+
+test("the overlay presenter reads each option getter exactly once", async () => {
+    // Options describe the moment of opening. makePopover takes care to hand
+    // them over without spreading, but the presenter reads them here and gives
+    // the overlay a plain snapshot -- so a caller writing `get class()` to
+    // follow live state gets the value it had when the overlay was added, and
+    // nothing after that.
+    let reads = 0;
+    /** @type {any[]} */
+    const added = [];
+    const add = makeOverlayPresenter({
+        overlay: {
+            add(component, props) {
+                added.push(props);
+                return () => {};
+            },
+        },
+        component: /** @type {any} */ (class {}),
+        toProps: (options) => ({ class: options.class }),
+    });
+    add(
+        /** @type {any} */ (document.body),
+        /** @type {any} */ (class {}),
+        {},
+        {
+            get class() {
+                reads++;
+                return `cls-${reads}`;
+            },
+        },
+    );
+
+    expect(reads).toBe(1);
+    expect(added[0].class).toBe("cls-1");
+    expect(added[0].class).toBe("cls-1");
+    expect(reads).toBe(1);
 });

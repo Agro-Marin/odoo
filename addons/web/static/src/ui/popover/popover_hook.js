@@ -31,9 +31,15 @@ export function makePopover(addFn, component, options) {
     return {
         open(target, props) {
             close();
-            // Object.create, not a spread: callers define options as lazy
-            // getters (Dropdown's `position` and `class` read live state), and
-            // a spread would snapshot them here instead.
+            // Object.create, not a spread, so that overriding onClose below
+            // shadows the caller's option instead of mutating the object they
+            // handed over -- the same options are reused for every open.
+            //
+            // It does NOT make lazy option getters live: the presenter reads
+            // each one once, when the overlay is added, and hands the overlay a
+            // plain snapshot. Options are the state at open time; anything that
+            // has to follow the opener afterwards belongs in the hosted
+            // component's props.
             const newOptions = Object.create(options);
             newOptions.onClose = (/** @type {any} */ removeParams) => {
                 removeFn = null;

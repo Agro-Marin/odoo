@@ -89,6 +89,11 @@ export function makeOverlayPresenter({
                 }
             }
         }
+        // toProps runs once, here, and its result is spread into a plain object:
+        // an option defined as a getter is read exactly once and frozen at that
+        // value for the overlay's whole life. Options describe the moment of
+        // opening; anything that has to keep up with the opener afterwards has
+        // to travel as props of the hosted component.
         const remove = overlay.add(
             component,
             {
