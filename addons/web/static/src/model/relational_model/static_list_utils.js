@@ -12,6 +12,20 @@
 
 import { x2ManyCommands } from "./commands.js";
 
+/** @import { DatapointId } from "@web/model/types" */
+/** @import { RelationalRecord } from "./record.js" */
+
+/**
+ * The id a record answers to inside its list: its resId once the server knows
+ * it, its virtual id until then. Exactly one of the two is set.
+ *
+ * @param {RelationalRecord} record
+ * @returns {DatapointId}
+ */
+export function listId(record) {
+    return /** @type {DatapointId} */ (record.resId || record._virtualId);
+}
+
 function compareFieldValues(v1, v2, fieldType) {
     if (fieldType === "many2one") {
         v1 = v1 ? v1.display_name : "";

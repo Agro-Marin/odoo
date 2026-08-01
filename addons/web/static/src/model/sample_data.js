@@ -23,14 +23,6 @@ export const FORMATS = {
     quarter: "'Q'q yyyy",
     year: "y",
 };
-/** @type {Record<string, (dt: any) => any>} */
-export const INTERVALS = {
-    day: (dt) => dt.plus({ days: 1 }),
-    week: (dt) => dt.plus({ weeks: 1 }),
-    month: (dt) => dt.plus({ months: 1 }),
-    quarter: (dt) => dt.plus({ months: 3 }),
-    year: (dt) => dt.plus({ years: 1 }),
-};
 export const DISPLAY_FORMATS = { ...FORMATS, day: "dd MMM yyyy" };
 
 /** @type {string[]} */

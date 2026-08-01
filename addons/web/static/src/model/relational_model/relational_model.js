@@ -551,11 +551,15 @@ export class RelationalModel extends Model {
     }
 
     /**
+     * The default is what every in-repo caller passes explicitly. Leaving it
+     * required made an omission evaluate every field spec against `undefined`
+     * instead of failing — a silent contract for out-of-repo subclasses.
+     *
      * @param {RelationalModelConfig} config
-     * @param {Context} evalContext
+     * @param {Context} [evalContext]
      * @param {Object} [cache]
      */
-    async _loadRecords(config, evalContext, cache) {
+    async _loadRecords(config, evalContext = getSpecEvalContext(config), cache) {
         const { resModel, activeFields, fields, context } = config;
         const resIds = config.resId ? [config.resId] : config.resIds;
         if (!resIds.length) {

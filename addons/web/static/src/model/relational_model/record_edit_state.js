@@ -5,6 +5,43 @@
 
 import { markRaw } from "@odoo/owl";
 
+/**
+ * @typedef {{
+ *  changes: Record<string, any>,
+ *  textValues: Record<string, any>,
+ *  invalidFields: string[],
+ *  unsetRequiredFields: string[],
+ * }} SavePoint
+ */
+
+/**
+ * The savepoint shape, in one place. Built here rather than by the caller so
+ * the fields a savepoint carries cannot drift from the fields
+ * {@link RecordEditState#restoreSnapshot} puts back — adding one to the
+ * snapshot without restoring it is a silent half-restore.
+ *
+ * @param {{
+ *  changes?: Record<string, any>,
+ *  textValues?: Record<string, any>,
+ *  invalidFields?: Iterable<string>,
+ *  unsetRequiredFields?: Iterable<string>,
+ * }} [parts]
+ * @returns {SavePoint}
+ */
+export function createSavePoint({
+    changes = {},
+    textValues = {},
+    invalidFields = [],
+    unsetRequiredFields = [],
+} = {}) {
+    return markRaw({
+        changes: { ...changes },
+        textValues: { ...textValues },
+        invalidFields: [...invalidFields],
+        unsetRequiredFields: [...unsetRequiredFields],
+    });
+}
+
 export class RecordEditState {
     constructor() {
         /**
@@ -98,5 +135,35 @@ export class RecordEditState {
 
     markDirty() {
         this.dirty = true;
+    }
+
+    /**
+     * Park the whole pending-edit set so a sub-flow that gets cancelled — a
+     * sub-form dialog over an x2many child, an extended-field reload — can put
+     * it back. Every piece lives on this object, so the snapshot is taken here
+     * rather than reassembled by a caller reaching through the record.
+     */
+    snapshot() {
+        this.savePoint = createSavePoint(this);
+    }
+
+    /**
+     * @returns {boolean} false when there was nothing parked, so a caller can
+     *  tell "restored the snapshot" from "fell back to the server values"
+     */
+    restoreSnapshot() {
+        const savePoint = this.savePoint;
+        if (!savePoint) {
+            return false;
+        }
+        this.changes = { ...savePoint.changes };
+        this.textValues = markRaw({ ...savePoint.textValues });
+        this.restoreValidity(savePoint);
+        // Derived, not snapshotted: a record whose only pending state is an
+        // INVALID field has an empty change set and must still read dirty, or
+        // the edit is dropped without a prompt.
+        this.dirty = !this.isChangeSetEmpty || this.invalidFields.size > 0;
+        this.savePoint = undefined;
+        return true;
     }
 }

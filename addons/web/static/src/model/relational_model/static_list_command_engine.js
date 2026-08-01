@@ -11,6 +11,7 @@ import {
 } from "./command_builder.js";
 import { x2ManyCommands } from "./commands.js";
 import { getId, isX2Many } from "./field_context.js";
+import { listId } from "./static_list_utils.js";
 
 /** @import { StaticList } from "@web/model/relational_model/static_list" */
 
@@ -116,7 +117,7 @@ export function applyCommands(
     function pageOccupancy() {
         let occupancy = 0;
         for (const record of list.records) {
-            if (!removedIds[record.resId || record._virtualId]) {
+            if (!removedIds[listId(record)]) {
                 occupancy++;
             }
         }
@@ -341,12 +342,7 @@ export function applyCommands(
                 offset: Math.max(0, list.offset - removedBeforeOffset),
             });
         }
-        list.records = dropFirstOccurrences(
-            list.records,
-            removedIds,
-            (record) =>
-                /** @type {string | number} */ (record.resId || record._virtualId),
-        );
+        list.records = dropFirstOccurrences(list.records, removedIds, listId);
         list._currentIds = dropFirstOccurrences(
             list._currentIds,
             removedIds,

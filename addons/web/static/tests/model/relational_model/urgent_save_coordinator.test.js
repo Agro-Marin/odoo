@@ -117,3 +117,56 @@ test("unlessUrgent propagates promise return when idle", async () => {
     const result = await coord.unlessUrgent(async () => "async value");
     expect(result).toBe("async value");
 });
+
+describe("the reentrant drain is bounded", () => {
+    test("a save that keeps re-entering still returns", async () => {
+        const coordinator = new UrgentSaveCoordinator();
+        let spawned = 0;
+        // Each reentrant save schedules another one a microtask later, so every
+        // one is its own DRAIN ROUND. Unbounded, the `finally` never reaches
+        // `_transition("end")` and `run()` never settles -- inside a
+        // beforeunload handler that is the whole tab.
+        const reenter = () => {
+            spawned++;
+            return coordinator.run(async () => {
+                await Promise.resolve();
+                if (coordinator.isActive && spawned < 400) {
+                    reenter();
+                }
+            });
+        };
+        const warnings = [];
+        const originalWarn = console.warn;
+        console.warn = (...args) => warnings.push(args.join(" "));
+        try {
+            // The contract is that this settles at all.
+            await coordinator.run(async () => {
+                reenter();
+            });
+        } finally {
+            console.warn = originalWarn;
+        }
+        expect(spawned).toBeGreaterThan(100);
+        expect(warnings.length).toBe(1);
+        expect(warnings[0]).toInclude("did not settle");
+    });
+
+    test("a drain that does settle emits no warning and ends idle", async () => {
+        const coordinator = new UrgentSaveCoordinator();
+        const warnings = [];
+        const originalWarn = console.warn;
+        console.warn = (...args) => warnings.push(args.join(" "));
+        try {
+            await coordinator.run(async () => {
+                coordinator.run(async () => {
+                    await Promise.resolve();
+                });
+            });
+        } finally {
+            console.warn = originalWarn;
+        }
+        expect(warnings.length).toBe(0);
+        expect(coordinator.status).toBe("idle");
+        expect(coordinator.isActive).toBe(false);
+    });
+});

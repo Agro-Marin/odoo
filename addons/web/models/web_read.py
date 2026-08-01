@@ -446,6 +446,13 @@ class Base(models.AbstractModel):
         Handles the client's serialized form (m2o as ``{id, display_name}``,
         dates as ISO strings) and the raw DB form (m2o as FK id, dates as
         ``date`` objects) to the same primitive so equal values compare equal.
+
+        Raises on a baseline whose *shape* is not one this can compare, so the
+        caller's ``except`` fails the field OPEN. ``str()`` accepts anything, so
+        without the guard a container baseline coerces to a stable-but-bogus
+        string that matches nothing: the save is refused as a phantom conflict
+        no reload can clear -- fail CLOSED, the one outcome this check must
+        never produce.
         """
         ftype = field.type
         if value is None or value is False:
@@ -468,6 +475,11 @@ class Base(models.AbstractModel):
             return round(float(value), 6)
         if ftype == "boolean":
             return bool(value)
+        if isinstance(value, (dict, list, tuple, set, frozenset, bytes, bytearray)):
+            raise TypeError(
+                f"{ftype} concurrency baseline has uncomparable type "
+                f"{type(value).__name__}"
+            )
         return str(value)
 
     def web_save_multi(

@@ -126,7 +126,9 @@ export function getAggregateSpecifications(fields, fieldNames) {
         aggregateSpecCache.set(fields, byScope);
     }
     const scope = fieldNames && [...new Set(fieldNames)];
-    const scopeKey = scope ? `s:${scope.join(",")}` : "*";
+    // Sorted: the scope is a SET of field names, so two orderings of the same
+    // names must hit the same entry rather than compute and cache twice.
+    const scopeKey = scope ? `s:${[...scope].sort().join(",")}` : "*";
     let specs = byScope.get(scopeKey);
     if (specs) {
         return specs;

@@ -64,10 +64,9 @@ function makeStaticListMock(currentIds) {
         __isStaticList: true,
         currentIds: [...currentIds],
         appliedCommands: [],
-        _applyCommands(commands) {
+        stageCommands(commands) {
             this.appliedCommands.push(...commands);
         },
-        _trackCommandsPromise() {},
     };
 }
 

@@ -70,7 +70,7 @@ export function processProperties(
                     propertyFieldName,
                 );
             } else if (
-                typeof staticList._applyCommands === "function" &&
+                typeof staticList.stageCommands === "function" &&
                 (Array.isArray(property.value) || property.value === false)
             ) {
                 const target = property.value || [];
@@ -92,9 +92,7 @@ export function processProperties(
                     }
                 }
                 if (commands.length) {
-                    staticList._trackCommandsPromise(
-                        staticList._applyCommands(commands),
-                    );
+                    staticList.stageCommands(commands);
                 }
             }
             data[propertyFieldName] = staticList;

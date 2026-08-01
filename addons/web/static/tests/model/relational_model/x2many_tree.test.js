@@ -1,0 +1,182 @@
+// @ts-check
+
+/**
+ * The save path walks the record -> list -> record tree three times, for three
+ * different questions. Those walks used to be open-coded three times inside
+ * `record_save.js`, and they had silently drifted apart:
+ *
+ *   - the pending-command barrier included property-backed x2many lists,
+ *   - the commit spec and the commit itself excluded them.
+ *
+ * That asymmetry is deliberate — command replay IS staged on a property list
+ * (`record_properties.js` calls `_trackCommandsPromise`), but the list is a
+ * facet of the `properties` field, which carries its own value and is neither
+ * specified nor committed on its own. Now that both selectors are named, these
+ * tests pin the difference so a future tidy-up cannot quietly unify them.
+ */
+
+import { describe, expect, test } from "@odoo/hoot";
+import {
+    allX2manyLists,
+    buildCommitSpec,
+    collectPendingCommands,
+    commitSubtree,
+    x2manyLists,
+} from "@web/model/relational_model/x2many_tree";
+
+describe.current.tags("headless");
+
+/**
+ * @param {Record<string, any>} lists fieldName -> list stub
+ * @param {Record<string, any>} [fieldOverrides]
+ * @returns {any} a record-shaped stub: the traversal only reads
+ *  activeFields / fields / data, so a full datapoint is not needed
+ */
+function makeRecord(lists, fieldOverrides = {}) {
+    const activeFields = {};
+    const fields = {};
+    const data = {};
+    for (const [name, list] of Object.entries(lists)) {
+        activeFields[name] = {};
+        fields[name] = { name, type: "one2many", ...(fieldOverrides[name] || {}) };
+        data[name] = list;
+    }
+    // a plain scalar field must never be mistaken for a list
+    activeFields.name = {};
+    fields.name = { name: "name", type: "char" };
+    data.name = "x";
+    return /** @type {any} */ ({ activeFields, fields, data });
+}
+
+/**
+ * @param {Partial<any>} [props]
+ * @returns {any} a StaticList-shaped stub exposing only the published surface
+ */
+function makeList({ pending = null, staged = false, cached = [] } = {}) {
+    const cleared = [];
+    const committed = [];
+    return {
+        pendingCommands: pending,
+        hasStagedCommands: staged,
+        cachedRecords: cached,
+        getCachedRecord: (id) => cached.find((r) => r.__id === id),
+        _clearCommands: () => cleared.push(true),
+        _commitSave: (v) => committed.push(v),
+        cleared,
+        committed,
+    };
+}
+
+describe("which lists each selector yields", () => {
+    test("x2manyLists skips a property-backed list, allX2manyLists does not", () => {
+        const own = makeList();
+        const prop = makeList();
+        const record = makeRecord(
+            { lines: own, "properties.rel": prop },
+            { "properties.rel": { relatedPropertyField: { name: "properties" } } },
+        );
+
+        expect([...x2manyLists(record)].map(([n]) => n)).toEqual(["lines"]);
+        expect([...allX2manyLists(record)].map(([n]) => n)).toEqual([
+            "lines",
+            "properties.rel",
+        ]);
+    });
+
+    test("a falsy list is skipped rather than yielded", () => {
+        const record = makeRecord({ lines: null, others: makeList() });
+        expect([...allX2manyLists(record)].map(([n]) => n)).toEqual(["others"]);
+    });
+});
+
+describe("collectPendingCommands", () => {
+    test("includes property lists — replay is staged on them too", () => {
+        const p = Promise.resolve();
+        const record = makeRecord(
+            { "properties.rel": makeList({ pending: p }) },
+            { "properties.rel": { relatedPropertyField: { name: "properties" } } },
+        );
+        expect(collectPendingCommands(record)).toEqual([p]);
+    });
+
+    test("descends into cached sub-records", () => {
+        const deep = Promise.resolve();
+        const child = makeRecord({ sub: makeList({ pending: deep }) });
+        const record = makeRecord({ lines: makeList({ cached: [child] }) });
+        expect(collectPendingCommands(record)).toEqual([deep]);
+    });
+
+    test("a cycle terminates instead of recursing forever", () => {
+        const list = makeList();
+        const record = makeRecord({ lines: list });
+        list.cachedRecords = [record]; // the record is cached under its own list
+        expect(collectPendingCommands(record)).toEqual([]);
+    });
+
+    test("lists with nothing in flight contribute nothing", () => {
+        const record = makeRecord({ lines: makeList() });
+        expect(collectPendingCommands(record)).toEqual([]);
+    });
+});
+
+describe("buildCommitSpec", () => {
+    test("names only the fields that have staged work", () => {
+        const record = makeRecord({
+            dirty: makeList({ staged: true }),
+            clean: makeList(),
+        });
+        expect(buildCommitSpec(record)).toEqual({ dirty: {} });
+    });
+
+    test("a clean list whose child is dirty is still named, nested", () => {
+        const child = makeRecord({ sub: makeList({ staged: true }) });
+        const record = makeRecord({ lines: makeList({ cached: [child] }) });
+        expect(buildCommitSpec(record)).toEqual({ lines: { fields: { sub: {} } } });
+    });
+
+    test("a property list is never specified, even when staged", () => {
+        const record = makeRecord(
+            { "properties.rel": makeList({ staged: true }) },
+            { "properties.rel": { relatedPropertyField: { name: "properties" } } },
+        );
+        expect(buildCommitSpec(record)).toEqual({});
+    });
+});
+
+describe("commitSubtree", () => {
+    test("a field the server did not report has its staged commands dropped", () => {
+        const list = makeList({ staged: true });
+        const record = makeRecord({ lines: list });
+        commitSubtree(record, {});
+        expect(list.cleared.length).toBe(1);
+        expect(list.committed.length).toBe(0);
+    });
+
+    test("a reported field is committed with the server value", () => {
+        const list = makeList();
+        const record = makeRecord({ lines: list });
+        commitSubtree(record, { lines: [1, 2] });
+        expect(list.committed).toEqual([[1, 2]]);
+        expect(list.cleared.length).toBe(0);
+    });
+
+    test("nested rows are committed through their cached datapoint", () => {
+        const inner = makeList();
+        const child = makeRecord({ sub: inner });
+        child.__id = 7;
+        const outer = makeList({ cached: [child] });
+        const record = makeRecord({ lines: outer });
+        commitSubtree(record, { lines: [{ id: 7, sub: [42] }] });
+        expect(inner.committed).toEqual([[42]]);
+    });
+
+    test("a cycle commits each record once", () => {
+        const list = makeList();
+        const record = makeRecord({ lines: list });
+        record.__id = 1;
+        list.cachedRecords = [record];
+        list.getCachedRecord = () => record;
+        commitSubtree(record, { lines: [{ id: 1, lines: [9] }] });
+        expect(list.committed.length).toBe(1);
+    });
+});

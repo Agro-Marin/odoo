@@ -258,16 +258,18 @@ export class DynamicList extends DataPoint {
         return this.model.mutex.exec(() => this._toggleArchive(isSelected, false));
     }
 
+    /** @returns {Promise<any>} */
     toggleArchiveWithConfirmation(archive, dialogProps = {}) {
         const isSelected = this.isDomainSelected || this.selection.length;
         if (archive) {
-            this.model.hooks.ui.onConfirmArchive(
-                () => this.archive(isSelected),
-                dialogProps,
+            return Promise.resolve(
+                this.model.hooks.ui.onConfirmArchive(
+                    () => this.archive(isSelected),
+                    dialogProps,
+                ),
             );
-        } else {
-            this.unarchive(isSelected);
         }
+        return this.unarchive(isSelected);
     }
 
     async _duplicateRecords(records) {

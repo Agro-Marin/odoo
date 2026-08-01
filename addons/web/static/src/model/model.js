@@ -153,24 +153,19 @@ function getSearchParams(props) {
 }
 
 /**
- * `odoo.debug` is toggled at runtime, so it is read on every call; only the
- * flag lookup is memoised.
+ * Both halves are read live. `featureFlag` resolves against the URL and
+ * localStorage on every call precisely so it can be toggled without a reload;
+ * memoising the first answer in a module-global made `setFeatureFlag` a no-op
+ * for the life of the tab, and leaked the first view's answer across every
+ * later test in a run.
  *
- * @type {boolean | null}
- */
-/** @type {boolean | null} */
-let _searchParamsFeatureFlag = null;
-
-/**
  * @returns {boolean}
  */
 function _isSearchParamsValidationEnabled() {
-    if (_searchParamsFeatureFlag === null) {
-        _searchParamsFeatureFlag = Boolean(
-            featureFlag("search_params_validation", { default: false }),
-        );
-    }
-    return Boolean(odoo.debug) || _searchParamsFeatureFlag;
+    return (
+        Boolean(odoo.debug) ||
+        Boolean(featureFlag("search_params_validation", { default: false }))
+    );
 }
 
 /**
