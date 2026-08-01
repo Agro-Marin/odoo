@@ -1765,3 +1765,116 @@ test("an established dropdown closes an already-open peer", async () => {
     await animationFrame();
     expect(queryAllTexts(DROPDOWN_MENU)).toEqual(["cb"]);
 });
+
+test.tags("desktop");
+test("a menuClass that changes while the menu is open reaches it", async () => {
+    // The popover reads its `class` option once, when the overlay is added, so
+    // a menuClass bound to something that moves -- a theme toggle, a viewport
+    // crossing the small breakpoint -- used to leave the open menu behind.
+    class Parent extends Component {
+        static components = { Dropdown, DropdownItem };
+        static template = xml`
+            <Dropdown menuClass="state.cls">
+                <button class="tog">tog</button>
+                <t t-set-slot="content"><DropdownItem>c</DropdownItem></t>
+            </Dropdown>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ cls: "aaa" });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click("button.tog");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveClass("aaa");
+
+    parent.state.cls = "bbb";
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveClass("bbb");
+    expect(DROPDOWN_MENU).not.toHaveClass("aaa");
+    expect(DROPDOWN_MENU).toHaveClass("dropdown-menu");
+});
+
+test.tags("desktop");
+test("an object menuClass is toggled off as well as on", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownItem };
+        static template = xml`
+            <Dropdown menuClass="{ dark: state.dark, always: true }">
+                <button class="tog">tog</button>
+                <t t-set-slot="content"><DropdownItem>c</DropdownItem></t>
+            </Dropdown>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ dark: true });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click("button.tog");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveClass(["dark", "always"]);
+
+    parent.state.dark = false;
+    await animationFrame();
+    expect(DROPDOWN_MENU).not.toHaveClass("dark");
+    expect(DROPDOWN_MENU).toHaveClass("always");
+});
+
+test.tags("desktop");
+test("a menuClass repeating a popover class cannot strip it", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownItem };
+        static template = xml`
+            <Dropdown menuClass="state.cls">
+                <button class="tog">tog</button>
+                <t t-set-slot="content"><DropdownItem>c</DropdownItem></t>
+            </Dropdown>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ cls: "dropdown-menu extra" });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click("button.tog");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveClass(["dropdown-menu", "extra"]);
+
+    parent.state.cls = "other";
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveClass(["dropdown-menu", "other"]);
+    expect(DROPDOWN_MENU).not.toHaveClass("extra");
+});
+
+test.tags("desktop");
+test("reopening after a menuClass change while closed uses the current one", async () => {
+    class Parent extends Component {
+        static components = { Dropdown, DropdownItem };
+        static template = xml`
+            <Dropdown menuClass="state.cls">
+                <button class="tog">tog</button>
+                <t t-set-slot="content"><DropdownItem>c</DropdownItem></t>
+            </Dropdown>`;
+        static props = [];
+
+        setup() {
+            this.state = useState({ cls: "aaa" });
+        }
+    }
+    const parent = await mountWithCleanup(Parent);
+    await click("button.tog");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveClass("aaa");
+    await click("button.tog");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveCount(0);
+
+    parent.state.cls = "ccc";
+    await animationFrame();
+    await click("button.tog");
+    await animationFrame();
+    expect(DROPDOWN_MENU).toHaveClass("ccc");
+    expect(DROPDOWN_MENU).not.toHaveClass("aaa");
+});
