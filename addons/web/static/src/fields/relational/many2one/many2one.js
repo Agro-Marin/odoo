@@ -71,8 +71,10 @@ export function computeM2OProps(fieldProps) {
             );
         },
         placeholder: fieldProps.placeholder,
+        preventMemoization: fieldProps.preventMemoization,
         readonly: fieldProps.readonly,
         relation: fieldProps.record.fields[fieldProps.name].relation,
+        searchMemoization: fieldProps.searchMemoization,
         searchThreshold: fieldProps.searchThreshold,
         string:
             fieldProps.string || fieldProps.record.fields[fieldProps.name].string || "",

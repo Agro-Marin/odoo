@@ -29,7 +29,10 @@ import {
 } from "@web/../tests/web_test_helpers";
 import { ModelEvent } from "@web/core/events";
 import { resetDateFieldWidths } from "@web/fields/field_widths";
-import { DateTimeField } from "@web/fields/temporal/datetime/datetime_field";
+import {
+    DateTimeField,
+    dateTimeField,
+} from "@web/fields/temporal/datetime/datetime_field";
 
 class Partner extends models.Model {
     date = fields.Date({ string: "A date", searchable: true });
@@ -829,5 +832,38 @@ test("empty datetime touched then left must not dirty the record", async () => {
     expect.verifySteps([]);
     expect(".o_form_status_indicator .fa-cloud-upload, .o_form_dirty").toHaveCount(0, {
         message: "an untouched-valued empty field must stay clean",
+    });
+});
+
+test("list datetime: the column is sized for the string it renders", async () => {
+    // The default widget renders no seconds, so the column must not reserve
+    // room for them; asking for seconds must widen it by exactly that much.
+    await resize({ width: 800 });
+    document.body.style.fontFamily = "sans-serif";
+    resetDateFieldWidths();
+    after(resetDateFieldWidths);
+
+    await mountView({
+        type: "list",
+        resModel: "partner",
+        arch: `
+            <list>
+                <field name="datetime" widget="datetime"/>
+                <field name="display_name"/>
+            </list>`,
+    });
+
+    const [, datetimeColumn] = queryAllProperties(
+        ".o_list_table thead th",
+        "offsetWidth",
+    );
+    const [renderedCell] = queryAllTexts(".o_data_row:eq(0) .o_data_cell");
+
+    expect(renderedCell).not.toInclude(":00:00");
+    expect(datetimeColumn).toBe(dateTimeField.listViewWidth({ options: {} }) + 9);
+    expect(
+        dateTimeField.listViewWidth({ options: { show_seconds: true } }),
+    ).toBeGreaterThan(dateTimeField.listViewWidth({ options: {} }), {
+        message: "reserving room for seconds must be opt-in, not the default",
     });
 });

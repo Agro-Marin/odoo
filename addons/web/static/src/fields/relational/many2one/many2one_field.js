@@ -70,6 +70,25 @@ export const m2oSupportedOptions = [
         type: "boolean",
         help: _t("Offer a barcode scanner button on mobile devices."),
     },
+    {
+        label: _t("Search memoization"),
+        name: "search_memoization",
+        type: "selection",
+        default: "exact",
+        choices: [
+            { label: _t("Repeat every search"), value: "none" },
+            { label: _t("Skip a search already known to be empty"), value: "exact" },
+            {
+                label: _t("Skip any search extending an empty one"),
+                value: "substring",
+            },
+        ],
+        help: _t(
+            "'substring' assumes name_search is a plain ilike, so a longer term " +
+                "cannot match where a shorter one did not. Models that also match on " +
+                "another field (a barcode, a reference) must not use it.",
+        ),
+    },
 ];
 /** @type {import("registries").FieldsRegistryItemShape["supportedTypes"]} */
 export const m2oSupportedTypes = ["many2one"];
@@ -130,6 +149,7 @@ export function extractM2OFieldProps(staticInfo, dynamicInfo) {
         nameCreateField: options.create_name_field,
         openActionContext: context || "{}",
         placeholder,
+        searchMemoization: options.search_memoization,
         searchThreshold: options.search_threshold,
         string,
     };
@@ -152,6 +172,7 @@ export class Many2OneField extends Component {
         nameCreateField: { type: String, optional: true },
         openActionContext: { type: String, optional: true },
         placeholder: { type: String, optional: true },
+        searchMemoization: { type: String, optional: true },
         searchThreshold: { type: Number, optional: true },
         string: { type: String, optional: true },
     };

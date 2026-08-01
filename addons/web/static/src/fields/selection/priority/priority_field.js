@@ -109,6 +109,7 @@ export class PriorityField extends Component {
 export const priorityField = {
     component: PriorityField,
     displayName: _t("Priority"),
+    interactiveOutsideEdition: true,
     supportedOptions: [
         {
             label: _t("Autosave"),
@@ -124,7 +125,6 @@ export const priorityField = {
     extractProps({ options, viewType }, dynamicInfo) {
         return {
             withCommand: viewType === "form",
-            readonly: dynamicInfo.readonly,
             autosave: extractAutosave(options),
         };
     },

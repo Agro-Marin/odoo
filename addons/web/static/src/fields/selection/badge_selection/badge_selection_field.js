@@ -63,6 +63,10 @@ export class BadgeSelectionField extends SelectionLikeField {
                     const option = this.options.find(
                         (/** @type {any[]} */ option) => option[0] === value,
                     );
+                    if (!option) {
+                        // see SelectionField.onChange
+                        return;
+                    }
                     this.props.record.update({
                         [this.props.name]: {
                             id: option[0],

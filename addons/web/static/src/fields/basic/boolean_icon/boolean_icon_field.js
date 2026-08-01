@@ -33,6 +33,7 @@ export class BooleanIconField extends Component {
 export const booleanIconField = {
     component: BooleanIconField,
     displayName: _t("Boolean Icon"),
+    interactiveOutsideEdition: true,
     supportedOptions: [
         {
             label: _t("Icon"),
@@ -44,7 +45,6 @@ export const booleanIconField = {
     extractProps: ({ options, string }, dynamicInfo) => ({
         icon: options.icon,
         label: string,
-        readonly: dynamicInfo.readonly,
     }),
 };
 

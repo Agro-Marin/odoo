@@ -57,6 +57,12 @@ export class SelectionField extends SelectionLikeField {
                     );
                 } else {
                     const option = this.options.find((option) => option[0] === value);
+                    if (!option) {
+                        // `options` is a name_search result that reloads on its
+                        // own; a value that is no longer offered is not one we
+                        // can name, so writing it would store a blank label.
+                        return;
+                    }
                     this.props.record.update(
                         {
                             [this.props.name]: {

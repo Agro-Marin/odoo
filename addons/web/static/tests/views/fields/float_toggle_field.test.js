@@ -117,3 +117,26 @@ test("steps from the nearest range value despite float imprecision", async () =>
             "must advance to the entry after the nearest one (0.3 -> 0.6), not reset to 0.00",
     });
 });
+
+test("an unusable range option falls back instead of writing NaN", async () => {
+    // `range` is arbitrary arch input; an empty list used to make the index
+    // lookup return undefined and store NaN in the record.
+    let written;
+    onRpc("partner", "web_save", ({ args }) => {
+        written = args[1];
+    });
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resId: 1,
+        arch: `<form><field name="float_field" widget="float_toggle" options="{'range': []}"/></form>`,
+    });
+
+    await contains(".o_field_float_toggle button").click();
+    await clickSave();
+
+    expect(written).toBeInstanceOf(Object);
+    expect(Number.isNaN(written.float_field)).toBe(false, {
+        message: "a broken range must never reach the record as NaN",
+    });
+});

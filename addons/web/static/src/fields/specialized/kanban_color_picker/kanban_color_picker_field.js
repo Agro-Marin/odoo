@@ -34,11 +34,7 @@ class KanbanColorPickerField extends Component {
 export const kanbanColorPickerField = {
     component: KanbanColorPickerField,
     displayName: _t("Color Picker"),
-    extractProps(fieldInfo, dynamicInfo) {
-        return {
-            readonly: dynamicInfo.readonly,
-        };
-    },
+    interactiveOutsideEdition: true,
 };
 
 registerField("kanban_color_picker", kanbanColorPickerField);

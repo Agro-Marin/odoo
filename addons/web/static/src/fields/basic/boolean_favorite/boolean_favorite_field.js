@@ -54,6 +54,7 @@ export const booleanFavoriteField = {
     displayName: _t("Favorite"),
     supportedTypes: ["boolean"],
     isEmpty: () => false,
+    interactiveOutsideEdition: true,
     listViewWidth: ({ hasLabel }) => (!hasLabel ? 20 : false),
     supportedOptions: [
         {
@@ -69,7 +70,6 @@ export const booleanFavoriteField = {
     extractProps: ({ attrs, options }, dynamicInfo) => ({
         noLabel: exprToBoolean(attrs.nolabel),
         autosave: extractAutosave(options),
-        readonly: dynamicInfo.readonly,
     }),
 };
 

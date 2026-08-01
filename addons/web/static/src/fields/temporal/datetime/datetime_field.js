@@ -584,8 +584,14 @@ export const dateTimeField = {
         if (!exprToBoolean(options.show_time ?? true)) {
             return dateField.listViewWidth({ options });
         }
-        return exprToBoolean(options.numeric ?? false)
-            ? FIELD_WIDTHS.numeric_datetime
+        if (exprToBoolean(options.numeric ?? false)) {
+            return FIELD_WIDTHS.numeric_datetime;
+        }
+        // A scalar listViewWidth pins the column (minWidth === maxWidth), so
+        // sizing every datetime for a seconds string only `show_seconds` ever
+        // renders costs ~13% of the column in every list, permanently.
+        return exprToBoolean(options.show_seconds ?? false)
+            ? FIELD_WIDTHS.datetime_seconds
             : FIELD_WIDTHS.datetime;
     },
 };
@@ -630,7 +636,8 @@ export const dateRangeField = {
             type === "datetime"
                 ? dateTimeField.listViewWidth({ options })
                 : dateField.listViewWidth({ options });
-        return 2 * width + 30;
+        // undefined when the locale-dependent widths are not measurable yet
+        return width ? 2 * width + 30 : undefined;
     },
     isValid: (record, fieldname, fieldInfo) => {
         if (fieldInfo.widget === "daterange") {

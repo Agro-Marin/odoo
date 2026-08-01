@@ -52,6 +52,7 @@ export class ColorField extends Component {
 /** @type {import("registries").FieldsRegistryItemShape} */
 export const colorField = {
     component: ColorField,
+    interactiveOutsideEdition: true,
     supportedOptions: [
         {
             label: _t("Autosave"),
@@ -71,7 +72,6 @@ export const colorField = {
             autosave = true;
         }
         return {
-            readonly: dynamicInfo.readonly,
             autosave,
         };
     },
