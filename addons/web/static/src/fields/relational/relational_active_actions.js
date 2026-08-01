@@ -18,15 +18,6 @@ import { Domain } from "@web/core/domain";
  * @property {Function | null} onDelete
  */
 
-const STANDARD_ACTIVE_ACTIONS = [
-    "create",
-    "createEdit",
-    "delete",
-    "link",
-    "unlink",
-    "write",
-];
-
 /**
  * @typedef {Object} ActiveActionsEvalParams
  * @property {Object} [evalContext]
@@ -35,10 +26,42 @@ const STANDARD_ACTIVE_ACTIONS = [
  */
 
 /**
+ * Parsed `Domain`s, keyed by the expression they came from. A crud option is an
+ * arch literal, so the same handful of expressions is re-parsed for every row of
+ * every list -- but the cache cannot live on the closure, because `crudOptions`
+ * is re-read on every recomputation (see below).
+ *
+ * @type {Map<string, Domain | null>}
+ */
+const domainCache = new Map();
+
+/**
+ * @param {any} action
+ * @returns {Domain | null}
+ */
+function domainFor(action) {
+    if (!action) {
+        return null;
+    }
+    const key = typeof action === "string" ? action : JSON.stringify(action);
+    if (!domainCache.has(key)) {
+        domainCache.set(key, new Domain(action));
+    }
+    return /** @type {Domain | null} */ (domainCache.get(key));
+}
+
+/**
+ * Every input is read from the props handed to `getEvalParams`, never from
+ * `useComponent().props`: OWL assigns `component.props` *after* every
+ * `onWillUpdateProps` callback has resolved, so a hook that reads `this.props`
+ * here answers for the record the component is leaving, not the one it is
+ * entering -- and since nothing recomputes the result until the *next* props
+ * update, that wrong answer is what the widget keeps.
+ *
  * @param {Object} params
  * @param {string} params.fieldType
  * @param {Record<string, boolean>} [params.subViewActiveActions={}]
- * @param {Object} [params.crudOptions={}]
+ * @param {Object | ((props: Record<string, any>) => Object)} [params.crudOptions={}]
  * @param {(props: Record<string, any>) => ActiveActionsEvalParams} [params.getEvalParams=() => ({})]
  * @returns {RelationalActiveActions}
  */
@@ -48,66 +71,63 @@ export function useActiveActions({
     crudOptions = {},
     getEvalParams = () => ({}),
 }) {
-    /** @param {ActiveActionsEvalParams} evalParams */
-    const compute = ({ evalContext = {}, readonly = true, edit }) => {
+    const isMany2Many = fieldType === "many2many";
+
+    /**
+     * @param {Object} options
+     * @param {string} actionName
+     * @param {Object} evalContext
+     * @returns {boolean}
+     */
+    const evalAction = (options, actionName, evalContext) => {
+        let allowed = true;
+        if (options[actionName] != null) {
+            const domain = domainFor(options[actionName]);
+            allowed = Boolean(domain && domain.contains(evalContext));
+        }
+        if (actionName in subViewActiveActions) {
+            allowed = Boolean(subViewActiveActions[actionName]) && allowed;
+        }
+        return allowed;
+    };
+
+    /**
+     * @param {Record<string, any>} props
+     * @returns {RelationalActiveActions}
+     */
+    const compute = (props) => {
+        const { evalContext = {}, readonly = true, edit } = getEvalParams(props);
+        const options =
+            typeof crudOptions === "function" ? crudOptions(props) : crudOptions;
         const result = /** @type {RelationalActiveActions} */ ({
             type: /** @type {any} */ (fieldType),
             onDelete: null,
         });
-        const evalAction = (actionName) => evals[actionName](evalContext);
+        const evaluate = (actionName) => evalAction(options, actionName, evalContext);
 
-        result.create = !readonly && evalAction("create");
-        result.createEdit = !readonly && result.create && crudOptions.createEdit;
-        /** @type {any} */ (result).edit = edit ?? crudOptions.edit;
-        result.delete = !readonly && evalAction("delete");
-        result.write = (isMany2Many || !readonly) && evalAction("write");
+        result.create = !readonly && evaluate("create");
+        result.createEdit = !readonly && result.create && options.createEdit;
+        /** @type {any} */ (result).edit = edit ?? options.edit;
+        result.delete = !readonly && evaluate("delete");
+        result.write = (isMany2Many || !readonly) && evaluate("write");
 
         if (isMany2Many) {
-            result.link = !readonly && evalAction("link");
-            result.unlink = !readonly && evalAction("unlink");
+            result.link = !readonly && evaluate("link");
+            result.unlink = !readonly && evaluate("unlink");
         }
 
         if (result.unlink || (!isMany2Many && result.delete)) {
-            result.onDelete = crudOptions.onDelete;
+            result.onDelete = options.onDelete;
         }
 
         return result;
     };
 
-    const props = useComponent().props;
-    const isMany2Many = fieldType === "many2many";
-
-    const evals = {};
-    for (const actionName of STANDARD_ACTIVE_ACTIONS) {
-        /** @type {(evalContext?: any) => boolean} */
-        let evalFn = () => true;
-        if (crudOptions[actionName] != null) {
-            const action = crudOptions[actionName];
-            let domain;
-            let domainResolved = false;
-            evalFn = (evalContext) => {
-                if (!domainResolved) {
-                    domain = action ? new Domain(action) : null;
-                    domainResolved = true;
-                }
-                return Boolean(domain && domain.contains(evalContext));
-            };
-        }
-
-        if (actionName in subViewActiveActions) {
-            const viewActiveAction = subViewActiveActions[actionName];
-            evals[actionName] = (evalContext) =>
-                viewActiveAction && evalFn(evalContext);
-        } else {
-            evals[actionName] = evalFn;
-        }
-    }
-
-    const activeActions = compute(getEvalParams(props));
+    const activeActions = compute(useComponent().props);
     onWillUpdateProps(
         /** @type {any} */ (
             (nextProps) => {
-                Object.assign(activeActions, compute(getEvalParams(nextProps)));
+                Object.assign(activeActions, compute(nextProps));
             }
         ),
     );

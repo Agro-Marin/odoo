@@ -141,7 +141,7 @@ export class StatusBarField extends Component {
                 }
                 const res = await orm.searchRead(relation, domain, fieldNames, {
                     context,
-                    limit: StatusBarField.RELATION_LIMIT,
+                    limit: /** @type {any} */ (this.constructor).RELATION_LIMIT,
                 });
                 forceRecomputeItems = true;
                 return res;

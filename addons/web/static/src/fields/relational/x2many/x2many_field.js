@@ -96,10 +96,10 @@ export class X2ManyField extends Component {
         }
         const subViewActiveActions = activeActions;
         this.activeActions = useActiveActions({
-            crudOptions: {
-                ...this.props.crudOptions,
+            crudOptions: (props) => ({
+                ...props.crudOptions,
                 onDelete: removeRecord,
-            },
+            }),
             fieldType: this.isMany2Many ? "many2many" : "one2many",
             subViewActiveActions,
             getEvalParams: (props) => ({

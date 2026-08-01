@@ -111,6 +111,7 @@ fieldRegistry.addValidation({
         optional: true,
     },
     useSubView: { type: Boolean, optional: true },
+    interactiveOutsideEdition: { type: Boolean, optional: true },
     label: { type: [String, { value: false }], optional: true },
     listViewWidth: {
         type: [
@@ -422,8 +423,21 @@ export class Field extends Component {
 
         const props = omit(this.props, ...FIELD_OWN_PROPS);
 
+        // A widget is readonly when its own modifier says so, and additionally
+        // when the record is not being edited -- unless it declares itself
+        // interactive outside edition (a star, a toggle, a kanban colour dot:
+        // things meant to be clicked straight from a list row or a card).
+        //
+        // That second exemption used to be spelled by having `extractProps`
+        // return `readonly: dynamicInfo.readonly`, whose only effect was to
+        // overwrite this key through the spread below. `dynamicInfo.readonly` is
+        // exactly `readonly`, so the two are equivalent -- but one of them says
+        // what it means. The echo still works, for widgets outside this module
+        // that have not been converted.
+        const inEditionOnly = !this.field.interactiveOutsideEdition;
+
         return {
-            readonly: readonly || !record.isInEdition || false,
+            readonly: (inEditionOnly && !record.isInEdition) || readonly,
             ...propsFromNode,
             ...props,
         };

@@ -101,6 +101,7 @@ export class StateSelectionField extends Component {
 export const stateSelectionField = {
     component: StateSelectionField,
     displayName: _t("State Selection"),
+    interactiveOutsideEdition: true,
     supportedOptions: [
         {
             label: _t("Autosave"),
@@ -123,7 +124,6 @@ export const stateSelectionField = {
             showLabel:
                 "hide_label" in options ? !options.hide_label : viewType !== "kanban",
             withCommand: viewType === "form",
-            readonly: dynamicInfo.readonly,
             autosave: extractAutosave(options),
         };
     },

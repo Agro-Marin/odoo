@@ -32,7 +32,7 @@ export class Many2ManyCheckboxesField extends Component {
             const context = props.context || {};
             const items = await orm.call(relation, "name_search", ["", domain], {
                 context,
-                limit: Many2ManyCheckboxesField.RECORD_LIMIT,
+                limit: /** @type {any} */ (this.constructor).RECORD_LIMIT,
             });
             const shownIds = new Set(items.map((item) => item[0]));
             const missingSelectedIds = props.record.data[props.name].currentIds.filter(

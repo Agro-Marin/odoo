@@ -2093,3 +2093,46 @@ test("removing a tag, restoring it, and removing it again still reaches the serv
     });
     expect(MockServer.env["partner"].browse(1)[0].timmy).toEqual([]);
 });
+
+test("create-domain follows the record the pager lands on", async () => {
+    // `useActiveActions` recomputes from onWillUpdateProps, where `this.props`
+    // still points at the record being left -- so a hook reading it answered
+    // one record behind, and nothing recomputed it again until the next swap.
+    await mountView({
+        type: "form",
+        resModel: "partner",
+        resIds: [1, 2],
+        resId: 1,
+        arch: `
+            <form>
+                <field name="foo"/>
+                <field name="timmy" widget="many2many_tags" options="{'create': [('foo', '=', 'yop')]}"/>
+            </form>`,
+    });
+
+    const offersCreate = async () => {
+        await contains(".o_field_many2many_tags[name=timmy] input").edit("brand new", {
+            confirm: false,
+        });
+        await runAllTimers();
+        const offered = queryAllTexts(".o-autocomplete--dropdown-item");
+        await press("escape");
+        await animationFrame();
+        return offered.some((label) => label.startsWith("Create"));
+    };
+
+    expect(".o_field_widget[name=foo] input").toHaveValue("yop");
+    expect(await offersCreate()).toBe(true);
+
+    await contains(".o_pager_next").click();
+    expect(".o_field_widget[name=foo] input").toHaveValue("blip");
+    expect(await offersCreate()).toBe(false, {
+        message: "the domain of the record now shown must be the one applied",
+    });
+
+    await contains(".o_pager_previous").click();
+    expect(".o_field_widget[name=foo] input").toHaveValue("yop");
+    expect(await offersCreate()).toBe(true, {
+        message: "and paging back must restore it, not lag another step",
+    });
+});

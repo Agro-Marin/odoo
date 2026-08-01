@@ -26,7 +26,7 @@ export class FloatToggleField extends Component {
     };
 
     onChange() {
-        const range = this.props.range;
+        const range = this.range;
         const current = this.props.record.data[this.props.name] * this.factor;
         const EPSILON = 1e-6;
         let currentIndex = range.findIndex(
@@ -41,11 +41,35 @@ export class FloatToggleField extends Component {
         });
     }
 
+    /**
+     * The `range` option is arbitrary arch input. An empty or non-numeric one
+     * used to make `range[currentIndex]` undefined and write NaN to the record.
+     *
+     * @returns {number[]}
+     */
+    get range() {
+        const range = this.props.range;
+        const isUsable =
+            Array.isArray(range) &&
+            range.length > 0 &&
+            range.every((v) => Number.isFinite(v));
+        if (!isUsable) {
+            console.warn(
+                "float_toggle: 'range' must be a non-empty list of numbers; " +
+                    "falling back to the default",
+            );
+            return /** @type {number[]} */ (
+                /** @type {any} */ (FloatToggleField).defaultProps.range
+            );
+        }
+        return range;
+    }
+
     /** @returns {number} */
     get factor() {
         const factor = this.props.factor;
-        if (!factor) {
-            console.warn("float_toggle: factor must be non-zero; falling back to 1");
+        if (!Number.isFinite(factor) || factor === 0) {
+            console.warn("float_toggle: factor must be a non-zero number; using 1");
             return 1;
         }
         return factor;

@@ -169,7 +169,7 @@ test(`width computation: no record, lot of fields`, async () => {
                 <field name="currency_id"/>
             </list>`,
     });
-    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 188, 149, 100]);
+    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 168, 149, 100]);
 });
 
 test(`width computation: no record, few fields`, async () => {
@@ -236,7 +236,7 @@ test(`width computation: with records, lot of fields`, async () => {
                 <field name="currency_id"/>
             </list>`,
     });
-    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 188, 149, 100]);
+    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 168, 149, 100]);
 });
 
 test(`width computation: with records, lot of fields, grouped`, async () => {
@@ -259,7 +259,7 @@ test(`width computation: with records, lot of fields, grouped`, async () => {
         groupBy: ["int_field"],
     });
     expect(`.o_resize`).toHaveCount(9);
-    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 188, 149, 34, 32]);
+    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 89, 129, 99, 168, 149, 34, 32]);
 });
 
 test(`width computation: with records, few fields`, async () => {
@@ -335,7 +335,7 @@ test(`width computation: with records, lot of fields, long texts`, async () => {
                 <field name="currency_id"/>
             </list>`,
     });
-    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 129, 99, 89, 188, 149, 100]);
+    expectedColumnWidthsToBeCloseTo([40, 29, 89, 109, 129, 99, 89, 168, 149, 100]);
 });
 
 test(`width computation: editable list, overflowing table`, async () => {
@@ -519,7 +519,7 @@ test(`width computation: width attribute in arch and overflowing table`, async (
             </list>
         `,
     });
-    expectedColumnWidthsToBeCloseTo([40, 188, 210, 362]);
+    expectedColumnWidthsToBeCloseTo([40, 168, 210, 382]);
 });
 
 test(`width computation: no record, nameless and stringless buttons`, async () => {
@@ -1194,11 +1194,11 @@ test(`freeze widths: toggle optional fields`, async () => {
         `,
     });
 
-    expectedColumnWidthsToBeCloseTo([40, 99, 440, 188, 32]);
+    expectedColumnWidthsToBeCloseTo([40, 99, 460, 168, 32]);
 
     await contains(".o_optional_columns_dropdown_toggle").click();
     await contains(".dropdown-item input:eq(0)").click();
-    expectedColumnWidthsToBeCloseTo([40, 99, 230, 210, 189, 32]);
+    expectedColumnWidthsToBeCloseTo([40, 99, 250, 210, 169, 32]);
 
     await contains(".dropdown-item input:eq(1)").click();
     expect(getColumnWidths()).toEqual([40, 99, 419, 210, 32]);
@@ -1207,7 +1207,7 @@ test(`freeze widths: toggle optional fields`, async () => {
     expect(getColumnWidths()).toEqual([40, 99, 89, 129, 410, 32]);
 
     await contains(".dropdown-item input:eq(1)").click();
-    expectedColumnWidthsToBeCloseTo([40, 99, 89, 130, 189, 220, 32]);
+    expectedColumnWidthsToBeCloseTo([40, 99, 89, 130, 169, 240, 32]);
 });
 
 test(`freeze widths: x2many, add first record`, async () => {

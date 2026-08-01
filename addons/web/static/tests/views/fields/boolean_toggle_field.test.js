@@ -5,6 +5,7 @@ import { check, click } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import {
     defineModels,
+    defineWebModels,
     fields,
     models,
     mountView,
@@ -17,6 +18,7 @@ class Partner extends models.Model {
     _records = [{ id: 1, bar: false }];
 }
 
+defineWebModels();
 defineModels([Partner]);
 
 test("use BooleanToggleField in form view", async () => {
@@ -93,4 +95,26 @@ test("BooleanToggleField - autosave option set to false", async () => {
     await click(`.o_field_widget[name='bar'] input`);
     await animationFrame();
     expect.verifySteps([]);
+});
+
+test("boolean_toggle stays clickable on a row that is not being edited", async () => {
+    // `boolean_toggle` and the plain `boolean` share one template, whose
+    // checkbox is bound to `props.readonly`. The toggle stays clickable because
+    // its registry entry declares `interactiveOutsideEdition`; the plain
+    // checkbox does not declare it, and is disabled (next test).
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `<list><field name="bar" widget="boolean_toggle"/></list>`,
+    });
+    expect(`.o_data_row td[name=bar] input`).toBeEnabled();
+});
+
+test("a plain boolean on the same row is not clickable", async () => {
+    await mountView({
+        resModel: "partner",
+        type: "list",
+        arch: `<list><field name="bar"/></list>`,
+    });
+    expect(`.o_data_row td[name=bar] input`).not.toBeEnabled();
 });

@@ -11,7 +11,6 @@ import {
 } from "@web/fields/relational/many2one/many2one";
 import {
     buildM2OFieldDescription,
-    extractM2OFieldProps,
     Many2OneField,
 } from "@web/fields/relational/many2one/many2one_field";
 
@@ -31,11 +30,6 @@ registerField(
     {
         ...buildM2OFieldDescription(KanbanMany2OneAvatarField),
         additionalClasses: ["o_field_many2one_avatar_kanban"],
-        extractProps(staticInfo, dynamicInfo) {
-            return {
-                ...extractM2OFieldProps(staticInfo, dynamicInfo),
-                readonly: dynamicInfo.readonly,
-            };
-        },
+        interactiveOutsideEdition: true,
     },
 );

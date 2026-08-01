@@ -40,6 +40,7 @@ export const booleanToggleField = {
     ...booleanField,
     component: BooleanToggleField,
     displayName: _t("Toggle"),
+    interactiveOutsideEdition: true,
     supportedOptions: [
         {
             label: _t("Autosave"),
@@ -54,7 +55,6 @@ export const booleanToggleField = {
     extractProps({ options }, dynamicInfo) {
         return {
             autosave: extractAutosave(options),
-            readonly: dynamicInfo.readonly,
         };
     },
 };

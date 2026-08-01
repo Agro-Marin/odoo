@@ -101,13 +101,13 @@ export class Many2ManyTagsField extends Component {
 
         this.activeActions = useActiveActions({
             fieldType: "many2many",
-            crudOptions: {
-                create: this.props.canCreate && this.props.createDomain,
-                createEdit: this.props.canCreateEdit,
+            crudOptions: (props) => ({
+                create: props.canCreate && props.createDomain,
+                createEdit: props.canCreateEdit,
                 onDelete: removeRecord,
-            },
+            }),
             getEvalParams: (props) => ({
-                evalContext: this.evalContext,
+                evalContext: props.record.evalContext,
                 readonly: props.readonly,
                 edit: props.record.isInEdition,
             }),
@@ -166,10 +166,6 @@ export class Many2ManyTagsField extends Component {
     /** @returns {string} */
     get relation() {
         return this.props.record.fields[this.props.name].relation;
-    }
-    /** @returns {Object} */
-    get evalContext() {
-        return this.props.record.evalContext;
     }
     /** @returns {string} */
     get string() {
