@@ -21,8 +21,9 @@ The `@types/` ambients are loaded as ordinary program files by the `include`
 glob — `**/*.ts` matches `.d.ts` — not as `@types` packages, which is why
 `typeRoots` is absent: it resolves `<root>/<pkg>/index.d.ts`, and nothing in
 those folders provides one. Opt-in editor template at
-`tooling/_jsconfig.json` (copied by `tooling/enable.sh`); keep it in step with
-the committed `jsconfig.json`, since `enable.sh` overwrites the latter from it.
+`addons/web/tooling/_jsconfig.json` (copied by `addons/web/tooling/enable.sh`);
+keep it in step with the committed `jsconfig.json`, since `enable.sh` overwrites
+the latter from it.
 
 Check a single file against the full program rather than in isolation — run the
 real config and filter to the file. An isolated program under-resolves the
@@ -229,9 +230,10 @@ registerField({ name: "text", view: "list" }, listTextField);
 registerField({ name: "text", view: "liist" }, buggyVariant);
 ```
 
-**Don't drop the string form** — 74 of the 94 fork-wide `registerField`
-sites are plain (no view prefix) and have no typo risk; migrating them
-yields no win. Reserve the typed form for view-prefixed registrations.
+**Don't drop the string form** — 75 of the 102 fork-wide `registerField` /
+`registerFallbackField` sites are plain (no view prefix) and have no typo risk;
+converting them yields no win. Reserve the typed form for view-prefixed
+registrations.
 
 **Naming nuance**: the `name` in `FieldRegistrationSpec.name` is the widget
 identifier the view arch references via `widget="<name>"`, NOT necessarily a
@@ -293,7 +295,7 @@ why — **not `@ts-expect-error`**. `tsconfig.strict.json` runs
 `strictNullChecks: true` but the committed `tsconfig.json` — the config the
 count ratchet runs — does not, so under that gate the error does not occur and
 `@ts-expect-error` reports `TS2578 Unused directive`. Note the editor configs
-(`jsconfig.json`, `tooling/_jsconfig.json`) *do* set `strictNullChecks: true`,
+(`jsconfig.json`, `addons/web/tooling/_jsconfig.json`) *do* set `strictNullChecks: true`,
 so the directive resolves differently there; `@ts-ignore` is the form that is
 inert under all three.
 
@@ -301,14 +303,11 @@ inert under all three.
 can only **ADD** members to a class declared in a `.js` file; it cannot re-type
 a member the JS file already infers. Since a `setup()`-assigned property *does*
 exist on the inferred type (as `T | undefined`), augmenting it is a silent
-no-op. Measured 2026-07-25 across four classes: it appeared to work for
-`ListController` and `View` only because `@types/views.d.ts` then ambiently
-*shadowed* those modules, so the entry was an add onto the shadow rather than an
-override of the real class — and it did nothing at all for the unshadowed
-`Many2One` and `RelationalModel`. (That file has since been deleted; see below.)
+no-op. Where it appears to work, the module is being ambiently *shadowed* by a
+`.d.ts`, so the entry is an add onto the shadow rather than an override of the
+real class.
 
-**Ambient vs augmentation — the distinction that caused a real bug.**
-`declare module "X"` means two different things:
+**Ambient vs augmentation.** `declare module "X"` means two different things:
 
 - in a **non-module** `.d.ts` (no top-level `import`/`export`) it is an
   **ambient declaration that REPLACES** the real module — anything it omits
@@ -316,30 +315,15 @@ override of the real class — and it did nothing at all for the unshadowed
 - in a **module** `.d.ts` (has a top-level `import`/`export`, e.g. `export {}`)
   it is a **module augmentation**, which is purely additive.
 
-`@types/views.d.ts` was the former, and its block for `@web/views/view_utils`
-omitted `handleBeforeUnload` — so that function, present in the source,
-reported as "no exported member" in `form_controller.js` and
-`list_controller.js`, while the shadow's looser `any`-heavy signatures masked
-six real errors in `form_compiler.js`.
+The failure mode of the former is silent in both directions: anything the
+ambient block omits reports as "no exported member" at every import site even
+though the source exports it, while the block's looser `any`-heavy signatures
+mask real errors in files that consume it.
 
-**Resolved 2026-07-25.** All 88 ambient blocks that shadowed a real `.js`
-source were removed, which emptied and therefore deleted six files:
-`views`, `webclient`, `search`, `context`, `env`, `user`. Contrary to the
-expectation that this would expose masked debt, the whole-repo `tsc` count went
-DOWN by 90 (2321 -> 2231): the hand-written declarations generated more errors
-through wrong or incomplete signatures than their `any`-heavy members hid. Only
-five errors surfaced in locked files, each a genuine contract defect the
-shadow had papered over (a `ReportAction` typedef that existed only in the
-shadow; two base-class signatures in `multi_record_controller.js` that
-contradicted their own doc comments; a `compileSeparator` return type narrower
-than both its body and its consumer). Two survivors declared modules that do
-not exist at all (`@web/search/action_hook`,
-`@web/views/settings/settings/highlight_text`) and were removed too.
-
-`@types/` now holds only what its `readme.md` scopes it to — ambient
-declarations for iife/global libs (`odoo`, owl, hoot, qunit, libs, registries,
-services, models) plus the one legitimate augmentation, `concurrency.d.ts`.
-**Only ever augment; never shadow.**
+`@types/` holds only what its `readme.md` scopes it to — ambient declarations
+for iife/global libs (`odoo`, owl, hoot, qunit, libs, registries, services,
+models) plus the one legitimate augmentation, `concurrency.d.ts`. No block there
+shadows a real `.js` source. **Only ever augment; never shadow.**
 
 ## Gotcha — `@template T` block scope
 
@@ -372,19 +356,18 @@ get `error TS2314: Generic type 'RPCErrorData' requires 1 type argument(s)`.
   package hardcoding `.js` extension in URL stripping and forced-suffix logic.
   Would need 6+ pipeline patches across the `assetsbundle/` package and
   `ir_qweb_assets.py` plus a `--loader=ts:` esbuild flag.
-- ~~**CI gating**~~ — no longer a gap. `.github/workflows/typecheck.yml` runs
-  three blocking gates (no `continue-on-error`) on every PR touching JS/TS and
-  on every push to `19.0-marin` / `19.0`:
+- **CI gating** — `.github/workflows/typecheck.yml` runs three blocking gates
+  (no `continue-on-error`) on every PR touching JS/TS and on every push to
+  `19.0-marin` / `19.0`:
 
   1. **Project-wide count ratchet** — `tsc -p tsconfig.json --noEmit`, floor in
      `tooling/ratchet/baselines/tsc.json`. Read the value there, not from this
-     page, which previously carried a stale copy. The floor is normally
-     monotonic downward but not guaranteed to be: it was corrected **upward**
-     on 2026-07-24 to absorb 357 errors accumulated while CI was off (ADR-0009
-     sets the precedent). It fails on *improvement* too — a count below the
-     floor exits 1 to force a lock-in, so a fix wave that is not committed back
-     leaves mainline red. To move it: `python tooling/ratchet/ratchet.py tsc
-     --count "$N" --update`. See `tooling/ratchet/README.md`.
+     page. The floor is not guaranteed monotonic downward: it may be corrected
+     **upward** to absorb accumulated debt (ADR-0009 sets the precedent). It
+     fails on *improvement* too — a count below the floor exits 1 to force a
+     lock-in, so a fix wave that is not committed back leaves mainline red. To
+     move it: `python tooling/ratchet/ratchet.py tsc --count "$N" --update`.
+     See `tooling/ratchet/README.md`.
   2. **`strictNullChecks` per-file lock** over `addons/web/static/{src,tests}`.
   3. **`noImplicitAny` per-file lock** over the same scope — this is what makes
      (2) mean anything, since `any` is null-safe by fiat.

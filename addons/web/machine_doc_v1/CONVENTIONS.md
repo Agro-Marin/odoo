@@ -1,6 +1,6 @@
 # Web Module Conventions
 
-Module-specific patterns, rules, and gotchas for working in `core/addons/web/`.
+Module-specific patterns, rules, and gotchas for working in `addons/web/`.
 
 > **See also**: `doc/COMPONENT_DIAGRAM.md` — 18 audit areas with key invariants
 > to verify per area. `doc/FLOW_DIAGRAM.md` — 14 end-to-end sequence diagrams.
@@ -26,7 +26,7 @@ JS: button click in views
 path, used specifically for UI button actions — it wraps the result through
 `clean_action()` before returning.
 
-**x2Many commands from JS follow this encoding** (see `core/odoo/orm/primitives.py` `Command` IntEnum):
+**x2Many commands from JS follow this encoding** (see `odoo/orm/primitives.py` `Command` IntEnum):
 
 | Command | Tuple | Meaning |
 |---------|-------|---------|
@@ -160,10 +160,9 @@ classes rather than bare boolean flags. Each owns its state machine, exposes
 in a single ``run(fn)`` / ``enter()`` / ``exit()`` API so consumers cannot leak
 the flag past the operation's lifetime.
 
-(A fourth coordinator, `RelationalModelLoadCoordinator`, was removed as dead
-code — nothing ever read its status. The load axis is covered by
-`model.keepLast` + the reactive `model.isReady` flag; see
-STATE_MANAGEMENT.md "Model Load Lifecycle".)
+(There is no load coordinator: the load axis is covered by `model.keepLast`
++ the reactive `model.isReady` flag; see STATE_MANAGEMENT.md
+"Model Load Lifecycle".)
 
 | Coordinator | File | Replaces | Used by |
 |---|---|---|---|
@@ -518,8 +517,8 @@ When refactoring a widget:
    `session_info()` — it's visible in page source.
 
 9. **Field-scoped optimistic locking (`known_values`), with urgent-save
-   parity** — The client no longer sends a whole-record `last_write_date`
-   (the server keeps that kwarg only as a legacy fallback). Instead
+   parity** — The client does not send a whole-record `last_write_date`
+   (the server accepts that kwarg only as a fallback). Instead
    `record_save.js` builds a `concurrencyBaseline` map (`record_save.js`):
    for each field being written, the originally-loaded value from
    `record._values` — skipping types that can't be compared safely (x2many,
@@ -536,12 +535,13 @@ When refactoring a widget:
    user's work must never be dropped.
 
 10. **`archiveEnabled` is consolidated in
-    `view_utils.computeArchiveEnabled(readonlySource, presenceSource = readonlySource)`
+    `view_utils.computeArchiveEnabled(fields, { presentIn = fields } = {})`
     — form and multi-record differ only in the presence source** — the helper
-    checks `"active" in presenceSource` (with `"x_active"` fallback for custom
-    no-active-field models) and returns `!readonlySource.<field>.readonly`.
+    walks `["active", "x_active"]` (the latter for custom no-active-field
+    models), takes the first name present in `presentIn`, and returns
+    `Boolean(fields[name]) && !fields[name].readonly`.
     `form_controller.js` calls it as
-    `computeArchiveEnabled(this.props.fields, this.model.root.activeFields)` —
+    `computeArchiveEnabled(this.props.fields, { presentIn: this.model.root.activeFields })` —
     presence is gated on the field actually being **in the view**.
     `multi_record_controller.js` calls
     `computeArchiveEnabled(this.props.fields)` — presence and writability both
@@ -568,7 +568,8 @@ When refactoring a widget:
     environment. In debug mode it throws (fail fast for developers); in production
     it emits a `console.warn` prefixed `[registry]` so a single malformed
     registration cannot crash the page while still surfacing schema mismatches.
-    Schema coverage is **32 of 32 web-module categories**. The `debug` registry IS
+    Schema coverage is **32 of 34 web-module categories**; `serializers` and
+    `deserializers` (`core/field_codec.js`) have no schema yet. The `debug` registry IS
     schemable despite being "parent-only": its entries are sub-Registry instances
     created by `category()`, so `entry instanceof Registry` catches accidental
     direct `.add()` calls. Pattern to follow when adding a new registry or
@@ -628,9 +629,7 @@ When refactoring a widget:
 
     The coordinator has no pre/post-save hooks: pre-save vetoes belong to the
     model-level `onWillSaveRecord` lifecycle hook (fired after validation), and
-    `props.onSave` is invoked explicitly by the controller entry points that
-    historically called it. (An unwired `onWillSave`/`onSaved` veto mechanism
-    was removed as dead code.)
+    `props.onSave` is invoked explicitly by the controller entry points.
 
 13. **`patch()` targets prototypes and plain objects, never namespace
     imports** — `core/utils/patch.js`. Native ES module namespaces
@@ -667,9 +666,9 @@ When refactoring a widget:
 
 15. **`ListRecordRow` renders each list row as a component with a renderer-
     delegation compatibility contract** — `views/list/list_record_row.js`.
-    Rows used to be a `t-call` inside `ListRenderer`, so ANY reactive change
-    re-evaluated every cell of every row; as a component with referentially
-    stable props, OWL's `arePropsDifferent` skips unchanged rows. The
+    As a component with referentially stable props, OWL's `arePropsDifferent`
+    skips unchanged rows — a `t-call` inside `ListRenderer` would instead
+    re-evaluate every cell of every row on ANY reactive change. The
     extraction is deliberately invisible to the ~15 addons that customize
     rows: (a) the row body stays at t-name `web.ListRenderer.RecordRow` and
     subclasses keep overriding `static recordRowTemplate` on their

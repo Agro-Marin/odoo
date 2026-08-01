@@ -29,10 +29,10 @@ passed around as a value object — same shape as Vue's `ref` (`.value`
 read) but for read-only derivations. Neither is memoized; OWL's
 scheduler batches renders within a tick.
 
-**SignalStore.**  ``SignalStore`` is the canonical class name.  Only
-`SignalStore` is exported; the `Reactive` alias was removed.  Attempting
+**SignalStore.**  ``SignalStore`` is the canonical class name and the only
+export; there is no `Reactive` alias, so
 `import { Reactive } from "@web/core/utils/reactive"` fails at module-load
-with a native "no such export" error.  All 26 production sites use
+with a native "no such export" error.  All 32 production sites fork-wide use
 ``extends SignalStore``.
 
 ## Decision Tree
@@ -123,10 +123,8 @@ never read or written by raw string literal from anywhere else:
 | `webclient/actions/action_storage.js` | `current_action`, `current_state`, `current_lang` | The action-restore cache. Reads are **total**: missing, empty, or corrupt all resolve to `{}`, because the URL is the source of truth. `withTemporaryEntry()` performs the synchronous swap that seeds a new tab (sessionStorage is copied into an auxiliary browsing context at open time). |
 | `webclient/menus/menu_storage.js` | `webclient_menus`, `webclient_menus_version`, `webclient_menus_hash` | The menu tree cache. Written as a unit with the **version last** (it gates reuse on the next boot); a corrupt read discards the whole trio. |
 
-Both were previously open-coded across six to eight modules with divergent parse
-policies — a corrupt `current_state` used to throw where a corrupt
-`current_action` was caught, silently costing the user their breadcrumb stack on
-a URL restore.
+Both are centralised here rather than open-coded per consumer, so the parse
+policy (what a corrupt or missing value resolves to) is uniform across readers.
 
 ## Pattern 3: `SignalStore` Base Class — Model Entities
 
@@ -144,7 +142,7 @@ class DataPoint extends SignalStore {
 }
 ```
 
-Only `SignalStore` is exported; the `Reactive` alias was removed.
+`SignalStore` is the only export; there is no `Reactive` alias.
 
 **Inheritance chain** (actual class names in code):
 
@@ -165,16 +163,21 @@ SignalStore
 (field definitions, active fields, configs). Without it, OWL deep-wraps every
 nested property, causing massive overhead.
 
-**Key files**:
+**Key files** — the 4 direct `SignalStore` subclasses in `web`, plus the
+`DataPoint` chain above:
 - `core/utils/reactive.js` — `SignalStore` base class (3 lines of behavior)
-- `model/relational_model/datapoint.js` — `DataPoint extends SignalStore`
+- `model/relational_model/datapoint.js` — `DataPoint`
+- `model/model.js` — `Model`
+- `model/sample_data_coordinator.js` — `SampleDataCoordinator`
+- `model/relational_model/urgent_save_coordinator.js` — `UrgentSaveCoordinator`
+- `views/form/form_save_coordinator.js` — `FormSaveCoordinator`
+- `components/dropdown/dropdown_hooks.js` — `DropdownState`
 - `model/relational_model/record.js` — `RelationalRecord extends DataPoint` (exported as `RelationalRecord`, NOT `Record`)
-- `components/dropdown/dropdown_hooks.js` — `DropdownState extends SignalStore`
 
 ## Pattern 4 (discouraged): `reactive()` with side-effecting setters
 
-The codebase historically uses `reactive({})` with JS getters/setters
-where the setter triggers side effects on other reactive state:
+Some call sites use `reactive({})` with JS getters/setters where the setter
+triggers side effects on other reactive state:
 
 ```javascript
 this.quickCreateState = reactive({
@@ -373,8 +376,8 @@ the mutex and normal flow.
 > rejects only genuine per-field conflicts, ignores concurrent writes to
 > other fields, and **fails open** for fields with no baseline (an empty
 > baseline means no check — correct on tab close, where the user's work must
-> never be dropped). The client no longer sends the whole-record
-> `last_write_date`; the server keeps that kwarg only as a legacy fallback,
+> never be dropped). The client does not send the whole-record
+> `last_write_date`; the server accepts that kwarg only as a fallback,
 > consulted when `known_values` is absent.
 
 **Key files**:
@@ -392,23 +395,20 @@ the mutex and normal flow.
 |---|---|---|
 | `services/result_set_cache_invalidator_service.js` | `unlink` / `action_archive` / `action_unarchive` RPC response (set defined by `RESULT_SET_REMOVING_METHODS`) | tables: web_read, web_search_read, web_read_group; model-scoped in RAM only |
 | `services/result_set_cache_invalidator_service.js` | `base.language.install` `lang_install` RPC response (a new language invalidates virtually everything cached) | all |
-| `search/search_query_mutations.js` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
+| `search/search_favorites_mixin.js` | `ir.filters` write/unlink (saved-favorite mutations) | `"get_views"` table |
 | `webclient/actions/action_cache_invalidation.js` | `ir.actions.act_window` write/unlink | `"/web/action/load"` table |
 | `views/view_service.js` | `ir.ui.view` / `ir.filters` write/unlink | `"get_views"` table |
-| `webclient/webclient.js` | Post-service-worker-registration on hard refresh | all |
+| `webclient/service_worker_service.js` | Post-service-worker-registration on hard refresh | all |
 
 Plus **one listener** at `core/network/rpc.js` that routes the event to `rpc_cache.js` for cache invalidation.
 
 ## Model Load Lifecycle
 
-> **`RelationalModelLoadCoordinator` was REMOVED** (commit `b906a0295d6` —
-> "Dead code: load_coordinator (inlined)"). No component or service ever
-> read its `status`, so the narration layer was deleted and
-> `model/relational_model/load_coordinator.js` no longer exists. Do not
-> cite it.
+> There is no load-coordinator object. `model/relational_model/load_coordinator.js`
+> does not exist — do not cite it.
 
-The load lifecycle is now carried by three primitives on
-`RelationalModel` plus one observable flag:
+The load lifecycle is carried by three primitives on `RelationalModel` plus one
+observable flag:
 
 | Primitive | Lives | Role |
 |---|---|---|
@@ -433,13 +433,25 @@ Global events are defined in `core/events.js` and exported from `@web/core`.
 | `AppEvent.BLOCK` / `UNBLOCK` | `BLOCK` / `UNBLOCK` | env.bus | UI blocking |
 | `AppEvent.ACTIVE_ELEMENT_CHANGED` | `active-element-changed` | env.bus | Dialog focus |
 | `AppEvent.RESIZE` | `resize` | env.bus | Window resize |
-| `RpcEvent.REQUEST` / `RESPONSE` | `RPC:REQUEST` / `RPC:RESPONSE` | rpcBus | RPC lifecycle. Both carry `{data, url, settings}`; RESPONSE adds `result` (success) or `error` (failure). `url` is on **both** events — it was previously omitted from RESPONSE, so observers could not identify the endpoint of any call whose `params` carry no `model`/`method` (session_info, `/web/action/load`, `get_views`). |
+| `AppEvent.HOME_MENU_TOGGLED` | `HOME-MENU:TOGGLED` | env.bus | Home menu opened/closed (consumed by `webclient/burger_menu/burger_menu.js`) |
+| `RpcEvent.REQUEST` / `RESPONSE` | `RPC:REQUEST` / `RPC:RESPONSE` | rpcBus | RPC lifecycle. Both carry `{data, url, settings}`; RESPONSE adds `result` (success) or `error` (failure). `url` is on **both** events, which is what lets an observer identify the endpoint of a call whose `params` carry no `model`/`method` (session_info, `/web/action/load`, `get_views`). |
 | `RpcEvent.CLEAR_CACHES` | `CLEAR-CACHES` | rpcBus | Invalidate caches |
+| `RpcEvent.BACKGROUND_REFRESH_FAILED` | `RPC:BACKGROUND-REFRESH-FAILED` | rpcBus | A stale-while-revalidate background refresh failed (`core/network/rpc_cache.js`) |
 | `RouterEvent.ROUTE_CHANGE` | `ROUTE_CHANGE` | routerBus | URL changed |
+| `RouterEvent.EPHEMERAL_POPPED` | `EPHEMERAL_POPPED` | routerBus | Ephemeral history markers popped (`core/browser/router.js`) |
 | `SearchModelEvent.UPDATE` | `update` | env.searchModel | Search state changed |
 | `SearchModelEvent.FOCUS_VIEW` | `focus-view` | env.searchModel | Focus the view |
 | `SearchModelEvent.FOCUS_SEARCH` | `focus-search` | env.searchModel | Focus the search bar |
 | `SearchModelEvent.DIRECT_EXPORT_DATA` | `direct-export-data` | env.searchModel | Export all records |
+| `ModelEvent.UPDATE` | `update` | `model.bus` | Model data changed |
+| `ModelEvent.WILL_SAVE_URGENTLY` | `WILL_SAVE_URGENTLY` | `model.bus` | Urgent-save (tab close) about to run — `model/relational_model/urgent_save_coordinator.js` |
+| `ModelEvent.NEED_LOCAL_CHANGES` | `NEED_LOCAL_CHANGES` | `model.bus` | Ask open editors to commit pending input (`fields/relational/x2many/x2many_field.js`) |
+| `ModelEvent.FIELD_IS_DIRTY` | `FIELD_IS_DIRTY` | `getBus()` | Per-field dirty signal (`fields/field_dirty_signal.js`) |
+| `ModelEvent.PROPERTY_FIELD_EDIT` | `PROPERTY_FIELD:EDIT` | `model.bus` | Enter property-definition edit mode (`fields/specialized/properties/properties_field.js`) |
+| `ModelEvent.SCROLL_TO_CURRENT_HOUR` | `SCROLL_TO_CURRENT_HOUR` | `model.bus` | Calendar scroll request (`views/calendar/calendar_controller.js`) |
+| `UserEvent.ACTIVE_COMPANIES_CHANGED` | `ACTIVE_COMPANIES_CHANGED` | `userBus` | Allowed-company selection changed (`services/user.js`). Load-bearing for `name_service` cache clearing — see ARCHITECTURE.md |
+| `FileUploadEvent.ADDED` / `LOADED` / `ERROR` | `FILE_UPLOAD_ADDED` / `FILE_UPLOAD_LOADED` / `FILE_UPLOAD_ERROR` | `file_upload` service bus | Upload lifecycle (`services/file_upload_service.js`) |
+| `CommandPaletteEvent.SET_CONFIG` | `SET-CONFIG` | command palette bus | Reconfigure the open palette (`services/commands/command_service.js`) |
 
 ## Server-side `__version` stamp for cached endpoints
 
@@ -475,7 +487,7 @@ new client → fallback path; new server + old client → unknown field ignored.
 | Form | When | Mechanism | Survives JSON round-trip? |
 |---|---|---|---|
 | `@versioned` | Method returns a `dict` | Mutates the dict in-place: `result["__version"] = cache_hash(...)` | Yes — `__version` is a JSON key |
-| `@versioned_envelope` | Method returns a `list`, scalar, or anything non-dict | Stashes hash on `http.request._response_version`; dispatcher (`core/odoo/http/dispatcher.py` `_response`) lifts it as `version` sibling-of-`result` in the JSON-RPC envelope; `rpc.js` re-attaches as `result.__version` for objects/arrays | RAM: yes (`structuredClone` preserves array own-props). IndexedDB: no (`JSON.stringify` drops array own-props on encrypt); self-heals on next refresh |
+| `@versioned_envelope` | Method returns a `list`, scalar, or anything non-dict | Stashes hash on `http.request._response_version`; dispatcher (`odoo/http/dispatcher.py` `_response`) lifts it as `version` sibling-of-`result` in the JSON-RPC envelope; `rpc.js` re-attaches as `result.__version` for objects/arrays | RAM: yes (`structuredClone` preserves array own-props). IndexedDB: no (`JSON.stringify` drops array own-props on encrypt); self-heals on next refresh |
 
 The client-side `payloadChanged` reads `result[VERSION_FIELD]` uniformly — agnostic
 to which decorator the server used.

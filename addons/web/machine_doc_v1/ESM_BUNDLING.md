@@ -98,10 +98,8 @@ in the browser, with observability hooks, failure modes, and tunable knobs.
 
 ## Declarative ESM registry (`odoo.tools.assets.esm_registry`)
 
-The old hardcoded frozensets in `assetsbundle.py`
-(`_ESM_APP_BUNDLES` / `_ESM_ADDON_BUNDLES` / `ESM_BUNDLES` /
-`DYNAMIC_ESM_BUNDLES` / `IMPORT_MAP_INCLUDES`) are **gone**. Each module now
-declares its own ESM bundle relationships in its `__manifest__.py` under an
+ESM bundle membership is **declarative**, not hardcoded: each module declares
+its own ESM bundle relationships in its `__manifest__.py` under an
 `esm` key; the aggregate is built once per process from
 `Manifest.all_addon_manifests()` by `esm_registry()`
 (odoo/tools/assets/esm_registry.py, returning an `EsmRegistry`
@@ -109,11 +107,11 @@ NamedTuple) and invalidated by `invalidate_esm_registry()`,
 wired into `AssetsBundle.invalidate_addon_scan_cache` (the canonical
 "addons on disk changed" signal from `ir.module.module.update_list()`).
 
-| `esm` manifest key | Purpose (old equivalent) |
+| `esm` manifest key | Purpose |
 |-----|---------|
-| `bundles` | This module's esbuild-compiled bundles (old `ESM_BUNDLES` membership) |
-| `dynamic_children` | Parent → lazy children pre-registered in the parent's import map for runtime `import()` via `loadBundle` (old `DYNAMIC_ESM_BUNDLES`); declared by the CHILD's module |
-| `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild (old `IMPORT_MAP_INCLUDES`); used for test-runner bundles |
+| `bundles` | This module's esbuild-compiled bundles |
+| `dynamic_children` | Parent → lazy children pre-registered in the parent's import map for runtime `import()` via `loadBundle`; declared by the CHILD's module |
+| `import_map_includes` | Parent → satellites reusing the parent's import map, skipping esbuild; used for test-runner bundles |
 | `secondary_import_map_includes` | Parent → satellites loaded as a separate later `<script>`; only the satellite's NEW import-map specifiers merge into the parent's map |
 
 Example:
@@ -173,9 +171,8 @@ itself is defined in odoo/libs/constants.py with a class alias
 Bridge export surfaces and import discovery are primarily computed by a
 persistent `es-module-lexer` node worker (`odoo/tools/assets/esm_lexer.py` +
 `odoo/tools/assets/js/esm_lexer_worker.mjs`, installed by the same
-`npm install` that provides esbuild); the historical regex extractor in
-`esm_graph.py` remains as the automatic fallback when the worker is
-unavailable or a source doesn't lex.
+`npm install` that provides esbuild); a regex extractor in `esm_graph.py` is the
+automatic fallback when the worker is unavailable or a source doesn't lex.
 
 Worker robustness contract (`esm_lexer.py`):
 - **POSIX-only.** The worker uses `select` on pipes; on non-POSIX the regex
@@ -272,7 +269,7 @@ env['ir.config_parameter'].sudo().set_param('web.esbuild.timeout_s', '60')
 | esbuild subprocess non-zero exit | Syntax error in an ESM source | `odoo.assets.esbuild WARNING event=failed bundle=<name> exit=<code>` + stderr on next line |
 | Requests serve un-minified bundles | Circuit open after failure | `odoo.assets.fallback WARNING event=circuit_open` (at trip) then `DEBUG event=circuit_blocked` (per request) |
 | Duplicate CPU on cold start | Multiple workers cold-building same bundle | `odoo.assets.lock INFO event=contention` |
-| `[registry] Duplicate add for key "…" … (first registration wins)` console.warn in debug | Module loaded twice (separate instances) — `registry.add` is first-wins + warns, it no longer throws | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_build_native_to_legacy_bridge` |
+| `[registry] Duplicate add for key "…" … (first registration wins)` console.warn in debug | Module loaded twice (separate instances) — `registry.add` is first-wins and warns rather than throwing | Missing bridge shim (happy path is an attachment URL; `data:` URI only as the read-only-cursor fallback); check `_build_native_to_legacy_bridge` |
 | Test `patchWithCleanup(Klass.prototype, …)` has no effect; production code keeps using unpatched method | Parent + satellite each load their own copy of the same `@web/*` module → `Klass` in test bundle is a different class than the one the production controller instantiates | Add fingerprint logger to module body — two distinct `MODULE LOADED` events means two evaluations. Root cause is usually a sibling manifest (e.g. `spreadsheet/__manifest__.py` pulls `web/static/src/views/graph/graph_model.js` into `spreadsheet.o_spreadsheet`, which is then `('include',)`'d by the satellite test bundle). Fix wires the satellite import through the parent's self-bridge via the `prod_import_map[alias] = shim` override in `_esm_prod_nodes` (`ir_qweb_assets.py`). |
 
 ## Cache invalidation on source change — no manual flush needed
@@ -367,7 +364,7 @@ guards are intentionally NOT identical:**
 it uses `@odoo-module ignore` so the bundler treats it as a classic script,
 served via the `/service-worker.js` controller as a plain script (service
 workers have limited ESM support — no import maps in some browsers). Do not
-migrate without verifying import-map + module-worker support across the
+convert it without first verifying import-map + module-worker support across the
 browser-support matrix.
 
 ## Loader contract (`module_loader.js`)
@@ -415,6 +412,6 @@ mounted.
 
 ## See also
 
+- `doc/FLOW_DIAGRAM.md` — 14 end-to-end sequence diagrams
 - `ARCHITECTURE.md` — module-wide architecture (boot flow, services, views)
 - `CONVENTIONS.md` — coding patterns and gotchas
-- `doc/FLOW_DIAGRAM.md` — 14 end-to-end sequence diagrams
