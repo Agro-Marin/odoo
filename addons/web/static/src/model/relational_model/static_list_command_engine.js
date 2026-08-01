@@ -43,9 +43,13 @@ function expandSetCommands(commands) {
  * STALE entry, not the new one: a re-LINK appends a second entry, so dropping
  * the first occurrence leaves the re-added row at its new position.
  *
+ * `removedIds` counts *pending removals*, not "is removed": CLEAR-then-LINK-
+ * then-UNLINK marks the same id twice and must drop both entries, which a
+ * boolean flag cannot express.
+ *
  * @template T
  * @param {T[]} items
- * @param {Record<string|number, boolean>} removedIds
+ * @param {Record<string|number, number>} removedIds
  * @param {(item: T) => string | number} keyOf
  * @returns {T[]}
  */
@@ -53,8 +57,8 @@ function dropFirstOccurrences(items, removedIds, keyOf) {
     const pending = { ...removedIds };
     return items.filter((item) => {
         const key = keyOf(item);
-        if (pending[key]) {
-            delete pending[key];
+        if (pending[key] > 0) {
+            pending[key]--;
             return false;
         }
         return true;
@@ -92,10 +96,19 @@ export function applyCommands(
         addOwnCommand(command);
     }
 
+    /** @type {Record<string|number, number>} */
     const removedIds = {};
     const currentIdsSet = new Set(list._currentIds);
     const recordsToLoad = [];
     const clearedIds = new Set();
+    const readdedIds = new Set();
+
+    /**
+     * @param {string | number} id
+     */
+    function markRemoved(id) {
+        removedIds[id] = (removedIds[id] || 0) + 1;
+    }
 
     /**
      * @returns {number}
@@ -119,7 +132,9 @@ export function applyCommands(
             return false;
         }
         clearedIds.delete(id);
-        delete removedIds[id];
+        if (removedIds[id] > 0) {
+            removedIds[id]--;
+        }
         currentIdsSet.add(id);
         return true;
     }
@@ -131,7 +146,7 @@ export function applyCommands(
                     list._currentIds.length > 0 ||
                     Object.keys(commandsByIds).length > 0;
                 for (const id of list._currentIds) {
-                    removedIds[id] = true;
+                    markRemoved(id);
                     clearedIds.add(id);
                     delete list._unknownRecordCommands[id];
                     list._loadingStubIds.delete(id);
@@ -249,7 +264,8 @@ export function applyCommands(
                         }
                     }
                 }
-                removedIds[command[1]] = true;
+                markRemoved(command[1]);
+                readdedIds.delete(command[1]);
                 delete list._unknownRecordCommands[command[1]];
                 list._loadingStubIds.delete(command[1]);
                 break;
@@ -267,9 +283,13 @@ export function applyCommands(
                         id: command[1],
                     });
                 }
-                if (currentIdsSet.has(record.resId) && !removedIds[record.resId]) {
+                if (
+                    currentIdsSet.has(record.resId) &&
+                    (!removedIds[record.resId] || readdedIds.has(record.resId))
+                ) {
                     break;
                 }
+                readdedIds.add(record.resId);
                 clearedIds.delete(record.resId);
                 const displayed =
                     !list.limit || list.records.length < list.limit || canAddOverLimit;
