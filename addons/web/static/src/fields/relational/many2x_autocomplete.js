@@ -95,7 +95,6 @@ export class Many2XAutocomplete extends Component {
             optional: true,
             validate: (v) => ["none", "exact", "substring"].includes(v),
         },
-        preventMemoization: { type: Boolean, optional: true },
         slots: { optional: true },
         specification: { type: Object, optional: true },
         update: Function,
@@ -313,16 +312,6 @@ export class Many2XAutocomplete extends Component {
     }
 
     /**
-     * @returns {"none" | "exact" | "substring"}
-     */
-    get searchMemoization() {
-        if (this.props.preventMemoization) {
-            return "none";
-        }
-        return this.props.searchMemoization;
-    }
-
-    /**
      * The memo is scoped to one (domain, context) pair: a change to either can
      * turn a previously empty search into a matching one.
      *
@@ -331,7 +320,7 @@ export class Many2XAutocomplete extends Component {
      * @returns {{ names: Set<string> } | null}
      */
     rememberedEmptySearches(domain, context) {
-        if (this.searchMemoization === "none") {
+        if (this.props.searchMemoization === "none") {
             return null;
         }
         const memo = this.emptySearchMemo;
@@ -359,7 +348,7 @@ export class Many2XAutocomplete extends Component {
         if (names.has(name)) {
             return true;
         }
-        if (this.searchMemoization !== "substring") {
+        if (this.props.searchMemoization !== "substring") {
             return false;
         }
         for (const empty of names) {
