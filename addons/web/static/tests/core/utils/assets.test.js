@@ -450,3 +450,43 @@ test("loadESMBundle: cross-document rejects with the injected script's error det
 
     iframe.remove();
 });
+
+test("loadBundle: an iframe's own assets are not requested again", async () => {
+    mockFetch((route) => {
+        expect.step(`fetch bundle: ${route.pathname}`);
+        return bundles[route.pathname];
+    });
+
+    const iframe = document.createElement("iframe");
+    document.body.appendChild(iframe);
+    const iframeDocument = iframe.contentDocument;
+    // The iframe already ships part of the bundle in its own markup, the way a
+    // website preview or a mass-mailing frame does.
+    const existingLink = iframeDocument.createElement("link");
+    existingLink.rel = "stylesheet";
+    existingLink.setAttribute("href", "file1.css");
+    iframeDocument.head.appendChild(existingLink);
+    const existingScript = iframeDocument.createElement("script");
+    existingScript.setAttribute("src", "file1.js");
+    iframeDocument.head.appendChild(existingScript);
+
+    patchWithCleanup(iframeDocument.head, {
+        appendChild: (node) => {
+            const srcAttribute = node.tagName === "LINK" ? "href" : "src";
+            expect.step(`add ${node.tagName} ${node.getAttribute(srcAttribute)}`);
+        },
+    });
+
+    const iframeLoad = loadBundle("test.bundle", { targetDoc: iframeDocument });
+    await animationFrame();
+    // file1 is already there; re-appending the script would run the library a
+    // second time in that document.
+    expect.verifySteps([
+        "fetch bundle: /web/bundle/test.bundle",
+        "add LINK file2.css",
+        "add SCRIPT file2.js",
+    ]);
+
+    iframe.remove();
+    await expect(iframeLoad).rejects.toThrow(/was interrupted: the page was hidden/);
+});
