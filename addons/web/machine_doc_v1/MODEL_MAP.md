@@ -3,11 +3,9 @@
 Every Python model defined or extended by the `web` module, with fields, key methods, and purpose.
 
 > **See also**: `doc/COMPONENT_DIAGRAM.md` maps models to audit areas:
-> Area 4 (Web Data Access: web_read, web_read_group, web_search_panel),
-> Area 5 (Onchange: web_onchange, record_snapshot),
-> Area 2 (Auth: ir_http, res_users).
-> `doc/FLOW_DIAGRAM.md` traces model methods through: Flow 3 (RPC), Flow 5 (Onchange),
-> Flow 6 (Save), Flow 7 (List Data Loading).
+> Area 4 (Web Data Access), Area 5 (Onchange), Area 2 (Auth).
+> `doc/FLOW_DIAGRAM.md` traces model methods through Flow 3 (RPC), Flow 5
+> (Onchange), Flow 6 (Save), Flow 7 (List Data Loading).
 
 ## Frontend Data Layer
 
@@ -138,6 +136,16 @@ Enhanced image rendering for QWeb templates.
 - `_get_src_urls(record, field_name, options)` — Builds image URL with max_size, unique hash, optional zoom URL.
 
 Also: **IrQwebFieldImage_Url** (`_inherit = 'ir.qweb.field.image_url'`) for URL-based image fields.
+
+### models/ir_asset.py — IrAsset (`_inherit = 'ir.asset'`)
+
+Narrows asset bundles to a HOOT suite's dependency closure (`&module_scope=`, see `TEST_TAGS.md`).
+
+**Key Methods:**
+- `_get_asset_params()` — Adds `unit_test_scope` to the asset params (and so to the ormcache key) when a scope is in effect.
+- `_get_unit_test_scope()` — Returns the scoped addon, or `""`. Reads `module_scope` from the **request**, not the bundle, since the scope varies per run; only honoured on `/web/tests` (`UNIT_TEST_ROUTE`) and only for an installed addon, so a stray param elsewhere cannot fragment the asset cache.
+- `_get_unit_test_scope_addons(scope)` — `scope` plus its transitive **manifest** dependency closure (`ormcache`d on `scope`). Addons outside the closure are exactly the ones a correct suite must not depend on.
+- `_get_active_addons_list(*, unit_test_scope=None, **params)` — Override that filters the active addons to that closure. Returns the unfiltered list when no scope is set.
 
 ## User Preferences
 
@@ -290,11 +298,13 @@ Quick lookup — file → model → primary role:
 | `ir_ui_view.py` | ir.ui.view | View type metadata |
 | `ir_model.py` | ir.model | Model schema introspection |
 | `ir_qweb_fields.py` | ir.qweb.field.image + ir.qweb.field.image_url | QWeb image rendering (2 classes: `IrQwebFieldImage`, `IrQwebFieldImage_Url`) |
+| `ir_asset.py` | ir.asset | HOOT `&module_scope=` bundle narrowing |
 | `res_users.py` | res.users | User search priority, bootstrap hook |
 | `res_users_settings.py` | res.users.settings | UI density, embedded actions |
 | `res_users_settings_embedded_action.py` | res.users.settings.embedded.action | Per-user action config storage |
 | `base_document_layout.py` | base.document.layout | Report layout wizard |
 | `res_company.py` | res.company | Report style auto-regeneration |
+| `report_theme.py` | report.theme | Report layout theme records |
 | `properties_base_definition.py` | properties.base.definition | Property field definitions |
 | `res_config_settings.py` | res.config.settings | web_app_name config |
 | `res_partner.py` | res.partner | vCard export |
