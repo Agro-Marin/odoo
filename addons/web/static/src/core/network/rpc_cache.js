@@ -84,15 +84,25 @@ function validateSettings(
 }
 
 /**
+ * ``Object.freeze`` happens after the recursion, so a value that reaches itself
+ * is not yet frozen when it comes back round: the ``isFrozen`` check cannot end
+ * the walk, and a cycle overflowed the stack. RPC payloads are JSON today, but
+ * this also runs over whatever a caller hands ``read()`` in a test.
+ *
  * @template T
  * @param {T} value
+ * @param {WeakSet<object>} [seen]
  * @returns {T}
  */
-function deepFreeze(value) {
+function deepFreeze(value, seen = new WeakSet()) {
     if (value && typeof value === "object" && !Object.isFrozen(value)) {
+        if (seen.has(value)) {
+            return value;
+        }
+        seen.add(value);
         const indexable = /** @type {Record<string, unknown>} */ (value);
         for (const key of Object.keys(indexable)) {
-            deepFreeze(indexable[key]);
+            deepFreeze(indexable[key], seen);
         }
         Object.freeze(value);
     }

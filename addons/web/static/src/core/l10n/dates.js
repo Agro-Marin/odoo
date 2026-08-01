@@ -124,9 +124,6 @@ function isValidDate(date) {
  */
 function parseSmartDateInput(value) {
     const terms = value.split(/\s+/);
-    if (!terms.length) {
-        return null;
-    }
     let now = DateTime.local().startOf("second");
     if (terms[0] === "today") {
         terms.shift();

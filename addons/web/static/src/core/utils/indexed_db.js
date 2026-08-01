@@ -249,7 +249,15 @@ export class IndexedDB {
                     throw e;
                 }
             }
+            // The cached handle already carries the schema version, so go
+            // straight to the upgrade. Reopening at the current version first
+            // only rediscovers the same missing stores and closes again, which
+            // doubled the round trips: every table `RPCCache` meets for the
+            // first time is a python method name, so a cold session paid this
+            // once per distinct cached method.
+            const upgradeVersion = db.version + 1;
             this._closeCachedDB();
+            return this._execute(callback, upgradeVersion);
         }
         return new Promise((resolve, reject) => {
             let request;
