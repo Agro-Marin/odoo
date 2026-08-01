@@ -111,6 +111,11 @@ function _constructExpressionFromTree(tree, options, isRoot = false) {
     }
 
     if (tree.type === "complex_condition") {
+        if (tree.negate) {
+            // Always parenthesised: `not` binds tighter than `and`/`or`, so
+            // `not a and b` is not the negation of `a and b`.
+            return `not ( ${tree.value} )`;
+        }
         if (!isRoot) {
             const ast = parseExpr(tree.value);
             if (ast.type === ASTType.BooleanOperator || ast.type === ASTType.If) {
