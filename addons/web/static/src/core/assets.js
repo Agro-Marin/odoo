@@ -82,33 +82,54 @@ function getGlobalBundleCache() {
  * @returns {Map<string, Promise<any>>}
  */
 function getAssetCache(targetDoc) {
-    if (!assetCacheByDocument.has(targetDoc)) {
-        assetCacheByDocument.set(targetDoc, new Map());
+    let cacheMap = assetCacheByDocument.get(targetDoc);
+    if (!cacheMap) {
+        cacheMap = new Map();
+        assetCacheByDocument.set(targetDoc, cacheMap);
+        // Seeded on creation rather than for `document` alone: an iframe
+        // carries its own assets in its own markup -- a website preview and a
+        // mass-mailing frame both do -- and loading a bundle into it used to
+        // append a second copy of every asset it already had, running each of
+        // those scripts a second time in that document.
+        seedFromDocument(targetDoc, cacheMap);
     }
-    return assetCacheByDocument.get(targetDoc);
+    return cacheMap;
 }
 
 /**
  * @param {Document} targetDoc
+ * @param {Map<string, Promise<any>>} cacheMap
  */
-function computeBundleCacheMap(targetDoc) {
-    const cacheMap = getAssetCache(targetDoc);
+function seedFromDocument(targetDoc, cacheMap) {
+    const head = targetDoc.head;
+    if (!head) {
+        return;
+    }
     // Records what the page itself delivered, so nobody re-requests it. An
     // entry that is already there tracks a load *we* started and may still be
     // running -- `loadJS` appends its script to the same head, so this would
     // find it and overwrite the pending promise with a resolved one, telling
     // the next caller the asset was ready while it was still executing.
-    const seed = (/** @type {string} */ url) => {
-        if (!cacheMap.has(url)) {
+    const seed = (/** @type {string | null} */ url) => {
+        if (url && !cacheMap.has(url)) {
             cacheMap.set(url, Promise.resolve());
         }
     };
-    for (const script of targetDoc.head.querySelectorAll("script[src]")) {
-        seed(/** @type {string} */ (script.getAttribute("src")));
+    for (const script of head.querySelectorAll("script[src]")) {
+        seed(script.getAttribute("src"));
     }
-    for (const link of targetDoc.head.querySelectorAll("link[rel=stylesheet][href]")) {
-        seed(/** @type {string} */ (link.getAttribute("href")));
+    for (const link of head.querySelectorAll("link[rel=stylesheet][href]")) {
+        seed(link.getAttribute("href"));
     }
+}
+
+/**
+ * Re-seed a document whose ``<head>`` has grown since its cache was created.
+ *
+ * @param {Document} targetDoc
+ */
+function computeBundleCacheMap(targetDoc) {
+    seedFromDocument(targetDoc, getAssetCache(targetDoc));
 }
 
 whenReady(() => {
