@@ -2,7 +2,7 @@
 
 import { describe, expect, getFixture, test } from "@odoo/hoot";
 import { queryOne } from "@odoo/hoot-dom";
-import { animationFrame } from "@odoo/hoot-mock";
+import { advanceTime, animationFrame, Deferred, runAllTimers } from "@odoo/hoot-mock";
 import { makeAsyncHandler, makeButtonHandler } from "@web/public/minimal_dom";
 
 describe.current.tags("headless");
@@ -83,4 +83,42 @@ test("makeButtonHandler still finds the control when delegated", async () => {
     queryOne("span").dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(button).toHaveClass("pe-none");
     expect(host).not.toHaveClass("pe-none");
+});
+
+test("makeButtonHandler arms no loading timer that outlives its handler", async () => {
+    const buttonEl = document.createElement("button");
+    /** @type {HTMLElement} */ (getFixture()).append(buttonEl);
+    buttonEl.addEventListener(
+        "click",
+        makeButtonHandler(() => Promise.resolve()),
+    );
+    await runAllTimers();
+    buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await animationFrame();
+    await animationFrame();
+    // the debounce timer is what decides whether to show a spinner; a handler
+    // that settled first has already answered that, so its timer goes with it
+    expect(await runAllTimers()).toBe(0);
+});
+
+test("makeButtonHandler still shows the debounced effect for a slow handler", async () => {
+    const def = new Deferred();
+    const buttonEl = document.createElement("button");
+    buttonEl.className = "btn";
+    /** @type {HTMLElement} */ (getFixture()).append(buttonEl);
+    buttonEl.addEventListener(
+        "click",
+        makeButtonHandler(() => def),
+    );
+    buttonEl.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await animationFrame();
+    expect(buttonEl).toHaveClass("pe-none");
+    // clearing the debounce timer on settle must not cost the effect the
+    // handlers that do outlive it
+    await advanceTime(401);
+    expect(buttonEl.querySelector(".fa-spin")).not.toBe(null);
+    def.resolve();
+    await animationFrame();
+    await animationFrame();
+    expect(buttonEl.querySelector(".fa-spin")).toBe(null);
 });

@@ -99,7 +99,11 @@ export function makeButtonHandler(
         const wasUnclickable = buttonEl.classList.contains("pe-none");
         buttonEl.classList.add("pe-none");
         let showDebouncedLoading = false;
+        // a handler that settles before the delay must take its timer with it,
+        // otherwise every click arms one that outlives the work it described
+        let debounceTimer;
         const addLoadingIfPending = () => {
+            clearTimeout(debounceTimer);
             if (!wasUnclickable) {
                 buttonEl.classList.remove("pe-none");
             }
@@ -112,11 +116,11 @@ export function makeButtonHandler(
         };
         Promise.race([
             handlerResult,
-            new Promise((resolve) => setTimeout(resolve, LOADING_EFFECT_DELAY)).then(
-                () => {
-                    showDebouncedLoading = true;
-                },
-            ),
+            new Promise((resolve) => {
+                debounceTimer = setTimeout(resolve, LOADING_EFFECT_DELAY);
+            }).then(() => {
+                showDebouncedLoading = true;
+            }),
         ]).then(addLoadingIfPending, addLoadingIfPending);
 
         return handlerResult;

@@ -839,7 +839,7 @@ describe("handling crashes", () => {
         await click(".test");
         await animationFrame();
         expect.verifySteps([
-            "reported:An error occured while updating dynamic attribute 'animal' (in interaction 'Test')",
+            "reported:An error occured while updating dynamic attribute 'animal' (selector '_root') (in interaction 'Test')",
         ]);
     });
 
@@ -2602,6 +2602,134 @@ describe("t-att and t-out", () => {
         queryOne(".slot").textContent = "tampered";
         await click(".btn");
         expect(".slot").toHaveText("stable");
+    });
+
+    test("a markup t-out still rewrites a subtree another hand has changed", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-out": () => markup(`<span class="in">stable</span>`) },
+                ".btn": { "t-on-click": () => {} },
+            };
+        }
+        await startInteraction(
+            [Test],
+            `<div class="test"><div class="slot"></div><button class="btn">b</button></div>`,
+        );
+        expect(".slot").toHaveInnerHTML(`<span class="in">stable</span>`);
+        // remembering only what was written last kept agreeing with a subtree
+        // that had since been replaced, and the t-out never repaired it
+        queryOne(".slot").innerHTML = `<span class="in">tampered</span>`;
+        await click(".btn");
+        expect(".slot").toHaveInnerHTML(`<span class="in">stable</span>`);
+    });
+
+    test("a markup t-out does not restart the interactions it decorates", async () => {
+        let innerStarts = 0;
+        class Inner extends Interaction {
+            static selector = ".inner";
+            dynamicContent = { _root: { "t-att-data-live": () => "yes" } };
+            setup() {
+                innerStarts++;
+            }
+        }
+        class Outer extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-out": () => markup(`<div class="inner"></div>`) },
+            };
+        }
+        const { core } = await startInteraction(
+            [Outer, Inner],
+            `<div class="test"><div class="slot"></div></div>`,
+        );
+        await animationFrame();
+        const innerEl = queryOne(".inner");
+        // an interaction started under the t-out sets attributes on its own
+        // node, so the subtree no longer serializes to what was written: only
+        // the identity of the children can tell that apart from a replacement
+        for (let i = 0; i < 3; i++) {
+            core.interactions[0].interaction.updateContent();
+            await animationFrame();
+        }
+        expect(innerStarts).toBe(1);
+        expect(queryOne(".inner")).toBe(innerEl);
+    });
+
+    test("agreeing server markup is adopted, decorations and all", async () => {
+        const HTML = `<div class="inner">Hi</div>`;
+        let innerStarts = 0;
+        class Inner extends Interaction {
+            static selector = ".inner";
+            dynamicContent = { _root: { "t-att-data-live": () => "yes" } };
+            setup() {
+                innerStarts++;
+            }
+        }
+        class Outer extends Interaction {
+            static selector = ".test";
+            dynamicContent = { ".slot": { "t-out": () => markup(HTML) } };
+        }
+        const { core } = await startInteraction(
+            [Outer, Inner],
+            `<div class="test"><div class="slot">${HTML}</div></div>`,
+        );
+        await animationFrame();
+        const innerEl = queryOne(".inner");
+        // the first pass takes the server nodes as its own; forgetting to
+        // record them made the child's decoration read as a change forever
+        for (let i = 0; i < 3; i++) {
+            core.interactions[0].interaction.updateContent();
+            await animationFrame();
+        }
+        expect(innerStarts).toBe(1);
+        expect(queryOne(".inner")).toBe(innerEl);
+    });
+
+    test("a churning selector does not keep a reference per node it ever saw", async () => {
+        class Test extends Interaction {
+            static selector = ".test";
+            dynamicContent = {
+                ".slot": { "t-out": () => this.tOut },
+                ".row": { "t-att-data-n": () => "x" },
+            };
+            setup() {
+                this.tOut = markup(`<div class="row">0</div>`);
+            }
+        }
+        const { core } = await startInteraction(
+            Test,
+            `<div class="test"><div class="slot"></div></div>`,
+        );
+        const interaction = core.interactions[0].interaction;
+        for (let i = 1; i <= 300; i++) {
+            interaction.tOut = markup(`<div class="row">${i}</div>`);
+            interaction.updateContent();
+        }
+        const { touched } = core.interactions[0].dynamicAttrs[0];
+        expect(touched.size).toBeGreaterThan(1);
+        if (typeof globalThis.gc !== "function") {
+            // needs --expose-gc; the runner passes it, a hand-opened browser
+            // does not, and the entries can only go once the collector says so
+            return;
+        }
+        // a WeakRef target is held for the rest of the job, so the collection
+        // has to be asked for from a later one
+        for (let i = 0; i < 2; i++) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
+            globalThis.gc();
+        }
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        let live = 0;
+        for (const ref of touched) {
+            if (ref.deref()) {
+                live++;
+            }
+        }
+        expect(live).toBe(1);
+        // sweeping the set at write time would have found all 300 still alive:
+        // only the collector knows when the entry is dead
+        expect(touched.size).toBeLessThan(50);
     });
 
     test("a t-out alternating between markup and text applies both", async () => {
