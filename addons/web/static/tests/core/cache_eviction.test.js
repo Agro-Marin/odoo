@@ -18,28 +18,65 @@ describe("Cache.clear", () => {
     });
 
     test("clearing a path that WAS written still removes it", () => {
-        const cache = new Cache((a, b) => `${a}/${b}`);
-        expect(cache.read("a", "b")).toBe("a/b");
-        expect(Object.keys(cache.cache)).toEqual(["a"]);
+        const cache = new Cache((a, b) => expect.step(`${a}/${b}`));
+        cache.read("a", "b");
+        cache.read("a", "b");
+        expect.verifySteps(["a/b"]);
         cache.clear("a", "b");
-        expect(cache.cache["a"]["b"]).toBe(undefined);
+        cache.read("a", "b");
+        expect.verifySteps(["a/b"]);
     });
 
     test("clearing one branch leaves its siblings intact", () => {
-        const cache = new Cache((a, b) => `${a}/${b}`);
+        const cache = new Cache((a, b) => expect.step(`${a}/${b}`));
         cache.read("a", "x");
         cache.read("a", "y");
+        expect.verifySteps(["a/x", "a/y"]);
         cache.clear("a", "x");
-        expect(cache.cache["a"]["x"]).toBe(undefined);
-        expect(cache.cache["a"]["y"]).toBe("a/y");
+        cache.read("a", "y");
+        expect.verifySteps([]);
+        cache.read("a", "x");
+        expect.verifySteps(["a/x"]);
     });
 
     test("a single-segment path still works", () => {
-        const cache = new Cache((a) => `v:${a}`);
-        expect(cache.read("k")).toBe("v:k");
+        const cache = new Cache((a) => expect.step(`v:${a}`));
+        cache.read("k");
+        expect.verifySteps(["v:k"]);
         cache.clear("k");
-        expect(cache.cache["k"]).toBe(undefined);
+        cache.read("k");
+        expect.verifySteps(["v:k"]);
         cache.clear("absent");
+    });
+});
+
+describe("Cache path arities", () => {
+    test("a value stored at one arity is not walked into by a longer path", () => {
+        const cache = new Cache((...path) => ({ got: path.join("/") }));
+        const shallow = cache.read("a");
+        expect(cache.read("a", "b")).toEqual({ got: "a/b" });
+        // The object handed to the first caller must not have been stamped.
+        expect(shallow).toEqual({ got: "a" });
+        expect(cache.read("a")).toBe(shallow);
+    });
+
+    test("a cached falsy value survives a longer path through the same segment", () => {
+        const cache = new Cache((...path) => (path.length === 1 ? 0 : "deep"));
+        expect(cache.read("x")).toBe(0);
+        expect(cache.read("x", "y")).toBe("deep");
+        expect(cache.read("x")).toBe(0);
+    });
+
+    test("clearing one arity leaves the other arities alone", () => {
+        const cache = new Cache((...path) => expect.step(path.join("/")));
+        cache.read("a");
+        cache.read("a", "b");
+        expect.verifySteps(["a", "a/b"]);
+        cache.clear("a");
+        cache.read("a", "b");
+        expect.verifySteps([]);
+        cache.read("a");
+        expect.verifySteps(["a"]);
     });
 });
 

@@ -44,30 +44,31 @@ export class Cache {
      */
     _getCacheAndKey(path, create) {
         let cache = this.cache;
-        let key;
         if (this.getKey) {
-            key = this.getKey(...path);
-        } else {
-            if (!path.length) {
-                throw new TypeError(
-                    "Cache: a lookup path must have at least one segment.",
-                );
-            }
-            for (const segment of path) {
-                assertPrimitiveSegment(segment);
-            }
-            for (let i = 0; i < path.length - 1; i++) {
-                if (!cache[path[i]]) {
-                    if (!create) {
-                        return { cache: null, key: String(path.at(-1)) };
-                    }
-                    cache[path[i]] = Object.create(null);
-                }
-                cache = cache[path[i]];
-            }
-            key = path.at(-1);
+            return { cache, key: this.getKey(...path) };
         }
-        return { cache, key };
+        if (!path.length) {
+            throw new TypeError("Cache: a lookup path must have at least one segment.");
+        }
+        for (const segment of path) {
+            assertPrimitiveSegment(segment);
+        }
+        // Each arity gets its own root, as `memoize` does, so one slot never
+        // has to be both a value and a subtree: `read("a")` followed by
+        // `read("a", "b")` used to walk *into* the value stored for `["a"]`,
+        // stamping a property on the object the first caller still holds, and
+        // a cached falsy value there was replaced by an internal node outright.
+        const roots = [path.length, ...path.slice(0, -1)];
+        for (const segment of roots) {
+            if (!cache[segment]) {
+                if (!create) {
+                    return { cache: null, key: String(path.at(-1)) };
+                }
+                cache[segment] = Object.create(null);
+            }
+            cache = cache[segment];
+        }
+        return { cache, key: path.at(-1) };
     }
 
     /**
